@@ -461,6 +461,10 @@ namespace bpr::qt {
 			request.File = aTab.Path;
 			fill_quick_ask(*ask, request);
 		});
+		// RFC-BPR-0128 ([[BPR-2166]]). A report tab shows the agent's report
+		// in the comparison's place, its outline beside it.
+		ReportView = new agent_report_view{ ComparisonPage };
+		ReportView->hide();
 		ExplainCard = new explain_file_card{ ComparisonPage };
 		comparisonColumn->addWidget(ExplainCard);
 		// RFC-BPR-0089 M3. Over a split file's diff, its per-commit diffs; it
@@ -468,6 +472,7 @@ namespace bpr::qt {
 		SplitStrip = new split_diff_strip{ ComparisonPage };
 		comparisonColumn->addWidget(SplitStrip);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
+		comparisonColumn->addWidget(ReportView, 1);
 		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
 			update_go_to_line_action();

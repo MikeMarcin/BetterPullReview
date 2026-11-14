@@ -255,6 +255,22 @@ namespace bpr::application {
 		record_hidden_changes();
 	}
 
+	auto commit_filter_model::touched_paths(const core::git_commit_oid& aCommit) const -> std::optional<std::vector<std::string>>
+	{
+		if (Trees != commit_filter_trees::ready) {
+			return std::nullopt;
+		}
+		const auto found = std::ranges::find(Touches, aCommit, &commit_filter_commit_touch::Commit);
+		if (found == Touches.end()) {
+			return std::nullopt;
+		}
+		auto paths = std::vector<std::string>{ };
+		for (const auto& touched : found->Paths) {
+			paths.push_back(touched.Path);
+		}
+		return paths;
+	}
+
 	auto commit_filter_model::chain_changes() const -> std::vector<core::filter_commit_changes>
 	{
 		auto result = std::vector<core::filter_commit_changes>{ };

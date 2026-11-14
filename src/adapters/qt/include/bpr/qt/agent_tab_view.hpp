@@ -473,6 +473,13 @@ namespace bpr::qt {
 		/// claim, by the thread it was asked about and its turn.
 		using claim_observer = std::function<void(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn)>;
 		void set_claim_observer(claim_observer aObserver) { ClaimObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0128 ([[BPR-2166]]). A report card's Open: the
+		/// turn, the report's title and its Markdown (references as links).
+		using report_dispatch = std::function<void(std::size_t aTurn, const QString& aTitle, const QString& aMarkdown)>;
+		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
+		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
+		void open_report(std::size_t aTurn);
+		[[nodiscard]] auto turn_report_card(std::size_t aTurn) const -> QWidget*;
 		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One Suggest the change turn:
 		/// its index, and once it ends whether it answered, the answer as
 		/// written and the ending line; a refused send has no turn.
@@ -816,6 +823,13 @@ namespace bpr::qt {
 			/// for every other turn.
 			QString               SuggestChange;
 			QPointer<QLabel>      Claim;
+			/// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report card
+			/// here, opened as a file tab.
+			QPointer<QWidget>     ReportCard;
+			QPointer<QLabel>      ReportTitle;
+			QPointer<QLabel>      ReportMeta;
+			QPointer<QLabel>      ReportLead;
+			QPointer<QPushButton> ReportOpen;
 			QPointer<QPushButton> AskMore;
 			QPointer<QWidget>     Asked;
 			/// [[BPR-1847]]. How it ended, its reply card, and the one way
@@ -998,6 +1012,7 @@ namespace bpr::qt {
 		/// sent, the one a sent question was, and what the host offers.
 		std::map<QString, core::returning_operation> ReturningPrompts;
 		claim_observer                               ClaimObserver;
+		report_dispatch                              ReportDispatch;
 		std::optional<core::returning_operation>     SendingReturning;
 		std::optional<core::returning_operation>     PendingReturning;
 		/// RFC-BPR-0117. The file Explain this file is being sent for, the

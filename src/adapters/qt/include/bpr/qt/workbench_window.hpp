@@ -41,6 +41,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -1265,6 +1266,12 @@ namespace bpr::qt {
 		/// right-click menu), and a file tab's right-click Ask. The source
 		/// decides the rows when a menu opens; a press goes to the dispatch.
 		void               set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch);
+		/// \brief RFC-BPR-0128 ([[BPR-2166]]). Opens an agent's report as a
+		/// tab beside the files (owner, Q8), its title and Markdown as given.
+		void               open_report(const std::string& aKey, const QString& aTitle, const QString& aMarkdown);
+		[[nodiscard]] auto report_view() const noexcept -> agent_report_view* { return ReportView; }
+		/// \brief Whether the active tab is a report.
+		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
 		[[nodiscard]] auto review_ask_button() const noexcept -> ask_menu_button* { return ReviewAskButton; }
 		[[nodiscard]] auto file_ask_button() const noexcept -> ask_menu_button* { return FileAskButton; }
 		/// \brief What an Ask menu of `aAnchor` is about now: the active file
@@ -2982,6 +2989,12 @@ namespace bpr::qt {
 		ask_menu_source                                      QuickAskSource;
 		ask_menu_dispatch                                    QuickAskDispatch;
 		std::function<bool(std::size_t, const QString&)>     QuickAskConfirm;
+		agent_report_view*                                   ReportView  = nullptr;
+		bool                                                 ReportShown = false;
+		std::map<std::string, std::pair<QString, QString>>   Reports;
+		/// The file controls' enabled states while a report is shown (Q9).
+		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;
+		void                                                 apply_report_surface();
 		void                                                 refresh_ask_controls();
 		void                                                 activate_document_path(const QString& aPath);
 		explain_file_card*                                   ExplainCard = nullptr;

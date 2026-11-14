@@ -1,5 +1,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 
+#include "bpr/qt/ask_menu.hpp"
+
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
@@ -307,6 +309,10 @@ namespace bpr::qt {
 			connect(action, &QAction::triggered, this, [this, intent = std::move(aIntent)] { send(intent); });
 			return action;
 		};
+		if (tab.Report) {
+			add(QStringLiteral("Close Report"), "documentTabClose", core::close_tab_intent{ .Tab = tab.Id }, true);
+			return menu;
+		}
 		add(QStringLiteral("Duplicate Tab"), "documentTabDuplicate", core::duplicate_tab_intent{ .Tab = tab.Id }, true);
 		add(QStringLiteral("Close Tab"), "documentTabClose", core::close_tab_intent{ .Tab = tab.Id }, true);
 		add(QStringLiteral("Close Other Tabs"), "documentTabCloseOthers", core::close_other_tabs_intent{ .Tab = tab.Id }, Tabs.size() > 1U);
@@ -453,8 +459,8 @@ namespace bpr::qt {
 				const auto label = tab.State == core::document_tab_view_state::unavailable
 					? QStringLiteral("%1 (unavailable)").arg(tab.Name)
 					: tab.Name;
-				const auto index = Bar->addTab(label);
-				auto       tip   = tab.Path;
+				const auto index = tab.Report ? Bar->addTab(agent_glyph(Bar->palette()), label) : Bar->addTab(label);
+				auto       tip   = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Path;
 				if (!tab.Pair.isEmpty()) {
 					tip.append(QStringLiteral("\n%1 %2").arg(tab.OwnComparison ? QStringLiteral("Its own comparison:") : QStringLiteral("The window's comparison:"), tab.Pair));
 				}
@@ -462,7 +468,7 @@ namespace bpr::qt {
 					tip.append(QStringLiteral("\n%1").arg(state));
 				}
 				Bar->setTabToolTip(index, tip);
-				auto accessible = tab.Name;
+				auto accessible = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Name;
 				if (tab.OwnComparison && !tab.Pair.isEmpty()) {
 					accessible.append(QStringLiteral(", comparing %1").arg(tab.Pair));
 				}

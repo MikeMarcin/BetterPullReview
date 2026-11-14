@@ -2804,6 +2804,10 @@ namespace bpr::application {
 				append_number(aResult, "returning.files.shown", aReturning.FilesShown);
 				append_number(aResult, "returning.files.omitted", aReturning.FilesOmitted);
 				append_field(aResult, "returning.changes", aReturning.Changes);
+				// RFC-BPR-0128 ([[BPR-2167]]). A merge of main is one line.
+				if (!aReturning.Commits.empty()) {
+					append_field(aResult, "returning.commits", aReturning.Commits);
+				}
 				return;
 			}
 			encode_returning_lines_into(aResult, "returning.then", aReturning.Then);

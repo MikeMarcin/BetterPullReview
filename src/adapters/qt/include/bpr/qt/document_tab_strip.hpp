@@ -39,6 +39,9 @@ namespace bpr::qt {
 		core::document_tab_view_state State         = core::document_tab_view_state::idle;
 		bool                          Active        = false;
 		bool                          OwnComparison = false;
+		/// RFC-BPR-0128 ([[BPR-2166]]). An agent's report: the agent glyph,
+		/// and Close alone in its menu.
+		bool Report = false;
 
 		auto operator==(const document_tab_presentation&) const -> bool = default;
 	};

@@ -796,6 +796,8 @@ namespace bpr::app {
 		[[nodiscard]] auto quick_ask_menu(const qt::ask_menu_request& aRequest) const -> std::optional<core::quick_ask_menu>;
 		void               press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               ask_custom_question(const qt::ask_menu_request& aRequest);
+		/// RFC-BPR-0128 ([[BPR-2167]]). What changed's commit listing.
+		[[nodiscard]] auto returning_commit_listing() const -> std::string;
 		/// RFC-BPR-0128 ([[BPR-2165]]). A wider scope's runs, one after
 		/// another, and each Was this addressed? claim on its thread.
 		void                                    drain_quick_asks();

@@ -7,6 +7,7 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/application/diff_line_matcher.hpp"
+#include "bpr/core/agent_report.hpp"
 #include "bpr/core/diff_compute.hpp"
 
 #include <algorithm>
@@ -301,6 +302,48 @@ namespace bpr::app {
 		});
 	}
 
+	/// RFC-BPR-0128 ([[BPR-2167]]). The commits since the review as the
+	/// answer lists them: each merge of the base branch one line, saying
+	/// whether it changed this pull request's files where the commit filter
+	/// has read its tree; the rest grouped by area.
+	auto github_application::implementation::returning_commit_listing() const -> std::string
+	{
+		const auto& snapshot = WindowRead != nullptr ? WindowRead->accepted_snapshot() : std::nullopt;
+		if (!snapshot || !ReturningReview.Earlier) {
+			return { };
+		}
+		const auto& commits = snapshot->Commits;
+		const auto  from    = std::ranges::find_if(commits, [this](const application::github_commit_record& aCommit) { return aCommit.Oid.value() == ReturningReview.Earlier->Head; });
+		auto        listed  = std::vector<core::listed_commit>{ };
+		for (auto each = from == commits.end() ? commits.begin() : std::next(from); each != commits.end(); ++each) {
+			auto commit = core::listed_commit{ .Oid = std::string{ each->Oid.value() }, .Headline = each->Headline };
+			if (each->Parents) {
+				for (const auto& parent : *each->Parents) {
+					commit.Parents.emplace_back(parent.value());
+				}
+			}
+			if (const auto oid = core::parse_git_commit_oid(commit.Oid)) {
+				commit.Paths = CommitFilter.touched_paths(*oid);
+			}
+			listed.push_back(std::move(commit));
+		}
+		if (listed.empty()) {
+			return { };
+		}
+		auto files = std::vector<std::string>{ };
+		for (const auto& file : snapshot->Files) {
+			files.push_back(file.Path);
+		}
+		auto text = core::render_commit_listing(core::fold_commit_listing(listed, snapshot->PullRequest.BaseRef, files));
+		if (text.size() > core::maximum_returning_change_bytes) {
+			text.resize(core::maximum_returning_change_bytes);
+			while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U) {
+				text.pop_back();
+			}
+		}
+		return text;
+	}
+
 	void github_application::implementation::finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges)
 	{
 		if (Closing || ReturningReview.Key != aKey) {
@@ -315,6 +358,7 @@ namespace bpr::app {
 				.CurrentHead  = ReturningReview.CurrentHead,
 				.Basis        = ReturningReview.Earlier->Basis,
 				.Changes      = std::move(aChanges->Text),
+				.Commits      = returning_commit_listing(),
 				.FilesShown   = aChanges->FilesShown,
 				.FilesOmitted = aChanges->FilesOmitted,
 			};

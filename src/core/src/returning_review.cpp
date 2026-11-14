@@ -343,9 +343,9 @@ namespace bpr::core {
 		switch (aReturning.Operation) {
 		case returning_operation::latest_upload:
 			return !aReturning.Then && !aReturning.Now && aReturning.Changes.size() <= maximum_returning_change_bytes && aReturning.FilesShown <= maximum_returning_files
-				&& utf8::valid(aReturning.Changes);
+				&& utf8::valid(aReturning.Changes) && aReturning.Commits.size() <= maximum_returning_change_bytes && utf8::valid(aReturning.Commits);
 		case returning_operation::proposed_fix:
-			return aReturning.Changes.empty() && aReturning.FilesShown == 0U && aReturning.FilesOmitted == 0U && (!aReturning.Then || valid_lines(*aReturning.Then))
+			return aReturning.Changes.empty() && aReturning.Commits.empty() && aReturning.FilesShown == 0U && aReturning.FilesOmitted == 0U && (!aReturning.Then || valid_lines(*aReturning.Then))
 				&& (!aReturning.Now || valid_lines(*aReturning.Now));
 		}
 		return false;

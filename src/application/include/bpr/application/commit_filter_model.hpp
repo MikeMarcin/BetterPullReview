@@ -180,6 +180,10 @@ namespace bpr::application {
 
 		[[nodiscard]] auto state() const noexcept -> const core::commit_filter_state&;
 
+		/// \brief RFC-BPR-0128 ([[BPR-2167]]). The paths a chain commit's
+		/// first-parent diff changes, once the trees are read; none otherwise.
+		[[nodiscard]] auto touched_paths(const core::git_commit_oid& aCommit) const -> std::optional<std::vector<std::string>>;
+
 		/// \brief RFC-BPR-0089 M4. The accepted commit list's first-parent
 		/// chain and roles, or none while the pull request offers no filter.
 		[[nodiscard]] auto graph() const noexcept -> const core::filter_commit_graph*;

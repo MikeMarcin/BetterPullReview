@@ -26,7 +26,13 @@
 ///   changes no card's height, its press shows the thread's lines when it
 ///   started and now; a thread commits have not followed is greyed with its
 ///   reason; nothing is resolved, posted or published (AC05).
-/// - `menu|addressed STUB --attended`: the same, then the window is left on
+/// - `report STUB`: What changed from the review bar's Ask answers as a report
+///   card in the Agent tab, its material listing the commits (AC07's listing
+///   in the request); Open report opens it as a tab in the files' strip with
+///   its outline, the comparison's file controls off and the Agent tab still
+///   usable; a code reference opens the file's tab at the line, and the
+///   report's tab returns to the report (AC06).
+/// - `menu|addressed|report STUB --attended`: the same, then the window is left on
 ///   Review with a thread open for a person to look; closing it ends the
 ///   course.
 
@@ -34,7 +40,10 @@
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -50,6 +59,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFrame>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -58,6 +68,7 @@
 #include <QStyle>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QTabBar>
 #include <QToolBar>
 #include <QToolButton>
 
@@ -158,8 +169,8 @@ auto main(int argc, char** argv) -> int
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
 	const auto   course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
-	if (argc < 3 || (course != "menu" && course != "addressed")) {
-		std::cerr << "usage: ask_menu_public_path menu|addressed STUB [--attended]\n";
+	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report")) {
+		std::cerr << "usage: ask_menu_public_path menu|addressed|report STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
 	const auto    stub     = std::filesystem::path{ argv[2] };
@@ -223,6 +234,50 @@ auto main(int argc, char** argv) -> int
 		expect(cards->findChild<QToolButton*>(QStringLiteral("threadAskAgent")) == nullptr && cards->findChild<QToolButton*>(QStringLiteral("threadWasAddressed")) == nullptr,
 			   "the thread's header agent controls are gone");
 
+		if (course == "report") {
+			reviewAsk->refresh_menu();
+			row(*reviewAsk->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"))->trigger();
+			wait([&] { return answer_of(*tab).find("RETURNING_ECHO") != std::string::npos && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; },
+				 "What changed is answered");
+			const auto last   = tab->turn_count() - 1U;
+			const auto answer = answer_of(*tab);
+			expect(answer.find("commits=1") != std::string::npos, "the request listed the commits since the review:\n" + answer);
+			auto* const card = tab->turn_report_card(last);
+			expect(card != nullptr && card->isVisibleTo(tab) && !tab->turn_answer_view(last)->isVisibleTo(tab), "a long answer is a report card where it was asked");
+			auto* const title = card->findChild<QLabel*>(QStringLiteral("agentTurnReportTitle"));
+			expect(title != nullptr && title->text() == QStringLiteral("What changed since your review"), "the card names the report");
+			auto* const strip = window.document_tabs();
+			const auto  files = strip->tabs().size();
+			card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"))->click();
+			QApplication::processEvents();
+			const auto active = [strip] { return std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Active; }); };
+			expect(strip->tabs().size() == files + 1U && active() != strip->tabs().end() && active()->Report && active()->Name == QStringLiteral("What changed since your review"),
+				   "Open report opens it as a tab in the files' strip");
+			auto* const report = window.report_view();
+			expect(window.report_shown() && report->isVisible() && !window.comparison_surface()->isVisible() && report->outline()->count() == 3, "the report shows with its outline in the comparison's place");
+			expect(!window.file_ask_button()->isEnabled() && !window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"))->isEnabled(), "the file controls are drawn in place and off (Q9)");
+			expect(tab->isVisible() && tab->ask_button() != nullptr, "the Agent tab keeps its place beside the report");
+			report->go_to_heading(2);
+			// A code reference read in the report: its file's tab, at the line.
+			const auto& body = report->body()->original_body();
+			const auto  open = body.find("](");
+			expect(open != std::string::npos, "the report's references are links");
+			const auto link = body.substr(open + 2U, body.find(')', open) - open - 2U);
+			tab->open_reference(QString::fromStdString(link));
+			wait([&] { return !window.report_shown() && window.active_document_path() == path && window.comparison_surface()->isVisible(); }, "a reference opens its file's tab");
+			expect(strip->tabs().size() == files + 1U && window.file_ask_button()->isEnabled(), "the report's tab stays beside it, and the file controls are back");
+			// The report's tab returns to the report.
+			const auto reportAt = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Report; });
+			auto* const bar      = strip->findChild<QTabBar*>(QStringLiteral("documentTabBar"));
+			bar->setCurrentIndex(static_cast<int>(std::distance(strip->tabs().begin(), reportAt)));
+			wait([&] { return window.report_shown() && window.report_view()->isVisible(); }, "the report's tab returns to the report");
+			std::cout << "ask-menu-report: link=" << link << '\n';
+			if (!attended) {
+				shutdown(*application);
+				std::cout << "ask-menu-report:pass\n";
+				return EXIT_SUCCESS;
+			}
+		}
 		if (course == "addressed") {
 			// The pull request's Was this addressed? reads every thread
 			// commits followed: five, whoever started them.

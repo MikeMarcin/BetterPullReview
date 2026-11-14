@@ -1,4 +1,5 @@
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/core/agent_report.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -37,6 +38,7 @@
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QFrame>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QListWidget>
@@ -1342,6 +1344,54 @@ namespace bpr::qt {
 		claim->hide();
 		replyColumn->addWidget(claim);
 		aTurn.Claim = claim;
+		// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report: a card here
+		// (title, size, first lines) whose Open reads it in a file tab with an
+		// outline. Opening runs nothing, so the card wears no accent.
+		{
+			auto* const card = new QFrame{ reply };
+			card->setObjectName(QStringLiteral("agentTurnReportCard"));
+			card->setFrameShape(QFrame::StyledPanel);
+			card->setAccessibleName(tr("Report"));
+			auto* const cardColumn = new QVBoxLayout{ card };
+			cardColumn->setContentsMargins(10, 8, 10, 8);
+			cardColumn->setSpacing(4);
+			auto* const cardTitle = new QLabel{ card };
+			cardTitle->setObjectName(QStringLiteral("agentTurnReportTitle"));
+			cardTitle->setWordWrap(true);
+			cardTitle->setTextFormat(Qt::PlainText);
+			auto bold = cardTitle->font();
+			bold.setBold(true);
+			cardTitle->setFont(bold);
+			auto* const meta = new QLabel{ card };
+			meta->setObjectName(QStringLiteral("agentTurnReportMeta"));
+			meta->setForegroundRole(QPalette::PlaceholderText);
+			auto* const lead = new QLabel{ card };
+			lead->setObjectName(QStringLiteral("agentTurnReportLead"));
+			lead->setWordWrap(true);
+			lead->setTextFormat(Qt::PlainText);
+			auto* const open = new quiet_push_button{ card };
+			open->setObjectName(QStringLiteral("agentTurnReportOpen"));
+			open->setText(tr("Open report"));
+			open->setToolTip(tr("Read the report in a tab beside the files, with its outline"));
+			const auto serial = aTurn.Serial;
+			connect(open, &QPushButton::clicked, this, [this, serial] {
+				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
+				if (found != Turns.end()) {
+					open_report(static_cast<std::size_t>(std::distance(Turns.begin(), found)));
+				}
+			});
+			cardColumn->addWidget(cardTitle);
+			cardColumn->addWidget(meta);
+			cardColumn->addWidget(lead);
+			cardColumn->addWidget(open, 0, Qt::AlignLeft);
+			card->hide();
+			replyColumn->addWidget(card);
+			aTurn.ReportCard  = card;
+			aTurn.ReportTitle = cardTitle;
+			aTurn.ReportMeta  = meta;
+			aTurn.ReportLead  = lead;
+			aTurn.ReportOpen  = open;
+		}
 		replyColumn->addWidget(answer);
 		// [[BPR-2061]], owner 2026-11-10. A reply with several suggested
 		// comments drafts them all at once: one quiet action over its cards,
@@ -1665,6 +1715,7 @@ namespace bpr::qt {
 			aTurn.Claim->setText(claim ? tr("Agent's claim: %1").arg(QString::fromUtf8(core::claim_words(*claim).data(), static_cast<qsizetype>(core::claim_words(*claim).size()))) : QString{ });
 			aTurn.Claim->setVisible(claim.has_value());
 			// RFC-BPR-0128 ([[BPR-2165]]). The claim reaches its thread's chip.
+			// (A claim's answer is never folded into a report card.)
 			if (claim && aTurn.About && ClaimObserver) {
 				ClaimObserver(aTurn.About->Key, *claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
 			}
@@ -1676,12 +1727,27 @@ namespace bpr::qt {
 		if (aTurn.Answer == nullptr) {
 			return;
 		}
+		// RFC-BPR-0128 ([[BPR-2166]]), Q7. A report by its shape: the card
+		// stands in the answer's place; the answer stays the turn's text.
+		const auto answer  = aTurn.AnswerText.toStdString();
+		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix ? core::is_report_answer(answer) : false;
+		if (aTurn.ReportCard != nullptr) {
+			if (report) {
+				const auto card = core::report_card_of(answer);
+				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
+				aTurn.ReportMeta->setText(tr("%n section(s)", nullptr, static_cast<int>(card.Sections)) + tr(", %n line(s)", nullptr, static_cast<int>(card.Lines)));
+				aTurn.ReportLead->setText(QString::fromStdString(card.Lead));
+				aTurn.ReportCard->setAccessibleDescription(tr("Report: %1").arg(aTurn.ReportTitle->text()));
+			}
+			aTurn.ReportCard->setVisible(report);
+		}
+
 		// Owner look v004: the files and lines the answer names are links;
 		// Copy and Keep local keep the answer as the agent wrote it.
 		// [[BPR-1998]]: the core's one recogniser, for every agent reply.
 		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(aTurn.AnswerText, LineResolve(), aTurn.ContextFile) : aTurn.AnswerText;
 		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
-		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty());
+		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty() && !report);
 		fit_answer(*aTurn.Answer);
 	}
 
@@ -2461,6 +2527,20 @@ namespace bpr::qt {
 		progress.Answer = LineNavigate && LineResolve ? agent_markdown_with_reference_links(kept.AnswerText, LineResolve(), kept.ContextFile) : kept.AnswerText;
 		ExplainObserver(progress);
 	}
+
+	void agent_tab_view::open_report(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || !ReportDispatch) {
+			return;
+		}
+		const auto& turn = Turns[aTurn];
+		const auto  card = core::report_card_of(turn.AnswerText.toStdString());
+		// References are links in the report as they are in the answer.
+		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+		ReportDispatch(aTurn, QString::fromStdString(card.Title), shown);
+	}
+
+	auto agent_tab_view::turn_report_card(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].ReportCard.data() : nullptr; }
 
 	auto agent_tab_view::turn_claim(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Claim.data() : nullptr; }
 

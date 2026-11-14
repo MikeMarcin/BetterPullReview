@@ -4,6 +4,7 @@
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -594,7 +595,8 @@ namespace bpr::qt {
 		}
 		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U, .Last = std::max(aLine, aLast) - 1U };
 		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
-		if (!context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
+		// RFC-BPR-0128 (AC06): from a report, the file's own tab opens.
+		if (ReportShown || !context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
 			if (!open_file_in_review(*path)) {
 				PendingLineGo.reset();
 				return false;
@@ -1388,7 +1390,13 @@ namespace bpr::qt {
 					.State         = entry.State,
 					.Active        = entry.Active,
 					.OwnComparison = entry.OwnComparison,
+					.Report        = !entry.Report.empty(),
 				});
+				if (!entry.Report.empty()) {
+					const auto found  = Reports.find(entry.Report);
+					tabs.back().Name  = found != Reports.end() && !found->second.first.isEmpty() ? found->second.first : tr("Report");
+					tabs.back().Path  = { };
+				}
 			}
 			// A tab's name is its file's, with as much of the path before it
 			// as tells it apart from another tab's file of the same name.
@@ -1397,6 +1405,9 @@ namespace bpr::qt {
 				return parts.mid(std::max<qsizetype>(0, parts.size() - aParts)).join(QLatin1Char{ '/' });
 			};
 			for (auto& tab : tabs) {
+				if (tab.Report) {
+					continue;
+				}
 				if (tab.Path.isEmpty()) {
 					tab.Name = tr("Unlisted file");
 					continue;
@@ -1414,6 +1425,76 @@ namespace bpr::qt {
 		}
 		DocumentTabs->present(std::move(tabs));
 		update_tab_actions();
+		refresh_explain_file();
+		apply_report_surface();
+	}
+
+	void workbench_window::open_report(const std::string& aKey, const QString& aTitle, const QString& aMarkdown)
+	{
+		Reports[aKey] = { aTitle, aMarkdown };
+		if (DocumentTabDispatch) {
+			DocumentTabDispatch(core::open_report_tab_intent{ .Report = aKey });
+		}
+		apply_report_surface();
+	}
+
+	/// RFC-BPR-0128 ([[BPR-2166]]). While a report is the active tab it
+	/// stands where the comparison stands, and the review bar's file controls
+	/// stay where they are, off (Q9); the drawers keep their places.
+	void workbench_window::apply_report_surface()
+	{
+		auto key = std::string{ };
+		if (TabsProjection) {
+			for (const auto& entry : TabsProjection->Tabs) {
+				if (entry.Active) {
+					key = entry.Report;
+				}
+			}
+		}
+		const auto found = Reports.find(key);
+		const auto shown = !key.empty() && found != Reports.end();
+		if (ReportView == nullptr || ComparisonSurface == nullptr) {
+			return;
+		}
+		if (shown) {
+			if (ReportView->title() != found->second.first || ReportView->body()->original_body() != found->second.second.toStdString()) {
+				ReportView->present(found->second.first, found->second.second);
+			}
+		}
+		if (shown == ReportShown) {
+			return;
+		}
+		ReportShown = shown;
+		ComparisonSurface->setVisible(!shown);
+		ReportView->setVisible(shown);
+		if (shown) {
+			if (ExplainCard != nullptr) {
+				ExplainCard->hide();
+			}
+			if (SplitStrip != nullptr) {
+				SplitStrip->hide();
+			}
+			ReportDisabled.clear();
+			auto controls = std::vector<QWidget*>{ SeenStepButton, ReadStepButton, AcceptFileButton, ReviewControlsButton, FileAskButton, FilePositionLabel, ChangePositionLabel };
+			for (auto* const action : { Navigation[0].Action, Navigation[1].Action, Navigation[2].Action, Navigation[3].Action }) {
+				if (action != nullptr && ReviewBar != nullptr) {
+					controls.push_back(ReviewBar->widgetForAction(action));
+				}
+			}
+			for (auto* const control : controls) {
+				if (control != nullptr) {
+					ReportDisabled.emplace_back(control, control->isEnabled());
+					control->setEnabled(false);
+				}
+			}
+			return;
+		}
+		for (const auto& [control, enabled] : ReportDisabled) {
+			if (control) {
+				control->setEnabled(enabled);
+			}
+		}
+		ReportDisabled.clear();
 		refresh_explain_file();
 	}
 

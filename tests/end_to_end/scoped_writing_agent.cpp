@@ -580,11 +580,12 @@ int main(int argc, char** argv)
 		const auto has  = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
 		const auto echo = "RETURNING_ECHO system=" + std::to_string(has("The reviewer reviewed this pull request before") + 2 * has("The reviewer commented in a review thread")) + " changes="
 			+ std::to_string(has("+++ b/src/engine/renderer.cpp")) + " then=" + std::to_string(has("returning.then.present\\t1")) + " now=" + std::to_string(has("returning.now.present\\t1"))
-			+ " conversation=" + std::to_string(has("conversation.comment.count"));
+			+ " conversation=" + std::to_string(has("conversation.comment.count")) + " commits=" + std::to_string(has("returning.commits"));
 		if (input.find("proposed_fix", at) != std::string::npos && input.find("proposed_fix", at) < at + 40U) {
 			result = "**Partly**\n\nThe resize is now clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n" + echo;
 		} else {
-			result = "The new commits change one file. `src/engine/renderer.cpp:12` now clamps the width and height to at least one pixel before resizing.\n\nYour conversation at `src/engine/renderer.cpp:12` is touched by this change.\n\n" + echo;
+			// RFC-BPR-0128 ([[BPR-2166]]). Sections: a report, read in a tab.
+			result = "# What changed since your review\n\nThe new commits change one file. `src/engine/renderer.cpp:12` now clamps the width and height to at least one pixel before resizing.\n\n## Rendering\n\nThe resize is clamped before the next frame.\n\n## Your conversations\n\nYour conversation at `src/engine/renderer.cpp:12` is touched by this change.\n\n" + echo;
 		}
 	}
 	// RFC-BPR-0117 ([[BPR-2076]]). Explain this file's fresh first answer:

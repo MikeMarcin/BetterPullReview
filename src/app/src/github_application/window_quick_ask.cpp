@@ -8,7 +8,9 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/core/quick_ask.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 
 #include <QTimer>
@@ -44,6 +46,17 @@ namespace bpr::app {
 								  .Edit   = [this] { Window->open_settings(qt::settings_page::agents_and_context); Window->reveal_prompt_macros(); },
 							  });
 		auto* const tab = Window->agent_tab();
+		// RFC-BPR-0128 ([[BPR-2166]]). A report card's Open: the report as a
+		// tab beside the files; its references go where the Agent tab's go.
+		tab->set_report_dispatch([this](const std::size_t aTurn, const QString& aTitle, const QString& aMarkdown) {
+			if (!Closing && Window != nullptr) {
+				Window->open_report("turn:" + std::to_string(aTurn), aTitle, aMarkdown);
+			}
+		});
+		if (auto* const report = Window->report_view(); report != nullptr) {
+			report->set_link_dispatch([tab](const QString& aLink) { tab->open_reference(aLink); });
+			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
+		}
 		tab->set_claim_observer([this](const std::string& aThread, const core::addressed_claim aClaim, const std::size_t aTurn) { record_thread_claim(aThread, aClaim, aTurn); });
 		if (Window->conversation_panel() != nullptr) {
 			Window->conversation_panel()->cards()->set_claim_answer_dispatch([this, tab](const std::size_t aTurn) {
