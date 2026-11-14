@@ -100,4 +100,25 @@ head), so threads by others are asked about.
 
 Evidence: `application_ask_addressed_public_path` (AC05 on the composed
 application with the scoped writing stub), `application_returning_review_addressed_public_path`.
-The live installed-agent run this milestone's exit names is not yet run.
+Live installed-agent run (2026-11-14, product candidate `7b3fe6eaa`): the same
+course with the installed Claude Code 2.1.319 (`/opt/homebrew/bin/claude`) in
+place of the stub, run by hand outside the sandbox (`ask_menu_public_path
+addressed /opt/homebrew/bin/claude`): two runs for the file's two threads, two
+claims, tbutler's thread's chip "Partly", nothing resolved or posted
+(`ask-menu-addressed:pass`).
+
+## Integration pass
+
+At `7b3fe6eaa` (dev, Debug, macOS), 51 of 51: the rows above with
+`architecture_boundaries`, `application_composition_source_contract`,
+`application_review_round_trip_composition_contract` (app inventory and source
+pin resealed), `test_network_isolation_manifest` (entries added for this lane's
+unlisted courses), `qt_settings_window`, `qt_workbench_window_scale_{100,125,200}`,
+`qt_prompt_macro_chips`, `qt_tour_side_chat`, `qt_side_chat_panel`,
+`qt_explain_file_card_*`, `qt_github_conversation_panel`,
+`qt_agent_configuration_dialogs`, `qt_workbench_agent_send_refusal`,
+`application_agent_chat_*`, `application_agent_invocation_composition_contract`,
+`application_agent_keep_action_public_path`, `application_discuss_busy_public_path`,
+`application_suggest_change_public_path`, `application_local_comments_*`,
+`sqlite_workbench_settings_storage`, `core_returning_review`. clang-format 22 on
+every changed file. Not run: `coding-tidy`, the full suite.

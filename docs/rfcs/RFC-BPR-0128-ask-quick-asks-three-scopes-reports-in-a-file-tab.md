@@ -196,6 +196,27 @@ answers otherwise.
 | Q13 | What changed, Was this addressed? and Explain this file gain built-in rows in Suggested prompts? | Yes |
 | Q14 | The claim chip in ordinary roles with the glyph in the accent (not the accent's wash)? | Ordinary roles |
 
+## Implementation notes (2026-11-14)
+
+Recorded in the [verification record](../verification/RFC-BPR-0128.md).
+
+- **Q5, an assumption.** No threshold was given. A press that would start
+  more than five runs (one a thread or file) asks first; five or fewer start
+  at once, one after another. The owner's look asks it.
+- **Built as the defaults:** Q1, Q2, Q3, Q6, Q12, Q13, Q14. Q4, Q7, Q9, Q10 and
+  Q11 belong to milestone `reports-in-a-file-tab`.
+- **RFC-BPR-0125's store and sheet** did not exist; AC04 needs them. Its
+  store and roster ([[BPR-2146]]) were built, and the sheet with the Quick ask
+  row, so a Quick ask is saved with its macro.
+- **The thread's Ask** stands beside Reply in the open thread's foot, and
+  beside the label picker while a reply is written; the header's Ask agent and
+  Was this addressed? controls left for it. Custom question… attaches the
+  thread as Ask agent did. Edit Quick Asks… is in every Ask menu.
+- **Why did a check fail?** (RFC-BPR-0119) is not built, so it has no row.
+- **What a row reads.** What changed names its commits only when the pull
+  request's commit list holds the reviewed commit; a rebased branch's row
+  names none.
+
 ## Acceptance criteria
 
 - **AC01:** The review bar, the open file's header and the open thread's reply row each have one Ask control, and a thread's and a file tab's right-click menus each have one Ask item, whose menus list the quick asks of their scope; the agent items they replace are gone and no new row is added to the window.
