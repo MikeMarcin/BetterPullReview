@@ -29,7 +29,7 @@ amendment and points here.
 
 | Card | What | Criteria |
 |---|---|---|
-| [BPR-2163](../../issues/10-backlog/BPR-2163-quick-asks-and-their-scopes.md) | Quick asks: flag, scopes, availability | AC03, AC04 |
+| [BPR-2163](../../issues/20-ready/BPR-2163-quick-asks-and-their-scopes.md) | Quick asks: flag, scopes, availability | AC03, AC04 |
 | [BPR-2164](../../issues/10-backlog/BPR-2164-ask-control-at-three-anchors.md) | One Ask control at three anchors | AC01, AC02, AC08 |
 | [BPR-2165](../../issues/10-backlog/BPR-2165-was-this-addressed-on-any-thread.md) | Was this addressed? anywhere, claim chip | AC05 |
 | [BPR-2166](../../issues/10-backlog/BPR-2166-report-opens-as-a-file-tab.md) | The report as a file tab | AC06 |

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2163"
 title: "Quick asks: a macro's Quick ask flag, its scopes, and when it is offered"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 priority: "P2"

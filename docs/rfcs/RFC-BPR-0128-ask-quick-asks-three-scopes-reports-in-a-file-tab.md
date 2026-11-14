@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0128"
 title: "Ask: quick asks at three scopes, and long answers read in a file tab"
-status: "Proposed"
+status: "In Progress"
 metadata: {"origin":"owner design session 2026-11-12 and 2026-11-13 (options 1A to 1C, 2a to 2c, then the Ask mockups); imported 2026-11-13","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"baseline":"f85b216ecc7d4a7df2c7c5c263a0cf8be1f3d93a","accepted_design":"docs/design/ask-v1/index.html","mandate":"owner, 2026-11-13: option 1C (the Ask menu), quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab; imported with cards and a plan, no card started"}
 depends_on: ["RFC-BPR-0101", "RFC-BPR-0102", "RFC-BPR-0116", "RFC-BPR-0117", "RFC-BPR-0125"]
 ---

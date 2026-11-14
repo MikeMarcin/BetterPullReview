@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2146"
 title: "Suggested prompt macros: storage and the Settings roster"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0125"]
 depends_on: ["BPR-2145"]
 priority: "P2"
