@@ -166,4 +166,14 @@ theme at a time, then trimmed to the frame:
 
 ## Status
 
-Awaiting the owner's choice.
+Awaiting the owner's choice, asked on 2026-11-14 as one select question (A,
+B, C or keep the current design) with a note:
+
+- Attended-review session `c95f9e8417c8ea6f35b145e15f81c63a`, candidate
+  `report-card-v1` at revision `86dda070d240` (the commit that added these
+  mockups).
+- External state directory
+  `~/.attended-review-state/report-card-v001-2026-11-14/` (`state/` is the
+  session, `material/` a copy of this folder at that revision for the owner to
+  open).
+- Lifecycle when this was written: prepared and served, unanswered.
