@@ -469,6 +469,10 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0117. Each Explain this file turn as it starts, runs
 		/// and ends, or a refusal of one, for the card at the file's header.
 		void set_explain_observer(std::function<void(const explain_file_progress&)> aObserver) { ExplainObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0128 ([[BPR-2165]]). A Was this addressed? answer's
+		/// claim, by the thread it was asked about and its turn.
+		using claim_observer = std::function<void(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn)>;
+		void set_claim_observer(claim_observer aObserver) { ClaimObserver = std::move(aObserver); }
 		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One Suggest the change turn:
 		/// its index, and once it ends whether it answered, the answer as
 		/// written and the ending line; a refused send has no turn.
@@ -993,6 +997,7 @@ namespace bpr::qt {
 		/// RFC-BPR-0116. The returning prompts by their keys, the one being
 		/// sent, the one a sent question was, and what the host offers.
 		std::map<QString, core::returning_operation> ReturningPrompts;
+		claim_observer                               ClaimObserver;
 		std::optional<core::returning_operation>     SendingReturning;
 		std::optional<core::returning_operation>     PendingReturning;
 		/// RFC-BPR-0117. The file Explain this file is being sent for, the

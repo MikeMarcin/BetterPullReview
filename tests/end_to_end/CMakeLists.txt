@@ -5484,3 +5484,8 @@ bpr_add_network_isolated_test(NAME application_ask_menu_public_path
     COMMAND test_ask_menu_public_path menu "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_menu_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu:pass")
+bpr_add_network_isolated_test(NAME application_ask_addressed_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path addressed "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_addressed_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-addressed:pass")

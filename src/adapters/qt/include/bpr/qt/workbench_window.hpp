@@ -1273,6 +1273,10 @@ namespace bpr::qt {
 		/// \brief What an Ask menu of `aAnchor` is about now: the active file
 		/// and the Comments drawer's open thread.
 		[[nodiscard]] auto ask_request(core::quick_ask_anchor aAnchor) const -> ask_menu_request;
+		/// \brief RFC-BPR-0128 Q5. Asks before a press starts `aRuns` runs,
+		/// one a thread or file; a test answers in place of the reviewer.
+		[[nodiscard]] auto confirm_quick_ask_runs(std::size_t aRuns, const QString& aLabel) -> bool;
+		void               set_quick_ask_confirmation(std::function<bool(std::size_t, const QString&)> aConfirm) { QuickAskConfirm = std::move(aConfirm); }
 		/// \brief Fills `aMenu` for `aRequest`, as each Ask control does.
 		void fill_quick_ask(QMenu& aMenu, const ask_menu_request& aRequest);
 		/// \brief RFC-BPR-0117. The answer's card at the file's header; shown
@@ -2981,6 +2985,7 @@ namespace bpr::qt {
 		ask_menu_button*                                     ReviewAskButton   = nullptr;
 		ask_menu_source                                      QuickAskSource;
 		ask_menu_dispatch                                    QuickAskDispatch;
+		std::function<bool(std::size_t, const QString&)>     QuickAskConfirm;
 		void                                                 refresh_ask_controls();
 		void                                                 activate_document_path(const QString& aPath);
 		explain_file_card*                                   ExplainCard       = nullptr;

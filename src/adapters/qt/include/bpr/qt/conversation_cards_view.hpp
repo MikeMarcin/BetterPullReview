@@ -9,6 +9,7 @@
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
+#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
@@ -362,6 +363,22 @@ namespace bpr::qt {
 	};
 
 	/// \brief One thread's note: a review thread's root and its replies, or my draft.
+	/// \brief RFC-BPR-0128 ([[BPR-2165]]). The agent's claim on a thread from
+	/// Was this addressed?, and the lines it read: as the thread started and
+	/// as they are now. A claim; nothing is resolved or posted by it.
+	struct thread_claim
+	{
+		core::addressed_claim                Claim = core::addressed_claim::cannot_tell;
+		std::optional<core::returning_lines> Then;
+		std::optional<core::returning_lines> Now;
+		/// The Agent tab turn that answered.
+		std::size_t Turn = 0U;
+
+		auto operator==(const thread_claim&) const -> bool = default;
+	};
+	/// \brief The chip's word: Addressed, Partly, Not addressed, Unclear.
+	[[nodiscard]] auto thread_claim_words(core::addressed_claim aClaim) -> QString;
+
 	struct thread_card
 	{
 		/// The thread root's identity; empty for the draft note.
@@ -903,6 +920,13 @@ namespace bpr::qt {
 		/// identity and section title): the open card's Ask and the thread's
 		/// right-click Ask. None offers no Ask.
 		using ask_menu_filler = std::function<void(QMenu&, const QString& aThread, const QString& aTitle)>;
+		/// \brief RFC-BPR-0128 ([[BPR-2165]]). Each thread's claim, shown as a
+		/// chip in its header (open) and its meta (closed); a press on the
+		/// open card's chip shows the lines then and now.
+		void               set_thread_claims(std::map<std::string, thread_claim> aClaims);
+		[[nodiscard]] auto thread_claims() const noexcept -> const std::map<std::string, thread_claim>& { return Claims; }
+		/// \brief The chip's Open the answer: the Agent tab at that turn.
+		void set_claim_answer_dispatch(std::function<void(std::size_t)> aDispatch) { ClaimAnswerDispatch = std::move(aDispatch); }
 		void               set_ask_menu_filler(ask_menu_filler aFiller);
 		[[nodiscard]] auto thread_title(const std::string& aThread) const -> QString;
 		void               set_addressed_threads(std::set<std::string> aThreads);
@@ -1362,6 +1386,8 @@ namespace bpr::qt {
 		bool                                                                      TourOpenOffered    = false;
 		std::set<std::string>                                                     AddressedThreads;
 		ask_menu_filler                                                           AskMenuFiller;
+		std::map<std::string, thread_claim>                                       Claims;
+		std::function<void(std::size_t)>                                          ClaimAnswerDispatch;
 		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenDispatch;
 		/// [[BPR-1810]]. Where a stop's chevrons go, and which chevron the
 		/// stepped-to thread's plate takes focus on ("" for none).

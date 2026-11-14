@@ -145,6 +145,7 @@
 
 #include <array>
 #include <atomic>
+#include <deque>
 #include <chrono>
 #include <cstddef>
 #include <expected>
@@ -795,6 +796,13 @@ namespace bpr::app {
 		[[nodiscard]] auto quick_ask_menu(const qt::ask_menu_request& aRequest) const -> std::optional<core::quick_ask_menu>;
 		void               press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               ask_custom_question(const qt::ask_menu_request& aRequest);
+		/// RFC-BPR-0128 ([[BPR-2165]]). A wider scope's runs, one after
+		/// another, and each Was this addressed? claim on its thread.
+		void                                  drain_quick_asks();
+		void                                  record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
+		std::deque<std::function<void()>>     QuickAskQueue;
+		bool                                  QuickAskDraining = false;
+		std::map<std::string, qt::thread_claim> ThreadClaims;
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
 		/// prompts reach the window.
 		void present_prompt_macros(const application::prompt_macro_projection& aProjection);

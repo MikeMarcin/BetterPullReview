@@ -4,6 +4,8 @@
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
 
+#include <QIcon>
+#include <QPalette>
 #include <QString>
 
 #include <functional>
@@ -46,6 +48,9 @@ namespace bpr::qt {
 		std::function<void()> Edit;
 	};
 
+	/// \brief The agent glyph in the Agent accent (enabled and disabled),
+	/// for a control whose rows start runs or a claim the agent made.
+	[[nodiscard]] auto agent_glyph(const QPalette& aGround) -> QIcon;
 	/// \brief A greyed row's reason, in words.
 	[[nodiscard]] auto quick_ask_reason_words(core::quick_ask_reason aReason, core::prompt_scope aScope) -> QString;
 	/// \brief What a press reads: "18 commits", "12 threads"; empty for none.

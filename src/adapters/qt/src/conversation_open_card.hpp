@@ -113,6 +113,10 @@ namespace bpr::qt {
 		/// RFC-BPR-0128 ([[BPR-2164]]). Fills the thread's Ask menu when it
 		/// opens; none shows no Ask.
 		std::function<void(QMenu&)> AskMenu;
+		/// RFC-BPR-0128 ([[BPR-2165]]). The agent's claim on this thread, and
+		/// where its Open the answer goes.
+		std::optional<thread_claim>      Claim;
+		std::function<void(std::size_t)> ClaimAnswer;
 		/// [[BPR-1802]]. The pull request's repository, whose permalinks show
 		/// as snippet boxes.
 		std::optional<core::markdown_repository> PermalinkRepository;
@@ -550,6 +554,8 @@ namespace bpr::qt {
 		enhance_suggestion* EnhancePanel  = nullptr;
 		enhance_binding*    Enhance       = nullptr;
 		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
+		/// RFC-BPR-0128 ([[BPR-2165]]). The claim's evidence over the code.
+		void show_claim_evidence(const QWidget& aChip);
 		/// RFC-BPR-0128 ([[BPR-2164]]). The thread's Ask, when the style has a
 		/// menu for it.
 		void add_ask(QBoxLayout& aRow, QWidget* aParent, const QString& aName);

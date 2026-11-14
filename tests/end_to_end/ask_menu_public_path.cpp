@@ -20,8 +20,15 @@
 ///   changed pressed from the review bar sends the action's own prompt as
 ///   before (AC04); greyed rows are reachable by keyboard and every control
 ///   is named (AC08); nothing reaches GitHub.
-/// - `menu STUB --attended`: the window is left on Review with a thread open
-///   for a person to look; closing it ends the course.
+/// - `addressed STUB`: Was this addressed? on a thread I did not comment in,
+///   on each thread of a file (one run a thread) and listed for every thread
+///   of the pull request; each claim is a chip in its thread's header that
+///   changes no card's height, its press shows the thread's lines when it
+///   started and now; a thread commits have not followed is greyed with its
+///   reason; nothing is resolved, posted or published (AC05).
+/// - `menu|addressed STUB --attended`: the same, then the window is left on
+///   Review with a thread open for a person to look; closing it ends the
+///   course.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
@@ -42,6 +49,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFrame>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -149,8 +157,9 @@ auto main(int argc, char** argv) -> int
 {
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
-	if (argc < 3 || std::string_view{ argv[1] } != "menu") {
-		std::cerr << "usage: ask_menu_public_path menu STUB [--attended]\n";
+	const auto course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
+	if (argc < 3 || (course != "menu" && course != "addressed")) {
+		std::cerr << "usage: ask_menu_public_path menu|addressed STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
 	const auto    stub     = std::filesystem::path{ argv[2] };
@@ -213,6 +222,76 @@ auto main(int argc, char** argv) -> int
 			 "the open thread has Ask beside Reply");
 		expect(cards->findChild<QToolButton*>(QStringLiteral("threadAskAgent")) == nullptr && cards->findChild<QToolButton*>(QStringLiteral("threadWasAddressed")) == nullptr,
 			   "the thread's header agent controls are gone");
+
+		if (course == "addressed") {
+			// The pull request's Was this addressed? reads every thread
+			// commits followed: five, whoever started them.
+			reviewAsk->refresh_menu();
+			auto* const everything = row(*reviewAsk->menu(), QStringLiteral("conversation.was-addressed"), QStringLiteral("pull-request"));
+			expect(everything != nullptr && everything->isEnabled() && everything->text().endsWith(QStringLiteral("5 threads")), "the pull request's row reads five threads: " + (everything != nullptr ? everything->text().toStdString() : std::string{ }));
+			// README.md's thread started on the head: greyed, saying why.
+			auto readme   = window.ask_request(core::quick_ask_anchor::thread);
+			readme.Thread = QStringLiteral("review-thread:PRRT_cc_5");
+			QMenu quiet;
+			window.fill_quick_ask(quiet, readme);
+			auto* const greyed = row(quiet, QStringLiteral("conversation.was-addressed"), QStringLiteral("thread"));
+			expect(greyed != nullptr && !greyed->isEnabled() && greyed->toolTip() == QStringLiteral("No commits since this thread started."), "a thread nothing followed is greyed with its reason");
+			// The file's row: one run a thread, tbutler's line-6 thread first.
+			fileAsk->refresh_menu();
+			auto* const file = row(*fileAsk->menu(), QStringLiteral("conversation.was-addressed"), QStringLiteral("file"));
+			expect(file != nullptr && file->isEnabled() && file->text().endsWith(QStringLiteral("2 threads")), "the file's row reads its two threads");
+			const auto heights = [cards] {
+				auto each = std::vector<int>{ };
+				for (const auto& card : cards->cards()) {
+					if (card.Id != cards->open_identity()) {
+						each.push_back(card.Rect.height());
+					}
+				}
+				return each;
+			};
+			const auto closedBefore = heights();
+			const auto headerBefore = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadMarkRead"))->parentWidget()->sizeHint().height();
+			file->trigger();
+			wait([&] { return cards->thread_claims().size() == 2U && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; }, "both threads are answered, one run each");
+			expect(launchesAt() == setupLaunches + 2U, "one run a thread");
+			expect(cards->thread_claims().contains("review-thread:PRRT_cc_1") && cards->thread_claims().contains(identity), "a claim on each thread, the one I did not comment in too");
+			QApplication::processEvents();
+			expect(heights() == closedBefore, "the claims change no closed card's height");
+			cards->open_thread("review-thread:PRRT_cc_1");
+			QApplication::processEvents();
+			auto* const claimChip = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadClaimChip"));
+			expect(claimChip != nullptr && claimChip->text() == QStringLiteral("Partly") && claimChip->accessibleName() == QStringLiteral("Agent's claim: Partly"),
+				   "tbutler's thread shows the claim as one chip in its header");
+			expect(claimChip->parentWidget()->sizeHint().height() == headerBefore, "the chip takes no height in the header");
+			claimChip->click();
+			QApplication::processEvents();
+			auto* const evidence = window.findChild<QFrame*>(QStringLiteral("threadClaimEvidence"));
+			expect(evidence != nullptr && evidence->isVisible(), "a press shows the evidence over the code");
+			auto* const then = evidence->findChild<QPlainTextEdit*>(QStringLiteral("threadClaimThen"));
+			auto* const now  = evidence->findChild<QPlainTextEdit*>(QStringLiteral("threadClaimNow"));
+			expect(then != nullptr && now != nullptr && !then->toPlainText().isEmpty() && !now->toPlainText().isEmpty() && then->toPlainText().contains(QStringLiteral("   6  ")),
+				   "the thread's lines as it started and as they are:\n" + (then != nullptr ? then->toPlainText().toStdString() : std::string{ }));
+			evidence->close();
+			const auto after = access::review_mutation_evidence(*application);
+			const auto line6 = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) { return aCard.Id == "review-thread:PRRT_cc_1"; });
+			expect(after.Submissions == mutation.Submissions && after.TargetObservations == mutation.TargetObservations && after.StoredComments == mutation.StoredComments
+					   && line6 != cards->cards().end() && !line6->Resolved,
+				   "nothing was resolved, posted or published");
+			std::cout << "ask-menu-addressed: claims=" << cards->thread_claims().size() << '\n';
+			if (attended) {
+				window.setWindowTitle(QStringLiteral("Ask: Was this addressed? \u2014 synthetic data \u2014 close to finish"));
+				QApplication::setQuitOnLastWindowClosed(true);
+				window.set_profile_management_dispatch({ }, { }, [] { QApplication::quit(); });
+				QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
+				std::cout << "ask-menu-attended:ready\n" << std::flush;
+				const auto result = QApplication::exec();
+				shutdown(*application);
+				return result;
+			}
+			shutdown(*application);
+			std::cout << "ask-menu-addressed:pass\n";
+			return EXIT_SUCCESS;
+		}
 
 		// AC02, AC03. The review bar's menu: the pull request's, the file's,
 		// then the thread's quick asks.

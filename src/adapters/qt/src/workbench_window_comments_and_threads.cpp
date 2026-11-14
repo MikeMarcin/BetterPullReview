@@ -51,6 +51,7 @@
 #include <QMainWindow>
 #include <QMargins>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMetaObject>
 #include <QModelIndex>
 #include <QObject>
@@ -2096,6 +2097,16 @@ namespace bpr::qt {
 			}
 		}
 		refresh_ask_controls();
+	}
+
+	auto workbench_window::confirm_quick_ask_runs(const std::size_t aRuns, const QString& aLabel) -> bool
+	{
+		if (QuickAskConfirm) {
+			return QuickAskConfirm(aRuns, aLabel);
+		}
+		return QMessageBox::question(this, tr("Ask %1 times?").arg(aRuns), tr("\u201c%1\u201d runs once for each of %2 threads or files, one after another. Each run is an agent call.").arg(aLabel).arg(aRuns),
+									 QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel)
+			== QMessageBox::Yes;
 	}
 
 	auto workbench_window::ask_request(const core::quick_ask_anchor aAnchor) const -> ask_menu_request

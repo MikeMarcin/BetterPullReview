@@ -26,7 +26,10 @@
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include <QApplication>
+#include <QFontDatabase>
 #include <QFontMetricsF>
+#include <QFrame>
+#include <QPushButton>
 #include <QTextEdit>
 
 #include <QAbstractTextDocumentLayout>
@@ -2159,6 +2162,25 @@ namespace bpr::qt {
 			}
 			// RFC-BPR-0128 ([[BPR-2164]]). Ask agent and Was this addressed? left
 			// the header for the thread's Ask, where a reply is written.
+			// RFC-BPR-0128 ([[BPR-2165]]), Q14. The agent's claim is one chip in
+			// the header, in ordinary roles with the glyph in the accent, at the
+			// header's tool height: it moves nothing. A press shows the lines.
+			if (Style.Claim) {
+				auto* const chip = card_button(header);
+				chip->setObjectName(QStringLiteral("threadClaimChip"));
+				chip->setAutoRaise(true);
+				chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+				chip->setIcon(agent_glyph(palette));
+				chip->setIconSize(QSize{ 12, 12 });
+				chip->setText(thread_claim_words(Style.Claim->Claim));
+				chip->setAccessibleName(QStringLiteral("Agent's claim: %1").arg(chip->text()));
+				chip->setAccessibleDescription(QStringLiteral("Show the lines as the thread started and as they are now. Nothing was resolved or posted."));
+				chip->setToolTip(QStringLiteral("Agent's claim: %1. Show the lines then and now").arg(chip->text()));
+				chip->setFocusPolicy(Qt::StrongFocus);
+				chip->setCursor(Qt::ArrowCursor);
+				connect(chip, &QToolButton::clicked, this, [this, chip] { show_claim_evidence(*chip); });
+				row->addWidget(chip);
+			}
 			const auto  unread = aCard.UnreadCount;
 			auto* const read   = tool(header, QStringLiteral("threadMarkRead"),
 									  unread == 0U ? QStringLiteral("Nothing new") : unread == 1U ? QStringLiteral("Mark 1 new as read")
@@ -2166,6 +2188,9 @@ namespace bpr::qt {
 									  conversation_glyph::read, palette);
 			read->setEnabled(unread > 0U);
 			MarkRead = read;
+			if (auto* const chip = header->findChild<QToolButton*>(QStringLiteral("threadClaimChip")); chip != nullptr) {
+				chip->setFixedHeight(read->sizeHint().height());
+			}
 			connect(read, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::mark_read); } });
 			row->addWidget(read);
 			auto* const more = tool(header, QStringLiteral("threadMore"), QStringLiteral("More: reply, mark read, resolve, classify"), conversation_glyph::more, palette);
@@ -3071,6 +3096,69 @@ namespace bpr::qt {
 				HeightChanged();
 			}
 		});
+	}
+
+	void open_thread_card::show_claim_evidence(const QWidget& aChip)
+	{
+		if (!Style.Claim) {
+			return;
+		}
+		auto* const popup = new QFrame{ this, Qt::Popup };
+		popup->setObjectName(QStringLiteral("threadClaimEvidence"));
+		popup->setAttribute(Qt::WA_DeleteOnClose);
+		popup->setFrameShape(QFrame::StyledPanel);
+		popup->setAccessibleName(QStringLiteral("The lines then and now"));
+		auto* const column = new QVBoxLayout{ popup };
+		column->setContentsMargins(12, 10, 12, 10);
+		column->setSpacing(6);
+		auto* const lead = new QLabel{ QStringLiteral("Agent's claim: %1. A claim: nothing was resolved or posted.").arg(thread_claim_words(Style.Claim->Claim)), popup };
+		lead->setWordWrap(true);
+		column->addWidget(lead);
+		const auto block = [popup, column](const QString& aTitle, const std::optional<core::returning_lines>& aLines, const QString& aName) {
+			auto* const title = new QLabel{ popup };
+			title->setTextFormat(Qt::PlainText);
+			auto bold = title->font();
+			bold.setBold(true);
+			title->setFont(bold);
+			auto* const text = new QPlainTextEdit{ popup };
+			text->setObjectName(aName);
+			text->setReadOnly(true);
+			text->setLineWrapMode(QPlainTextEdit::NoWrap);
+			text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+			text->setAccessibleName(aTitle);
+			if (aLines) {
+				title->setText(QStringLiteral("%1, %2").arg(aTitle, QString::fromStdString(aLines->Commit.substr(0U, 7U))));
+				auto body = QStringList{ };
+				auto line = aLines->FirstLine;
+				for (const auto& each : aLines->Lines) {
+					body << QStringLiteral("%1  %2").arg(line++, 4).arg(QString::fromStdString(each));
+				}
+				text->setPlainText(body.join(QLatin1Char('\n')));
+			} else {
+				title->setText(aTitle);
+				text->setPlainText(QStringLiteral("These lines can't be read here."));
+			}
+			text->setMinimumWidth(480);
+			text->setFixedHeight(text->fontMetrics().lineSpacing() * std::min<int>(static_cast<int>(aLines ? aLines->Lines.size() : 1U) + 1, 14) + 12);
+			column->addWidget(title);
+			column->addWidget(text);
+		};
+		block(QStringLiteral("When the thread started"), Style.Claim->Then, QStringLiteral("threadClaimThen"));
+		block(QStringLiteral("Now"), Style.Claim->Now, QStringLiteral("threadClaimNow"));
+		auto* const open = new QPushButton{ QStringLiteral("Open the answer"), popup };
+		open->setObjectName(QStringLiteral("threadClaimOpenAnswer"));
+		open->setEnabled(static_cast<bool>(Style.ClaimAnswer));
+		connect(open, &QPushButton::clicked, popup, [popup, dispatch = Style.ClaimAnswer, turn = Style.Claim->Turn] {
+			popup->close();
+			if (dispatch) {
+				dispatch(turn);
+			}
+		});
+		column->addWidget(open, 0, Qt::AlignRight);
+		popup->adjustSize();
+		popup->move(aChip.mapToGlobal(QPoint{ aChip.width() - popup->width(), aChip.height() }));
+		popup->show();
+		open->setFocus(Qt::PopupFocusReason);
 	}
 
 	void open_thread_card::add_ask(QBoxLayout& aRow, QWidget* const aParent, const QString& aName)

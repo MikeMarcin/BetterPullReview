@@ -116,6 +116,12 @@ namespace bpr::core {
 	/// \brief Was this addressed? is offered on a review thread the reviewer
 	/// commented in, once the pull request has commits newer than their last
 	/// comment there. Not when the read does not name that comment's commit.
+	///
+	/// \details RFC-BPR-0128 (owner amendment to RFC-BPR-0116, 2026-11-13):
+	/// offered on any review thread, whoever started it. The window passes
+	/// the thread's first comment as `LastCommentCommit` (Q6: the baseline is
+	/// the commit the thread started on) and `ReviewerCommented` as whether
+	/// the thread has one.
 	[[nodiscard]] auto proposed_fix_offered(const proposed_fix_facts& aFacts) noexcept -> bool;
 
 	/// \brief The four words an answer about a thread leads with. The answer

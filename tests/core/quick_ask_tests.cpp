@@ -161,6 +161,11 @@ namespace {
 		expect(thread != nullptr && thread->Enabled && thread->Count == 18U && thread->Unit == quick_ask_unit::commits && thread->Each == std::vector<std::string>{ "t10" },
 			   "a thread I did not write: commits since it started (Q6)");
 		expect(decide_quick_asks(set, returning_facts(), quick_ask_anchor::review_bar) == menu, "deterministic");
+		// Q5 (assumed until the owner answers): more than five runs ask first.
+		expect(!quick_ask_needs_confirmation(*everything), "three runs start at once");
+		auto many = *everything;
+		many.Each.assign(6U, "t");
+		expect(quick_ask_needs_confirmation(many) && quick_ask_confirm_above == 5U, "six runs ask first");
 	}
 
 	void test_greyed_and_hidden()

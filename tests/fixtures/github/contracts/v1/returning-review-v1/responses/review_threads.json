@@ -99,7 +99,13 @@
 										"originalLine": 6,
 										"outdated": false,
 										"path": "src/engine/renderer.cpp",
-										"replyTo": null
+										"replyTo": null,
+										"originalCommit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										},
+										"commit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										}
 									},
 									{
 										"author": {
@@ -250,7 +256,13 @@
 										"originalLine": 6,
 										"outdated": false,
 										"path": "src/main.cpp",
-										"replyTo": null
+										"replyTo": null,
+										"originalCommit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										},
+										"commit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										}
 									},
 									{
 										"author": {
@@ -300,7 +312,13 @@
 										"originalLine": 5,
 										"outdated": false,
 										"path": "src/ui/widgets/button.cpp",
-										"replyTo": null
+										"replyTo": null,
+										"originalCommit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										},
+										"commit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										}
 									},
 									{
 										"author": {
@@ -350,7 +368,13 @@
 										"originalLine": 6,
 										"outdated": false,
 										"path": "README.md",
-										"replyTo": null
+										"replyTo": null,
+										"originalCommit": {
+											"oid": "2222222222222222222222222222222222222222"
+										},
+										"commit": {
+											"oid": "2222222222222222222222222222222222222222"
+										}
 									},
 									{
 										"author": {
@@ -400,7 +424,13 @@
 										"originalLine": 5,
 										"outdated": false,
 										"path": "src/engine/shaders/post/bloom.frag",
-										"replyTo": null
+										"replyTo": null,
+										"originalCommit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										},
+										"commit": {
+											"oid": "b20cb443428212543f5911e091a0ffeb407d23cf"
+										}
 									},
 									{
 										"author": {

@@ -8,6 +8,10 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/core/quick_ask.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
+
+#include <QTimer>
 
 #include <algorithm>
 
@@ -39,6 +43,16 @@ namespace bpr::app {
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
 								  .Edit   = [this] { Window->open_settings(qt::settings_page::agents_and_context); Window->reveal_prompt_macros(); },
 							  });
+		auto* const tab = Window->agent_tab();
+		tab->set_claim_observer([this](const std::string& aThread, const core::addressed_claim aClaim, const std::size_t aTurn) { record_thread_claim(aThread, aClaim, aTurn); });
+		if (Window->conversation_panel() != nullptr) {
+			Window->conversation_panel()->cards()->set_claim_answer_dispatch([this, tab](const std::size_t aTurn) {
+				if (!Closing && Window != nullptr) {
+					Window->open_agent_question();
+					tab->reveal_turn(aTurn);
+				}
+			});
+		}
 	}
 
 	auto github_application::implementation::quick_ask_facts(const qt::ask_menu_request& aRequest) const -> core::quick_ask_facts
@@ -115,25 +129,88 @@ namespace bpr::app {
 		case core::prompt_action::what_changed: dismiss_asked_conversation(); ask_what_changed(); return;
 		case core::prompt_action::explain_file: ask_explain_file(aRequest.File.toStdString()); return;
 		case core::prompt_action::was_addressed:
-			if (!row->Each.empty()) {
-				ask_was_addressed(row->Each.front());
+			// Q5: one run a thread, one after another; a long run asks first.
+			if (core::quick_ask_needs_confirmation(*row) && !Window->confirm_quick_ask_runs(row->Each.size(), QString::fromStdString(row->Label))) {
+				return;
 			}
+			for (const auto& thread : row->Each) {
+				QuickAskQueue.push_back([this, thread] { ask_was_addressed(thread); });
+			}
+			drain_quick_asks();
 			return;
 		case core::prompt_action::none: break;
 		}
 		const auto id = QString::fromStdString(row->Id);
+		if (core::quick_ask_needs_confirmation(*row) && !Window->confirm_quick_ask_runs(row->Each.size(), QString::fromStdString(row->Label))) {
+			return;
+		}
 		if (row->Subject == core::prompt_subject::conversation) {
-			// The thread is attached as Ask agent attaches it, and its
-			// suggested prompt is sent from the Agent tab.
-			if (!row->Each.empty()) {
-				ask_agent_about_thread(row->Each.front());
-				tab->send_prompt(id);
+			// Each thread is attached as Ask agent attaches it, and its
+			// suggested prompt is sent from the Agent tab; one run a thread.
+			for (const auto& thread : row->Each) {
+				QuickAskQueue.push_back([this, thread, id, tab] {
+					ask_agent_about_thread(thread);
+					tab->send_prompt(id);
+				});
 			}
+			drain_quick_asks();
+			return;
+		}
+		if (row->Subject == core::prompt_subject::open_file && row->Scope == core::prompt_scope::pull_request) {
+			// A file's prompt at the pull request: one run a file, each with
+			// its file open.
+			for (const auto& file : row->Each) {
+				QuickAskQueue.push_back([this, file, id, tab] {
+					static_cast<void>(Window->open_file_in_review(QString::fromStdString(file)));
+					dismiss_asked_conversation();
+					Window->open_agent_question();
+					tab->send_prompt(id);
+				});
+			}
+			drain_quick_asks();
 			return;
 		}
 		dismiss_asked_conversation();
 		Window->open_agent_question();
 		tab->send_prompt(id);
+	}
+
+	/// Starts the next waiting run once the Agent tab has finished the one
+	/// before; the host's own lane, polled while runs wait.
+	void github_application::implementation::drain_quick_asks()
+	{
+		if (Closing || Window == nullptr || Window->agent_tab() == nullptr || QuickAskQueue.empty()) {
+			QuickAskDraining = false;
+			return;
+		}
+		if (Window->agent_tab()->state() == qt::agent_tab_state::working) {
+			QuickAskDraining = true;
+			QTimer::singleShot(250, Window.get(), [this] { drain_quick_asks(); });
+			return;
+		}
+		auto next = std::move(QuickAskQueue.front());
+		QuickAskQueue.pop_front();
+		next();
+		QuickAskDraining = !QuickAskQueue.empty();
+		if (QuickAskDraining) {
+			QTimer::singleShot(250, Window.get(), [this] { drain_quick_asks(); });
+		}
+	}
+
+	/// RFC-BPR-0128 ([[BPR-2165]]). A Was this addressed? answer's claim
+	/// becomes its thread's chip, with the lines the question read.
+	void github_application::implementation::record_thread_claim(const std::string& aThread, const core::addressed_claim aClaim, const std::size_t aTurn)
+	{
+		if (Closing || Window == nullptr || Window->conversation_panel() == nullptr) {
+			return;
+		}
+		auto claim = qt::thread_claim{ .Claim = aClaim, .Turn = aTurn };
+		if (const auto found = ReturningReview.Threads.find(aThread); found != ReturningReview.Threads.end()) {
+			claim.Then = found->second.Then;
+			claim.Now  = found->second.Now;
+		}
+		ThreadClaims[aThread] = std::move(claim);
+		Window->conversation_panel()->cards()->set_thread_claims(ThreadClaims);
 	}
 
 	/// Custom question…: the Agent tab on the narrowest subject the menu

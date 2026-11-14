@@ -1664,6 +1664,10 @@ namespace bpr::qt {
 			const auto claim = aTurn.Returning == core::returning_operation::proposed_fix ? core::read_addressed_claim(aTurn.AnswerText.toStdString()) : std::nullopt;
 			aTurn.Claim->setText(claim ? tr("Agent's claim: %1").arg(QString::fromUtf8(core::claim_words(*claim).data(), static_cast<qsizetype>(core::claim_words(*claim).size()))) : QString{ });
 			aTurn.Claim->setVisible(claim.has_value());
+			// RFC-BPR-0128 ([[BPR-2165]]). The claim reaches its thread's chip.
+			if (claim && aTurn.About && ClaimObserver) {
+				ClaimObserver(aTurn.About->Key, *claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
+			}
 		}
 	}
 

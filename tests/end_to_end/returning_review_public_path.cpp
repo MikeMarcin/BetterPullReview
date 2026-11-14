@@ -11,7 +11,8 @@
 ///   press runs one fresh, tool-free call whose request names both revisions
 ///   and carries the change and whose system prompt is its own; the answer's
 ///   references are links; Ask more is offered; nothing reaches GitHub.
-/// - `addressed STUB`: exactly the line-12 thread offers Was this addressed?;
+/// - `addressed STUB`: every thread commits followed offers Was this addressed?
+///   (RFC-BPR-0128: whoever wrote it); the line-12 thread's
 ///   its press asks about that conversation with its lines then and now; the
 ///   answer's claim is shown; the thread is not resolved and nothing is posted.
 /// - `gone STUB`: with my review taken to be on a commit the review's objects
@@ -214,9 +215,13 @@ auto main(int argc, char** argv) -> int
 			}
 		} else {
 			auto* const cards   = window.conversation_panel()->cards();
-			const auto  offered = cards->addressed_threads();
-			expect(offered.size() == 1U, "exactly the thread I commented in after which commits followed offers Was this addressed?");
-			const auto identity = *offered.begin();
+			// RFC-BPR-0128: any review thread whose start commits have
+			// followed, whoever wrote it; README.md's thread started on the
+			// head, so it is not offered.
+			const auto offered = cards->addressed_threads();
+			expect(offered.size() == 5U && !offered.contains("review-thread:PRRT_cc_5"), "every thread commits followed offers Was this addressed?, whoever wrote it");
+			const auto identity = std::string{ "review-thread:PRRT_cc_2" };
+			expect(offered.contains(identity), "the line-12 thread is among them");
 			// Its file open in Review, as a person reaches the thread beside its code.
 			wait([&] { return window.go_to_file_line(QStringLiteral("src/engine/renderer.cpp"), 12U, false) && std::ranges::any_of(cards->cards(), [&](const auto& aCard) { return aCard.Id == identity; }); },
 				 "the thread's file opens beside its threads");

@@ -27,16 +27,6 @@ namespace bpr::qt {
 			}
 		};
 
-		/// The agent glyph in the accent: the rows start runs.
-		[[nodiscard]] auto accent_glyph(const QPalette& aGround) -> QIcon
-		{
-			auto palette = aGround;
-			palette.setColor(QPalette::Active, QPalette::ButtonText, agent_accent(aGround));
-			palette.setColor(QPalette::Inactive, QPalette::ButtonText, agent_accent(aGround));
-			palette.setColor(QPalette::Disabled, QPalette::ButtonText, agent_accent_disabled(aGround));
-			return drawer_icon(drawer_glyph::agent, palette);
-		}
-
 		[[nodiscard]] auto section_title(const core::prompt_scope aScope, const ask_menu_request& aRequest) -> QString
 		{
 			switch (aScope) {
@@ -47,6 +37,15 @@ namespace bpr::qt {
 			return { };
 		}
 	} // namespace
+
+	auto agent_glyph(const QPalette& aGround) -> QIcon
+	{
+		auto palette = aGround;
+		palette.setColor(QPalette::Active, QPalette::ButtonText, agent_accent(aGround));
+		palette.setColor(QPalette::Inactive, QPalette::ButtonText, agent_accent(aGround));
+		palette.setColor(QPalette::Disabled, QPalette::ButtonText, agent_accent_disabled(aGround));
+		return drawer_icon(drawer_glyph::agent, palette);
+	}
 
 	auto quick_ask_reason_words(const core::quick_ask_reason aReason, const core::prompt_scope aScope) -> QString
 	{
@@ -100,7 +99,7 @@ namespace bpr::qt {
 				}
 			});
 		}
-		const auto glyph  = accent_glyph(aMenu.palette());
+		const auto glyph  = agent_glyph(aMenu.palette());
 		const auto titled = aRows.Sections.size() > 1U;
 		for (const auto& section : aRows.Sections) {
 			if (titled) {
@@ -195,5 +194,5 @@ namespace bpr::qt {
 		}
 	}
 
-	void ask_menu_button::wear_glyph() { setIcon(accent_glyph(palette())); }
+	void ask_menu_button::wear_glyph() { setIcon(agent_glyph(palette())); }
 } // namespace bpr::qt

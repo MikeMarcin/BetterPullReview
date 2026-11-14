@@ -104,21 +104,23 @@ namespace bpr::app {
 		ReturningReview.Offer = core::decide_latest_upload(facts);
 		Window->present_latest_upload(ReturningReview.Offer);
 
-		// Was this addressed?: the threads I commented in, once commits
-		// follow my last comment there.
+		// Was this addressed?: RFC-BPR-0128 widened it to any review thread on
+		// a file, whoever started it, once the head is past the commit the
+		// thread started on (Q6: its baseline, not its last comment).
 		auto offered = std::set<std::string>{ };
 		auto threads = std::map<std::string, returning_review_state::thread_offer>{ };
 		for (const auto& thread : snapshot->ReviewThreads) {
-			const application::github_review_comment_record* mine = nullptr;
+			const application::github_review_comment_record* opening = nullptr;
 			for (const auto& comment : thread.Comments) {
-				if (!viewer.empty() && comment.Author && comment.Author->Login == viewer && !comment.Deleted) {
-					mine = &comment;
+				if (!comment.Deleted) {
+					opening = &comment;
+					break;
 				}
 			}
-			const auto commit = mine == nullptr             ? std::string{ }
-				: !mine->Observation.OriginalCommit.empty() ? mine->Observation.OriginalCommit
-															: mine->Observation.Commit;
-			const auto asked  = core::proposed_fix_facts{ .ReviewerCommented = mine != nullptr, .LastCommentCommit = commit, .CurrentHead = headHex };
+			const auto commit = opening == nullptr             ? std::string{ }
+				: !opening->Observation.OriginalCommit.empty() ? opening->Observation.OriginalCommit
+															: opening->Observation.Commit;
+			const auto asked  = core::proposed_fix_facts{ .ReviewerCommented = opening != nullptr, .LastCommentCommit = commit, .CurrentHead = headHex };
 			if (!core::proposed_fix_offered(asked) || thread.Path.empty()) {
 				continue;
 			}
@@ -128,8 +130,8 @@ namespace bpr::app {
 				threads.insert(*kept);
 				continue;
 			}
-			const auto last  = mine->OriginalLine ? mine->OriginalLine : thread.OriginalLine;
-			const auto first = mine->Observation.OriginalStartLine ? mine->Observation.OriginalStartLine : last;
+			const auto last  = opening->OriginalLine ? opening->OriginalLine : thread.OriginalLine;
+			const auto first = opening->Observation.OriginalStartLine ? opening->Observation.OriginalStartLine : last;
 			auto       offer = returning_review_state::thread_offer{ .Commit = commit, .Path = thread.Path };
 			if (last) {
 				offer.ThenFirst = *first;
@@ -368,7 +370,8 @@ namespace bpr::app {
 	}
 
 	/// A thread's Was this addressed?: the conversation is attached, as Ask
-	/// agent attaches it, and the question is asked.
+	/// agent attaches it, and the question is asked. RFC-BPR-0128: on any
+	/// review thread, its baseline the commit it started on.
 	void github_application::implementation::ask_was_addressed(const std::string& aIdentity)
 	{
 		if (Closing || Window == nullptr || !ReturningReview.Threads.contains(aIdentity)) {
@@ -400,7 +403,7 @@ namespace bpr::app {
 			const auto& state = EpochHost->state();
 			const auto  found = AskedConversation && !AskedConversation->Note && !AskedConversation->Draft ? ReturningReview.Threads.find(AskedConversation->Identity) : ReturningReview.Threads.end();
 			if (found == ReturningReview.Threads.end() || !state.AcceptedRevision) {
-				Window->agent_panel()->refuse("Was this addressed?: asked of a thread you commented in, once commits follow your comment. Nothing was sent.");
+				Window->agent_panel()->refuse("Was this addressed?: asked of a review thread on a file, once commits follow the commit it started on. Nothing was sent.");
 				return false;
 			}
 			aObservation.Conversation = read_asked_conversation();

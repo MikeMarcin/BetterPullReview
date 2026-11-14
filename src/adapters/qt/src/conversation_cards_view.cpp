@@ -6,6 +6,7 @@
 #include "bpr/qt/scoped_prose_editor.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -1452,6 +1453,27 @@ namespace bpr::qt {
 		}
 		TourOpenOffered = aOffered;
 		rebuild_open_card();
+	}
+
+	auto thread_claim_words(const core::addressed_claim aClaim) -> QString
+	{
+		switch (aClaim) {
+		case core::addressed_claim::addressed:     return QStringLiteral("Addressed");
+		case core::addressed_claim::partly:        return QStringLiteral("Partly");
+		case core::addressed_claim::not_addressed: return QStringLiteral("Not addressed");
+		case core::addressed_claim::cannot_tell:   return QStringLiteral("Unclear");
+		}
+		return { };
+	}
+
+	void conversation_cards_view::set_thread_claims(std::map<std::string, thread_claim> aClaims)
+	{
+		if (Claims == aClaims) {
+			return;
+		}
+		Claims = std::move(aClaims);
+		rebuild_open_card();
+		viewport()->update();
 	}
 
 	void conversation_cards_view::set_ask_menu_filler(ask_menu_filler aFiller)
@@ -3714,6 +3736,10 @@ namespace bpr::qt {
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment)) + QString::number(static_cast<int>(CommentEditOffered))
 			+ QString::number(static_cast<int>(TourOpenOffered && static_cast<bool>(TourOpenDispatch))) + QString::number(static_cast<int>(AddressedThreads.contains(card.Id)))
 			+ QString::number(static_cast<int>(static_cast<bool>(AskMenuFiller)));
+		if (const auto claim = Claims.find(card.Id); claim != Claims.end()) {
+			key += QChar{ 0x1f } + thread_claim_words(claim->second.Claim) + QString::number(claim->second.Turn) + QString::number(static_cast<int>(claim->second.Then.has_value()))
+				+ QString::number(static_cast<int>(claim->second.Now.has_value()));
+		}
 		for (const auto& post : card.Posts) {
 			// [[BPR-1775]]. Who wrote it decides Edit, so it is drawn too.
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QChar{ 0x1f } + post.Author + QString::number(static_cast<int>(post.Mine));
@@ -3762,6 +3788,10 @@ namespace bpr::qt {
 		style.CommentEditOffered     = CommentEditOffered;
 		style.TourOpenOffered        = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
 		style.AddressedOffered       = AddressedThreads.contains(card.Id);
+		if (const auto claim = Claims.find(card.Id); claim != Claims.end()) {
+			style.Claim       = claim->second;
+			style.ClaimAnswer = ClaimAnswerDispatch;
+		}
 		if (AskMenuFiller && !card.Posts.empty()) {
 			style.AskMenu = [filler = AskMenuFiller, thread = QString::fromStdString(card.Id), title = thread_title(card.Id)](QMenu& aMenu) { filler(aMenu, thread, title); };
 		}
@@ -4502,7 +4532,21 @@ namespace bpr::qt {
 				aPainter.drawText(meta.NewCount, Qt::AlignCenter, QString::number(aCard.UnreadCount));
 				aPainter.setFont(small);
 			}
-			right              = meta.Replies;
+			right = meta.Replies;
+			// RFC-BPR-0128 ([[BPR-2165]]). The agent's claim, in the meta's
+			// ordinary ink with the agent glyph in the accent: no height.
+			if (const auto claim = Claims.find(aCard.Id); claim != Claims.end()) {
+				const auto words = thread_claim_words(claim->second.Claim);
+				const auto w     = smallMetrics.horizontalAdvance(words);
+				aPainter.save();
+				aPainter.setOpacity(1.0);
+				aPainter.setPen(colours.Ink);
+				aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
+				const auto glyph = QRect{ right - w - 15, top + (nameH - 12) / 2, 12, 12 };
+				aPainter.drawPixmap(glyph, agent_glyph(palette()).pixmap(glyph.size()));
+				aPainter.restore();
+				right -= w + 15 + 8;
+			}
 			const auto replies = aCard.Posts.size() > 1U ? aCard.Posts.size() - 1U : 0U;
 			if (replies > 0U) {
 				const auto count = QString::number(replies);

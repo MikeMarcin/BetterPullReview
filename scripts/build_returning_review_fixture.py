@@ -10,6 +10,12 @@ reviewed it at its first head and commented in the line-12 thread there:
   `--epoch-fixture-phase reuse`, the head is the next push and both returning
   questions are offered.
 
+RFC-BPR-0128 ([[BPR-2165]]): Was this addressed? is asked of any thread, its
+baseline the commit the thread started on (Q6). Every thread but README.md's
+starts on the first head, by whoever wrote it; README.md's starts on the next
+push, so nothing has followed it. The commit list is the next push's alone
+(a rebased branch), so a press reads its threads without a commit count.
+
 Synthetic public test data; nothing is fetched. Two runs write the same
 bytes.
 
@@ -23,6 +29,7 @@ import sys
 from pathlib import Path
 
 FIRST_HEAD = "b20cb443428212543f5911e091a0ffeb407d23cf"
+NEXT_HEAD = "2222222222222222222222222222222222222222"
 REVIEWER = {"login": "jiayin", "node_id": "U_fixture_jiayin"}
 
 
@@ -56,6 +63,11 @@ def build(root: Path, name: str, reviewed: str) -> None:
             if thread["id"] == "PRRT_cc_2" and comment["author"]["login"] == REVIEWER["login"]:
                 comment["originalCommit"] = {"oid": reviewed}
                 comment["commit"] = {"oid": reviewed}
+    for thread in threads["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]:
+        first = thread["comments"]["nodes"][0]
+        start = NEXT_HEAD if thread["path"] == "README.md" else reviewed
+        first.setdefault("originalCommit", {"oid": start})
+        first.setdefault("commit", {"oid": start})
     write(responses / "review_threads.json", threads)
 
 

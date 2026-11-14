@@ -330,6 +330,8 @@ namespace bpr::core {
 		return menu;
 	}
 
+	auto quick_ask_needs_confirmation(const quick_ask_row& aRow) noexcept -> bool { return aRow.Each.size() > quick_ask_confirm_above; }
+
 	auto find_quick_ask(const quick_ask_menu& aMenu, const std::string_view aId, const prompt_scope aScope) -> const quick_ask_row*
 	{
 		for (const auto& section : aMenu.Sections) {
