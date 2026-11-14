@@ -3141,3 +3141,40 @@ questions carry the offscreen picture of the owner's path answered.
 
 Next action: on handback read from cursor 15, record verbatim, stop host
 65778, remove the root.
+
+## ask-v005 handed back; file Ask on the tab, no setup at launch, Q5 one ask; ask-v006 filed (2026-11-14)
+
+ask-v005 (sequence 180): verdicts verbatim in the record (BPR-2166 Reject with
+the file-tab Ask placement and a design round for the report card; BPR-2177
+footer Accept with the setup-at-launch question; BPR-2179 Reject, grill-rfc
+run by the coordinator, not built here; row menu Accept; Q5 Reject, one ask).
+Host 65778/65790 stopped; root `ask-v005.a6ilb3sh` removed.
+
+| Commit | What |
+|---|---|
+| `5b328f731` | Footer follows the picker: no Set up an agent… once the agent is known (`qt_agent_footer`, test first); the check fails on setup at launch |
+| `32654c05d` | File Ask: a small glyph on the active tab, never on a report's tab (tests first) |
+| `7bced53f0` | Q5 amendment: one ask for many threads (`addressed_threads`, `bpr-claims`), threshold removed; pin |
+| `2cd2e490e` | Verdicts recorded; RFC amendment |
+| `3b0c12a4c` | Many-thread answer shows prose and a summary; check opens the report and saves pictures (`BPR_ATTENDED_SHOT_DIR`); pin. **Frozen commit** |
+
+Runs: 52 focused rows, then 13 and 5 after the last changes, including
+`application_fixture_agent_every_ask` (17 asks), the ask, returning and
+explain courses, `qt_agent_footer`, `core_returning_review`, `core_quick_ask`,
+`freeze_attended_build_contract`, `architecture_boundaries`, the pin;
+documentation gate. Not mine and not run green:
+`application_document_tabs_restoration_public_path` ("auth-seed failed"),
+first seen after the merge `316b19d5b` brought other work into this lane.
+
+Owner look `ask-v006`, filed and not waited on: session
+`98f8f0c11b1460bb51f16ca307b793d8`, state
+`/Users/jaeger/.attended-review-state/ask-v006-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 9, host PID 61578 (Tailscale child 61588). Root
+`/Users/jaeger/ask-v006.0gi2v365` from `3b0c12a4c` (executable SHA-256
+`14bbabfe62c6…`; check `asks=17`). Three questions with pictures:
+`BPR-2164-file-ask-on-the-tab`, `BPR-2177-no-setup-at-launch`,
+`RFC-BPR-0128-Q5-one-ask`.
+
+Next action: on handback read from cursor 9, record verbatim, stop host
+61578, remove the root. The report card's look waits on the coordinator's
+design worker; BPR-2179 on the grill-rfc.
