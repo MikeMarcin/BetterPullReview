@@ -40,3 +40,19 @@ Not yet evidenced, so the card stays In Progress: AC11's turning off a chip in
 an open window and its restart (no course yet), AC12's unreadable store on
 screen, AC13 (the suggestions toggle and Remove every agent, Restore
 built-ins… through the window), and the drag's announcement.
+
+## Progress (2026-11-14): AC11 and AC13 through the window
+
+New course `application_prompt_macros_public_path` (the composed window, the
+scoped stub as the agent): a chip turned off in Settings leaves the open
+window without a restart; a new order made by keyboard (Alt+Up) reaches the
+chips; both survive a restart of the application on the same profile (AC11);
+the suggestions toggle hides every chip and shows them again as they were;
+Reset agents and setting up again changes no prompt; Restore built-ins…,
+after its question, turns the built-in back on in the shipped order and keeps
+the reviewer's own prompt (AC13).
+
+Still open: AC11's order made by drag (only the keyboard is exercised), its
+drag announcement, and AC12's unreadable store on screen (the store's side is
+in `sqlite_agent_setup_storage`). BPR-2179 is rebuilding this roster as a
+Prompts section; these courses follow it.
