@@ -51,6 +51,9 @@ namespace bpr::core {
 					return std::nullopt;
 				}
 				return agent_question{ .Subject = agent_question_subject::conversation, .EntryPoint = agent_entry_point::evaluate_proposed_fix };
+			// RFC-BPR-0128 as amended: several threads in one ask, carried by
+			// the request rather than an attached conversation.
+			case returning_operation::addressed_threads: return agent_question{ .Subject = agent_question_subject::pull_request, .EntryPoint = agent_entry_point::evaluate_proposed_fix };
 			}
 			return std::nullopt;
 		}

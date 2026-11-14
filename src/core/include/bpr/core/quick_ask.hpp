@@ -182,14 +182,6 @@ namespace bpr::core {
 	/// condition) is not listed; one present that cannot run is greyed.
 	[[nodiscard]] auto decide_quick_asks(std::span<const prompt_macro> aOrdered, const quick_ask_facts& aFacts, quick_ask_anchor aAnchor) -> quick_ask_menu;
 
-	/// \brief RFC-BPR-0128 Q5. A quick ask at a wider scope is one run a
-	/// thread (or file). The owner has not named a threshold; until they do,
-	/// a press that would start more than this many runs asks first (an
-	/// assumption, put to the owner in the look).
-	inline constexpr std::size_t quick_ask_confirm_above = 5U;
-	/// \brief Whether a press of `aRow` asks before it starts its runs.
-	[[nodiscard]] auto quick_ask_needs_confirmation(const quick_ask_row& aRow) noexcept -> bool;
-
 	/// \brief The row named `aId` at `aScope`, decided again at a press: a
 	/// press acts on the facts it is made under.
 	[[nodiscard]] auto find_quick_ask(const quick_ask_menu& aMenu, std::string_view aId, prompt_scope aScope) -> const quick_ask_row*;

@@ -782,6 +782,10 @@ namespace bpr::app {
 		void read_addressed_lines(const std::string& aIdentity, bool aThen);
 		void ask_what_changed();
 		void ask_was_addressed(const std::string& aIdentity);
+		/// RFC-BPR-0128 as amended (look ask-v005): a file's or the pull
+		/// request's Was this addressed? is one ask carrying every thread.
+		void                     ask_were_addressed(const std::vector<std::string>& aIdentities);
+		std::vector<std::string> AddressedMany;
 		/// The material a returning turn carries, or a refusal said on the
 		/// panel; true when the turn may go on.
 		[[nodiscard]] auto compose_returning(application::agent_context_observation& aObservation, core::agent_entry_point aEntryPoint) -> bool;

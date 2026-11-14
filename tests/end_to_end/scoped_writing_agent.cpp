@@ -581,7 +581,20 @@ int main(int argc, char** argv)
 		const auto echo = "RETURNING_ECHO system=" + std::to_string(has("The reviewer reviewed this pull request before") + 2 * has("The reviewer commented in a review thread")) + " changes="
 			+ std::to_string(has("+++ b/src/engine/renderer.cpp")) + " then=" + std::to_string(has("returning.then.present\\t1")) + " now=" + std::to_string(has("returning.now.present\\t1"))
 			+ " conversation=" + std::to_string(has("conversation.comment.count")) + " commits=" + std::to_string(has("returning.commits"));
-		if (input.find("proposed_fix", at) != std::string::npos && input.find("proposed_fix", at) < at + 40U) {
+		if (input.find("addressed_threads", at) != std::string::npos && input.find("addressed_threads", at) < at + 40U) {
+			// RFC-BPR-0128 as amended: one ask about several threads; a claim
+			// a thread, in the bpr-claims block, the first Partly and the rest
+			// Addressed.
+			result     = "Most of these are addressed.\n\n```bpr-claims\n";
+			auto first = true;
+			for (auto found = input.find(".identity\\t"); found != std::string::npos; found = input.find(".identity\\t", found + 1U)) {
+				const auto start = found + 11U;
+				const auto end   = input.find_first_of("\\\n\"", start);
+				result += input.substr(start, end - start) + (first ? ": Partly, no test yet\n" : ": Addressed\n");
+				first = false;
+			}
+			result += "```\n\n" + echo;
+		} else if (input.find("proposed_fix", at) != std::string::npos && input.find("proposed_fix", at) < at + 40U) {
 			result = "**Partly**\n\nThe resize is now clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n" + echo;
 		} else {
 			// RFC-BPR-0128 ([[BPR-2166]]). Sections: a report, read in a tab.

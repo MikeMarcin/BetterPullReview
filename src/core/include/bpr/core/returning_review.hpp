@@ -10,6 +10,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 /// \file
@@ -146,6 +147,18 @@ namespace bpr::core {
 	/// a character that is not a letter.
 	[[nodiscard]] auto read_addressed_claim(std::string_view aAnswer) noexcept -> std::optional<addressed_claim>;
 
+	/// \brief The fence an answer about several threads lists its claims in,
+	/// one line a thread: `IDENTITY: claim words`.
+	inline constexpr std::string_view addressed_claims_fence = "```bpr-claims";
+
+	/// \brief RFC-BPR-0128 as amended (owner, look ask-v005, 2026-11-14: "Why
+	/// would we do it this one instead of having one large prompt with all 6
+	/// threads? We could still have it build structured output if we want to
+	/// display each thread result separately."). Each thread's claim, in the
+	/// order the answer's `bpr-claims` block lists them; a line naming no
+	/// thread or no claim is left out. None without a block.
+	[[nodiscard]] auto read_addressed_claims(std::string_view aAnswer) -> std::vector<std::pair<std::string, addressed_claim>>;
+
 	/// \brief The most changed files the change since a review shows.
 	inline constexpr std::size_t maximum_returning_files = 64U;
 	/// \brief The change text's bound: the up-front diff's (RFC-BPR-0101 AC13).
@@ -192,6 +205,9 @@ namespace bpr::core {
 		latest_upload,
 		/// `evaluate_proposed_fix`: was this thread addressed.
 		proposed_fix,
+		/// `evaluate_proposed_fix` at a file or the pull request: were these
+		/// threads addressed, in one ask (RFC-BPR-0128 as amended).
+		addressed_threads,
 	};
 	[[nodiscard]] auto stable_name(returning_operation aOperation) noexcept -> std::string_view;
 
@@ -217,6 +233,26 @@ namespace bpr::core {
 	[[nodiscard]] auto returning_excerpt(std::string_view aCommit, std::string_view aPath, std::string_view aText, std::uint32_t aFirst, std::uint32_t aLast)
 		-> std::optional<returning_lines>;
 
+	/// \brief The most threads one Was this addressed? carries.
+	inline constexpr std::size_t maximum_addressed_threads = 32U;
+	/// \brief A thread's conversation's bound in a many-thread ask.
+	inline constexpr std::size_t maximum_addressed_conversation_bytes = 8U * 1024U;
+
+	/// \brief One thread of a many-thread Was this addressed?: where it is,
+	/// the commit it started on, its conversation, and its lines then and now.
+	struct returning_thread
+	{
+		std::string                    Identity;
+		std::string                    Path;
+		std::uint32_t                  Line = 0U;
+		std::string                    Baseline;
+		std::string                    Conversation;
+		std::optional<returning_lines> Then;
+		std::optional<returning_lines> Now;
+
+		auto operator<=>(const returning_thread&) const = default;
+	};
+
 	/// \brief What a returning run carries up front, so its one tool-free call
 	/// has its context in the request (RFC-BPR-0101 AC13).
 	///
@@ -241,6 +277,8 @@ namespace bpr::core {
 		std::size_t                    FilesOmitted = 0U;
 		std::optional<returning_lines> Then;
 		std::optional<returning_lines> Now;
+		/// An `addressed_threads` run's threads.
+		std::vector<returning_thread> Threads;
 
 		auto operator<=>(const supplement_returning&) const = default;
 	};

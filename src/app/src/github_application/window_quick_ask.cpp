@@ -182,9 +182,6 @@ namespace bpr::app {
 		if (!row->Enabled) {
 			return;
 		}
-		if (core::quick_ask_needs_confirmation(*row) && !Window->confirm_quick_ask_runs(row->Each.size(), QString::fromStdString(row->Label))) {
-			return;
-		}
 		const auto scope = std::string{ core::stable_name(row->Scope) };
 		auto       items = row->Each;
 		if (items.empty()) {
@@ -192,6 +189,16 @@ namespace bpr::app {
 		}
 		const auto byThread = row->Subject == core::prompt_subject::conversation;
 		const auto byFile   = row->Subject == core::prompt_subject::open_file && row->Scope == core::prompt_scope::pull_request;
+		// RFC-BPR-0128 as amended (look ask-v005): Was this addressed? at a
+		// file or the pull request is one ask carrying every thread, its
+		// answer one claim a thread.
+		if (row->Action == core::prompt_action::was_addressed && row->Scope != core::prompt_scope::thread && !row->Each.empty()) {
+			auto joined = std::string{ };
+			for (const auto& item : row->Each) {
+				joined += (joined.empty() ? "" : "\n") + item;
+			}
+			items = { joined };
+		}
 		for (const auto& item : items) {
 			auto input = core::queued_input{ .QuickAsk = row->Id, .Scope = scope, .File = aRequest.File.toStdString(), .Thread = aRequest.Thread.toStdString(), .Label = row->Label };
 			if (byThread && !item.empty()) {
@@ -297,8 +304,20 @@ namespace bpr::app {
 			dismiss_asked_conversation();
 			ask_what_changed();
 			break;
-		case core::prompt_action::explain_file:  ask_explain_file(aEntry.Input.File); break;
-		case core::prompt_action::was_addressed: ask_was_addressed(aEntry.Input.Thread); break;
+		case core::prompt_action::explain_file: ask_explain_file(aEntry.Input.File); break;
+		case core::prompt_action::was_addressed:
+			if (aEntry.Input.Thread.find('\n') != std::string::npos || aEntry.Input.Scope != "thread") {
+				auto threads = std::vector<std::string>{ };
+				for (auto rest = std::string_view{ aEntry.Input.Thread }; !rest.empty();) {
+					const auto end = rest.find('\n');
+					threads.emplace_back(rest.substr(0U, end));
+					rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+				}
+				ask_were_addressed(threads);
+			} else {
+				ask_was_addressed(aEntry.Input.Thread);
+			}
+			break;
 		case core::prompt_action::none:
 			if (macro->Body.Subject == core::prompt_subject::conversation) {
 				ask_agent_about_thread(aEntry.Input.Thread);

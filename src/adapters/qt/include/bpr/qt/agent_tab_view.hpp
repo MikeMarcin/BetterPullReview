@@ -454,7 +454,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto latest_upload_offer() const noexcept -> const core::latest_upload_offer& { return LatestUpload; }
 		[[nodiscard]] auto latest_upload_note() const noexcept -> QLabel* { return LatestUploadNote; }
 		/// RFC-BPR-0116. Asks a returning question, as its suggestion does.
-		void ask_returning(core::returning_operation aOperation);
+		/// \brief `aThreads`: how many threads an `addressed_threads` ask carries.
+		void ask_returning(core::returning_operation aOperation, std::size_t aThreads = 0U);
 		/// [[BPR-2138]]. Ask more on a returning answer: the host keeps its
 		/// question and answer for the next question here.
 		void               set_ask_more_dispatch(std::function<void(const QString& aQuestion, const QString& aAnswer)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }

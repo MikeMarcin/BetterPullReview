@@ -21,7 +21,8 @@
 ///   before (AC04); greyed rows are reachable by keyboard and every control
 ///   is named (AC08); nothing reaches GitHub.
 /// - `addressed STUB`: Was this addressed? on a thread I did not comment in,
-///   on each thread of a file (one run a thread) and listed for every thread
+///   on each thread of a file and every thread of the pull request, one ask
+///   each press (RFC-BPR-0128 as amended), listed for every thread
 ///   of the pull request; each claim is a chip in its thread's header that
 ///   changes no card's height, its press shows the thread's lines when it
 ///   started and now; a thread commits have not followed is greyed with its
@@ -340,24 +341,10 @@ auto main(int argc, char** argv) -> int
 		}
 		if (course == "addressed") {
 			// The pull request's Was this addressed? reads every thread
-			// commits followed: six, whoever started them, which is more
-			// than Q5's five, so a press asks first (look ask-v002).
+			// commits followed: six, whoever started them.
 			reviewAsk->refresh_menu();
 			auto* const everything = row(*reviewAsk->menu(), QStringLiteral("conversation.was-addressed"), QStringLiteral("pull-request"));
 			expect(everything != nullptr && everything->isEnabled() && everything->text().endsWith(QStringLiteral("6 threads")), "the pull request's row reads six threads: " + (everything != nullptr ? everything->text().toStdString() : std::string{ }));
-			{
-				auto asked = std::optional<std::size_t>{ };
-				window.set_quick_ask_confirmation([&asked](const std::size_t aRuns, const QString&) {
-					asked = aRuns;
-					return false;
-				});
-				const auto before = launchesAt();
-				everything->trigger();
-				QApplication::processEvents();
-				expect(asked == std::optional<std::size_t>{ 6U }, "six runs ask first");
-				expect(launchesAt() == before && cards->thread_claims().empty(), "a refused confirmation runs nothing");
-				window.set_quick_ask_confirmation({ });
-			}
 			// README.md's thread started on the head: greyed, saying why.
 			auto readme   = window.ask_request(core::quick_ask_anchor::thread);
 			readme.Thread = QStringLiteral("review-thread:PRRT_cc_5");
@@ -365,7 +352,9 @@ auto main(int argc, char** argv) -> int
 			window.fill_quick_ask(quiet, readme);
 			auto* const greyed = row(quiet, QStringLiteral("conversation.was-addressed"), QStringLiteral("thread"));
 			expect(greyed != nullptr && !greyed->isEnabled() && greyed->toolTip() == QStringLiteral("No commits since this thread started."), "a thread nothing followed is greyed with its reason");
-			// The file's row: one run a thread, tbutler's line-6 thread first.
+			// The file's row: RFC-BPR-0128 as amended (owner, look ask-v005:
+			// "Why would we do it this one instead of having one large prompt
+			// with all 6 threads?"): one ask about both threads, a claim each.
 			fileAsk->refresh_menu();
 			auto* const file = row(*fileAsk->menu(), QStringLiteral("conversation.was-addressed"), QStringLiteral("file"));
 			expect(file != nullptr && file->isEnabled() && file->text().endsWith(QStringLiteral("2 threads")), "the file's row reads its two threads");
@@ -381,8 +370,16 @@ auto main(int argc, char** argv) -> int
 			const auto closedBefore = heights();
 			const auto headerBefore = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadMarkRead"))->parentWidget()->sizeHint().height();
 			file->trigger();
-			wait([&] { return cards->thread_claims().size() == 2U && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; }, "both threads are answered, one run each");
-			expect(launchesAt() == setupLaunches + 2U, "one run a thread");
+			wait([&] { return cards->thread_claims().size() == 2U && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; }, "both threads are answered");
+			expect(launchesAt() == setupLaunches + 1U, "in one ask: " + std::to_string(launchesAt() - setupLaunches));
+			expect(tab->turn_returning(tab->turn_count() - 1U) == core::returning_operation::addressed_threads && tab->turn_question(tab->turn_count() - 1U) == QStringLiteral("Was this addressed? (2 threads)"),
+				   "one turn, asking about both: " + tab->turn_question(tab->turn_count() - 1U).toStdString());
+			// The pull request's six: one more ask, with no confirmation, and
+			// a claim on every thread.
+			reviewAsk->refresh_menu();
+			row(*reviewAsk->menu(), QStringLiteral("conversation.was-addressed"), QStringLiteral("pull-request"))->trigger();
+			wait([&] { return cards->thread_claims().size() == 6U && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; }, "all six threads are answered");
+			expect(launchesAt() == setupLaunches + 2U, "the six in one ask");
 			expect(cards->thread_claims().contains("review-thread:PRRT_cc_1") && cards->thread_claims().contains(identity), "a claim on each thread, the one I did not comment in too");
 			QApplication::processEvents();
 			expect(heights() == closedBefore, "the claims change no closed card's height");

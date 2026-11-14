@@ -88,7 +88,6 @@
 #include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QSize>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -7983,7 +7982,6 @@ namespace {
 					}
 					return;
 				}
-				window.set_quick_ask_confirmation([](std::size_t, const QString&) { return true; });
 				const auto press_row = [&window](bpr::qt::ask_menu_button* aButton, const QString& aRow) {
 					return [&window, aButton, aRow]() {
 						static_cast<void>(window);
@@ -8000,11 +7998,9 @@ namespace {
 					auto rows = std::vector<std::pair<QString, std::size_t>>{ };
 					for (auto* const action : aMenu.actions()) {
 						if (action->objectName().startsWith(QStringLiteral("quickAsk_")) && action->isEnabled()) {
-							// "6 threads": one run a thread.
-							const auto found = QRegularExpression{ QStringLiteral("(\\d+) threads?") }.match(action->text());
-							const auto count = found.hasMatch() ? found.captured(1).toUInt() : 0U;
-							const auto each  = action->objectName().contains(QStringLiteral("was-addressed")) && count > 0U ? static_cast<std::size_t>(count) : 1U;
-							rows.emplace_back(action->objectName(), each);
+							// One turn a press: Was this addressed? at a file or the
+							// pull request is one ask about all its threads.
+							rows.emplace_back(action->objectName(), 1U);
 						}
 					}
 					return rows;

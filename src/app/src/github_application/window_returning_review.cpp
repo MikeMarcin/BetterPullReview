@@ -4,6 +4,7 @@
 /// carries up front, and the fresh, tool-free launch each answer runs on.
 /// Reads only the review's own objects; it launches nothing until a press.
 
+#include "bpr/application/review_brief.hpp"
 #include "github_application/window_composition.hpp"
 
 #include "bpr/application/diff_line_matcher.hpp"
@@ -418,6 +419,7 @@ namespace bpr::app {
 	/// review thread, its baseline the commit it started on.
 	void github_application::implementation::ask_was_addressed(const std::string& aIdentity)
 	{
+		AddressedMany.clear();
 		if (Closing || Window == nullptr || !ReturningReview.Threads.contains(aIdentity)) {
 			return;
 		}
@@ -426,6 +428,38 @@ namespace bpr::app {
 			return;
 		}
 		Window->agent_tab()->ask_returning(core::returning_operation::proposed_fix);
+	}
+
+	/// RFC-BPR-0128 as amended (owner, look ask-v005, 2026-11-14: "Why would
+	/// we do it this one instead of having one large prompt with all 6
+	/// threads? We could still have it build structured output if we want to
+	/// display each thread result separately."). One ask carries every thread
+	/// the press reads; its answer lists each thread's claim, which reaches
+	/// that thread's chip.
+	void github_application::implementation::ask_were_addressed(const std::vector<std::string>& aIdentities)
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		auto threads = std::vector<std::string>{ };
+		for (const auto& identity : aIdentities) {
+			if (ReturningReview.Threads.contains(identity) && accepted_thread(identity) != nullptr && threads.size() < core::maximum_addressed_threads) {
+				threads.push_back(identity);
+			}
+		}
+		if (threads.size() == 1U) {
+			ask_was_addressed(threads.front());
+			return;
+		}
+		if (threads.empty()) {
+			Window->open_agent_question();
+			Window->agent_panel()->refuse("Was this addressed?: none of these threads is offered now. Nothing was sent.");
+			return;
+		}
+		dismiss_asked_conversation();
+		AddressedMany = std::move(threads);
+		Window->open_agent_question();
+		Window->agent_tab()->ask_returning(core::returning_operation::addressed_threads, AddressedMany.size());
 	}
 
 	auto github_application::implementation::compose_returning(application::agent_context_observation& aObservation, const core::agent_entry_point aEntryPoint) -> bool
@@ -445,7 +479,58 @@ namespace bpr::app {
 		}
 		case core::agent_entry_point::evaluate_proposed_fix: {
 			const auto& state = EpochHost->state();
-			const auto  found = AskedConversation && !AskedConversation->Note && !AskedConversation->Draft ? ReturningReview.Threads.find(AskedConversation->Identity) : ReturningReview.Threads.end();
+			if (!AddressedMany.empty()) {
+				const auto asked = std::exchange(AddressedMany, { });
+				if (!state.AcceptedRevision) {
+					Window->agent_panel()->refuse("Was this addressed?: the review is not open. Nothing was sent.");
+					return false;
+				}
+				auto returning = core::supplement_returning{ .Operation = core::returning_operation::addressed_threads, .CurrentHead = hex(state.AcceptedRevision->Head) };
+				for (const auto& identity : asked) {
+					const auto  found  = ReturningReview.Threads.find(identity);
+					const auto* thread = accepted_thread(identity);
+					if (found == ReturningReview.Threads.end() || thread == nullptr) {
+						continue;
+					}
+					const auto read         = application::read_conversation(*thread);
+					auto       conversation = std::string{ };
+					for (const auto& comment : read.Comments) {
+						conversation += comment.Author + ": " + comment.Body + "\n";
+					}
+					if (conversation.size() > core::maximum_addressed_conversation_bytes) {
+						conversation.resize(core::maximum_addressed_conversation_bytes);
+						while (!conversation.empty() && (static_cast<unsigned char>(conversation.back()) & 0xC0U) == 0x80U) {
+							conversation.pop_back();
+						}
+					}
+					auto one = core::returning_thread{
+						.Identity     = identity,
+						.Path         = found->second.Path,
+						.Line         = read.Line.value_or(found->second.NowFirst),
+						.Baseline     = found->second.Commit,
+						.Conversation = std::move(conversation),
+						.Then         = found->second.Then,
+						.Now          = found->second.Now,
+					};
+					returning.Threads.push_back(std::move(one));
+				}
+				// The earliest thread's start names the earlier side; each
+				// thread carries its own.
+				returning.EarlierHead = returning.Threads.empty() ? std::string{ } : returning.Threads.front().Baseline;
+				if (!core::valid(returning)) {
+					for (auto& one : returning.Threads) {
+						one.Then.reset();
+						one.Now.reset();
+					}
+				}
+				if (!core::valid(returning)) {
+					Window->agent_panel()->refuse("Was this addressed?: these threads can't be asked about together. Nothing was sent.");
+					return false;
+				}
+				aObservation.Returning = std::move(returning);
+				break;
+			}
+			const auto found = AskedConversation && !AskedConversation->Note && !AskedConversation->Draft ? ReturningReview.Threads.find(AskedConversation->Identity) : ReturningReview.Threads.end();
 			if (found == ReturningReview.Threads.end() || !state.AcceptedRevision) {
 				Window->agent_panel()->refuse("Was this addressed?: asked of a review thread on a file, once commits follow the commit it started on. Nothing was sent.");
 				return false;

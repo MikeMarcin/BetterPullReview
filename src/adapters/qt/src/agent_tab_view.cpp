@@ -1728,6 +1728,13 @@ namespace bpr::qt {
 				ClaimObserver(aTurn.About->Key, *claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
 			}
 		}
+		// RFC-BPR-0128 as amended (look ask-v005): one ask about several
+		// threads lists a claim a thread; each reaches its thread's chip.
+		if (aTurn.Returning == core::returning_operation::addressed_threads && ClaimObserver) {
+			for (const auto& [thread, claim] : core::read_addressed_claims(aTurn.AnswerText.toStdString())) {
+				ClaimObserver(thread, claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
+			}
+		}
 	}
 
 	void agent_tab_view::show_answer(turn& aTurn)
@@ -1738,7 +1745,9 @@ namespace bpr::qt {
 		// RFC-BPR-0128 ([[BPR-2166]]), Q7. A report by its shape: the card
 		// stands in the answer's place; the answer stays the turn's text.
 		const auto answer = aTurn.AnswerText.toStdString();
-		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix ? core::is_report_answer(answer) : false;
+		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix && aTurn.Returning != core::returning_operation::addressed_threads
+			? core::is_report_answer(answer)
+			: false;
 		if (aTurn.ReportCard != nullptr) {
 			if (report) {
 				const auto card = core::report_card_of(answer);
@@ -2464,14 +2473,16 @@ namespace bpr::qt {
 		refresh_suggestions();
 	}
 
-	void agent_tab_view::ask_returning(const core::returning_operation aOperation)
+	void agent_tab_view::ask_returning(const core::returning_operation aOperation, const std::size_t aThreads)
 	{
 		if (!panels_alive() || State == agent_tab_state::working || !Chat.send_action()->isEnabled()) {
 			return;
 		}
 		auto* const composer = Chat.composer();
 		const auto  draft    = composer->toPlainText();
-		composer->setPlainText(aOperation == core::returning_operation::latest_upload ? tr("What changed since my review") : tr("Was this addressed?"));
+		composer->setPlainText(aOperation == core::returning_operation::latest_upload           ? tr("What changed since my review")
+								   : aOperation == core::returning_operation::addressed_threads ? tr("Was this addressed? (%1 threads)").arg(aThreads)
+																								: tr("Was this addressed?"));
 		// Sent alone, as a suggestion is; what the reviewer had typed stays.
 		KeepingDraft     = !draft.trimmed().isEmpty();
 		SendingReturning = aOperation;

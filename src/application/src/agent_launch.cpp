@@ -2810,6 +2810,25 @@ namespace bpr::application {
 				}
 				return;
 			}
+			if (aReturning.Operation == core::returning_operation::addressed_threads) {
+				// RFC-BPR-0128 as amended (look ask-v005): every thread in one
+				// ask, and the one form its answer lists the claims in.
+				append_field(aResult, "returning.answer_format",
+							 "After your prose, list one line a thread in a ```bpr-claims block: the thread's identity, a colon and a space, then Addressed, Partly, Not addressed or Cannot tell, then why in a few words.");
+				append_number(aResult, "returning.thread.count", aReturning.Threads.size());
+				for (std::size_t index = 0U; index < aReturning.Threads.size(); ++index) {
+					const auto& thread = aReturning.Threads[index];
+					const auto  prefix = "returning.thread." + std::to_string(index);
+					append_field(aResult, prefix + ".identity", thread.Identity);
+					append_field(aResult, prefix + ".path", thread.Path);
+					append_number(aResult, prefix + ".line", thread.Line);
+					append_field(aResult, prefix + ".baseline", thread.Baseline);
+					append_field(aResult, prefix + ".conversation", thread.Conversation);
+					encode_returning_lines_into(aResult, prefix + ".then", thread.Then);
+					encode_returning_lines_into(aResult, prefix + ".now", thread.Now);
+				}
+				return;
+			}
 			encode_returning_lines_into(aResult, "returning.then", aReturning.Then);
 			encode_returning_lines_into(aResult, "returning.now", aReturning.Now);
 		}

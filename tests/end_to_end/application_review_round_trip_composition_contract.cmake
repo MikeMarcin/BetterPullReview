@@ -3739,7 +3739,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# choose the Local comments look or Finish your review on the same
 	# fixture file instead (tests-only attended launch). No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "abbae73ee7d4eec8dfca2b52f0c74101b2a15cd6228f29ce2564684888ac0dec"
+        "eaf9f4809bdf7ea1ba5c5d169f0ddf5ce5e8bb6e97dae81b603d61dee8727681"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -50,6 +50,7 @@ def main() -> int:
     user = lambda text: json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": text}]}}) + "\n"
     cases = {
         "returning.operation\tproposed_fix": "**Partly**",
+        "returning.operation\taddressed_threads\nreturning.thread.0.identity\treview-thread:PRRT_cc_1\nreturning.thread.1.identity\treview-thread:PRRT_cc_2\n": "```bpr-claims\nreview-thread:PRRT_cc_1: Partly",
         "returning.operation\tlatest_upload": "# What changed since your review",
         "explain.path\tsrc/engine/renderer.cpp": "## What changed",
         "What could this change break?": "## Rendering",

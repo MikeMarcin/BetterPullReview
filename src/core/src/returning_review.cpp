@@ -168,6 +168,39 @@ namespace bpr::core {
 		return std::nullopt;
 	}
 
+	auto read_addressed_claims(const std::string_view aAnswer) -> std::vector<std::pair<std::string, addressed_claim>>
+	{
+		auto       claims = std::vector<std::pair<std::string, addressed_claim>>{ };
+		const auto fence  = aAnswer.find(addressed_claims_fence);
+		if (fence == std::string_view::npos) {
+			return claims;
+		}
+		auto at = aAnswer.find('\n', fence);
+		while (at != std::string_view::npos && at < aAnswer.size()) {
+			const auto start = at + 1U;
+			const auto end   = aAnswer.find('\n', start);
+			auto       line  = aAnswer.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
+			at               = end;
+			if (line.starts_with("```")) {
+				break;
+			}
+			const auto colon = line.find(": ");
+			if (colon == std::string_view::npos || colon == 0U) {
+				continue;
+			}
+			auto identity = line.substr(0U, colon);
+			while (!identity.empty() && (identity.front() == ' ' || identity.front() == '-' || identity.front() == '*')) {
+				identity.remove_prefix(1U);
+			}
+			const auto claim = read_addressed_claim(line.substr(colon + 2U));
+			if (identity.empty() || !claim) {
+				continue;
+			}
+			claims.emplace_back(std::string{ identity }, *claim);
+		}
+		return claims;
+	}
+
 	auto returning_comparison(const std::string_view aPath, const std::optional<std::span<const std::uint8_t>> aEarlier, const std::optional<std::span<const std::uint8_t>> aCurrent,
 							  const diff_options& aOptions) -> std::optional<material_comparison_key>
 	{
@@ -287,8 +320,9 @@ namespace bpr::core {
 	auto stable_name(const returning_operation aOperation) noexcept -> std::string_view
 	{
 		switch (aOperation) {
-		case returning_operation::latest_upload: return "latest_upload";
-		case returning_operation::proposed_fix:  return "proposed_fix";
+		case returning_operation::latest_upload:     return "latest_upload";
+		case returning_operation::proposed_fix:      return "proposed_fix";
+		case returning_operation::addressed_threads: return "addressed_threads";
 		}
 		return "latest_upload";
 	}
@@ -345,8 +379,15 @@ namespace bpr::core {
 			return !aReturning.Then && !aReturning.Now && aReturning.Changes.size() <= maximum_returning_change_bytes && aReturning.FilesShown <= maximum_returning_files
 				&& utf8::valid(aReturning.Changes) && aReturning.Commits.size() <= maximum_returning_change_bytes && utf8::valid(aReturning.Commits);
 		case returning_operation::proposed_fix:
-			return aReturning.Changes.empty() && aReturning.Commits.empty() && aReturning.FilesShown == 0U && aReturning.FilesOmitted == 0U && (!aReturning.Then || valid_lines(*aReturning.Then))
-				&& (!aReturning.Now || valid_lines(*aReturning.Now));
+			return aReturning.Changes.empty() && aReturning.Commits.empty() && aReturning.FilesShown == 0U && aReturning.FilesOmitted == 0U && aReturning.Threads.empty()
+				&& (!aReturning.Then || valid_lines(*aReturning.Then)) && (!aReturning.Now || valid_lines(*aReturning.Now));
+		case returning_operation::addressed_threads:
+			return aReturning.Changes.empty() && aReturning.Commits.empty() && !aReturning.Then && !aReturning.Now && !aReturning.Threads.empty()
+				&& aReturning.Threads.size() <= maximum_addressed_threads && std::ranges::all_of(aReturning.Threads, [](const returning_thread& aThread) {
+					   return !aThread.Identity.empty() && aThread.Identity.size() <= 256U && utf8::valid(aThread.Identity) && aThread.Path.size() <= 4096U && utf8::valid(aThread.Path)
+						   && aThread.Baseline.size() <= 64U && aThread.Conversation.size() <= maximum_addressed_conversation_bytes && utf8::valid(aThread.Conversation)
+						   && (!aThread.Then || valid_lines(*aThread.Then)) && (!aThread.Now || valid_lines(*aThread.Now));
+				   });
 		}
 		return false;
 	}

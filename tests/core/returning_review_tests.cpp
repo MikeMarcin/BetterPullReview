@@ -168,8 +168,40 @@ namespace {
 	}
 }
 
+namespace {
+	// Look ask-v005 (owner, 2026-11-14): "Why would we do it this one instead
+	// of having one large prompt with all 6 threads? We could still have it
+	// build structured output if we want to display each thread result
+	// separately." One ask carries every thread; its answer's bpr-claims
+	// block names each thread's claim.
+	void one_ask_reads_every_threads_claim()
+	{
+		using claim       = core::addressed_claim;
+		const auto answer = std::string{ "Two of three are done.\n\n```bpr-claims\nreview-thread:PRRT_cc_1: Partly, the test is missing\nreview-thread:PRRT_cc_2: **Addressed**\nreview-thread:PRRT_cc_3: not addressed\nnonsense line\nreview-thread:PRRT_cc_4: maybe\n```\nMore prose." };
+		const auto claims = core::read_addressed_claims(answer);
+		expect(claims.size() == 3U, "three readable claims, the unreadable two left out");
+		expect(claims[0].first == "review-thread:PRRT_cc_1" && claims[0].second == claim::partly, "a thread's claim");
+		expect(claims[1].second == claim::addressed && claims[2].second == claim::not_addressed, "each in order");
+		expect(core::read_addressed_claims("Addressed.").empty(), "no block, no claims");
+		expect(core::read_addressed_claims("```bpr-claims\nreview-thread:PRRT_cc_1: partly").size() == 1U, "an unclosed block is read to its end");
+		expect(core::stable_name(core::returning_operation::addressed_threads) == "addressed_threads", "its operation's name");
+
+		auto many = core::supplement_returning{ .Operation = core::returning_operation::addressed_threads, .EarlierHead = "a", .CurrentHead = "b" };
+		expect(!core::valid(many), "no thread, nothing to ask");
+		many.Threads.push_back({ .Identity = "review-thread:PRRT_cc_1", .Path = "src/a.cpp", .Line = 6U, .Baseline = "a", .Conversation = "tbutler: clamp it" });
+		many.Threads.push_back({ .Identity = "review-thread:PRRT_cc_2", .Path = "src/a.cpp", .Line = 12U, .Baseline = "c", .Conversation = "jiayin: and the height" });
+		expect(core::valid(many), "threads with their own baselines");
+		many.Threads.front().Identity.clear();
+		expect(!core::valid(many), "a thread is named");
+		many.Threads.front().Identity = "review-thread:PRRT_cc_1";
+		many.Threads.resize(core::maximum_addressed_threads + 1U, many.Threads.back());
+		expect(!core::valid(many), "within the bound");
+	}
+}
+
 auto main() -> int
 {
+	one_ask_reads_every_threads_claim();
 	latest_upload_is_offered_only_for_newer_commits();
 	unreadable_earlier_revision_is_unavailable();
 	proposed_fix_is_offered_on_my_threads_after_new_commits();

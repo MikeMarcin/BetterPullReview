@@ -15,6 +15,7 @@
 // `BPR_FIXTURE_AGENT_PAUSE_MS` (default 350), 0 for none.
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -74,6 +75,20 @@ namespace {
 	auto answer_for(const std::string& aRequest) -> std::string
 	{
 		if (holds(aRequest, "returning.operation")) {
+			// RFC-BPR-0128 as amended (look ask-v005): several threads in one
+			// ask, a claim a thread in the bpr-claims block.
+			if (holds(aRequest, "addressed_threads")) {
+				static constexpr auto claims = std::array{ "Partly, the clamp is in and no test covers it", "Addressed", "Not addressed, nothing changed there", "Cannot tell, the file moved" };
+				auto                  answer = std::string{ "Of these threads, some are done and some are not; each claim is below.\n\n```bpr-claims\n" };
+				auto                  index  = std::size_t{ 0U };
+				for (auto found = aRequest.find(".identity"); found != std::string::npos; found = aRequest.find(".identity", found + 1U)) {
+					auto start = found + 9U;
+					start += aRequest.compare(start, 2U, "\\t") == 0 ? 2U : 1U;
+					const auto end = aRequest.find_first_of("\\\n\"", start);
+					answer += aRequest.substr(start, end - start) + ": " + claims[index++ % claims.size()] + "\n";
+				}
+				return answer + "```\n\n_Fixture agent: a canned answer, nothing was spent._";
+			}
 			if (holds(aRequest, "proposed_fix")) {
 				return "**Partly**\n\nThe resize is clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n"
 					   "_Fixture agent: a canned answer, nothing was spent._";
