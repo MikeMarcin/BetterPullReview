@@ -1,4 +1,4 @@
-# The agent's report: its card and its tab (mockups, no choice made yet)
+# The agent's report: its card and its tab (round 1; C chosen)
 
 Three ways to make the report of
 [RFC-BPR-0128](../../rfcs/RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md)
@@ -9,8 +9,9 @@ owner asked for them on 2026-11-14:
 > report card look a little better. Start a deep worker to give a couple
 > improved front-end design mockups.
 
-Nothing here is chosen and no product code changed. The owner's choice is
-pending in an attended review (see [Status](#status)).
+**The owner chose C, Attachment** (see [Status](#status)), and asked for a
+separate round on what the opened report looks like. No product code changed
+here.
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its frames, light and dark; none
@@ -166,14 +167,22 @@ theme at a time, then trimmed to the frame:
 
 ## Status
 
-Awaiting the owner's choice, asked on 2026-11-14 as one select question (A,
-B, C or keep the current design) with a note:
+**Chosen: C, Attachment** (owner, 2026-11-14). The note, verbatim:
+
+> But you didn't properly ask me about what it should look like when we open
+> the attachment so make a separate review round for that.
+
+So C's card is chosen: the summary as an ordinary answer with the report
+attached as one row. What the report looks like once that attachment is opened
+is not chosen; C's tab above is one drawing of it, and round 2
+(`docs/design/report-card-v2/`) asks it properly.
 
 - Attended-review session `c95f9e8417c8ea6f35b145e15f81c63a`, candidate
   `report-card-v1` at revision `86dda070d240` (the commit that added these
-  mockups).
+  mockups), decision `18f04c46-bf89-4fb2-8356-f0983b3f75c4`: select
+  "C, Attachment".
 - External state directory
   `~/.attended-review-state/report-card-v001-2026-11-14/` (`state/` is the
-  session, `material/` a copy of this folder at that revision for the owner to
-  open).
-- Lifecycle when this was written: prepared and served, unanswered.
+  session, `material/` a copy of this folder at that revision).
+- Lifecycle: handed back 2026-11-14 with the one candidate decided; the host
+  is stopped.
