@@ -1,7 +1,5 @@
 #include "bpr/qt/document_tab_strip.hpp"
 
-#include "bpr/qt/ask_menu.hpp"
-
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
@@ -12,6 +10,8 @@
 #include <QMenu>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -39,6 +39,43 @@ namespace bpr::qt {
 			}
 			auto minimumTabSizeHint(int aIndex) const -> QSize override { return tabSizeHint(aIndex); }
 		};
+		/// Look ask-v007 (owner: "I think we need a different icon for the tab
+		/// header, because that one reaads as though this report is going to
+		/// do something with the agent. It should read as this is a report not
+		/// a file."): a report's tab wears a page with a folded corner and
+		/// lines of text, in the tab's ink, not the agent's sparkle.
+		[[nodiscard]] auto report_glyph(const QPalette& aPalette) -> QIcon
+		{
+			auto icon = QIcon{ };
+			for (const auto mode : { QIcon::Normal, QIcon::Disabled }) {
+				auto pixmap = QPixmap{ 32, 32 };
+				pixmap.setDevicePixelRatio(2.0);
+				pixmap.fill(Qt::transparent);
+				auto painter = QPainter{ &pixmap };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				auto ink = aPalette.color(mode == QIcon::Normal ? QPalette::Active : QPalette::Disabled, QPalette::WindowText);
+				ink.setAlphaF(0.8F);
+				painter.setPen(QPen{ ink, 1.1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				auto page = QPainterPath{ };
+				page.moveTo(3.5, 1.5);
+				page.lineTo(9.5, 1.5);
+				page.lineTo(12.5, 4.5);
+				page.lineTo(12.5, 14.5);
+				page.lineTo(3.5, 14.5);
+				page.closeSubpath();
+				painter.drawPath(page);
+				painter.drawLine(QPointF{ 9.5, 1.5 }, QPointF{ 9.5, 4.5 });
+				painter.drawLine(QPointF{ 9.5, 4.5 }, QPointF{ 12.5, 4.5 });
+				// The report's lines: a heading and two of text.
+				painter.drawLine(QPointF{ 5.5, 7.0 }, QPointF{ 9.0, 7.0 });
+				painter.drawLine(QPointF{ 5.5, 9.5 }, QPointF{ 10.5, 9.5 });
+				painter.drawLine(QPointF{ 5.5, 12.0 }, QPointF{ 10.5, 12.0 });
+				painter.end();
+				icon.addPixmap(pixmap, mode);
+			}
+			return icon;
+		}
+
 		constexpr int pill_padding = 6;
 		constexpr int pill_height  = 16;
 
@@ -486,8 +523,11 @@ namespace bpr::qt {
 				// docs/design/report-card-v4, defect 4: a report's title is cut
 				// at its end, its glyph kept; a path keeps its end (its name).
 				const auto shownLabel = tab.Report ? Bar->fontMetrics().elidedText(label, Qt::ElideRight, std::max(40, MinimumTab - 72)) : label;
-				const auto index      = tab.Report ? Bar->addTab(agent_glyph(Bar->palette()), shownLabel) : Bar->addTab(shownLabel);
-				auto       tip        = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Path;
+				const auto index      = tab.Report ? Bar->addTab(report_glyph(Bar->palette()), shownLabel) : Bar->addTab(shownLabel);
+				if (tab.Report) {
+					Bar->setTabData(index, QStringLiteral("report"));
+				}
+				auto tip = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Path;
 				if (!tab.Pair.isEmpty()) {
 					tip.append(QStringLiteral("\n%1 %2").arg(tab.OwnComparison ? QStringLiteral("Its own comparison:") : QStringLiteral("The window's comparison:"), tab.Pair));
 				}

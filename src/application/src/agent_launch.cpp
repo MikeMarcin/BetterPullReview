@@ -2814,7 +2814,7 @@ namespace bpr::application {
 				// RFC-BPR-0128 as amended (look ask-v005): every thread in one
 				// ask, and the one form its answer lists the claims in.
 				append_field(aResult, "returning.answer_format",
-							 "After your prose, list one line a thread in a ```bpr-claims block: the thread's identity, a colon and a space, then Addressed, Partly, Not addressed or Cannot tell, then why in a few words.");
+							 "Answer as a report: a one-paragraph summary, then one section a thread, headed with its file and line and your claim, saying why. After the sections, list one line a thread in a ```bpr-claims block: the thread's identity, a colon and a space, then Addressed, Partly, Not addressed or Cannot tell, then why in a few words.");
 				append_number(aResult, "returning.thread.count", aReturning.Threads.size());
 				for (std::size_t index = 0U; index < aReturning.Threads.size(); ++index) {
 					const auto& thread = aReturning.Threads[index];

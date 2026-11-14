@@ -78,16 +78,34 @@ namespace {
 			// RFC-BPR-0128 as amended (look ask-v005): several threads in one
 			// ask, a claim a thread in the bpr-claims block.
 			if (holds(aRequest, "addressed_threads")) {
-				static constexpr auto claims = std::array{ "Partly, the clamp is in and no test covers it", "Addressed", "Not addressed, nothing changed there", "Cannot tell, the file moved" };
-				auto                  answer = std::string{ "Of these threads, some are done and some are not; each claim is below.\n\n```bpr-claims\n" };
-				auto                  index  = std::size_t{ 0U };
-				for (auto found = aRequest.find(".identity"); found != std::string::npos; found = aRequest.find(".identity", found + 1U)) {
-					auto start = found + 9U;
+				// Look ask-v007: a report, a section a thread (its file and
+				// line, its claim, why), then the claims block.
+				static constexpr auto claims  = std::array{ "Partly", "Addressed", "Not addressed", "Cannot tell" };
+				static constexpr auto reasons = std::array{ "The clamp is in; no test covers the zero-width case yet.", "The change the thread asked for is in the push.",
+															"Nothing changed on these lines since the thread started.", "The file moved, so its lines can't be compared." };
+				const auto            value   = [&aRequest](const std::size_t aFrom, const std::string_view aField) {
+					const auto found = aRequest.find(aField, aFrom);
+					if (found == std::string::npos) {
+						return std::string{ };
+					}
+					auto start = found + aField.size();
 					start += aRequest.compare(start, 2U, "\\t") == 0 ? 2U : 1U;
 					const auto end = aRequest.find_first_of("\\\n\"", start);
-					answer += aRequest.substr(start, end - start) + ": " + claims[index++ % claims.size()] + "\n";
+					return aRequest.substr(start, end - start);
+				};
+				auto sections = std::string{ };
+				auto block    = std::string{ "```bpr-claims\n" };
+				auto index    = std::size_t{ 0U };
+				for (auto found = aRequest.find(".identity"); found != std::string::npos; found = aRequest.find(".identity", found + 1U)) {
+					const auto identity = value(found, ".identity");
+					const auto path     = value(found, ".path");
+					const auto line     = value(found, ".line");
+					const auto claim    = claims[index % claims.size()];
+					sections += "## `" + path + ":" + line + "`: " + claim + "\n\n" + reasons[index % reasons.size()] + "\n\n";
+					block += identity + ": " + claim + "\n";
+					++index;
 				}
-				return answer + "```\n\n_Fixture agent: a canned answer, nothing was spent._";
+				return "# Was this addressed?\n\nOf these threads, some are done and some are not; each has its section below.\n\n" + sections + block + "```\n\n_Fixture agent: a canned answer, nothing was spent._";
 			}
 			if (holds(aRequest, "proposed_fix")) {
 				return "**Partly**\n\nThe resize is clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n"

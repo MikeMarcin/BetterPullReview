@@ -250,7 +250,13 @@ namespace bpr::qt {
 			{
 				setCursor(Qt::PointingHandCursor);
 				setFocusPolicy(Qt::StrongFocus);
-				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+				// Look ask-v007 ("Why is your mockup report attachment cutting
+				// of text"): the row was given one height, from whatever width it
+				// had when first asked; a narrower drawer wrapped the title into
+				// that and cut it. Its height now follows its width.
+				auto policy = QSizePolicy{ QSizePolicy::Expanding, QSizePolicy::Preferred };
+				policy.setHeightForWidth(true);
+				setSizePolicy(policy);
 				setAttribute(Qt::WA_Hover, true);
 				auto* const row = new QHBoxLayout{ this };
 				row->setContentsMargins(8 + 24 + 10, 7, 8 + 16, 7);
@@ -261,6 +267,7 @@ namespace bpr::qt {
 				Title->setTextFormat(Qt::PlainText);
 				Title->setWordWrap(true);
 				Title->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+				Title->setMaximumHeight(2 * Title->fontMetrics().lineSpacing() + 2);
 				auto semibold = Title->font();
 				semibold.setWeight(QFont::DemiBold);
 				Title->setFont(semibold);
@@ -289,12 +296,18 @@ namespace bpr::qt {
 				}
 			}
 
-			[[nodiscard]] auto sizeHint() const -> QSize override
+			[[nodiscard]] auto hasHeightForWidth() const -> bool override { return true; }
+
+			/// The title's lines at `aWidth` (two at most), its second line and
+			/// the padding; never less than the page icon needs.
+			[[nodiscard]] auto heightForWidth(const int aWidth) const -> int override
 			{
-				// Two title lines at most.
-				const auto title = std::min(Title->heightForWidth(std::max(40, width() - 8 - 24 - 10 - 8 - 16)), 2 * Title->fontMetrics().lineSpacing());
-				return { 200, std::max(30 + 14, 7 + title + 1 + Meta->sizeHint().height() + 7) };
+				const auto words = std::max(40, aWidth - (8 + 24 + 10) - (8 + 16));
+				const auto title = std::min(Title->heightForWidth(words), 2 * Title->fontMetrics().lineSpacing());
+				return std::max(30 + 14, 7 + title + 1 + Meta->sizeHint().height() + 7);
 			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { 200, heightForWidth(width() > 0 ? width() : 320) }; }
 
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
@@ -1881,7 +1894,13 @@ namespace bpr::qt {
 						parts << QStringLiteral("%1 %2").arg(counts[index]).arg(QString::fromUtf8(words.data(), static_cast<qsizetype>(words.size())).toLower());
 					}
 				}
-				aTurn.AnswerText = prose + QStringLiteral("\n\n") + tr("Claims on %n thread(s): %1. Each is on its thread in Comments.", nullptr, static_cast<int>(claims.size())).arg(parts.join(QStringLiteral(", ")));
+				// What the claims came to belongs with the summary, before the
+				// first thread's section.
+				const auto said = tr("Claims on %n thread(s): %1. Each is on its thread in Comments.", nullptr, static_cast<int>(claims.size())).arg(parts.join(QStringLiteral(", ")));
+				// The first heading after the answer's first line (a title on
+				// the first line stays the title).
+				const auto heading = prose.indexOf(QRegularExpression{ QStringLiteral("\n#{1,6} ") });
+				aTurn.AnswerText   = heading >= 0 ? prose.left(heading).trimmed() + QStringLiteral("\n\n") + said + QStringLiteral("\n\n") + prose.mid(heading + 1) : prose + QStringLiteral("\n\n") + said;
 				show_answer(aTurn);
 			}
 		}
@@ -1897,14 +1916,22 @@ namespace bpr::qt {
 		const auto answer = aTurn.AnswerText.toStdString();
 		// Q4: Explain this file and What changed since my review answer as
 		// reports whatever their length.
-		const auto always  = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload;
-		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix && aTurn.Returning != core::returning_operation::addressed_threads
+		// Look ask-v007 ("Why does asking was this addressed on the PR ...
+		// not show an attachment report?"): it was left out on purpose, as a
+		// claim's answer; one about several threads is a report too, a section
+		// a thread, with its claims on the threads.
+		const auto many    = aTurn.Returning == core::returning_operation::addressed_threads;
+		const auto always  = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload || many;
+		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix
 			? (core::is_report_answer(answer) || (always && !aTurn.AnswerText.trimmed().isEmpty()))
 			: false;
 		auto       summary = QString{ };
 		if (aTurn.ReportCard != nullptr) {
 			if (report) {
-				const auto named = always ? (!aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain) : tr("What changed since your review")) : QString{ };
+				const auto named = !always     ? QString{ }
+					: many                     ? aTurn.Question
+					: !aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain)
+											   : tr("What changed since your review");
 				const auto card  = core::report_card_of(answer, named.toStdString());
 				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
 				// Round 1's wording; defect 2: "1 section", counted without

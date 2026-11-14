@@ -549,6 +549,13 @@ auto main(int argc, char** argv) -> int
 				   "the row names the report and its sections, without the title: " + (meta != nullptr ? meta->text().toStdString() : std::string{ }));
 			expect(rowButton != nullptr && rowButton->accessibleName() == QStringLiteral("Open report: What changed since your review") && rowButton->focusPolicy() == Qt::StrongFocus,
 				   "the row is one named focus stop");
+			// Look ask-v007 ("Why is your mockup report attachment cutting of
+			// text"): the row is as tall as its words at the width it is given;
+			// narrower, its title wraps (two lines at most) and it grows.
+			expect(rowButton->hasHeightForWidth() && rowButton->heightForWidth(140) > rowButton->heightForWidth(600) && rowButton->height() >= rowButton->heightForWidth(rowButton->width()),
+				   "the row's height follows its width: " + std::to_string(rowButton->heightForWidth(140)) + " at 140, " + std::to_string(rowButton->heightForWidth(600)) + " at 600, "
+					   + std::to_string(rowButton->height()) + " shown for " + std::to_string(rowButton->heightForWidth(rowButton->width())));
+			expect(title->height() >= title->heightForWidth(title->width()) && meta->geometry().bottom() <= rowButton->height(), "and its words are whole");
 			expect(card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"))->property("bprReportSelected").toBool() == false, "at rest the row is not selected");
 			auto* const strip = window.document_tabs();
 			const auto  files = strip->tabs().size();

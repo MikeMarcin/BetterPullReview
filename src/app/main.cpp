@@ -8123,6 +8123,18 @@ namespace {
 			if (state->Calm < 10) {
 				return;
 			}
+			// Look ask-v007: an answer that is a report shows its attachment
+			// row (What changed, Explain this file, What could this change
+			// break?, and Was this addressed? about several threads).
+			for (const auto* const reported : { "what-changed", "explain-file", "what-could-break", "was-addressed_pull-request", "was-addressed_file" }) {
+				if (current.Name.contains(QLatin1StringView{ reported }) && tab->turn_count() > state->TurnsBefore) {
+					const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
+					if (card == nullptr || card->isHidden()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:no-report:step=%1:answer=%2").arg(current.Name, flat(tab->turn_answer(tab->turn_count() - 1U))));
+						return;
+					}
+				}
+			}
 			for (auto turn = state->TurnsBefore; turn < tab->turn_count(); ++turn) {
 				if (!tab->turn_footer(turn).contains(QStringLiteral("answered"))) {
 					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:unanswered:step=%1:turn=%2:footer=%3:answer=%4").arg(current.Name).arg(turn).arg(flat(tab->turn_footer(turn)), flat(tab->turn_answer(turn))));
