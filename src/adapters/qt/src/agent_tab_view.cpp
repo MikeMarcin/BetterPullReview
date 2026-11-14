@@ -62,6 +62,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace bpr::qt {
@@ -1729,10 +1730,38 @@ namespace bpr::qt {
 			}
 		}
 		// RFC-BPR-0128 as amended (look ask-v005): one ask about several
-		// threads lists a claim a thread; each reaches its thread's chip.
-		if (aTurn.Returning == core::returning_operation::addressed_threads && ClaimObserver) {
-			for (const auto& [thread, claim] : core::read_addressed_claims(aTurn.AnswerText.toStdString())) {
-				ClaimObserver(thread, claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
+		// threads lists a claim a thread; each reaches its thread's chip, and
+		// the answer shows its prose with what the claims came to.
+		if (aTurn.Returning == core::returning_operation::addressed_threads) {
+			const auto claims = core::read_addressed_claims(aTurn.AnswerText.toStdString());
+			if (ClaimObserver) {
+				for (const auto& [thread, claim] : claims) {
+					ClaimObserver(thread, claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
+				}
+			}
+			const auto fence = aTurn.AnswerText.indexOf(QLatin1StringView{ core::addressed_claims_fence.data(), static_cast<qsizetype>(core::addressed_claims_fence.size()) });
+			if (fence >= 0 && !claims.empty()) {
+				auto       prose = aTurn.AnswerText.left(fence).trimmed();
+				const auto close = aTurn.AnswerText.indexOf(QStringLiteral("\n```"), fence + 3);
+				if (close >= 0) {
+					const auto after = aTurn.AnswerText.mid(close + 4).trimmed();
+					if (!after.isEmpty()) {
+						prose += QStringLiteral("\n\n") + after;
+					}
+				}
+				auto counts = std::array<int, core::addressed_claim_count>{ };
+				for (const auto& [thread, claim] : claims) {
+					++counts[static_cast<std::size_t>(claim)];
+				}
+				auto parts = QStringList{ };
+				for (std::size_t index = 0U; index < counts.size(); ++index) {
+					if (counts[index] > 0) {
+						const auto words = core::claim_words(static_cast<core::addressed_claim>(index));
+						parts << QStringLiteral("%1 %2").arg(counts[index]).arg(QString::fromUtf8(words.data(), static_cast<qsizetype>(words.size())).toLower());
+					}
+				}
+				aTurn.AnswerText = prose + QStringLiteral("\n\n") + tr("Claims on %n thread(s): %1. Each is on its thread in Comments.", nullptr, static_cast<int>(claims.size())).arg(parts.join(QStringLiteral(", ")));
+				show_answer(aTurn);
 			}
 		}
 	}

@@ -8059,6 +8059,16 @@ namespace {
 										},
 										 .Turns = 2U });
 				state->Planned = true;
+				if (window.width() < 1440) {
+					window.resize(1440, 900);
+				}
+				if (const auto shots = qEnvironmentVariable("BPR_ATTENDED_SHOT_DIR"); !shots.isEmpty()) {
+					// The window lays itself out at its new size first.
+					for (auto pass = 0; pass < 5; ++pass) {
+						QCoreApplication::processEvents();
+					}
+					static_cast<void>(window.grab().save(shots + QStringLiteral("/launch.png")));
+				}
 				return;
 			}
 			const auto evidence = access::agent_invocation_evidence(aApplication);
@@ -8117,12 +8127,42 @@ namespace {
 					return;
 				}
 			}
+			// `BPR_ATTENDED_SHOT_DIR=DIR`: pictures of the window at the
+			// look's moments, for the look's candidates.
+			const auto shots = qEnvironmentVariable("BPR_ATTENDED_SHOT_DIR");
+			const auto shoot = [&window, &shots](const QString& aName) {
+				if (!shots.isEmpty()) {
+					static_cast<void>(window.grab().save(shots + QLatin1Char('/') + aName));
+				}
+			};
 			if (state->Next == 0U) {
-				const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
-				state->Report          = card != nullptr && !card->isHidden();
+				auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
+				state->Report    = card != nullptr && !card->isHidden();
 				if (const auto shot = qEnvironmentVariable("BPR_ATTENDED_FOOTER_SHOT"); !shot.isEmpty()) {
 					static_cast<void>(window.grab().save(shot));
 				}
+				shoot(QStringLiteral("what-changed.png"));
+				// Look ask-v005: a report's tab has no file Ask; the file's
+				// tab has it again.
+				if (auto* const open = card != nullptr ? card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")) : nullptr; open != nullptr) {
+					open->click();
+					QCoreApplication::processEvents();
+					if (!window.report_shown() || window.file_ask_button()->isVisible()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-tab:shown=%1:file-ask=%2").arg(window.report_shown() ? 1 : 0).arg(window.file_ask_button()->isVisible() ? 1 : 0));
+						return;
+					}
+					shoot(QStringLiteral("report-tab.png"));
+					static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
+					QCoreApplication::processEvents();
+					if (window.report_shown() || !window.file_ask_button()->isVisible()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:file-tab:file-ask=%1").arg(window.file_ask_button()->isVisible() ? 1 : 0));
+						return;
+					}
+					shoot(QStringLiteral("file-tab.png"));
+				}
+			}
+			if (current.Name.contains(QStringLiteral("was-addressed_pull-request"))) {
+				shoot(QStringLiteral("addressed-pull-request.png"));
 			}
 			state->Asked << current.Name;
 			state->Waiting = false;

@@ -63,3 +63,13 @@ Settled:
 - **Layout ingredients the owner liked:** C's filter, A's large edit area, B's drag reordering, and seeing at a glance whether a prompt is a quick ask or a chip.
 
 Open, and this blocks the build: how one prompt shows its several placements, both in the list and in the editor. For example, "Was this addressed?" is in the Ask menu and is a chip for a thread, and is in the Ask menu for a PR. The owner asked for mockups from a deep worker to choose between. It is still open how the repository overlay looks in the settings UI (which values are overridden, and how to revert to the app-wide value).
+
+## Look prompts-settings-v002, 2026-11-14 (owner)
+
+The owner chose none of directions 1 Grid, 2 Sentences and 3 Surfaces. Their note, verbatim: "Okay I think we need to split it into 2 separate elements.\n\nFirst we have surfaces which defines where prompts appear.\nThen we have the prompt library where we can create new prompts, edit existing prompts, and we drag/right click from the prompt library to add to surfaces."
+
+Decided: the section has two parts.
+- **Surfaces** define where prompts appear: the PR, file and thread Ask menus and their suggested chips.
+- **The prompt library** is where prompts are created and edited.
+
+A prompt is placed on a surface by dragging it from the library, or through a right-click menu. Next comes a round of mockups for that split.
