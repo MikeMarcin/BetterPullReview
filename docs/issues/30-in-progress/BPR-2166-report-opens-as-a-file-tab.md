@@ -41,6 +41,17 @@ Ends in an owner look (Accept or Reject) on a frozen build serving a pull reques
   "I think this might need to wait until report cards land because the actual
   output in the app is not good enough". Its acceptance now waits on this
   card's report-card redesign; the mechanism stays built.
+- ask-v007: the report card **Accept**; the opened report **Accept**, "Yes but
+  I think we need a different icon for the tab header, because that one reaads
+  as though this report is going to do something with the agent. It should
+  read as this is a report not a file."; Q5 **Reject**, "Why is your mockup
+  report attachment cutting of text. Why does asking was this addressed on the
+  PR in the fixture agaent in the fronzen build not show an attachment
+  report?". Fixed in `47dc394c8`: the tab wears a report glyph (a page with a
+  folded corner and lines of text); the row's height follows its width (it was
+  Fixed, sized from a stale width); a many-thread Was this addressed? is a
+  report (it was excluded); the every-ask check fails on a missing report.
+  Asked again in ask-v008.
 
 ## Progress (2026-11-14, claimed)
 
