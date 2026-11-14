@@ -5523,6 +5523,12 @@ endif()
 bpr_add_network_isolated_test(NAME fixture_agent_answers
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/fixture_agent_tests.py" "${CMAKE_BINARY_DIR}/fixture-agent")
 set_tests_properties(fixture_agent_answers PROPERTIES PASS_REGULAR_EXPRESSION "fixture-agent-answers:pass" ENVIRONMENT "BPR_FIXTURE_AGENT_PAUSE_MS=1")
+# RFC-BPR-0125 milestone 3 ([[BPR-2146]] AC11 to AC13), through the window.
+bpr_add_network_isolated_test(NAME application_prompt_macros_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path macros "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_prompt_macros_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "ask-menu-macros:pass")
 bpr_add_network_isolated_test(NAME application_ask_queue_public_path
     WINDOWS_UNCONTAINED
     COMMAND test_ask_menu_public_path queue "$<TARGET_FILE:test_scoped_writing_agent>")

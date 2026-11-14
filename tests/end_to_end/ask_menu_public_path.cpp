@@ -67,6 +67,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStyle>
@@ -173,7 +174,7 @@ auto main(int argc, char** argv) -> int
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
 	const auto   course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
-	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue")) {
+	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue" && course != "macros")) {
 		std::cerr << "usage: ask_menu_public_path menu|addressed|report STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
@@ -326,6 +327,154 @@ auto main(int argc, char** argv) -> int
 		}
 		agent_ready(window);
 		wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path && !cards->cards().empty(); }, "the file opens beside its threads");
+		if (course == "macros") {
+			// RFC-BPR-0125 milestone 3 ([[BPR-2146]] AC11 to AC13) through the
+			// window: a chip turned off and a new order reach an open window
+			// and survive a restart; the suggestions toggle hides every chip;
+			// Reset agents changes no prompt; Restore built-ins… returns the
+			// built-ins and keeps the reviewer's own.
+			// A modal question is answered as a person would, with its
+			// destructive or Yes button.
+			auto* const answerer = new QTimer{ &qtApplication };
+			answerer->setInterval(50);
+			QObject::connect(answerer, &QTimer::timeout, [] {
+				if (auto* const box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget()); box != nullptr) {
+					for (const auto standard : { QMessageBox::Reset, QMessageBox::Yes, QMessageBox::Ok }) {
+						if (auto* const button = box->button(standard); button != nullptr) {
+							button->click();
+							return;
+						}
+					}
+				}
+			});
+			answerer->start();
+			const auto chips = [&] {
+				auto texts = QStringList{ };
+				for (auto* const chip : tab->suggestion_buttons()) {
+					if (chip->isVisibleTo(tab)) {
+						texts << chip->text();
+					}
+				}
+				return texts;
+			};
+			window.open_agent_question();
+			wait([&] { return chips().contains(QStringLiteral("Review this pull request")) && chips().contains(QStringLiteral("What could this change break?")); }, "the shipped chips show");
+			window.open_settings(qt::settings_page::agents_and_context);
+			window.reveal_prompt_macros();
+			auto* const macros = window.prompt_macros();
+			expect(macros != nullptr && macros->list(core::prompt_place::agent_tab)->count() > 0, "Settings lists the prompts");
+			// AC11: every macro under its place, with its sentence and state.
+			auto* const list  = macros->list(core::prompt_place::agent_tab);
+			auto        rowOf = [list](const QString& aName) {
+				for (auto at = 0; at < list->count(); ++at) {
+					if (list->item(at)->text().startsWith(aName)) {
+						return at;
+					}
+				}
+				return -1;
+			};
+			expect(rowOf(QStringLiteral("Review this pull request")) >= 0 && !list->item(rowOf(QStringLiteral("Review this pull request")))->toolTip().isEmpty(), "a prompt is listed with its sentence");
+			// Turning one off removes its chip from the open window.
+			macros->toggle("agent-tab.review-pull-request", false);
+			window.open_agent_question();
+			if (window.settings() != nullptr) {
+				window.settings()->hide();
+			}
+			wait([&] { return !chips().isEmpty() && !chips().contains(QStringLiteral("Review this pull request")); }, "its chip leaves the open window, no restart");
+			// A new order by keyboard (Alt+Up) reaches the chips.
+			const auto before = chips();
+			window.open_settings(qt::settings_page::agents_and_context);
+			window.reveal_prompt_macros();
+			list->setCurrentRow(rowOf(QStringLiteral("What could this change break?")));
+			{
+				QKeyEvent up{ QEvent::KeyPress, Qt::Key_Up, Qt::AltModifier };
+				QApplication::sendEvent(list, &up);
+			}
+			window.settings()->hide();
+			window.open_agent_question();
+			wait([&] {
+				const auto now = chips();
+				return now != before && now.indexOf(QStringLiteral("What could this change break?")) < before.indexOf(QStringLiteral("What could this change break?"));
+			},
+				 "a new order made by keyboard reaches the chips");
+			wait([&] { return chips().size() >= 3; }, "the chips show in their new order");
+			const auto ordered = chips();
+			// AC13: the suggestions toggle still hides every chip.
+			tab->suggestions_toggle()->click();
+			QApplication::processEvents();
+			expect(chips().isEmpty(), "the suggestions toggle hides every chip");
+			tab->suggestions_toggle()->click();
+			QApplication::processEvents();
+			if (!e2e::wait_until_plain([&] { return chips() == ordered; }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "and shows them again as they were: " + chips().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() + " toggle checked " + std::to_string(tab->suggestions_toggle()->isChecked()) };
+			}
+			// Remove every agent and set up again changes no prompt.
+			tab->reset_agents();
+			QApplication::processEvents();
+			agent_ready(window);
+			window.open_agent_question();
+			if (!e2e::wait_until_plain([&] { return chips() == ordered; }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "Reset agents and setting up again changes no prompt: " + chips().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
+			}
+			shutdown(*application);
+			application.reset();
+			// Both survive a restart.
+			auto again                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			again.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
+			again.ClaudeAgentExecutable = stub;
+			again.ClaudeSearch          = search;
+			auto restarted              = false;
+			auto restart                = access::start(app::detail::github_public_path_fixture::returning_review_v1, std::move(again), [&](auto aResult) { restarted = true; if (aResult) { application = std::move(*aResult); } });
+			wait([&] { return restarted && restart && restart->is_quiescent(); }, "the restart");
+			expect(application != nullptr, "the restart succeeds");
+			application->show();
+			auto& reopened = application->window();
+			reopened.resize(1440, 960);
+			reopened.github_connect_action()->trigger();
+			wait([&] { return reopened.github_open_action()->isEnabled(); }, "connected again");
+			reopened.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+			reopened.home_open_action()->trigger();
+			wait([&] { return reopened.what_changed_action()->isEnabled(); }, "the pull request opens again");
+			agent_ready(reopened);
+			auto* const tab2   = reopened.agent_tab();
+			const auto  chips2 = [tab2] {
+				auto texts = QStringList{ };
+				for (auto* const chip : tab2->suggestion_buttons()) {
+					if (chip->isVisibleTo(tab2)) {
+						texts << chip->text();
+					}
+				}
+				return texts;
+			};
+			reopened.open_agent_question();
+			wait([&] { return chips2() == ordered; }, "the chip turned off and the new order survive a restart");
+			// Restore built-ins… returns the shipped text, order and On, after
+			// its question, and keeps the reviewer's own prompt.
+			reopened.open_settings(qt::settings_page::agents_and_context);
+			reopened.reveal_prompt_macros();
+			auto* const macros2 = reopened.prompt_macros();
+			macros2->add_prompt(core::prompt_place::agent_tab, [](qt::prompt_macro_sheet& aSheet) {
+				aSheet.name_field()->setText(QStringLiteral("My own check"));
+				aSheet.template_field()->setPlainText(QStringLiteral("Check the pull request for my own concern."));
+				aSheet.finish(qt::prompt_macro_sheet::outcome::saved);
+			});
+			reopened.settings()->hide();
+			reopened.open_agent_question();
+			wait([&] { return chips2().contains(QStringLiteral("My own check")); }, "the reviewer's own prompt is a chip");
+			reopened.open_settings(qt::settings_page::agents_and_context);
+			reopened.reveal_prompt_macros();
+			macros2->findChild<QPushButton*>(QStringLiteral("promptMacrosRestore"))->click();
+			QApplication::processEvents();
+			reopened.settings()->hide();
+			reopened.open_agent_question();
+			wait([&] { return chips2().contains(QStringLiteral("Review this pull request")) && chips2().contains(QStringLiteral("My own check")); }, "Restore built-ins… turns the built-in back on and keeps the reviewer's own");
+			const auto restored = chips2();
+			expect(restored.indexOf(QStringLiteral("Review this pull request")) < restored.indexOf(QStringLiteral("What could this change break?")), "in the shipped order: " + restored.join(QLatin1Char('|')).toStdString());
+			answerer->stop();
+			shutdown(*application);
+			std::cout << "ask-menu-macros:pass\n";
+			return EXIT_SUCCESS;
+		}
 		const auto setupLaunches = launchesAt();
 		const auto mutation      = access::review_mutation_evidence(*application);
 

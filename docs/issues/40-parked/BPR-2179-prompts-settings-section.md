@@ -110,3 +110,18 @@ Decided:
 - The separate "Built-in prompts" settings section is removed.
 
 Owner, 2026-11-14, verbatim: "disallow duplicate a system prompt". System prompts have no Duplicate.
+
+## Spec questions, 2026-11-14 (owner, in chat)
+
+Owner decisions on the questions the spec ([SPEC.md](../../design/prompts-settings-v4/SPEC.md)) raised:
+- Action rows ("What changed since my review", "Explain this file", "Was this addressed?"): "Menu only, never chips". The thread-chip placement of "Was this addressed?" in the worked example is withdrawn.
+- About is dropped: placement decides scope; a drop onto a surface whose scope cannot fill the prompt's placeholders is refused with a reason.
+- Tour chats get surfaces: Tour stop, Tour part and Whole tour, under the same model.
+- More is kept: the first 5 matching chips show, the rest go under More.
+
+The coordinator set defaults for the rest; the owner can change them:
+- The text an action row sends is a system prompt.
+- Every prompt saves as it is typed, with Reset.
+- The footnoted condition kinds stay as the spec reads them under Q1.
+
+The card is ready to build.
