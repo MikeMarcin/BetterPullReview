@@ -16,7 +16,15 @@ The owner, in the same note on `finish-review-local-line`:
 
 > I feel like clicking off compose review into the diff or drawers or review bar or using the mode tabs should hide it. It feels more in the way than helpful staying open when i'm trying to navigate the app.
 
+Then, on this card:
+
+> hmm maybe compose review should use the light box we mocked up but decided not to use for big agent responses instead
+
+## Proposed direction (needs a mockup look before building)
+
+Compose review / Finish your review opens as the lightbox from the Ask mockups, the variant mocked for big agent responses and not chosen there ([docs/design/ask-v1](../../design/ask-v1/README.md), `png/lbx-agent-light.png` and `png/lbx-tour-light.png`). It is dismissed by a click outside it, Esc, or a mode tab, keeping its words as Close does; opening it again shows it as it was.
+
 ## Outcome
 
-The Compose review / Finish your review sheet closes (its words kept, as Close keeps them) when I click into the diff, a drawer or the review bar, or choose another mode tab. Opening it again shows it as it was. A test drives each of those gestures; owner look on a frozen build.
-
+1. A mockup of Compose review as that lightbox (light and dark, the narrow and wide windows), shown to the owner as an attended look, one Accept/Reject. No building before it is accepted.
+2. Then: a click into the diff, a drawer or the review bar, Esc, or choosing another mode tab closes it with its words kept; a test drives each gesture; owner look on a frozen build.
