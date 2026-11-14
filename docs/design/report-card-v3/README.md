@@ -1,4 +1,4 @@
-# The opened report, in the file tab (round 3 mockups, no choice made yet)
+# The opened report, in the file tab (round 3 mockups; rejected, with a direction)
 
 How an agent's report
 ([RFC-BPR-0128](../../rfcs/RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md))
@@ -11,7 +11,9 @@ rejected it on 2026-11-14:
 
 This round keeps the place fixed and asks only the reading: what is folded
 when the report opens, how the reader moves between sections, and how they get
-back to the conversation. Nothing here is chosen and no product code changed.
+back to the conversation. **The owner rejected the round and named what they
+want** (see [Status](#status)): B's straight read, with a menu for navigation.
+No product code changed.
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its frames, light and dark; none
@@ -112,14 +114,21 @@ trimmed to the frame. `frame` is one of `start`, `a-open`, `a-read`, `b-open`,
 
 ## Status
 
-Awaiting the owner's choice, asked on 2026-11-14 as one select question (A, B
-or C) with a note:
+**Rejected** (owner, 2026-11-14). The note, verbatim:
+
+> Can we get like straight read with a navigation hamburger menu or something
+> like that.
+
+So the reading is B's: the report opens with everything open and reads from
+the top. Its ruler is dropped; the reader moves between sections through a
+menu button. A's folding and C's paging are dropped. Round 4
+(`docs/design/report-card-v4/`) draws that button and its menu.
 
 - Attended-review session `bff4dd72e9f6b027789ae5c1da4eeefe`, candidate
   `report-card-v3-reading` at revision `629e69ca7374` (the commit that added
-  these mockups).
+  these mockups), decision `433bc214-19fb-4912-9cac-fb34165cd2e6`: reject.
 - External state directory
   `~/.attended-review-state/report-card-v003-2026-11-14/` (`state/` is the
-  session, `material/` a copy of the three rounds' folders at that revision
-  for the owner to open).
-- Lifecycle when this was written: prepared and served, unanswered.
+  session, `material/` a copy of the three rounds' folders at that revision).
+- Lifecycle: handed back 2026-11-14 with the one candidate decided; the host
+  is stopped.
