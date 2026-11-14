@@ -13141,6 +13141,13 @@ auto main(int argc, char** argv) -> int
 							AttendedLocalDraftPullRequest = number.toULongLong();
 						}
 						look = std::string{ "local-draft" };
+						// [[BPR-2172]], [[BPR-2173]]. And a third: the owner's
+						// command can ask for the Local comments look on the
+						// same fixture file instead of the draft.
+						if (!qEnvironmentVariable("BPR_ATTENDED_LOCAL_COMMENTS_LOOK").isEmpty()) {
+							AttendedLocalDraftPath.clear();
+							look = std::string{ "local-comments" };
+						}
 					}
 					if (attendedConversationLook) {
 						look = std::string{ "conversation" };

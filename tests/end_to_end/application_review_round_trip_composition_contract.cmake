@@ -3735,8 +3735,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# the fixture agent and the launch guard refuses a real one; RFC-BPR-0128's
 	# queued Ask (RFC-BPR-0126's queue host), the report tab and Explain this
 	# file in the Agent tab. No new effect or path.
+	# BPR-2172 and BPR-2173: the local draft look's environment can choose the
+	# Local comments look on the same fixture file instead (tests-only
+	# attended launch). No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "07da1b9beff2728d6d10917d40249927a064d2969e204a7f7be199bb470a179e"
+        "f0653e984fc6eaed36920ea342409503f8a493adc728188de7052159835a3cba"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
