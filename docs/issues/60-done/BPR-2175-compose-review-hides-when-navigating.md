@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2175"
 title: "Compose review hides when I navigate elsewhere"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -89,3 +89,16 @@ gesture; `qt_workbench_window` at 100, 125 and 200 %,
 `qt_drawer_surfaces_fit`, `application_review_submission_composition` (three
 scales) and the other composed courses that open it pass. Pending: the
 owner's look on a frozen build.
+
+## Owner look v003 (session `1f1217eb0f4bf89ce4c521434ce15cdc`, frozen `7b9afcaa0846`, handed back 2026-11-14)
+
+- `BPR-2175-lightbox-d`: **Accept** (no note), at 2026-11-14T17:47:27Z.
+- `BPR-2175-lightbox-gestures`: **Accept** (no note), at 2026-11-14T17:47:51Z.
+
+A double click on a comment row opens it in the code and leaves the
+lightbox open; the coordinator, for the owner: no objection, kept as is.
+
+All three outcomes hold: the mockup (v002, option D) accepted; the closing
+gestures, each driven by a test and accepted on a frozen build; the
+window's own controls with the lightbox open, driven by a test (resize,
+minimise and restore, zoom, full screen) and accepted. Done.

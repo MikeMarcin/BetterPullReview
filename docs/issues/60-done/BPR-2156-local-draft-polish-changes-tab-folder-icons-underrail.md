@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2156"
 title: "Local draft polish: the Changes tab, folder icons in Files and Overview, the Edit view's underrail"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0113", "RFC-BPR-0114"]
 depends_on: []
 priority: "P3"
@@ -78,3 +78,10 @@ where the platform has none (checked in `qt_local_draft_window`). On macOS,
 Qt draws `DocumentSave` as the SF Symbol `square.and.arrow.down`, which is
 the icon of the first look too: the next look shows it rendered and asks
 again.
+
+## Owner look v003 (session `1f1217eb0f4bf89ce4c521434ce15cdc`, frozen `7b9afcaa0846`, handed back 2026-11-14)
+
+- `BPR-2156-save-icon`: **Accept** (no note), at 2026-11-14T17:45:39Z.
+
+Every part is accepted: "Changes", the folder icons, the underrail (look
+v001) and Save as the DocumentSave icon alone (this look). Done.

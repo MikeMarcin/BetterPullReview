@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2172"
 title: "The composer's placement warning takes less space"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -51,3 +51,14 @@ drives each note through the window's own placement path and, with
 may not place, can't place, the file-comment reason, head line, base line and
 earlier commit fold; "Working out where GitHub puts a comment…" (which stops
 Publish) keeps its lines.
+
+## Owner look v003 (session `1f1217eb0f4bf89ce4c521434ce15cdc`, frozen `7b9afcaa0846`, handed back 2026-11-14)
+
+- `BPR-2172-placement-mark`: **Accept**, at 2026-11-14T17:47:02Z. The owner, verbatim: "This mark should maybe be colored a warning yellow or something"
+- `BPR-2172-what-folds`: **Accept** (no note), at 2026-11-14T17:47:15Z.
+
+The outcome holds: the notice is a warning mark on the tool row that
+discloses its sentence on press or Space, named for assistive technology,
+and the composer does not grow for it; owner look accepted. Done. The
+owner's "maybe" on colouring the mark warning yellow is left as a
+suggestion for the coordinator to schedule.
