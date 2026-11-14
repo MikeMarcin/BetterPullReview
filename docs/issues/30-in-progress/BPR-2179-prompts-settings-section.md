@@ -163,3 +163,77 @@ surfaces; a placement placed again moves; remove and move within a surface.
    duplicated, added or deleted), the Built-in prompts section removed.
 7. Repository overrides (the Prompts for pop-up and the second layer).
 8. The look: screenshots and one Accept/Reject per criterion.
+
+### Slices 2 to 7 (2026-11-14)
+
+Frontend-design loaded for the page.
+
+- **Storage (2).** `prompt_macro_differences::Surfaces`: each surface the
+  reviewer changed, its list and what it took off, in `prompt_surface_lists`
+  of `agent-setup.sqlite3` (layer `''`); with nothing stored a surface is
+  what today's fields describe (`shipped_surfaces`), and a built-in a later
+  release adds goes to the end of a changed surface. The merged set carries
+  `Surfaces`; the write is under the existing revision rule.
+- **Decisions read the surfaces (3).** `placed_prompt_macros` turns each
+  placement into the copy the existing decisions read: placement decides the
+  scope (a prompt about something narrower keeps its About and asks once for
+  each). The Ask menus list in the surface's order (no longer action rows
+  first); each chip surface has its own five, the rest under More. The Agent
+  tab with no conversation shows the pull request's chips, then the file's
+  (spec section 14 asked to confirm this; it changes today's order to Review
+  this pull request, What could this change break?, Review <file>). A press on
+  a menu-only prompt still sends it (`menu_prompt_offers`). An action on a
+  menu narrower than its own scope is refused (`action_too_narrow`).
+- **The page (4).** Settings › Prompts, after Agents & context
+  (`prompts_page`): Surfaces (the three scopes' Ask menu and Suggested chips,
+  then the tour chats), the legend, the Prompt library (filter, All /
+  Built-in / Yours / Not on a surface / System, Restore built-ins…, New
+  prompt) and the editor (name, Answer as, text with Insert and the byte
+  count, conditions, Add to, Duplicate, Reset to default, "On N surfaces,
+  outlined above", Saved). Selection outlines every placement with the link
+  glyph; drag from the library and between surfaces (Option copies), Add to
+  from the editor, a library row and a placement, Option-Up/Down, Delete, the
+  menu key. Every change saves as made (typing after 450 ms), one write at a
+  time. The page scrolls; the library body keeps 360 as drawn, and in a
+  narrow window the editor goes under the list. Ask › Edit Quick Asks…
+  opens it. The old Suggested prompts roster and its sheet are removed.
+- **Conditions (5).** Kinds (`prompt_fact_kind`), All of these / Any of
+  these (`prompt_match`), and the card's conditions: new pushes since my
+  review, file has unresolved threads, I haven't reviewed this file, thread
+  is unresolved, new replies or pushes since the comment (Count), replies
+  since my comment. A menu row whose greys-kind condition is untrue is
+  greyed with that condition's reason; hidden per Q1 and the Any default.
+  Placement decides scope, so a review fact is allowed on every non-tour
+  surface (unknown reads untrue).
+- **System prompts (6).** The Built-in prompts section moved into the
+  library under System, keeping its groups: edit, Reset, Preview, Test, `/`
+  completion, byte count, Changed and Undo reset (its own editor, with Save
+  and Discard as today: the spec's open saving question stays open). No drag,
+  no on/off, Add to disabled with the spec's reason, no Duplicate. An action
+  row's editor links to the system prompt it sends.
+- **Repository overrides (7).** `prompt_repository_layer` (field overrides,
+  its own prompts, each surface's added, removed and own order) in
+  `prompt_repository_prompts` and `prompt_surface_lists`; the open pull
+  request's repository's layer reaches its chips and menus. Prompts for lists
+  All repositories, the open pull request's repository and those with a layer;
+  the page shows Added here, Removed here (struck through), Off here, Only
+  here, Changed here (with its filter and count), Order changed here with
+  Revert, a teal dot and "Differs from app-wide" with each field's way back,
+  and Use app-wide for this prompt. An app-wide prompt cannot be deleted here.
+
+Open for the owner: the Agent tab's chip order above; the spec's footnoted
+greys kinds; system prompts' Save/Discard against autosave; which
+repositories Prompts for lists.
+
+### Look prompts-v001 (filed 2026-11-14)
+
+Session `c6fcc366221e664f5f4c37d884b0ec2c`, state
+`/Users/jaeger/.attended-review-state/prompts-v001-2026-11-14/state` (URL in
+`serve.log` beside it), cursor 36. Root `/Users/jaeger/prompts-v001.l5nlwa6h`
+frozen from `738546b20` (tests-on, Fixture agent; its check answered all 17
+asks). Twelve questions, one Accept/Reject each, with native off-screen
+pictures from the root's own test executables: `BPR-2179-one-page`,
+`-edit-obvious`, `-placing`, `-conditions`, `-system-prompts`,
+`-repository`, `-agent-tab-chips`, and BPR-2151's `-pending-list`,
+`-edit-hold`, `-stop-all`, `-follow-up-setting`, `-cmd-return`. AC03 waits on
+the owner's verdicts.
