@@ -6,7 +6,8 @@
 /// Courses, by the first argument:
 ///
 /// - `explain STUB`: opening the pull request and a file, and scrolling it,
-///   launch no agent; Explain this file at the file's header sends one fresh,
+///   launch no agent; Explain this file in the file header's Ask (RFC-BPR-0128,
+///   Q3) sends one fresh,
 ///   tool-free call about that file (`analyze_current_file`, its own prompt
 ///   as the system prompt, the file's change and text in the request) with
 ///   nothing selected; the answer shows in the card at the file's header with
@@ -21,6 +22,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
@@ -172,10 +174,16 @@ auto main(int argc, char** argv) -> int
 		expect(launchesAt() == 0U, "opening and scrolling a file launches no agent");
 		agent_ready(window);
 		auto* const tab    = window.agent_tab();
-		auto* const button = window.explain_file_button();
+		// RFC-BPR-0128 (Q3): the file header's Ask stands in Explain this
+		// file's place, and Explain this file is its first quick ask.
+		auto* const button = window.file_ask_button();
 		auto* const card   = window.explain_card();
-		wait([&] { return button != nullptr && button->isEnabled() && button->isVisible(); }, "Explain this file is offered at the file's header");
-		expect(button->text() == QStringLiteral("Explain this file") && qt::agent_run_control(*button), "the control says what it does and wears the Agent accent");
+		const auto  row    = [button]() -> QAction* {
+			button->refresh_menu();
+			return button->menu()->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.explain-file_file"));
+		};
+		wait([&] { return button != nullptr && button->isEnabled() && button->isVisible() && row() != nullptr && row()->isEnabled(); }, "Explain this file is offered in the file header's Ask");
+		expect(button->text() == QStringLiteral("Ask") && row()->text() == QStringLiteral("Explain this file"), "the file's Ask lists Explain this file");
 		expect(card != nullptr && card->isHidden(), "no card before a press");
 		const auto setupLaunches = launchesAt();
 		const auto mutation      = access::review_mutation_evidence(*application);
@@ -183,7 +191,7 @@ auto main(int argc, char** argv) -> int
 
 		// AC01, AC02, AC04. The press.
 		auto sawRunning = false;
-		button->click();
+		row()->trigger();
 		wait([&] {
 			sawRunning = sawRunning || (card->isVisible() && card->progress().Running.has_value());
 			return settled(*application, window);
@@ -233,16 +241,10 @@ auto main(int argc, char** argv) -> int
 		auto*      strip  = window.document_tabs();
 		const auto active = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Active; });
 		expect(active != strip->tabs().end(), "a tab is active");
-		auto menu    = std::unique_ptr<QMenu>{ strip->make_tab_menu(active->Id, &window) };
-		auto explain = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("documentTabExplainFile")) : nullptr;
-		if (explain == nullptr && menu != nullptr) {
-			for (auto* const action : menu->actions()) {
-				if (action->objectName() == QStringLiteral("documentTabExplainFile")) {
-					explain = action;
-				}
-			}
-		}
-		expect(explain != nullptr && explain->isEnabled(), "the tab's menu offers Explain This File");
+		auto        menu    = std::unique_ptr<QMenu>{ strip->make_tab_menu(active->Id, &window) };
+		auto* const ask     = menu != nullptr ? menu->findChild<QMenu*>(QStringLiteral("documentTabAskMenu")) : nullptr;
+		auto* const explain = ask != nullptr ? ask->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.explain-file_file")) : nullptr;
+		expect(explain != nullptr && explain->isEnabled(), "the tab's menu offers Explain this file under Ask");
 		explain->trigger();
 		wait([&] { return tab->turn_count() == turnsBefore + 2U && settled(*application, window); }, "the menu's question is answered");
 		expect(tab->turn_explain(tab->turn_count() - 1U) == path && launchesAt() == setupLaunches + 2U, "the menu sends the same question about the file");

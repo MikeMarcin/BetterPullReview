@@ -1230,10 +1230,11 @@ auto main(int argc, char** argv) -> int
 		if (thread.empty()) {
 			return fail(*application, "conversation-thread");
 		}
-		// The thread's own menu, which the window dispatches as it does the
-		// open card's header button.
-		auto* const menu = cards->thread_menu(thread);
-		auto* const ask  = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) : nullptr;
+		// The thread's own menu: RFC-BPR-0128's Ask item, whose Custom
+		// question… attaches the thread as Ask agent did.
+		auto* const menu    = cards->thread_menu(thread);
+		auto* const askMenu = menu != nullptr ? menu->findChild<QMenu*>(QStringLiteral("threadAskMenu")) : nullptr;
+		auto* const ask     = askMenu != nullptr ? askMenu->findChild<QAction*>(QStringLiteral("quickAskCustomQuestion")) : nullptr;
 		if (ask == nullptr || !ask->isEnabled()) {
 			return fail(*application, "conversation-ask-agent");
 		}

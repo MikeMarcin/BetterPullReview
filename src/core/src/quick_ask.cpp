@@ -133,18 +133,20 @@ namespace bpr::core {
 				}
 				const auto& thread = *threads.front();
 				aRow.Each          = { thread.Identity };
-				if (!thread.CommitsSince) {
+				if (!thread.Changed) {
 					return greyed(std::move(aRow), quick_ask_reason::thread_commit_unknown);
 				}
-				aRow.Count = *thread.CommitsSince;
-				aRow.Unit  = quick_ask_unit::commits;
-				return *thread.CommitsSince == 0U ? greyed(std::move(aRow), quick_ask_reason::no_commits_since_thread) : aRow;
+				if (thread.CommitsSince && *thread.CommitsSince > 0U) {
+					aRow.Count = *thread.CommitsSince;
+					aRow.Unit  = quick_ask_unit::commits;
+				}
+				return !*thread.Changed ? greyed(std::move(aRow), quick_ask_reason::no_commits_since_thread) : aRow;
 			}
 			if (threads.empty()) {
 				return greyed(std::move(aRow), quick_ask_reason::no_threads);
 			}
 			for (const auto* const thread : threads) {
-				if (thread->CommitsSince.value_or(0U) > 0U) {
+				if (thread->Changed.value_or(false)) {
 					aRow.Each.push_back(thread->Identity);
 				}
 			}

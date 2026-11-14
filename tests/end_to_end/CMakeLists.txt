@@ -5470,3 +5470,17 @@ if(TARGET Git::Git)
         PASS_REGULAR_EXPRESSION "local-draft-publication-desktop-public-path:pass"
         TIMEOUT 180)
 endif()
+# RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]]). The Ask menus, on
+# returning-review-v1 at its next push, with the scoped writing stub as the
+# installed Claude.
+bpr_add_executable(test_ask_menu_public_path ask_menu_public_path.cpp)
+target_link_libraries(test_ask_menu_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite)
+target_compile_definitions(test_ask_menu_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_ask_menu_public_path)
+bpr_enable_warnings(test_ask_menu_public_path)
+add_dependencies(test_ask_menu_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_ask_menu_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path menu "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_menu_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu:pass")

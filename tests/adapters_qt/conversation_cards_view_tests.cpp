@@ -1,6 +1,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
@@ -591,21 +592,30 @@ namespace {
 		button(view, "threadShowLine")->click();
 		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::mark_read, "t-open" }, { qt::card_action::open_in_code, "t-open" } },
 			   "in Discuss the line button opens the thread in the code");
-		// [[BPR-1773]]. An open review thread offers Ask agent, in its
-		// header and its menu; either only names the thread to the host.
-		expect(button(view, "threadAskAgent") != nullptr && button(view, "threadAskAgent")->toolTip() == QStringLiteral("Ask agent about this conversation"),
-			   "an open review thread offers Ask agent about this conversation");
-		button(view, "threadAskAgent")->click();
-		expect(actions.back() == std::pair{ qt::card_action::ask_agent, std::string{ "t-open" } }, "the header's Ask agent names the thread to the host");
+		// RFC-BPR-0128 ([[BPR-2164]]). Ask agent left the header: the open
+		// thread's Ask stands where a reply is written, and the thread's menu
+		// has one Ask item, both filled by the window with the thread's quick
+		// asks.
+		expect(button(view, "threadAskAgent") == nullptr && button(view, "threadWasAddressed") == nullptr, "the header has no agent controls");
+		expect(button(view, "threadAsk") == nullptr, "no Ask until the window fills its menu");
 		{
+			auto filled = std::vector<std::string>{ };
+			view.set_ask_menu_filler([&filled](QMenu& aMenu, const QString& aThread, const QString& aTitle) {
+				filled.push_back(aThread.toStdString());
+				aMenu.addAction(aTitle);
+			});
+			auto* const ask = static_cast<qt::ask_menu_button*>(button(view, "threadAsk"));
+			expect(ask != nullptr && ask->text() == QStringLiteral("Ask") && !ask->accessibleName().isEmpty(), "the open thread has Ask at its reply row");
+			ask->refresh_menu();
+			expect(filled == std::vector<std::string>{ "t-open" } && !ask->menu()->actions().isEmpty() && ask->menu()->actions().front()->text() == QStringLiteral("Thread on line 9"),
+				   "its menu is the window's, for this thread");
 			auto* const menu = view.thread_menu("t-open");
-			auto* const ask  = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) : nullptr;
-			expect(ask != nullptr && ask->isEnabled() && ask->text() == QStringLiteral("Ask agent about this conversation"), "the thread's menu offers it too");
-			if (ask != nullptr) {
-				ask->trigger();
-			}
-			expect(actions.back() == std::pair{ qt::card_action::ask_agent, std::string{ "t-open" } } && actions.size() == 4U, "and it names the same thread, once");
+			auto* const item = menu != nullptr ? menu->findChild<QMenu*>(QStringLiteral("threadAskMenu")) : nullptr;
+			expect(item != nullptr && filled.size() == 2U && filled.back() == "t-open", "the thread's menu has one Ask item, filled for the thread");
+			expect(menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) == nullptr && menu->findChild<QAction*>(QStringLiteral("threadWasAddressedAction")) == nullptr,
+				   "the agent items it replaces are gone");
 			delete menu;
+			view.set_ask_menu_filler({ });
 		}
 		view.set_resolution_offered(true);
 		QApplication::processEvents();
@@ -3311,7 +3321,7 @@ namespace {
 				auto* const published = view.open_card() == nullptr ? nullptr : view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
 				expect(published != nullptr && published->text() == QStringLiteral("10"), name + ": the open thread shows its line");
 				statesRead(*view.open_card(), *published, name + " thread", floor);
-				toolsRead(*view.open_card(), { QStringLiteral("threadResolve"), QStringLiteral("threadAskAgent"), QStringLiteral("threadMarkRead"), QStringLiteral("threadMore"), QStringLiteral("threadClose") },
+				toolsRead(*view.open_card(), { QStringLiteral("threadResolve"), QStringLiteral("threadMarkRead"), QStringLiteral("threadMore"), QStringLiteral("threadClose") },
 						  name + " thread", indicator);
 				auto* const markRead = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadMarkRead"));
 				expect(markRead != nullptr && markRead->isEnabled(), name + ": a thread with a new post can be marked read");

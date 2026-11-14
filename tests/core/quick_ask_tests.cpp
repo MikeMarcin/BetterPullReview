@@ -49,11 +49,11 @@ namespace {
 		facts.Thread             = "t10";
 		facts.Files              = { "src/render/renderer.cpp", "src/render/frame_pool.cpp" };
 		facts.Threads            = {
-			{ .Identity = "t10", .Path = "src/render/renderer.cpp", .TakesReplies = true, .CommitsSince = 18U },
-			{ .Identity = "t22", .Path = "src/render/renderer.cpp", .TakesReplies = true, .CommitsSince = 4U },
-			{ .Identity = "t31", .Path = "src/render/renderer.cpp", .TakesReplies = true, .CommitsSince = 0U },
-			{ .Identity = "t-pool", .Path = "src/render/frame_pool.cpp", .TakesReplies = true, .CommitsSince = 2U },
-			{ .Identity = "pr", .Path = { }, .TakesReplies = true, .CommitsSince = 1U },
+			{ .Identity = "t10", .Path = "src/render/renderer.cpp", .TakesReplies = true, .Changed = true, .CommitsSince = 18U },
+			{ .Identity = "t22", .Path = "src/render/renderer.cpp", .TakesReplies = true, .Changed = true, .CommitsSince = 4U },
+			{ .Identity = "t31", .Path = "src/render/renderer.cpp", .TakesReplies = true, .Changed = false, .CommitsSince = 0U },
+			{ .Identity = "t-pool", .Path = "src/render/frame_pool.cpp", .TakesReplies = true, .Changed = true, .CommitsSince = 2U },
+			{ .Identity = "pr", .Path = { }, .TakesReplies = true, .Changed = true, .CommitsSince = 1U },
 		};
 		return facts;
 	}

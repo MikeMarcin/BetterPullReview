@@ -75,13 +75,18 @@ namespace bpr::app {
 		for (const auto& file : snapshot->Files) {
 			facts.Files.push_back(file.Path);
 		}
+		const auto head = std::string{ snapshot->PullRequest.HeadOid.value() };
 		for (const auto& thread : snapshot->ReviewThreads) {
 			auto entry     = core::quick_ask_thread{ .Identity = thread_identity(thread), .Path = thread.Path };
 			entry.TakesReplies = thread.ViewerReplyPermission != application::github_permission_state::denied;
 			// Q6: the baseline is the commit the thread started on.
 			if (!thread.Comments.empty()) {
-				const auto& first  = thread.Comments.front().Observation;
-				entry.CommitsSince = commits_after(snapshot->Commits, !first.OriginalCommit.empty() ? first.OriginalCommit : first.Commit);
+				const auto& first    = thread.Comments.front().Observation;
+				const auto  baseline = !first.OriginalCommit.empty() ? first.OriginalCommit : first.Commit;
+				if (!baseline.empty()) {
+					entry.Changed      = baseline != head;
+					entry.CommitsSince = commits_after(snapshot->Commits, baseline);
+				}
 			}
 			facts.Threads.push_back(std::move(entry));
 		}

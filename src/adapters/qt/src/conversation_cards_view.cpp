@@ -3712,7 +3712,8 @@ namespace bpr::qt {
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment)) + QString::number(static_cast<int>(CommentEditOffered))
-			+ QString::number(static_cast<int>(TourOpenOffered && static_cast<bool>(TourOpenDispatch))) + QString::number(static_cast<int>(AddressedThreads.contains(card.Id)));
+			+ QString::number(static_cast<int>(TourOpenOffered && static_cast<bool>(TourOpenDispatch))) + QString::number(static_cast<int>(AddressedThreads.contains(card.Id)))
+			+ QString::number(static_cast<int>(static_cast<bool>(AskMenuFiller)));
 		for (const auto& post : card.Posts) {
 			// [[BPR-1775]]. Who wrote it decides Edit, so it is drawn too.
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QChar{ 0x1f } + post.Author + QString::number(static_cast<int>(post.Mine));

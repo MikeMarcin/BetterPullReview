@@ -23,6 +23,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -36,6 +37,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -218,15 +220,20 @@ auto main(int argc, char** argv) -> int
 			// Its file open in Review, as a person reaches the thread beside its code.
 			wait([&] { return window.go_to_file_line(QStringLiteral("src/engine/renderer.cpp"), 12U, false) && std::ranges::any_of(cards->cards(), [&](const auto& aCard) { return aCard.Id == identity; }); },
 				 "the thread's file opens beside its threads");
-			auto* button = static_cast<QToolButton*>(nullptr);
+			// RFC-BPR-0128: Was this addressed? is the open thread's quick ask.
+			auto* button = static_cast<QAction*>(nullptr);
 			wait([&] {
 				cards->open_thread(identity);
 				QApplication::processEvents();
-				button = window.findChild<QToolButton*>(QStringLiteral("threadWasAddressed"));
-				return button != nullptr;
+				auto* const ask = static_cast<qt::ask_menu_button*>(window.findChild<QToolButton*>(QStringLiteral("threadAsk")));
+				if (ask != nullptr) {
+					ask->refresh_menu();
+					button = ask->menu()->findChild<QAction*>(QStringLiteral("quickAsk_conversation.was-addressed_thread"));
+				}
+				return button != nullptr && button->isEnabled();
 			},
-				 "the open thread shows Was this addressed?");
-			button->click();
+				 "the open thread's Ask offers Was this addressed?");
+			button->trigger();
 			wait([&] { return answer_of(*tab).find("RETURNING_ECHO") != std::string::npos && access::agent_invocation_evidence(*application).Quiescent; }, "the answer arrives");
 			const auto answer = answer_of(*tab);
 			const auto last   = tab->turn_count() - 1U;

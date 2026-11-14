@@ -48,8 +48,11 @@ namespace bpr::core {
 		/// A review thread on GitHub (not my own Local comment or draft).
 		bool                Review = true;
 		std::optional<bool> TakesReplies;
-		/// Commits on the pull request after the commit the thread started on
-		/// (Q6); none when the read does not place that commit.
+		/// Whether the head is past the commit the thread started on (Q6);
+		/// none when the read does not name that commit.
+		std::optional<bool> Changed;
+		/// How many of the pull request's commits follow that commit; none
+		/// when the commit list does not hold it (a rebased branch).
 		std::optional<std::uint32_t> CommitsSince;
 
 		auto operator<=>(const quick_ask_thread&) const = default;
@@ -108,8 +111,8 @@ namespace bpr::core {
 		no_commits_since_threads,
 		/// Was this addressed?: no commits since this thread started.
 		no_commits_since_thread,
-		/// Was this addressed?: the commit this thread started on is not
-		/// among the pull request's commits.
+		/// Was this addressed?: the read does not name the commit this thread
+		/// started on.
 		thread_commit_unknown,
 		/// A thread's quick ask at a wider scope: no thread here meets it.
 		no_threads_match,
