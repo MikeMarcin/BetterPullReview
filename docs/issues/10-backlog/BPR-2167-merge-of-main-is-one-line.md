@@ -38,3 +38,30 @@ Core: commit listing folds a merge of the base branch (and a rebase onto it, Q11
   `ahead_by`), bounded, through the GitHub read port, with a fixture whose
   pull request has a merge of main; `core::fold_commit_listing` already takes
   the counts (`aBrought`) and renders "Merged main (N commits)".
+
+## Progress (2026-11-14): the merge's commit count
+
+- Built: a merge in the pull request's commits carries what it brought in
+  (`github_commit_record::Brought`). While reading the pull request, the
+  GitHub provider makes one compare read per merge
+  (`compare/FIRST_PARENT...SECOND_PARENT`), and `ahead_by` is the count. It
+  asks for the newest eight merges a read and remembers each answer for the
+  session, by host, profile, repository and the two parents. A compare that
+  fails leaves that count and the rest unknown and the read whole. Lost
+  authentication fails the read, as every optional read does. What changed's
+  request passes the counts to `core::fold_commit_listing`, so a merge of
+  main reads "Merged main (N commits)".
+- Evidence: `github_provider` (`test_merge_commits_count_what_they_brought`:
+  the committed github-com contract with a merge of main added; the merge
+  asked once with its two parents, `ahead_by` 24 kept and not asked again on
+  the next read, the head with one parent never asked, a failing compare
+  leaving the count unknown); `core_agent_report` (the count rendered);
+  `github_paged_read` and the returning-review courses unchanged.
+- Live check on BPR-Test (2026-11-14, `X-RateLimit-Remaining` 4992 after):
+  four unreferenced commits on the default branch's tip (two "main" commits,
+  a feature commit and a merge of the second "main" commit into the feature).
+  GitHub's compare of the merge's parents, feature...main, answered `ahead_by`
+  2, `behind_by` 1, `base_commit` the first parent and the url ending in the
+  second parent, which is the shape the adapter checks. No branch or pull
+  request was made.
+- The card stays in Backlog while [[BPR-2166]] is open (its dependency).

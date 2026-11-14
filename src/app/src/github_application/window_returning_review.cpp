@@ -304,9 +304,10 @@ namespace bpr::app {
 	}
 
 	/// RFC-BPR-0128 ([[BPR-2167]]). The commits since the review as the
-	/// answer lists them: each merge of the base branch one line, saying
-	/// whether it changed this pull request's files where the commit filter
-	/// has read its tree; the rest grouped by area.
+	/// answer lists them: each merge of the base branch one line, with the
+	/// commits it brought where GitHub's compare said, and whether it changed
+	/// this pull request's files where the commit filter has read its tree;
+	/// the rest grouped by area.
 	auto github_application::implementation::returning_commit_listing() const -> std::string
 	{
 		const auto& snapshot = WindowRead != nullptr ? WindowRead->accepted_snapshot() : std::nullopt;
@@ -316,7 +317,11 @@ namespace bpr::app {
 		const auto& commits = snapshot->Commits;
 		const auto  from    = std::ranges::find_if(commits, [this](const application::github_commit_record& aCommit) { return aCommit.Oid.value() == ReturningReview.Earlier->Head; });
 		auto        listed  = std::vector<core::listed_commit>{ };
+		auto        brought = std::vector<std::pair<std::string, std::uint32_t>>{ };
 		for (auto each = from == commits.end() ? commits.begin() : std::next(from); each != commits.end(); ++each) {
+			if (each->Brought) {
+				brought.emplace_back(std::string{ each->Oid.value() }, static_cast<std::uint32_t>(std::min<std::uint64_t>(*each->Brought, UINT32_MAX)));
+			}
 			auto commit = core::listed_commit{ .Oid = std::string{ each->Oid.value() }, .Headline = each->Headline };
 			if (each->Parents) {
 				for (const auto& parent : *each->Parents) {
@@ -335,7 +340,7 @@ namespace bpr::app {
 		for (const auto& file : snapshot->Files) {
 			files.push_back(file.Path);
 		}
-		auto text = core::render_commit_listing(core::fold_commit_listing(listed, snapshot->PullRequest.BaseRef, files));
+		auto text = core::render_commit_listing(core::fold_commit_listing(listed, snapshot->PullRequest.BaseRef, files, brought));
 		if (text.size() > core::maximum_returning_change_bytes) {
 			text.resize(core::maximum_returning_change_bytes);
 			while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U) {

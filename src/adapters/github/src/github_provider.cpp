@@ -292,8 +292,13 @@ namespace bpr::adapters::github::detail {
 			/// asked again on every poll. Only GitHub's answers are kept (member,
 			/// not a member, not visible, needs `read:org`), never a failure.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::string, std::string>, application::github_team_membership> TeamMemberships;
-			std::atomic<std::uint64_t>                                                                                        NextSnapshot{ 1U };
-			bool                                                                                                              Closing = false;
+			/// RFC-BPR-0128 ([[BPR-2167]]). The commits a merge brought in, by
+			/// host, profile, repository and its two parents, under `Mutex`:
+			/// fixed for the pair, so asked once a session. Only answers are
+			/// kept.
+			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::uint64_t> Brought;
+			std::atomic<std::uint64_t>                                                                                 NextSnapshot{ 1U };
+			bool                                                                                                       Closing = false;
 			/// RFC-BPR-0084. Serial image lanes, each with its own media
 			/// transport per profile, touched only on that lane.
 			struct media_lane
@@ -2920,6 +2925,62 @@ namespace bpr::adapters::github::detail {
 							} else {
 								result->MergeBaseAvailability = step == merge_base_step::refused ? application::github_merge_base_availability::refused
 																								 : application::github_merge_base_availability::failed;
+							}
+						}
+						// RFC-BPR-0128 ([[BPR-2167]]). What each merge in the pull
+						// request brought in: one compare of its first and second
+						// parents (`ahead_by`), for the newest eight merges a read,
+						// remembered for the session. A read that fails leaves the
+						// rest unasked and their counts unknown; lost
+						// authentication fails the read as every optional read
+						// does.
+						{
+							constexpr auto mostMerges = std::size_t{ 8U };
+							auto           asked      = std::size_t{ 0U };
+							for (auto commit = result->Commits.rbegin(); commit != result->Commits.rend() && asked < mostMerges; ++commit) {
+								if (!commit->Parents || commit->Parents->size() < 2U) {
+									continue;
+								}
+								++asked;
+								const auto first  = std::string{ (*commit->Parents)[0].value() };
+								const auto second = std::string{ (*commit->Parents)[1].value() };
+								const auto key    = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(), first, second };
+								{
+									std::scoped_lock lock{ state->Mutex };
+									if (const auto found = state->Brought.find(key); found != state->Brought.end()) {
+										commit->Brought = found->second;
+										continue;
+									}
+								}
+								const auto read = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository, github_merge_base_basis{ .BaseOid = first },
+																				 second, job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+								if (!read) {
+									if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
+										cancelled();
+										return;
+									}
+									const auto& error = std::get<application::github_provider_error>(read.error());
+									if (error.RateLimits.Core) {
+										result->RateLimits.Core = error.RateLimits.Core;
+									}
+									if (error.Failure == application::github_provider_failure::authentication) {
+										failed(error);
+										return;
+									}
+									break;
+								}
+								if (read->RateLimits.Core) {
+									result->RateLimits.Core = read->RateLimits.Core;
+								}
+								if (read->AheadBy) {
+									commit->Brought                    = *read->AheadBy;
+									constexpr auto   maximumRemembered = std::size_t{ 256U };
+									std::scoped_lock lock{ state->Mutex };
+									if (state->Brought.size() >= maximumRemembered) {
+										state->Brought.clear();
+									}
+									state->Brought.insert_or_assign(key, *read->AheadBy);
+								}
 							}
 						}
 						// [[BPR-1589]]. Whether the viewer is in each team a review

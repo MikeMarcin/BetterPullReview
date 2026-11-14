@@ -2140,6 +2140,85 @@ namespace {
 		}
 	}
 
+	/// RFC-BPR-0128 ([[BPR-2167]]). A merge in the pull request's commits is
+	/// asked once what it brought in: GitHub's compare of its first parent
+	/// with its second, whose `ahead_by` is the count. The answer is kept for
+	/// the session, so the next read asks nothing; a commit with one parent is
+	/// never asked; a compare that fails leaves the count unknown and the read
+	/// whole.
+	void test_merge_commits_count_what_they_brought()
+	{
+		const auto firstParent  = std::string(40, '4');
+		const auto secondParent = std::string(40, '5');
+		const auto merge        = std::string(40, '6');
+		for (const auto fails : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::native_https };
+			const auto       request       = pull_request_for(fixture, account_lease(fixture));
+			auto             asked         = 0U;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				auto response = viewer_response();
+				if (aWire.Wire.Operation == read_operation::get_merge_base) {
+					const auto pair = aWire.Wire.Semantic.BranchRef.empty() && aWire.Wire.Semantic.BaseOid == firstParent && aWire.Wire.Semantic.HeadOid == secondParent;
+					asked += pair ? 1U : 0U;
+					if (pair && fails) {
+						response.Status = 500;
+						response.Body   = R"({"message":"fixture compare unavailable"})";
+						return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+					}
+					const auto base = aWire.Wire.Semantic.BranchRef.empty() ? aWire.Wire.Semantic.BaseOid : aWire.Wire.Semantic.BranchRef;
+					response.Body   = R"({"url":"https://api.github.com/repos/)";
+					response.Body.append(aWire.Wire.Semantic.Owner).append("/").append(aWire.Wire.Semantic.Repository).append("/compare/").append(base).append("...");
+					response.Body.append(aWire.Wire.Semantic.HeadOid).append(pair ? R"(","status":"diverged","ahead_by":24,"behind_by":3,)" : R"(","status":"ahead",)");
+					response.Body.append(R"("base_commit":{"sha":")").append(aWire.Wire.Semantic.BranchRef.empty() ? aWire.Wire.Semantic.BaseOid : std::string(40, '1'));
+					response.Body.append(R"("},"merge_base_commit":{"sha":")").append(std::string(40, 'a')).append(R"("},"commits":[],"files":[]})");
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				const auto filename = [&]() -> std::optional<std::string_view> {
+					switch (aWire.Wire.Operation) {
+					case read_operation::get_repository:            return "repository";
+					case read_operation::get_pull_request:          return "pull_request";
+					case read_operation::list_pull_request_files:   return "files";
+					case read_operation::list_pull_request_commits: return "commits";
+					case read_operation::list_reviews:              return "reviews";
+					case read_operation::list_issue_comments:       return "issue_comments";
+					case read_operation::list_checks:               return "checks";
+					case read_operation::search_pull_requests:      return "search";
+					default:                                        return std::nullopt;
+					}
+				}();
+				if (!filename) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::unsupported_capability } };
+				}
+				response.Body = read_file(capability_fixture_root().parent_path().parent_path() / "contracts/v1/github-com/responses" / (std::string{ *filename } + ".json"));
+				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
+					response.Headers.back().Value = "search";
+				}
+				// The pull request has two commits: a merge of main, then its head.
+				if (aWire.Wire.Operation == read_operation::get_pull_request) {
+					const auto position = response.Body.find(R"("commits": 1)");
+					expect(position != std::string::npos, "the recorded pull request reports its commits");
+					response.Body.replace(position, 12U, R"("commits": 2)");
+				} else if (aWire.Wire.Operation == read_operation::list_pull_request_commits) {
+					response.Body.insert(response.Body.find('{'), R"({"sha":")" + merge + R"(","node_id":"C_fixture_merge","commit":{"message":"Merge branch 'main' into feature"},"author":{"node_id":"U_fixture_author","login":"octo-author"},"parents":[{"sha":")" + firstParent + R"("},{"sha":")" + secondParent + R"("}]},)");
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			for (const auto read : { 1U, 2U }) {
+				auto completions = std::vector<application::github_pull_request_completion>{ };
+				fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+				fixture.Effects.run_next();
+				const auto& snapshot = require_one<application::github_pull_request_success>(completions, "the read completes").Snapshot;
+				expect(snapshot.Commits.size() == 2U && snapshot.Commits.front().Oid.value() == merge && !snapshot.Commits.back().Brought, "the head, one parent, is never asked");
+				if (fails) {
+					expect(!snapshot.Commits.front().Brought && asked == read, "a compare that fails leaves the count unknown, asked again on the next read");
+				} else {
+					expect(snapshot.Commits.front().Brought == std::optional<std::uint64_t>{ 24U } && asked == 1U,
+						   read == 1U ? "the merge's count is GitHub's ahead_by for its parents" : "the count is kept: the next read asks nothing");
+				}
+			}
+		}
+	}
+
 	void test_capability_refusal_detail_propagation()
 	{
 		provider_fixture fixture{ application::github_authentication_transport::native_https };
@@ -3325,6 +3404,7 @@ int main(int aArgc, char** aArgv)
 	test_actor_conflict_diagnostic_propagation();
 	test_pull_request_attempt_diagnostic_propagation();
 	test_merge_base_failure_and_refusal_are_distinct();
+	test_merge_commits_count_what_they_brought();
 	test_team_membership_is_read_once_a_session();
 	test_reactions_are_read_after_the_snapshot();
 
