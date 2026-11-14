@@ -1,7 +1,7 @@
 # Prompts in Settings, round 3: surfaces, and a prompt library
 
 Mockups for
-[BPR-2179](../../issues/40-parked/BPR-2179-prompts-settings-section.md),
+[BPR-2179](../../issues/30-in-progress/BPR-2179-prompts-settings-section.md),
 2026-11-14. Round 2 ([prompts-settings-v2](../prompts-settings-v2/README.md))
 ended with the owner choosing none of its directions and splitting the
 section in two:
