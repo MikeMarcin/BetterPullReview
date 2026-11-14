@@ -361,3 +361,36 @@ What was done:
   notes.
 
 Host 65778/65790 stopped; root `ask-v005.a6ilb3sh` removed.
+
+## Owner look ask-v006 (session `98f8f0c11b1460bb51f16ca307b793d8`)
+
+Frozen from `3b0c12a4c`. Handed back 2026-11-14 at sequence 24. Verdicts,
+verbatim (attachments described; the coordinator saved them outside the
+repository):
+
+- `BPR-2164-file-ask-on-the-tab`, **Accept**: "Yes but Can we get the same
+  style as the comments use." (Attachment: a crop of the comment drawer's
+  thread foot, the Reply field's rounded "R" key beside the thread's square
+  framed "Ask ⌄".)
+- `BPR-2177-no-setup-at-launch`, **Accept**.
+- `RFC-BPR-0128-Q5-one-ask`, **Reject**: "I think this might need to wait
+  until report cards land because the actual output in the app is not good
+  enough" (Attachment: the Agent tab's "Was this addressed? (6 threads)" turn,
+  its prose and the claims' summary.)
+
+Done:
+
+- **The Ask's style** (`application_ask_menu_public_path`, test first): the
+  file tab's Ask and the thread's Ask now wear the comment drawer's own
+  secondary button (`note_button` secondary): a rounded outline (radius 6) on
+  the ground, the edge a rule that darkens under the pointer or with focus,
+  the words in the ink, with the agent glyph and a chevron
+  (`ask_menu_button::wear_comment_look`). The choice is named in the next
+  look; it is folded into that look rather than shown alone.
+- **Q5, parked on the report cards.** The one-ask mechanism stays as built
+  (`addressed_threads`). Its acceptance waits on the report-card redesign
+  (the coordinator's design round for [[BPR-2166]]): how a many-thread answer
+  reads is a report card's question. Recorded on [[BPR-2166]] and the
+  closeout [[BPR-2168]].
+
+Host 61578/61588 stopped; root `ask-v006.0gi2v365` removed.

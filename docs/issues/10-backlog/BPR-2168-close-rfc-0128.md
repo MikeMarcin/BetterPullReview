@@ -29,3 +29,10 @@ RFC base: `f85b216ecc7d4a7df2c7c5c263a0cf8be1f3d93a`.
 ## Outcome and work
 
 Reconcile the amended RFCs (RFC-BPR-0116, 0117, 0118, 0119, 0125) with what was built; record the owner's answers to Q1 to Q14 (Q8 answered at import); update `docs/ux/ai-experience.md` and the agent-assistance allocation in `docs/architecture/system-architecture.md`; record the owner looks; run the documentation gate.
+
+## Pending (2026-11-14)
+
+- Q5 as amended (one Was this addressed? ask for many threads, look ask-v005)
+  is built; its owner acceptance waits on the report-card redesign of
+  [[BPR-2166]] (look ask-v006: "I think this might need to wait until report
+  cards land because the actual output in the app is not good enough").
