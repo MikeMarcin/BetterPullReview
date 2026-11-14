@@ -1,4 +1,4 @@
-# The straight read, with a menu of sections (round 4 mockups, no choice made yet)
+# The straight read, with a menu of sections (round 4; C chosen)
 
 How an agent's report
 ([RFC-BPR-0128](../../rfcs/RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md))
@@ -13,8 +13,9 @@ on 2026-11-14:
 So the report opens with everything open and reads from the top. There is no
 ruler and nothing folds. One button opens a list of the report's sections;
 choosing one scrolls to it, and the list marks the section being read. This
-round asks only where that button is and what its list is. Nothing here is
-chosen and no product code changed.
+round asks only where that button is and what its list is. **The owner chose
+C, Floating** (see [Status](#status)). [SPEC.md](SPEC.md) is the build spec
+for the card and the opened report together. No product code changed.
 
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its frames, light and dark; none
@@ -98,14 +99,21 @@ trimmed to the frame. `frame` is one of `start`, `a-open`, `a-menu`, `b-open`,
 
 ## Status
 
-Awaiting the owner's choice, asked on 2026-11-14 as one select question (A, B
-or C) with a note:
+**Chosen: C, Floating** (owner, 2026-11-14), with no note.
+
+With round 1's card (C, Attachment) the design is settled: the summary as an
+ordinary answer with the report attached as one row; the report opens in its
+file tab as a straight read; one floating button at the page's top right
+opens a popover with the sections and the report's other actions.
+[SPEC.md](SPEC.md) says what to build. A's bar and B's Contents button are not
+built.
 
 - Attended-review session `e9bcad5b1ed74517e12673a2b445ec3c`, candidate
   `report-card-v4-menu` at revision `5c095e49f988` (the commit that added
-  these mockups).
+  these mockups), decision `ec2e56d7-5b97-4da1-85c7-5121db8c9115`: select
+  "C, Floating".
 - External state directory
   `~/.attended-review-state/report-card-v004-2026-11-14/` (`state/` is the
-  session, `material/` a copy of the four rounds' folders at that revision
-  for the owner to open).
-- Lifecycle when this was written: prepared and served, unanswered.
+  session, `material/` a copy of the four rounds' folders at that revision).
+- Lifecycle: handed back 2026-11-14 with the one candidate decided; the host
+  is stopped.
