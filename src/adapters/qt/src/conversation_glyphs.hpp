@@ -76,6 +76,9 @@ namespace bpr::qt {
 		/// you're not allowed to make a draft"). Draft refused: the pencil
 		/// struck through.
 		edit_refused,
+		/// [[BPR-2172]]. A caution about the comment: a triangle with an
+		/// exclamation mark, as the platforms draw a warning.
+		warning,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

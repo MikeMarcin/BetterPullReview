@@ -238,14 +238,19 @@ namespace bpr::qt {
 		// or why it did not happen. Otherwise, why Publish is unavailable.
 		auto notice = ReviewEditor->publication_status();
 		// RFC-BPR-0089 M4. Then where the comment goes, read before Publish.
+		// [[BPR-2172]]. That caution, when it leaves Publish offered, folds
+		// to the composer's warning mark.
+		auto folds = false;
 		if (notice.isEmpty()) {
 			notice = ReviewEditor->target_notice_text();
+			folds  = !notice.isEmpty() && !ReviewEditor->target_notice_blocks();
 		}
 		if (notice.isEmpty() && !ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
 			notice = ReviewEditor->publish_action()->toolTip();
 		}
 		if (!hold.first.isEmpty()) {
 			notice = hold.first;
+			folds  = false;
 		}
 		cards->present_draft(draft_composer_presentation{
 			.Body        = linked ? PaneSuggestion->Prose : body,
@@ -256,6 +261,7 @@ namespace bpr::qt {
 			.InCode      = linked,
 			.Convert     = hold.second,
 			.Notice      = notice,
+			.NoticeFolds = folds,
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),
 			// RFC-BPR-0118. Suggest the change, on lines that take a suggestion.

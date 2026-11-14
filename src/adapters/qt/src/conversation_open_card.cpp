@@ -50,6 +50,7 @@
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QResizeEvent>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -2899,6 +2900,21 @@ namespace bpr::qt {
 		Labels->set_theme(Style.Marks);
 		style_reply_chip(*Labels->chip(), Style);
 		controls->addWidget(Labels);
+		// [[BPR-2172]]. The owner, on look v007 of RFC-BPR-0127: "Can we
+		// make this warning take less space, maybe it's just a warning sign
+		// on the row above and expands a disclosure on click". The notice
+		// is a mark beside the label chip; pressing it (or Space) shows its
+		// sentence under the row and pressing it again hides it.
+		NoticeMark = tool(Editor, QStringLiteral("threadDraftNoticeMark"), QString{ }, conversation_glyph::warning, palette);
+		NoticeMark->setCheckable(true);
+		NoticeMark->hide();
+		controls->addWidget(NoticeMark, 0, Qt::AlignVCenter);
+		connect(NoticeMark, &QToolButton::toggled, this, [this](bool) {
+			present_notice_mark();
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		});
 		Placement  = aCard.Suggestion;
 		Suggestion = new suggestion_mark{ Editor };
 		Suggestion->setObjectName(QStringLiteral("threadDraftSuggestionMark"));
@@ -3318,13 +3334,34 @@ namespace bpr::qt {
 		const auto former      = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
 		const auto noticeShown = !ReplyStatus->isHidden();
 		const auto noticeWords = ReplyStatus->text();
-		if (!LastNotice.isEmpty()) {
+		const auto folded      = std::exchange(NoticeFolds, NoticeMark != nullptr && aDraft.has_value() && aDraft->NoticeFolds && !LastNotice.isEmpty());
+		if (NoticeMark != nullptr && (former != LastNotice || folded != NoticeFolds)) {
+			// A changed notice starts closed.
+			const auto blocker = QSignalBlocker{ NoticeMark };
+			NoticeMark->setChecked(false);
+		}
+		if (NoticeFolds) {
+			// [[BPR-2172]]. The notice is the mark; its sentence shows only
+			// while the mark is pressed.
+			if (!former.isEmpty() && ReplyStatus->text() == former) {
+				ReplyStatus->hide();
+			}
+			present_notice_mark();
+		} else if (!LastNotice.isEmpty()) {
+			if (NoticeMark != nullptr) {
+				NoticeMark->hide();
+			}
 			ReplyStatus->setText(LastNotice);
 			ReplyStatus->setAccessibleName(LastNotice);
 			ReplyStatus->show();
-		} else if (!former.isEmpty() && ReplyStatus->text() == former) {
-			// [[BPR-1329]]. A notice that no longer holds goes with it.
-			ReplyStatus->hide();
+		} else {
+			if (NoticeMark != nullptr) {
+				NoticeMark->hide();
+			}
+			if (!former.isEmpty() && ReplyStatus->text() == former) {
+				// [[BPR-1329]]. A notice that no longer holds goes with it.
+				ReplyStatus->hide();
+			}
 		}
 		// Owner look v005 ("a lot of overlap"): a notice that comes or goes
 		// changes the composer's height; the card is told, so its rows are
@@ -3353,6 +3390,32 @@ namespace bpr::qt {
 		}
 		if (HeightChanged) {
 			HeightChanged();
+		}
+	}
+
+	void open_thread_card::present_notice_mark()
+	{
+		if (NoticeMark == nullptr || ReplyStatus == nullptr) {
+			return;
+		}
+		const auto has = NoticeFolds && !LastNotice.isEmpty();
+		NoticeMark->setVisible(has);
+		if (!has) {
+			return;
+		}
+		const auto open = NoticeMark->isChecked();
+		// Its name says what it is and what pressing it does; the sentence
+		// is its description, so assistive technology reads it whole
+		// without opening it.
+		NoticeMark->setAccessibleName(open ? QStringLiteral("Placement warning, shown") : QStringLiteral("Placement warning"));
+		NoticeMark->setAccessibleDescription(LastNotice);
+		NoticeMark->setToolTip(open ? QStringLiteral("Hide the warning") : QStringLiteral("GitHub may not place this comment on its line. Show why"));
+		if (open) {
+			ReplyStatus->setText(LastNotice);
+			ReplyStatus->setAccessibleName(LastNotice);
+			ReplyStatus->show();
+		} else if (ReplyStatus->text() == LastNotice) {
+			ReplyStatus->hide();
 		}
 	}
 

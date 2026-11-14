@@ -237,6 +237,17 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 15.5, 14.5 }, QPointF{ 20.5, 19.5 });
 				aPainter.drawLine(QPointF{ 20.5, 14.5 }, QPointF{ 15.5, 19.5 });
 				break;
+			case conversation_glyph::warning: {
+				auto triangle = QPainterPath{ };
+				triangle.moveTo(12.0, 4.0);
+				triangle.lineTo(20.5, 19.0);
+				triangle.lineTo(3.5, 19.0);
+				triangle.closeSubpath();
+				aPainter.drawPath(triangle);
+				aPainter.drawLine(QPointF{ 12.0, 9.5 }, QPointF{ 12.0, 13.5 });
+				dot(aPainter, { 12.0, 16.3 }, 1.1);
+				break;
+			}
 			case conversation_glyph::dismiss:
 				aPainter.drawLine(QPointF{ 7.0, 7.0 }, QPointF{ 17.0, 17.0 });
 				aPainter.drawLine(QPointF{ 17.0, 7.0 }, QPointF{ 7.0, 17.0 });

@@ -568,6 +568,11 @@ namespace bpr::qt {
 		QWidget*     DraftState = nullptr;
 		QWidget*     Change     = nullptr;
 		QString      LastNotice;
+		/// [[BPR-2172]]. The composer's notice is a warning mark in its tool
+		/// row; pressing it discloses the sentence under the row.
+		QToolButton* NoticeMark  = nullptr;
+		bool         NoticeFolds = false;
+		void         present_notice_mark();
 		/// What a reply here is attached to on GitHub ([[BPR-1084]]).
 		core::suggestion_placement_observation Placement;
 		std::vector<thread_post_view*>         Posts;
