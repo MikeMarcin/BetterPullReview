@@ -87,3 +87,15 @@ now fails on a setup that needs a step or a picker not on the fixture agent.
 `freeze --check` asks What could this change break? in the frozen build and
 fails (`FIXTURE_AGENT_SILENT`) unless the Fixture agent answers it as a report
 (`freeze_attended_build_contract`).
+
+## Progress: looks ask-v003 and ask-v004 (2026-11-14)
+
+- ask-v003, "The footer does not say fixture agent": the setup host now
+  carries the names its agents go by; the setup, Check, Settings and footer
+  say Fixture agent (`8ae8057e9`).
+- ask-v004, "still doesnt work": the fixture agent's init frame listed Read
+  and Grep for a tool-free run (What changed since my review), which the app
+  refuses. It now reports the tools its launch gave. `freeze --check` and the
+  new course `application_fixture_agent_every_ask` press every ask a look
+  offers (17) at the next push and require every turn answered; the course
+  fails with the owner's exact line against the old fixture agent.
