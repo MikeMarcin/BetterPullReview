@@ -61,6 +61,9 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QFrame>
 #include <QKeyEvent>
 #include <QLabel>
@@ -68,6 +71,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -81,11 +85,14 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
+#include <sqlite3.h>
 
 namespace {
 	using namespace bpr;
@@ -435,6 +442,38 @@ auto main(int argc, char** argv) -> int
 				return now != before && now.indexOf(QStringLiteral("What could this change break?")) < before.indexOf(QStringLiteral("What could this change break?"));
 			},
 				 "a new order made by keyboard reaches the chips");
+			// AC11: a new order made by drag. The surface's last placement is
+			// dragged above its first, as a person's drag delivers it: enter,
+			// move and drop on the list, carrying what the list itself puts in
+			// a drag.
+			window.reveal_prompt_macros();
+			QApplication::processEvents();
+			const auto first   = prChips->item(0)->text();
+			const auto dragged = prChips->item(prChips->count() - 1)->text();
+			expect(first != dragged, "the surface has two placements to order");
+			{
+				const auto source  = prChips->model()->index(prChips->count() - 1, 0);
+				auto*      payload = prChips->model()->mimeData({ source });
+				expect(payload != nullptr, "a placement can be dragged");
+				const auto      target = prChips->visualItemRect(prChips->item(0));
+				const auto      spot   = QPointF{ static_cast<qreal>(target.center().x()), static_cast<qreal>(target.top()) + 2.0 };
+				QDragEnterEvent enter{ spot, Qt::MoveAction | Qt::CopyAction, payload, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(prChips->viewport(), &enter);
+				QDragMoveEvent moved{ spot, Qt::MoveAction | Qt::CopyAction, payload, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(prChips->viewport(), &moved);
+				QDropEvent dropped{ spot, Qt::MoveAction | Qt::CopyAction, payload, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(prChips->viewport(), &dropped);
+				expect(dropped.isAccepted(), "the surface takes the drop");
+				delete payload;
+			}
+			wait([&] { return prChips->count() > 1 && prChips->item(0)->text() == dragged && prChips->item(1)->text() == first; }, "the dragged placement stands first on its surface");
+			window.settings()->hide();
+			window.open_agent_question();
+			wait([&] {
+				const auto now = chips();
+				return now.contains(dragged) && now.indexOf(dragged) < now.indexOf(first);
+			},
+				 "a new order made by drag reaches the chips");
 			// Turning one off removes its chip from the open window.
 			page->set_on("agent-tab.review-pull-request", false);
 			window.open_agent_question();
@@ -515,6 +554,62 @@ auto main(int argc, char** argv) -> int
 			const auto restored = chips2();
 			expect(restored.indexOf(QStringLiteral("Review this pull request")) < restored.indexOf(QStringLiteral("What could this change break?")), "in the shipped order: " + restored.join(QLatin1Char('|')).toStdString());
 			answerer->stop();
+			shutdown(*application);
+			application.reset();
+			// AC12 on screen: a store whose prompts can't be read (its orders
+			// table is not one this build can read) leaves the shipped chips
+			// working, and Settings › Prompts says edits are unavailable.
+			{
+				auto file = std::filesystem::path{ };
+				for (const auto& entry : std::filesystem::recursive_directory_iterator{ *dataRoot }) {
+					if (entry.path().filename() == "agent-setup.sqlite3") {
+						file = entry.path();
+					}
+				}
+				expect(!file.empty(), "the profile has its agent setup store");
+				sqlite3* db = nullptr;
+				expect(sqlite3_open_v2(file.string().c_str(), &db, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the store opens");
+				const auto broken = sqlite3_exec(db, "DROP TABLE prompt_macro_orders; CREATE TABLE prompt_macro_orders(unreadable INTEGER)", nullptr, nullptr, nullptr) == SQLITE_OK;
+				sqlite3_close(db);
+				expect(broken, "the store's prompts are made unreadable");
+			}
+			auto third                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			third.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
+			third.ClaudeAgentExecutable = stub;
+			third.ClaudeSearch          = search;
+			auto started                = false;
+			auto start                  = access::start(app::detail::github_public_path_fixture::returning_review_v1, std::move(third), [&](auto aResult) { started = true; if (aResult) { application = std::move(*aResult); } });
+			wait([&] { return started && start && start->is_quiescent(); }, "the start on an unreadable store");
+			expect(application != nullptr, "the application starts on an unreadable store");
+			application->show();
+			auto& unreadable = application->window();
+			unreadable.resize(1440, 960);
+			unreadable.github_connect_action()->trigger();
+			wait([&] { return unreadable.github_open_action()->isEnabled(); }, "connected on an unreadable store");
+			unreadable.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+			unreadable.home_open_action()->trigger();
+			wait([&] { return unreadable.what_changed_action()->isEnabled(); }, "the pull request opens on an unreadable store");
+			agent_ready(unreadable);
+			auto* const tab3   = unreadable.agent_tab();
+			const auto  chips3 = [tab3] {
+				auto texts = QStringList{ };
+				for (auto* const chip : tab3->suggestion_buttons()) {
+					if (chip->isVisibleTo(tab3)) {
+						texts << chip->text();
+					}
+				}
+				return texts;
+			};
+			unreadable.open_agent_question();
+			wait([&] { return chips3().contains(QStringLiteral("Review this pull request")) && chips3().contains(QStringLiteral("What could this change break?")); }, "the shipped chips work");
+			unreadable.reveal_prompt_macros();
+			auto* const status = unreadable.prompts()->findChild<QLabel*>(QStringLiteral("promptsStatus"));
+			wait([&] { return status != nullptr && status->isVisibleTo(unreadable.settings()) && status->text().contains(QStringLiteral("can't be read")); }, "Settings says edits are unavailable");
+			if (!qEnvironmentVariable("BPR_ASK_RENDER_ROOT").isEmpty()) {
+				unreadable.settings()->resize(1180, 840);
+				render(*unreadable.settings(), QStringLiteral("prompts-unreadable-store"));
+			}
+			unreadable.settings()->hide();
 			shutdown(*application);
 			std::cout << "ask-menu-macros:pass\n";
 			return EXIT_SUCCESS;

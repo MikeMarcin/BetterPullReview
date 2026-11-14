@@ -5478,7 +5478,7 @@ if(APPLE)
     # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
     target_sources(test_ask_menu_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
 endif()
-target_link_libraries(test_ask_menu_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite)
+target_link_libraries(test_ask_menu_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 target_compile_definitions(test_ask_menu_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_ask_menu_public_path)
 bpr_enable_warnings(test_ask_menu_public_path)
