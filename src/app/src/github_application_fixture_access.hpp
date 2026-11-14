@@ -727,6 +727,11 @@ namespace bpr::app::detail {
 		/// it with `AttendedWindowBrowser`; every automated course keeps its
 		/// own search path and never finds the developer's agent.
 		bool AttendedAgentSearch = false;
+		/// [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on
+		/// build (any `--attended…` launch): the fixture agent is the agent,
+		/// named "Fixture agent", and no real agent program is ever started.
+		/// `AttendedAgentSearch` is never set with it.
+		bool FixtureAgentSession = false;
 		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
 		// before this process has a session at all, which is the state a past
 		// grant's orderly shutdown used to leave behind: the access token
@@ -2577,6 +2582,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto start_mcp_context_helper(
 			github_application& aApplication, std::string aRequest)
 			-> application::mcp_helper_refusal;
+		/// \brief [[BPR-2177]]. Whether this run's launch guard admits a program.
+		[[nodiscard]] static auto fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> bool;
 		[[nodiscard]] static auto agent_invocation_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_invocation_composition_evidence;

@@ -12248,8 +12248,14 @@ auto main(int argc, char** argv) -> int
 		// own opens reach their default browser. Never inside the automated
 		// test boundary: a CTest row that passes `--attended-launch` keeps the
 		// recorder.
-		fixtureOptions.AttendedWindowBrowser              = attendedLaunch && !bpr::app::inside_automated_test_boundary();
-		fixtureOptions.AttendedAgentSearch                = fixtureOptions.AttendedWindowBrowser;
+		fixtureOptions.AttendedWindowBrowser = attendedLaunch && !bpr::app::inside_automated_test_boundary();
+		// [[BPR-2177]] (owner, 2026-11-14: "why am I wasting a ton of money
+		// just seeing how buttons and UI flow works"). A person's session on a
+		// tests-on build (any `--attended…` launch) runs the fixture agent and
+		// never the person's own agents, which only a `freeze --live`
+		// (tests-off) build may run.
+		fixtureOptions.AttendedAgentSearch                = false;
+		fixtureOptions.FixtureAgentSession                = std::ranges::any_of(QCoreApplication::arguments(), [](const QString& aArgument) { return aArgument.startsWith(QStringLiteral("--attended")); });
 		const auto nativeNotificationProbe                = launch.has("--native-notification-probe");
 		const auto nativeNotificationAttended             = launch.has("--native-notification-attended");
 		const auto nativeNotificationRequestCut           = launch.has("--native-notification-cut-request-wire");

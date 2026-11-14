@@ -861,6 +861,10 @@ namespace bpr::app {
 			const auto claude = std::ranges::find(agentProfiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
 			if (claude != agentProfiles.end()) {
 				claude->Executable = ClaudeAgentExecutable->string();
+				// [[BPR-2177]]. A person's session says whose answers they read.
+				if (FixtureAgentSession) {
+					claude->DisplayName = "Fixture agent";
+				}
 			}
 			BuiltInProfilesOffered = true;
 		}
@@ -871,6 +875,9 @@ namespace bpr::app {
 				&core::agent_profile::Id);
 			if (codex != agentProfiles.end()) {
 				codex->Executable = CodexAgentExecutable->string();
+				if (FixtureAgentSession) {
+					codex->DisplayName = "Fixture agent (Codex)";
+				}
 			}
 			BuiltInProfilesOffered = true;
 		}
@@ -886,6 +893,13 @@ namespace bpr::app {
 			AgentProcessProbe
 				= std::make_unique<composition_agent_process_launcher_probe>(
 					*AgentProcess);
+			// [[BPR-2177]] (owner, 2026-11-14). With a fixture, a program named
+			// `claude` or `codex` starts only from a folder this run named (the
+			// fixture agent's, a course's stub, a search path it set); in a
+			// person's session every program must be one of those.
+			if (Fixture) {
+				AgentProcessProbe->set_admission(fixture_agent_admission());
+			}
 		}
 		if (AgentProcessProbe != nullptr) {
 			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());

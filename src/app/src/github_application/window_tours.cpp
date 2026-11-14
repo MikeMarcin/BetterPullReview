@@ -966,7 +966,11 @@ namespace bpr::app {
 		// Counted as the Agent tab's launcher is, so a course sees a tour
 		// run start and finish.
 		TourProcessProbe = std::make_unique<composition_agent_process_launcher_probe>(*TourProcess);
-		auto& launcher   = static_cast<application::agent_process_port&>(*TourProcessProbe);
+		// [[BPR-2177]]. The tour's runs keep to the fixture agent too.
+		if (Fixture) {
+			TourProcessProbe->set_admission(fixture_agent_admission());
+		}
+		auto& launcher = static_cast<application::agent_process_port&>(*TourProcessProbe);
 	#else
 		auto& launcher = static_cast<application::agent_process_port&>(*TourProcess);
 	#endif

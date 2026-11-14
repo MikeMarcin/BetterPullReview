@@ -103,6 +103,13 @@ network, or process effects.
   `--not-head-because REASON`. Paste its `SESSION_LINE:` (the frozen commit
   and subject) into every candidate's content, so the owner sees what they
   are judging.
+- Looks never spend the owner's agent usage (owner, 2026-11-14: "why am I
+  wasting a ton of money just seeing how buttons and UI flow works"). A
+  tests-on look runs the fixture agent (`tests/support/fixture_agent_main.cpp`,
+  "Fixture agent" in the picker), never an installed Claude Code or Codex; its
+  launcher's `--check` refuses an image that could start one. Only a
+  `freeze --live` build runs a real agent, and only when the look is about the
+  agent itself.
 - Freeze a look with a fixture that already holds the surface under review,
   and open the build on it: a look at a tour serves a pull request with a
   tour. The owner, accepting the tour-publishing look on 2026-11-10: "It's

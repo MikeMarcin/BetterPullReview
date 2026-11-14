@@ -5494,3 +5494,22 @@ bpr_add_network_isolated_test(NAME application_ask_report_public_path
     COMMAND test_ask_menu_public_path report "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_report_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-report:pass")
+# [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on build runs
+# the fixture agent and can never start a real one.
+bpr_add_executable(test_fixture_agent_guard_public_path fixture_agent_guard_public_path.cpp)
+target_link_libraries(test_fixture_agent_guard_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_fixture_agent_guard_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_fixture_agent_guard_public_path)
+bpr_enable_warnings(test_fixture_agent_guard_public_path)
+add_dependencies(test_fixture_agent_guard_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_fixture_agent_guard_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_fixture_agent_guard_public_path "${CMAKE_BINARY_DIR}/fixture-agent")
+    set_tests_properties(application_fixture_agent_guard_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "fixture-agent-guard:pass")
+endif()
+# [[BPR-2177]]. The fixture agent's own answers, streams and scripted failures.
+bpr_add_network_isolated_test(NAME fixture_agent_answers
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/fixture_agent_tests.py" "${CMAKE_BINARY_DIR}/fixture-agent")
+set_tests_properties(fixture_agent_answers PROPERTIES PASS_REGULAR_EXPRESSION "fixture-agent-answers:pass" ENVIRONMENT "BPR_FIXTURE_AGENT_PAUSE_MS=1")

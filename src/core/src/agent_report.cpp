@@ -11,7 +11,7 @@ namespace bpr::core {
 			auto lines = std::vector<std::string_view>{ };
 			auto start = std::size_t{ 0 };
 			while (start <= aText.size()) {
-				const auto end = std::min(aText.find('\n', start), aText.size());
+				const auto end  = std::min(aText.find('\n', start), aText.size());
 				auto       line = aText.substr(start, end - start);
 				if (!line.empty() && line.back() == '\r') {
 					line.remove_suffix(1U);

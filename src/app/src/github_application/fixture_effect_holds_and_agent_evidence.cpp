@@ -905,6 +905,18 @@ namespace bpr::app {
 		return evidence;
 	}
 	#endif
+	auto detail::github_application_fixture_access::fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> bool
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		return implementation != nullptr && implementation->fixture_agent_admission()(aExecutable);
+	#else
+		static_cast<void>(implementation);
+		static_cast<void>(aExecutable);
+		return false;
+	#endif
+	}
+
 	auto detail::github_application_fixture_access::agent_invocation_evidence(
 		const github_application& aApplication) noexcept
 		-> detail::agent_invocation_composition_evidence

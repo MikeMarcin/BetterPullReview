@@ -221,7 +221,27 @@ namespace bpr::app {
 			SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
 			AttendedWindowBrowser   = aFixtureOptions.AttendedWindowBrowser;
 			AttendedAgentSearch     = aFixtureOptions.AttendedAgentSearch;
-			LabelHelper             = aFixtureOptions.LabelHelper;
+			FixtureAgentSession     = aFixtureOptions.FixtureAgentSession;
+	#if defined(BPR_FIXTURE_AGENT_DIRECTORY)
+			// [[BPR-2177]] (owner, 2026-11-14: "we need a fixture agent for
+			// testing"). A person's session on a tests-on build runs the
+			// fixture agent: found by the setup's search, set on Claude's
+			// profile, and the only agent the launch guard admits.
+			if (FixtureAgentSession) {
+				const auto folder   = std::filesystem::path{ BPR_FIXTURE_AGENT_DIRECTORY };
+				AttendedAgentSearch = false;
+				if (!ClaudeAgentExecutable) {
+					ClaudeAgentExecutable = folder / "claude";
+				}
+				// One agent is found, so the setup takes it as it takes a
+				// person's only agent. The fixture speaks Codex too, for a look
+				// that names it (`--attended-agent-look`); none is searched for.
+				if (!ClaudeSearch) {
+					ClaudeSearch = detail::claude_search_environment{ .PathVariable = folder.string() };
+				}
+			}
+	#endif
+			LabelHelper = aFixtureOptions.LabelHelper;
 			DisableDeviceAuthorizationPanelComposition
 				= aFixtureOptions
 					  .DisableDeviceAuthorizationPanelComposition;

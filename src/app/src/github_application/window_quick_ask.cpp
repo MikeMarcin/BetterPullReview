@@ -10,8 +10,8 @@
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
-#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 
 #include <QTimer>
 

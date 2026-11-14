@@ -522,35 +522,35 @@ namespace {
 
 } // namespace
 
-	/// RFC-BPR-0128 ([[BPR-2166]]). A report opens as a tab in the strip, after
-	/// the active tab; it never loads and is never persisted (Q10); a code
-	/// reference read in it opens the file's tab and leaves it beside it.
-	void test_a_report_is_a_tab_beside_the_files()
-	{
-		auto state = document_tabs_state{ };
-		static_cast<void>(open(state, set_window_comparison_intent{ pair(1, 2) }));
-		present(state, open(state, open_in_active_tab_intent{ file(1) }));
-		const auto opened = open(state, open_report_tab_intent{ "turn:4" });
-		expect(opened.Changed && !opened.Load && state.Tabs.size() == 2U && active(state).report() && active(state).Report == "turn:4" && active(state).State == document_tab_view_state::ready,
-			   "a report's tab opens after the active tab, shown as it is: nothing loads");
-		expect(!has_own_comparison(state, active(state)), "a report has no comparison of its own");
-		expect(persisted(state)->Tabs.size() == 1U && persisted(state)->Active == 0U, "a report is not persisted; the file's tab is");
-		expect(open(state, duplicate_tab_intent{ *state.Active }).Reason == document_tab_reason::report_tab, "a report is not duplicated");
-		expect(open(state, open_report_tab_intent{ "" }).Reason == document_tab_reason::report_tab, "a report needs its key");
-		const auto report = *state.Active;
-		// A code reference: the file's own tab, the report's tab stays.
-		const auto reference = open(state, open_in_active_tab_intent{ file(1) });
-		expect(reference.Load && active(state).View.File == file(1) && !active(state).report() && state.Tabs.size() == 2U, "a reference to the file a tab shows activates that tab");
-		present(state, reference);
-		static_cast<void>(open(state, activate_tab_intent{ report }));
-		expect(active(state).report() && !state.Pending, "the report's tab returns to the report");
-		const auto other = open(state, open_in_active_tab_intent{ file(2) });
-		expect(other.Load && active(state).View.File == file(2) && state.Tabs.size() == 2U && state.Tabs[1].report(), "another file is shown in the file tab before the report");
-		present(state, other);
-		expect(open(state, open_report_tab_intent{ "turn:4" }).Changed && active(state).Id == report, "opening an open report activates its tab");
-		const auto closed = open(state, close_tab_intent{ report });
-		expect(closed.Load && state.Tabs.size() == 1U && !active(state).report(), "closing the report shows the file again");
-	}
+/// RFC-BPR-0128 ([[BPR-2166]]). A report opens as a tab in the strip, after
+/// the active tab; it never loads and is never persisted (Q10); a code
+/// reference read in it opens the file's tab and leaves it beside it.
+void test_a_report_is_a_tab_beside_the_files()
+{
+	auto state = document_tabs_state{ };
+	static_cast<void>(open(state, set_window_comparison_intent{ pair(1, 2) }));
+	present(state, open(state, open_in_active_tab_intent{ file(1) }));
+	const auto opened = open(state, open_report_tab_intent{ "turn:4" });
+	expect(opened.Changed && !opened.Load && state.Tabs.size() == 2U && active(state).report() && active(state).Report == "turn:4" && active(state).State == document_tab_view_state::ready,
+		   "a report's tab opens after the active tab, shown as it is: nothing loads");
+	expect(!has_own_comparison(state, active(state)), "a report has no comparison of its own");
+	expect(persisted(state)->Tabs.size() == 1U && persisted(state)->Active == 0U, "a report is not persisted; the file's tab is");
+	expect(open(state, duplicate_tab_intent{ *state.Active }).Reason == document_tab_reason::report_tab, "a report is not duplicated");
+	expect(open(state, open_report_tab_intent{ "" }).Reason == document_tab_reason::report_tab, "a report needs its key");
+	const auto report = *state.Active;
+	// A code reference: the file's own tab, the report's tab stays.
+	const auto reference = open(state, open_in_active_tab_intent{ file(1) });
+	expect(reference.Load && active(state).View.File == file(1) && !active(state).report() && state.Tabs.size() == 2U, "a reference to the file a tab shows activates that tab");
+	present(state, reference);
+	static_cast<void>(open(state, activate_tab_intent{ report }));
+	expect(active(state).report() && !state.Pending, "the report's tab returns to the report");
+	const auto other = open(state, open_in_active_tab_intent{ file(2) });
+	expect(other.Load && active(state).View.File == file(2) && state.Tabs.size() == 2U && state.Tabs[1].report(), "another file is shown in the file tab before the report");
+	present(state, other);
+	expect(open(state, open_report_tab_intent{ "turn:4" }).Changed && active(state).Id == report, "opening an open report activates its tab");
+	const auto closed = open(state, close_tab_intent{ report });
+	expect(closed.Load && state.Tabs.size() == 1U && !active(state).report(), "closing the report shows the file again");
+}
 
 auto main() -> int
 {

@@ -478,7 +478,7 @@ namespace bpr::qt {
 		using report_dispatch = std::function<void(std::size_t aTurn, const QString& aTitle, const QString& aMarkdown)>;
 		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
 		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
-		void open_report(std::size_t aTurn);
+		void               open_report(std::size_t aTurn);
 		[[nodiscard]] auto turn_report_card(std::size_t aTurn) const -> QWidget*;
 		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One Suggest the change turn:
 		/// its index, and once it ends whether it answered, the answer as
@@ -821,8 +821,8 @@ namespace bpr::qt {
 			QString Explain;
 			/// RFC-BPR-0118. The file Suggest the change asked about; empty
 			/// for every other turn.
-			QString               SuggestChange;
-			QPointer<QLabel>      Claim;
+			QString          SuggestChange;
+			QPointer<QLabel> Claim;
 			/// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report card
 			/// here, opened as a file tab.
 			QPointer<QWidget>     ReportCard;

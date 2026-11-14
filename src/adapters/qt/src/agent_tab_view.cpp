@@ -32,13 +32,13 @@
 #include <QDialog>
 #include <QEnterEvent>
 #include <QEvent>
+#include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
-#include <QFrame>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QListWidget>
@@ -1729,8 +1729,8 @@ namespace bpr::qt {
 		}
 		// RFC-BPR-0128 ([[BPR-2166]]), Q7. A report by its shape: the card
 		// stands in the answer's place; the answer stays the turn's text.
-		const auto answer  = aTurn.AnswerText.toStdString();
-		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix ? core::is_report_answer(answer) : false;
+		const auto answer = aTurn.AnswerText.toStdString();
+		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix ? core::is_report_answer(answer) : false;
 		if (aTurn.ReportCard != nullptr) {
 			if (report) {
 				const auto card = core::report_card_of(answer);

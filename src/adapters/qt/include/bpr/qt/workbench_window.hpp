@@ -38,10 +38,10 @@
 #include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
-#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -1265,7 +1265,7 @@ namespace bpr::qt {
 		/// bar's, the file header's and each thread's (its reply row and its
 		/// right-click menu), and a file tab's right-click Ask. The source
 		/// decides the rows when a menu opens; a press goes to the dispatch.
-		void               set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch);
+		void set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch);
 		/// \brief RFC-BPR-0128 ([[BPR-2166]]). Opens an agent's report as a
 		/// tab beside the files (owner, Q8), its title and Markdown as given.
 		void               open_report(const std::string& aKey, const QString& aTitle, const QString& aMarkdown);
@@ -2983,15 +2983,15 @@ namespace bpr::qt {
 		void                                  press_suggest_change();
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
-		QToolButton*                                         ExplainFileButton = nullptr;
-		ask_menu_button*                                     FileAskButton     = nullptr;
-		ask_menu_button*                                     ReviewAskButton   = nullptr;
-		ask_menu_source                                      QuickAskSource;
-		ask_menu_dispatch                                    QuickAskDispatch;
-		std::function<bool(std::size_t, const QString&)>     QuickAskConfirm;
-		agent_report_view*                                   ReportView  = nullptr;
-		bool                                                 ReportShown = false;
-		std::map<std::string, std::pair<QString, QString>>   Reports;
+		QToolButton*                                       ExplainFileButton = nullptr;
+		ask_menu_button*                                   FileAskButton     = nullptr;
+		ask_menu_button*                                   ReviewAskButton   = nullptr;
+		ask_menu_source                                    QuickAskSource;
+		ask_menu_dispatch                                  QuickAskDispatch;
+		std::function<bool(std::size_t, const QString&)>   QuickAskConfirm;
+		agent_report_view*                                 ReportView  = nullptr;
+		bool                                               ReportShown = false;
+		std::map<std::string, std::pair<QString, QString>> Reports;
 		/// The file controls' enabled states while a report is shown (Q9).
 		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;
 		void                                                 apply_report_surface();

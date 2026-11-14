@@ -484,6 +484,8 @@ namespace bpr::app {
 		// [[BPR-1338]]. See `github_public_path_fixture_options`.
 		bool AttendedWindowBrowser = false;
 		bool AttendedAgentSearch   = false;
+		/// [[BPR-2177]]. See `github_public_path_fixture_options`.
+		bool FixtureAgentSession = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool LabelHelper = false;

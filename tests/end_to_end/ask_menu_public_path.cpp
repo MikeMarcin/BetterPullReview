@@ -39,14 +39,14 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
-#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/agent_report_view.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
-#include "bpr/qt/diff_workbench.hpp"
-#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/prompt_macros_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -66,9 +66,9 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStyle>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTimer>
-#include <QTabBar>
 #include <QToolBar>
 #include <QToolButton>
 
@@ -267,7 +267,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return !window.report_shown() && window.active_document_path() == path && window.comparison_surface()->isVisible(); }, "a reference opens its file's tab");
 			expect(strip->tabs().size() == files + 1U && window.file_ask_button()->isEnabled(), "the report's tab stays beside it, and the file controls are back");
 			// The report's tab returns to the report.
-			const auto reportAt = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Report; });
+			const auto  reportAt = std::ranges::find_if(strip->tabs(), [](const qt::document_tab_presentation& aTab) { return aTab.Report; });
 			auto* const bar      = strip->findChild<QTabBar*>(QStringLiteral("documentTabBar"));
 			bar->setCurrentIndex(static_cast<int>(std::distance(strip->tabs().begin(), reportAt)));
 			wait([&] { return window.report_shown() && window.report_view()->isVisible(); }, "the report's tab returns to the report");

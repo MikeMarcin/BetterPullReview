@@ -361,6 +361,20 @@ if(BPR_BUILD_QT)
         target_link_libraries(better_pull_review_composition PRIVATE PkgConfig::BPR_XCB)
     endif()
     if(BUILD_TESTING)
+        # [[BPR-2177]] (owner, 2026-11-14). The fixture agent a tests-on build
+        # runs in place of a real one: one program, copied as `claude` and as
+        # `codex` into the build's `fixture-agent` folder, which the
+        # composition names. Looks never spend the owner's agent usage.
+        add_executable(bpr_fixture_agent "${PROJECT_SOURCE_DIR}/tests/support/fixture_agent_main.cpp")
+        target_compile_features(bpr_fixture_agent PRIVATE cxx_std_23)
+        add_custom_command(TARGET bpr_fixture_agent POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/fixture-agent"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:bpr_fixture_agent>" "${CMAKE_BINARY_DIR}/fixture-agent/claude$<$<PLATFORM_ID:Windows>:.exe>"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:bpr_fixture_agent>" "${CMAKE_BINARY_DIR}/fixture-agent/codex$<$<PLATFORM_ID:Windows>:.exe>"
+            VERBATIM)
+        add_dependencies(better_pull_review_composition bpr_fixture_agent)
+        target_compile_definitions(better_pull_review_composition PRIVATE
+            "BPR_FIXTURE_AGENT_DIRECTORY=\"${CMAKE_BINARY_DIR}/fixture-agent\"")
         # [[BPR-1515]]. The ledger course delivers the Accept key where the
         # platform hands it to Qt, including the macOS shortcut offer.
         if(APPLE)

@@ -314,7 +314,8 @@ namespace bpr::qt {
 				name += QStringLiteral(" (JSONL)");
 			}
 			// [[BPR-1753]]. An added agent is named as the reviewer named it.
-			if (core::is_agent_entry_profile(profile.Id)) {
+			// [[BPR-2177]]. A tests-on build's fixture agent says so.
+			if (core::is_agent_entry_profile(profile.Id) || profile.DisplayName.starts_with("Fixture agent")) {
 				name = QString::fromStdString(profile.DisplayName);
 			}
 			ProfileSelector->addItem(name, QVariant::fromValue<qulonglong>(profile.Id.value()));

@@ -21,6 +21,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QUrl>
+#include <filesystem>
 
 #include <algorithm>
 #include <charconv>
@@ -109,6 +110,62 @@ namespace bpr::app {
 			return adapters::agent::locate_agent_program(aProgram, path, std::string_view{ home });
 		};
 	}
+
+	#if defined(BPR_BUILD_TESTING)
+	/// [[BPR-2177]] (owner, 2026-11-14). The folders this run named for its
+	/// agents: the fixture agent's, each executable a course set, and each
+	/// search path. A program named `claude` or `codex` elsewhere (the person's
+	/// own) is refused; in a person's session, so is any program elsewhere.
+	auto github_application::implementation::fixture_agent_admission() const -> std::function<bool(const std::string&)>
+	{
+		auto folders = std::vector<std::filesystem::path>{ };
+		#if defined(BPR_FIXTURE_AGENT_DIRECTORY)
+		folders.emplace_back(BPR_FIXTURE_AGENT_DIRECTORY);
+		#endif
+		for (const auto& executable : { ClaudeAgentExecutable, CodexAgentExecutable, ExternalAgentExecutable }) {
+			if (executable) {
+				folders.push_back(executable->parent_path());
+			}
+		}
+		for (const auto& search : { ClaudeSearch, CodexSearch }) {
+			if (!search) {
+				continue;
+			}
+			auto        start = std::size_t{ 0 };
+			const auto& path  = search->PathVariable;
+			while (start <= path.size()) {
+				const auto end = std::min(path.find_first_of(":;", start), path.size());
+				if (end > start) {
+					folders.emplace_back(path.substr(start, end - start));
+				}
+				start = end + 1U;
+			}
+		}
+		for (auto& folder : folders) {
+			auto error = std::error_code{ };
+			if (auto canonical = std::filesystem::weakly_canonical(folder, error); !error) {
+				folder = std::move(canonical);
+			}
+		}
+		return [allowed = std::move(folders), person = FixtureAgentSession](const std::string& aExecutable) {
+			const auto program = std::filesystem::path{ aExecutable };
+			const auto stem    = program.stem().string();
+			const auto agent   = stem == "claude" || stem == "codex";
+			if (!agent && !person) {
+				return true;
+			}
+			if (!program.is_absolute()) {
+				return false;
+			}
+			auto error = std::error_code{ };
+			auto where = std::filesystem::weakly_canonical(program, error).parent_path();
+			if (error) {
+				where = program.parent_path();
+			}
+			return std::ranges::find(allowed, where) != allowed.end();
+		};
+	}
+	#endif
 
 	void github_application::implementation::resume_card_open()
 	{

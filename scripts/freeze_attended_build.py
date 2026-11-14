@@ -124,11 +124,23 @@ FROZEN = {commit!r}
 DATA = ROOT / "review-data"
 PUSHED = DATA / "pushed"
 LOG = ROOT / "launch.log"
+# [[BPR-2177]] (owner, 2026-11-14). A tests-on look runs the fixture agent,
+# never the person's own: the build holds it, the executable names its folder,
+# and the check's launch finds a stand-in `claude` and `codex` first on PATH
+# that would leave a mark if anything started them.
+FIXTURE_AGENTS = SOURCE / {build!r} / "fixture-agent"
 
 
 def preflight() -> bool:
     if not EXECUTABLE.is_file():
         print(f"BUILD_MISSING: {{EXECUTABLE}}")
+        return False
+    for name in ("claude", "codex"):
+        if not (FIXTURE_AGENTS / name).is_file():
+            print(f"FIXTURE_AGENT_MISSING: {{FIXTURE_AGENTS / name}}")
+            return False
+    if b"/fixture-agent" not in EXECUTABLE.read_bytes():
+        print("FIXTURE_AGENT_UNNAMED: the executable does not name the fixture agent's folder")
         return False
     for path in REQUIRED:
         if not path.exists():
@@ -151,8 +163,19 @@ def private_directory(path):
     return path
 
 
-def start(command, log_path, offscreen):
+def sentinels(folder, mark):
+    """A `claude` and a `codex` that leave `mark` if anything starts them."""
+    folder.mkdir(exist_ok=True)
+    for name in ("claude", "codex"):
+        program = folder / name
+        program.write_text(f"#!/bin/sh\\necho \\"$0 $*\\" >> '{{mark}}'\\nexit 1\\n")
+        program.chmod(0o755)
+
+
+def start(command, log_path, offscreen, path_first=None):
     environment = dict(os.environ)
+    if path_first is not None:
+        environment["PATH"] = f"{{path_first}}{{os.pathsep}}{{environment.get('PATH', '')}}"
     environment.pop("QT_QPA_PLATFORM", None)
     environment.pop("QT_STYLE_OVERRIDE", None)
     if offscreen:
@@ -201,7 +224,8 @@ def check(native):
         for phase, label in courses:
             data = scratch if NEXT_PUSH else None
             log_path = scratch / f"{{phase}}.log"
-            process = start(arguments(data, phase), log_path, offscreen=not native)
+            sentinels(scratch / "real-agents", scratch / "real-agent-started")
+            process = start(arguments(data, phase), log_path, offscreen=not native, path_first=scratch / "real-agents")
             try:
                 line, head, message = await_shown(process, log_path)
             finally:
@@ -209,8 +233,12 @@ def check(native):
             if line is None or not line.startswith(READY):
                 print(f"CHECK_FAILED ({{label}}): {{line or message}}")
                 return 1
+            if (scratch / "real-agent-started").exists():
+                print(f"CHECK_FAILED ({{label}}): REAL_AGENT_STARTED: {{(scratch / 'real-agent-started').read_text().strip()}}")
+                return 1
             heads.append(head)
             print(f"CHECK_OK ({{label}}): {{line}} head {{head}}")
+        print(f"CHECK_OK fixture agent: {{FIXTURE_AGENTS}}; no real agent program started")
         if NEXT_PUSH and (not heads[0] or heads[0] == heads[1]):
             print(f"CHECK_FAILED: the next push showed head {{heads[1]}}, the first head {{heads[0]}}")
             return 1

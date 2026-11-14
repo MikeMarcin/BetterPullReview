@@ -2137,6 +2137,9 @@ namespace bpr::app {
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
 		decltype(github_profile_runtime::CodexSearch)&                            CodexSearch                            = Profile->CodexSearch;
 		const bool&                                                               AttendedAgentSearch                    = Profile->AttendedAgentSearch;
+		const bool&                                                               FixtureAgentSession                    = Profile->FixtureAgentSession;
+		/// [[BPR-2177]]. Which agent programs a fixture build may start.
+		[[nodiscard]] auto fixture_agent_admission() const -> std::function<bool(const std::string&)>;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;

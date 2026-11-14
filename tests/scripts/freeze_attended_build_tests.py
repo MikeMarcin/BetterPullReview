@@ -69,12 +69,17 @@ exec sleep 30
 
 def frozen_root(directory: Path, name: str, *, required: list[str], next_push: bool, stand_in: str = STAND_IN,
                 extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN",
-                open_file: str | None = "src/engine/renderer.cpp") -> Path:
+                open_file: str | None = "src/engine/renderer.cpp", fixture_agent: bool = True) -> Path:
     root = directory / name
     executable = root / "src" / freeze.EXECUTABLE
     executable.parent.mkdir(parents=True)
-    executable.write_text(stand_in)
+    # [[BPR-2177]]. The build's fixture agent, which the executable names.
+    executable.write_text(stand_in + ("# names /fixture-agent\n" if fixture_agent else ""))
     executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+    agents = root / "src" / freeze.BUILD / "fixture-agent"
+    agents.mkdir(parents=True)
+    for name in ("claude", "codex"):
+        (agents / name).write_text("#!/bin/sh\nexit 0\n")
     (root / "src/tests/fixtures/github/contracts/v1/conventional-comments-v1").mkdir(parents=True)
     (root / "launch.py").write_text(freeze.render_launcher(
         root=root, title="test", commit="0" * 40, fixture="conventional-comments-v1",
@@ -138,6 +143,15 @@ def main() -> int:
         checked = launch(wrong, "--check")
         expect(checked.returncode == 1 and "FIXTURES_MISSING:" in checked.stdout,
                f"a launcher checking a missing fixture path fails its own check: {checked.stdout!r}")
+
+        # [[BPR-2177]]. A tests-on image that does not name the fixture agent,
+        # or one that starts a `claude` from PATH, fails its own check.
+        unnamed = frozen_root(directory, "unnamed", required=[], next_push=False, fixture_agent=False)
+        checked = launch(unnamed, "--check")
+        expect(checked.returncode == 1 and "FIXTURE_AGENT_UNNAMED" in checked.stdout, f"an image without the fixture agent fails its check: {checked.stdout!r}")
+        reaching = frozen_root(directory, "reaching", required=[], next_push=False, stand_in=STAND_IN.replace('echo "ATTENDED_HEAD', 'claude --version >/dev/null 2>&1\necho "ATTENDED_HEAD'))
+        checked = launch(reaching, "--check")
+        expect(checked.returncode == 1 and "REAL_AGENT_STARTED" in checked.stdout, f"an image that starts a real agent fails its check: {checked.stdout!r}")
 
         plain = frozen_root(directory, "plain", required=["tests/fixtures/github/contracts/v1/conventional-comments-v1"], next_push=False)
         checked = launch(plain, "--check")

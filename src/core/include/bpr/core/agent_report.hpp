@@ -45,7 +45,7 @@ namespace bpr::core {
 	struct report_card
 	{
 		/// The first heading, or the answer's first line.
-		std::string Title;
+		std::string   Title;
 		std::uint32_t Sections = 0U;
 		std::uint32_t Lines    = 0U;
 		/// The first lines of prose after the title, at most

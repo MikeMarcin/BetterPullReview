@@ -52,7 +52,7 @@ namespace bpr::qt {
 		Scroll->setObjectName(QStringLiteral("agentReportScroll"));
 		Scroll->setWidgetResizable(true);
 		Scroll->setFrameShape(QFrame::NoFrame);
-		auto* const page   = new QWidget{ Scroll };
+		auto* const page       = new QWidget{ Scroll };
 		auto* const pageColumn = new QVBoxLayout{ page };
 		pageColumn->setContentsMargins(20, 16, 20, 24);
 		Body = new markdown_body_view{ page };

@@ -228,11 +228,11 @@ namespace bpr::core {
 	/// longer has); the thread itself rides as the conversation.
 	struct supplement_returning
 	{
-		returning_operation            Operation = returning_operation::latest_upload;
-		std::string                    EarlierHead;
-		std::string                    CurrentHead;
-		returning_basis                Basis = returning_basis::review;
-		std::string                    Changes;
+		returning_operation Operation = returning_operation::latest_upload;
+		std::string         EarlierHead;
+		std::string         CurrentHead;
+		returning_basis     Basis = returning_basis::review;
+		std::string         Changes;
 		/// RFC-BPR-0128 ([[BPR-2167]]). The commits since the review, a merge
 		/// of the base branch as one line and the rest by area
 		/// (`render_commit_listing`); empty when none are listed.

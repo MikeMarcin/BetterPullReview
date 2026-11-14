@@ -152,7 +152,7 @@ namespace bpr::core {
 				}
 				for (auto before = *index; before > 0U; --before) {
 					if (!aState.Tabs[before - 1U].report()) {
-						auto& taken = aState.Tabs[before - 1U];
+						auto& taken     = aState.Tabs[before - 1U];
 						taken.View.File = aIntent.File;
 						taken.View.Selection.reset();
 						return activate(aState, before - 1U);

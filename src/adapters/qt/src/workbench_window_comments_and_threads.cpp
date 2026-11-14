@@ -4,11 +4,11 @@
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/agent_feature.hpp"
-#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1393,9 +1393,9 @@ namespace bpr::qt {
 					.Report        = !entry.Report.empty(),
 				});
 				if (!entry.Report.empty()) {
-					const auto found  = Reports.find(entry.Report);
-					tabs.back().Name  = found != Reports.end() && !found->second.first.isEmpty() ? found->second.first : tr("Report");
-					tabs.back().Path  = { };
+					const auto found = Reports.find(entry.Report);
+					tabs.back().Name = found != Reports.end() && !found->second.first.isEmpty() ? found->second.first : tr("Report");
+					tabs.back().Path = { };
 				}
 			}
 			// A tab's name is its file's, with as much of the path before it
