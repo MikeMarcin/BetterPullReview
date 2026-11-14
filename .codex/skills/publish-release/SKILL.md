@@ -135,11 +135,12 @@ or publication of that version.
 - Verify native signatures/timestamps, then SHA-256 of final delivered bytes.
   Signing an executable, MSI or RPM changes bytes. Keep installed inventories,
   sidecars and final artifact provenance consistent with those bytes.
-- Preserve M8/M9 native, vault, crash/privacy and vulnerability gaps in claims and
-  release notes. Check current findings and exact owner/security dispositions;
-  do not manufacture approval or report failed gates as passed. Offline audits
-  do not close qualification. Profile purge is not uninstall and excludes shared
-  updater/registry state.
+- Preserve M8/M9 native, vault, crash/privacy and vulnerability gaps in the
+  qualification and security records. Check current findings and exact
+  owner/security dispositions; do not manufacture approval or report failed
+  gates as passed. Surface actionable release-specific limitations using the
+  compact description guidance below. Offline audits do not close qualification.
+  Profile purge is not uninstall and excludes shared updater/registry state.
 
 Every binary recipient must retain equivalent access to the exact source asset
 at no additional charge. Supply it through the original distribution channel
@@ -156,6 +157,49 @@ data, private keys, build logs and transient test evidence. Corresponding source
 is the deliberate exception to excluding private repository content; distribute
 it only through the approved release channel. Public source and binary access
 must be equivalent after an authorized public visibility change.
+
+## Write a compact release description
+
+Use [0.4.2](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.2)
+as the model for its title, download table and changes only. The default release
+description ends after the changes:
+
+```markdown
+# BetterPullReview X.Y.Z
+
+| System | Download |
+|---|---|
+| macOS 14.4+ · Universal | [Download DMG](exact-release-asset-url) |
+| Windows · x64 | [Download MSI](exact-release-asset-url) |
+| Ubuntu 26.04 · x64 | [Download DEB](exact-release-asset-url) |
+
+## Changes since X.Y.W
+
+- Describe a concrete user-visible improvement or fix.
+```
+
+Use the selected version, actual minimum OS versions and exact uploaded asset
+URLs; include only the platforms being published. Label a universal macOS build
+**Universal**. Keep the GitHub release title `BetterPullReview VERSION`. Write
+short, plain change bullets grouped by user-visible outcome, with enough detail
+to explain what changed. Omit internal issue/RFC IDs, process narration,
+marketing filler and a concluding summary.
+
+Keep qualification reports, source/build identities, test counts and failures,
+timing policies, waivers, vulnerability inventories and dispositions in their
+release records. Keep source/licence/retention explanations and installation or
+signature-verification procedures in linked, versioned documentation or approved
+public release assets. Publish the approved Linux public key and full fingerprint
+through that channel; do not paste a key block or verification tutorial into the
+description. Make any needed links short and point to the exact release's
+records or instructions, not a moving branch or private evidence.
+
+Add a brief warning or instruction only when a release-specific security issue,
+breaking change, known limitation or required installation/migration action
+materially affects the user's decision or next step. State the impact/action
+and link to details. Do not append routine signing assurances, a general
+verification/limitations section or standing policy disclaimers. Compact notes
+do not relax qualification, disclosure, source access or signing requirements.
 
 ## Publish once
 
@@ -194,9 +238,9 @@ and publisher plus the signing PC's native Windows station and Ubuntu 26.04
 WSL2 producer. The owner selected this Linux route for the next release on
 2026-10-11; Ubuntu 24.04 and RHEL are not required release targets. Ordinary
 Linux binaries may be produced under WSL2. The tested environments are Windows
-11 and Ubuntu 26.04 under WSL2/WSLg; release notes say other Windows and Linux
-versions may work but are untested ([[BPR-1743]]). Final installation
-qualification remains separate. Keep signing credentials and
+11 and Ubuntu 26.04 under WSL2/WSLg; the versioned package guide records that
+other Windows and Linux versions may work but are untested ([[BPR-1743]]).
+Final installation qualification remains separate. Keep signing credentials and
 private keys on their approved producer PC. Return each producer's complete
 final artifact directory, including `.release.json`, runtime archive, SPDX,
 separate source asset, checksums, provenance and public signatures, to the Mac
