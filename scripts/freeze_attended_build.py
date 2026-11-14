@@ -255,7 +255,9 @@ def check(native):
                 line, _, message = await_shown(process, log_path, "ATTENDED_FIXTURE_AGENT_ANSWERED")
             finally:
                 stop(process)
-            if line is None or not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent") or not line.endswith(":report=1"):
+            # Look ask-v003 (owner: "The footer does not say fixture agent").
+            if (line is None or not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent")
+                    or ":footer=Fixture agent" not in line or not line.endswith(":report=1")):
                 print(f"CHECK_FAILED (fixture agent answers): FIXTURE_AGENT_SILENT: {{line or message}}")
                 return 1
             if (scratch / "real-agent-started").exists():

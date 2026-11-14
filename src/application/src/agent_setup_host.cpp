@@ -146,6 +146,7 @@ namespace bpr::application {
 				&& (entry == nullptr || entry->Preset);
 			Projection.Searched = core::searched_setup_agents(Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
 			Projection.Step     = core::current_setup_step(state);
+			Projection.Names    = Dependencies.Names;
 			// Owner report: the Agent step shows the agent list as it is now,
 			// whichever surface changed it.
 			Projection.Choices = core::agent_setup_choices({

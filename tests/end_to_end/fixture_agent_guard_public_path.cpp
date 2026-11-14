@@ -138,6 +138,25 @@ auto main(int argc, char** argv) -> int
 		for (auto index = 0; index < selector->count(); ++index) {
 			expect(selector->itemText(index).startsWith(QStringLiteral("Fixture agent")), "every offered agent is the fixture: " + names.join(QLatin1Char('|')).toStdString());
 		}
+		// Look ask-v003 (owner, 2026-11-14: "The footer does not say fixture
+		// agent"): every place the agent is named says so.
+		auto footers = 0;
+		for (auto* const footer : window.findChildren<QWidget*>()) {
+			const auto text = footer->property("agentRunSettingsText").toString();
+			if (!text.isEmpty()) {
+				++footers;
+				expect(text.startsWith(QStringLiteral("Fixture agent")), "the footer names the fixture agent: " + text.toStdString());
+			}
+		}
+		if (footers == 0) {
+			auto seen = std::string{ };
+			for (auto* const footer : window.findChildren<QWidget*>()) {
+				seen += footer->accessibleName().toStdString() + (footer->isVisible() ? " (shown) " : " (hidden) ");
+			}
+			throw std::runtime_error{ "a footer names the agent: " + seen };
+		}
+		expect(window.agent_setup()->ready_title() == QStringLiteral("Fixture agent is ready"),
+			   "the setup and its Check name the fixture agent: " + window.agent_setup()->ready_title().toStdString());
 
 		// A question: the fixture agent answers, and no real program ran.
 		auto* const chat  = access::side_chat_panel(*application);

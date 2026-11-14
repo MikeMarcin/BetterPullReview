@@ -54,6 +54,10 @@ namespace bpr::application {
 		/// [[BPR-2051]]. The added agent a check runs on now, by entry id;
 		/// none while no check runs or a check's agent is not in the list.
 		std::optional<std::uint32_t> CheckingEntry;
+		/// [[BPR-2177]], look ask-v003 ("The footer does not say fixture
+		/// agent"). What each popular agent is called where it is named, when
+		/// not its plain name: a tests-on build's fixture agent.
+		std::map<core::setup_agent, std::string> Names;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -90,6 +94,8 @@ namespace bpr::application {
 		/// Claude Code entry once.
 		std::function<std::string()>     LegacyClaudeModel;
 		std::vector<core::agent_profile> Profiles;
+		/// [[BPR-2177]]. Names the popular agents go by (`agent_setup_projection::Names`).
+		std::map<core::setup_agent, std::string> Names;
 		/// Metadata reads and store writes.
 		effect_executor* Effects = nullptr;
 		/// The check's runs, which may take their whole bound: a lane of

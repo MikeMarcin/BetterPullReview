@@ -7965,7 +7965,15 @@ namespace {
 				return;
 			}
 			const auto* const card = tab->turn_report_card(last);
-			finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:report=%2").arg(picker->currentText()).arg(card != nullptr && !card->isHidden() ? 1 : 0));
+			// Look ask-v003 (owner, 2026-11-14: "The footer does not say
+			// fixture agent"): the footer's words, and with
+			// `BPR_ATTENDED_FOOTER_SHOT=FILE` a picture of the window.
+			auto* const footer = window.agent_footer_widget();
+			const auto  words  = footer != nullptr && footer->picker() != nullptr ? footer->picker()->property("agentRunSettingsText").toString() : QString{ };
+			if (const auto shot = qEnvironmentVariable("BPR_ATTENDED_FOOTER_SHOT"); !shot.isEmpty()) {
+				static_cast<void>(window.grab().save(shot));
+			}
+			finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:report=%3").arg(picker->currentText(), words).arg(card != nullptr && !card->isHidden() ? 1 : 0));
 		});
 		timer->start();
 	}

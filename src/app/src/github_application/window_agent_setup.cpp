@@ -2033,9 +2033,15 @@ namespace bpr::app {
 			const auto found = std::ranges::find_if(setup.State.Rows, [aAgent](const core::agent_setup_row& aRow) { return aRow.Agent == aAgent; });
 			return found == setup.State.Rows.end() ? QString{ } : QString::fromStdString(found->Path);
 		};
+		// [[BPR-2177]], look ask-v003: the footer names a tests-on build's
+		// fixture agent as the setup does.
+		const auto named = [&setup](const core::setup_agent aAgent, const QString& aPlain) {
+			const auto found = setup.Names.find(aAgent);
+			return found == setup.Names.end() ? aPlain : QString::fromStdString(found->second);
+		};
 		auto claude            = qt::agent_run_settings{ };
 		claude.Profile         = core::claude_stream_json_profile_id.value();
-		claude.Agent           = QStringLiteral("Claude Code");
+		claude.Agent           = named(core::setup_agent::claude_code, QStringLiteral("Claude Code"));
 		claude.Program         = program(core::setup_agent::claude_code);
 		claude.ModelChoosable  = true;
 		claude.EffortChoosable = true;
@@ -2044,7 +2050,7 @@ namespace bpr::app {
 		claude.Models          = claude_models();
 		claude.Efforts         = core::known_agent_efforts(core::agent_program::claude);
 		auto codex             = qt::agent_run_settings{ };
-		codex.Agent            = QStringLiteral("Codex");
+		codex.Agent            = named(core::setup_agent::codex, QStringLiteral("Codex"));
 		codex.Program          = program(core::setup_agent::codex);
 		codex.ModelChoosable   = true;
 		codex.EffortChoosable  = true;

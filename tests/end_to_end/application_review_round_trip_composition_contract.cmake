@@ -3736,7 +3736,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# queued Ask (RFC-BPR-0126's queue host), the report tab and Explain this
 	# file in the Agent tab. No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "5afe7a9bcdf2cb8c398aed8c3cc53e42c2041f8b986b40d9e631484d82603132"
+        "3d82728bdde6963404897f5842607b6cf4eb50983af76f2853c3c88e4d5319ef"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

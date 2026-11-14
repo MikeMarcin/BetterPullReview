@@ -174,11 +174,15 @@ namespace bpr::qt {
 		return { };
 	}
 
-	auto setup_agent_name(const application::agent_setup_preferences& aPreferences, const core::setup_agent aAgent) -> QString
+	auto setup_agent_name(const application::agent_setup_projection& aSetup, const core::setup_agent aAgent) -> QString
 	{
-		const auto found = std::ranges::find(aPreferences.Agents, aPreferences.PreferredAgent, &core::agent_entry::Id);
-		if (aPreferences.PreferredAgent != 0U && found != aPreferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
+		const auto& preferences = aSetup.Preferences;
+		const auto  found       = std::ranges::find(preferences.Agents, preferences.PreferredAgent, &core::agent_entry::Id);
+		if (preferences.PreferredAgent != 0U && found != preferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
 			return text_of(found->Name);
+		}
+		if (const auto named = aSetup.Names.find(aAgent); named != aSetup.Names.end()) {
+			return text_of(named->second);
 		}
 		return plain(aAgent);
 	}
@@ -309,7 +313,7 @@ namespace bpr::qt {
 
 	auto agent_setup_view::agent_name() const -> QString { return Setup.State.Chosen ? name_for(*Setup.State.Chosen) : tr("The agent"); }
 
-	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString { return setup_agent_name(Setup.Preferences, aAgent); }
+	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString { return setup_agent_name(Setup, aAgent); }
 
 	void agent_setup_view::set_entry_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
 

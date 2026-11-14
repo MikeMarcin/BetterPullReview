@@ -31,7 +31,7 @@ for argument in "$@"; do
 done
 echo "ATTENDED_HEAD:$head"
 echo "ATTENDED_FILE_SHOWN:src/engine/renderer.cpp"
-if [ "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" = 1 ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1"; fi
+if [ "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" = 1 ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent · Default model:report=1"; fi
 exec sleep 30
 """
 
@@ -154,6 +154,10 @@ def main() -> int:
         checked = launch(reaching, "--check")
         expect(checked.returncode == 1 and "REAL_AGENT_STARTED" in checked.stdout, f"an image that starts a real agent fails its check: {checked.stdout!r}")
 
+        # Look ask-v003. An image whose footer names another agent fails.
+        misnamed = frozen_root(directory, "misnamed", required=[], next_push=False, stand_in=STAND_IN.replace("footer=Fixture agent", "footer=Claude Code"))
+        checked = launch(misnamed, "--check")
+        expect(checked.returncode == 1 and "FIXTURE_AGENT_SILENT" in checked.stdout, f"an image whose footer names Claude Code fails its check: {checked.stdout!r}")
         # Look ask-v002. An image whose look gets no fixture answer fails.
         silent = frozen_root(directory, "silent", required=[], next_push=False, stand_in=STAND_IN.replace(":report=1", ":report=0"))
         checked = launch(silent, "--check")
@@ -162,7 +166,7 @@ def main() -> int:
         plain = frozen_root(directory, "plain", required=["tests/fixtures/github/contracts/v1/conventional-comments-v1"], next_push=False)
         checked = launch(plain, "--check")
         expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp" in checked.stdout
-               and "CHECK_OK (fixture agent answers): ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:report=1" in checked.stdout,
+               and "CHECK_OK (fixture agent answers): ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent" in checked.stdout,
                f"a launcher whose fixture is present opens the file and gets the fixture agent's answer: {checked.stdout!r}")
         expect(launch(plain, "--next-push").returncode == 2, "a launcher frozen without a push refuses --next-push")
 
