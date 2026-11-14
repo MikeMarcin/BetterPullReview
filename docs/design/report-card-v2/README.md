@@ -141,8 +141,8 @@ and `c-tab`.
 
 The file tab is the report's only place, as Q8 decided. B's widened drawer and
 C's preview over the window are dropped, and nothing here is built. The
-readings are asked again inside the file tab alone in round 3
-(`docs/design/report-card-v3/`).
+readings are asked again inside the file tab alone in
+[round 3](../report-card-v3/README.md).
 
 - Attended-review session `6427e38b7088fff0461b7af92f62c466`, candidate
   `report-card-v2-opened` at revision `10a96baf690c` (the commit that added
