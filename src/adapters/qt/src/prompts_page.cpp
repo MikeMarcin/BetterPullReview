@@ -1,6 +1,7 @@
 #include "bpr/qt/prompts_page.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/prompt_words.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -932,8 +933,11 @@ namespace bpr::qt {
 		RightBox = rightBox;
 		// Undo and Redo keys while the conditions have the focus (a text
 		// field keeps its own).
-		for (const auto& [keys, back] : { std::pair{ QKeySequence::Undo, true }, std::pair{ QKeySequence::Redo, false } }) {
-			auto* const shortcut = new QShortcut{ QKeySequence{ keys }, rightBox };
+		// Named and in Help › Keyboard Shortcuts, as every bound key is.
+		for (const auto& [command, back] : { std::pair{ shortcut_command::prompts_conditions_undo, true }, std::pair{ shortcut_command::prompts_conditions_redo, false } }) {
+			auto* const shortcut = new QShortcut{ rightBox };
+			shortcut->setObjectName(back ? QStringLiteral("promptsConditionsUndo") : QStringLiteral("promptsConditionsRedo"));
+			shortcut->setKeys(shortcut_keys(command));
 			shortcut->setContext(Qt::WidgetWithChildrenShortcut);
 			connect(shortcut, &QShortcut::activated, this, [this, back] { static_cast<void>(back ? undo() : redo()); });
 		}

@@ -23077,9 +23077,12 @@ namespace {
 		process_events();
 		const auto items = menu->actions();
 		expect(menu->isVisible() && view->currentIndex() == index, "a right click makes the queue row current and opens its menu");
-		expect(items.size() == 9 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page
-				   && items[5]->isSeparator() && items[6] == ignore && items[7]->isSeparator() && items[8] == drop && menu->defaultAction() == open,
-			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open on GitHub, Ignore, then Remove from Recently Viewed");
+		// RFC-BPR-0108 (X02). Open Local Preparation follows Resume, shown only
+		// on a pull request a local draft became; this row is not one.
+		auto* const preparation = window.home_open_preparation_action();
+		expect(items.size() == 10 && items[0] == open && items[1] == fresh && items[2] == again && items[3] == preparation && !preparation->isVisible() && items[4]->isSeparator() && items[5] == page
+				   && items[6]->isSeparator() && items[7] == ignore && items[8]->isSeparator() && items[9] == drop && menu->defaultAction() == open,
+			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open Local Preparation (hidden here), Open on GitHub, Ignore, then Remove from Recently Viewed");
 		expect(ignore->isVisible() && ignore->isEnabled() && ignore->text() == QStringLiteral("Ignore") && ignore->shortcut().isEmpty(),
 			   "on a queue row Ignore is offered, and its Delete is the list's, never the window's");
 		expect(open->text() == QStringLiteral("Open Review") && fresh->text() == QStringLiteral("Open Review in New Window") && open->isEnabled() && fresh->isEnabled()

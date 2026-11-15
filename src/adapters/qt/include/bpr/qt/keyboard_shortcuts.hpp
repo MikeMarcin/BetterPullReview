@@ -185,6 +185,8 @@ namespace bpr::qt {
 		settings,
 		insights,
 		settings_find,
+		prompts_conditions_undo,
+		prompts_conditions_redo,
 		new_window,
 		quit,
 		connect,
