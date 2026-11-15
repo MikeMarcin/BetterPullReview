@@ -99,8 +99,12 @@ slice 1.
    still runs and keeps its transcript, a window close does not touch a
    running turn, and the Agent tab stops being the send transport.
    Application layer done (`c1c80c1e6`, see Evidence). The epoch actor
-   registry admits a profile-owned host (`9c7672579`). Composition into the
-   app waits on a lease the runtime holds in its own name (see Evidence).
+   registry admits a profile-owned host (`9c7672579`), bounded by the queue
+   host's session limit (`03a540b91`). Composition into the app waits on a
+   lease `github_application_host` lends the runtime in its own name and
+   revokes on account, identity-generation or profile-revision change, on
+   let-go, or when the lending window finds the pull request inaccessible;
+   any revocation pauses the queue with a reason (coordinator, 2026-11-14).
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
@@ -160,6 +164,9 @@ slice 1.
   needs a lease lent in its own name by the GitHub host, and the profile
   must revoke it when the account or identity changes. That is the next
   step, at its owner (`github_window_read_host`, `github_application_host`).
+  The profile-owned consumers take the queue host's session limit,
+  `core::maximum_queued_sessions` (32), which `agent_queue_host::enqueue`
+  now enforces (`03a540b91`, course `application_agent_queue_host`).
 - **AC07:** `application_agent_queue_second_window_loading_public_path`
   passes (slice 1, `c65c59df0`). The runtime registry does not change it,
   because windows still run their own agent hosts until the composition
