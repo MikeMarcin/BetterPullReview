@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2151"
 title: "BPR queues follow-ups and releases them only after real completion"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0126"]
 depends_on: []
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2151--BPR-2155--573d6ab3248e.json","milestone_plan":{"id":"queue-and-steer-v1","path":"docs/rfcs/plans/queue-and-steer-v1/milestone-plan.json"},"criteria":["AC02","AC03","AC04"],"origin":"imported 2026-11-12 from queue-and-steer-v1 (RFC-DRAFT-0001); the draft defined no cards, they were cut at import"}
+acceptance: [{"criterion":"AC02","outcome":"pass","revision":"d8f7fbf4b","evidence":{"kind":"command","detail":"application_agent_queue_host, core_agent_queue, application_ask_queue_public_path"}},{"criterion":"AC03","outcome":"pass","revision":"d8f7fbf4b","evidence":{"kind":"command","detail":"application_tour_feedback_queue_public_path"}},{"criterion":"AC04","outcome":"pass","revision":"d8f7fbf4b","evidence":{"kind":"command","detail":"application_agent_queue_host, application_agent_queue_windows_public_path, core_agent_queue; owner Accept BPR-2151-queue-across-windows (look queue-windows-v001)"}}]
 ---
 
 # BPR-2151: BPR queues follow-ups and releases them only after real completion
@@ -259,3 +260,26 @@ its workspace cleanup is refused (`cleanup_failed`) and the job stays
 active, so the queue there waits. With the second window loaded first, the
 course passes at the next push as well. The look asks for the second window
 first.
+
+## Look queue-windows-v001 handed back (owner, 2026-11-14)
+
+Accepted, no note: `BPR-2151-queue-across-windows` (session
+`74fcc4b08cdfbc6fc8d13b39a1040715`, decision at sequence 5, handed back at
+sequence 6). The host is stopped and the frozen root removed.
+
+## Closeout (2026-11-14)
+
+- **AC02**: `application_agent_queue_host` (restored queue paused, starts
+  nothing; refused write keeps every message as typed; nothing past 16),
+  `core_agent_queue`, `application_ask_queue_public_path` (nothing runs while
+  paused).
+- **AC03**: `application_tour_feedback_queue_public_path`; the shipped
+  owner-visible tour chat is unchanged.
+- **AC04**: `application_agent_queue_host`,
+  `application_agent_queue_windows_public_path`, the pause rules in
+  `core_agent_queue`, the edit hold accepted in prompts-v001, Stop all in
+  prompts-v004, and the owner's Accept of `BPR-2151-queue-across-windows`.
+
+Native steering stays [[BPR-2153]]'s. The workspace-cleanup stall with a
+loading second window and the time-limited retirement watch are fixed under
+their own card.
