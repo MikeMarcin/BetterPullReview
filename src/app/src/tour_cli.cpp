@@ -4,6 +4,7 @@
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "terminal_text.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_editor.hpp"
@@ -32,6 +33,9 @@ namespace bpr::app {
 			QMap<QString, QString>              Values;
 			bool                                Json = false, Interactive = false;
 			std::optional<core::tour_attention> WalkAttention;
+			/// [[BPR-2014]]. The changed paths the walk's read observed, so its
+			/// Ready records the code at the references the stop's text makes.
+			std::vector<std::string> WalkFiles;
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
 		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover", "hooks", "assist", "outline", "labels" }; }
@@ -425,7 +429,7 @@ namespace bpr::app {
 				}
 				for (auto i = cursor; i < end; ++i) {
 					const auto& stop = draft.Stops[i];
-					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "suggested", stop.Suggestion.has_value() }, { "visited", stop.Suggestion.has_value() && stop.Suggestion->Visited }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
+					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "acceptance", text(core::stable_name(core::decide_tour_stop_acceptance(draft, stop).State)) }, { "suggested", stop.Suggestion.has_value() }, { "visited", stop.Suggestion.has_value() && stop.Suggestion->Visited }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
 					result.Human += QStringLiteral("%1. %2 [%3]\n").arg(QString::number(stop.Id.value()), text(stop.Title), stop.Preparation == core::tour_preparation::ready ? "Ready" : "Editing");
 				}
 				result.Data["stops"]       = stops;
@@ -517,6 +521,7 @@ namespace bpr::app {
 				command.CompletionOrigin = aOptions.WalkAttention ? core::tour_completion_origin::observed : core::tour_completion_origin::relayed;
 				if (aOptions.WalkAttention) {
 					command.Attention = *aOptions.WalkAttention;
+					command.Files     = aOptions.WalkFiles;
 				}
 			} else {
 				if (aOptions.Values.contains("--before") == aOptions.Values.contains("--after")) {
@@ -735,7 +740,7 @@ namespace bpr::app {
 				const char* const exportPolicy = tour_assist_policy() == tour_assist_export_policy::open
 					? "open"
 					: (tour_assist_policy() == tour_assist_export_policy::manual_only ? "manual_only" : "invalid");
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", true }, { "publication_gate", "publish in a terminal, typing publish for each exact plan" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v6 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "problem", "solution", "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "labels", QJsonObject{ { "subcommands", QJsonArray{ "catalog", "parse", "edit", "counts" } }, { "catalog", "bpr.feedback-label-catalog.v1" }, { "catalog_revision", QString::number(core::feedback_catalog_revision) }, { "parser_revision", QString::number(core::feedback_parser_revision) }, { "edit_targets", QJsonArray{ "stop:ID" } }, { "comment_drafts", "unavailable: review comment drafts have no headless owner; label them in the desktop's comment editor" }, { "counts_source", "one read of the draft's pull request through the existing reader; interaction_required while a desktop owns the profile" }, { "counts_unit", "conversation" } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" }, { "platform", platform_status() } },
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", true }, { "publication_gate", "publish in a terminal, typing publish for each exact plan" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v8 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "problem", "solution", "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "labels", QJsonObject{ { "subcommands", QJsonArray{ "catalog", "parse", "edit", "counts" } }, { "catalog", "bpr.feedback-label-catalog.v1" }, { "catalog_revision", QString::number(core::feedback_catalog_revision) }, { "parser_revision", QString::number(core::feedback_parser_revision) }, { "edit_targets", QJsonArray{ "stop:ID" } }, { "comment_drafts", "unavailable: review comment drafts have no headless owner; label them in the desktop's comment editor" }, { "counts_source", "one read of the draft's pull request through the existing reader; interaction_required while a desktop owns the profile" }, { "counts_unit", "conversation" } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" }, { "platform", platform_status() } },
 									 "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline, labels\nNo GUI or AI provider required.\nPlatform: " + platform_status()["os"].toString() + ", " + platform_status()["qualification"].toString() + ". Native vault: " + platform_status()["native_vault"].toString() + ". gh transport: " + platform_status()["gh_transport"].toString() + ".\n",
 									 { } };
 			}
@@ -931,7 +936,8 @@ namespace bpr::app {
 				const auto  range       = stop.Mapped ? stop.Mapped : stop.Original;
 				const auto  destination = range ? std::optional{ core::destination_of(*range) } : stop.Destination;
 				const auto  token       = tour_runtime::draft_token(snapshot->Target);
-				auto        source      = destination ? runtime->source(token, *destination, transport == "gh") : tour_cli_result<tour_source_material>{ refuse("source_unavailable", "No pinned destination is available.", 5) };
+				auto        files       = std::vector<std::string>{ };
+				auto        source      = destination ? runtime->source(token, *destination, transport == "gh", &files) : tour_cli_result<tour_source_material>{ refuse("source_unavailable", "No pinned destination is available.", 5) };
 				QString     page        = "Stop " + QString::number(index + 1) + "/" + QString::number(snapshot->Draft.Stops.size()) + " · ID " + QString::number(stop.Id.value()) + " · revision " + QString::number(snapshot->Draft.Revision) + "\n" + text(stop.Title) + "\nComment\n" + text(stop.Body) + "\n";
 				if (source) {
 					page += render_source(*source);
@@ -977,6 +983,7 @@ namespace bpr::app {
 				} else if (action == "r") {
 					command.Command       = "ready";
 					command.WalkAttention = core::tour_attention{ .EditorVisible = true, .Source = source ? std::optional{ source->Source } : std::nullopt, .SourceUnavailable = !source };
+					command.WalkFiles     = files;
 				} else {
 					const auto parts = action.split(' ', Qt::SkipEmptyParts);
 					if (parts.size() != 3 || parts[0] != "m" || (parts[1] != "before" && parts[1] != "after") || !number(parts[2])) {

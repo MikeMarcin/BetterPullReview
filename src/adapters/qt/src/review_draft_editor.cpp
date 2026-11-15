@@ -237,13 +237,12 @@ namespace bpr::qt {
 			tr("Reject revision"),
 			QStringLiteral("reviewRejectRevision"));
 
-		// One control per declared operation, in the enumerator's own order, so
-		// the array index *is* the operation. A seventh operation adds a row
-		// here and fails to compile until it does, which is what keeps the six
-		// controls and the closed set from drifting apart.
+		// One control per prose operation, in the enumerator's own order, so
+		// the array index *is* the operation. RFC-BPR-0118's Suggest the
+		// change is not prose and is offered on the drawer draft's lines.
 		const auto controls
 			= std::array<std::pair<QString, QString>,
-						 core::workshop_operation_count>{ {
+						 core::prose_workshop_operation_count>{ {
 				{ tr("Clarify"), QStringLiteral("reviewWorkshopClarify") },
 				{ tr("Shorten"), QStringLiteral("reviewWorkshopShorten") },
 				{ tr("Make actionable"),
@@ -422,7 +421,7 @@ namespace bpr::qt {
 	auto review_draft_editor::workshop_action(
 		const core::workshop_operation aOperation) const noexcept -> QAction*
 	{
-		if (!core::declared(aOperation)) {
+		if (!core::declared(aOperation) || !core::rewrites_prose(aOperation)) {
 			return nullptr;
 		}
 		return Members.WorkshopOperations[static_cast<std::size_t>(aOperation)];

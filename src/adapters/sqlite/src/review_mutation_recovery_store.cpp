@@ -1650,9 +1650,10 @@ namespace bpr::adapters::sqlite {
 		void staged_record_codec(detail::tour_codec& aCodec, application::staged_publication_record& aRecord)
 		{
 			// [[BPR-1368]]. Version 4 adds the pending request's comment node ID.
-			std::uint64_t version = 6;
+			// [[BPR-1996]]. Version 7 adds each stop's text as written.
+			std::uint64_t version = 7;
 			aCodec.number(version);
-			if (version < 1 || version > 6) {
+			if (version < 1 || version > 7) {
 				aCodec.Good = false;
 				return;
 			}
@@ -1680,6 +1681,9 @@ namespace bpr::adapters::sqlite {
 				aCodec.text(aStop.SourceLink, 4096);
 				if (version >= 6) {
 					aCodec.enumeration(aStop.Representation);
+				}
+				if (version >= 7) {
+					aCodec.text(aStop.Authored);
 				}
 			});
 			aCodec.number(aRecord.Plan.Compatibility);

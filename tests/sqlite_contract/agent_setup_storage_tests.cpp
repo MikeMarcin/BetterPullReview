@@ -7,6 +7,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -188,8 +189,15 @@ try {
 	listed.RunLimitMinutes = 45U;
 	listed.PreferredAgent  = 2U;
 	// Owner look v004: the Agent tab's Suggestions toggle is kept.
-	listed.SuggestionsHidden  = true;
+	listed.SuggestionsHidden = true;
+	// RFC-BPR-0126 Q4/Q5: Follow-up behaviour, Steer, is kept.
+	listed.FollowUpSteer      = true;
 	listed.Agents[0].Identity = std::string(32U, 'a');
+	expect(store->load()->ScratchLimitMiB == core::default_agent_scratch_limit_mib && store->load()->ScratchKeepDays == core::default_agent_scratch_keep_days, "the scratch policy starts at 256 MiB and 30 days");
+	// RFC-BPR-0104 as amended 2026-11-11: the scratch folder limit and how
+	// long an unused folder is kept are settings.
+	listed.ScratchLimitMiB = 1024U;
+	listed.ScratchKeepDays = 0U;
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");
@@ -202,8 +210,76 @@ try {
 	auto popular                      = listed;
 	popular.Agents[2].StrictRunChecks = false;
 	expect(core::inspect_agent_entries(popular.Agents) == core::agent_entry_refusal::relaxed_popular_agent && !store->store(popular), "a popular agent keeps strict run checks");
+	// [[BPR-2051]]. Each agent's last check is kept across a restart: a pass
+	// with its version, a failure with why; a check of an agent no longer in
+	// the list does not come back.
+	listed.EntryChecks = { { .Id = listed.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
+						   { .Id = listed.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) },
+						   { .Id = listed.Agents[2].Id, .Check = core::fail_check(core::agent_setup_failure::timed_out) } };
+	expect(store->store(listed), "the agents' last checks are stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed, "and read back after a restart, with versions and failures");
+	auto running                 = listed;
+	running.EntryChecks[0].Check = { .State = core::setup_check_state::running };
+	expect(!store->store(running), "a running check is not a result to keep");
 	listed.Agents.pop_back();
-	expect(store->store(listed) && store->load()->Agents.size() == 2U, "a removed agent is gone from the stored list");
+	listed.EntryChecks.pop_back();
+	expect(store->store(listed) && store->load()->Agents.size() == 2U && store->load()->EntryChecks.size() == 2U, "a removed agent is gone from the stored list, with its check");
+	// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC08. Scratch folder starts
+	// and Build and run tests are each agent's, kept across a restart; an
+	// agent stored before them reads back on and off.
+	expect(store->load()->Agents[0].ScratchStarts && !store->load()->Agents[0].BuildsAndTests, "an agent carried over starts with the folder on and builds off");
+	listed.Agents[0].ScratchStarts  = false;
+	listed.Agents[1].BuildsAndTests = true;
+	expect(store->store(listed), "the grant settings are stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed && !store->load()->Agents[0].ScratchStarts && store->load()->Agents[1].ScratchStarts && store->load()->Agents[1].BuildsAndTests,
+		   "and read back per agent after a restart");
+	// [[BPR-2139]], [[BPR-2140]], RFC-BPR-0104 AC10 (owner, 2026-11-12). MCP
+	// servers and the instructions switch are each agent's; a profile written
+	// before them (no such table) reads back Off and the system prompt.
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_exec(database, "DROP TABLE agent_entry_launch", nullptr, nullptr, nullptr) == SQLITE_OK, "a profile from before the setting");
+		sqlite3_close_v2(database);
+		store              = adapters::sqlite::make_agent_setup_store(scratch.path());
+		const auto carried = store->load();
+		expect(carried && carried->Agents.size() == 2U
+				   && std::ranges::all_of(carried->Agents, [](const core::agent_entry& aEntry) { return aEntry.McpServers == core::agent_mcp_servers::off && aEntry.Instructions == core::agent_instruction_delivery::system_prompt; }),
+			   "agents carried over have MCP servers off and the system prompt");
+		listed.Agents[1].McpServers   = core::agent_mcp_servers::own;
+		listed.Agents[0].Instructions = core::agent_instruction_delivery::message;
+		expect(store->store(listed), "the settings are stored");
+		store = adapters::sqlite::make_agent_setup_store(scratch.path());
+		expect(store->load() == listed && store->load()->Agents[0].McpServers == core::agent_mcp_servers::off && store->load()->Agents[1].McpServers == core::agent_mcp_servers::own
+				   && store->load()->Agents[0].Instructions == core::agent_instruction_delivery::message,
+			   "and read back per agent after a restart");
+	}
+	// AC09. The choice made in one pull request is that pull request's and
+	// that agent's alone; the build answer is the pull request's.
+	{
+		auto       grants    = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		const auto mine      = application::agent_conversation_key{ .Host = "github.com", .Owner = "MikeMarcin", .Name = "BPR-Test", .Number = 40U, .Agent = 1U };
+		auto       elsewhere = mine;
+		elsewhere.Number     = 41U;
+		auto otherAgent      = mine;
+		otherAgent.Agent     = 2U;
+		expect(!grants->load_scratch_choice(mine) && !grants->load_build_answer(mine), "nothing chosen yet");
+		expect(grants->store_scratch_choice(mine, false) && grants->store_build_answer(mine, false), "a choice and an answer are stored");
+		grants = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		expect(grants->load_scratch_choice(mine) == std::optional{ false } && !grants->load_scratch_choice(elsewhere) && !grants->load_scratch_choice(otherAgent), "after a restart, only that pull request and agent");
+		expect(grants->load_build_answer(otherAgent) == std::optional{ false } && !grants->load_build_answer(elsewhere), "the build answer holds for the pull request");
+		expect(grants->store_scratch_choice(mine, true) && grants->load_scratch_choice(mine) == std::optional{ true }, "turned back on");
+		// Re-review N3, N4: the folder an agent kept in a pull request is
+		// known after a restart, for that pull request and agent only.
+		expect(!grants->load_scratch_folder(mine), "no folder kept yet");
+		expect(grants->store_scratch_folder(mine, "native-0123abcd") && !grants->store_scratch_folder(mine, "../x") && !grants->store_scratch_folder(mine, "-x"), "a folder name is stored; a path is refused");
+		grants = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		expect(grants->load_scratch_folder(mine) == std::optional<std::string>{ "native-0123abcd" } && !grants->load_scratch_folder(elsewhere) && !grants->load_scratch_folder(otherAgent),
+			   "after a restart, only that pull request and agent");
+		expect(grants->forget_agents() && !grants->load_scratch_choice(mine) && !grants->load_scratch_folder(mine), "a reset's new agents inherit no choice and no folder");
+	}
 
 #ifndef _WIN32
 	struct stat status{ };
@@ -351,6 +427,157 @@ try {
 	const auto keptAfterRefusal = natives->history(scope, "claude");
 	expect(keptAfterRefusal && keptAfterRefusal->Selected == restored->Id && keptAfterRefusal->Turns.size() == 2U, "failed New session retains prior selected generation and transcript");
 
+	// RFC-BPR-0125 milestone 3 ([[BPR-2146]]) and RFC-BPR-0128 ([[BPR-2163]]).
+	// Suggested prompts: nothing stored is the shipped set at revision 0; a
+	// write names its revision, Quick ask and scopes are kept, an older
+	// revision is refused, a newer build's row is kept and never rewritten.
+	{
+		auto       macros = adapters::sqlite::make_prompt_macro_store(scratch.path());
+		const auto empty  = macros->load();
+		expect(empty && empty->Revision == 0U && empty->Differences == core::prompt_macro_differences{ } && empty->Newer.empty(), "no prompts stored: the shipped set, revision 0");
+		auto body           = core::prompt_macro_body{ .Name = "What could this change break?", .Template = "What could {pr.title} break?", .Subject = core::prompt_subject::pull_request };
+		body.QuickAsk       = false;
+		auto own            = core::prompt_macro{ .Id = "own.security", .Place = core::prompt_place::agent_tab, .Body = { .Name = "Security pass on {file.name}", .Template = "Check {file}", .Subject = core::prompt_subject::open_file } };
+		own.Body.Conditions = { { .Fact = core::prompt_fact::path, .Patterns = { "src/**", "*.cpp" } }, { .Fact = core::prompt_fact::draft, .Negated = true } };
+		own.Body.QuickAsk   = true;
+		// [[BPR-2179]]. Any of these, and a condition with what it counts.
+		own.Body.Match = core::prompt_match::any;
+		// Look prompts-v003: the prompt's own Hide it or Show it disabled.
+		own.Body.WhenUnmet = core::prompt_when_unmet::disable;
+		own.Body.Conditions.push_back({ .Fact = core::prompt_fact::thread_activity, .Activity = core::prompt_activity_value::replies });
+		// Look prompts-v001: nested groups, None among them.
+		own.Body.Groups        = { { .Match = core::prompt_match::none, .Conditions = { { .Fact = core::prompt_fact::draft } }, .Groups = { { .Match = core::prompt_match::all, .Conditions = { { .Fact = core::prompt_fact::checks_failing }, { .Fact = core::prompt_fact::thread_unresolved } } } } } };
+		own.Body.Scopes        = { .File = true, .PullRequest = true };
+		own.On                 = false;
+		const auto differences = core::prompt_macro_differences{
+			.Changes = { { .Id = "agent-tab.what-could-break", .Body = body, .WrittenAgainst = 1U }, { .Id = "agent-tab.review-pull-request", .On = false } },
+			.Own     = { own },
+			.Orders  = { { .Place = core::prompt_place::agent_tab, .Ids = { "own.security", "agent-tab.review-pull-request" } } },
+			// [[BPR-2179]]. Surfaces as changed: one emptied, one reordered.
+			.Surfaces = { { .Surface = core::prompt_surface::pull_request_chips, .Ids = { }, .Removed = { "agent-tab.review-pull-request", "agent-tab.what-could-break" } },
+						  { .Surface = core::prompt_surface::file_menu, .Ids = { "own.security", "agent-tab.explain-file" }, .Removed = { } } },
+			// [[BPR-2179]]. A repository's layer: an override, one of its own,
+			// a surface with an addition, a removal and its own order.
+			.Repositories = { { .Repository = "octo/render",
+								.Overrides  = { { .Id = "agent-tab.what-could-break", .Template = "What could break here?", .Conditions = std::vector<core::prompt_condition>{ }, .Groups = std::vector<core::prompt_condition_group>{ { .Match = core::prompt_match::any, .Conditions = { { .Fact = core::prompt_fact::draft } } } }, .WhenUnmet = core::prompt_when_unmet::hide, .On = false } },
+								.Own        = { { .Id = "own.only-here", .Body = { .Name = "Only here", .Template = "Ask here" } } },
+								.Surfaces   = { { .Surface = core::prompt_surface::thread_menu, .Added = { "own.only-here" }, .Removed = { "conversation.summarize" }, .Order = std::vector<std::string>{ "own.only-here" } } } } },
+		};
+		expect(macros->store(differences, 0U) == application::prompt_macro_write::stored, "a write from the revision read is stored");
+		macros.reset();
+		macros          = adapters::sqlite::make_prompt_macro_store(scratch.path());
+		const auto read = macros->load();
+		expect(read && read->Revision == 1U && read->Differences == differences, "a restart reads the same prompts back, Quick ask, scopes and surfaces included");
+		expect(macros->store({ }, 0U) == application::prompt_macro_write::stale && macros->load() == read, "a write from an older revision changes nothing");
+		auto withBadPattern                        = differences;
+		withBadPattern.Own.front().Body.Conditions = { { .Fact = core::prompt_fact::path, .Patterns = { "a\nb" } } };
+		expect(macros->store(withBadPattern, 1U) == application::prompt_macro_write::failed && macros->load() == read, "a pattern with a control character is not written");
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			expect(sqlite3_exec(database,
+								"INSERT INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+								"VALUES(1,'own.future',5,'future-place',1,'Future','Future','pull-request','question','',0,0,1,0)",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "a newer build's row is written");
+			sqlite3_close_v2(database);
+		}
+		// A row an earlier build wrote, without the choice: migrated from its
+		// conditions' lean (a path condition hides).
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			expect(sqlite3_exec(database,
+								"INSERT INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+								"VALUES(1,'own.earlier',6,'agent-tab',1,'Earlier','Earlier','pull-request','question','path' || char(31) || 'is' || char(31) || 'any' || char(31) || 'src/**',0,0,1,0)",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "an earlier build's row is written");
+			const auto earlier  = macros->load();
+			auto       migrated = false;
+			if (earlier) {
+				for (const auto& macro : earlier->Differences.Own) {
+					migrated = migrated || (macro.Id == "own.earlier" && macro.Body.WhenUnmet == core::prompt_when_unmet::hide);
+				}
+			}
+			expect(migrated, "an earlier row's path condition migrates to Hide it");
+			expect(sqlite3_exec(database, "DELETE FROM prompt_macros WHERE id='own.earlier'", nullptr, nullptr, nullptr) == SQLITE_OK, "and is taken out again");
+			sqlite3_close_v2(database);
+		}
+		const auto withNewer = macros->load();
+		expect(withNewer && withNewer->Newer == std::vector<std::string>{ "own.future" } && withNewer->Differences == differences, "a newer build's row is kept apart, never offered");
+		expect(macros->store({ }, 1U) == application::prompt_macro_write::stored, "restoring everything is a write");
+		const auto restoredSet = macros->load();
+		expect(restoredSet && restoredSet->Revision == 2U && restoredSet->Differences == core::prompt_macro_differences{ } && restoredSet->Newer == std::vector<std::string>{ "own.future" },
+			   "a write never rewrites a newer build's row");
+	}
+
+	// [[BPR-2185]] (review N6). A conditions column an earlier build made at
+	// 8192 bytes is widened with its rows; a nested set at core's limits,
+	// longer than that, is stored and read back.
+	{
+		tests::sqlite_contract::scratch_root wide{ "prompt-conditions" };
+		const auto                           widePath = wide.path() / "state/v1/agent-setup.sqlite3";
+		auto                                 macros   = adapters::sqlite::make_prompt_macro_store(wide.path());
+		expect(macros->load().has_value(), "a fresh store");
+		macros.reset();
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(widePath.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			for (const auto* const table : { "prompt_macros", "prompt_repository_prompts" }) {
+				// The table as an earlier build made it: the same columns, the
+				// conditions at 8192 bytes.
+				auto sql = std::string{ };
+				{
+					sqlite3_stmt* row = nullptr;
+					expect(sqlite3_prepare_v2(database, (std::string{ "SELECT sql FROM sqlite_schema WHERE name='" } + table + "'").c_str(), -1, &row, nullptr) == SQLITE_OK && sqlite3_step(row) == SQLITE_ROW,
+						   "the table's definition is read");
+					sql = reinterpret_cast<const char*>(sqlite3_column_text(row, 0));
+					sqlite3_finalize(row);
+				}
+				const auto at = sql.find("conditions AS BLOB)) <= 16384)");
+				expect(at != std::string::npos, "this build's column is wide");
+				sql.replace(at, std::string_view{ "conditions AS BLOB)) <= 16384)" }.size(), "conditions AS BLOB)) <= 8192)");
+				expect(sqlite3_exec(database, (std::string{ "DROP TABLE " } + table).c_str(), nullptr, nullptr, nullptr) == SQLITE_OK && sqlite3_exec(database, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+					   "an earlier build's narrow table");
+			}
+			expect(sqlite3_exec(database,
+								"INSERT INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+								"VALUES(1,'own.kept',0,'agent-tab',1,'Kept','Kept','pull-request','question','disable',0,0,1,0)",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "with a row in it");
+			sqlite3_close_v2(database);
+		}
+		macros         = adapters::sqlite::make_prompt_macro_store(wide.path());
+		const auto old = macros->load();
+		expect(old && old->Differences.Own.size() == 1U && old->Differences.Own.front().Id == "own.kept", "the widened table keeps its rows");
+		// Twelve conditions, each with eight long patterns, nested two levels.
+		const auto leaf = [](const char aLetter) {
+			auto condition = core::prompt_condition{ .Fact = core::prompt_fact::path };
+			for (auto pattern = 0; pattern < static_cast<int>(core::maximum_prompt_patterns); ++pattern) {
+				condition.Patterns.push_back(std::string(120U, aLetter) + "/**");
+			}
+			return condition;
+		};
+		auto deep            = core::prompt_macro{ .Id = "own.deep", .Place = core::prompt_place::agent_tab, .Body = { .Name = "Deep", .Template = "Deep" } };
+		deep.Body.Conditions = { leaf('a'), leaf('b'), leaf('c'), leaf('d') };
+		deep.Body.Groups     = { { .Match = core::prompt_match::any, .Conditions = { leaf('e'), leaf('f') }, .Groups = { { .Match = core::prompt_match::none, .Conditions = { leaf('g'), leaf('h') } } } },
+								 { .Match = core::prompt_match::all, .Conditions = { leaf('i'), leaf('j'), leaf('k'), leaf('l') } } };
+		expect(core::prompt_macro_valid(deep), "a tree within core's limits");
+		auto differences = old->Differences;
+		differences.Own.push_back(deep);
+		auto layer = core::prompt_repository_layer{ .Repository = "octo/render" };
+		layer.Overrides.push_back({ .Id = "agent-tab.what-could-break", .Conditions = deep.Body.Conditions, .Groups = deep.Body.Groups, .WhenUnmet = core::prompt_when_unmet::disable });
+		differences.Repositories.push_back(layer);
+		expect(macros->store(differences, old->Revision) == application::prompt_macro_write::stored, "is stored, longer than 8192 bytes");
+		macros.reset();
+		macros          = adapters::sqlite::make_prompt_macro_store(wide.path());
+		const auto back = macros->load();
+		expect(back && back->Differences == differences, "and read back, in a repository's layer too");
+	}
+
 	{
 		sqlite3* database = nullptr;
 		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
@@ -359,6 +586,65 @@ try {
 		sqlite3_close_v2(database);
 	}
 	expect(!store->load() && !store->store(chosen), "a file with another store's identity is refused, not read or overwritten");
+	{
+		// [[BPR-2181]]. Every queue pause is saved by its stable name and read
+		// back as itself; `lost-access` is the newest.
+		tests::sqlite_contract::scratch_root queues{ "agent-queue-pauses" };
+		const auto                           pauses = std::vector{ core::queue_pause::none, core::queue_pause::reviewer, core::queue_pause::stopped, core::queue_pause::failed, core::queue_pause::usage_limit,
+																   core::queue_pause::restarted, core::queue_pause::delivery_unknown, core::queue_pause::changed_target, core::queue_pause::lost_access };
+		{
+			auto queueStore = adapters::sqlite::make_agent_queue_store(queues.path());
+			for (std::size_t index = 0U; index < pauses.size(); ++index) {
+				// An empty queue is not kept, so each holds one message.
+				auto entry       = core::queued_entry{ };
+				entry.Id         = 1U;
+				entry.Input.Text = "waiting";
+				auto queue       = core::agent_queue{ };
+				queue.LastId     = 1U;
+				queue.Paused     = pauses[index];
+				queue.Entries.push_back(entry);
+				expect(queueStore->store("session-" + std::to_string(index), queue), "a queue with each pause is saved");
+			}
+		}
+		const auto reloaded = adapters::sqlite::make_agent_queue_store(queues.path())->load();
+		expect(reloaded.has_value() && reloaded->size() == pauses.size(), "every saved queue reloads");
+		for (std::size_t index = 0U; reloaded && index < pauses.size(); ++index) {
+			const auto found = reloaded->find("session-" + std::to_string(index));
+			expect(found != reloaded->end() && found->second.Paused == pauses[index], "each pause reloads as itself, lost-access included");
+		}
+	}
+	{
+		// [[BPR-2181]]. A file made when the entries cascaded from their queue
+		// (which the hardened connection never let run, so no save ever
+		// succeeded) holds only empty queue tables; it is made again and
+		// saves.
+		tests::sqlite_contract::scratch_root cascadeRoot{ "agent-queue-cascade" };
+		expect(adapters::sqlite::make_agent_queue_store(cascadeRoot.path())->load().has_value(), "the store makes its file");
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2((cascadeRoot.path() / "state/v1/agent-setup.sqlite3").string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			expect(sqlite3_exec(database,
+								"DROP TABLE agent_queue_entries; DROP TABLE agent_queues;"
+								"CREATE TABLE agent_queues(session TEXT PRIMARY KEY CHECK(length(CAST(session AS BLOB)) BETWEEN 1 AND 1024), revision INTEGER NOT NULL CHECK(revision >= 0), last_id INTEGER NOT NULL CHECK(last_id >= 0), paused TEXT NOT NULL CHECK(length(CAST(paused AS BLOB)) <= 64)) STRICT;"
+								"CREATE TABLE agent_queue_entries(session TEXT NOT NULL REFERENCES agent_queues(session) ON DELETE CASCADE, position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15), id INTEGER NOT NULL CHECK(id >= 1), quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL, label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384), state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1), PRIMARY KEY(session, position)) STRICT;",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "the old cascading tables are put back");
+			sqlite3_close_v2(database);
+		}
+		auto entry       = core::queued_entry{ };
+		entry.Id         = 1U;
+		entry.Input.Text = "waiting";
+		auto queue       = core::agent_queue{ };
+		queue.LastId     = 1U;
+		queue.Paused     = core::queue_pause::lost_access;
+		queue.Entries.push_back(entry);
+		auto legacyStore = adapters::sqlite::make_agent_queue_store(cascadeRoot.path());
+		expect(legacyStore->store("session", queue), "a queue saves into a file the cascade made");
+		expect(legacyStore->store("session", queue), "and saves again over itself");
+		const auto again = legacyStore->load();
+		expect(again && again->size() == 1U && again->begin()->second.Entries.size() == 1U && again->begin()->second.Paused == core::queue_pause::lost_access, "and reads back");
+	}
 	std::cout << "agent-setup-storage:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

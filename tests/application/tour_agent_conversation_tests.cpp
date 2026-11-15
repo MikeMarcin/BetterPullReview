@@ -7,6 +7,7 @@
 #include "bpr/application/tour_agent_conversation.hpp"
 #include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/tour_writing_style.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/review_tour.hpp"
 
@@ -62,6 +63,38 @@ namespace {
 		const auto draft = application::build_tour_draft_prompt("Fix overdraw", "Body", files, tour);
 		expect(draft && contains(*draft, std::string{ application::tour_writing_style() }), "the whole-tour draft asks for the formatting that renders");
 		expect(contains(std::string{ application::tour_writing_style() }, "Inline code") && contains(std::string{ application::tour_writing_style() }, "No headings"), "the style asks for inline code and no headings");
+	}
+
+	/// [[BPR-1995]], [[BPR-1996]], RFC-BPR-0100 AC03 and AC07. The request
+	/// rule in every thread and the whole tour's contract; the citation and
+	/// moved-code rules in the drafting prompt, the conversation and the
+	/// stop-comment hook, with advanced versions; Enhance on a selection asks
+	/// for the passage alone.
+	void test_rfc_0100_contracts()
+	{
+		auto       tour  = bpr::tests::review_tour_fixture();
+		const auto files = std::vector<application::tour_draft_file>{ { "src/engine/renderer.cpp", "modified" } };
+		const auto whole = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ }, std::nullopt, "Get it to 6 stops.");
+		const auto part  = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, std::nullopt, "Make it shorter.");
+		const auto draft = application::build_tour_draft_prompt("Fix overdraw", "Body", files, tour);
+		for (const auto* prompt : { &whole, &part }) {
+			expect(prompt->has_value() && contains(**prompt, "A request to change the tour or this part") && contains(**prompt, "in this same answer") && contains(**prompt, "A question (what, why, whether, how) is answered in words"),
+				   "every thread answers a request with its change in the turn and a question in words");
+		}
+		expect(contains(*whole, "never put off to a later turn") && contains(*whole, "A question about the tour is answered in words with every revision field empty") && contains(*whole, "bpr.tour-revise.v1"),
+			   "the whole tour's contract states it beside its schema");
+		for (const auto* prompt : { &whole, &part, &draft }) {
+			expect(prompt->has_value() && contains(**prompt, "cite code as `path:first-last`") && contains(**prompt, "Never restate a stop's own lines") && contains(**prompt, "the existing path is kept and where the condition is")
+					   && contains(**prompt, "do not describe what the existing path does") && contains(**prompt, "bpr.tour-guide.v2") && !contains(**prompt, "bpr.tour-guide.v1"),
+				   "the drafting prompt and the conversation carry both rules under guide v2");
+		}
+		const auto hook = std::string{ application::default_writing_hook(core::writing_hook::comment) };
+		expect(contains(hook, "Cite code as `path:first-last`") && contains(hook, "the existing path is kept and where the condition is") && application::writing_hook_version_of(core::writing_hook::comment) == "tour-stop-comment-v2",
+			   "the stop-comment hook carries both rules and its version advanced from review-preparation-v1");
+		const auto selection = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "The GPU stayed busy." },
+																  "Enhance the selected text of the Problem.", true);
+		expect(selection && contains(*selection, "rewrite only this_turn.passage.text") && contains(*selection, "it replaces exactly that passage") && !contains(*selection, "as its whole new text"),
+			   "Enhance on a selection asks for the passage alone");
 	}
 
 	/// [[BPR-1935]]. Shaped like the observed pull request: 15 modified files
@@ -403,7 +436,7 @@ namespace {
 			expect(encoded && contains(*encoded, "\"ready_eligible\":false") && contains(*encoded, "explanation_not_reaffirmed") && !contains(*encoded, "Ready, next"), "imported/remapped context agrees with core Ready refusal and offers reaffirmation separately from confirmed lines");
 		}
 		const auto prompt = application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, "Why the source warning?", false, std::nullopt, { }, { }, context);
-		expect(prompt && contains(*prompt, "bpr.tour-guide.v1") && contains(*prompt, "bpr.tour-context.v1") && contains(*prompt, "Show in code") && contains(*prompt, "Ready, next") && contains(*prompt, "full_each_explicit_turn"), "every explicit native or replay turn has the current bootstrap and real corrective actions");
+		expect(prompt && contains(*prompt, "bpr.tour-guide.v2") && contains(*prompt, "bpr.tour-context.v1") && contains(*prompt, "Show in code") && contains(*prompt, "Ready, next") && contains(*prompt, "full_each_explicit_turn"), "every explicit native or replay turn has the current bootstrap and real corrective actions");
 		expect(application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U, 'x')).has_value(), "16 KiB typed question remains admitted");
 		expect(!application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U + 1U, 'x')), "typed question above 16 KiB is refused before send");
 		tour.Stops.front().Body = std::string(64U * 1024U, 'x');
@@ -425,6 +458,7 @@ int main()
 	answer();
 	revision();
 	stale_revision();
+	test_rfc_0100_contracts();
 	std::cout << "tour-agent-conversation:pass\n";
 	return EXIT_SUCCESS;
 }

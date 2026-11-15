@@ -30,11 +30,12 @@
 #include <QSplitter>
 #include <QTabBar>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
+#include <QTextEdit>
 #include <QTextLayout>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <deque>
@@ -191,6 +192,59 @@ namespace {
 		}
 	}
 
+	/// The owner, rejecting the local tour's look on 2026-11-13: "I see 3
+	/// buttons that say accept and they all look totally different and I'm
+	/// not sure why." Every Accept the Tour panel and its chat show is one
+	/// button: the platform's default push button at one size, the reference
+	/// stop Accept's; and no button that accepts no stop says Accept.
+	void expect_one_accept(QWidget& aRoot, const QPushButton& aReference, const std::string& aWhen)
+	{
+		auto seen = 0;
+		for (auto* const button : aRoot.findChildren<QPushButton*>()) {
+			if (!button->isVisibleTo(&aRoot)) {
+				continue;
+			}
+			expect(!button->text().startsWith(QStringLiteral("Accept")) || button->text() == QStringLiteral("Accept"), "only a stop's Accept says Accept, " + aWhen + ": " + button->text().toStdString());
+			if (button->text() != QStringLiteral("Accept")) {
+				continue;
+			}
+			++seen;
+			expect(button->isDefault() && !button->isFlat() && button->style() == aReference.style() && button->font() == aReference.font() && button->sizeHint() == aReference.sizeHint(),
+				   "every Accept is the stop's Accept, default and at one size, " + aWhen + ": " + button->objectName().toStdString() + " " + std::to_string(button->sizeHint().width()) + "x"
+					   + std::to_string(button->sizeHint().height()) + " against " + std::to_string(aReference.sizeHint().width()) + "x" + std::to_string(aReference.sizeHint().height()));
+		}
+		expect(seen > 0, "an Accept shows " + aWhen);
+	}
+
+	/// The owner, rejecting tour-one-accept on 2026-11-13: "My complaint was
+	/// that the button STYLE was inconsistent and it still is. The accept
+	/// style looks better than the "Add to tour" or "Apply all" button
+	/// styles." Every action button the Tour panel and its proposal and
+	/// revision cards show is the stop Accept's button: the same class, not
+	/// flat, the same style, font and height; only the default is filled.
+	void expect_one_button_style(QWidget& aRoot, const QPushButton& aReference, const std::string& aWhen, const QStringList& aMustShow)
+	{
+		auto shown = QStringList{ };
+		for (auto* const button : aRoot.findChildren<QPushButton*>()) {
+			if (!button->isVisibleTo(&aRoot) || !button->property("bprTourAction").toBool()) {
+				continue;
+			}
+			shown << button->text();
+			const auto same = std::string_view{ button->metaObject()->className() } == aReference.metaObject()->className() && !button->isFlat() && button->style() == aReference.style()
+				&& button->font() == aReference.font() && button->sizeHint().height() == aReference.sizeHint().height();
+			expect(same, "every Tour action is the stop Accept's button, " + aWhen + ": " + button->objectName().toStdString() + " (" + button->text().toStdString() + ") " + button->metaObject()->className() + (button->isFlat() ? " flat" : "") + " h" + std::to_string(button->sizeHint().height()) + " against " + aReference.metaObject()->className() + " h" + std::to_string(aReference.sizeHint().height()));
+		}
+		for (const auto& words : aMustShow) {
+			expect(shown.contains(words), "the Tour action " + words.toStdString() + " shows and is one of them, " + aWhen + ": " + shown.join(QStringLiteral(", ")).toStdString());
+		}
+		// No other quiet chip stands among the panel's card actions.
+		for (const auto* const name : { "tourProposalAccept", "tourProposalDiscard", "tourProposalEdit", "tourProposalAcceptAll", "tourSideChatAccept", "tourSideChatDiscard", "tourSideChatRevisionAcceptAll", "tourSideChatRevisionReview", "tourSideChatRevisionDiscard" }) {
+			for (auto* const button : aRoot.findChildren<QPushButton*>(QString::fromLatin1(name))) {
+				expect(button->property("bprTourAction").toBool(), std::string{ "a card action is a Tour action, " } + aWhen + ": " + name);
+			}
+		}
+	}
+
 	void run(const core::appearance_mode aMode, const QString& aTheme)
 	{
 		qt::workbench_window window;
@@ -229,6 +283,9 @@ namespace {
 		second.Title    = "Where it presents";
 		tour.LastStopId = 2;
 		tour.Stops.push_back(second);
+		// [[BPR-2014]]. Neither stop is accepted yet.
+		tour.Stops[0].Acceptance.reset();
+		tour.Stops[1].Acceptance.reset();
 		auto presentation     = application::tour_presentation{ };
 		presentation.Draft    = std::make_shared<const core::review_tour>(tour);
 		presentation.Selected = core::tour_stop_id{ 1 };
@@ -263,7 +320,7 @@ namespace {
 		expect(stopGlyph != nullptr && stopGlyph->isVisible() && stopGlyph->text() == QStringLiteral("2"), "the open stop's glyph counts its two turns");
 		click(stopGlyph);
 		settle();
-		expect(chat->isVisible() && chat->parentWidget() == split && split->isAncestorOf(chat) && tabs->currentIndex() == 2, "the stop's chat is the Tour tab's second column");
+		expect(chat->isVisible() && chat->parentWidget() == split && split->isAncestorOf(chat) && tabs->currentIndex() == 1, "the stop's chat is the Tour tab's second column");
 		expect(window.findChildren<QWidget*>(QStringLiteral("tourSideChat")).size() == 1, "and there is no chat anywhere else");
 		expect(chat->current() == stopOne && chat->turn_count() == 2U && stopGlyph->isChecked(), "it is the stop's chat, and the stop is marked");
 		auto* const route = editor->findChild<QListWidget*>(QStringLiteral("tourOutline"));
@@ -344,43 +401,72 @@ namespace {
 		auto* const problemRowWidget = editor->findChild<QWidget*>(QStringLiteral("tourProblemRow"));
 		expect(editor->tour_agent()->accept_button(0) != nullptr && editor->findChild<QWidget*>(QStringLiteral("tourProblem"))->parentWidget()->isAncestorOf(editor->tour_agent()->accept_button(0)), "the proposed Problem waits under the Problem's own text");
 		expect(problemRowWidget != nullptr, "the Problem's step says one is proposed");
-		auto* const complete      = editor->findChild<QPushButton*>(QStringLiteral("tourComplete"));
+		auto* const complete      = editor->accept_button();
 		auto* const rewriteAccept = editor->tour_agent()->accept_button(2);
-		expect(rewriteAccept != nullptr && rewriteAccept->isVisible() && editor->findChild<QWidget*>(QStringLiteral("tourStopFields"))->isAncestorOf(rewriteAccept) && !complete->isVisible(), "Stop 1's new explanation is on its card, and its Accept stands where Ready, next was");
+		expect(rewriteAccept != nullptr && rewriteAccept->isVisible() && editor->findChild<QWidget*>(QStringLiteral("tourStopFields"))->isAncestorOf(rewriteAccept) && !complete->isVisible(), "Stop 1's new explanation is on its card, and its Accept stands where the stop's own Accept was");
 		expect(colours_of(*editor->tour_agent()->proposal_reader(2), QStringLiteral("clear()")).size() >= 2U, "its inline code is coloured too");
 		draw(window, QStringLiteral("tour-proposed-in-place"), aTheme);
+		// RFC-BPR-0106 as amended on 2026-11-13: a part that accepts no stop
+		// says what it does; Stop 1's own text says Accept, in the stop's look.
+		expect(stopAccept->text() == QStringLiteral("Add to tour") && editor->tour_agent()->accept_button(0)->text() == QStringLiteral("Use this text") && rewriteAccept->text() == QStringLiteral("Accept"),
+			   "the proposed stop says Add to tour, the Problem's text Use this text, Stop 1's own text Accept");
+		expect(editor->tour_agent()->accept_all_button()->isVisibleTo(editor) && editor->tour_agent()->accept_all_button()->text() == QStringLiteral("Apply all"), "a draft's three parts have one Apply all, on the panel's line");
+		expect_one_accept(window, *complete, "with a proposal on the stop");
+		expect_one_button_style(window, *complete, "with a proposal on the stop", { QStringLiteral("Accept"), QStringLiteral("Add to tour"), QStringLiteral("Apply all"), QStringLiteral("Discard") });
 		click(stopAccept);
 		expect(!decided.empty() && decided.back() == std::pair{ std::size_t{ 1U }, core::tour_proposal_decision::accepted }, "Accept on the proposed stop accepts it");
-		// Decided, the parts leave: Ready, next is back on Stop 1.
+		// [[BPR-2014]] AC03. Accept on Stop 1's own proposal accepts Stop 1,
+		// once the tour holds its text (as the window applies it, at once);
+		// Apply all accepts no stop.
+		{
+			auto own = std::vector<core::tour_command>{ };
+			editor->set_dispatch([&own](core::tour_command aCommand) { own.push_back(std::move(aCommand)); }, [](qt::tour_editor_action) { });
+			editor->set_tour_session_dispatch([] { }, [] { }, [&](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) {
+				decided.emplace_back(aIndex, aDecision);
+				if (aIndex == 2U && aDecision == core::tour_proposal_decision::accepted) {
+					auto applied           = tour;
+					applied.Stops[0].Body  = aText.toStdString();
+					auto shown             = application::tour_presentation{ };
+					shown.Draft            = std::make_shared<const core::review_tour>(applied);
+					shown.Selected         = core::tour_stop_id{ 1 };
+					editor->present(shown);
+				} });
+			click(rewriteAccept);
+			expect(std::ranges::any_of(own, [](const auto& aCommand) { return aCommand.Kind == core::tour_command_kind::accept && aCommand.Stop == core::tour_stop_id{ 1 }; }), "Accept on the stop's own proposal accepts the stop");
+			own.clear();
+			if (auto* const all = editor->tour_agent()->accept_all_button(); all != nullptr) {
+				all->click();
+				settle();
+			}
+			expect(std::ranges::none_of(own, [](const auto& aCommand) { return aCommand.Kind == core::tour_command_kind::accept; }), "Apply all accepts no stop");
+			editor->set_tour_session_dispatch([] { }, [] { }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString&) { decided.emplace_back(aIndex, aDecision); });
+			auto restored     = application::tour_presentation{ };
+			restored.Draft    = std::make_shared<const core::review_tour>(tour);
+			restored.Selected = core::tour_stop_id{ 1 };
+			editor->present(restored);
+			settle();
+		}
+		// Decided, the parts leave: Accept is back on Stop 1.
 		for (auto& item : proposed.Items) {
 			item.Decision = core::tour_proposal_decision::discarded;
 		}
 		editor->present_tour_session(session, proposed);
 		settle();
-		expect(complete->isVisible() && !panelBox->isVisibleTo(editor) && !proposedStops->isVisible(), "with nothing proposed: no line, no grey stops, Ready, next on the card");
+		expect(complete->isVisible() && !panelBox->isVisibleTo(editor) && !proposedStops->isVisible(), "with nothing proposed: no line, no grey stops, Accept on the card");
+		expect_one_accept(window, *complete, "on the stop at rest");
 
-		// [[BPR-1925]] v003, owner: "ready, next doesn't seem to do anything".
-		// Stop 1's lines are confirmed: Ready, next marks it, and once the
-		// host shows it Ready the tour goes on to Stop 2.
+		// [[BPR-2014]], RFC-BPR-0106 (once Ready, next): Accept accepts the
+		// current stop and moves nowhere.
 		auto readyCommands = std::vector<core::tour_command_kind>{ };
 		editor->set_dispatch([&readyCommands](core::tour_command aCommand) { readyCommands.push_back(aCommand.Kind); }, [](qt::tour_editor_action) { });
 		editor->go_to_stop(core::tour_stop_id{ 1 });
 		settle();
-		expect(complete->isEnabled() && complete->isDefault(), "a stop with its lines confirmed offers Ready, next");
+		expect(complete->isEnabled() && complete->isDefault(), "a stop not accepted yet offers Accept");
 		click(complete);
-		expect(!readyCommands.empty() && readyCommands.back() == core::tour_command_kind::complete && editor->selected_stop()->Id == core::tour_stop_id{ 1 }, "it asks the host to mark the stop Ready, and waits for it");
-		auto marked                 = tour;
-		marked.Stops[0].Preparation = core::tour_preparation::ready;
-		auto markedPresentation     = application::tour_presentation{ };
-		markedPresentation.Draft    = std::make_shared<const core::review_tour>(marked);
-		markedPresentation.Selected = core::tour_stop_id{ 1 };
-		editor->present(markedPresentation);
-		settle();
-		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 }, "Ready shown, it goes on to the next stop");
-		// A stop the agent proposed, accepted with its lines not yet chosen:
-		// [[BPR-1936]]: no disabled Ready, next; the location line says why,
-		// and Show in code leads.
-		auto unconfirmed                 = marked;
+		expect(!readyCommands.empty() && readyCommands.back() == core::tour_command_kind::accept && editor->selected_stop()->Id == core::tour_stop_id{ 1 }, "it asks the host to accept the stop, and stays on it");
+		// A stop the agent proposed, its lines not chosen: Accept accepts the
+		// lines it shows, and its file-and-lines line is the link to them.
+		auto unconfirmed                 = tour;
 		unconfirmed.Stops[1].Original    = std::nullopt;
 		unconfirmed.Stops[1].Mapping     = core::tour_mapping::unavailable;
 		unconfirmed.Stops[1].Destination = core::tour_code_destination{ .Commit = tour.Head, .Path = "src/item.cpp", .Side = core::diff_side::right, .FirstLine = 3U, .LastLine = 5U };
@@ -389,8 +475,7 @@ namespace {
 		unconfirmedPresentation.Selected = core::tour_stop_id{ 2 };
 		editor->present(unconfirmedPresentation);
 		settle();
-		auto* const showInCode = editor->findChild<QPushButton*>(QStringLiteral("tourReturn"));
-		expect(!complete->isVisible() && editor->findChild<QLabel*>(QStringLiteral("tourStopSource"))->text().contains(QStringLiteral("Lines not confirmed")) && showInCode->isDefault(), "unconfirmed lines: no disabled Ready, next; the location says why; Show in code leads");
+		expect(complete->isVisible() && complete->isEnabled() && editor->findChild<QPushButton*>(QStringLiteral("tourReturn")) == nullptr && editor->findChild<QLabel*>(QStringLiteral("tourStopSource"))->text().contains(QStringLiteral("<a ")), "an agent's stop: Accept, and the lines as a link; no Show in code");
 		draw(window, QStringLiteral("tour-chat-stop"), aTheme);
 
 		// AC2. Switching parts switches the chat: the route's next stop.
@@ -408,7 +493,7 @@ namespace {
 		settle();
 		expect(!chat->isVisible() && drawer_width(window) <= 420 && badge->isVisible() && badge->text() == QStringLiteral("2"), "on Comments: no chat, the narrow drawer, the count on Tour");
 		draw(window, QStringLiteral("tour-chat-comments"), aTheme);
-		tabs->setCurrentIndex(2);
+		tabs->setCurrentIndex(1);
 		settle();
 		expect(chat->isVisible() && chat->current() == stopOne && drawer_width(window) >= 700, "back on Tour, the chat as it was, and the room for it");
 		coloured("after leaving the Tour tab and coming back");
@@ -424,7 +509,7 @@ namespace {
 		tabs->setCurrentIndex(0);
 		settle();
 		expect(drawer_width(window) <= 420, "the narrow drawer is still its own width");
-		tabs->setCurrentIndex(2);
+		tabs->setCurrentIndex(1);
 		settle();
 		expect(std::abs(drawer_width(window) - dragged) <= 4, "the chat's width is remembered: " + std::to_string(drawer_width(window)) + " for " + std::to_string(dragged));
 

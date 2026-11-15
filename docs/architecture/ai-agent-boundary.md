@@ -5,6 +5,18 @@
 - The core owns explicit-invocation legality, Git-host/provider policy, selected context scope, revision binding, staleness, and finding-promotion decisions.
 - The host owns executable/workspace/process/session/protocol lifecycle, environment policy, context-supplement construction, cancellation, and typed result events.
 - The Qt adapter owns visible provider/scope disclosure, explicit commands, approvals, streaming chat/findings, and error presentation.
+- RFC-BPR-0128 (Ask and reports) keeps that split. The core decides which
+  quick asks an Ask menu lists and why a row is greyed (`core::decide_quick_asks`),
+  whether an answer is a report and how it reads by the report convention
+  (`core::report_card_of`, `core::dress_report`), the claims a several-thread
+  Was this addressed? answer carries (`core::read_addressed_claims`), and a
+  commit listing's folded merges (`core::fold_commit_listing`). The host builds
+  the asks' material, reads each merge's commit count through the GitHub
+  provider's compare, and carries the report shape in the request
+  (`brief.report_format`, the returning and Explain prompts). The Qt adapter
+  draws the Ask controls and menus, the report card and the report's tab (a
+  page of Qt rich text with the Agent tab's code boxes), in the theme's report
+  colours.
 
 ## Principle
 
@@ -446,10 +458,11 @@ alone. It writes the header again through `decide_feedback_composition_edit`,
 the label chip's own edit, so the draft opens with the label in the chip and
 the decorations in the toggles. A missing label stays missing; an unknown one
 (`nit:`, `bug:`) and a header the serializer would have to restructure are
-kept as written, and no alias is read. Promotion, a finding card's **Add as
-draft comment** and an answer's **Draft comment** (to a thread reply, a line
-or the pull request) all draft the result; **Save as note** keeps the
-agent's text as written.
+kept as written, and no alias is read. Promotion, a finding card's **Draft
+comment** and an answer's **Draft comment** (to a thread reply or a line)
+all draft the result; **Keep local**, the one keep action where no line
+takes a draft (RFC-BPR-0127), keeps the agent's text as written as a Local
+comment.
 
 **The review skill (owner decision D1, Q9 A).** The method ships as an Agent
 Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into
@@ -477,7 +490,9 @@ represent:
   anchor, classification, lifecycle, and anchor availability;
 - the selected file and comparison, semantic line/group selection, mapping
   confidence, permitted segments/groups, and optional selected source text;
-- only private notes named by the invocation and drafts supplied explicitly.
+- only Local comments named by the invocation and drafts supplied explicitly
+  (RFC-BPR-0127: two opt-ins, Include my local comments and Include my
+  drafts, each admitting only its own kind).
 
 The launch panel offers opaque private-note IDs and the current draft's opaque
 ID/revision, all unchecked. Its intent carries only the checked identities; it
@@ -1213,7 +1228,7 @@ provider, no coordinator, and no publication path reachable from it.**
 `agent_finding_outcome` has no field a `review_publication_proposal` or a
 `review_mutation_target` could occupy. `promoted_note` builds the one note,
 and writing it reaches exactly one port method,
-`review_ledger_store_port::store_note`; that is the single authority agent
+`review_ledger_store_port::store_local_comment`; that is the single authority agent
 output may reach. Every outcome is presented, refusal included,
 and `PresentedOutcomes` is asserted equal to `Actions`, because an outcome that
 was computed and not presented is one the reviewer never saw (BPR-0500,
@@ -1436,7 +1451,7 @@ Windows and Linux native verification remain pending. The Mac courses are
 `application_mcp_context_helper` and `application_mcp_terminal_diagnostics`.
 
 Nothing the agent returns reaches a second authority. The finding host's only
-durable write is `review_ledger_store_port::store_note`, and there is no branch
+durable write is `review_ledger_store_port::store_local_comment`, and there is no branch
 in that path that could publish, open a defect, move a review head, or admit a
 session (BPR-0500, `application_agent_invocation_host`).
 
@@ -1465,7 +1480,7 @@ session (BPR-0500, `application_agent_invocation_host`).
 | The external terminal refuses a payload as `unsupported_finding_transport` | `application_agent_finding_protocol` |
 | Deleting the validation call at the decode-to-core seam fails an invalid-anchor case | `application_agent_finding_protocol` |
 | A payload arriving after an accepted head move is stale with its analyzed OIDs intact | `application_agent_invocation_host` |
-| A promoted note reaches `store_note` and no other authority | `application_agent_invocation_host` |
+| A promoted note reaches `store_local_comment` and no other authority | `application_agent_invocation_host` |
 | The advertised MCP tool list equals the source enumeration exactly | `application_mcp_context_helper` |
 | Every MCP refusal — connect, bind, escape, symlink, and each write/draft/publish/note name — is refused by its own cause | `application_mcp_context_helper` |
 | The helper child's environment is exactly the two allowlisted names while the parent holds secrets | `application_mcp_context_helper` |

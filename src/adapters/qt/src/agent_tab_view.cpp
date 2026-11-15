@@ -1,4 +1,6 @@
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/core/agent_report.hpp"
+#include "bpr/qt/ask_menu.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -7,6 +9,10 @@
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/defect_workflow.hpp"
+#include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/local_comment.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
+#include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -16,33 +22,43 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "conversation_glyphs.hpp"
 
 #include <QAbstractItemModel>
 #include <QAccessible>
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDialog>
+#include <QDrag>
+#include <QDragEnterEvent>
 #include <QEnterEvent>
 #include <QEvent>
+#include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLayoutItem>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
@@ -54,16 +70,289 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace bpr::qt {
 	namespace {
+		/// [[BPR-2151]] look prompts-v001 ("some defined borders maybe";
+		/// "drag to reorder instead of up/down arrows, a trash can to delete
+		/// and a pencil to edit"). The pending list is a bordered panel of
+		/// bordered cards: a grip to drag a card, the message, a pencil and a
+		/// trash can. Colours come from the palette.
+		constexpr auto queue_mime = "application/x-bpr-queued-message";
+
+		[[nodiscard]] auto blend(const QColor& aFrom, const QColor& aTo, const float aShare) -> QColor
+		{
+			return QColor::fromRgbF(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aShare, aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aShare,
+									aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aShare);
+		}
+
+		/// One waiting message: a card with a defined edge, dragged by its
+		/// grip, moved by Option-Up and Option-Down, removed by Delete.
+		class queue_card final : public QFrame
+		{
+		public:
+			queue_card(const std::uint64_t aId, const bool aMovable, std::function<void(std::uint64_t, int)> aMove, std::function<void(std::uint64_t)> aRemove, QWidget* const aParent)
+				: QFrame{ aParent }
+				, Id{ aId }
+				, Movable{ aMovable }
+				, Move{ std::move(aMove) }
+				, Remove{ std::move(aRemove) }
+			{
+				setObjectName(QStringLiteral("agentQueueRow"));
+				setFocusPolicy(aMovable ? Qt::StrongFocus : Qt::NoFocus);
+				setAttribute(Qt::WA_Hover);
+				setMinimumHeight(30);
+			}
+
+			[[nodiscard]] auto id() const noexcept -> std::uint64_t { return Id; }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto ground  = palette().color(QPalette::Base);
+				const auto ink     = palette().color(QPalette::WindowText);
+				const auto lit     = hasFocus() || underMouse();
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(QPen{ lit ? palette().color(QPalette::Highlight) : blend(ground, ink, 0.22F), lit ? 1.5 : 1.0 });
+				painter.setBrush(ground);
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.75, 0.75, -0.75, -0.75), 6, 6);
+				if (Movable) {
+					// The grip: two columns of three dots.
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(blend(ground, ink, 0.45F));
+					for (int column = 0; column < 2; ++column) {
+						for (int dot = 0; dot < 3; ++dot) {
+							painter.drawEllipse(QPointF{ 9.0 + column * 4.0, height() / 2.0 - 4.0 + dot * 4.0 }, 1.1, 1.1);
+						}
+					}
+				}
+			}
+
+			void mousePressEvent(QMouseEvent* const aEvent) override
+			{
+				Pressed = aEvent->position().toPoint();
+				QFrame::mousePressEvent(aEvent);
+			}
+
+			void mouseMoveEvent(QMouseEvent* const aEvent) override
+			{
+				if (!Movable || !(aEvent->buttons() & Qt::LeftButton) || (aEvent->position().toPoint() - Pressed).manhattanLength() < QApplication::startDragDistance()) {
+					QFrame::mouseMoveEvent(aEvent);
+					return;
+				}
+				auto* const drag    = new QDrag{ this };
+				auto* const payload = new QMimeData;
+				payload->setData(QString::fromLatin1(queue_mime), QByteArray::number(static_cast<qulonglong>(Id)));
+				drag->setMimeData(payload);
+				drag->setPixmap(grab());
+				drag->setHotSpot(Pressed);
+				static_cast<void>(drag->exec(Qt::MoveAction));
+			}
+
+			void keyPressEvent(QKeyEvent* const aEvent) override
+			{
+				if (Movable && (aEvent->modifiers() & Qt::AltModifier) != 0 && (aEvent->key() == Qt::Key_Up || aEvent->key() == Qt::Key_Down)) {
+					if (Move) {
+						Move(Id, aEvent->key() == Qt::Key_Up ? -1 : 1);
+					}
+					return;
+				}
+				if (Movable && (aEvent->key() == Qt::Key_Delete || aEvent->key() == Qt::Key_Backspace)) {
+					if (Remove) {
+						Remove(Id);
+					}
+					return;
+				}
+				QFrame::keyPressEvent(aEvent);
+			}
+
+			void focusInEvent(QFocusEvent* const aEvent) override
+			{
+				update();
+				QFrame::focusInEvent(aEvent);
+			}
+
+			void focusOutEvent(QFocusEvent* const aEvent) override
+			{
+				update();
+				QFrame::focusOutEvent(aEvent);
+			}
+
+		private:
+			std::uint64_t                           Id      = 0U;
+			bool                                    Movable = false;
+			std::function<void(std::uint64_t, int)> Move;
+			std::function<void(std::uint64_t)>      Remove;
+			QPoint                                  Pressed;
+		};
+
+		/// Look prompts-v003 (owner: "Long messages should not grow to
+		/// multi-line they should just end with ellipsis"): a queued
+		/// message on one line, elided at its end; `text()` stays whole, and
+		/// the tooltip and the editor show it all.
+		class elided_label final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override { return { 0, QLabel::minimumSizeHint().height() }; }
+
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { std::min(QLabel::sizeHint().width(), 200), QLabel::sizeHint().height() }; }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto shown   = fontMetrics().elidedText(text(), Qt::ElideRight, contentsRect().width());
+				painter.setPen(palette().color(foregroundRole()));
+				painter.drawText(contentsRect(), static_cast<int>(Qt::AlignVCenter | Qt::AlignLeft) | Qt::TextSingleLine, shown);
+			}
+		};
+
+		/// The pending list: a bordered panel that takes a dragged card and
+		/// draws where it will land.
+		class queue_panel final : public QWidget
+		{
+		public:
+			explicit queue_panel(QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+				setAcceptDrops(true);
+			}
+
+			void set_move(std::function<void(std::uint64_t, int)> aMove) { Move = std::move(aMove); }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto ground  = palette().color(QPalette::Window);
+				const auto ink     = palette().color(QPalette::WindowText);
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(QPen{ blend(ground, ink, 0.28F), 1.0 });
+				painter.setBrush(blend(ground, ink, 0.035F));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+				if (Line >= 0) {
+					painter.setPen(QPen{ palette().color(QPalette::Highlight), 2.0 });
+					painter.drawLine(QPointF{ 10.0, static_cast<qreal>(Line) }, QPointF{ static_cast<qreal>(width() - 10), static_cast<qreal>(Line) });
+				}
+			}
+
+			void dragEnterEvent(QDragEnterEvent* const aEvent) override
+			{
+				if (aEvent->mimeData()->hasFormat(QString::fromLatin1(queue_mime))) {
+					aEvent->acceptProposedAction();
+				}
+			}
+
+			void dragMoveEvent(QDragMoveEvent* const aEvent) override
+			{
+				if (!aEvent->mimeData()->hasFormat(QString::fromLatin1(queue_mime))) {
+					return;
+				}
+				const auto [at, line] = landing(aEvent->position().toPoint().y());
+				static_cast<void>(at);
+				Line = line;
+				update();
+				aEvent->acceptProposedAction();
+			}
+
+			void dragLeaveEvent(QDragLeaveEvent* const aEvent) override
+			{
+				Line = -1;
+				update();
+				QWidget::dragLeaveEvent(aEvent);
+			}
+
+			void dropEvent(QDropEvent* const aEvent) override
+			{
+				Line = -1;
+				update();
+				aEvent->acceptProposedAction();
+				land(aEvent->mimeData()->data(QString::fromLatin1(queue_mime)).toULongLong(), landing(aEvent->position().toPoint().y()).first);
+			}
+
+		public:
+			/// A card dropped at `aAt` among the waiting cards (0 is above the
+			/// first): the queue is asked to move it there.
+			void land(const std::uint64_t aId, int aAt)
+			{
+				const auto cards = movable();
+				const auto from  = std::ranges::find_if(cards, [aId](const queue_card* aCard) { return aCard->id() == aId; });
+				if (from == cards.end() || !Move) {
+					return;
+				}
+				const auto index = static_cast<int>(from - cards.begin());
+				if (aAt > index) {
+					--aAt;
+				}
+				if (aAt != index) {
+					// After the drag returns: the move rebuilds the cards.
+					QTimer::singleShot(0, this, [move = Move, aId, by = aAt - index] { move(aId, by); });
+				}
+			}
+
+		protected:
+		private:
+			[[nodiscard]] auto movable() const -> std::vector<queue_card*>
+			{
+				auto cards = std::vector<queue_card*>{ };
+				for (auto* const child : findChildren<QFrame*>(QStringLiteral("agentQueueRow"), Qt::FindDirectChildrenOnly)) {
+					if (auto* const card = dynamic_cast<queue_card*>(child); card != nullptr && !card->isHidden() && card->focusPolicy() != Qt::NoFocus) {
+						cards.push_back(card);
+					}
+				}
+				std::ranges::sort(cards, { }, [](const queue_card* aCard) { return aCard->y(); });
+				return cards;
+			}
+
+			/// Where a drop at `aY` lands among the movable cards, and the
+			/// line's height.
+			[[nodiscard]] auto landing(const int aY) const -> std::pair<int, int>
+			{
+				const auto cards = movable();
+				for (std::size_t index = 0U; index < cards.size(); ++index) {
+					if (aY < cards[index]->geometry().center().y()) {
+						return { static_cast<int>(index), cards[index]->geometry().top() - 2 };
+					}
+				}
+				return { static_cast<int>(cards.size()), cards.empty() ? 4 : cards.back()->geometry().bottom() + 3 };
+			}
+
+			std::function<void(std::uint64_t, int)> Move;
+			int                                     Line = -1;
+		};
 		/// A reply card's side margins; its answer is this much narrower.
 		constexpr auto reply_left_margin  = 12;
 		constexpr auto reply_right_margin = 10;
 		/// [[BPR-1924]]. The least room kept between the scope menu and the
 		/// agent picker when they share the tool row.
 		constexpr auto run_settings_gap = 12;
+		/// RFC-BPR-0125 (AC07). A sent question longer than this many lines
+		/// folds behind Show all.
+		constexpr qsizetype folded_question_lines = 6;
+		/// RFC-BPR-0116. The returning prompts' keys among the chips.
+		[[nodiscard]] auto latest_upload_key() -> QString { return QStringLiteral("returning.latest-upload"); }
+		[[nodiscard]] auto proposed_fix_key() -> QString { return QStringLiteral("returning.proposed-fix"); }
+
+		[[nodiscard]] auto suggestion_of(const core::prompt_offer& aOffer) -> agent_suggestion
+		{
+			return { .Key = QString::fromStdString(aOffer.Id), .Label = QString::fromStdString(aOffer.Label), .Expansion = QString::fromStdString(aOffer.Expansion.Text), .Finish = aOffer.finish() };
+		}
+
+		/// The caret's place in a drafted expansion: at `{cursor}`, or at
+		/// its end.
+		[[nodiscard]] auto caret_of(const core::prompt_expansion& aExpansion) -> int
+		{
+			const auto at = aExpansion.Cursor.value_or(aExpansion.Text.size());
+			return static_cast<int>(QString::fromUtf8(aExpansion.Text.data(), static_cast<qsizetype>(at)).size());
+		}
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -154,6 +443,193 @@ namespace bpr::qt {
 				auto painter = QPainter{ this };
 				painter.fillRect(rect(), mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.14));
 			}
+		};
+
+		/// \brief [[BPR-2059]]. A finding's file and lines, shortened in the
+		/// middle when the card is narrow so the severity and kind beside it
+		/// keep their words. Its text stays whole: the accessible name, and the
+		/// tooltip the card sets.
+		class eliding_anchor final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return QSize{ fontMetrics().horizontalAdvance(QStringLiteral("…:9")), QLabel::minimumSizeHint().height() };
+			}
+			[[nodiscard]] auto shown_text() const -> QString { return fontMetrics().elidedText(text(), Qt::ElideMiddle, std::max(0, contentsRect().width())); }
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				style()->drawItemText(&painter, contentsRect(), static_cast<int>(alignment()), palette(), isEnabled(), shown_text(), foregroundRole());
+			}
+		};
+
+		/// \brief [[BPR-2059]]. The suggested comment's inset: a faint wash
+		/// and a rule down its left, so the words that would be posted read as
+		/// a quotation apart from the agent's own claim and evidence.
+		class suggestion_inset final : public QWidget
+		{
+		public:
+			explicit suggestion_inset(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto base = palette().color(QPalette::Active, QPalette::Base);
+				const auto ink  = palette().color(QPalette::Active, QPalette::WindowText);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(mixed(base, ink, 0.04));
+				painter.drawRoundedRect(QRectF{ rect() }, 6.0, 6.0);
+				painter.setBrush(mixed(base, ink, 0.26));
+				painter.drawRoundedRect(QRectF{ 0.0, 0.0, 2.0, static_cast<qreal>(height()) }, 1.0, 1.0);
+			}
+		};
+
+		/// \brief docs/design/report-card-v4 (round 1's C, Attachment, chosen
+		/// 2026-11-14): the report as an attachment under its summary. A row
+		/// on the window's surface colour, a one point border, 7 point corners,
+		/// 7 by 8 padding: a 24 by 30 page carrying the agent glyph, the title
+		/// in semibold (two lines at most) over a 12 point line, a chevron. The
+		/// whole row is Open report; while the report's tab is active it is
+		/// selected (a 1.5 point outline and the selection tint).
+		class report_attachment_row final : public QPushButton
+		{
+		public:
+			explicit report_attachment_row(QWidget* aParent)
+				: QPushButton{ aParent }
+			{
+				setCursor(Qt::PointingHandCursor);
+				setFocusPolicy(Qt::StrongFocus);
+				// Look ask-v007 ("Why is your mockup report attachment cutting
+				// of text"): the row was given one height, from whatever width it
+				// had when first asked; a narrower drawer wrapped the title into
+				// that and cut it. Its height now follows its width.
+				auto policy = QSizePolicy{ QSizePolicy::Expanding, QSizePolicy::Preferred };
+				policy.setHeightForWidth(true);
+				setSizePolicy(policy);
+				setAttribute(Qt::WA_Hover, true);
+				auto* const row = new QHBoxLayout{ this };
+				row->setContentsMargins(8 + 24 + 10, 7, 8 + 16, 7);
+				auto* const words = new QVBoxLayout{ };
+				words->setSpacing(1);
+				Title = new QLabel{ this };
+				Title->setObjectName(QStringLiteral("agentTurnReportTitle"));
+				Title->setTextFormat(Qt::PlainText);
+				Title->setWordWrap(true);
+				Title->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+				Title->setMaximumHeight(2 * Title->fontMetrics().lineSpacing() + 2);
+				auto semibold = Title->font();
+				semibold.setWeight(QFont::DemiBold);
+				Title->setFont(semibold);
+				Meta = new QLabel{ this };
+				Meta->setObjectName(QStringLiteral("agentTurnReportMeta"));
+				Meta->setForegroundRole(QPalette::PlaceholderText);
+				Meta->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+				// The secondary line, a point under the title's size.
+				auto small = Meta->font();
+				small.setPointSizeF(std::max(9.0, small.pointSizeF() - 1.0));
+				Meta->setFont(small);
+				words->addWidget(Title);
+				words->addWidget(Meta);
+				row->addLayout(words, 1);
+			}
+
+			[[nodiscard]] auto title() const noexcept -> QLabel* { return Title; }
+			[[nodiscard]] auto meta() const noexcept -> QLabel* { return Meta; }
+
+			void set_selected(const bool aSelected)
+			{
+				if (Selected != aSelected) {
+					Selected = aSelected;
+					setProperty("bprReportSelected", aSelected);
+					update();
+				}
+			}
+
+			[[nodiscard]] auto hasHeightForWidth() const -> bool override { return true; }
+
+			/// The title's lines at `aWidth` (two at most), its second line and
+			/// the padding; never less than the page icon needs.
+			[[nodiscard]] auto heightForWidth(const int aWidth) const -> int override
+			{
+				const auto words = std::max(40, aWidth - (8 + 24 + 10) - (8 + 16));
+				const auto title = std::min(Title->heightForWidth(words), 2 * Title->fontMetrics().lineSpacing());
+				return std::max(30 + 14, 7 + title + 1 + Meta->sizeHint().height() + 7);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { 200, heightForWidth(width() > 0 ? width() : 320) }; }
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box  = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				auto       fill = palette().color(QPalette::Window);
+				auto       edge = palette().color(QPalette::WindowText);
+				edge.setAlphaF(underMouse() || hasFocus() ? 0.35F : 0.18F);
+				if (Selected) {
+					auto tint = palette().color(QPalette::Highlight);
+					tint.setAlphaF(0.14F);
+					painter.setBrush(fill);
+					painter.setPen(Qt::NoPen);
+					painter.drawRoundedRect(box, 7.0, 7.0);
+					painter.setBrush(tint);
+					painter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
+				} else {
+					painter.setBrush(isDown() ? fill.darker(106) : fill);
+					painter.setPen(QPen{ edge, 1.0 });
+				}
+				painter.drawRoundedRect(box, 7.0, 7.0);
+				// The page, its corner folded, carrying the glyph.
+				const auto page = QRectF{ 8.0, (height() - 30) / 2.0, 24.0, 30.0 };
+				auto       ink  = palette().color(QPalette::WindowText);
+				ink.setAlphaF(0.55F);
+				auto sheet = QPainterPath{ };
+				sheet.moveTo(page.topLeft());
+				sheet.lineTo(page.right() - 7.0, page.top());
+				sheet.lineTo(page.right(), page.top() + 7.0);
+				sheet.lineTo(page.bottomRight());
+				sheet.lineTo(page.bottomLeft());
+				sheet.closeSubpath();
+				painter.setBrush(palette().color(QPalette::Base));
+				painter.setPen(QPen{ ink, 1.2 });
+				painter.drawPath(sheet);
+				painter.drawLine(QPointF{ page.right() - 7.0, page.top() }, QPointF{ page.right() - 7.0, page.top() + 7.0 });
+				painter.drawLine(QPointF{ page.right() - 7.0, page.top() + 7.0 }, QPointF{ page.right(), page.top() + 7.0 });
+				agent_glyph(palette()).paint(&painter, QRect{ static_cast<int>(page.left()) + 5, static_cast<int>(page.center().y()) - 6, 14, 14 });
+				// The chevron.
+				const auto middle  = QPointF{ width() - 13.0, height() / 2.0 };
+				auto       chevron = QPainterPath{ };
+				chevron.moveTo(middle + QPointF{ -2.0, -4.0 });
+				chevron.lineTo(middle + QPointF{ 2.0, 0.0 });
+				chevron.lineTo(middle + QPointF{ -2.0, 4.0 });
+				painter.setBrush(Qt::NoBrush);
+				painter.setPen(QPen{ ink, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				painter.drawPath(chevron);
+			}
+
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+					click();
+					return;
+				}
+				QPushButton::keyPressEvent(aEvent);
+			}
+
+		private:
+			QLabel* Title    = nullptr;
+			QLabel* Meta     = nullptr;
+			bool    Selected = false;
 		};
 
 		/// \brief Owner look v003 ("Timestamp would also be nice"): a time
@@ -268,200 +744,6 @@ namespace bpr::qt {
 			}
 		}
 		return aModel.trimmed();
-	}
-
-	auto agent_line_link(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> QString
-	{
-		return aPath + (aBefore ? QStringLiteral("#B") : QStringLiteral("#L")) + QString::number(aLine);
-	}
-
-	auto agent_line_link_target(const QString& aLink) -> std::optional<std::pair<QString, std::pair<std::uint32_t, bool>>>
-	{
-		const auto hash = aLink.lastIndexOf(QLatin1Char{ '#' });
-		if (hash <= 0 || hash + 2 >= aLink.size() || (aLink[hash + 1] != QLatin1Char{ 'L' } && aLink[hash + 1] != QLatin1Char{ 'B' })) {
-			return std::nullopt;
-		}
-		auto       number = false;
-		const auto line   = aLink.mid(hash + 2).toUInt(&number);
-		if (!number || line == 0U || aLink.contains(QStringLiteral("://"))) {
-			return std::nullopt;
-		}
-		return std::pair{ aLink.left(hash), std::pair{ static_cast<std::uint32_t>(line), aLink[hash + 1] == QLatin1Char{ 'B' } } };
-	}
-
-	auto agent_line_references(const QString& aText, const agent_file_resolver& aResolve, const QString& aContextFile) -> std::vector<agent_line_reference>
-	{
-		auto found = std::vector<agent_line_reference>{ };
-		if (!aResolve) {
-			return found;
-		}
-		const auto taken = [&found](const qsizetype aBegin, const qsizetype aEnd) {
-			return std::ranges::any_of(found, [&](const agent_line_reference& aKnown) { return aBegin < aKnown.Begin + aKnown.Length && aKnown.Begin < aEnd; });
-		};
-		const auto add = [&](const QRegularExpressionMatch& aMatch, const QString& aPath, const int aFirst, const int aLast, const bool aBefore) {
-			auto       firstOk = false;
-			auto       lastOk  = false;
-			const auto first   = aMatch.captured(aFirst).toUInt(&firstOk);
-			const auto last    = aLast > 0 && aMatch.hasCaptured(aLast) ? aMatch.captured(aLast).toUInt(&lastOk) : first;
-			if (!firstOk || first == 0U || taken(aMatch.capturedStart(), aMatch.capturedEnd())) {
-				return;
-			}
-			found.push_back({ .Begin  = aMatch.capturedStart(),
-							  .Length = aMatch.capturedLength(),
-							  .Path   = aPath,
-							  .First  = static_cast<std::uint32_t>(first),
-							  .Last   = static_cast<std::uint32_t>(std::max(first, aLast > 0 && aMatch.hasCaptured(aLast) && lastOk ? last : first)),
-							  .Before = aBefore });
-		};
-		// A path: words of letters, digits, `.`, `_` and `-` between slashes,
-		// the last with an extension.
-		static const auto path  = QStringLiteral(R"((?<![\w./\\-])((?:[\w.-]+/)*[\w-][\w.-]*\.[A-Za-z0-9_+]+))");
-		static const auto named = QRegularExpression{ path + QStringLiteral(R"( ([Ll]ines?) (\d+)(?:\s*(?:[-–]|to)\s*(\d+))?( before the change)?(?!\d))") };
-		static const auto colon = QRegularExpression{ path + QStringLiteral(R"(:(\d+)(?:[-–](\d+))?(?![\d\w]))") };
-		static const auto bare  = QRegularExpression{ QStringLiteral(R"((?<![\w/.-])[Ll]ines? (\d+)(?:\s*(?:[-–]|to|and)\s*(\d+))?( before the change)?(?!\d))") };
-		for (auto it = named.globalMatch(aText); it.hasNext();) {
-			const auto match = it.next();
-			if (const auto resolved = aResolve(match.captured(1))) {
-				add(match, *resolved, 3, 4, match.hasCaptured(5));
-			}
-		}
-		for (auto it = colon.globalMatch(aText); it.hasNext();) {
-			const auto match = it.next();
-			if (const auto resolved = aResolve(match.captured(1))) {
-				add(match, *resolved, 2, 3, false);
-			}
-		}
-		if (!aContextFile.isEmpty()) {
-			for (auto it = bare.globalMatch(aText); it.hasNext();) {
-				const auto match = it.next();
-				add(match, aContextFile, 1, 2, match.hasCaptured(3));
-			}
-		}
-		std::ranges::sort(found, { }, &agent_line_reference::Begin);
-		return found;
-	}
-
-	namespace {
-		/// \brief Where inline code spans and existing links are in one line
-		/// of Markdown: a reference is never made a link inside either.
-		struct markdown_spans
-		{
-			/// Code spans: from the first backtick to after the last.
-			std::vector<std::pair<qsizetype, qsizetype>> Code;
-			std::vector<std::pair<qsizetype, qsizetype>> Links;
-		};
-
-		[[nodiscard]] auto spans_of(const QString& aLine) -> markdown_spans
-		{
-			auto spans = markdown_spans{ };
-			for (qsizetype at = 0; at < aLine.size();) {
-				if (aLine[at] != QLatin1Char{ '`' }) {
-					++at;
-					continue;
-				}
-				auto run = qsizetype{ 0 };
-				while (at + run < aLine.size() && aLine[at + run] == QLatin1Char{ '`' }) {
-					++run;
-				}
-				// The closing run is the next of exactly the same length.
-				auto close = at + run;
-				auto shut  = qsizetype{ -1 };
-				while (close < aLine.size()) {
-					if (aLine[close] != QLatin1Char{ '`' }) {
-						++close;
-						continue;
-					}
-					auto length = qsizetype{ 0 };
-					while (close + length < aLine.size() && aLine[close + length] == QLatin1Char{ '`' }) {
-						++length;
-					}
-					if (length == run) {
-						shut = close + length;
-						break;
-					}
-					close += length;
-				}
-				if (shut < 0) {
-					at += run;
-					continue;
-				}
-				spans.Code.emplace_back(at, shut);
-				at = shut;
-			}
-			static const auto links = QRegularExpression{ QStringLiteral(R"(\[[^\]]*\]\([^)]*\)|<[^>\s]+>|https?://\S+)") };
-			for (auto it = links.globalMatch(aLine); it.hasNext();) {
-				const auto match = it.next();
-				spans.Links.emplace_back(match.capturedStart(), match.capturedEnd());
-			}
-			return spans;
-		}
-
-		[[nodiscard]] auto inside(const std::vector<std::pair<qsizetype, qsizetype>>& aSpans, const qsizetype aBegin, const qsizetype aEnd) -> bool
-		{
-			return std::ranges::any_of(aSpans, [&](const auto& aSpan) { return aBegin < aSpan.second && aSpan.first < aEnd; });
-		}
-	} // namespace
-
-	auto agent_markdown_with_line_links(const QString& aMarkdown, const agent_file_resolver& aResolve, const QString& aContextFile) -> QString
-	{
-		if (!aResolve) {
-			return aMarkdown;
-		}
-		auto lines = aMarkdown.split(QLatin1Char{ '\n' });
-		auto fence = QString{ };
-		// A fence: up to three spaces, then three or more backticks or tildes.
-		const auto fenceOf = [](const QString& aLine) {
-			auto indent = qsizetype{ 0 };
-			while (indent < aLine.size() && aLine[indent] == QLatin1Char{ ' ' }) {
-				++indent;
-			}
-			if (indent > 3 || indent == aLine.size() || (aLine[indent] != QLatin1Char{ '`' } && aLine[indent] != QLatin1Char{ '~' })) {
-				return QString{ };
-			}
-			auto run = qsizetype{ 0 };
-			while (indent + run < aLine.size() && aLine[indent + run] == aLine[indent]) {
-				++run;
-			}
-			return run >= 3 ? aLine.mid(indent, run) : QString{ };
-		};
-		for (auto& line : lines) {
-			const auto marker = fenceOf(line);
-			if (!fence.isEmpty()) {
-				if (!marker.isEmpty() && marker[0] == fence[0] && marker.size() >= fence.size() && line.trimmed() == marker) {
-					fence.clear();
-				}
-				continue;
-			}
-			if (!marker.isEmpty()) {
-				fence = marker;
-				continue;
-			}
-			const auto spans = spans_of(line);
-			auto       edits = std::vector<std::pair<std::pair<qsizetype, qsizetype>, QString>>{ };
-			// A code span that is wholly one reference becomes a link around it.
-			for (const auto& [begin, end] : spans.Code) {
-				auto run = qsizetype{ 0 };
-				while (begin + run < end && line[begin + run] == QLatin1Char{ '`' }) {
-					++run;
-				}
-				const auto content = line.mid(begin + run, end - begin - 2 * run).trimmed();
-				const auto refs    = agent_line_references(content, aResolve, aContextFile);
-				if (refs.size() == 1U && refs.front().Begin == 0 && refs.front().Length == content.size() && !inside(spans.Links, begin, end)) {
-					edits.push_back({ { begin, end }, QStringLiteral("[") + line.mid(begin, end - begin) + QStringLiteral("](") + agent_line_link(refs.front().Path, refs.front().First, refs.front().Before) + QLatin1Char{ ')' } });
-				}
-			}
-			for (const auto& ref : agent_line_references(line, aResolve, aContextFile)) {
-				if (inside(spans.Code, ref.Begin, ref.Begin + ref.Length) || inside(spans.Links, ref.Begin, ref.Begin + ref.Length)) {
-					continue;
-				}
-				edits.push_back({ { ref.Begin, ref.Begin + ref.Length }, QStringLiteral("[") + line.mid(ref.Begin, ref.Length) + QStringLiteral("](") + agent_line_link(ref.Path, ref.First, ref.Before) + QLatin1Char{ ')' } });
-			}
-			std::ranges::sort(edits, std::ranges::greater{ }, [](const auto& aEdit) { return aEdit.first.first; });
-			for (const auto& [range, text] : edits) {
-				line.replace(range.first, range.second - range.first, text);
-			}
-		}
-		return lines.join(QLatin1Char{ '\n' });
 	}
 
 	agent_tab_view::agent_tab_view(agent_launch_panel& aLaunch, side_chat_panel& aChat, finding_queue_view& aFindings, QWidget& aHistory, QWidget* aParent)
@@ -709,8 +991,46 @@ namespace bpr::qt {
 		// it"): they are the thread's last item and scroll with it.
 		// [[BPR-1934]]. One component, which the tour chats show too.
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
-		Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
+		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
+		// RFC-BPR-0125. The shipped set until the host gives the profile's.
+		PromptMacros = core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }));
 		contentCol->addWidget(Suggestions);
+		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
+		// offered when the earlier revision cannot be read, said where the
+		// suggestion would stand.
+		LatestUploadNote = new QLabel{ content };
+		LatestUploadNote->setObjectName(QStringLiteral("agentLatestUploadUnavailable"));
+		LatestUploadNote->setWordWrap(true);
+		LatestUploadNote->setForegroundRole(QPalette::PlaceholderText);
+		LatestUploadNote->hide();
+		contentCol->addWidget(LatestUploadNote);
+		// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a plain
+		// click queues it"). What waits its turn, in words.
+		QueueNote = new QLabel{ content };
+		QueueNote->setObjectName(QStringLiteral("agentQueueNote"));
+		QueueNote->setWordWrap(true);
+		QueueNote->setTextFormat(Qt::PlainText);
+		QueueNote->hide();
+		contentCol->addWidget(QueueNote);
+		// RFC-BPR-0126 ([[BPR-2151]]). The session's waiting messages, each
+		// with Edit (a typed one, held while edited), Remove and Move up and
+		// down, and Pause or Resume for the queue.
+		{
+			auto* const panel = new queue_panel{ content };
+			panel->set_move([this](const std::uint64_t aId, const int aBy) {
+				if (QueueDispatch.Move) {
+					QueueDispatch.Move(aId, aBy);
+				}
+			});
+			QueueList = panel;
+		}
+		QueueList->setObjectName(QStringLiteral("agentQueueList"));
+		QueueList->setAccessibleName(tr("Queued messages"));
+		new QVBoxLayout{ QueueList };
+		QueueList->layout()->setContentsMargins(8, 6, 8, 8);
+		QueueList->layout()->setSpacing(4);
+		QueueList->hide();
+		contentCol->addWidget(QueueList);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
 		// suggested prompts before the wizard completes." While the setup
 		// is unfinished and not on screen, its way in stands where they would.
@@ -780,13 +1100,70 @@ namespace bpr::qt {
 		chipRow->addWidget(ConversationClose, 0, Qt::AlignTop);
 		ConversationChip->hide();
 		fieldCol->addWidget(ConversationChip);
+		// [[BPR-2002]], RFC-BPR-0102. The selected lines, attached: the
+		// question is about them. Its close button detaches them from the
+		// next questions and leaves the diff's selection alone.
+		LinesChip = new rounded{ rounded::look::card, field };
+		LinesChip->setObjectName(QStringLiteral("agentLinesChip"));
+		auto* const linesRow = new QHBoxLayout{ LinesChip };
+		linesRow->setContentsMargins(8, 3, 2, 3);
+		linesRow->setSpacing(4);
+		LinesText = new QLabel{ LinesChip };
+		LinesText->setObjectName(QStringLiteral("agentLinesChipText"));
+		LinesText->setTextFormat(Qt::PlainText);
+		linesRow->addWidget(LinesText, 1);
+		LinesClose = make_drawer_tool(LinesChip, drawer_icon(drawer_glyph::close, palette()), tr("Don't attach these lines"), QStringLiteral("agentLinesChipClose"));
+		LinesClose->setAccessibleName(tr("Detach the selected lines"));
+		connect(LinesClose, &QToolButton::clicked, this, [this] {
+			LinesDetached = true;
+			refresh_suggestions();
+		});
+		linesRow->addWidget(LinesClose, 0, Qt::AlignTop);
+		LinesChip->setToolTip(tr("The question is about these lines. The agent can still read the whole pull request."));
+		LinesChip->hide();
+		// RFC-BPR-0125 (Q2). Beside the lines chip, the suggested prompt the
+		// field holds as a draft: the question keeps its subject and kind
+		// until this is closed or the field is emptied.
+		MacroChip = new rounded{ rounded::look::card, field };
+		MacroChip->setObjectName(QStringLiteral("agentMacroChip"));
+		auto* const macroRow = new QHBoxLayout{ MacroChip };
+		macroRow->setContentsMargins(8, 3, 2, 3);
+		macroRow->setSpacing(4);
+		MacroText = new QLabel{ MacroChip };
+		MacroText->setObjectName(QStringLiteral("agentMacroChipText"));
+		MacroText->setTextFormat(Qt::PlainText);
+		macroRow->addWidget(MacroText, 1);
+		MacroClose = make_drawer_tool(MacroChip, drawer_icon(drawer_glyph::close, palette()), tr("Send what you wrote as a typed question"), QStringLiteral("agentMacroChipClose"));
+		MacroClose->setAccessibleName(tr("Remove the suggested prompt"));
+		connect(MacroClose, &QToolButton::clicked, this, [this] {
+			DraftedMacro.reset();
+			present_macro_chip();
+			Chat.composer()->setFocus(Qt::OtherFocusReason);
+		});
+		macroRow->addWidget(MacroClose, 0, Qt::AlignTop);
+		MacroChip->hide();
+		auto* const attachedRow = new QHBoxLayout{ };
+		attachedRow->setContentsMargins(0, 0, 0, 0);
+		attachedRow->setSpacing(4);
+		attachedRow->addWidget(LinesChip);
+		attachedRow->addWidget(MacroChip);
+		attachedRow->addStretch(1);
+		fieldCol->addLayout(attachedRow);
 		auto* const composer = Chat.composer();
 		Borrowed.emplace_back(composer, composer->parentWidget());
 		composer->setParent(field);
 		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
+		composer->setToolTip(send_tip());
 		// [[BPR-1916]]. `/name` completion of the person's own skills.
 		SkillCompletion = new skill_completer{ composer };
+		// RFC-BPR-0125 (Q2). An emptied field holds no suggested prompt.
+		connect(composer, &QPlainTextEdit::textChanged, this, [this] {
+			if (DraftedMacro && Chat.composer()->toPlainText().trimmed().isEmpty()) {
+				DraftedMacro.reset();
+				present_macro_chip();
+			}
+		});
 		composer->setMaximumHeight(90);
 		composer->viewport()->setAutoFillBackground(false);
 		fieldCol->addWidget(composer);
@@ -802,10 +1179,11 @@ namespace bpr::qt {
 		auto* const askRow = new QHBoxLayout{ };
 		AskRow             = askRow;
 		askRow->setSpacing(2);
-		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), Chat.add_context_action()->toolTip().isEmpty() ? tr("Add the lines selected in the code") : Chat.add_context_action()->toolTip(),
-								   QStringLiteral("agentAddContext"));
+		// [[BPR-2002]]. Attaches the lines selected in the code again, after
+		// the chip's close button detached them.
+		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), tr("Attach the lines selected in the code"), QStringLiteral("agentAddContext"));
 		Context->set_surface(QPalette::Base);
-		connect(Context, &QToolButton::clicked, Chat.add_context_action(), &QAction::trigger);
+		connect(Context, &QToolButton::clicked, this, [this] { attach_lines(); });
 		askRow->addWidget(Context);
 		// Owner look v004 ("I would like the suggestions to come back where
 		// they were in the chat window... maybe turn the suggestion prompts
@@ -825,13 +1203,8 @@ namespace bpr::qt {
 			}
 		});
 		askRow->addWidget(SuggestionsMenu);
-		auto* const scope = Chat.scope_selector();
-		Borrowed.emplace_back(scope, scope->parentWidget());
-		scope->setParent(field);
-		scope->setToolTip(tr("What the agent may read"));
-		scope->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-		scope->setFrame(false);
-		askRow->addWidget(scope);
+		// [[BPR-2002]], RFC-BPR-0102: no scope list. It bounded nothing; the
+		// lines chip is the one thing that differs between questions.
 		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
 		// effort as a pill in the field. [[BPR-1924]]: a row of its own under
@@ -856,14 +1229,16 @@ namespace bpr::qt {
 			Notice->setText(aWhy);
 			Notice->show();
 		};
-		RunSettings = new agent_run_settings_picker{ RunSettingsSource, field };
-		askRow->addWidget(RunSettings);
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the
+		// picker left the drawers for the pull request window's footer, one
+		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
+		// The tab borrows the footer's picker for /model and /effort.
 		Ask = new QPushButton{ field };
 		Ask->setObjectName(QStringLiteral("agentAsk"));
 		Ask->setDefault(true);
 		Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
 		Ask->setAccessibleName(tr("Send"));
-		Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		Ask->setToolTip(send_tip());
 		// Send, or Stop while the agent works: one place, always in reach.
 		connect(Ask, &QPushButton::clicked, this, [this] {
 			if (State == agent_tab_state::working) {
@@ -878,9 +1253,13 @@ namespace bpr::qt {
 		// What was asked is read when it is sent, by Send or by the keyboard.
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
+			PendingName       = SendingMacro && SendingMacro->Name != *PendingQuestion ? SendingMacro->Name : QString{ };
 			PendingReview     = false;
 			PendingKeepsField = KeepingDraft;
 			PendingAbout      = ConversationShown;
+			PendingReturning  = SendingReturning;
+			PendingExplain    = SendingExplain;
+			PendingSuggest    = SendingSuggest;
 			// [[BPR-1773]]. Where its answer's Draft comment would go is
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
@@ -912,6 +1291,24 @@ namespace bpr::qt {
 		refusal->hide();
 		askCol->addWidget(refusal);
 		askCol->addWidget(field);
+		// [[BPR-2002]]. What is true about what the agent reads, said once:
+		// [[BPR-2038]], owner look on RFC-BPR-0101 AC08 ("this agent can read
+		// whole PR thing is way too long ... needs to be a tooltip"), in the
+		// field's tooltip, which its chips and buttons override with their own.
+		field->setToolTip(tr("The agent can read the whole pull request; attached lines only tell it where you are looking."));
+		// [[BPR-1999]]. The session's cost, when the agent reported any, on
+		// one line at the right under the composer.
+		SessionCostLine = new QLabel{ ask };
+		SessionCostLine->setObjectName(QStringLiteral("agentSessionCost"));
+		SessionCostLine->setTextFormat(Qt::PlainText);
+		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
+		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
+		SessionCostLine->hide();
+		auto* const underRow = new QHBoxLayout{ };
+		underRow->setContentsMargins(0, 0, 0, 0);
+		underRow->addStretch(1);
+		underRow->addWidget(SessionCostLine, 0, Qt::AlignTop | Qt::AlignRight);
+		askCol->addLayout(underRow);
 		talk->addWidget(ask);
 		Pages->addWidget(Conversation);
 
@@ -979,11 +1376,13 @@ namespace bpr::qt {
 		Dying = true;
 		// [[BPR-1878]]. Another picker on this source may outlive the tab.
 		if (RunSettingsSource) {
-			RunSettingsSource->Choose   = { };
-			RunSettingsSource->Dispatch = { };
-			RunSettingsSource->Catalog  = { };
-			RunSettingsSource->Setup    = { };
-			RunSettingsSource->Refused  = { };
+			RunSettingsSource->Choose        = { };
+			RunSettingsSource->Dispatch      = { };
+			RunSettingsSource->Catalog       = { };
+			RunSettingsSource->Setup         = { };
+			RunSettingsSource->Refused       = { };
+			RunSettingsSource->ToggleScratch = { };
+			RunSettingsSource->OpenScratch   = { };
 		}
 		// The panels hold these controls by pointer and outlive this tab; the
 		// tab never deletes what it only shows.
@@ -1077,6 +1476,9 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
+		for (const auto& entry : CardEntries) {
+			show_card_keep(entry);
+		}
 		const auto setUp      = Launch.offered_count() > 0U;
 		const auto running    = Launch.cancel_action()->isEnabled();
 		const auto status     = Launch.status_text();
@@ -1118,25 +1520,30 @@ namespace bpr::qt {
 		}
 		Head->setText(head.left(7));
 		Head->setVisible(!head.isEmpty() && head != QStringLiteral("—"));
+		refresh_send_label();
 		Head->setToolTip(tr("The head the session reads. %1").arg(Chat.session_state_text()));
 		// The added context, above the words, only when there is some.
 		Chips->setText(Chat.chips_text());
 		Chips->setVisible(Chat.chip_count() > 0U);
 		// Send, or Stop while the agent works.
+		// [[BPR-2000]], RFC-BPR-0101. Send starts a run and wears the agent
+		// accent; Stop ends spending and wears the ordinary roles.
 		if (State == agent_tab_state::working) {
+			wear_ordinary_roles(*Ask);
 			Ask->setIcon({ });
 			Ask->setText(tr("Stop"));
 			Ask->setAccessibleName(tr("Stop"));
 			Ask->setToolTip(tr("Stop the agent"));
 			Ask->setEnabled(Launch.cancel_action()->isEnabled());
 		} else {
+			wear_agent_accent(*Ask, palette());
 			Ask->setText({ });
-			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
 			Ask->setAccessibleName(tr("Send"));
 			// [[BPR-1817]]. A Send that cannot be pressed says why.
 			const auto blocked = send_blocked();
 			Ask->setToolTip(blocked == core::agent_send_refusal::none
-								? tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
+								? send_tip()
 								: send_refusal_words(blocked, agent_name()));
 			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
 			Ask->setEnabled(Chat.send_action()->isEnabled() && !Ask->property("conversationLoading").toBool());
@@ -1203,8 +1610,18 @@ namespace bpr::qt {
 			next.Question = tr("Review this pull request");
 		} else {
 			next.Question    = *PendingQuestion;
+			next.Name        = PendingName;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
+			next.Returning   = PendingReturning;
+			next.Explain     = PendingExplain;
+			if (!next.Explain.isEmpty()) {
+				next.ContextFile = next.Explain;
+			}
+			next.SuggestChange = PendingSuggest;
+			if (!next.SuggestChange.isEmpty()) {
+				next.ContextFile = next.SuggestChange;
+			}
 			// Sent: the field is ready for the next question, unless it
 			// holds what the reviewer typed before a suggestion was sent.
 			if (!PendingKeepsField) {
@@ -1214,13 +1631,23 @@ namespace bpr::qt {
 		PendingKeepsField = false;
 		PendingQuestion.reset();
 		PendingAbout.reset();
+		PendingName.clear();
 		PendingDraftTarget.reset();
+		PendingReturning.reset();
+		PendingExplain.clear();
+		PendingSuggest.clear();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
 		add_turn_widgets(next);
 		Turns.push_back(std::move(next));
 		Thread->show();
+		if (!Turns.back().Explain.isEmpty()) {
+			auto status  = agent_run_status{ };
+			status.Agent = Launch.profile_selector()->currentText();
+			status.Stage = agent_run_stage::preparing;
+			publish_explain(Turns.size() - 1U, status, { }, false, 0);
+		}
 	}
 
 	void agent_tab_view::add_turn_widgets(turn& aTurn)
@@ -1258,7 +1685,20 @@ namespace bpr::qt {
 			about->setToolTip(aTurn.About->Detail);
 			askedColumn->addWidget(about);
 		}
-		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, aTurn.Question) : aTurn.Question);
+		// RFC-BPR-0125 (AC07). A suggested prompt's turn shows what was sent
+		// under the prompt's name, in the weight About uses.
+		if (!aTurn.Name.isEmpty()) {
+			auto* const name = new QLabel{ aTurn.Name, asked };
+			name->setObjectName(QStringLiteral("agentTurnName"));
+			name->setTextFormat(Qt::PlainText);
+			name->setWordWrap(true);
+			auto strong = name->font();
+			strong.setWeight(QFont::DemiBold);
+			name->setFont(strong);
+			askedColumn->addWidget(name);
+		}
+		const auto spoken = aTurn.Name.isEmpty() ? aTurn.Question : tr("%1: %2").arg(aTurn.Name, aTurn.Question);
+		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, spoken) : spoken);
 		auto* const question = new QLabel{ asked };
 		question->setObjectName(QStringLiteral("agentTurnQuestionText"));
 		question->setWordWrap(true);
@@ -1266,6 +1706,22 @@ namespace bpr::qt {
 		// Owner look v004: a file and line the question names is a link to it.
 		connect(question, &QLabel::linkActivated, this, [this](const QString& aLink) { follow_link(aLink); });
 		aTurn.QuestionLabel = question;
+		if (aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
+			// RFC-BPR-0125 (AC07). Text past six lines folds behind Show all.
+			auto* const showAll = new quiet_push_button{ tr("Show all"), asked };
+			showAll->setObjectName(QStringLiteral("agentTurnShowAll"));
+			showAll->setFlat(true);
+			connect(showAll, &QPushButton::clicked, this, [this, serial = aTurn.Serial] {
+				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
+				if (found == Turns.end() || found->ShowAll == nullptr) {
+					return;
+				}
+				found->Unfolded = !found->Unfolded;
+				found->ShowAll->setText(found->Unfolded ? tr("Show less") : tr("Show all"));
+				show_question(*found);
+			});
+			aTurn.ShowAll = showAll;
+		}
 		show_question(aTurn);
 		if (aTurn.Review) {
 			auto italic = question->font();
@@ -1273,10 +1729,13 @@ namespace bpr::qt {
 			question->setFont(italic);
 		}
 		askedColumn->addWidget(question);
+		if (aTurn.ShowAll != nullptr) {
+			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
+		}
 		column->addWidget(asked);
 		// Owner look v003 ("the response contained in something we could
 		// copy"): the reply in its own card, its footer as the agent apps
-		// have it: Copy and Save as note, then who answered and when.
+		// have it: Copy and its one keep action, then who answered and when.
 		auto* const reply = new rounded{ rounded::look::card, box };
 		reply->setObjectName(QStringLiteral("agentTurnReply"));
 		auto* const replyColumn = new QVBoxLayout{ reply };
@@ -1306,7 +1765,93 @@ namespace bpr::qt {
 		answer->set_link_dispatch([this](const std::string& aLink) { follow_link(QString::fromStdString(aLink)); });
 		dress_answer(*answer);
 		answer->hide();
+		// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed?'s lead word, said
+		// as the agent's claim above its answer; nothing follows from it.
+		auto* const claim = new QLabel{ reply };
+		claim->setObjectName(QStringLiteral("agentTurnClaim"));
+		claim->setForegroundRole(QPalette::PlaceholderText);
+		claim->hide();
+		replyColumn->addWidget(claim);
+		aTurn.Claim = claim;
 		replyColumn->addWidget(answer);
+		// RFC-BPR-0128 ([[BPR-2166]]) as the owner chose it on 2026-11-14
+		// (docs/design/report-card-v4, round 1's C, Attachment): the reply
+		// card is the only surface. The report's summary shows as the answer
+		// does; under it, one attachment row names the report and opens it.
+		// Opening runs nothing, so the row wears no accent but the glyph.
+		{
+			auto* const card = new QWidget{ reply };
+			card->setObjectName(QStringLiteral("agentTurnReportCard"));
+			auto* const cardColumn = new QVBoxLayout{ card };
+			cardColumn->setContentsMargins(0, 9, 0, 0);
+			auto* const row = new report_attachment_row{ card };
+			row->setObjectName(QStringLiteral("agentTurnReportOpen"));
+			const auto serial = aTurn.Serial;
+			connect(row, &QPushButton::clicked, this, [this, serial] {
+				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
+				if (found != Turns.end()) {
+					open_report(static_cast<std::size_t>(std::distance(Turns.begin(), found)));
+				}
+			});
+			cardColumn->addWidget(row);
+			card->hide();
+			replyColumn->addWidget(card);
+			aTurn.ReportCard  = card;
+			aTurn.ReportTitle = row->title();
+			aTurn.ReportMeta  = row->meta();
+			aTurn.ReportOpen  = row;
+		}
+
+		// [[BPR-2061]], owner 2026-11-10. A reply with several suggested
+		// comments drafts them all at once: one quiet action over its cards,
+		// what the last press did, and the Undo of that batch. It starts no
+		// run, so it wears no Agent accent.
+		auto* const draftAllRow = new QWidget{ reply };
+		draftAllRow->setObjectName(QStringLiteral("agentTurnDraftAllRow"));
+		// The action on its own line; what the last press did under it, with
+		// its Undo beside the sentence it takes back.
+		auto* const draftAllColumn = new QVBoxLayout{ draftAllRow };
+		draftAllColumn->setContentsMargins(0, 4, 0, 0);
+		draftAllColumn->setSpacing(4);
+		auto* const draftAllLine = new QHBoxLayout{ };
+		draftAllLine->setSpacing(6);
+		auto* const draftAll = new quiet_push_button{ draftAllRow };
+		draftAll->setObjectName(QStringLiteral("agentTurnDraftAll"));
+		draftAll->setToolTip(tr("Make each suggested comment below a private draft at its lines, as Add as draft comment does. Nothing is published."));
+		draftAllLine->addWidget(draftAll);
+		draftAllLine->addStretch(1);
+		draftAllColumn->addLayout(draftAllLine);
+		auto* const draftAllSaid = new QHBoxLayout{ };
+		draftAllSaid->setSpacing(6);
+		auto* const draftAllState = new QLabel{ draftAllRow };
+		draftAllState->setObjectName(QStringLiteral("agentTurnDraftAllState"));
+		draftAllState->setForegroundRole(QPalette::PlaceholderText);
+		draftAllState->setWordWrap(true);
+		draftAllState->hide();
+		draftAllSaid->addWidget(draftAllState, 1);
+		auto* const draftAllUndo = new quiet_push_button{ tr("Undo"), draftAllRow };
+		draftAllUndo->setObjectName(QStringLiteral("agentTurnDraftAllUndo"));
+		draftAllUndo->setFlat(true);
+		draftAllUndo->setToolTip(tr("Remove the drafts this made. A draft you have edited since is kept."));
+		draftAllUndo->hide();
+		draftAllSaid->addWidget(draftAllUndo, 0, Qt::AlignTop);
+		draftAllColumn->addLayout(draftAllSaid);
+		draftAllRow->hide();
+		replyColumn->addWidget(draftAllRow);
+		aTurn.DraftAllRow   = draftAllRow;
+		aTurn.DraftAll      = draftAll;
+		aTurn.DraftAllState = draftAllState;
+		aTurn.DraftAllUndo  = draftAllUndo;
+		connect(draftAll, &QPushButton::clicked, this, [this, draftAll] {
+			if (const auto turn = turn_of_widget(draftAll)) {
+				draft_all(*turn);
+			}
+		});
+		connect(draftAllUndo, &QPushButton::clicked, this, [this, draftAllUndo] {
+			if (const auto turn = turn_of_widget(draftAllUndo)) {
+				undo_draft_all(*turn);
+			}
+		});
 		// Owner decision 2026-10-23: the turn's findings, as cards, under its answer.
 		auto* const cards = new QVBoxLayout{ };
 		cards->setSpacing(8);
@@ -1316,34 +1861,72 @@ namespace bpr::qt {
 		auto* const footer = new agent_run_status_line{ reply };
 		footer->setObjectName(QStringLiteral("agentTurnFooter"));
 		replyColumn->addWidget(footer);
+		// [[BPR-2005]], RFC-BPR-0103. Under the line: its helpers, the quiet
+		// notice, and after the turn the folded line.
+		auto* const activity = new agent_activity_view{ reply };
+		activity->setObjectName(QStringLiteral("agentTurnActivity"));
+		activity->set_stop([this] {
+			if (auto* const stop = Launch.cancel_action(); stop != nullptr && stop->isEnabled()) {
+				stop->trigger();
+			}
+		});
+		replyColumn->addWidget(activity);
 		auto* const footerRow = new QHBoxLayout{ };
 		footerRow->setSpacing(2);
 		auto* const copy = make_drawer_tool(reply, drawer_icon(drawer_glyph::copy, palette()), tr("Copy the response as Markdown"), QStringLiteral("agentTurnCopy"));
 		copy->set_surface(QPalette::Base);
 		copy->hide();
 		footerRow->addWidget(copy);
-		// Save as note: the whole reply, or the part selected in it.
-		auto* const save = new quiet_push_button{ tr("Save as note"), reply };
-		save->setObjectName(QStringLiteral("agentTurnSaveNote"));
+		// RFC-BPR-0127. One keep action: Keep local where no thread or line
+		// takes a draft (`core::decide_keep`), else Draft comment below. Keep
+		// local keeps the whole reply, or the part selected in it, as a Local
+		// comment on the pull request.
+		auto* const save = new quiet_push_button{ tr("Keep local"), reply };
+		save->setObjectName(QStringLiteral("agentTurnKeepLocal"));
 		save->setFlat(true);
-		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a private note. Nothing is published."));
+		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a local comment on the pull request. Only on this computer."));
 		save->hide();
 		footerRow->addWidget(save);
 		// [[BPR-1773]], owner look 2026-10-27 ("let you turn anything into a
-		// note or draft comment directly"). Draft comment, beside Save as
-		// note and in its style: the whole reply, or the part selected, as a
+		// note or draft comment directly"). Draft comment, in Keep local's
+		// place and style: the whole reply, or the part selected, as a
 		// private draft where the host decided when it was asked (the
-		// conversation's reply, the lines asked on, or the pull request).
-		// Nothing is published. Once drafted it goes to the draft.
-		auto* const draft = new quiet_push_button{ tr("Draft comment"), reply };
+		// conversation's reply or the lines asked on). Nothing is published.
+		// Once drafted it goes to the draft.
+		// Owner, look v006 ("That's too subtle in the agent context" and
+		// "Don't have keep local there, just draft is fine, they can move it
+		// to local after"): the answer's one keep action is Draft, a raised
+		// button with the pencil and its name, as large as the footer's
+		// others; where no line or thread takes a draft it is disabled with
+		// the pencil struck through and says why in its tooltip.
+		auto* const draft = new quiet_push_button{ tr("Draft"), reply };
 		draft->setObjectName(QStringLiteral("agentTurnDraftComment"));
-		draft->setFlat(true);
-		draft->setToolTip(aTurn.DraftTarget && !aTurn.DraftTarget->Tip.isEmpty() ? aTurn.DraftTarget->Tip
-																				 : tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+		draft->setFlat(false);
+		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		draft->hide();
 		footerRow->addWidget(draft);
-		// [[BPR-1847]]. An error's one way back, in place of Save as note
-		// and Draft comment, which an error never offers.
+		// [[BPR-2138]], RFC-BPR-0116. Ask more on a returning question's
+		// fresh answer: the next question here opens with it.
+		auto* const askMore = new quiet_push_button{ tr("Ask more"), reply };
+		askMore->setObjectName(QStringLiteral("agentTurnAskMore"));
+		askMore->setFlat(true);
+		askMore->hide();
+		footerRow->addWidget(askMore);
+		aTurn.AskMore = askMore;
+		connect(askMore, &QPushButton::clicked, this, [this, askMore] {
+			for (const auto& kept : Turns) {
+				if (kept.AskMore == askMore) {
+					if (AskMoreDispatch) {
+						AskMoreDispatch(kept.Question, kept.AnswerText);
+					}
+					Chat.composer()->setPlaceholderText(tr("Ask more about this answer…"));
+					Chat.composer()->setFocus(Qt::OtherFocusReason);
+					return;
+				}
+			}
+		});
+		// [[BPR-1847]]. An error's one way back, in place of the keep
+		// action, which an error never offers.
 		auto* const recovery = new quiet_push_button{ reply };
 		recovery->setObjectName(QStringLiteral("agentTurnRecovery"));
 		recovery->setFlat(true);
@@ -1369,6 +1952,7 @@ namespace bpr::qt {
 		aTurn.Widget       = box;
 		aTurn.Answer       = answer;
 		aTurn.Footer       = footer;
+		aTurn.Activity     = activity;
 		aTurn.SaveNote     = save;
 		aTurn.CardColumn   = cards;
 		aTurn.Copy         = copy;
@@ -1401,7 +1985,7 @@ namespace bpr::qt {
 					continue;
 				}
 				const auto key = kept.DraftTarget ? kept.DraftTarget->Key : std::string{ };
-				// As Go to note does: once drafted, the button opens the draft.
+				// As Go to comment does: once drafted, the button opens the draft.
 				if (kept.Drafted) {
 					if (DraftNavigate) {
 						DraftNavigate(key);
@@ -1425,6 +2009,11 @@ namespace bpr::qt {
 					if (!aDrafted) {
 						guarded->setText(tr("Not drafted: %1").arg(aWhy));
 						guarded->setEnabled(true);
+						for (auto& turn : Turns) {
+							if (turn.Draft == guarded) {
+								present_keep(turn);
+							}
+						}
 						return;
 					}
 					for (auto& turn : Turns) {
@@ -1436,6 +2025,11 @@ namespace bpr::qt {
 					guarded->setText(navigable ? tr("Go to draft") : tr("Drafted"));
 					guarded->setToolTip(navigable ? tr("Open the draft this reply was written into") : QString{ });
 					guarded->setEnabled(navigable);
+					for (auto& turn : Turns) {
+						if (turn.Draft == guarded) {
+							present_keep(turn);
+						}
+					}
 				});
 				return;
 			}
@@ -1453,7 +2047,7 @@ namespace bpr::qt {
 				if (kept.SaveNote != save) {
 					continue;
 				}
-				// Owner look v004: once saved, the button goes to the note.
+				// Owner look v004: once kept, the button goes to the comment.
 				if (kept.Note != 0U) {
 					if (NoteNavigate) {
 						NoteNavigate(kept.Note);
@@ -1475,8 +2069,13 @@ namespace bpr::qt {
 						return;
 					}
 					if (!aSaved) {
-						guarded->setText(tr("Not saved: %1").arg(aWhy));
+						guarded->setText(tr("Not kept: %1").arg(aWhy));
 						guarded->setEnabled(true);
+						for (auto& turn : Turns) {
+							if (turn.SaveNote == guarded) {
+								present_keep(turn);
+							}
+						}
 						return;
 					}
 					for (auto& turn : Turns) {
@@ -1485,9 +2084,14 @@ namespace bpr::qt {
 						}
 					}
 					const auto navigable = aNote != 0U && NoteNavigate;
-					guarded->setText(navigable ? tr("Go to note") : tr("Saved as a note"));
-					guarded->setToolTip(navigable ? tr("Open the private note this reply was saved as") : QString{ });
+					guarded->setText(navigable ? tr("Go to comment") : tr("Kept local"));
+					guarded->setToolTip(navigable ? tr("Open the local comment this reply was kept as") : QString{ });
 					guarded->setEnabled(navigable);
+					for (auto& turn : Turns) {
+						if (turn.SaveNote == guarded) {
+							present_keep(turn);
+						}
+					}
 				});
 				return;
 			}
@@ -1515,6 +2119,57 @@ namespace bpr::qt {
 			}
 		}
 		show_answer(aTurn);
+		if (aTurn.Claim != nullptr) {
+			const auto claim = aTurn.Returning == core::returning_operation::proposed_fix ? core::read_addressed_claim(aTurn.AnswerText.toStdString()) : std::nullopt;
+			aTurn.Claim->setText(claim ? tr("Agent's claim: %1").arg(QString::fromUtf8(core::claim_words(*claim).data(), static_cast<qsizetype>(core::claim_words(*claim).size()))) : QString{ });
+			aTurn.Claim->setVisible(claim.has_value());
+			// RFC-BPR-0128 ([[BPR-2165]]). The claim reaches its thread's chip.
+			// (A claim's answer is never folded into a report card.)
+			if (claim && aTurn.About && ClaimObserver) {
+				ClaimObserver(aTurn.About->Key, *claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
+			}
+		}
+		// RFC-BPR-0128 as amended (look ask-v005): one ask about several
+		// threads lists a claim a thread; each reaches its thread's chip, and
+		// the answer shows its prose with what the claims came to.
+		if (aTurn.Returning == core::returning_operation::addressed_threads) {
+			const auto claims = core::read_addressed_claims(aTurn.AnswerText.toStdString());
+			if (ClaimObserver) {
+				for (const auto& [thread, claim] : claims) {
+					ClaimObserver(thread, claim, Turns.empty() ? 0U : static_cast<std::size_t>(&aTurn - Turns.data()));
+				}
+			}
+			const auto fence = aTurn.AnswerText.indexOf(QLatin1StringView{ core::addressed_claims_fence.data(), static_cast<qsizetype>(core::addressed_claims_fence.size()) });
+			if (fence >= 0 && !claims.empty()) {
+				auto       prose = aTurn.AnswerText.left(fence).trimmed();
+				const auto close = aTurn.AnswerText.indexOf(QStringLiteral("\n```"), fence + 3);
+				if (close >= 0) {
+					const auto after = aTurn.AnswerText.mid(close + 4).trimmed();
+					if (!after.isEmpty()) {
+						prose += QStringLiteral("\n\n") + after;
+					}
+				}
+				auto counts = std::array<int, core::addressed_claim_count>{ };
+				for (const auto& [thread, claim] : claims) {
+					++counts[static_cast<std::size_t>(claim)];
+				}
+				auto parts = QStringList{ };
+				for (std::size_t index = 0U; index < counts.size(); ++index) {
+					if (counts[index] > 0) {
+						const auto words = core::claim_words(static_cast<core::addressed_claim>(index));
+						parts << QStringLiteral("%1 %2").arg(counts[index]).arg(QString::fromUtf8(words.data(), static_cast<qsizetype>(words.size())).toLower());
+					}
+				}
+				// What the claims came to belongs with the summary, before the
+				// first thread's section.
+				const auto said = tr("Claims on %n thread(s): %1. Each is on its thread in Comments.", nullptr, static_cast<int>(claims.size())).arg(parts.join(QStringLiteral(", ")));
+				// The first heading after the answer's first line (a title on
+				// the first line stays the title).
+				const auto heading = prose.indexOf(QRegularExpression{ QStringLiteral("\n#{1,6} ") });
+				aTurn.AnswerText   = heading >= 0 ? prose.left(heading).trimmed() + QStringLiteral("\n\n") + said + QStringLiteral("\n\n") + prose.mid(heading + 1) : prose + QStringLiteral("\n\n") + said;
+				show_answer(aTurn);
+			}
+		}
 	}
 
 	void agent_tab_view::show_answer(turn& aTurn)
@@ -1522,11 +2177,51 @@ namespace bpr::qt {
 		if (aTurn.Answer == nullptr) {
 			return;
 		}
+		// RFC-BPR-0128 ([[BPR-2166]]), Q7. A report by its shape: the card
+		// stands in the answer's place; the answer stays the turn's text.
+		const auto answer = aTurn.AnswerText.toStdString();
+		// Q4: Explain this file and What changed since my review answer as
+		// reports whatever their length.
+		// Look ask-v007 ("Why does asking was this addressed on the PR ...
+		// not show an attachment report?"): it was left out on purpose, as a
+		// claim's answer; one about several threads is a report too, a section
+		// a thread, with its claims on the threads.
+		const auto many    = aTurn.Returning == core::returning_operation::addressed_threads;
+		const auto always  = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload || many;
+		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix
+			? (core::is_report_answer(answer) || (always && !aTurn.AnswerText.trimmed().isEmpty()))
+			: false;
+		auto       summary = QString{ };
+		if (aTurn.ReportCard != nullptr) {
+			if (report) {
+				const auto named = !always     ? QString{ }
+					: many                     ? aTurn.Question
+					: !aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain)
+											   : tr("What changed since your review");
+				const auto card  = core::report_card_of(answer, named.toStdString());
+				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
+				// Round 1's wording; defect 2: "1 section", counted without
+				// the title.
+				aTurn.ReportMeta->setText(card.Sections == 0U       ? tr("Report")
+											  : card.Sections == 1U ? tr("Report, 1 section")
+																	: tr("Report, %1 sections").arg(card.Sections));
+				aTurn.ReportOpen->setAccessibleName(tr("Open report: %1").arg(aTurn.ReportTitle->text()));
+				aTurn.ReportOpen->setToolTip(tr("Open report"));
+				aTurn.ReportOpen->updateGeometry();
+				summary = QString::fromStdString(card.Summary);
+			}
+			aTurn.ReportCard->setVisible(report);
+		}
+
 		// Owner look v004: the files and lines the answer names are links;
-		// Copy and Save as note keep the answer as the agent wrote it.
-		const auto shown = LineNavigate ? agent_markdown_with_line_links(aTurn.AnswerText, LineResolve, aTurn.ContextFile) : aTurn.AnswerText;
-		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
-		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty());
+		// Copy and Keep local keep the answer as the agent wrote it.
+		// [[BPR-1998]]: the core's one recogniser, for every agent reply.
+		// A report shows its summary here, rendered (defect 3); the whole
+		// report is its tab.
+		const auto body  = report ? summary : aTurn.AnswerText;
+		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(body, LineResolve(), aTurn.ContextFile) : body;
+		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial) + (report ? "-summary" : ""));
+		aTurn.Answer->setVisible(!body.isEmpty());
 		fit_answer(*aTurn.Answer);
 	}
 
@@ -1535,28 +2230,63 @@ namespace bpr::qt {
 		if (aTurn.QuestionLabel == nullptr) {
 			return;
 		}
-		const auto refs = LineNavigate ? agent_line_references(aTurn.Question, LineResolve) : std::vector<agent_line_reference>{ };
+		// [[BPR-1998]]. The question's references, by the same recogniser,
+		// each a link to what it opens; offsets are the text's UTF-8 bytes.
+		struct shown_reference
+		{
+			qsizetype              Begin  = 0;
+			qsizetype              Length = 0;
+			agent_reference_target Target;
+		};
+		auto refs = std::vector<shown_reference>{ };
+		if (LineNavigate && LineResolve) {
+			const auto files = LineResolve();
+			const auto bytes = aTurn.Question.toUtf8();
+			for (const auto& found : core::find_agent_references(std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }, false)) {
+				const auto paths = core::resolve_agent_reference(found.Path, files);
+				if (paths.empty()) {
+					continue;
+				}
+				auto target = agent_reference_target{ .First = found.First, .Last = found.Last, .Before = found.Before };
+				for (const auto& path : paths) {
+					target.Paths << QString::fromStdString(path);
+				}
+				const auto begin = QString::fromUtf8(bytes.left(static_cast<qsizetype>(found.Begin))).size();
+				refs.push_back({ .Begin = begin, .Length = QString::fromUtf8(bytes.mid(static_cast<qsizetype>(found.Begin), static_cast<qsizetype>(found.Length))).size(), .Target = std::move(target) });
+			}
+		}
 		// The one file the question names is where its answer's bare lines are.
 		aTurn.ContextFile.clear();
 		for (const auto& ref : refs) {
+			if (ref.Target.Paths.size() != 1) {
+				aTurn.ContextFile.clear();
+				break;
+			}
 			if (aTurn.ContextFile.isEmpty()) {
-				aTurn.ContextFile = ref.Path;
-			} else if (aTurn.ContextFile != ref.Path) {
+				aTurn.ContextFile = ref.Target.Paths.front();
+			} else if (aTurn.ContextFile != ref.Target.Paths.front()) {
 				aTurn.ContextFile.clear();
 				break;
 			}
 		}
+		// RFC-BPR-0125 (AC07). Folded, the first six lines show, and only
+		// the references within them are links.
+		auto shown = aTurn.Question;
+		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded) {
+			shown = aTurn.Question.section(QLatin1Char{ '\n' }, 0, folded_question_lines - 1) + QStringLiteral("…");
+			std::erase_if(refs, [cut = shown.size() - 1](const shown_reference& aRef) { return aRef.Begin + aRef.Length > cut; });
+		}
 		auto html = QString{ };
 		auto at   = qsizetype{ 0 };
 		for (const auto& ref : refs) {
-			html += aTurn.Question.mid(at, ref.Begin - at).toHtmlEscaped();
-			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_line_link(ref.Path, ref.First, ref.Before).toHtmlEscaped(), aTurn.Question.mid(ref.Begin, ref.Length).toHtmlEscaped());
+			html += shown.mid(at, ref.Begin - at).toHtmlEscaped();
+			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_reference_link_text(ref.Target).toHtmlEscaped(), shown.mid(ref.Begin, ref.Length).toHtmlEscaped());
 			at = ref.Begin + ref.Length;
 		}
-		html += aTurn.Question.mid(at).toHtmlEscaped();
+		html += shown.mid(at).toHtmlEscaped();
 		html.replace(QLatin1Char{ '\n' }, QStringLiteral("<br>"));
 		aTurn.QuestionLabel->setTextFormat(refs.empty() ? Qt::PlainText : Qt::RichText);
-		aTurn.QuestionLabel->setText(refs.empty() ? aTurn.Question : html);
+		aTurn.QuestionLabel->setText(refs.empty() ? shown : html);
 		aTurn.QuestionLabel->setTextInteractionFlags(refs.empty() ? Qt::TextSelectableByMouse : Qt::TextSelectableByMouse | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
 		aTurn.QuestionLabel->setAccessibleName(aTurn.Question);
 		aTurn.QuestionLabel->setToolTip(refs.empty() ? QString{ } : tr("Click a file and line to open it in Review"));
@@ -1564,13 +2294,8 @@ namespace bpr::qt {
 
 	void agent_tab_view::follow_link(const QString& aLink)
 	{
-		const auto target = agent_line_link_target(aLink);
-		if (!target || !LineNavigate || !LineResolve) {
-			return;
-		}
-		const auto path = LineResolve(target->first);
-		if (path) {
-			LineNavigate(*path, target->second.first, target->second.second);
+		if (LineNavigate && LineResolve) {
+			static_cast<void>(follow_agent_reference(this, aLink, LineNavigate, ReferenceChooser));
 		}
 	}
 
@@ -1605,9 +2330,9 @@ namespace bpr::qt {
 		refresh();
 	}
 
-	void agent_tab_view::set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate)
+	void agent_tab_view::set_line_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate)
 	{
-		LineResolve  = std::move(aResolve);
+		LineResolve  = std::move(aFiles);
 		LineNavigate = std::move(aNavigate);
 		for (auto& kept : Turns) {
 			show_question(kept);
@@ -1659,6 +2384,7 @@ namespace bpr::qt {
 		for (const auto& shown : aTurns) {
 			auto next       = turn{ };
 			next.Question   = shown.Question;
+			next.Name       = shown.Name;
 			next.Done       = true;
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
@@ -1671,6 +2397,29 @@ namespace bpr::qt {
 			auto& kept = Turns.back();
 			set_answer(kept, shown.Answer);
 			kept.Footer->setText(shown.Footer);
+			// [[BPR-2005]]. A turn this window saw end keeps its line and its
+			// folded block when the thread is drawn again.
+			// The same question in the same order: the latest such turn not
+			// already matched.
+			const auto asked   = std::ranges::count_if(Turns, [&kept](const turn& aEarlier) { return aEarlier.Question == kept.Question; });
+			auto       seen    = EndedTurns.end();
+			auto       matched = decltype(asked){ 0 };
+			for (auto at = EndedTurns.begin(); at != EndedTurns.end(); ++at) {
+				if (at->Question == kept.Question && ++matched == asked) {
+					seen = at;
+				}
+			}
+			if (seen != EndedTurns.end()) {
+				if (!shown.Footer.contains(QLatin1Char{ ' ' })) {
+					kept.Footer->setText(seen->Footer);
+				}
+				if (!seen->Ending.isEmpty()) {
+					set_answer(kept, seen->Ending);
+				}
+				if (kept.Activity != nullptr) {
+					kept.Activity->fold(seen->Activity, seen->Seconds);
+				}
+			}
 			settle_reply_footer(kept);
 			// The cards this view still holds are the freshest; otherwise
 			// those the host read from the stored answer, as they were left.
@@ -1679,7 +2428,33 @@ namespace bpr::qt {
 			}
 		}
 		Finished = false;
+		present_session_cost(std::nullopt);
 		refresh();
+	}
+
+	void agent_tab_view::set_footer_observers(agent_tab_run_observer aRun, std::function<void(const QString&)> aEnded, std::function<void(std::optional<core::agent_cost>)> aCost)
+	{
+		RunObserver   = std::move(aRun);
+		EndedObserver = std::move(aEnded);
+		CostObserver  = std::move(aCost);
+	}
+
+	void agent_tab_view::present_session_cost(const std::optional<core::agent_cost> aTotal)
+	{
+		SessionTotal = aTotal;
+		if (CostObserver) {
+			CostObserver(aTotal);
+		}
+		if (SessionCostLine == nullptr) {
+			return;
+		}
+		SessionCostLine->setText(aTotal ? tr("%1 this session").arg(QString::fromStdString(core::agent_cost_words(*aTotal))) : QString{ });
+		SessionCostLine->setVisible(aTotal.has_value());
+	}
+
+	auto agent_tab_view::send_tip() const -> QString
+	{
+		return tr("Send the question to the agent (Return). Shift+Return starts a new line.");
 	}
 
 	void agent_tab_view::make_restored_cards(const std::size_t aTurn, const std::vector<agent_restored_finding_card>& aCards)
@@ -1782,6 +2557,7 @@ namespace bpr::qt {
 					}
 				}
 				result.push_back({ .Question   = kept.Question,
+								   .Name       = kept.Name,
 								   .Answer     = answer,
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
@@ -1834,7 +2610,15 @@ namespace bpr::qt {
 		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
 																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
 		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
-		ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+		// [[BPR-2059]], owner 2026-11-10: the replay's counts ("Replay omits 0
+		// retained turns and cuts 0 text bytes …") are a diagnostic, not words
+		// for the reviewer. They stay on the label for diagnostics and tests,
+		// and the tooltip says them only when something was left out.
+		ContinuationMode->setProperty("replayTurnsOmitted", QVariant::fromValue<qulonglong>(aView.ReplayTurnsOmitted));
+		ContinuationMode->setProperty("replayTextCutBytes", QVariant::fromValue<qulonglong>(aView.ReplayTextCutBytes));
+		if (aView.Replay && (aView.ReplayTurnsOmitted > 0U || aView.ReplayTextCutBytes > 0U)) {
+			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" This replay leaves out %1 older turns and %2 bytes of cut text.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+		}
 		auto* replay = NativeHistoryMenu->addAction(tr("Use Transcript replay with selected agent"));
 		replay->setObjectName(QStringLiteral("agentTranscriptReplay"));
 		replay->setToolTip(ContinuationMode->toolTip());
@@ -1883,91 +2667,193 @@ namespace bpr::qt {
 
 	void agent_tab_view::send_prompt(const QString& aPrompt) { choose_prompt(aPrompt, false); }
 
+	void agent_tab_view::present_prompt_macros(std::vector<core::prompt_macro> aMacros)
+	{
+		PromptMacros = std::move(aMacros);
+		refresh_suggestions();
+	}
+
+	auto agent_tab_view::offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*
+	{
+		const auto key   = aKeyOrLabel.toStdString();
+		const auto found = std::ranges::find_if(Offered, [&key](const core::prompt_offer& aOffer) { return aOffer.Id == key; });
+		if (found != Offered.end()) {
+			return &*found;
+		}
+		const auto named = std::ranges::find(Offered, key, &core::prompt_offer::Label);
+		return named != Offered.end() ? &*named : nullptr;
+	}
+
 	void agent_tab_view::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
 		if (!panels_alive()) {
 			return;
 		}
-		auto* const composer = Chat.composer();
-		const auto  draft    = composer->toPlainText();
-		const auto  press    = core::decide_agent_suggestion_press({
-			.EditFirst = aEditFirst,
+		// RFC-BPR-0116. A returning suggestion asks its own question.
+		const auto returning = ReturningPrompts.find(aPrompt);
+		const auto byLabel   = std::ranges::find_if(ReturningPrompts, [&aPrompt](const auto& aEntry) {
+			return (aEntry.first == latest_upload_key() ? tr("What changed since my review") : tr("Was this addressed?")) == aPrompt;
+		});
+		if (const auto chosen = returning != ReturningPrompts.end() ? returning : byLabel; chosen != ReturningPrompts.end()) {
+			if (!aEditFirst) {
+				ask_returning(chosen->second);
+			}
+			return;
+		}
+		// RFC-BPR-0125. A press expands against the facts at the press: the
+		// list is decided again, and a prompt that no longer applies does
+		// nothing.
+		refresh_suggestions();
+		const auto* const found = offered(aPrompt);
+		if (found == nullptr) {
+			return;
+		}
+		const auto offer    = *found;
+		const auto text     = QString::fromStdString(offer.Expansion.Text);
+		auto*      composer = Chat.composer();
+		const auto draft    = composer->toPlainText();
+		const auto press    = core::decide_agent_suggestion_press({
+			.EditFirst = aEditFirst || offer.finish(),
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
-		const auto  toEnd    = [composer] {
+		auto       carried  = macro_send{
+			.Key     = QString::fromStdString(offer.Id),
+			.Name    = QString::fromStdString(offer.Label),
+			.Subject = core::suggested_subject_of(offer.Subject),
+			.Review  = offer.Kind == core::prompt_ask::review,
+		};
+		const auto toEnd = [composer] {
 			auto cursor = composer->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			composer->setTextCursor(cursor);
 		};
 		switch (press) {
-		case core::agent_suggestion_press::ignored: return;
+		case core::agent_suggestion_press::ignored:            return;
 		case core::agent_suggestion_press::send:
-			composer->setPlainText(aPrompt);
-			ask();
-			return;
-		case core::agent_suggestion_press::send_keeping_draft:
+		case core::agent_suggestion_press::send_keeping_draft: {
+			// AC09. Sent as offered: skills only from the template's own
+			// text, and never read as a command.
+			const auto kept   = press == core::agent_suggestion_press::send_keeping_draft;
+			carried.SkillText = core::prompt_skill_text(offer.Expansion);
+			composer->setPlainText(text);
 			// Sent alone, as if typed and sent; what the reviewer had typed
 			// is put back, and its turn's start leaves it there.
-			composer->setPlainText(aPrompt);
-			KeepingDraft = true;
+			KeepingDraft = kept;
+			SendingMacro = std::move(carried);
 			ask();
+			SendingMacro.reset();
 			KeepingDraft = false;
-			composer->setPlainText(draft);
-			toEnd();
+			if (kept) {
+				composer->setPlainText(draft);
+				toEnd();
+			}
 			return;
-		case core::agent_suggestion_press::edit: composer->setPlainText(aPrompt); break;
-		case core::agent_suggestion_press::edit_after_draft:
+		}
+		case core::agent_suggestion_press::edit: {
+			composer->setPlainText(text);
+			auto cursor = composer->textCursor();
+			cursor.setPosition(caret_of(offer.Expansion));
+			composer->setTextCursor(cursor);
+			break;
+		}
+		case core::agent_suggestion_press::edit_after_draft: {
 			// Added, never replacing: on its own line after the words there,
 			// and undone in one step.
 			toEnd();
-			composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + aPrompt);
+			const auto lead = draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n");
+			const auto from = composer->textCursor().position() + static_cast<int>(lead.size());
+			composer->textCursor().insertText(lead + text);
+			auto cursor = composer->textCursor();
+			cursor.setPosition(from + caret_of(offer.Expansion));
+			composer->setTextCursor(cursor);
 			break;
 		}
+		}
+		// Q2. A drafted prompt keeps its subject and kind, shown as a chip.
+		DraftedMacro = std::move(carried);
+		present_macro_chip();
 		composer->setFocus(Qt::OtherFocusReason);
-		toEnd();
 	}
+
+	void agent_tab_view::present_macro_chip()
+	{
+		if (MacroChip == nullptr) {
+			return;
+		}
+		if (DraftedMacro) {
+			MacroText->setText(DraftedMacro->Name);
+			const auto as = DraftedMacro->Review                                         ? tr("Sent as a review")
+				: DraftedMacro->Subject == core::agent_suggested_subject::open_file      ? tr("Sent as a question about the open file")
+				: DraftedMacro->Subject == core::agent_suggested_subject::selected_lines ? tr("Sent as a question about the selected lines")
+				: ConversationShown                                                      ? tr("Sent as a question about the conversation")
+																						 : tr("Sent as a question about the pull request");
+			MacroChip->setToolTip(tr("%1, as the suggested prompt %2 is. Remove this to send what you wrote as a typed question.").arg(as, DraftedMacro->Name));
+			MacroChip->setAccessibleName(tr("Suggested prompt %1").arg(DraftedMacro->Name));
+		}
+		MacroChip->setVisible(DraftedMacro.has_value());
+	}
+
+	auto agent_tab_view::macro_chip_text() const -> QString { return MacroChip == nullptr || MacroChip->isHidden() ? QString{ } : MacroText->text(); }
 
 	void agent_tab_view::refresh_suggestions()
 	{
 		if (!panels_alive() || Suggestions == nullptr) {
 			return;
 		}
-		// Owner decision (a): the pull request, the open file when one is
-		// open, what the change could break, and the selected lines when
-		// lines are selected.
-		const auto context = SuggestionContext ? SuggestionContext() : agent_suggestion_context{ };
-		auto       prompts = QStringList{ tr("Review this pull request") };
+		const auto context = current_suggestion_context();
+		present_lines_chip(context);
+		// RFC-BPR-0125. The core decides the chips from the macros and what
+		// the window holds; this presents its offers. Owner decision (a):
+		// the pull request, the open file when one is open, what the change
+		// could break, and the selected lines when lines are selected.
+		auto facts        = core::prompt_facts{ };
+		facts.Place       = ConversationShown ? core::prompt_place::conversation : core::prompt_place::agent_tab;
+		facts.PullRequest = context.PullRequest;
+		facts.Repository  = context.Repository;
+		if (!context.OpenFile.isEmpty()) {
+			facts.OpenFile = context.OpenFile.toStdString();
+		}
+		if (context.Lines) {
+			facts.Lines = core::prompt_line_range{ .First = context.Lines->first, .Last = context.Lines->second };
+		}
+		facts.Draft         = context.Draft;
+		facts.AuthorIsMe    = context.AuthorIsMe;
+		facts.ChecksFailing = context.ChecksFailing;
+		facts.ChatEmpty     = Turns.empty();
 		if (ConversationShown) {
-			// [[BPR-1773]]. While a conversation is attached the prompts are
-			// about it; a reply is offered only where one can be written.
-			prompts = QStringList{ tr("Summarize this conversation"), tr("Is the concern raised here right?") };
-			if (ConversationShown->Replies) {
-				prompts << tr("Draft a reply to this conversation");
-			} else {
-				prompts << tr("Explain the code this note is on");
-			}
-		} else {
-			if (!context.OpenFile.isEmpty()) {
-				prompts << tr("Review %1").arg(context.OpenFile);
-			}
-			prompts << tr("What could this change break?");
-			if (context.Lines) {
-				// Owner look v004 ("in an hour I wont remember which file line 34
-				// was in"): the prompt names the file, and the thread links it.
-				// Owner look v005 ("should change to explain selected block or
-				// something when there's a selection, especially a multi-line
-				// selection"): a block says so, and still names its file and lines.
-				const auto [first, last] = *context.Lines;
-				if (context.OpenFile.isEmpty()) {
-					prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last));
-				} else {
-					prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last));
-				}
+			facts.TakesReplies = ConversationShown->Replies;
+		}
+		const auto offers = core::decide_prompt_offers(PromptMacros, facts);
+		Offered           = offers.Chips;
+		Offered.insert(Offered.end(), offers.More.begin(), offers.More.end());
+		// [[BPR-2179]]. A prompt only on an Ask menu is no chip, but a press
+		// from the menu still sends it.
+		for (auto& offer : core::menu_prompt_offers(PromptMacros, facts)) {
+			if (std::ranges::find(Offered, offer.Id, &core::prompt_offer::Id) == Offered.end()) {
+				Offered.push_back(std::move(offer));
 			}
 		}
+		auto chips = std::vector<agent_suggestion>{ };
+		auto more  = std::vector<agent_suggestion>{ };
+		ReturningPrompts.clear();
+		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). First when commits
+		// followed my review, or on a thread I commented in once they did.
+		// They are the host's questions, not suggested prompts.
+		if (ConversationShown ? ConversationShown->Addressed : LatestUpload.State == core::latest_upload_state::offered) {
+			const auto key   = ConversationShown ? proposed_fix_key() : latest_upload_key();
+			const auto label = ConversationShown ? tr("Was this addressed?") : tr("What changed since my review");
+			chips.push_back({ .Key = key, .Label = label, .Expansion = label });
+			ReturningPrompts[key] = ConversationShown ? core::returning_operation::proposed_fix : core::returning_operation::latest_upload;
+		}
+		for (const auto& offer : offers.Chips) {
+			chips.push_back(suggestion_of(offer));
+		}
+		for (const auto& offer : offers.More) {
+			more.push_back(suggestion_of(offer));
+		}
 		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;
-		Suggestions->present(prompts);
+		Suggestions->present(std::move(chips), std::move(more));
 		Suggestions->set_usable(usable);
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
 		Suggestions->lead()->setVisible(Turns.empty());
@@ -1978,6 +2864,11 @@ namespace bpr::qt {
 		// check's Ready line does not hold them back ([[BPR-1877]]).
 		const auto verdict = suggestions_verdict();
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
+		if (LatestUploadNote != nullptr) {
+			const auto unavailable = LatestUpload.State == core::latest_upload_state::unavailable && LatestUpload.Earlier && !ConversationShown;
+			LatestUploadNote->setText(unavailable ? tr("What changed since my review: the code at %1 can't be read here.").arg(QString::fromStdString(LatestUpload.Earlier->Head.substr(0U, 7U))) : QString{ });
+			LatestUploadNote->setVisible(unavailable && verdict == core::agent_suggestions_verdict::shown);
+		}
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
 		// The setup's way in, unless the setup is on screen. Only once the
 		// setup knows what is missing: not while agents are still being
@@ -1990,6 +2881,282 @@ namespace bpr::qt {
 			ToldReadiness = readiness;
 			ReadinessObserver();
 		}
+		if (AvailabilityObserver) {
+			AvailabilityObserver(false);
+		}
+	}
+
+	void agent_tab_view::draft_prompt(const QString& aPrompt) { choose_prompt(aPrompt, true); }
+
+	auto agent_tab_view::ready_to_send() const -> bool { return State != agent_tab_state::working && Chat.send_action() != nullptr && Chat.send_action()->isEnabled(); }
+
+	void agent_tab_view::draft_text(const QString& aText)
+	{
+		if (!panels_alive()) {
+			return;
+		}
+		auto* const composer = Chat.composer();
+		composer->setPlainText(aText);
+		auto cursor = composer->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		composer->setTextCursor(cursor);
+		composer->setFocus(Qt::OtherFocusReason);
+	}
+
+	void agent_tab_view::set_follow_up_steer(const bool aSteer)
+	{
+		FollowUpSteer = aSteer;
+		refresh_send_label();
+	}
+
+	/// While a turn runs or messages wait, Send says what Return will do.
+	void agent_tab_view::refresh_send_label()
+	{
+		auto* const send = Chat.send_action();
+		if (send == nullptr) {
+			return;
+		}
+		const auto following = FollowUp && (State == agent_tab_state::working || QueueOccupied);
+		const auto other     = QStringLiteral("%1Return").arg(QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText));
+		const auto words     = !following ? tr("Send")
+			: FollowUpSteer               ? tr("Steer (Return) · Queue (%1)").arg(other)
+										  : tr("Queue (Return) · Steer (%1)").arg(other);
+		send->setToolTip(words);
+		send->setText(!following ? tr("Send") : FollowUpSteer ? tr("Steer")
+															  : tr("Queue"));
+	}
+
+	auto agent_tab_view::send_released(const QString& aText) -> QString
+	{
+		if (!panels_alive()) {
+			return tr("Not sent.");
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(aText);
+		KeepingDraft = !draft.trimmed().isEmpty();
+		Releasing    = true;
+		ask();
+		Releasing = false;
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		}
+		KeepingDraft = false;
+		return send_refusal_text();
+	}
+
+	void agent_tab_view::present_queue_rows(std::vector<queue_row> aRows, const QString& aState, const bool aPaused)
+	{
+		QueueOccupied = std::ranges::any_of(aRows, [](const queue_row& aRow) { return !aRow.Sending; });
+		refresh_send_label();
+		if (QueueList == nullptr) {
+			return;
+		}
+		auto* const column = static_cast<QVBoxLayout*>(QueueList->layout());
+		while (auto* const item = column->takeAt(0)) {
+			// Out of the list at once (a control pressed may be inside it),
+			// deleted when the press is done.
+			if (auto* const gone = item->widget(); gone != nullptr) {
+				gone->hide();
+				gone->setParent(nullptr);
+				gone->deleteLater();
+			}
+			delete item;
+		}
+		if (aRows.empty()) {
+			EditingQueued.reset();
+			QueueList->hide();
+			return;
+		}
+		const auto button = [this](QWidget* aParent, const QString& aText, const QString& aName, const QString& aSpoken) {
+			auto* const made = new quiet_push_button{ aParent };
+			made->setText(aText);
+			made->setObjectName(aName);
+			made->setFlat(true);
+			made->setAccessibleName(aSpoken);
+			made->setToolTip(aSpoken);
+			made->setFocusPolicy(Qt::StrongFocus);
+			static_cast<void>(this);
+			return made;
+		};
+		// An icon alone, named and tipped: the pencil and the trash can.
+		const auto glyph = [this, &button](QWidget* aParent, const conversation_glyph aGlyph, const QString& aName, const QString& aSpoken) {
+			auto* const made = button(aParent, QString{ }, aName, aSpoken);
+			made->setIcon(conversation_icon(aGlyph, palette()));
+			made->setIconSize(QSize{ 14, 14 });
+			// An icon alone takes an icon's room, so the message keeps the
+			// rest of the line (look prompts-v004: "a bit of wasted space
+			// around these icons we could claw back").
+			made->setFixedSize(QSize{ 22, 22 });
+			return made;
+		};
+		// The panel's head: what waits, how many, the queue's state, and
+		// Pause or Resume.
+		{
+			auto* const head  = new QWidget{ QueueList };
+			auto* const heads = new QHBoxLayout{ head };
+			heads->setContentsMargins(2, 0, 0, 2);
+			auto* const title = new QLabel{ tr("Waiting"), head };
+			title->setObjectName(QStringLiteral("agentQueueTitle"));
+			auto titleFont = title->font();
+			titleFont.setWeight(QFont::DemiBold);
+			title->setFont(titleFont);
+			heads->addWidget(title);
+			const auto  waiting = std::ranges::count_if(aRows, [](const queue_row& aRow) { return !aRow.Sending; });
+			auto* const count   = new QLabel{ QString::number(waiting), head };
+			count->setForegroundRole(QPalette::PlaceholderText);
+			heads->addWidget(count);
+			heads->addStretch(1);
+			auto* const toggle = button(head, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
+			connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
+				if (aPaused && QueueDispatch.Resume) {
+					QueueDispatch.Resume();
+				} else if (!aPaused && QueueDispatch.Pause) {
+					QueueDispatch.Pause();
+				}
+			});
+			heads->addWidget(toggle);
+			column->addWidget(head);
+			// Look prompts-v002 (owner: "the drawer is back to having a
+			// horizontal panning/scrolling"): the queue's state is a line of
+			// its own under the head and wraps, so nothing in the list is
+			// wider than the drawer.
+			if (!aState.isEmpty()) {
+				auto* const state = new QLabel{ aState, QueueList };
+				state->setObjectName(QStringLiteral("agentQueueState"));
+				state->setForegroundRole(QPalette::PlaceholderText);
+				state->setWordWrap(true);
+				state->setContentsMargins(2, 0, 0, 2);
+				column->addWidget(state);
+			}
+		}
+		const auto move = [this](const std::uint64_t aId, const int aBy) {
+			if (QueueDispatch.Move) {
+				QueueDispatch.Move(aId, aBy);
+			}
+		};
+		const auto drop = [this](const std::uint64_t aId) {
+			if (QueueDispatch.Remove) {
+				QueueDispatch.Remove(aId);
+			}
+		};
+		for (std::size_t index = 0U; index < aRows.size(); ++index) {
+			const auto& entry = aRows[index];
+			const auto  id    = entry.Id;
+			auto* const row   = new queue_card{ id, !entry.Sending && !entry.Held, move, drop, QueueList };
+			row->setProperty("agentQueueId", QVariant::fromValue<qulonglong>(entry.Id));
+			row->setAccessibleName(tr("Queued %1 of %2: %3").arg(index + 1U).arg(aRows.size()).arg(entry.Label));
+			row->setAccessibleDescription(entry.Sending ? tr("Sending") : tr("Drag, or Option-Up and Option-Down, to reorder; Delete removes it"));
+			auto* const line = new QHBoxLayout{ row };
+			line->setContentsMargins(22, 3, 2, 3);
+			line->setSpacing(0);
+			if (EditingQueued == entry.Id && entry.Held) {
+				// Edited in place, held: never sent, and nothing passes it.
+				line->setContentsMargins(8, 3, 4, 3);
+				auto* const field = new QLineEdit{ entry.Text, row };
+				field->setObjectName(QStringLiteral("agentQueueEditField"));
+				field->setMinimumWidth(40);
+				field->setAccessibleName(tr("Queued message"));
+				line->addWidget(field, 1);
+				auto* const save   = button(row, tr("Save"), QStringLiteral("agentQueueSave"), tr("Save the queued message"));
+				auto* const cancel = button(row, tr("Cancel"), QStringLiteral("agentQueueCancel"), tr("Keep the queued message as it was"));
+				connect(save, &QPushButton::clicked, this, [this, id, field] {
+					EditingQueued.reset();
+					if (QueueDispatch.Save) {
+						QueueDispatch.Save(id, field->text());
+					}
+				});
+				connect(field, &QLineEdit::returnPressed, save, &QPushButton::click);
+				connect(cancel, &QPushButton::clicked, this, [this, id] {
+					EditingQueued.reset();
+					if (QueueDispatch.Cancel) {
+						QueueDispatch.Cancel(id);
+					}
+				});
+				line->addWidget(save);
+				line->addWidget(cancel);
+				column->addWidget(row);
+				QTimer::singleShot(0, field, [field] { field->setFocus(Qt::OtherFocusReason); });
+				continue;
+			}
+			if (entry.Sending) {
+				line->setContentsMargins(8, 3, 4, 3);
+			}
+			auto* const label = new elided_label{ row };
+			label->setObjectName(QStringLiteral("agentQueueLabel"));
+			label->setText(entry.Held ? tr("%1 (being edited)").arg(entry.Label) : entry.Label);
+			label->setTextFormat(Qt::PlainText);
+			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			label->setToolTip(entry.Text.isEmpty() ? entry.Label : entry.Text);
+			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
+			line->addWidget(label, 1);
+			if (entry.Sending) {
+				line->addSpacing(6);
+				auto* const sending = new QLabel{ tr("Sending"), row };
+				sending->setObjectName(QStringLiteral("agentQueueSending"));
+				apply_agent_accent(*sending, palette());
+				line->addWidget(sending);
+			} else if (!entry.Held) {
+				// RFC-BPR-0126 AC04: a message being edited in another window
+				// showing this session has no controls here until Save or
+				// Cancel there.
+				if (!entry.Text.isEmpty()) {
+					auto* const edit = glyph(row, conversation_glyph::edit, QStringLiteral("agentQueueEdit"), tr("Edit the queued message: %1").arg(entry.Label));
+					edit->setToolTip(tr("Edit"));
+					connect(edit, &QPushButton::clicked, this, [this, id] {
+						EditingQueued = id;
+						if (QueueDispatch.Edit) {
+							QueueDispatch.Edit(id);
+						}
+					});
+					line->addWidget(edit);
+				}
+				// Look prompts-v003 (owner: "Queued items need the ability to
+				// say steer instead"): Steer sends it into the running turn
+				// rather than after it (RFC-BPR-0126 Q14).
+				// Look prompts-v004 (owner: "I like your steer icon I don't
+				// think we need the word. Just add tooltips"): the icon alone.
+				auto* const steer = glyph(row, conversation_glyph::send, QStringLiteral("agentQueueSteer"), tr("Steer the running turn with it instead of waiting: %1").arg(entry.Label));
+				steer->setToolTip(tr("Steer: send it into the running turn instead of waiting"));
+				connect(steer, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Steer) {
+						QueueDispatch.Steer(id);
+					}
+				});
+				line->addWidget(steer);
+				auto* const remove = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
+				remove->setToolTip(tr("Remove from the queue"));
+				connect(remove, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Remove) {
+						QueueDispatch.Remove(id);
+					}
+				});
+				line->addWidget(remove);
+			}
+			column->addWidget(row);
+		}
+		if (QueueNote != nullptr) {
+			// The panel says what waits; the line above it would repeat it.
+			QueueNote->hide();
+		}
+		QueueList->show();
+	}
+
+	void agent_tab_view::drop_queued(const std::uint64_t aId, const int aAt)
+	{
+		if (auto* const panel = dynamic_cast<queue_panel*>(QueueList); panel != nullptr) {
+			panel->land(aId, aAt);
+		}
+	}
+
+	void agent_tab_view::present_queue(const QStringList& aWaiting, const QString& aState)
+	{
+		if (QueueNote == nullptr) {
+			return;
+		}
+		QueueNote->setText(aWaiting.isEmpty() ? QString{ } : tr("Queued (%1): %2").arg(aState, aWaiting.join(QStringLiteral(", "))));
+		QueueNote->setAccessibleName(QueueNote->text());
+		QueueNote->setVisible(!aWaiting.isEmpty() && (QueueList == nullptr || QueueList->isHidden()));
 	}
 
 	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict
@@ -2006,6 +3173,160 @@ namespace bpr::qt {
 			.Toggled        = SuggestionsMenu->isChecked(),
 		});
 	}
+
+	void agent_tab_view::present_latest_upload(const core::latest_upload_offer& aOffer)
+	{
+		if (aOffer == LatestUpload) {
+			return;
+		}
+		LatestUpload = aOffer;
+		refresh_suggestions();
+	}
+
+	void agent_tab_view::ask_returning(const core::returning_operation aOperation, const std::size_t aThreads)
+	{
+		if (!panels_alive() || State == agent_tab_state::working || !Chat.send_action()->isEnabled()) {
+			return;
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(aOperation == core::returning_operation::latest_upload           ? tr("What changed since my review")
+								   : aOperation == core::returning_operation::addressed_threads ? tr("Was this addressed? (%1 threads)").arg(aThreads)
+																								: tr("Was this addressed?"));
+		// Sent alone, as a suggestion is; what the reviewer had typed stays.
+		KeepingDraft     = !draft.trimmed().isEmpty();
+		SendingReturning = aOperation;
+		ask();
+		SendingReturning.reset();
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		}
+		KeepingDraft = false;
+	}
+
+	auto agent_tab_view::ask_explain_file(const QString& aPath) -> QString
+	{
+		if (!panels_alive() || aPath.isEmpty()) {
+			return tr("Not sent.");
+		}
+		if (State == agent_tab_state::working) {
+			return tr("Not sent. The agent is answering another question.");
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(tr("Explain %1").arg(aPath));
+		// Sent alone, as a suggestion is; what the reviewer had typed stays.
+		KeepingDraft   = !draft.trimmed().isEmpty();
+		SendingExplain = aPath;
+		ask();
+		SendingExplain.clear();
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		} else if (!send_refusal_text().isEmpty()) {
+			composer->clear();
+		}
+		KeepingDraft = false;
+		return send_refusal_text();
+	}
+
+	auto agent_tab_view::turn_explain(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Explain : QString{ }; }
+
+	auto agent_tab_view::ask_suggest_change(const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) -> QString
+	{
+		if (!panels_alive() || aPath.isEmpty()) {
+			return tr("Not sent.");
+		}
+		if (State == agent_tab_state::working) {
+			return tr("Not sent. The agent is answering another question.");
+		}
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		composer->setPlainText(aFirst == aLast ? tr("Suggest the change on line %1 of %2").arg(aLast + 1U).arg(aPath)
+											   : tr("Suggest the change on lines %1–%2 of %3").arg(aFirst + 1U).arg(aLast + 1U).arg(aPath));
+		// Sent alone, as a suggestion is; what the reviewer had typed stays.
+		KeepingDraft   = !draft.trimmed().isEmpty();
+		SendingSuggest = aPath;
+		ask();
+		SendingSuggest.clear();
+		if (KeepingDraft) {
+			composer->setPlainText(draft);
+		} else if (!send_refusal_text().isEmpty()) {
+			composer->clear();
+		}
+		KeepingDraft = false;
+		return send_refusal_text();
+	}
+
+	auto agent_tab_view::turn_suggest_change(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].SuggestChange : QString{ }; }
+
+	void agent_tab_view::reveal_turn(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || Turns[aTurn].Widget == nullptr) {
+			return;
+		}
+		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
+			scroll->ensureWidgetVisible(Turns[aTurn].Widget, 0, 12);
+		}
+	}
+
+	void agent_tab_view::publish_explain(const std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, const bool aAnswered, const qint64 aSeconds)
+	{
+		if (!ExplainObserver || aTurn >= Turns.size()) {
+			return;
+		}
+		const auto& kept     = Turns[aTurn];
+		auto        progress = explain_file_progress{ .Path = kept.Explain, .Turn = aTurn, .Running = std::move(aRunning), .Started = Started, .Seconds = aSeconds, .AnswerText = kept.AnswerText, .Ending = aEnding, .Answered = aAnswered };
+		if (Launch.activity_reported()) {
+			progress.Activity = Launch.activity();
+			if (progress.Running) {
+				progress.Running->Activity          = Launch.activity();
+				progress.Running->ActivityStartedMs = Launch.activity_started_ms();
+			}
+		}
+		progress.Answer = LineNavigate && LineResolve ? agent_markdown_with_reference_links(kept.AnswerText, LineResolve(), kept.ContextFile) : kept.AnswerText;
+		ExplainObserver(progress);
+	}
+
+	void agent_tab_view::open_report(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || !ReportDispatch) {
+			return;
+		}
+		const auto& turn = Turns[aTurn];
+		// References are links in the report as they are in the answer.
+		const auto shown  = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+		auto       byline = turn.Footer != nullptr ? turn.Footer->text().section(QStringLiteral(" · "), 0, 0) : QString{ };
+		if (const auto when = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt); !when.isEmpty()) {
+			byline += (byline.isEmpty() ? QString{ } : QStringLiteral(" · ")) + when;
+		}
+		if (Head != nullptr && !Head->text().isEmpty()) {
+			byline += (byline.isEmpty() ? QString{ } : QStringLiteral(" · ")) + tr("at %1").arg(Head->text());
+		}
+		ReportDispatch(agent_report_document{
+			.Turn     = aTurn,
+			.Title    = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
+			.Markdown = shown,
+			.Question = turn.Question,
+			.Byline   = byline,
+		});
+	}
+
+	void agent_tab_view::mark_open_report(const std::optional<std::size_t> aTurn)
+	{
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			if (auto* const row = static_cast<report_attachment_row*>(Turns[index].ReportOpen.data()); row != nullptr) {
+				row->set_selected(aTurn == index);
+			}
+		}
+	}
+
+	auto agent_tab_view::turn_report_card(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].ReportCard.data() : nullptr; }
+
+	auto agent_tab_view::turn_claim(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Claim.data() : nullptr; }
+
+	auto agent_tab_view::turn_ask_more_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].AskMore.data() : nullptr; }
+
+	auto agent_tab_view::turn_returning(const std::size_t aTurn) const -> std::optional<core::returning_operation> { return aTurn < Turns.size() ? Turns[aTurn].Returning : std::nullopt; }
 
 	void agent_tab_view::set_suggestions_shown(const bool aShown)
 	{
@@ -2036,6 +3357,12 @@ namespace bpr::qt {
 			status.Agent = agent;
 			status.Stage = agent_run_stage::preparing;
 			current.Footer->present(status, Started);
+			if (RunObserver) {
+				RunObserver(status, Started);
+			}
+			if (!current.Explain.isEmpty()) {
+				publish_explain(Turns.size() - 1U, status, { }, false, seconds);
+			}
 			return;
 		}
 		case agent_launch_panel::phase::running: {
@@ -2046,7 +3373,21 @@ namespace bpr::qt {
 			status.Stage     = written.isEmpty() ? agent_run_stage::thinking : agent_run_stage::writing;
 			status.Latest    = written.isEmpty() ? Launch.latest_output_line() : QString{ };
 			status.FilesOnly = Launch.pull_request_files_only();
+			// [[BPR-2005]]. What the runtime says it is doing, when it says.
+			if (Launch.activity_reported()) {
+				status.Activity          = Launch.activity();
+				status.ActivityStartedMs = Launch.activity_started_ms();
+				if (current.Activity != nullptr) {
+					current.Activity->present(agent_short_name(agent), Launch.activity(), Launch.activity_started_ms());
+				}
+			}
 			current.Footer->present(status, Started);
+			if (RunObserver) {
+				RunObserver(status, Started);
+			}
+			if (!current.Explain.isEmpty()) {
+				publish_explain(Turns.size() - 1U, status, { }, false, seconds);
+			}
 			return;
 		}
 		case agent_launch_panel::phase::idle:
@@ -2058,8 +3399,25 @@ namespace bpr::qt {
 		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
 		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
 		const auto stopReason = Launch.stop_reason_text();
+		// [[BPR-2005]]. The block folds under the answer.
+		if (current.Activity != nullptr) {
+			current.Activity->fold(Launch.activity(), seconds);
+		}
+		const auto kept       = Launch.kept_text().trimmed();
+		const auto unfinished = Launch.last_failure() == application::agent_protocol_failure::helpers_unfinished;
 		if (succeeded) {
 			set_answer(current, written.isEmpty() ? tr("%1 finished without writing an answer.").arg(agent) : written);
+		} else if (unfinished || (Launch.last_outcome() == application::agent_run_outcome::cancelled && !kept.isEmpty())) {
+			// [[BPR-2004]], RFC-BPR-0103. Stopped, or the runtime ended under
+			// its helpers: what arrived is kept, and the ending is said
+			// under it, never as an answer that promises more.
+			auto names = QStringList{ };
+			for (const auto& name : Launch.unfinished_helpers()) {
+				names << (name.empty() ? tr("a helper") : QStringLiteral("“%1”").arg(QString::fromStdString(name)));
+			}
+			const auto ending = unfinished ? (names.size() == 1 ? tr("%1 stopped before its remaining helper finished").arg(agent_short_name(agent)) : tr("%1 stopped before its %2 remaining helpers finished").arg(agent_short_name(agent)).arg(names.size())) + (names.isEmpty() ? QString{ } : QStringLiteral(": ") + names.join(QStringLiteral(", "))) + QStringLiteral(". ") + tr("What arrived is kept.")
+										   : tr("Stopped. What arrived is kept.");
+			set_answer(current, (kept.isEmpty() ? QString{ } : kept + QStringLiteral("\n\n")) + QStringLiteral("*") + ending + QStringLiteral("*"));
 		} else {
 			// [[BPR-1817]]. A run that ended without an answer is an error
 			// entry in the thread: what happened in words, then the tail of
@@ -2084,21 +3442,72 @@ namespace bpr::qt {
 				RunSettingsSource->report_model(profile->value(), reported);
 			}
 		}
-		auto footer = succeeded ? agent_run_answered_words(ran, seconds) : agent_run_stopped_words(seconds);
-		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
-		if (succeeded && Launch.pull_request_files_only()) {
-			footer += QStringLiteral(" ") + tr("It saw only this pull request's files.");
+		// [[BPR-1999]], RFC-BPR-0101. The turn's cost after its duration, in
+		// dollars and cents: "Claude answered in 1:12 · $0.41". None when the
+		// agent reported none. [[BPR-2038]], owner look on AC08: "one line
+		// for both turn and session status lines at this default width".
+		// The line names the agent short and counts the findings; the model
+		// and what the agent could see are in its tooltip.
+		const auto cost      = Launch.last_turn_cost();
+		const auto spent     = cost ? QString::fromStdString(core::agent_cost_words(*cost)) : QString{ };
+		const auto delivered = succeeded && findings > 0U && FindingsPresented != FindingsAtTurn;
+		auto       parts     = QStringList{ succeeded ? agent_run_answered_words(agent_short_name(agent), seconds) : agent_run_stopped_words(seconds) };
+		auto       tip       = QStringList{ succeeded ? agent_run_answered_words(ran, seconds) : parts.front() };
+		if (cost) {
+			parts << spent;
+			tip << spent;
 		}
-		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
-			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
+		if (delivered) {
+			parts << (findings == 1U ? tr("1 finding") : tr("%1 findings").arg(findings));
+		}
+		auto footer = parts.join(QStringLiteral(" · "));
+		if (parts.size() == 1) {
+			footer += QLatin1Char{ '.' };
+		}
+		auto detail = tip.join(QStringLiteral(" · ")) + QLatin1Char{ '.' };
+		if (succeeded && Launch.pull_request_files_only()) {
+			detail += QLatin1Char{ ' ' } + tr("It saw only this pull request's files.");
+		}
+		if (delivered) {
+			detail += QLatin1Char{ ' ' } + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
+		}
+		// The session's total: the conversation's own, when kept with it,
+		// else this thread's turns added up.
+		if (const auto total = Launch.last_session_cost()) {
+			present_session_cost(total);
+		} else if (cost) {
+			present_session_cost(SessionTotal.value_or(0U) + *cost);
 		}
 		current.Footer->settle(footer, succeeded);
+		current.Footer->setToolTip(detail);
+		// [[BPR-2051]]. The window's footer says how it ended, for a moment,
+		// after where it started: "answered in 1:12 · $0.41 · 2 findings".
+		// RFC-BPR-0126: a settled turn may release the next queued input.
+		if (AvailabilityObserver) {
+			QMetaObject::invokeMethod(this, [this] { if (AvailabilityObserver) { AvailabilityObserver(true); } }, Qt::QueuedConnection);
+		}
+		if (EndedObserver) {
+			auto ending    = parts;
+			ending.front() = succeeded ? tr("answered in %1").arg(agent_elapsed_words(seconds)) : tr("stopped after %1").arg(agent_elapsed_words(seconds));
+			EndedObserver(ending.join(QStringLiteral(" · ")));
+		}
+		EndedTurns.push_back({ .Question = current.Question, .Ending = succeeded ? QString{ } : current.AnswerText, .Footer = footer, .Activity = Launch.activity(), .Seconds = seconds });
+		if (EndedTurns.size() > 32U) {
+			EndedTurns.erase(EndedTurns.begin());
+		}
 		current.AnsweredAt = QDateTime::currentDateTime();
 		settle_reply_footer(current);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
 			claim_findings(Turns.size() - 1U);
 		}
 		ClearSession->setVisible(true);
+		if (!current.Explain.isEmpty()) {
+			publish_explain(Turns.size() - 1U, std::nullopt, footer, succeeded, seconds);
+		}
+		// RFC-BPR-0118. The window offers the answer to the core.
+		if (!current.SuggestChange.isEmpty() && SuggestObserver) {
+			SuggestObserver(suggest_change_turn{ .Turn = Turns.size() - 1U, .Ended = true, .Answered = succeeded, .AnswerText = current.AnswerText, .Ending = footer });
+		}
 		if (ThreadObserver) {
 			ThreadObserver(thread_turns());
 		}
@@ -2181,11 +3590,12 @@ namespace bpr::qt {
 				kept.Copy->setVisible(actions.Copy);
 				kept.Copy->setToolTip(actions.Error ? tr("Copy the error and what the agent wrote") : tr("Copy the response as Markdown"));
 			}
-			if (kept.SaveNote != nullptr) {
-				kept.SaveNote->setVisible(actions.SaveNote);
-			}
-			if (kept.Draft != nullptr) {
-				kept.Draft->setVisible(actions.DraftComment);
+			// RFC-BPR-0127. One keep action: Keep local where the host found
+			// no thread or line to take a draft (or none was decided).
+			kept.KeepOffered = actions.Keep;
+			present_keep(kept);
+			if (kept.AskMore != nullptr) {
+				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty() || !kept.SuggestChange.isEmpty()) && actions.Keep);
 			}
 			kept.RecoveryKind = actions.Recovery;
 			if (kept.Recovery != nullptr) {
@@ -2194,10 +3604,13 @@ namespace bpr::qt {
 				case core::agent_turn_recovery::resend:
 					kept.Recovery->setText(tr("Resend"));
 					kept.Recovery->setToolTip(tr("Send this message to the agent again"));
+					// [[BPR-2000]]. Resend starts a run.
+					wear_agent_accent(*kept.Recovery, palette());
 					break;
 				case core::agent_turn_recovery::agent_settings:
 					kept.Recovery->setText(tr("Agent settings…"));
 					kept.Recovery->setToolTip(tr("Check the agent's program and the form it answers in"));
+					wear_ordinary_roles(*kept.Recovery);
 					break;
 				}
 				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
@@ -2231,8 +3644,23 @@ namespace bpr::qt {
 		case core::agent_turn_recovery::resend:
 			if (aTurn.Review) {
 				Launch.start_action()->trigger();
-			} else {
-				send_prompt(aTurn.Question);
+			} else if (Chat.send_action()->isEnabled()) {
+				// The question as it was asked, not a suggestion looked up by
+				// its words: a typed question is offered by no list. What the
+				// reviewer is typing is put back after it.
+				auto* const composer = Chat.composer();
+				const auto  draft    = composer->toPlainText();
+				const auto  kept     = !draft.trimmed().isEmpty();
+				composer->setPlainText(aTurn.Question);
+				KeepingDraft = kept;
+				ask();
+				KeepingDraft = false;
+				if (kept) {
+					composer->setPlainText(draft);
+					auto cursor = composer->textCursor();
+					cursor.movePosition(QTextCursor::End);
+					composer->setTextCursor(cursor);
+				}
 			}
 			return;
 		case core::agent_turn_recovery::agent_settings:
@@ -2346,6 +3774,11 @@ namespace bpr::qt {
 
 	auto agent_tab_view::turn_question(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Question : QString{ }; }
 
+	auto agent_tab_view::turn_activity(const std::size_t aTurn) const -> agent_activity_view*
+	{
+		return aTurn < Turns.size() ? Turns[aTurn].Activity.data() : nullptr;
+	}
+
 	auto agent_tab_view::turn_footer(const std::size_t aTurn) const -> QString
 	{
 		return aTurn < Turns.size() && Turns[aTurn].Footer != nullptr ? Turns[aTurn].Footer->text() : QString{ };
@@ -2404,6 +3837,7 @@ namespace bpr::qt {
 			}
 			BannerText->setText(line);
 			BannerFirst->setText(tr("Stop"));
+			wear_ordinary_roles(*BannerFirst);
 			BannerFirst->show();
 			connect(BannerFirst, &QPushButton::clicked, Launch.cancel_action(), &QAction::trigger);
 			BannerSecond->hide();
@@ -2413,6 +3847,7 @@ namespace bpr::qt {
 			BannerTitle->setText(tr("This session read %1").arg(Head->text()));
 			BannerText->setText(tr("The pull request has moved on. Its findings stay anchored to the head it read."));
 			BannerFirst->setText(Chat.new_session_action()->text().isEmpty() ? tr("Start a new session") : Chat.new_session_action()->text());
+			wear_ordinary_roles(*BannerFirst);
 			connect(BannerFirst, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
 			BannerSecond->setText(Chat.continue_old_revision_action()->text().isEmpty() ? tr("Continue on the old head") : Chat.continue_old_revision_action()->text());
 			connect(BannerSecond, &QPushButton::clicked, Chat.continue_old_revision_action(), &QAction::trigger);
@@ -2438,6 +3873,8 @@ namespace bpr::qt {
 			// Check again that re-ran only the setup check left this banner
 			// up, and the owner read it as the check failing.
 			BannerFirst->setText(tr("Resend"));
+			// [[BPR-2000]]. Resend starts a run.
+			wear_agent_accent(*BannerFirst, palette());
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
@@ -2518,11 +3955,33 @@ namespace bpr::qt {
 				continue;
 			}
 			turn.Drafted = false;
-			turn.Draft->setText(tr("Draft comment"));
-			turn.Draft->setToolTip(!turn.DraftTarget->Tip.isEmpty() ? turn.DraftTarget->Tip
-																	: tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+			turn.Draft->setText(tr("Draft"));
 			turn.Draft->setEnabled(true);
+			present_keep(turn);
 		}
+	}
+
+	void agent_tab_view::present_keep(turn& aTurn)
+	{
+		if (aTurn.SaveNote == nullptr || aTurn.Draft == nullptr) {
+			return;
+		}
+		// Owner, look v006: no Keep local on the agent's answer; Draft alone.
+		aTurn.SaveNote->setVisible(aTurn.KeepOffered && aTurn.Note != 0U);
+		// RFC-BPR-0127 (`core::decide_keep`): Draft where the host found a
+		// thread or line to take a draft; else the struck pencil says why.
+		const auto canDraft = aTurn.DraftTarget.has_value() && !aTurn.DraftTarget->Local;
+		const auto said     = aTurn.Drafted || aTurn.Draft->text().startsWith(tr("Not drafted"));
+		if (!said) {
+			aTurn.Draft->setText(tr("Draft"));
+			aTurn.Draft->setEnabled(canDraft);
+			aTurn.Draft->setToolTip(canDraft ? tr("Draft it where you asked; nothing is posted") : tr("No line or thread here takes a draft"));
+		}
+		const auto refused = !canDraft && !aTurn.Drafted;
+		aTurn.Draft->setIcon(conversation_icon(refused ? conversation_glyph::edit_refused : conversation_glyph::edit, palette()));
+		aTurn.Draft->setProperty("draftRefused", refused);
+		aTurn.Draft->setAccessibleDescription(aTurn.Draft->toolTip());
+		aTurn.Draft->setVisible(aTurn.KeepOffered);
 	}
 
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
@@ -2534,6 +3993,10 @@ namespace bpr::qt {
 		}
 		return Turns[aTurn].Asked != nullptr ? Turns[aTurn].Asked->accessibleName() : Turns[aTurn].Question;
 	}
+
+	auto agent_tab_view::turn_name(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Name : QString{ }; }
+
+	auto agent_tab_view::turn_show_all(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].ShowAll.data() : nullptr; }
 
 	auto agent_tab_view::turn_about(const std::size_t aTurn) const -> QString
 	{
@@ -2642,6 +4105,7 @@ namespace bpr::qt {
 			auto* const card = make_card(CardEntries.back(), Turns[aTurn].Widget);
 			Turns[aTurn].CardColumn->addWidget(card);
 		}
+		refresh_draft_all(aTurn);
 	}
 
 	auto agent_tab_view::make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*
@@ -2664,63 +4128,132 @@ namespace bpr::qt {
 		severity->setPalette(sevPalette);
 		meta->addWidget(severity);
 		auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
+		kind->setObjectName(QStringLiteral("agentFindingKind"));
 		kind->setForegroundRole(QPalette::PlaceholderText);
-		// The kind gives way to the anchor when the drawer is narrow.
-		kind->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		kind->setToolTip(kind->text());
-		meta->addWidget(kind, 1);
+		// [[BPR-2059]], owner 2026-11-10: the chips were cut to "possible ·
+		// correctn" while the path kept its width. The severity and kind keep
+		// their words; the anchor gives way and shortens in the middle.
+		kind->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+		meta->addWidget(kind);
+		meta->addStretch(1);
 		// Lines are shown one-based, first and last, as an editor numbers them.
 		const auto  first = finding.Lines.Begin + 1U;
 		const auto  last  = std::max(first, finding.Lines.End);
-		auto* const where = new QLabel{ first == last ? QStringLiteral("%1:%2").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first)
-													  : QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first).arg(last),
-										card };
+		auto* const where = new eliding_anchor{ first == last ? QStringLiteral("%1:%2").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first)
+															  : QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first).arg(last),
+												card };
 		where->setObjectName(QStringLiteral("agentFindingAnchor"));
+		where->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+		where->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		where->setMinimumWidth(where->minimumSizeHint().width());
 		auto code = QFont{ QStringLiteral("Menlo") };
 		code.setStyleHint(QFont::Monospace);
 		code.setPointSizeF(std::max(1.0, font().pointSizeF() * 0.86));
 		code.setWeight(QFont::DemiBold);
 		where->setFont(code);
 		where->setToolTip(aEntry.Anchored ? QString::fromStdString(finding.Path) : tr("%1 (not the file open when the agent answered)").arg(QString::fromStdString(finding.Path)));
-		meta->addWidget(where);
+		where->setAccessibleName(where->text());
+		meta->addWidget(where, 1);
 		col->addLayout(meta);
-		auto* const claim = new QLabel{ QString::fromStdString(finding.Claim), card };
-		claim->setWordWrap(true);
-		claim->setFont(sevFont);
-		claim->setTextFormat(Qt::PlainText);
+		aEntry.Id = NextCardId++;
+		// [[BPR-2059]], owner 2026-11-10 ("just a big wall of text"): the
+		// claim, the evidence and the suggested comment are each Markdown, so
+		// code reads as code, each in its own block with room between them.
+		// The suggested comment is set upright in an inset: it is the text a
+		// draft starts from, shown as it would read once posted, its leading
+		// Conventional Comments label drawn as the label mark comments wear.
+		const auto cardText = [this, &aEntry](QWidget* aHolder, const std::string& aBody, const QString& aName, const int aInset) {
+			auto* const view = new markdown_body_view{ aHolder };
+			view->setObjectName(aName);
+			view->set_in_place(true);
+			// Its width is the card's: a long line wraps rather than widening it.
+			auto policy = view->sizePolicy();
+			policy.setHorizontalPolicy(QSizePolicy::Ignored);
+			view->setSizePolicy(policy);
+			view->setMinimumWidth(0);
+			view->setFocusPolicy(Qt::NoFocus);
+			view->setProperty("agentCardText", true);
+			view->setProperty("agentCardInset", aInset);
+			dress_answer(*view);
+			view->set_height_observer([this, view] { fit_card_text(*view); });
+			view->installEventFilter(this);
+			view->set_body(aBody, "agent-card-" + std::to_string(aEntry.Id) + "-" + aName.toStdString());
+			aEntry.Texts.emplace_back(view);
+			return view;
+		};
+		auto* const claim     = cardText(card, finding.Claim, QStringLiteral("agentFindingClaim"), 0);
+		auto        claimFont = font();
+		claimFont.setWeight(QFont::DemiBold);
+		claim->setFont(claimFont);
 		col->addWidget(claim);
 		if (!finding.Evidence.empty()) {
-			auto* const evidence = new QLabel{ QString::fromStdString(finding.Evidence), card };
-			evidence->setWordWrap(true);
-			evidence->setTextFormat(Qt::PlainText);
-			evidence->setForegroundRole(QPalette::PlaceholderText);
+			col->addSpacing(2);
+			auto* const evidence = cardText(card, finding.Evidence, QStringLiteral("agentFindingEvidence"), 0);
+			auto        quiet    = evidence->palette();
+			quiet.setColor(QPalette::Text, palette().color(QPalette::PlaceholderText));
+			quiet.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
+			evidence->setPalette(quiet);
 			col->addWidget(evidence);
 		}
 		if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
-			auto* const comment = new QLabel{ QString::fromStdString(*finding.SuggestedComment), card };
-			comment->setObjectName(QStringLiteral("agentFindingComment"));
-			comment->setWordWrap(true);
-			comment->setTextFormat(Qt::PlainText);
-			comment->setTextInteractionFlags(Qt::TextSelectableByMouse);
-			auto italic = comment->font();
-			italic.setItalic(true);
-			comment->setFont(italic);
-			col->addWidget(comment);
+			col->addSpacing(6);
+			auto* const inset = new suggestion_inset{ card };
+			inset->setObjectName(QStringLiteral("agentFindingSuggestion"));
+			auto* const insetColumn = new QVBoxLayout{ inset };
+			insetColumn->setContentsMargins(12, 7, 10, 8);
+			insetColumn->setSpacing(3);
+			// A Conventional Comments label the agent led with is said once,
+			// quietly, beside the caption, and the comment reads from its
+			// subject; the draft still opens with it in the label control.
+			const auto& suggested = *finding.SuggestedComment;
+			const auto  read      = core::recognize_feedback_prefix(suggested);
+			auto        shown     = suggested;
+			auto        label     = QString{ };
+			if (read.Status == core::feedback_prefix_status::recognized && read.Header && read.Subject && read.Subject->Begin <= suggested.size() && read.Header->End <= suggested.size()) {
+				label = QString::fromStdString(suggested.substr(read.Header->Begin, read.Header->End - read.Header->Begin)).trimmed();
+				if (label.endsWith(QLatin1Char{ ':' })) {
+					label.chop(1);
+				}
+				shown = suggested.substr(read.Subject->Begin);
+			}
+			auto* const captionRow = new QHBoxLayout{ };
+			captionRow->setSpacing(8);
+			auto* const caption = new QLabel{ tr("Suggested comment"), inset };
+			caption->setObjectName(QStringLiteral("agentFindingSuggestionCaption"));
+			caption->setForegroundRole(QPalette::PlaceholderText);
+			auto small = caption->font();
+			small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
+			caption->setFont(small);
+			captionRow->addWidget(caption);
+			captionRow->addStretch(1);
+			if (!label.isEmpty()) {
+				auto* const labelled = new QLabel{ label, inset };
+				labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
+				labelled->setForegroundRole(QPalette::PlaceholderText);
+				labelled->setFont(small);
+				labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
+				captionRow->addWidget(labelled);
+			}
+			insetColumn->addLayout(captionRow);
+			auto* const comment = cardText(inset, shown, QStringLiteral("agentFindingComment"), 22);
+			insetColumn->addWidget(comment);
+			col->addWidget(inset);
 		}
+		col->addSpacing(2);
 		auto* const actions = new QHBoxLayout{ };
 		actions->setSpacing(6);
-		aEntry.Id         = NextCardId++;
-		const auto  index = aEntry.Id;
-		auto* const draft = new quiet_push_button{ tr("Add as draft comment"), card };
+		const auto index = aEntry.Id;
+		// RFC-BPR-0127. One keep action, in one place: Draft comment where
+		// its line takes a draft, Keep local where none does
+		// (`core::decide_keep`; `show_card_state` shows the one).
+		// Owner, look v006 ("Don't have keep local there, just draft is
+		// fine"): the card's one keep action is Draft, raised, with the
+		// pencil; struck through and disabled where its line takes no draft.
+		auto* const draft = new quiet_push_button{ tr("Draft"), card };
 		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
-		draft->setToolTip(tr("A private draft at its lines, from its suggested comment. Nothing is published."));
+		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		connect(draft, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); });
 		actions->addWidget(draft);
-		auto* const note = new quiet_push_button{ tr("Save as note"), card };
-		note->setObjectName(QStringLiteral("agentFindingSaveNote"));
-		note->setToolTip(tr("A private note on its lines, never published"));
-		connect(note, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::save_note); });
-		actions->addWidget(note);
 		auto* const dismiss = new quiet_push_button{ tr("Dismiss"), card };
 		dismiss->setObjectName(QStringLiteral("agentFindingDismiss"));
 		dismiss->setFlat(true);
@@ -2738,10 +4271,10 @@ namespace bpr::qt {
 		undo->hide();
 		connect(undo, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::undo_dismiss); });
 		actions->addWidget(undo);
-		// Owner look v004: a finding saved as a note goes to it.
-		auto* const goToNote = new quiet_push_button{ tr("Go to note"), card };
-		goToNote->setObjectName(QStringLiteral("agentFindingGoToNote"));
-		goToNote->setToolTip(tr("Open the private note this finding was saved as"));
+		// Owner look v004: a finding kept local goes to its comment.
+		auto* const goToNote = new quiet_push_button{ tr("Go to comment"), card };
+		goToNote->setObjectName(QStringLiteral("agentFindingGoToComment"));
+		goToNote->setToolTip(tr("Open the local comment this finding was kept as"));
 		goToNote->hide();
 		connect(goToNote, &QPushButton::clicked, this, [this, index] {
 			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
@@ -2770,20 +4303,19 @@ namespace bpr::qt {
 		auto* const state = card->findChild<QLabel*>(QStringLiteral("agentFindingState"));
 		auto* const undo  = card->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"));
 		const auto  open  = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
-		for (const auto* const name : { "agentFindingDraftComment", "agentFindingSaveNote", "agentFindingDismiss" }) {
-			if (auto* const button = card->findChild<QPushButton*>(QString::fromLatin1(name)); button != nullptr) {
-				button->setVisible(open);
-			}
+		show_card_keep(aEntry);
+		if (auto* const button = card->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")); button != nullptr) {
+			button->setVisible(open);
 		}
 		undo->setVisible(aEntry.State == agent_finding_card_state::dismissed);
-		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote")); goToNote != nullptr) {
+		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment")); goToNote != nullptr) {
 			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
 		}
 		switch (aEntry.State) {
 		case agent_finding_card_state::open:      state->clear(); break;
 		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
 		case agent_finding_card_state::drafted:   state->setText(tr("Drafted. It is a private draft until you publish it.")); break;
-		case agent_finding_card_state::noted:     state->setText(tr("Saved as a private note.")); break;
+		case agent_finding_card_state::noted:     state->setText(tr("Kept local.")); break;
 		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
 		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;
 		}
@@ -2791,6 +4323,267 @@ namespace bpr::qt {
 		card->setProperty("agentFindingStateName", static_cast<int>(aEntry.State));
 		card->setEnabled(true);
 		card->update();
+		if (aEntry.Turn) {
+			refresh_draft_all(*aEntry.Turn);
+		}
+	}
+
+	void agent_tab_view::show_card_keep(const card_entry& aEntry) const
+	{
+		if (aEntry.Widget == nullptr) {
+			return;
+		}
+		// RFC-BPR-0127. The one keep action `core::decide_keep` chooses: a
+		// card whose line takes a draft offers Draft comment, one whose line
+		// is known not to (gone, or a file the pull request does not change,
+		// or past the end of the file shown) Keep local. Asked again on each
+		// refresh, so a card follows what the host knows now.
+		const auto open      = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
+		const auto placeable = !aEntry.Gone && (!FindingPlaceable || FindingPlaceable(aEntry.Finding));
+		const auto keep      = core::decide_keep({ .ThreadReply = false, .LineTakesDraft = placeable, .FileInPullRequest = false }).Kind;
+		if (auto* const draft = aEntry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment")); draft != nullptr) {
+			const auto allowed = keep == core::keep_kind::draft;
+			draft->setVisible(open);
+			draft->setEnabled(allowed);
+			draft->setIcon(conversation_icon(allowed ? conversation_glyph::edit : conversation_glyph::edit_refused, palette()));
+			draft->setProperty("draftRefused", !allowed);
+			draft->setToolTip(allowed ? tr("Draft it at its line; nothing is posted") : tr("No line here takes a draft"));
+			draft->setAccessibleDescription(draft->toolTip());
+		}
+	}
+
+	void agent_tab_view::fit_card_text(markdown_body_view& aView) const
+	{
+		// Before the card is laid out its width is a guess: the viewport less
+		// the thread's, the reply's and the card's margins, and the inset's.
+		constexpr auto margins = 12 + 12 + reply_left_margin + reply_right_margin + 14 + 12;
+		const auto     guess   = (Viewport == nullptr ? 360 : Viewport->width()) - margins - aView.property("agentCardInset").toInt();
+		const auto     width   = aView.isVisible() && aView.width() > 16 ? aView.width() : guess;
+		aView.setFixedHeight(aView.heightForWidth(std::max(1, width)));
+	}
+
+	auto agent_tab_view::turn_of_widget(const QObject* const aWidget) const -> std::optional<std::size_t>
+	{
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			if (Turns[index].DraftAll == aWidget || Turns[index].DraftAllUndo == aWidget) {
+				return index;
+			}
+		}
+		return std::nullopt;
+	}
+
+	void agent_tab_view::set_draft_all_dispatch(agent_draft_all_dispatch aDispatch, agent_draft_all_undo aUndo)
+	{
+		DraftAllDispatch = std::move(aDispatch);
+		DraftAllUndo     = std::move(aUndo);
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			refresh_draft_all(index);
+		}
+	}
+
+	void agent_tab_view::set_finding_placeability(agent_finding_placeability aPlaceable)
+	{
+		FindingPlaceable = std::move(aPlaceable);
+		for (auto& entry : CardEntries) {
+			show_card_state(entry);
+		}
+		for (std::size_t index = 0U; index < Turns.size(); ++index) {
+			refresh_draft_all(index);
+		}
+	}
+
+	void agent_tab_view::mark_finding_gone(const std::uint64_t aSession, const std::size_t aOrdinal)
+	{
+		for (auto& entry : CardEntries) {
+			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
+				entry.Gone = true;
+				// RFC-BPR-0127. Its line is gone: it offers Keep local now.
+				show_card_state(entry);
+			}
+		}
+	}
+
+	auto agent_tab_view::turn_draft_all_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].DraftAll.data() : nullptr; }
+
+	auto agent_tab_view::turn_draft_all_state(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].DraftAllState.data() : nullptr; }
+
+	auto agent_tab_view::turn_draft_all_undo(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].DraftAllUndo.data() : nullptr; }
+
+	namespace {
+		[[nodiscard]] auto draft_all_state_of(const agent_finding_card_state aState) noexcept -> core::draft_all_card_state
+		{
+			switch (aState) {
+			case agent_finding_card_state::working:   return core::draft_all_card_state::working;
+			case agent_finding_card_state::drafted:   return core::draft_all_card_state::drafted;
+			case agent_finding_card_state::noted:     return core::draft_all_card_state::kept_local;
+			case agent_finding_card_state::dismissed: return core::draft_all_card_state::dismissed;
+			case agent_finding_card_state::open:
+			case agent_finding_card_state::refused:   return core::draft_all_card_state::open;
+			}
+			return core::draft_all_card_state::open;
+		}
+	}
+
+	namespace {
+		/// "1 draft", "3 drafts": the count and the one or the other word.
+		[[nodiscard]] auto counted(const std::size_t aCount, const QString& aOne, const QString& aMany) -> QString
+		{
+			return QStringLiteral("%1 %2").arg(aCount).arg(aCount == 1U ? aOne : aMany);
+		}
+	}
+
+	auto agent_tab_view::draft_all_words(const core::draft_all_outcome& aOutcome) -> QString
+	{
+		auto reasons = QStringList{ };
+		if (aOutcome.AlreadyDrafted > 0U) {
+			reasons << tr("%1 already drafted").arg(aOutcome.AlreadyDrafted);
+		}
+		if (aOutcome.NotInDiff > 0U) {
+			reasons << tr("%1 no longer in the diff").arg(aOutcome.NotInDiff);
+		}
+		if (aOutcome.Dismissed > 0U) {
+			reasons << tr("%1 dismissed").arg(aOutcome.Dismissed);
+		}
+		if (aOutcome.Busy > 0U) {
+			reasons << tr("%1 still being drafted or saved").arg(aOutcome.Busy);
+		}
+		if (aOutcome.KeptLocal > 0U) {
+			reasons << tr("%1 kept local").arg(aOutcome.KeptLocal);
+		}
+		if (aOutcome.Refused > 0U) {
+			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its card says why") : tr("%1 could not be drafted; their cards say why").arg(aOutcome.Refused));
+		}
+		auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		if (reasons.isEmpty()) {
+			return drafted;
+		}
+		return drafted + QLatin1Char{ ' ' } + tr("Skipped %1: %2.").arg(aOutcome.skipped()).arg(reasons.join(QStringLiteral(", ")));
+	}
+
+	auto agent_tab_view::draft_all_undo_words(const std::size_t aRemoved, const std::size_t aKept) -> QString
+	{
+		const auto removed = aRemoved == 0U ? tr("Nothing removed.") : tr("Removed %1.").arg(counted(aRemoved, tr("draft"), tr("drafts")));
+		return aKept == 0U ? removed : removed + QLatin1Char{ ' ' } + tr("Kept %1 you changed since.").arg(counted(aKept, tr("draft"), tr("drafts")));
+	}
+
+	void agent_tab_view::refresh_draft_all(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || Turns[aTurn].DraftAll == nullptr) {
+			return;
+		}
+		auto& turn  = Turns[aTurn];
+		auto  cards = std::vector<core::draft_all_candidate>{ };
+		for (const auto& entry : CardEntries) {
+			if (entry.Turn == std::optional{ aTurn }) {
+				cards.push_back({ .State     = draft_all_state_of(entry.State),
+								  .Suggested = entry.Finding.SuggestedComment && !core::writing_blank(*entry.Finding.SuggestedComment),
+								  .Placeable = !entry.Gone && (FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored) });
+			}
+		}
+		const auto offered = core::draft_all_offer(cards);
+		const auto several = core::draft_all_suggestions(cards) >= core::minimum_draft_all_suggestions;
+		turn.DraftAll->setText(tr("Draft all (%1)").arg(offered));
+		turn.DraftAll->setVisible(offered > 0U || turn.DraftAllBusy);
+		turn.DraftAll->setEnabled(offered > 0U && !turn.DraftAllBusy && DraftAllDispatch != nullptr);
+		turn.DraftAllRow->setVisible(DraftAllDispatch != nullptr && (several || !turn.DraftAllState->isHidden()));
+	}
+
+	void agent_tab_view::draft_all(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || !DraftAllDispatch || Turns[aTurn].DraftAllBusy || !panels_alive()) {
+			return;
+		}
+		auto indices = std::vector<std::size_t>{ };
+		auto cards   = std::vector<core::draft_all_candidate>{ };
+		for (std::size_t index = 0U; index < CardEntries.size(); ++index) {
+			const auto& entry = CardEntries[index];
+			if (entry.Turn == std::optional{ aTurn }) {
+				indices.push_back(index);
+				cards.push_back({ .State     = draft_all_state_of(entry.State),
+								  .Suggested = entry.Finding.SuggestedComment && !core::writing_blank(*entry.Finding.SuggestedComment),
+								  .Placeable = !entry.Gone && (FindingPlaceable ? FindingPlaceable(entry.Finding) : entry.Anchored) });
+			}
+		}
+		const auto plan    = core::plan_draft_all(cards);
+		auto       request = agent_draft_all_request{ .Batch = NextDraftAllBatch++, .Planned = core::start_draft_all(plan) };
+		// A suggestion skipped as not in the diff stays skipped: the file on
+		// screen changes as the batch drafts, and with it what the host can
+		// tell of another file's lines.
+		for (std::size_t position = 0U; position < cards.size(); ++position) {
+			if (cards[position].Suggested && !cards[position].Placeable) {
+				CardEntries[indices[position]].Gone = true;
+			}
+		}
+		auto& turn = Turns[aTurn];
+		turn.DraftAllCards.clear();
+		for (const auto position : plan.Draft) {
+			auto& entry = CardEntries[indices[position]];
+			request.Cards.push_back({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Action = agent_finding_card_action::draft_comment });
+			turn.DraftAllCards.push_back(entry.Id);
+		}
+		if (request.Cards.empty()) {
+			return;
+		}
+		turn.DraftAllBusy  = true;
+		turn.DraftAllBatch = request.Batch;
+		turn.DraftAllUndo->hide();
+		turn.DraftAllState->setText(tr("Drafting %1…").arg(counted(request.Cards.size(), tr("suggested comment"), tr("suggested comments"))));
+		turn.DraftAllState->show();
+		for (const auto id : turn.DraftAllCards) {
+			if (const auto found = std::ranges::find(CardEntries, id, &card_entry::Id); found != CardEntries.end()) {
+				found->State = agent_finding_card_state::working;
+				show_card_state(*found);
+			}
+		}
+		refresh_draft_all(aTurn);
+		const auto batch = request.Batch;
+		DraftAllDispatch(std::move(request), [this, alive = QPointer<agent_tab_view>{ this }, batch](const core::draft_all_outcome& aOutcome, const bool aUndoable) {
+			if (alive == nullptr) {
+				return;
+			}
+			for (std::size_t index = 0U; index < Turns.size(); ++index) {
+				auto& kept = Turns[index];
+				if (kept.DraftAllBatch != batch || kept.DraftAll == nullptr) {
+					continue;
+				}
+				kept.DraftAllBusy = false;
+				kept.DraftAllState->setText(draft_all_words(aOutcome));
+				kept.DraftAllState->show();
+				kept.DraftAllUndo->setVisible(aUndoable && DraftAllUndo != nullptr);
+				refresh_draft_all(index);
+			}
+		});
+	}
+
+	void agent_tab_view::undo_draft_all(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size() || !DraftAllUndo || Turns[aTurn].DraftAllBusy || Turns[aTurn].DraftAllBatch == 0U) {
+			return;
+		}
+		auto& turn = Turns[aTurn];
+		turn.DraftAllUndo->hide();
+		turn.DraftAllBusy = true;
+		refresh_draft_all(aTurn);
+		const auto batch = turn.DraftAllBatch;
+		DraftAllUndo(batch, [this, alive = QPointer<agent_tab_view>{ this }, batch](const std::size_t aRemoved, const std::size_t aKept) {
+			if (alive == nullptr) {
+				return;
+			}
+			for (std::size_t index = 0U; index < Turns.size(); ++index) {
+				auto& kept = Turns[index];
+				if (kept.DraftAllBatch != batch || kept.DraftAll == nullptr) {
+					continue;
+				}
+				kept.DraftAllBusy  = false;
+				kept.DraftAllBatch = 0U;
+				// The host opened each card whose draft it removed, through
+				// present_finding_card_state; a kept draft's card stays drafted.
+				kept.DraftAllCards.clear();
+				kept.DraftAllState->setText(draft_all_undo_words(aRemoved, aKept));
+				kept.DraftAllState->show();
+				refresh_draft_all(index);
+			}
+		});
 	}
 
 	void agent_tab_view::act_on_card(const std::uint64_t aCard, const agent_finding_card_action aAction)
@@ -2822,13 +4615,13 @@ namespace bpr::qt {
 		}
 		Findings.select(entry.Ordinal);
 		const auto queued = aAction == agent_finding_card_action::draft_comment ? finding_queue_action::convert_to_draft_comment
-			: aAction == agent_finding_card_action::save_note                   ? finding_queue_action::add_to_private_notes
+			: aAction == agent_finding_card_action::keep_local                  ? finding_queue_action::keep_local
 																				: finding_queue_action::dismiss;
 		if (auto* const action = Findings.action(queued); action != nullptr) {
 			action->trigger();
 		}
 		entry.State = aAction == agent_finding_card_action::draft_comment ? agent_finding_card_state::drafted
-			: aAction == agent_finding_card_action::save_note             ? agent_finding_card_state::noted
+			: aAction == agent_finding_card_action::keep_local            ? agent_finding_card_state::noted
 																		  : agent_finding_card_state::dismissed;
 		show_card_state(entry);
 	}
@@ -2839,8 +4632,21 @@ namespace bpr::qt {
 			return;
 		}
 		const auto text = Chat.composer()->toPlainText().trimmed();
-		if (run_slash_command(text)) {
+		// RFC-BPR-0125 (AC09). A suggested prompt sent as offered is never
+		// read as `/model` or `/effort`: it is sent as text.
+		const auto direct = SendingMacro && SendingMacro->SkillText;
+		if (!direct && run_slash_command(text)) {
 			return;
+		}
+		// RFC-BPR-0126 Q4/Q5 as answered: while a turn runs or messages wait,
+		// a typed message is a follow-up (Queue by default, Steer by the
+		// setting; Cmd+Return the other for one message).
+		const auto typed = !SendingMacro && !SendingReturning && SendingExplain.isEmpty() && SendingSuggest.isEmpty() && !DraftedMacro && !Releasing;
+		if (typed && FollowUp && !text.isEmpty() && (State == agent_tab_state::working || QueueOccupied)) {
+			if (FollowUp(text, FollowUpSteer != Opposite)) {
+				Chat.composer()->clear();
+				return;
+			}
 		}
 		Notice->hide();
 		hide_send_refusal();
@@ -2851,7 +4657,82 @@ namespace bpr::qt {
 			refuse_send(refused);
 			return;
 		}
+		// [[BPR-2002]], RFC-BPR-0102. The core decides what the question is
+		// about from what the reviewer did: a suggestion's own subject, the
+		// attached lines, or else the pull request.
+		// RFC-BPR-0125 (Q2, AC10). A drafted suggested prompt, its chip still
+		// in the field, keeps its subject and kind; its edited words are the
+		// reviewer's, so skills are read from all of them.
+		const auto drafted = !SendingMacro && !SendingReturning && DraftedMacro.has_value();
+		if (drafted) {
+			SendingMacro            = DraftedMacro;
+			SendingMacro->SkillText = std::nullopt;
+		}
+		const auto context = current_suggestion_context();
+		const auto facts   = core::agent_question_facts{
+			.LinesAttached        = lines_attached(),
+			.LinesSelected        = context.Lines.has_value(),
+			.ConversationAttached = ConversationShown.has_value(),
+			.Suggested            = SendingMacro ? SendingMacro->Subject : std::nullopt,
+			.Review               = SendingMacro && SendingMacro->Review,
+			.OpenFile             = context.OpenFile.toStdString(),
+			.Returning            = SendingReturning,
+			.Explain              = SendingExplain.toStdString(),
+			.SuggestChange        = SendingSuggest.toStdString(),
+		};
+		LastQuestion = core::decide_agent_question(facts);
+		if (!LastQuestion) {
+			// Not offered as it stands; sent as a question about the pull
+			// request rather than refused after the press.
+			LastQuestion = core::decide_agent_question(core::agent_question_facts{ .ConversationAttached = facts.ConversationAttached });
+		}
+		Chat.set_question(LastQuestion);
+		Chat.set_skill_text(SendingMacro ? SendingMacro->SkillText : std::nullopt);
 		Chat.send_action()->trigger();
+		Chat.set_skill_text(std::nullopt);
+		if (drafted) {
+			SendingMacro.reset();
+		}
+	}
+
+	auto agent_tab_view::current_suggestion_context() const -> agent_suggestion_context
+	{
+		return SuggestionContext ? SuggestionContext() : agent_suggestion_context{ };
+	}
+
+	void agent_tab_view::present_lines_chip(const agent_suggestion_context& aContext)
+	{
+		if (LinesChip == nullptr || Context == nullptr) {
+			return;
+		}
+		// A new selection attaches again; the same one stays as it was left.
+		const auto seen = aContext.Lines ? std::optional{ std::pair{ aContext.OpenFile, *aContext.Lines } } : std::nullopt;
+		if (seen != LinesSeen) {
+			LinesSeen     = seen;
+			LinesDetached = false;
+		}
+		const auto shown = lines_attached();
+		if (shown) {
+			const auto [first, last] = LinesSeen->second;
+			const auto name          = LinesSeen->first.section(QLatin1Char{ '/' }, -1);
+			const auto range         = first == last ? QString::number(first) : QStringLiteral("%1–%2").arg(first).arg(last);
+			LinesText->setText(name.isEmpty() ? tr("Lines %1").arg(range) : QStringLiteral("%1 %2").arg(name, range));
+		}
+		LinesChip->setVisible(shown);
+		Context->setEnabled(LinesSeen.has_value() && LinesDetached && !ConversationShown);
+		if (!ConversationShown) {
+			Chat.composer()->setPlaceholderText(shown ? tr("Ask about these lines…") : tr("Ask about this pull request…"));
+		}
+	}
+
+	auto agent_tab_view::lines_attached() const -> bool { return LinesSeen.has_value() && !LinesDetached && !ConversationShown; }
+
+	auto agent_tab_view::lines_chip_text() const -> QString { return LinesChip->isHidden() ? QString{ } : LinesText->text(); }
+
+	void agent_tab_view::attach_lines()
+	{
+		LinesDetached = false;
+		refresh_suggestions();
 	}
 
 	auto agent_tab_view::send_facts(const bool aMessageEmpty) const -> core::agent_send_facts
@@ -2929,7 +4810,7 @@ namespace bpr::qt {
 		case core::agent_send_refusal::selection_required:       return tr("Select the lines to ask about in the diff, then send.");
 		case core::agent_send_refusal::unknown_action:           return tr("This question can't be asked here.");
 		case core::agent_send_refusal::scope_invalid:            return tr("What this question is about is no longer in the review. Choose its context again.");
-		case core::agent_send_refusal::private_context_refused:  return tr("The private notes or draft chosen belong to another conversation. Choose them again.");
+		case core::agent_send_refusal::private_context_refused:  return tr("The local comments or draft chosen belong to another conversation. Choose them again.");
 		case core::agent_send_refusal::launch_refused:           return tr("%1 didn't start.").arg(agent);
 		case core::agent_send_refusal::agent_unavailable:        return tr("%1 isn't available. Choose an agent in the agent menu, then send.").arg(agent);
 		}
@@ -2979,6 +4860,12 @@ namespace bpr::qt {
 		if (!panels_alive() || aRefusal == core::agent_send_refusal::none) {
 			return;
 		}
+		// RFC-BPR-0117. An Explain this file refused says so on its card.
+		const auto explained = !SendingExplain.isEmpty() ? SendingExplain : PendingExplain;
+		PendingExplain.clear();
+		// RFC-BPR-0118. So does a Suggest the change, in its panel.
+		const auto suggested = !SendingSuggest.isEmpty() || !PendingSuggest.isEmpty();
+		PendingSuggest.clear();
 		// Refused: the question stays in the field, and no turn waits for it.
 		PendingQuestion.reset();
 		PendingAbout.reset();
@@ -2996,6 +4883,12 @@ namespace bpr::qt {
 			// The host's words, with its stable names made readable.
 			detail.replace(QLatin1Char{ '_' }, QLatin1Char{ ' ' });
 			text += QStringLiteral(" ") + tr("(%1)").arg(detail);
+		}
+		if (!explained.isEmpty() && ExplainObserver) {
+			ExplainObserver(explain_file_progress{ .Path = explained, .Turn = Turns.size(), .Ending = text, .Answered = false });
+		}
+		if (suggested && SuggestObserver) {
+			SuggestObserver(suggest_change_turn{ .Turn = Turns.size(), .Ended = true, .Answered = false, .Ending = text });
 		}
 		ShownRefusal = aRefusal;
 		RefusalText->setText(text);
@@ -3022,7 +4915,9 @@ namespace bpr::qt {
 
 	auto agent_tab_view::current_run_settings() const -> const agent_run_settings* { return RunSettingsSource->current(); }
 
-	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->full_text(); }
+	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings != nullptr ? RunSettings->full_text() : QString{ }; }
+
+	void agent_tab_view::adopt_run_settings_button(agent_run_settings_picker* aPicker) { RunSettings = aPicker; }
 
 	void agent_tab_view::fit_run_settings()
 	{
@@ -3033,7 +4928,7 @@ namespace bpr::qt {
 		// under the tools, left-aligned, with its whole words. The choice
 		// depends only on the field's width and the controls' own sizes, never
 		// on where the picker is now, so moving it cannot flip it back.
-		if (Field == nullptr || RunSettings == nullptr || AskRow == nullptr || Field->width() <= 0) {
+		if (Field == nullptr || RunSettings == nullptr || RunSettings->parentWidget() != Field || AskRow == nullptr || Field->width() <= 0) {
 			return;
 		}
 		const auto margins   = Field->layout()->contentsMargins();
@@ -3100,7 +4995,9 @@ namespace bpr::qt {
 			return true;
 		}
 		if (words.size() < 2) {
-			RunSettings->showMenu();
+			if (RunSettings != nullptr) {
+				RunSettings->showMenu();
+			}
 			Notice->setText(isModel ? tr("Choose a model, or type /model NAME.") : tr("Choose an effort, or type /effort LEVEL."));
 			return true;
 		}
@@ -3129,10 +5026,30 @@ namespace bpr::qt {
 
 	auto agent_tab_view::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
+		// [[BPR-1999]], RFC-BPR-0101. Return sends and Shift+Return starts a
+		// new line, as the tour side chat does; Ctrl or Cmd with Return also
+		// sends. Not while an input method composes, not in an empty field,
+		// and not while the skill completion's list takes Return.
+		if (aWatched == Chat.composer() && aEvent->type() == QEvent::InputMethod) {
+			Composing = !static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty();
+		}
 		if (aEvent->type() == QEvent::KeyPress && aWatched == Chat.composer()) {
-			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0) {
+			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
+			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !modifiers.testFlag(Qt::ShiftModifier) && !modifiers.testFlag(Qt::AltModifier)) {
+				if (Composing || (SkillCompletion != nullptr && SkillCompletion->popup() != nullptr && SkillCompletion->popup()->isVisible())) {
+					return false;
+				}
+				// Plain Return in an empty field does nothing; Ctrl or Cmd
+				// with Return asks, as before, and is told why nothing went.
+				if (Chat.composer()->toPlainText().trimmed().isEmpty() && !modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier)) {
+					return true;
+				}
+				// Cmd+Return (Ctrl+Return off macOS): the other follow-up for
+				// this one message.
+				Opposite = modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier);
 				ask();
+				Opposite = false;
 				return true;
 			}
 		}
@@ -3140,6 +5057,13 @@ namespace bpr::qt {
 		// picker's words, the scope's, the picker shown or hidden).
 		if ((aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::LayoutRequest) && aWatched == Field) {
 			fit_run_settings();
+			return false;
+		}
+		// [[BPR-2059]]. A card's Markdown text takes the height its new width needs.
+		if (aEvent->type() == QEvent::Resize && aWatched->property("agentCardText").toBool()) {
+			if (auto* const view = dynamic_cast<markdown_body_view*>(aWatched); view != nullptr && static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
+				fit_card_text(*view);
+			}
 			return false;
 		}
 		if (aEvent->type() == QEvent::Resize && aWatched == Viewport) {
@@ -3215,6 +5139,7 @@ namespace bpr::qt {
 		History->setIcon(drawer_icon(drawer_glyph::history, palette()));
 		ClearSession->setIcon(drawer_icon(drawer_glyph::new_session, palette()));
 		ConversationClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
+		LinesClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		Context->setIcon(drawer_icon(drawer_glyph::plus, palette()));
 		SuggestionsMenu->setIcon(drawer_icon(drawer_glyph::agent, palette()));
 		if (auto* const introIcon = EmptyIntro->findChild<QLabel*>(QStringLiteral("agentEmptyIcon"))) {
@@ -3226,9 +5151,16 @@ namespace bpr::qt {
 				kept.Copy->setIcon(copyIcon);
 			}
 		}
-		// The send arrow; while working the button says Stop instead.
+		// The send arrow, in the accent; while working the button says Stop
+		// instead, in the ordinary roles.
 		if (Ask->text().isEmpty()) {
-			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+			wear_agent_accent(*Ask, palette());
+			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
+		}
+		for (const auto& kept : Turns) {
+			if (kept.Recovery != nullptr && kept.RecoveryKind == core::agent_turn_recovery::resend) {
+				wear_agent_accent(*kept.Recovery, palette());
+			}
 		}
 		fit_run_settings();
 	}

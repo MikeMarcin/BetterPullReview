@@ -1,8 +1,10 @@
 #include "bpr/adapters/sqlite/private_review_store.hpp"
+#include "bpr/adapters/sqlite/testing.hpp"
 #include "private_review_codec.hpp"
 #include "private_review_database.hpp"
 #include "review_ledger_database.hpp"
 #include <algorithm>
+#include <atomic>
 #include <set>
 #include <sqlite3.h>
 #include <utility>
@@ -263,15 +265,16 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				write(aInsert ? "INSERT INTO private_thread(scope_id,id,version,last_order,lifecycle,binding,file_identity,comparison_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)" : "UPDATE private_thread SET version=?3,last_order=?4,lifecycle=?5,binding=?6,file_identity=?7,comparison_id=?8 WHERE scope_id=?1 AND id=?2", Scope, aThread.Id.value(), aThread.Version, aThread.LastOrder.value(), static_cast<int>(aThread.Lifecycle), binding, file, comparison);
 			}
-			std::optional<local_note_record> note(std::uint64_t aId)
+			/// The schema 11 note, read for the schema 12 migration only.
+			std::optional<local_comment_record> legacy_note(std::uint64_t aId)
 			{
 				auto q = sql("SELECT n.revision,t.file_identity,t.comparison_id,c.body,p.path,l.side,l.line,l.blob FROM private_legacy_note n JOIN private_thread t ON t.scope_id=n.scope_id AND t.id=n.thread_id JOIN private_turn u ON u.scope_id=t.scope_id AND u.thread_id=t.id JOIN private_content c ON c.scope_id=u.scope_id AND c.id=u.latest_revision LEFT JOIN private_note_path p ON p.scope_id=t.scope_id AND p.thread_id=t.id LEFT JOIN private_note_line l ON l.scope_id=t.scope_id AND l.thread_id=t.id WHERE n.scope_id=?1 AND n.note_id=?2 ORDER BY u.id LIMIT 1", Scope, aId);
 				if (!q.row()) {
 					return { };
 				}
-				local_note_record result{ .Id = local_note_id{ aId }, .Note = core::supplement_note{ .Text = q.text(3) }, .Revision = local_note_revision{ q.integer(0) } };
+				local_comment_record result{ .Id = local_comment_id{ aId }, .Body = q.text(3), .Revision = local_comment_revision{ q.integer(0) } };
 				if (!q.null(1)) {
-					result.Attachment = local_note_attachment{ q.digest<file_identity>(1), q.digest<file_comparison_digest>(2) };
+					result.Attachment = local_comment_attachment{ q.digest<file_identity>(1), q.digest<file_comparison_digest>(2) };
 				}
 				if (!q.null(4)) {
 					result.FilePath = q.text(4);
@@ -294,6 +297,77 @@ namespace bpr::adapters::sqlite::detail {
 				require(application::valid(result), error::integrity);
 				q.done();
 				return result;
+			}
+			/// RFC-BPR-0127. One Local comment, or none.
+			std::optional<local_comment_record> local_comment(std::uint64_t aId)
+			{
+				auto q = sql("SELECT revision,file_identity,comparison_id,path,side,line,start_line,blob,reply_thread,body FROM private_local_comment WHERE scope_id=?1 AND id=?2", Scope, aId);
+				if (!q.row()) {
+					return { };
+				}
+				auto result = local_comment_from(q, aId);
+				q.done();
+				return result;
+			}
+			/// The columns `revision` to `body`, in that order, of one row.
+			static local_comment_record local_comment_from(query& aRow, std::uint64_t aId, int aFirst = 0)
+			{
+				local_comment_record result{ };
+				result.Id       = local_comment_id{ aId };
+				result.Revision = local_comment_revision{ aRow.integer(aFirst) };
+				if (!aRow.null(aFirst + 1)) {
+					result.Attachment = local_comment_attachment{ aRow.digest<file_identity>(aFirst + 1), aRow.digest<file_comparison_digest>(aFirst + 2) };
+				}
+				if (!aRow.null(aFirst + 3)) {
+					result.FilePath = aRow.text(aFirst + 3);
+				}
+				if (!aRow.null(aFirst + 4)) {
+					require(result.Attachment.has_value(), error::integrity);
+					auto line = core::note_line_anchor{ };
+					line.Side = aRow.integer(aFirst + 4) == 0U ? core::diff_side::left : core::diff_side::right;
+					line.Line = static_cast<std::uint32_t>(aRow.integer(aFirst + 5));
+					if (!aRow.null(aFirst + 7)) {
+						const auto kept = aRow.bytes(aFirst + 7);
+						require(kept.size() == 20U || kept.size() == 32U, error::integrity);
+						std::array<std::uint8_t, 32> data{ };
+						std::ranges::copy(kept, data.begin());
+						line.Blob = core::git_blob_oid{ kept.size() == 20U ? core::git_hash_algorithm::sha1 : core::git_hash_algorithm::sha256, data };
+					}
+					result.Attachment->Line = line;
+				}
+				if (!aRow.null(aFirst + 6)) {
+					result.StartLine = static_cast<std::uint32_t>(aRow.integer(aFirst + 6));
+				}
+				if (!aRow.null(aFirst + 8)) {
+					result.ReplyToThread = aRow.text(aFirst + 8);
+				}
+				result.Body = aRow.text(aFirst + 9);
+				require(application::valid(result), error::integrity);
+				return result;
+			}
+			/// RFC-BPR-0127. Writes one Local comment row, its anchor facts as columns.
+			void write_local_comment(const local_comment_record& aComment, bool aInsert)
+			{
+				std::optional<std::array<std::uint8_t, 32>> file, comparison;
+				std::optional<std::int64_t>                 side, line, start;
+				std::optional<std::vector<std::uint8_t>>    blob;
+				if (aComment.Attachment) {
+					file       = aComment.Attachment->File.bytes();
+					comparison = aComment.Attachment->Comparison.bytes();
+					if (const auto& kept = aComment.Attachment->Line) {
+						side = kept->Side == core::diff_side::left ? 0 : 1;
+						line = static_cast<std::int64_t>(kept->Line);
+						if (kept->Blob) {
+							blob = std::vector<std::uint8_t>(kept->Blob->bytes().begin(), kept->Blob->bytes().begin() + static_cast<std::ptrdiff_t>(kept->Blob->byte_count()));
+						}
+					}
+				}
+				if (aComment.StartLine) {
+					start = static_cast<std::int64_t>(*aComment.StartLine);
+				}
+				write(aInsert ? "INSERT INTO private_local_comment(scope_id,id,revision,file_identity,comparison_id,path,side,line,start_line,blob,reply_thread,body) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)"
+							  : "UPDATE private_local_comment SET revision=?3,file_identity=?4,comparison_id=?5,path=?6,side=?7,line=?8,start_line=?9,blob=?10,reply_thread=?11,body=?12 WHERE scope_id=?1 AND id=?2",
+					  Scope, aComment.Id.value(), aComment.Revision.value(), file, comparison, aComment.FilePath, side, line, start, blob, aComment.ReplyToThread, body_bytes(aComment.Body));
 			}
 			void insert_revision(const private_review_revision& aRevision, state& aState)
 			{
@@ -418,22 +492,19 @@ namespace bpr::adapters::sqlite::detail {
 				aState.Counts[9] -= totals.integer(2);
 				totals.done();
 				write("DELETE FROM private_edge WHERE scope_id=?1 AND destination_id IN(SELECT id FROM private_content WHERE scope_id=?1 AND kind=0 AND owner_id=?2)", Scope, aId);
-				write("DELETE FROM private_legacy_note WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_turn WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
-				write("DELETE FROM private_note_path WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
-				write("DELETE FROM private_note_line WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_thread WHERE scope_id=?1 AND id=?2", Scope, aId);
 				write("DELETE FROM private_content WHERE scope_id=?1 AND kind=0 AND owner_id=?2", Scope, aId);
 			}
 		};
 	}
 	namespace {
-		auto add_note(private_database& aDb, state& aState, const local_note_record& aNote, bool aMigrating, std::optional<local_note_record> aCurrent = { }) -> local_note_record
+		auto add_note(private_database& aDb, state& aState, const local_comment_record& aNote, bool aMigrating, std::optional<local_comment_record> aCurrent = { }) -> local_comment_record
 		{
 			auto accepted = aNote;
 			if (!aMigrating) {
 				require(aState.NoteRevision < maximum_private_identity, error::quota);
-				accepted.Revision = local_note_revision{ ++aState.NoteRevision };
+				accepted.Revision = local_comment_revision{ ++aState.NoteRevision };
 			}
 			private_review_thread                     header{ };
 			std::uint64_t                             turn = 0;
@@ -463,7 +534,7 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			auto id          = private_database::next(aState);
 			header.LastOrder = private_vertex_order{ id };
-			private_review_revision revision{ { aDb.Identity, header.Id, private_review_turn_id{ turn }, private_review_turn_revision_id{ id }, private_vertex_order{ id }, private_digest(aNote.Note.Text) }, aMigrating ? private_review_actor{ private_legacy_unknown_actor{ } } : private_review_actor{ private_reviewer_actor{ } }, aNote.Note.Text, private_revision_completion::complete, predecessor, { }, predecessor ? std::optional{ private_derivation_kind::edited_from } : std::nullopt };
+			private_review_revision revision{ { aDb.Identity, header.Id, private_review_turn_id{ turn }, private_review_turn_revision_id{ id }, private_vertex_order{ id }, private_digest(aNote.Body) }, aMigrating ? private_review_actor{ private_legacy_unknown_actor{ } } : private_review_actor{ private_reviewer_actor{ } }, aNote.Body, private_revision_completion::complete, predecessor, { }, predecessor ? std::optional{ private_derivation_kind::edited_from } : std::nullopt };
 			aDb.write_thread(header, !aCurrent);
 			aDb.insert_revision(revision, aState);
 			if (predecessor) {
@@ -490,7 +561,7 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return accepted;
 		}
-		auto legacy_failure(error aError, std::optional<local_note_record> aCurrent = { }) -> local_note_failure
+		auto legacy_failure(error aError, std::optional<local_comment_record> aCurrent = { }) -> local_comment_failure
 		{
 			auto reason = ledger_store_failure::unavailable;
 			switch (aError) {
@@ -521,12 +592,12 @@ namespace bpr::adapters::sqlite::detail {
 				while (notes.row()) {
 					// Filled member by member: GCC 15 at -O3 reads the designated
 					// aggregate as leaving the note's text uninitialized.
-					local_note_record note{ };
-					note.Id        = local_note_id{ notes.integer(0) };
-					note.Note.Text = notes.text(3);
-					note.Revision  = local_note_revision{ notes.integer(4) };
+					local_comment_record note{ };
+					note.Id       = local_comment_id{ notes.integer(0) };
+					note.Body     = notes.text(3);
+					note.Revision = local_comment_revision{ notes.integer(4) };
 					if (!notes.null(1)) {
-						note.Attachment = local_note_attachment{ notes.digest<file_identity>(1), notes.digest<file_comparison_digest>(2) };
+						note.Attachment = local_comment_attachment{ notes.digest<file_identity>(1), notes.digest<file_comparison_digest>(2) };
 					}
 					require(application::valid(note) && note.Revision.value() <= current.NoteRevision, error::integrity);
 					(void)add_note(db, current, note, true);
@@ -560,19 +631,158 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		return { };
 	}
-	auto private_store_note(sqlite3* aHandle, std::int64_t aScope, const local_note_record& aNote, std::optional<local_note_revision> aExpected) -> std::expected<local_note_record, local_note_failure>
+#if defined(BPR_SQLITE_TESTING)
+	namespace {
+		std::atomic<std::size_t> InterruptLocalCommentMigration{ 0U };
+	}
+	void testing::interrupt_local_comment_migration_after(const std::size_t aStatements) noexcept { InterruptLocalCommentMigration.store(aStatements + 1U, std::memory_order_relaxed); }
+	auto testing::restore_schema_11_notes(sqlite3* const aHandle) noexcept -> bool
 	{
-		std::optional<local_note_record> current;
 		try {
-			require(application::valid(aNote) && aScope > 0 && (!aExpected || valid_private_id(*aExpected)));
+			for (const auto* const sql : { "BEGIN IMMEDIATE", "CREATE TABLE private_legacy_note(scope_id INTEGER NOT NULL,note_id INTEGER NOT NULL CHECK(note_id>0),thread_id INTEGER NOT NULL,revision INTEGER NOT NULL CHECK(revision>0),PRIMARY KEY(scope_id,note_id),UNIQUE(scope_id,thread_id),FOREIGN KEY(scope_id,thread_id) REFERENCES private_thread(scope_id,id)) STRICT" }) {
+				require(execute(aHandle, sql).has_value(), error::integrity);
+			}
+			require(execute(aHandle, PrivateNotePathTable.Sql).has_value() && execute(aHandle, PrivateNoteLineTable.Sql).has_value(), error::integrity);
+			query scopes{ aHandle, "SELECT DISTINCT scope_id FROM private_local_comment ORDER BY scope_id" };
+			while (scopes.row()) {
+				private_database db{ aHandle, static_cast<std::int64_t>(scopes.integer(0)) };
+				db.ensure_state();
+				auto s        = db.read_state();
+				auto comments = private_load_local_comments(aHandle, db.Scope);
+				require(comments.has_value(), error::integrity);
+				for (const auto& comment : *comments) {
+					const auto kept   = add_note(db, s, comment, true);
+					auto       thread = db.sql("SELECT thread_id FROM private_legacy_note WHERE scope_id=?1 AND note_id=?2", db.Scope, kept.Id.value());
+					require(thread.row(), error::integrity);
+					const auto id = thread.integer(0);
+					thread.done();
+					if (comment.FilePath) {
+						db.write("INSERT INTO private_note_path(scope_id,thread_id,path) VALUES(?1,?2,?3)", db.Scope, id, *comment.FilePath);
+					}
+					if (comment.Attachment && comment.Attachment->Line) {
+						const auto& line = *comment.Attachment->Line;
+						auto        blob = std::optional<std::vector<std::uint8_t>>{ };
+						if (line.Blob) {
+							blob = std::vector<std::uint8_t>(line.Blob->bytes().begin(), line.Blob->bytes().begin() + static_cast<std::ptrdiff_t>(line.Blob->byte_count()));
+						}
+						db.write("INSERT INTO private_note_line(scope_id,thread_id,side,line,blob) VALUES(?1,?2,?3,?4,?5)", db.Scope, id, line.Side == core::diff_side::left ? 0 : 1, static_cast<std::int64_t>(line.Line), blob);
+					}
+				}
+				db.save_state(s);
+			}
+			for (const auto* const sql : { "DROP TABLE private_local_comment", "UPDATE ledger_meta SET schema_format=11", "PRAGMA user_version=11", "COMMIT" }) {
+				require(execute(aHandle, sql).has_value(), error::integrity);
+			}
+			return true;
+		} catch (...) {
+			(void)execute(aHandle, "ROLLBACK");
+			return false;
+		}
+	}
+#endif
+	auto migrate_private_local_comments(sqlite3* aHandle) -> std::expected<void, failure>
+	{
+		try {
+#if defined(BPR_SQLITE_TESTING)
+			const auto armed     = InterruptLocalCommentMigration.exchange(0U, std::memory_order_relaxed);
+			auto       remaining = armed;
+			const auto step      = [&remaining] {
+				if (remaining != 0U && --remaining == 0U) {
+					refuse(error::busy);
+				}
+			};
+#else
+			const auto step = [] { };
+#endif
+			require(execute(aHandle, PrivateLocalCommentTable.Sql).has_value(), error::integrity);
+			step();
+			query scopes{ aHandle, "SELECT scope_id FROM private_scope_state ORDER BY scope_id" };
+			while (scopes.row()) {
+				private_database db{ aHandle, static_cast<std::int64_t>(scopes.integer(0)) };
+				auto             s = db.read_state();
+				// Every note, in note order, as one Local comment: the same
+				// identity, revision, text bytes and anchor facts.
+				auto notes   = db.sql("SELECT note_id,thread_id FROM private_legacy_note WHERE scope_id=?1 ORDER BY note_id", db.Scope);
+				auto threads = std::vector<std::uint64_t>{ };
+				auto count   = std::size_t{ 0U };
+				while (notes.row()) {
+					require(++count <= application::maximum_local_comments, error::quota);
+					auto note = db.legacy_note(notes.integer(0));
+					require(note.has_value() && note->Revision.value() <= s.NoteRevision, error::integrity);
+					db.write_local_comment(*note, true);
+					step();
+					threads.push_back(notes.integer(1));
+				}
+				db.write("DELETE FROM private_legacy_note WHERE scope_id=?1", db.Scope);
+				db.write("DELETE FROM private_note_path WHERE scope_id=?1", db.Scope);
+				db.write("DELETE FROM private_note_line WHERE scope_id=?1", db.Scope);
+				step();
+				// The note's own thread was the note. It goes, unless an agent
+				// run or another record refers to it, which keeps it as history.
+				for (const auto thread : threads) {
+					try {
+						db.erase_thread(thread, db.thread(thread).Version, s);
+					} catch (const store_error& e) {
+						require(e.Reason == error::references_present, e.Reason);
+					}
+					step();
+				}
+				db.save_state(s);
+				step();
+			}
+			for (const auto* const table : { "DROP TABLE private_legacy_note", "DROP TABLE private_note_path", "DROP TABLE private_note_line" }) {
+				require(execute(aHandle, table).has_value(), error::integrity);
+				step();
+			}
+			return { };
+		} catch (const store_error& e) {
+			return std::unexpected(e.Reason == error::quota ? failure::quota_exceeded : e.Reason == error::busy ? failure::cancelled
+																												: failure::integrity_failure);
+		} catch (...) {
+			return std::unexpected(failure::unavailable);
+		}
+	}
+	auto private_store_local_comment(sqlite3* aHandle, std::int64_t aScope, const local_comment_record& aComment, std::optional<local_comment_revision> aExpected) -> std::expected<local_comment_record, local_comment_failure>
+	{
+		std::optional<local_comment_record> current;
+		try {
+			// [[BPR-2183]]. A new comment with no identity takes the next free
+			// one here, in the transaction that stores it, as Keep local does:
+			// two windows writing at once never mint the same one.
+			const auto allocates = !aExpected && aComment.Id.value() == 0U;
+			auto       accepted  = aComment;
+			if (allocates) {
+				accepted.Id = local_comment_id{ 1U };
+			}
+			require(application::valid(accepted) && aScope > 0 && (!aExpected || valid_private_id(*aExpected)));
 			transaction      tx{ aHandle };
 			private_database db{ aHandle, aScope };
 			db.ensure_state();
-			auto s  = db.read_state();
-			current = db.note(aNote.Id.value());
+			auto s = db.read_state();
+			if (allocates) {
+				auto last = db.sql("SELECT COALESCE(MAX(id),0) FROM private_local_comment WHERE scope_id=?1", aScope);
+				require(last.row() && last.integer(0) < maximum_private_identity, error::quota);
+				accepted.Id = local_comment_id{ last.integer(0) + 1U };
+				last.done();
+			}
+			current = db.local_comment(accepted.Id.value());
 			require(!current || current->Revision.value() <= s.NoteRevision, error::integrity);
 			require(aExpected ? (current && current->Revision == *aExpected) : !current, error::conflict);
-			auto accepted = add_note(db, s, aNote, false, current);
+			if (current) {
+				// An edit changes the words. Where the comment is, its range and
+				// its thread are kept exactly; a path once kept stays.
+				require(current->Attachment == aComment.Attachment && current->StartLine == aComment.StartLine && current->ReplyToThread == aComment.ReplyToThread, error::conflict);
+				if (!accepted.FilePath) {
+					accepted.FilePath = current->FilePath;
+				}
+			} else {
+				auto count = db.sql("SELECT COUNT(*) FROM private_local_comment WHERE scope_id=?1", aScope);
+				require(count.row() && count.integer(0) < application::maximum_local_comments, error::quota);
+				count.done();
+			}
+			require(s.NoteRevision < maximum_private_identity, error::quota);
+			accepted.Revision = local_comment_revision{ ++s.NoteRevision };
+			db.write_local_comment(accepted, !current);
 			db.save_state(s);
 			tx.commit();
 			return accepted;
@@ -582,23 +792,19 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(legacy_failure(error::unavailable));
 		}
 	}
-	auto private_erase_note(sqlite3* aHandle, std::int64_t aScope, local_note_id aId, local_note_revision aExpected) -> std::expected<void, local_note_failure>
+	auto private_erase_local_comment(sqlite3* aHandle, std::int64_t aScope, local_comment_id aId, local_comment_revision aExpected) -> std::expected<void, local_comment_failure>
 	{
-		std::optional<local_note_record> current;
+		std::optional<local_comment_record> current;
 		try {
 			require(valid_private_id(aId) && valid_private_id(aExpected));
 			transaction      tx{ aHandle };
 			private_database db{ aHandle, aScope };
 			db.ensure_state();
-			current = db.note(aId.value());
-			require(!current || current->Revision.value() <= db.read_state().NoteRevision, error::integrity);
+			auto s  = db.read_state();
+			current = db.local_comment(aId.value());
+			require(!current || current->Revision.value() <= s.NoteRevision, error::integrity);
 			require(current && current->Revision == aExpected, error::conflict);
-			auto q = db.sql("SELECT n.thread_id,t.version FROM private_legacy_note n JOIN private_thread t ON t.scope_id=n.scope_id AND t.id=n.thread_id WHERE n.scope_id=?1 AND n.note_id=?2", aScope, aId.value());
-			require(q.row(), error::integrity);
-			auto id = q.integer(0), version = q.integer(1);
-			q.done();
-			auto s = db.read_state();
-			db.erase_thread(id, version, s);
+			db.write("DELETE FROM private_local_comment WHERE scope_id=?1 AND id=?2", aScope, aId.value());
 			db.save_state(s);
 			tx.commit();
 			return { };
@@ -608,17 +814,15 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(legacy_failure(error::unavailable));
 		}
 	}
-	auto private_load_notes(sqlite3* aHandle, std::int64_t aScope) -> std::expected<std::vector<local_note_record>, failure>
+	auto private_load_local_comments(sqlite3* aHandle, std::int64_t aScope) -> std::expected<std::vector<local_comment_record>, failure>
 	{
 		try {
-			private_database               db{ aHandle, aScope };
-			auto                           q = db.sql("SELECT note_id FROM private_legacy_note WHERE scope_id=?1 ORDER BY note_id LIMIT 4097", aScope);
-			std::vector<local_note_record> result;
+			private_database                  db{ aHandle, aScope };
+			auto                              q = db.sql("SELECT id,revision,file_identity,comparison_id,path,side,line,start_line,blob,reply_thread,body FROM private_local_comment WHERE scope_id=?1 ORDER BY id LIMIT 4097", aScope);
+			std::vector<local_comment_record> result;
 			while (q.row()) {
-				require(result.size() < maximum_private_notes, error::quota);
-				auto note = db.note(q.integer(0));
-				require(note.has_value(), error::integrity);
-				result.push_back(std::move(*note));
+				require(result.size() < application::maximum_local_comments, error::quota);
+				result.push_back(private_database::local_comment_from(q, q.integer(0), 1));
 			}
 			return result;
 		} catch (const store_error& e) {
@@ -718,11 +922,6 @@ namespace bpr::adapters::sqlite::detail {
 				if (write.ExpectedVersion) {
 					auto old = aDb.thread(t.Id.value());
 					require(old.Version == write.ExpectedVersion && t.Version == old.Version + 1 && t.Binding == old.Binding && t.LastOrder >= old.LastOrder, error::conflict);
-					auto mapped = aDb.sql("SELECT 1 FROM private_legacy_note WHERE scope_id=?1 AND thread_id=?2", aDb.Scope, t.Id.value());
-					if (mapped.row()) {
-						require(aState.NoteRevision < maximum_private_identity, error::quota);
-						aDb.write("UPDATE private_legacy_note SET revision=?3 WHERE scope_id=?1 AND thread_id=?2", aDb.Scope, t.Id.value(), ++aState.NoteRevision);
-					}
 				} else {
 					require(t.Version == 1);
 					aIds.add(t.Id.value());
@@ -890,7 +1089,9 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto valid_review_mark(const private_draft_record& aRecord) -> bool
 		{
 			const auto& draft = aRecord.Draft.Draft;
-			return !draft.InReview || (valid(*draft.InReview) && !draft.ReplyToThread && draft.InReview->Head == aRecord.Binding.Revision.HeadOid);
+			// [[BPR-2092]]. And a recorded place is bounded.
+			return (!draft.Place || valid(*draft.Place))
+				&& (!draft.InReview || (valid(*draft.InReview) && !draft.ReplyToThread && draft.InReview->Head == aRecord.Binding.Revision.HeadOid));
 		}
 		private_draft_record read_draft(private_database& aDb, std::uint64_t aId)
 		{
@@ -1093,6 +1294,15 @@ namespace bpr::adapters::sqlite::detail {
 						s.Counts[9] -= record_size(db, "private_draft", id.value());
 						--s.Counts[6];
 						db.write("DELETE FROM private_draft WHERE scope_id=?1 AND id=?2", Scope, id.value());
+					}
+					// RFC-BPR-0127, Make draft: the Local comment goes as its draft comes.
+					if (aWrite.MakeDraftFrom) {
+						require(aWrite.Drafts.size() == 1U && aWrite.Drafts.front().ExpectedRevision == 0U, error::invalid_record);
+						const auto [comment, revision] = *aWrite.MakeDraftFrom;
+						const auto local               = db.local_comment(comment.value());
+						require(local.has_value() && local->Revision == revision, error::conflict);
+						require(local->Body == aWrite.Drafts.front().Record.Draft.Draft.Body, error::conflict);
+						db.write("DELETE FROM private_local_comment WHERE scope_id=?1 AND id=?2", Scope, comment.value());
 					}
 					bool admitsActive = false;
 					store_drafts(db, s, ids, aWrite.Drafts, admitsActive);
@@ -1484,6 +1694,50 @@ namespace bpr::adapters::sqlite::detail {
 					tx.commit();
 				});
 			}
+			auto keep_local(const private_keep_local& aKeep) -> private_store_result<local_comment_record> override
+			{
+				return guarded([&] {
+					require(valid_private_id(aKeep.Draft) && aKeep.ExpectedRevision > 0U);
+					transaction tx{ Ledger.handle() };
+					auto        db = database();
+					auto        s  = db.read_state();
+					auto        d  = read_draft(db, aKeep.Draft.value());
+					require(d.Draft.Revision == aKeep.ExpectedRevision, error::conflict);
+					// The core refused a held, publishing or published draft; the
+					// store holds the same line against a stale decision.
+					require(d.Draft.Draft.State == core::review_draft_state::drafting && !core::held_by_review(d.Draft.Draft), error::conflict);
+					require(aKeep.Reworded || aKeep.Comment.Body == d.Draft.Draft.Body, error::conflict);
+					auto refs = db.sql("SELECT 1 FROM private_publication WHERE scope_id=?1 AND draft_id=?2 LIMIT 1", Scope, aKeep.Draft.value());
+					require(!refs.row(), error::references_present);
+					refs.done();
+					// The draft ends as discarded, a revision on, so every window's
+					// shared drafts adopt its end from the store; its words live on
+					// as the Local comment.
+					auto ended              = d;
+					ended.Draft.Revision    = d.Draft.Revision + 1U;
+					ended.Draft.Draft.State = core::review_draft_state::discarded;
+					auto       ids          = allocation{ s.Last + 1U };
+					auto       admitsActive = false;
+					const auto writes       = std::array{ private_draft_write{ ended, d.Draft.Revision } };
+					store_drafts(db, s, ids, writes, admitsActive);
+					ids.finish(s);
+					auto count = db.sql("SELECT COUNT(*),COALESCE(MAX(id),0),EXISTS(SELECT 1 FROM private_local_comment WHERE scope_id=?1 AND id=?2) FROM private_local_comment WHERE scope_id=?1", Scope, aKeep.Draft.value());
+					require(count.row() && static_cast<std::size_t>(count.integer(0)) < application::maximum_local_comments, error::quota);
+					const auto taken = count.integer(2) != 0;
+					const auto last  = count.integer(1);
+					count.done();
+					require(!taken || last < maximum_private_identity, error::quota);
+					require(s.NoteRevision < maximum_private_identity, error::quota);
+					auto accepted     = aKeep.Comment;
+					accepted.Id       = local_comment_id{ taken ? last + 1U : aKeep.Draft.value() };
+					accepted.Revision = local_comment_revision{ ++s.NoteRevision };
+					require(application::valid(accepted), error::invalid_record);
+					db.write_local_comment(accepted, true);
+					db.save_state(s);
+					tx.commit();
+					return accepted;
+				});
+			}
 			auto purge() -> private_store_result<void> override
 			{
 				return guarded([&] {
@@ -1491,7 +1745,7 @@ namespace bpr::adapters::sqlite::detail {
 					auto        db = database();
 					auto        s  = db.read_state();
 					// Explicit dependency order preserves the connection's zero trigger-depth policy.
-					for (auto table : { "private_publication", "private_run_source", "private_draft", "private_composition_source", "private_composition", "private_edge", "private_turn", "private_legacy_note", "private_note_path", "private_note_line", "private_thread", "private_content", "private_run" }) {
+					for (auto table : { "private_publication", "private_run_source", "private_draft", "private_composition_source", "private_composition", "private_edge", "private_turn", "private_local_comment", "private_thread", "private_content", "private_run" }) {
 						db.write("DELETE FROM " + std::string{ table } + " WHERE scope_id=?1", Scope);
 					}
 					s.Counts.fill(0);

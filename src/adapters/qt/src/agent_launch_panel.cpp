@@ -1,4 +1,5 @@
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 
 #include "bpr/core/agent_entry.hpp"
 
@@ -79,6 +80,7 @@ namespace bpr::qt {
 			case failure::input_too_large:               return QStringLiteral("The question and its context are larger than an agent may be sent.");
 			case failure::not_signed_in:                 return QStringLiteral("It isn't signed in.");
 			case failure::tool_refused:                  return QStringLiteral("It tried a tool a drafting run may not use, so the run was stopped.");
+			case failure::helpers_unfinished:            return QStringLiteral("It stopped before the helpers it started finished.");
 			}
 			return QStringLiteral("Its output couldn't be read.");
 		}
@@ -147,7 +149,7 @@ namespace bpr::qt {
 		NoteSelector = new QListWidget{ this };
 		NoteSelector->setObjectName(QStringLiteral("agentPrivateNoteSelector"));
 		NoteSelector->setAccessibleName(
-			QStringLiteral("Private notes included with this request"));
+			QStringLiteral("Local comments included with this request"));
 		DraftSelector = new QCheckBox{ this };
 		DraftSelector->setObjectName(QStringLiteral("agentDraftSelector"));
 		DraftSelector->setAccessibleName(
@@ -174,8 +176,8 @@ namespace bpr::qt {
 		auto* const layout = new QVBoxLayout{ this };
 		auto* const form   = new QFormLayout{ };
 		form->addRow(QStringLiteral("Provider"), ProfileSelector);
-		form->addRow(QStringLiteral("Private notes"), NoteSelector);
-		form->addRow(QStringLiteral("Private draft"), DraftSelector);
+		form->addRow(QStringLiteral("Local comments"), NoteSelector);
+		form->addRow(QStringLiteral("Draft"), DraftSelector);
 		layout->addLayout(form);
 		layout->addWidget(Disclosure);
 
@@ -240,7 +242,7 @@ namespace bpr::qt {
 				return;
 			}
 			++Statistics.StartIntents;
-			auto notes = std::vector<application::local_note_id>{ };
+			auto notes = std::vector<application::local_comment_id>{ };
 			for (auto row = 0; row < NoteSelector->count(); ++row) {
 				const auto* const item = NoteSelector->item(row);
 				if (item->checkState() == Qt::Checked) {
@@ -312,7 +314,8 @@ namespace bpr::qt {
 				name += QStringLiteral(" (JSONL)");
 			}
 			// [[BPR-1753]]. An added agent is named as the reviewer named it.
-			if (core::is_agent_entry_profile(profile.Id)) {
+			// [[BPR-2177]]. A tests-on build's fixture agent says so.
+			if (core::is_agent_entry_profile(profile.Id) || profile.DisplayName.starts_with("Fixture agent")) {
 				name = QString::fromStdString(profile.DisplayName);
 			}
 			ProfileSelector->addItem(name, QVariant::fromValue<qulonglong>(profile.Id.value()));
@@ -407,13 +410,13 @@ namespace bpr::qt {
 	}
 
 	void agent_launch_panel::offer_private_context(
-		const std::span<const application::local_note_id> aNotes,
-		std::optional<application::agent_draft_choice>    aDraft)
+		const std::span<const application::local_comment_id> aNotes,
+		std::optional<application::agent_draft_choice>       aDraft)
 	{
 		NoteSelector->clear();
 		for (const auto id : aNotes) {
 			auto* const item = new QListWidgetItem{
-				QStringLiteral("Private note #%1").arg(id.value()), NoteSelector
+				QStringLiteral("Local comment #%1").arg(id.value()), NoteSelector
 			};
 			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(id.value()));
 			item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
@@ -462,6 +465,12 @@ namespace bpr::qt {
 		ActiveInvocation = aIdentity;
 		Output->clear();
 		StopReason.clear();
+		KeptText.clear();
+		LastFailure.reset();
+		LastUnfinished.clear();
+		Activity          = { };
+		ActivityReported  = false;
+		ActivityStartedMs = agent_activity_clock_ms();
 		Status->setText(QStringLiteral("Preparing agent invocation"));
 		Phase = phase::preparing;
 		set_running(true);
@@ -502,6 +511,9 @@ namespace bpr::qt {
 				.arg(QString::fromStdString(aWorkspace.Path)));
 		PullRequestFilesOnly = aWorkspace.Shallow;
 		Phase                = phase::running;
+		// [[BPR-2005]]. The block's times count from the agent's start.
+		Activity          = { };
+		ActivityStartedMs = agent_activity_clock_ms();
 		set_running(true);
 		progressed();
 	}
@@ -515,7 +527,21 @@ namespace bpr::qt {
 			|| aEvent.Session != aIdentity.Session.Id) {
 			return;
 		}
-		Output->appendPlainText(QString::fromStdString(aEvent.Text));
+		// [[BPR-2005]]. Every event is a frame; an activity says what the
+		// agent or a helper is doing. Neither is the answer.
+		const auto at = static_cast<std::uint64_t>(qMax(qint64{ 0 }, agent_activity_clock_ms() - ActivityStartedMs));
+		if (aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity) {
+			Activity         = core::apply_agent_activity(std::move(Activity), *aEvent.Activity, at);
+			ActivityReported = true;
+		} else {
+			Activity = core::note_agent_frame(std::move(Activity), at);
+			if (aEvent.Kind == application::agent_stream_kind::heartbeat) {
+				ActivityReported = true;
+			}
+		}
+		if (aEvent.Kind == application::agent_stream_kind::text) {
+			Output->appendPlainText(QString::fromStdString(aEvent.Text));
+		}
 		progressed();
 	}
 
@@ -528,6 +554,14 @@ namespace bpr::qt {
 			|| aResult.Session != aIdentity.Session.Id) {
 			return;
 		}
+		// [[BPR-2004]]. Stopped, or ended under its helpers: what arrived is
+		// kept for the turn.
+		LastFailure    = aResult.Outcome == application::agent_run_outcome::protocol_failure ? aResult.ProtocolFailure : std::nullopt;
+		LastUnfinished = aResult.UnfinishedHelpers;
+		KeptText       = aResult.Outcome == application::agent_run_outcome::cancelled || LastFailure == application::agent_protocol_failure::helpers_unfinished ? Output->toPlainText() : QString{ };
+		Activity       = core::end_agent_activity(std::move(Activity), static_cast<std::uint64_t>(qMax(qint64{ 0 }, agent_activity_clock_ms() - ActivityStartedMs)));
+		// [[BPR-2007]]. The host found these written in the scratch folder.
+		Activity.ScratchFiles = aResult.ScratchFiles;
 		if (aResult.Outcome != application::agent_run_outcome::success) {
 			Output->clear();
 			// [[BPR-1827]]. A run that read nothing still says what it
@@ -546,7 +580,9 @@ namespace bpr::qt {
 				LastModel = QString::fromStdString(*report.Settings.Model);
 			}
 		}
-		LastCost = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		LastCost        = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		LastTurnCost    = aResult.TurnCost;
+		LastSessionCost = aResult.SessionCost;
 		StopReason.clear();
 		if (!aResult.RefusalReason.empty()) {
 			StopReason = QString::fromStdString(aResult.RefusalReason);

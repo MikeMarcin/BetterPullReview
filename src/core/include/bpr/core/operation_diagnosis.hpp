@@ -198,6 +198,37 @@ namespace bpr::core {
 		clone_refresh,
 		/// A native question refused before process dispatch.
 		native_continuation,
+		/// [[RFC-BPR-0105]]. A review submission the reviewer pressed
+		/// (`count`: the comments it carries).
+		review_submit_request,
+		/// [[RFC-BPR-0105]]. One wait before sending, with what it waited
+		/// for (`submit_subject`) and how long.
+		review_submit_wait,
+		/// [[RFC-BPR-0105]]. Sending began (`duration_ms` since the press).
+		review_submit_send,
+		/// [[RFC-BPR-0105]]. A completion that no longer matched what the
+		/// window was doing, and why (`submit_subject`).
+		review_submit_drop,
+		/// [[RFC-BPR-0105]]. How the visible submission ended
+		/// (`submit_subject`), `duration_ms` since the press.
+		review_submit_end,
+	};
+
+	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what
+	/// a wait waited for, why a completion was dropped, or how it ended.
+	enum class review_submission_note : std::uint8_t {
+		none,
+		// Waits.
+		pending_comments,
+		review_lane,
+		// Drops.
+		superseded,
+		retired,
+		// Endings.
+		published,
+		not_published,
+		outcome_unknown,
+		wait_expired,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -517,6 +548,9 @@ namespace bpr::core {
 		std::optional<operation_store>        Store;
 		std::uint32_t                         Schema = 0U;
 		std::optional<tour_publication_trace> Tour   = std::nullopt;
+		/// [[RFC-BPR-0105]]. Exactly on a review submission line, written
+		/// after the fixed keys as `submit_subject=NOTE`.
+		std::optional<review_submission_note> Submission = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};
@@ -528,6 +562,7 @@ namespace bpr::core {
 	[[nodiscard]] auto name(operation_failure aFailure) noexcept -> std::string_view;
 	[[nodiscard]] auto name(operation_process aProcess) noexcept -> std::string_view;
 	[[nodiscard]] auto name(operation_store aStore) noexcept -> std::string_view;
+	[[nodiscard]] auto name(review_submission_note aNote) noexcept -> std::string_view;
 
 	/// \brief Whether a line is one the host writes: known enums, a failure
 	/// of the action's own family, a process and exit code only on an agent

@@ -32,7 +32,7 @@ Ends in an owner look (Accept or Reject) on a frozen build whose fixture holds a
 ## Progress (2026-11-14)
 
 Frontend-design was loaded first. Built and evidenced; see the
-verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`).
+[verification record](../../verification/RFC-BPR-0128.md#milestone-ask-menu-bpr-2163-bpr-2164).
 
 - **AC01** passes (`application_ask_menu_public_path`, `qt_conversation_cards_view`,
   `qt_workbench_window_scale_{100,125,200}`): the review bar's Ask right after

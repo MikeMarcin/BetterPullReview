@@ -36,7 +36,7 @@ Compose review / Finish your review opens as the lightbox from the Ask mockups, 
 
 ## Mockup look v001 (session `e77aa2f7d163c62e21a368b7c023b3dc`, handed back 2026-11-14T05:12:50Z)
 
-Mockups: `docs/design/compose-review-lightbox-v1/` (on the lane), commit `4e2087576217`.
+Mockups: [compose-review-lightbox-v1](../../design/compose-review-lightbox-v1/README.md), commit `4e2087576217`.
 
 - `BPR-2175-window-controls`: **Accept** (no note). The window's own controls
   stay live while the lightbox is open, as drawn.
@@ -55,7 +55,7 @@ variants, right and bottom. Nothing is built before a variant is accepted.
 
 ## Mockup round 2 (2026-11-14)
 
-`docs/design/compose-review-lightbox-v2/` (on the lane) (`fab8ae093`, a separate design worker): options A to E, each today's Finish your review content with its one-click verdicts, comments and actions on the right or at the bottom. Attended session `fd03fb4ab1abc68d8f5f9ff1b903a7c0`, state `/Users/jaeger/.attended-review-state/compose-review-lightbox-v002-2026-11-14/state`: one choice among A to E or "Keep the existing window", and one Accept/Reject that the content matches today's panel.
+[compose-review-lightbox-v2](../../design/compose-review-lightbox-v2/README.md) (`fab8ae093`, a separate design worker): options A to E, each today's Finish your review content with its one-click verdicts, comments and actions on the right or at the bottom. Attended session `fd03fb4ab1abc68d8f5f9ff1b903a7c0`, state `/Users/jaeger/.attended-review-state/compose-review-lightbox-v002-2026-11-14/state`: one choice among A to E or "Keep the existing window", and one Accept/Reject that the content matches today's panel.
 
 ## Mockup look v002 (session `fd03fb4ab1abc68d8f5f9ff1b903a7c0`, handed back 2026-11-14)
 

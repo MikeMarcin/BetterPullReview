@@ -18,6 +18,7 @@
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -49,12 +50,52 @@ namespace bpr::qt {
 			{ core::writing_hook::solution, "Solution summary", "Tour tab, Solution", "How the agent writes the tour's Solution: what the change does and how it works.",
 			  "Used by Draft from PR context and Enhance on the Tour tab's Solution field." },
 			{ core::writing_hook::outline, "Tour outline", "Tour tab, Suggest an outline", "How the agent proposes the tour's stops.", "Used by Suggest an outline on the Tour tab." },
-			{ core::writing_hook::comment, "Tour-stop comment", "Tour tab, each stop", "How the agent writes one stop's comment.", "Used by Generate comment and Enhance on a tour stop." },
+			{ core::writing_hook::comment, "Tour-stop comment", "Tour tab, each stop", "How the agent writes one stop's comment.", "Used by Generate comment on an empty tour stop." },
 			{ core::writing_hook::feedback, "Review feedback", "Comment workshop", "Guidance the comment workshop follows when it helps you word a review comment.",
 			  "Sent with comment workshop requests while Comments › Comment workshop turns it on." },
+			// [[BPR-2051]] Enhance on a tour stop, and (owner look, 2026-11-10:
+			// "Change it from \"Enhance a note\" to \"Enhance writing\"") one
+			// Enhance writing prompt for every comment and reply, in either
+			// unsent state (RFC-BPR-0127).
+			{ core::writing_hook::enhance_stop, "Enhance a stop", "Tour tab, each stop", "How the agent improves a stop's comment you have written.",
+			  "Used by Enhance on a tour stop that has text, for the whole comment or a selection." },
+			{ core::writing_hook::enhance_writing, "Enhance writing", "Comments and replies", "How the agent improves a comment or a reply you have written, local or draft.",
+			  "Used by Enhance on a comment and a reply, local or draft. You choose whether to use what it suggests; nothing is published." },
+			// [[BPR-2059]] How the agent writes the comments it suggests.
+			{ core::writing_hook::suggested_comment, "Suggested comments", "Agent tab, finding cards", "How the agent writes the comments it suggests for you to post.",
+			  "Sent with every Agent tab question. Draft comment and Draft all start from what it writes; nothing is published." },
+			// RFC-BPR-0110 ([[BPR-2026]]) The local-authoring prompts.
+			{ core::writing_hook::local_description, "Description writing", "Local drafts, Description", "How the agent writes a local draft's pull request description.",
+			  "Sent when you ask the agent about a local draft's title or description. You accept or reject what it proposes; nothing is published." },
+			{ core::writing_hook::local_discussion, "Change discussion", "Local drafts, conversations", "What the agent is told when you discuss a local draft's change.",
+			  "Sent with every question in a local draft's conversations. You accept or reject what it proposes; nothing is run or published." },
+			// RFC-BPR-0114 as amended 2026-11-12. The agent's commit message.
+			{ core::writing_hook::local_commit_message, "Commit message", "Changes tab, commit box", "How the agent writes a commit's subject and description from what is staged.",
+			  "Sent when you ask the agent to fill in a commit. Its answer fills the fields for you to edit; nothing is committed." },
+			// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning questions.
+			{ core::writing_hook::review_latest_upload, "What changed", "Agent tab, What changed since my review",
+			  "What the agent is told when you ask what changed since your last review.",
+			  "Sent with What changed since my review. The answer is the agent's; nothing is marked Seen or posted." },
+			{ core::writing_hook::review_proposed_fix, "Was this addressed", "Review threads, Was this addressed?",
+			  "What the agent is told when you ask whether a thread you commented in was addressed.",
+			  "Sent with Was this addressed? The answer is the agent's claim; nothing is resolved or posted." },
+			// RFC-BPR-0117 ([[BPR-2076]]). Explain this file.
+			{ core::writing_hook::review_explain_file, "Explain this file", "Review, a file's Explain this file",
+			  "What the agent is told when you ask it to explain the file you are reading.",
+			  "Sent with Explain this file. The answer shows over the file; nothing is posted." },
+			// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change.
+			{ core::writing_hook::review_suggest_change, "Suggest the change", "Review, a draft comment's Suggest the change",
+			  "What the agent is told when you ask it to write the change a draft comment's lines need.",
+			  "Sent with Suggest the change. The reply opens in the code unsaved; nothing is posted." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
+
+		[[nodiscard]] constexpr auto returning_hook(const core::writing_hook aHook) noexcept -> bool
+		{
+			return aHook == core::writing_hook::review_latest_upload || aHook == core::writing_hook::review_proposed_fix || aHook == core::writing_hook::review_explain_file
+				|| aHook == core::writing_hook::review_suggest_change;
+		}
 
 		/// A prompt's row: its name, where it is used on a quieter second
 		/// line, and on the right whether it is changed or has unsaved edits.
@@ -172,18 +213,41 @@ namespace bpr::qt {
 		Hook->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Hook->setSelectionMode(QAbstractItemView::SingleSelection);
 		static_cast<void>(make_header(Hook, tr("Tour tab")));
-		for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment }) {
+		for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment, core::writing_hook::enhance_stop }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
 		}
 		// [[BPR-1090]] The review-feedback guidance is not a tour field's hook;
 		// its own group says where it is used.
-		static_cast<void>(make_header(Hook, tr("Comments")));
+		static_cast<void>(make_header(Hook, tr("Comments and notes")));
+		for (const auto hook : { core::writing_hook::feedback, core::writing_hook::enhance_writing }) {
+			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(hook));
+			item->setData(usage_role, tr(facts_of(hook).Where));
+		}
+		// RFC-BPR-0110 The local-authoring prompts, above the Agent tab so the
+		// review skill stays last under its heading.
+		static_cast<void>(make_header(Hook, tr("Local drafts")));
+		for (const auto hook : { core::writing_hook::local_description, core::writing_hook::local_discussion, core::writing_hook::local_commit_message }) {
+			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(hook));
+			item->setData(usage_role, tr(facts_of(hook).Where));
+		}
+		// [[BPR-2059]] The Agent tab's group: how the agent writes the comments
+		// it suggests, and the review skill once it is adopted below it.
+		static_cast<void>(make_header(Hook, tr("Agent tab")));
 		{
-			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::feedback).Name), Hook };
-			item->setData(hook_role, static_cast<int>(core::writing_hook::feedback));
-			item->setData(usage_role, tr(facts_of(core::writing_hook::feedback).Where));
+			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::suggested_comment).Name), Hook };
+			item->setData(hook_role, static_cast<int>(core::writing_hook::suggested_comment));
+			item->setData(usage_role, tr(facts_of(core::writing_hook::suggested_comment).Where));
+		}
+		// RFC-BPR-0116. The returning questions, and RFC-BPR-0117's Explain
+		// this file, before the review skill.
+		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix, core::writing_hook::review_explain_file, core::writing_hook::review_suggest_change }) {
+			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(hook));
+			item->setData(usage_role, tr(facts_of(hook).Where));
 		}
 		body->addWidget(Hook, 0);
 
@@ -325,7 +389,8 @@ namespace bpr::qt {
 			show_notice("Unsaved edits discarded.");
 		});
 		connect(TestButton, &QPushButton::clicked, this, [this] {
-			if (Test && selected_hook() != core::writing_hook::feedback) {
+			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
+				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message && !returning_hook(selected_hook())) {
 				Test(selected_hook());
 			}
 		});
@@ -343,6 +408,11 @@ namespace bpr::qt {
 			}
 			refresh_state();
 			refresh_rows();
+			// [[BPR-2179]]: in the Prompts library a system prompt saves as it
+			// is typed, as every other prompt there does.
+			if (AutoSave != nullptr && Unsaved[static_cast<std::size_t>(hook)]) {
+				AutoSave->start();
+			}
 		});
 		connect(PreviewMode, &QPushButton::toggled, this, [this](const bool aOn) { show_preview(aOn); });
 		connect(Hook, &QListWidget::currentRowChanged, this, [this] { show_hook(); });
@@ -416,7 +486,7 @@ namespace bpr::qt {
 			return;
 		}
 		ReviewSkillShown = true;
-		static_cast<void>(make_header(Hook, tr("Agent tab")));
+		// [[BPR-2059]] Under the Agent tab's heading, after Suggested comments.
 		auto* const item = new QListWidgetItem{ tr("Review skill"), Hook };
 		item->setData(hook_role, review_skill_v);
 		item->setData(usage_role, tr("Agent tab, every question"));
@@ -471,6 +541,9 @@ namespace bpr::qt {
 			if (Hook->item(row)->data(hook_role).toInt() == review_skill_v) {
 				Hook->item(row)->setData(marker_role, aChanged ? tr("Changed") : QString{ });
 			}
+		}
+		if (RowsChanged) {
+			RowsChanged();
 		}
 	}
 
@@ -578,8 +651,21 @@ namespace bpr::qt {
 			Scope->setText(LabelHelper == application::review_label_helper::on ? tr("On. Sent with each comment workshop request: Comments › Comment workshop.")
 																			   : tr("Off. Not sent with comment workshop requests; turn it on in Comments › Comment workshop."));
 		}
-		TestButton->setEnabled(!feedback);
-		TestButton->setToolTip(feedback ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.") : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
+		// [[BPR-2059]] The suggested-comment format writes no passage either:
+		// it is tried by asking the agent a question.
+		const bool suggested = hook == core::writing_hook::suggested_comment;
+		// RFC-BPR-0110 The local-authoring prompts are tried in a local draft.
+		const bool local = hook == core::writing_hook::local_description || hook == core::writing_hook::local_discussion || hook == core::writing_hook::local_commit_message;
+		// RFC-BPR-0116. The returning questions are tried on a returning pull request.
+		const bool returning = returning_hook(hook);
+		TestButton->setEnabled(!feedback && !suggested && !local && !returning);
+		TestButton->setToolTip(feedback                                                ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
+								   : suggested                                         ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
+								   : hook == core::writing_hook::review_explain_file   ? tr("Test uses a tour field. Press Explain this file over a file in Review to try this prompt.")
+								   : hook == core::writing_hook::review_suggest_change ? tr("Test uses a tour field. Press Suggest the change on a draft comment to try this prompt.")
+								   : returning                                         ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
+								   : local                                             ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
+																					   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();
 		refresh_rows();
 	}
@@ -598,8 +684,8 @@ namespace bpr::qt {
 		Badge->setFont(badgeFont);
 		Source->setText(changed ? tr("Changed from built-in %1, profile revision %2").arg(text_of(version)).arg(Settings.Revision)
 								: tr("Built-in %1, profile revision %2").arg(text_of(version)).arg(Settings.Revision));
-		SaveState->setText(unsaved ? tr("Unsaved changes. They stay here until you save or discard them.") : changed ? tr("Saved for this profile.")
-																													 : tr("Using the built-in text."));
+		SaveState->setText(unsaved ? (AutoSave != nullptr ? tr("Saving\u2026") : tr("Unsaved changes. They stay here until you save or discard them.")) : changed ? tr("Saved for this profile.")
+																																								  : tr("Using the built-in text."));
 		auto stateFont = font();
 		stateFont.setWeight(unsaved ? QFont::DemiBold : QFont::Normal);
 		SaveState->setFont(stateFont);
@@ -614,6 +700,56 @@ namespace bpr::qt {
 		refresh_preview();
 	}
 
+	auto writing_hooks_panel::system_rows() const -> std::vector<system_row>
+	{
+		auto rows  = std::vector<system_row>{ };
+		auto group = QString{ };
+		for (int row = 0; row < Hook->count(); ++row) {
+			const auto* const item = Hook->item(row);
+			if (item->data(header_role).toBool()) {
+				group = item->text();
+				continue;
+			}
+			rows.push_back({ .Group = group, .Name = item->text(), .Usage = item->data(usage_role).toString(), .Marker = item->data(marker_role).toString(), .Key = item->data(hook_role).toInt() });
+		}
+		return rows;
+	}
+
+	void writing_hooks_panel::select_system(const int aKey)
+	{
+		for (int row = 0; row < Hook->count(); ++row) {
+			const auto role = Hook->item(row)->data(hook_role);
+			if (role.isValid() && role.toInt() == aKey) {
+				Hook->setCurrentRow(row);
+				return;
+			}
+		}
+	}
+
+	void writing_hooks_panel::set_embedded(const bool aEmbedded)
+	{
+		// Look prompts-v001 (the accepted default, "saves as typed"): no Save
+		// or Discard; an edit saves a moment after the typing stops.
+		if (aEmbedded && AutoSave == nullptr) {
+			AutoSave = new QTimer{ this };
+			AutoSave->setSingleShot(true);
+			AutoSave->setInterval(450);
+			connect(AutoSave, &QTimer::timeout, this, [this] {
+				if (Unsaved[static_cast<std::size_t>(selected_hook())]) {
+					SaveButton->click();
+				}
+			});
+		}
+		SaveButton->setVisible(!aEmbedded);
+		DiscardButton->setVisible(!aEmbedded);
+		Hook->setVisible(!aEmbedded);
+		for (const auto* const name : { "writingHooksHeading", "writingHooksExplanation" }) {
+			if (auto* const label = findChild<QLabel*>(QString::fromLatin1(name)); label != nullptr) {
+				label->setVisible(!aEmbedded);
+			}
+		}
+	}
+
 	void writing_hooks_panel::refresh_rows()
 	{
 		for (int row = 0; row < Hook->count(); ++row) {
@@ -625,6 +761,9 @@ namespace bpr::qt {
 			const auto index = static_cast<std::size_t>(role.toInt());
 			item->setData(marker_role, Unsaved[index] ? tr("Unsaved") : !Settings.Overrides[index].empty() ? tr("Changed")
 																										   : QString{ });
+		}
+		if (RowsChanged) {
+			RowsChanged();
 		}
 	}
 
@@ -649,8 +788,9 @@ namespace bpr::qt {
 				const auto& entry = Skills.Catalog[index];
 				names.push_back(QStringLiteral("/%1 (%2, %3)").arg(text_of(entry.Name), entry.Source == core::skill_source::personal ? tr("personal") : tr("repository"), text_of(entry.Origin)));
 			}
-			line = hook == core::writing_hook::feedback
-				? tr("Names %1. Skills aren't brought into comment workshop requests yet.").arg(names.join(QStringLiteral(", ")))
+			line = hook == core::writing_hook::feedback ? tr("Names %1. Skills aren't brought into comment workshop requests yet.").arg(names.join(QStringLiteral(", ")))
+				: hook == core::writing_hook::suggested_comment
+				? tr("Names %1. Skills aren't brought in through this format; name a skill in your question instead.").arg(names.join(QStringLiteral(", ")))
 				: tr("Brings in %1. Its SKILL.md is sent with the request; only skills a prompt names are sent.").arg(names.join(QStringLiteral(", ")));
 		} else if (Skills.Catalog.empty()) {
 			line = tr("No skills found in ~/.claude/skills, ~/.agents/skills or ~/.codex/skills.");

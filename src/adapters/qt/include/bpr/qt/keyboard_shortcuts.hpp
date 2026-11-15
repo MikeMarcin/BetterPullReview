@@ -51,6 +51,10 @@ namespace bpr::qt {
 		header_source,
 		go_to_line,
 		next_new_comment,
+		/// Owner look v002 ([[BPR-2158]]). The previous or next comment in
+		/// Comments, then in the next file.
+		previous_comment,
+		next_comment,
 		home,
 		next_tab,
 		previous_tab,

@@ -2,7 +2,11 @@
 #define BPR_APPLICATION_WRITING_HOOKS_HPP
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include <array>
+#include <cstdint>
+#include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 namespace bpr::application {
 	struct writing_source
@@ -35,13 +39,69 @@ namespace bpr::application {
 		std::vector<writing_outline_stop> Stops;
 	};
 	[[nodiscard]] auto build_writing_prompt(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources) -> std::optional<std::string>;
+	/// \brief [[BPR-2140]], RFC-BPR-0107 (P02, owner 2026-11-12). The same
+	/// prompt in two parts: the instructions (the contract, the hook's text,
+	/// the answer's schema and style), which go in the system prompt, and the
+	/// run's material (the untrusted evidence), which goes in the message.
+	/// `build_writing_prompt` is the two joined.
+	struct writing_prompt_parts
+	{
+		std::string Instructions;
+		std::string Message;
+	};
+	[[nodiscard]] auto build_writing_prompt_parts(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources)
+		-> std::optional<writing_prompt_parts>;
 	[[nodiscard]] auto decode_writing_result(std::string_view aJson, core::writing_hook aHook, std::span<const writing_source> aSources, bool aRequiresEvidence) -> std::optional<writing_result>;
 
 	inline constexpr std::string_view writing_hook_version = "review-preparation-v1";
+	/// \brief [[BPR-1996]], RFC-BPR-0100. Version of the shipped stop-comment
+	/// guidance, `resources/review-preparation/tour-stop-comment.md`, which
+	/// gained the citation and moved-code rules; the other tour hooks keep
+	/// `writing_hook_version`.
+	inline constexpr std::string_view tour_stop_comment_hook_version = "tour-stop-comment-v2";
 	/// \brief [[BPR-1090]] Version of the shipped review-feedback guidance,
 	/// `resources/review-preparation/review-feedback.md`. A change to that text
 	/// changes this name; a profile override is kept whatever it says.
 	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v1";
+	/// \brief [[BPR-2051]] Versions of the shipped Enhance prompts,
+	/// `resources/review-preparation/enhance-*.md`, one for each, so an
+	/// override can say which default it was written against.
+	inline constexpr std::string_view enhance_stop_hook_version = "enhance-tour-stop-v1";
+	/// One prompt for comments, replies and notes since 2026-11-10; it
+	/// replaced `enhance-comment-v1` and `enhance-note-v1`, which never shipped.
+	inline constexpr std::string_view enhance_writing_hook_version = "enhance-writing-v1";
+	/// \brief [[BPR-2059]] Version of the shipped suggested-comment format,
+	/// `resources/review-preparation/suggested-comment.md`.
+	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v1";
+	/// \brief RFC-BPR-0110 ([[BPR-2026]]) Versions of the shipped
+	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
+	inline constexpr std::string_view local_description_hook_version = "local-description-v1";
+	inline constexpr std::string_view local_discussion_hook_version  = "local-discussion-v1";
+	/// \brief RFC-BPR-0114 as amended 2026-11-12. Version of the shipped
+	/// commit-message prompt, `resources/review-preparation/local-commit-message.md`.
+	inline constexpr std::string_view local_commit_message_hook_version = "local-commit-message-v1";
+	/// \brief RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). Versions of the
+	/// returning questions' prompts, `resources/review-preparation/review-*.md`.
+	inline constexpr std::string_view review_latest_upload_hook_version = "review-latest-upload-v2";
+	inline constexpr std::string_view review_proposed_fix_hook_version  = "review-proposed-fix-v2";
+	/// \brief RFC-BPR-0117 ([[BPR-2076]]). Version of Explain this file's
+	/// prompt, `resources/review-preparation/review-explain-file.md`.
+	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v2";
+	/// \brief RFC-BPR-0118 ([[BPR-2078]]). Version of Suggest the change's
+	/// prompt, `resources/review-preparation/review-suggest-change.md`.
+	inline constexpr std::string_view review_suggest_change_hook_version = "review-suggest-change-v1";
+	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
+	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
+	/// text, version, position in this enumeration or display name.
+	[[nodiscard]] auto writing_hook_purpose(core::writing_hook aHook) noexcept -> std::string_view;
+	/// \brief The prompt a purpose ID names, or none for an ID this version
+	/// does not recognize. The retired `enhance.comment` and `enhance.note`
+	/// name `enhance.writing`, which replaced them.
+	[[nodiscard]] auto writing_hook_of_purpose(std::string_view aPurpose) noexcept -> std::optional<core::writing_hook>;
+	/// \brief [[BPR-2051]] SHA-256 of one hook's shipped default text: with
+	/// `writing_hook_version_of`, the built-in provenance an exported
+	/// override carries.
+	[[nodiscard]] auto default_writing_hook_digest(core::writing_hook aHook) -> std::array<std::uint8_t, 32>;
 	/// \brief The version of one hook's shipped default.
 	[[nodiscard]] auto writing_hook_version_of(core::writing_hook aHook) noexcept -> std::string_view;
 	/// \brief Shipped instruction resource; no runtime file or repository lookup.
@@ -61,6 +121,17 @@ namespace bpr::application {
 	/// shipped version it was taken from, and whether it is the profile's
 	/// override. None while the label helper is off, which leaves the press's
 	/// request byte for byte what it was before the hook existed.
-	[[nodiscard]] auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
+	/// \brief [[BPR-2059]] The suggested-comment format every Agent tab
+	/// request's brief carries: the profile's override, or the shipped
+	/// default, with its version and which of the two it is.
+	[[nodiscard]] auto suggested_comment_format(const core::writing_hook_settings& aSettings) -> std::optional<core::supplement_feedback_guidance>;
+	/// \brief RFC-BPR-0128 (docs/design/report-templates-v1). The report shape an
+	/// Agent tab request carries for the asks answered as reports outside the
+	/// returning questions (What could this change break?, a review): the
+	/// shared rules and those two templates,
+	/// `resources/review-preparation/report-templates.md`.
+	inline constexpr std::string_view report_templates_version = "report-templates-v1";
+	[[nodiscard]] auto                report_templates_guidance() -> core::supplement_feedback_guidance;
+	[[nodiscard]] auto                workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }
 #endif

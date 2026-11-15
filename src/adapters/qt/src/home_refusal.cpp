@@ -44,6 +44,10 @@ namespace bpr::qt {
 				return QStringLiteral("homeRefusalUseGithubCli");
 			case core::pull_request_refusal_action::use_another_account:
 				return QStringLiteral("homeRefusalUseAnotherAccount");
+			case core::pull_request_refusal_action::open_on_github:
+				return QStringLiteral("homeRefusalOpenOnGithub");
+			case core::pull_request_refusal_action::retry:
+				return QStringLiteral("homeRefusalRetry");
 			}
 			return QStringLiteral("homeRefusalSignIn");
 		}
@@ -52,6 +56,8 @@ namespace bpr::qt {
 			core::pull_request_refusal_action::sign_in,
 			core::pull_request_refusal_action::use_github_cli,
 			core::pull_request_refusal_action::use_another_account,
+			core::pull_request_refusal_action::open_on_github,
+			core::pull_request_refusal_action::retry,
 		};
 	}
 
@@ -139,14 +145,14 @@ namespace bpr::qt {
 		setAccessibleName(Heading->text());
 		setAccessibleDescription(Explanation->text());
 		// The core's order is the row's order: the step the heading names first,
-		// then the others, then Copy details.
-		for (auto* const button : Actions) {
-			Buttons->removeWidget(button);
-			button->hide();
-		}
-		Buttons->removeWidget(CopyDetails);
+		// then the others, then Copy details. [[BPR-2048]]: the row is rebuilt
+		// whole each time, so a second wording never keeps a control placed for
+		// the first.
 		while (Buttons->count() > 0) {
 			delete Buttons->takeAt(0);
+		}
+		for (auto* const button : Actions) {
+			button->hide();
 		}
 		for (const auto action : Wording.Actions) {
 			auto* const button = action_button(action);
@@ -156,7 +162,9 @@ namespace bpr::qt {
 			}
 		}
 		Buttons->addWidget(CopyDetails);
+		CopyDetails->show();
 		Buttons->addStretch(1);
+		Buttons->invalidate();
 		updateGeometry();
 		update();
 	}

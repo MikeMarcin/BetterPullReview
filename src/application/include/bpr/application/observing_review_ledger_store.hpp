@@ -30,8 +30,8 @@ namespace bpr::application {
 		[[nodiscard]] auto store_conversation_receipt(const core::conversation_receipt& aReceipt) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto store_conversation_receipts(std::span<const core::conversation_receipt> aReceipts) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto load_conversation_receipts() -> std::expected<std::vector<core::conversation_receipt>, ledger_store_failure> override;
-		[[nodiscard]] auto store_note(const local_note_record& aNote, std::optional<local_note_revision> aExpectedRevision = std::nullopt) -> std::expected<local_note_record, local_note_failure> override;
-		[[nodiscard]] auto erase_note(local_note_id aNote, local_note_revision aExpectedRevision) -> std::expected<void, local_note_failure> override;
+		[[nodiscard]] auto store_local_comment(const local_comment_record& aNote, std::optional<local_comment_revision> aExpectedRevision = std::nullopt) -> std::expected<local_comment_record, local_comment_failure> override;
+		[[nodiscard]] auto erase_local_comment(local_comment_id aNote, local_comment_revision aExpectedRevision) -> std::expected<void, local_comment_failure> override;
 		[[nodiscard]] auto store_last_reviewed_head(const core::git_commit_oid& aHead) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto erase_last_reviewed_head() -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto store_defect(const durable_defect_record& aDefect) -> std::expected<void, ledger_store_failure> override;

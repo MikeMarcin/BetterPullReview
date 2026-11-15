@@ -26,17 +26,17 @@ namespace bpr::qt {
 	class workbench_drawer_rail;
 
 	/// \brief [[BPR-1781]]. The drawer's tabs, in their order: Status and
-	/// Commits are Overview's own; Comments, Notes, Tour and Agent are the
-	/// conversation tabs Review's tray has.
+	/// Commits are Overview's own; Comments, Tour and Agent are the
+	/// conversation tabs Review's tray has. RFC-BPR-0127: Notes is gone, a
+	/// pull request's Local comments are in Comments.
 	enum class overview_drawer_tab : std::uint8_t {
 		status,
 		commits,
 		comments,
-		notes,
 		tour,
 		agent,
 	};
-	inline constexpr int overview_drawer_tab_count = 6;
+	inline constexpr int overview_drawer_tab_count = 5;
 
 	/// \brief The Overview's right column as a real drawer.
 	///
@@ -49,8 +49,8 @@ namespace bpr::qt {
 	/// tools at the right; Status's content is the column the page already
 	/// built.
 	///
-	/// [[BPR-1781]]. Comments, Notes and Agent are holders: the window moves
-	/// its one conversation panel, notes panel and agent page into them while
+	/// [[BPR-1781]]. Comments and Agent are holders: the window moves
+	/// its one conversation panel and agent page into them while
 	/// Overview shows and back to Review's tray when it leaves, so each is the
 	/// same object with the same state in both places. Tour is a summary the
 	/// window feeds from the tour's own presentation.
@@ -91,12 +91,24 @@ namespace bpr::qt {
 		/// \brief [[BPR-1781]]. Shows `aTab`, expanding a collapsed drawer.
 		void               show_tab(overview_drawer_tab aTab);
 		[[nodiscard]] auto current_tab() const -> overview_drawer_tab;
-		/// \brief The page a borrowed panel is put in: Comments, Notes or Agent.
+		/// \brief The page a borrowed panel is put in: Comments or Agent.
 		[[nodiscard]] auto holder(overview_drawer_tab aTab) const -> QWidget*;
 		[[nodiscard]] auto tour_summary() const noexcept -> overview_tour_summary*;
 		/// \brief Shows or hides the Tour tab; a hidden open tab gives way to Status.
 		void               set_tour_tab_shown(bool aShown);
 		[[nodiscard]] auto tour_tab_shown() const -> bool;
+		/// \brief Shows or hides Comments and Agent, the tabs Review's
+		/// tray lends while a pull request's Overview shows. A local draft's
+		/// Overview has none of them to lend: its notes and its tour stay in
+		/// Review's tray, and Comments waits for the pull request.
+		void               set_conversation_tabs_shown(bool aShown);
+		[[nodiscard]] auto conversation_tabs_shown() const -> bool;
+		/// \brief RFC-BPR-0111 as drawn in the accepted local-draft design: a
+		/// local draft's Status tab carries its publish steps. A page given
+		/// here stands in Status's place (and Commits waits) until it is taken
+		/// back with null; the page the drawer was built with is kept.
+		void               set_status_page(QWidget* aPage);
+		[[nodiscard]] auto status_page() const noexcept -> QWidget*;
 		/// \brief Told when the open tab changes, by the reviewer or `show_tab`.
 		void set_tab_observer(std::function<void(overview_drawer_tab)> aObserver);
 
@@ -125,9 +137,10 @@ namespace bpr::qt {
 		QStackedWidget*                          Pages          = nullptr;
 		commit_filter_tab*                       Commits        = nullptr;
 		QWidget*                                 CommentsHolder = nullptr;
-		QWidget*                                 NotesHolder    = nullptr;
 		QWidget*                                 AgentHolder    = nullptr;
-		overview_tour_summary*                   TourSummary    = nullptr;
+		QWidget*                                 StatusPage     = nullptr;
+		void                                     show_page(int aIndex);
+		overview_tour_summary*                   TourSummary = nullptr;
 		std::function<void(overview_drawer_tab)> TabObserver;
 	};
 

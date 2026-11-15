@@ -40,32 +40,6 @@ namespace bpr::app {
 		};
 	}
 
-	/// \brief The name a file note shows: its file's current or previous path,
-	/// else the path kept when it was written ([[BPR-1210]]), else an honest
-	/// "earlier update" for a note written before paths were kept.
-	auto github_application::implementation::private_note_file_label(const application::local_note_record& aNote) -> std::string
-	{
-		const auto& aFile = aNote.Attachment->File;
-		if (!NotePaths && WindowRead->accepted_snapshot()) {
-			NotePaths.emplace();
-			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
-				NotePaths->try_emplace(core::file_identity_of(file.Path), file.Path);
-				if (file.PreviousPath) {
-					NotePaths->try_emplace(core::file_identity_of(*file.PreviousPath), *file.PreviousPath);
-				}
-			}
-		}
-		if (NotePaths) {
-			if (const auto found = NotePaths->find(aFile); found != NotePaths->end()) {
-				return found->second;
-			}
-		}
-		if (aNote.FilePath) {
-			return *aNote.FilePath;
-		}
-		return "File comparison from an earlier update";
-	}
-
 	/// \brief Copies one selected private item through the existing Comment target.
 	/// \brief Copies one private item's text into Comment's draft, then
 	/// shows that draft.
@@ -122,28 +96,6 @@ namespace bpr::app {
 		});
 	}
 
-	/// \brief [[BPR-1592]]. Draft comment on a note at its line: the line is
-	/// chosen, and once its draft is the one selected the note's words
-	/// become that draft, exactly as Comment's own target would. Nothing
-	/// is published.
-	void github_application::implementation::promote_line_note(const application::local_note_record& aNote, std::function<void()> aRefused)
-	{
-		const auto* const surface = Window != nullptr ? Window->comparison_surface() : nullptr;
-		const auto* const shown   = surface != nullptr && surface->current_result() != nullptr ? &surface->current_result()->Alignment : nullptr;
-		const auto        place   = core::place_note(application::note_anchor_of(aNote), shown);
-		if (place.Kind != core::note_placement_kind::placed || !place.At) {
-			aRefused();
-			return;
-		}
-		const auto at = *place.At;
-		if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
-			promote_private_item(aNote.Note.Text, std::move(aRefused));
-			return;
-		}
-		PendingNotePromotion = pending_note_promotion{ .Text = aNote.Note.Text, .At = at, .Refused = std::move(aRefused) };
-		static_cast<void>(Window->comparison_surface()->select_conversation_line(at.Side, at.Line));
-	}
-
 	/// \brief [[BPR-1592]]. A note's promotion waiting for its line's draft.
 	void github_application::implementation::resume_note_promotion()
 	{
@@ -159,151 +111,22 @@ namespace bpr::app {
 		promote_private_item(std::move(pending.Text), std::move(pending.Refused), std::move(pending.Done));
 	}
 
-	void github_application::implementation::dispatch_private_note(const qt::private_note_intent& aIntent)
-	{
-		if (Window == nullptr) {
-			return;
-		}
-		auto* panel = Window->private_notes();
-		if (Closing || !ReviewLedgerHost || !ReviewLedgerAvailable || aIntent.Scope != PrivateNoteScope
-			|| PrivateNoteScope == 0U || PrivateNoteScope == std::numeric_limits<std::uint64_t>::max()) {
-			panel->refuse(QStringLiteral("This note belongs to an unavailable review. Your text is kept."));
-			return;
-		}
-		if (aIntent.Action == qt::private_note_action::discard) {
-			ReviewLedgerHost->dismiss_rejected_note();
-			refresh_agent_private_context_choices();
-			return;
-		}
-		const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_note_id{ aIntent.Id }, &application::local_note_record::Id);
-		if (aIntent.Id != 0U && (found == AcceptedPrivateNotes.end() || found->Revision.value() != aIntent.Revision)) {
-			panel->refuse(QStringLiteral("This note changed in another window. Your text is kept; discard changes to reload it."));
-			return;
-		}
-		if (aIntent.Action == qt::private_note_action::ask_agent) {
-			if (found != AcceptedPrivateNotes.end()) {
-				ask_agent_about_note(*found);
-			}
-			return;
-		}
-		if (aIntent.Action == qt::private_note_action::promote) {
-			const auto refuse = [guarded = QPointer{ panel }] {
-				if (guarded != nullptr) {
-					guarded->refuse(QStringLiteral("Select Comment's current-head target and resolve any draft conflict before promoting."));
-				}
-			};
-			if (found == AcceptedPrivateNotes.end()) {
-				refuse();
-			} else if (found->Attachment && found->Attachment->Line) {
-				promote_line_note(*found, refuse);
-			} else {
-				promote_private_item(found->Note.Text, refuse);
-			}
-			return;
-		}
-		const auto refuse = [panel](const application::local_note_failure& aFailure) {
-			panel->refuse(QStringLiteral("The note change was refused (%1). Your text is kept. Discard changes to reload the accepted note.")
-							  .arg(QString::fromUtf8(application::name(aFailure.Reason).data(), static_cast<qsizetype>(application::name(aFailure.Reason).size()))));
-		};
-		if (aIntent.Action == qt::private_note_action::erase) {
-			if (found == AcceptedPrivateNotes.end()) {
-				return;
-			}
-			// [[BPR-1211]]. Deleted off the decision lane; acknowledged once durable.
-			ReviewLedgerHost->erase(found->Id, application::local_note_revision{ aIntent.Revision },
-									ledger_answer([this, refuse](const std::expected<void, application::local_note_failure>& aErased) {
-										if (!aErased) {
-											refuse(aErased.error());
-											return;
-										}
-										ReviewLedgerHost->dismiss_rejected_note();
-										Window->private_notes()->acknowledge(0U);
-										refresh_agent_private_context_choices();
-									}));
-			return;
-		}
-		auto note     = application::local_note_record{ };
-		auto revision = std::optional<application::local_note_revision>{ };
-		if (found != AcceptedPrivateNotes.end()) {
-			note     = *found;
-			revision = application::local_note_revision{ aIntent.Revision };
-		} else {
-			auto next = std::uint64_t{ 1U };
-			for (const auto& accepted : AcceptedPrivateNotes) {
-				if (accepted.Id.value() == std::numeric_limits<std::uint64_t>::max()) {
-					panel->refuse(QStringLiteral("The note identity space is exhausted. Your text is kept."));
-					return;
-				}
-				next = std::max(next, accepted.Id.value() + 1U);
-			}
-			note.Id = application::local_note_id{ next };
-			if (aIntent.Attachment) {
-				auto offered = application::local_note_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
-				if (current_note_attachment() != std::optional{ offered }) {
-					panel->refuse(QStringLiteral("The selected file changed. Your text is kept; return to that comparison before saving."));
-					return;
-				}
-				// [[BPR-1591]]. A note on a line keeps exactly the line the
-				// shown comparison has there, and its blob.
-				if (aIntent.Attachment->Line) {
-					const auto* const surface = Window->comparison_surface();
-					const auto        shown   = surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == offered.Comparison
-						? core::note_line_anchor_at(surface->current_result()->Alignment, aIntent.Attachment->Line->Side, aIntent.Attachment->Line->Line)
-						: std::nullopt;
-					if (shown != aIntent.Attachment->Line) {
-						panel->refuse(QStringLiteral("That line is not in the shown comparison now. Your text is kept; return to it before saving."));
-						return;
-					}
-					offered.Line = shown;
-				}
-				note.Attachment = offered;
-				// [[BPR-1210]]. Kept with the note, so it can still name the
-				// file after a later update drops it.
-				if (const auto& path = SelectedDiffPublication->Request.File.PresentationPath;
-					!path.empty() && path.size() <= application::maximum_note_path_bytes) {
-					note.FilePath = path;
-				}
-			}
-		}
-		note.Note.Text = aIntent.Text;
-		// [[BPR-1211]]. Written off the decision lane; acknowledged once durable.
-		ReviewLedgerHost->persist(note, revision,
-								  ledger_answer([this, refuse](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
-									  if (!aStored) {
-										  refuse(aStored.error());
-										  return;
-									  }
-									  ReviewLedgerHost->dismiss_rejected_note();
-									  Window->private_notes()->acknowledge(aStored->Id.value());
-									  refresh_agent_private_context_choices();
-								  }));
-	}
-
 	void github_application::implementation::refresh_agent_private_context_choices()
 	{
 		if (Window == nullptr || Window->agent_panel() == nullptr) {
 			return;
 		}
-		auto notes      = std::vector<application::local_note_id>{ };
-		auto projection = qt::private_notes_projection{ .Scope = PrivateNoteScope };
-		if (const auto attachment = current_note_attachment()) {
-			projection.CurrentFile = qt::private_note_target{ attachment->File, attachment->Comparison };
-			// This path is already owned by the selected comparison.
-			projection.CurrentFileLabel = SelectedDiffPublication->Request.File.PresentationPath;
-		}
+		auto notes = std::vector<application::local_comment_id>{ };
 		if (ReviewLedgerHost != nullptr) {
 			if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
-				AcceptedPrivateNotes = std::move(observed->Notes);
-				projection.Available = ReviewLedgerAvailable && PrivateNoteScope != std::numeric_limits<std::uint64_t>::max();
+				AcceptedPrivateNotes = std::move(observed->LocalComments);
 				notes.reserve(AcceptedPrivateNotes.size());
 				for (const auto& note : AcceptedPrivateNotes) {
 					notes.push_back(note.Id);
-					projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison, note.Attachment->Line } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Note.Text });
 				}
-				std::ranges::sort(projection.Notes, std::greater{ }, &qt::private_note_item::Id);
 			}
 		}
-		Window->private_notes()->present(std::move(projection));
+		present_local_comments();
 		auto draft = current_agent_draft_observation();
 		if (draft.has_value()
 			&& draft->Draft.State != core::review_draft_state::drafting) {
@@ -360,6 +183,7 @@ namespace bpr::app {
 		const auto& state = EpochHost->state();
 		if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 			|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
+			detach_agent_runtime();
 			AgentHost->clear();
 			if (TourSession) {
 				TourSession->clear();
@@ -374,6 +198,7 @@ namespace bpr::app {
 		if (authority.Host != AgentReview->Host
 			|| authority.Repository != AgentReview->Repository
 			|| authority.PullRequest != AgentReview->PullRequest) {
+			detach_agent_runtime();
 			AgentHost->clear();
 			if (TourSession) {
 				TourSession->clear();
@@ -395,6 +220,7 @@ namespace bpr::app {
 			state.ApplicationSession, authority, observedBinding);
 		AgentHost->observe(
 			state.ApplicationSession, authority, observedBinding);
+		attach_agent_runtime(observedBinding);
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
 			present_tour_continuation();
@@ -436,6 +262,9 @@ namespace bpr::app {
 		}
 		if (std::holds_alternative<qt::cancel_agent_intent>(aIntent)) {
 			AgentHost->cancel();
+			if (auto* const runtime = agent_runtime(); runtime != nullptr) {
+				runtime->cancel();
+			}
 			return;
 		}
 		const auto start = std::get<qt::start_agent_intent>(aIntent);
@@ -450,6 +279,77 @@ namespace bpr::app {
 			std::nullopt,
 			core::agent_entry_point::ask_about_selection,
 			std::nullopt));
+	}
+
+	void github_application::implementation::compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion)
+	{
+		auto subject = core::supplement_subject{ .Subject = aQuestion.Subject };
+		// Where the reviewer is looking: the open file, and the selected
+		// line in it. Not on Overview, where no file is open.
+		const auto* const surface   = Window != nullptr ? Window->comparison_surface() : nullptr;
+		const auto        reviewing = Window != nullptr && SelectedDiffPublication.has_value() && !Window->showing_overview();
+		const auto        current   = reviewing && surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+		const auto        openPath  = reviewing ? SelectedDiffPublication->Request.File.PresentationPath : std::string{ };
+		switch (aQuestion.Subject) {
+		case core::agent_question_subject::pull_request:
+			// Every changed file is in scope, and no one file is offered as
+			// the one the question is about.
+			aObservation.Files.clear();
+			if (aObservation.Brief) {
+				for (const auto& file : aObservation.Brief->Files) {
+					if (!file.Path.empty() && subject.InScope.size() < core::maximum_subject_files) {
+						subject.InScope.push_back(file.Path);
+					}
+				}
+			}
+			break;
+		case core::agent_question_subject::file:
+			subject.Path = aQuestion.File;
+			if (aQuestion.File != openPath) {
+				aObservation.Files.clear();
+			}
+			break;
+		case core::agent_question_subject::lines:
+			if (current) {
+				if (const auto range = surface->line_draft_range(); range && range->first.Side == range->second.Side) {
+					const auto first  = std::min(range->first.Line, range->second.Line);
+					const auto last   = std::max(range->first.Line, range->second.Line);
+					subject.Path      = openPath;
+					subject.Before    = range->first.Side == core::diff_side::left;
+					subject.FirstLine = first + 1U;
+					subject.LastLine  = last + 1U;
+					auto text         = std::string{ };
+					for (auto line = first; line <= last; ++line) {
+						const auto shown = surface->source_line_text(core::source_line_ref{ .Comparison = range->first.Comparison, .Side = range->first.Side, .Line = line });
+						auto       bytes = shown ? shown->toStdString() : std::string{ };
+						if (text.size() + bytes.size() + 1U > core::maximum_subject_text_bytes) {
+							break;
+						}
+						text += bytes;
+						text += '\n';
+					}
+					subject.Text = std::move(text);
+				}
+			}
+			if (subject.Path.empty()) {
+				// No lines to name: said as the pull request rather than
+				// sent as lines that are not there.
+				subject = core::supplement_subject{ };
+				aObservation.Selection.reset();
+				aObservation.Files.clear();
+			}
+			break;
+		case core::agent_question_subject::conversation: break;
+		}
+		aObservation.Subject = std::move(subject);
+		if (reviewing && aQuestion.Subject != core::agent_question_subject::lines && aQuestion.Subject != core::agent_question_subject::conversation && !openPath.empty()) {
+			auto looking = core::supplement_looking_at{ .Path = openPath };
+			if (current && surface->selection()) {
+				looking.Line   = surface->selection()->PreferredLine.Line + 1U;
+				looking.Before = surface->selection()->PreferredLine.Side == core::diff_side::left;
+			}
+			aObservation.LookingAt = std::move(looking);
+		}
 	}
 
 	/// \brief The one launch path, and there is deliberately no second.
@@ -486,7 +386,7 @@ namespace bpr::app {
 	/// already named on the launch panel before this returns `false`.
 	auto github_application::implementation::dispatch_agent_invocation(
 		const core::agent_profile_id                          aProfile,
-		const std::vector<application::local_note_id>&        aIncludedNotes,
+		const std::vector<application::local_comment_id>&     aIncludedNotes,
 		const std::optional<application::agent_draft_choice>& aIncludedDraft,
 		const bool                                            aExistingCheckoutChosen,
 		const std::string_view                                aChatMessage,
@@ -548,7 +448,7 @@ namespace bpr::app {
 		}
 		// [[BPR-1935]]. A read-only tour run's prompt is composed, not typed,
 		// and travels in the tour prompt's own carrier and bound.
-		const auto tourPrompt  = aWritingOnly && aTour.ReadOnly;
+		const auto tourPrompt  = aWritingOnly && (aTour.ReadOnly || aTour.UpFront);
 		auto       observation = application::agent_context_observation{
 			.ApplicationSession = state.ApplicationSession,
 			.Binding            = turnBinding,
@@ -568,8 +468,10 @@ namespace bpr::app {
 		// [[BPR-1916]]. The skills an Agent tab question names ride with
 		// it, inline. A tour writing run's come from its hook (see
 		// skill_run_for), not from its prompt's template text.
+		// RFC-BPR-0125 (AC09): a suggested prompt sent as offered names
+		// skills only in its template's own text, never in a value.
 		if (!aWritingOnly && !aChatMessage.empty()) {
-			const auto texts  = std::array{ std::string_view{ aChatMessage } };
+			const auto texts  = std::array{ ChatSkillText ? std::string_view{ *ChatSkillText } : std::string_view{ aChatMessage } };
 			auto       skills = prepare_skill_run(SkillLibrary, texts);
 			if (!skills.Inline.empty() && observation.ChatMessage.size() + skills.Directive.size() <= core::maximum_chat_message_bytes) {
 				observation.Skills = std::move(skills.Inline);
@@ -583,7 +485,7 @@ namespace bpr::app {
 		// was before the hook existed. The guidance is text for the
 		// agent's prose; the launch it rides on is the one every press
 		// already makes.
-		if (aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation.has_value() && Profile && Profile->WorkbenchPreferences) {
+		if (aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation.has_value() && core::rewrites_prose(*aWorkshopOperation) && Profile && Profile->WorkbenchPreferences) {
 			if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {
 				observation.FeedbackGuidance = application::workshop_feedback_supplement(preferences->WritingHooks, preferences->Behaviour.LabelHelper);
 			}
@@ -602,15 +504,75 @@ namespace bpr::app {
 				return false;
 			}
 		}
+		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning question
+		// carries its material up front, or is refused here by name.
+		const auto returning = aEntryPoint == core::agent_entry_point::analyze_latest_upload || aEntryPoint == core::agent_entry_point::evaluate_proposed_fix;
+		if (returning && !compose_returning(observation, aEntryPoint)) {
+			return false;
+		}
+		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file carries the file's
+		// change and its text up front, read at the press, or is refused.
+		const auto explaining = aEntryPoint == core::agent_entry_point::analyze_current_file;
+		if (explaining && !compose_explain(observation)) {
+			return false;
+		}
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change carries the draft's
+		// lines, its words and their surroundings up front, or is refused.
+		const auto suggesting = aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation == std::optional{ core::workshop_operation::suggest_change };
+		if (suggesting && !compose_suggest_change(observation)) {
+			return false;
+		}
+		const auto firstAnswer = returning || explaining || suggesting;
+		// [[BPR-2138]]. Ask more: the next Agent tab question opens with the
+		// one-off question and answer it continues, once.
+		if (!aWritingOnly && !firstAnswer && AskMoreSeed && aEntryPoint != core::agent_entry_point::workshop_comment) {
+			auto seeded = "Earlier, outside this conversation, I asked: " + AskMoreSeed->first + "\n\nYou answered:\n" + AskMoreSeed->second + "\n\nNow: ";
+			if (seeded.size() + observation.ChatMessage.size() > core::maximum_chat_message_bytes) {
+				seeded.resize(core::maximum_chat_message_bytes > observation.ChatMessage.size() + 8U ? core::maximum_chat_message_bytes - observation.ChatMessage.size() - 8U : 0U);
+				while (!seeded.empty() && (static_cast<unsigned char>(seeded.back()) & 0xC0U) == 0x80U) {
+					seeded.pop_back();
+				}
+				if (!seeded.empty() && static_cast<unsigned char>(seeded.back()) >= 0xC0U) {
+					seeded.pop_back();
+				}
+				seeded += "\nNow: ";
+			}
+			observation.ChatMessage = seeded + observation.ChatMessage;
+			AskMoreSeed.reset();
+		}
 		observation.CurrentDraft = current_agent_draft_observation();
 		// [[BPR-1752]], RFC-BPR-0092. A review request carries the
 		// brief: what the reviewer can read on GitHub about this pull
 		// request, bounded, and the review skill's text (Q9 A). A comment
 		// workshop press and a writing request are not review requests.
 		if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
-			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+			// RFC-BPR-0116. A returning question's own prompt is its
+			// instructions; the review skill is not sent with it.
+			auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill && !firstAnswer ? ReviewSkill->brief_skill() : std::nullopt);
+			// [[BPR-2059]]. How the reviewer wants suggested comments
+			// written, read now from the profile's saved prompts.
+			if (Profile && Profile->WorkbenchPreferences) {
+				if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {
+					brief.CommentFormat = application::suggested_comment_format(preferences->WritingHooks);
+				}
+			}
+			if (!brief.CommentFormat) {
+				brief.CommentFormat = application::suggested_comment_format(core::writing_hook_settings{ });
+			}
+			// RFC-BPR-0128 (docs/design/report-templates-v1). The report shape
+			// What could this change break? and a review keep to; the
+			// returning questions and Explain this file carry theirs in their
+			// own prompts.
+			if (!firstAnswer) {
+				brief.ReportFormat = application::report_templates_guidance();
+			}
 
 			observation.Brief = core::bound_review_brief(std::move(brief));
+			// A fresh first answer carries no earlier conversation.
+			if (firstAnswer && observation.Brief) {
+				observation.Brief->Conversation.clear();
+				observation.Brief->ConversationOmitted = 0U;
+			}
 		}
 		// Which file, and where in it. The two are told apart because
 		// only one of them names a comparison. The file is a path and a
@@ -665,6 +627,29 @@ namespace bpr::app {
 				};
 			}
 		}
+		// [[BPR-2002]], RFC-BPR-0102. A chat question states its subject.
+		// The open file and the reading position go as where the reviewer is
+		// looking, and only attached lines are sent as lines: a question
+		// about the pull request is never narrowed to the open file.
+		if (ChatQuestion && !aWritingOnly) {
+			if (ChatQuestion->Subject != core::agent_question_subject::lines && ChatQuestion->Subject != core::agent_question_subject::conversation) {
+				observation.Selection.reset();
+				pointedAt.reset();
+			}
+			compose_question_subject(observation, *ChatQuestion);
+		}
+		// RFC-BPR-0118. Its subject is the draft's lines, as the press read them.
+		if (suggesting && SuggestChangeMaterial) {
+			observation.Selection.reset();
+			pointedAt.reset();
+			observation.Subject = core::supplement_subject{
+				.Subject   = core::agent_question_subject::lines,
+				.Path      = SuggestChangeMaterial->Path,
+				.FirstLine = SuggestChangeMaterial->FirstLine,
+				.LastLine  = SuggestChangeMaterial->LastLine,
+				.Text      = SuggestChangeMaterial->Lines.size() <= core::maximum_subject_text_bytes ? SuggestChangeMaterial->Lines : std::string{ },
+			};
+		}
 		// A continuation asks for the old revision's alignment before it
 		// asks the agent anything, and asks for it off this gesture:
 		// recomputing an alignment queues behind whatever epoch work the
@@ -687,7 +672,7 @@ namespace bpr::app {
 			observation.Files.clear();
 			observation.Selection.reset();
 			observation.CurrentDraft.reset();
-			observation.Private.Notes.clear();
+			observation.Private.LocalComments.clear();
 			observation.Private.Defects.clear();
 		}
 		return launch_agent_invocation(
@@ -770,10 +755,15 @@ namespace bpr::app {
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23. An added agent runs
 		// with its own model and effort unless the request names one.
-		auto checks = application::agent_run_checks::strict;
+		auto checks       = application::agent_run_checks::strict;
+		auto mcpServers   = core::agent_mcp_servers::off;
+		auto instructions = core::agent_instruction_delivery::system_prompt;
 		if (AgentSetup) {
 			const auto agents = AgentSetup->projection().Preferences.Agents;
 			if (const auto* const entry = core::entry_of_profile(agents, aProfile); entry != nullptr) {
+				// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12).
+				mcpServers   = entry->McpServers;
+				instructions = entry->Instructions;
 				// [[BPR-1918]]. A custom agent may opt out of strict run checks.
 				if (!entry->StrictRunChecks && !entry->Preset) {
 					checks = application::agent_run_checks::relaxed;
@@ -806,6 +796,8 @@ namespace bpr::app {
 			// Owner decision 2026-10-23: a time limit only when the reviewer set one.
 			.RunLimitMilliseconds = run_limit_milliseconds(),
 		};
+		invocation.McpServers   = mcpServers;
+		invocation.Instructions = instructions;
 		// [[BPR-1900]]. Every tour writing run is the tour session's, never
 		// the Agent tab's: a drafting run in the review's workspace with
 		// read-only tools, or a small rewrite tool-free.
@@ -819,6 +811,8 @@ namespace bpr::app {
 			invocation.HistoryCloneManaged = aTour.ReadOnly && linked_history_clone_managed(false);
 			invocation.MeasurePaths        = aTour.Measure;
 			invocation.RunChecks           = checks;
+			invocation.Path                = aTour.Path;
+			invocation.SystemInstructions  = aTour.SystemInstructions;
 			// [[BPR-1916]]. The skills the prompt names ride in the supplement.
 			invocation.Context.Skills = aTour.Skills.Inline;
 			if (!aTour.NativeScope.empty() && AgentSetup) {
@@ -834,7 +828,15 @@ namespace bpr::app {
 			TourSession->dispatch(std::move(invocation));
 			return true;
 		}
-		if (AgentSetup && !aExistingCheckoutChosen) {
+		// RFC-BPR-0116, RFC-BPR-0101 as amended 2026-11-12. A returning
+		// question's first answer is a fresh one-off: no native session and
+		// no grant, and its own prompt as the system prompt.
+		// RFC-BPR-0117: Explain this file's first answer is one too.
+		// RFC-BPR-0118: Suggest the change's first answer is one too.
+		const auto returning = invocation.Context.EntryPoint == core::agent_entry_point::analyze_latest_upload || invocation.Context.EntryPoint == core::agent_entry_point::evaluate_proposed_fix
+			|| invocation.Context.EntryPoint == core::agent_entry_point::analyze_current_file
+			|| (invocation.Context.EntryPoint == core::agent_entry_point::workshop_comment && invocation.Context.WorkshopOperation == std::optional{ core::workshop_operation::suggest_change });
+		if (AgentSetup && !aExistingCheckoutChosen && !returning) {
 			const auto preferences = AgentSetup->projection().Preferences;
 			if (const auto* const entry = core::entry_of_profile(preferences.Agents, aProfile); entry != nullptr) {
 				invocation.NativeAgentIdentity          = entry->Identity;
@@ -845,8 +847,14 @@ namespace bpr::app {
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
 			}
 		}
-		AgentHost->dispatch(std::move(invocation));
-		return true;
+		invocation.Path = core::agent_run_path::agent_tab;
+		if (returning) {
+			launch_returning(invocation, aProfile);
+		} else if (!grant_agent_turn(invocation)) {
+			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The turn's grant.
+			return false;
+		}
+		return send_agent_turn(std::move(invocation));
 	}
 
 	/// \brief Asks for the kept revision's own alignment, then dispatches.
@@ -1236,7 +1244,7 @@ namespace bpr::app {
 					ExplicitPrivateRun                  = std::move(aPressed->Run);
 					sent                                = dispatch_agent_invocation(
 						core::codex_jsonl_profile_id,
-						std::vector<application::local_note_id>{ },
+						std::vector<application::local_comment_id>{ },
 						std::nullopt,
 						false,
 						std::string_view{ },
@@ -1392,28 +1400,14 @@ namespace bpr::app {
 				: promotion_refusal_name(aOutcome.Promotion));
 	}
 
-	auto github_application::implementation::next_private_note_id() const
-		-> application::local_note_id
-	{
-		auto next = std::uint64_t{ 1U };
-		if (ReviewLedgerHost != nullptr) {
-			if (const auto observed = ReviewLedgerHost->private_observation();
-				observed.has_value()) {
-				for (const auto& note : observed->Notes) {
-					next = std::max(next, note.Id.value() + 1U);
-				}
-			}
-		}
-		return application::local_note_id{ next };
-	}
 #endif
 	auto github_application::implementation::current_note_attachment() const
-		-> std::optional<application::local_note_attachment>
+		-> std::optional<application::local_comment_attachment>
 	{
 		if (!SelectedDiffPublication.has_value()) {
 			return std::nullopt;
 		}
-		return application::local_note_attachment{
+		return application::local_comment_attachment{
 			.File       = SelectedDiffPublication->Request.File.File,
 			.Comparison = core::comparison_digest(SelectedDiffPublication->Key),
 		};
@@ -1458,8 +1452,12 @@ namespace bpr::app {
 			request.Defect = anchored_durable_defect(aIntent.Subject.Finding);
 			break;
 		case application::agent_finding_action::add_to_private_notes:
-			request.Note       = next_private_note_id();
-			request.Attachment = current_note_attachment();
+			// RFC-BPR-0127. Keep local: on the finding's file when it is
+			// the one shown, otherwise on the pull request. The store gives
+			// the comment its identity ([[BPR-2187]]).
+			if (SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == aIntent.Subject.Finding.Path) {
+				request.Attachment = current_note_attachment();
+			}
 			break;
 		case application::agent_finding_action::open_evidence:
 		case application::agent_finding_action::ask_follow_up:
@@ -1505,30 +1503,33 @@ namespace bpr::app {
 					ChatHost->choose_agent(*chosen);
 				}
 			}
-			// [[BPR-1773]]. A note is mutable, so it is not sent: its text
-			// is first saved in Private history as one revision, and the
-			// turn runs with that revision as its only private source.
-			if (AskedConversation && AskedConversation->Note) {
-				const auto* const note = asked_note();
-				if (note == nullptr || !PrivateReview) {
+			// [[BPR-1773]]. My own unsent comment is mutable, so it is not
+			// sent: its text is first saved in Private history as one
+			// revision, and the turn runs with that revision as its only
+			// private source. RFC-BPR-0127: one path for Local and Draft.
+			if (AskedConversation && (AskedConversation->Note || AskedConversation->Draft)) {
+				const auto own = own_comment_asked();
+				if (!own || !PrivateReview) {
 					dismiss_asked_conversation();
-					present_agent_refusal("side chat", "the note asked about is gone or Private history is unavailable");
+					present_agent_refusal("side chat", "the comment asked about is gone or Private history is unavailable");
 					return;
 				}
-				PrivateReview->record_note_press(note->Note.Text, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
+				PrivateReview->record_note_press(own->Body, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
 					if (Closing || ChatHost == nullptr) {
 						return;
 					}
 					if (!aPressed) {
-						present_agent_refusal("side chat", "the note could not be saved in Private history");
+						present_agent_refusal("side chat", "the comment could not be saved in Private history");
 						return;
 					}
 					ExplicitPrivateRun = std::move(aPressed->Run);
 					static_cast<void>(ChatHost->send(application::agent_chat_send{
-						.Session = turn.Session,
-						.Action  = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
-						.Scope   = turn.Scope,
-						.Text    = turn.Text,
+						.Session   = turn.Session,
+						.Action    = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
+						.Scope     = turn.Scope,
+						.Text      = turn.Text,
+						.Question  = core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation },
+						.SkillText = turn.SkillText,
 					}));
 					ExplicitPrivateRun.reset();
 				});
@@ -1536,13 +1537,20 @@ namespace bpr::app {
 			}
 			// [[BPR-1773]]. With a conversation attached the turn is
 			// about it, whatever is selected.
-			const auto action = AskedConversation ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
+			// RFC-BPR-0116. Was this addressed? and What changed since my
+			// review keep the entry point the core gave them.
+			const auto returning = send->Question
+				&& (send->Question->EntryPoint == core::agent_entry_point::evaluate_proposed_fix || send->Question->EntryPoint == core::agent_entry_point::analyze_latest_upload || send->Question->EntryPoint == core::agent_entry_point::analyze_current_file);
+			const auto action   = AskedConversation && !returning ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
+			const auto question = AskedConversation && !returning ? std::optional{ core::agent_question{ .Subject = core::agent_question_subject::conversation, .EntryPoint = core::agent_entry_point::ask_about_conversation } } : send->Question;
 			static_cast<void>(
 				ChatHost->send(application::agent_chat_send{
-					.Session = send->Session,
-					.Action  = action,
-					.Scope   = send->Scope,
-					.Text    = send->Text,
+					.Session   = send->Session,
+					.Action    = action,
+					.Scope     = send->Scope,
+					.Text      = send->Text,
+					.Question  = question,
+					.SkillText = send->SkillText,
 				}));
 			return;
 		}
@@ -1643,9 +1651,9 @@ namespace bpr::app {
 
 	/// \brief Every private note the review holds, by identity.
 	auto github_application::implementation::all_private_note_ids() const
-		-> std::vector<application::local_note_id>
+		-> std::vector<application::local_comment_id>
 	{
-		auto notes = std::vector<application::local_note_id>{ };
+		auto notes = std::vector<application::local_comment_id>{ };
 		if (ReviewLedgerHost == nullptr) {
 			return notes;
 		}
@@ -1653,8 +1661,8 @@ namespace bpr::app {
 		if (!observed.has_value()) {
 			return notes;
 		}
-		notes.reserve(observed->Notes.size());
-		for (const auto& note : observed->Notes) {
+		notes.reserve(observed->LocalComments.size());
+		for (const auto& note : observed->LocalComments) {
 			notes.push_back(note.Id);
 		}
 		return notes;
@@ -1685,9 +1693,9 @@ namespace bpr::app {
 		if (ReviewLedgerHost != nullptr) {
 			if (const auto observed = ReviewLedgerHost->private_observation();
 				observed.has_value()) {
-				prose.Notes.reserve(observed->Notes.size());
-				for (const auto& note : observed->Notes) {
-					prose.Notes.push_back(note.Note);
+				prose.Notes.reserve(observed->LocalComments.size());
+				for (const auto& note : observed->LocalComments) {
+					prose.Notes.push_back(core::supplement_note{ .Text = note.Body });
 				}
 			}
 		}

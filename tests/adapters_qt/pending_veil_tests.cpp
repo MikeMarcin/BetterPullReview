@@ -12,6 +12,8 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAccessible>
@@ -22,6 +24,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QListWidget>
+#include <QPalette>
 #include <QPushButton>
 #include <QThread>
 #include <QTreeView>
@@ -279,6 +282,8 @@ namespace {
 		settle();
 		const auto veils = page.pending_veils();
 		page.present_loading();
+		// [[BPR-2180]]. The read lane's account of the read, as its host publishes it.
+		page.present_loading_readiness({ .FirstRead = true });
 		settle(20);
 		expect(veils.Header->busy() && veils.Description->busy() && veils.Files->busy() && veils.Side->busy(), "opening, every section waits");
 		page.present_observation(application::github_loading_overview_projection{
@@ -290,6 +295,7 @@ namespace {
 		page.set_read_waiting(QStringLiteral("the changed files, 3 pages so far"));
 		expect(veils.Files->words().Waiting == QStringLiteral("Still waiting for GitHub: the changed files, 3 pages so far."), "a slow wait names the read's step");
 		page.present(application::pull_request_overview_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Ready" });
+		page.present_loading_readiness({ });
 		settle(20);
 		expect(!veils.Header->busy() && !veils.Files->busy() && !veils.Side->busy(), "the accepted review makes every section ready");
 		page.present_loading();
@@ -310,6 +316,10 @@ namespace {
 		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } } });
 		settle(20);
 		expect(panes.Files->busy() && panes.Conversations->busy() && !panes.Content->busy(), "a first read: the drawers wait; there is no review to veil");
+		// [[BPR-2180]]. Conversations and Threads wait as thread cards, and the
+		// status bar's line turns the mark while it says the read.
+		expect(panes.Conversations->shape() == qt::pending_shape::cards && panes.Threads->shape() == qt::pending_shape::cards, "conversations and Threads wait as thread cards");
+		expect(panes.Status != nullptr, "the status line has the pattern's mark");
 		window.publish(application::github_presentation_update{ .PullRequest = application::github_pull_request_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Seven" } });
 		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready } } });
 		settle(20);
@@ -318,13 +328,54 @@ namespace {
 		settle(20);
 		expect(panes.Content->busy() && panes.Content->look() == core::pending_look::quiet, "a refresh keeps the review as it is before the reveal");
 		expect(!panes.Files->busy(), "the drawers keep their content during a refresh");
+		auto* const status = window.findChild<QLabel*>(QStringLiteral("workbenchStatus"));
+		expect(panes.Status->turning() && status->text().startsWith(QStringLiteral("Loading")), "the status line turns the mark while it says the read");
 		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready } } });
 		settle(20);
 		expect(!panes.Content->busy(), "a settled refresh lifts the veil");
+		// [[BPR-2180]]. The mark and the words are decided together.
+		expect(panes.Status->turning() == (status->text().contains(QStringLiteral("being prepared")) || status->text().startsWith(QStringLiteral("Loading"))), "the mark turns exactly while the line says a load");
 		window.adopt_dif(core::resolve_dif({ }, core::motion_observation::reduced));
 		expect(!window.pending_full_motion(), "the system's Reduce Motion stills every wait");
 		window.adopt_dif(core::resolve_dif({ }, core::motion_observation::full));
 		expect(window.pending_full_motion() && panes.Content->full_motion(), "full motion turns them");
+	}
+
+	// [[BPR-2180]]. A first read's reported files are the drawer's own rows,
+	// through the ordinary file-row path: listed uncovered, a click on one is
+	// remembered rather than dropped, and they go when the read opens no review.
+	void test_reported_files_are_the_drawers_rows()
+	{
+		auto window = qt::workbench_window{ };
+		window.resize(1'280, 820);
+		window.show();
+		settle();
+		const auto& panes  = window.pending_veils();
+		auto* const drawer = window.files_drawer();
+		const auto  file   = [](const char* aPath) { return application::github_provisional_file{ .File = core::file_identity_of(aPath), .Path = aPath }; };
+		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } },
+																.Loading    = core::github_loading_readiness{ .FirstRead = true } });
+		settle(20);
+		expect(panes.Files->busy() && drawer->contents()->rowCount() == 0, "before any file is reported the drawer waits");
+		window.publish(application::github_presentation_update{ .Loading          = core::github_loading_readiness{ .FirstRead = true, .Metadata = true, .Files = true },
+																.ProvisionalFiles = std::vector{ file("src/a.cpp"), file("src/b.cpp") } });
+		settle(20);
+		expect(drawer->contents()->rowCount() == 2 && window.files_tree()->model()->rowCount() > 0, "the reported files are the drawer's rows, in the list and the tree");
+		expect(panes.Files->look() == core::pending_look::quiet || panes.Files->look() == core::pending_look::partial, "and no veil covers them");
+		const auto selections = window.statistics().FileSelections;
+		drawer->contents_view()->setCurrentIndex(drawer->contents()->index(0, 0));
+		settle(20);
+		expect(panes.Files->words().Coming == QStringLiteral("Opening a.cpp once the review has loaded…"), "a click on a reported file is remembered and said");
+		expect(window.statistics().FileSelections == selections, "and nothing is asked of a comparison that does not exist yet");
+		auto* const code = window.comparison_surface()->comparison_veil();
+		expect(code->busy() && code->shape() == qt::pending_shape::code && window.comparison_surface()->waiting_path() == QStringLiteral("src/a.cpp"),
+			   "the comparison waits for it in the shape of code");
+		window.publish(application::github_presentation_update{ .Transition       = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::pull_request_failed } },
+																.Loading          = core::github_loading_readiness{ },
+																.ProvisionalFiles = std::vector<application::github_provisional_file>{ } });
+		settle(20);
+		expect(drawer->contents()->rowCount() == 0 && window.files_tree()->model()->rowCount() == 0, "a read that opened no review leaves none of its files listed");
+		expect(!panes.Files->busy() && !code->busy(), "and nothing waits");
 	}
 
 	void test_the_updates_line_turns_before_its_words()
@@ -338,6 +389,146 @@ namespace {
 		expect(control.readiness_mark()->turning(), "a wait on the Updates line shows the mark");
 		control.set_readiness_busy(false, false);
 		expect(!control.readiness_mark()->turning(), "and drops it when the wait ends");
+	}
+
+	/// [[BPR-2180]]. Whether `aImage` holds anything but `aGround` along row
+	/// `aY` between `aLeft` and `aRight`.
+	[[nodiscard]] auto inked(const QImage& aImage, const int aY, const int aLeft, const int aRight, const QColor& aGround) -> bool
+	{
+		for (auto x = aLeft; x < aRight; ++x) {
+			if (aImage.pixelColor(x, aY) != aGround) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// [[BPR-2180]]. Thread cards and people: drawn in their own shape, counted,
+	// and limited to the count; a pane whose heading says its wait draws its
+	// placeholders in the words' place and says nothing over them.
+	void test_cards_and_people_take_their_shape()
+	{
+		auto cards = pane{ qt::pending_shape::cards };
+		cards.Veil->present(core::pending_activity::loading, false, false, words());
+		settle(20);
+		const auto all = cards.Veil->placeholders();
+		expect(cards.Veil->shape() == qt::pending_shape::cards && all > 0 && all % 6 == 0, "cards draw a rail, face, name, age and two lines each");
+		cards.Veil->set_placeholder_count(2);
+		cards.Veil->repaint();
+		expect(cards.Veil->placeholders() == 12 && all > 12, "a known count of cards is drawn, and no more");
+		cards.advance(core::pending_reveal_milliseconds);
+		expect(cards.Veil->shown_text() == words().Loading && cards.Veil->placeholders() == 12, "after the reveal the words stand above the cards, which stay");
+
+		auto line = QWidget{ };
+		line.resize(320, 26);
+		auto people = qt::pending_veil{ line, qt::pending_shape::people, QStringLiteral("People") };
+		line.show();
+		people.present(core::pending_activity::loading, false, false, words());
+		settle(20);
+		expect(people.placeholders() == 4, "one line of people: three faces and the line beside them");
+		auto roster = QWidget{ };
+		roster.resize(320, 240);
+		auto many = qt::pending_veil{ roster, qt::pending_shape::people, QStringLiteral("Participants") };
+		roster.show();
+		many.present(core::pending_activity::loading, false, false, words());
+		settle(20);
+		expect(many.placeholders() > 3 && many.placeholders() % 3 == 0, "a taller place is a roster: face, name and standing on each row");
+
+		// A heading says the wait: the words' line holds placeholders instead.
+		auto said   = pane{ };
+		auto beside = pane{ };
+		beside.Veil->set_words_beside(true);
+		said.Veil->present(core::pending_activity::loading, false, false, words());
+		beside.Veil->present(core::pending_activity::loading, false, false, words());
+		said.advance(core::pending_reveal_milliseconds);
+		beside.advance(core::pending_reveal_milliseconds);
+		const auto text       = QFontMetrics{ beside.Veil->font() }.height();
+		const auto top        = (qt::pending_veil::inset / 2) + ((((text * 3) / 2) + 4) / 2);
+		const auto ground     = beside.Veil->grab().toImage().pixelColor(beside.Veil->width() - 2, beside.Veil->height() - 2);
+		const auto wordsRight = qt::pending_veil::inset + QFontMetrics{ beside.Veil->font() }.height() + 12;
+		expect(beside.Veil->shown_text() == words().Loading, "assistive technology still hears the wait");
+		expect(beside.Veil->placeholders() > said.Veil->placeholders(), "the words' place holds rows instead");
+		expect(inked(beside.Veil->grab().toImage(), top, qt::pending_veil::inset + 2, wordsRight + 40, ground), "a placeholder stands in the words' place");
+		beside.Veil->set_retry([] { });
+		beside.Veil->present(core::pending_activity::failed, false, false, words());
+		settle(20);
+		expect(beside.Veil->retry_button()->isVisible() && beside.Veil->shown_text() == words().Failure, "a failure is still said in place");
+	}
+
+	// [[BPR-2180]]. The Overview's side column waits section by section: each
+	// section stands in its place under its heading, in its own shape, and
+	// shows when its own part of the read arrives.
+	void test_overview_side_sections_wait_on_their_own()
+	{
+		auto page = qt::pull_request_overview_page{ };
+		page.resize(1'100, 720);
+		page.show();
+		settle();
+		const auto veils = page.pending_veils();
+		expect(veils.Merge != nullptr && veils.MyReview != nullptr && veils.Checks != nullptr && veils.People != nullptr && veils.Roster != nullptr, "every side section has its own veil");
+		expect(veils.Merge->shape() == qt::pending_shape::pairs && veils.MyReview->shape() == qt::pending_shape::pairs && veils.Checks->shape() == qt::pending_shape::rows
+				   && veils.People->shape() == qt::pending_shape::people,
+			   "each in its own shape");
+		page.present_loading();
+		page.present_loading_readiness({ .FirstRead = true });
+		page.present_observation(application::github_loading_overview_projection{ .Title = "Seven", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
+		settle(20);
+		for (auto* const veil : { veils.Merge, veils.MyReview, veils.Checks, veils.People }) {
+			expect(veil->busy() && veil->isVisible() && veil->height() > 0, "every section waits in its own place");
+		}
+		expect(veils.Side->look() == core::pending_look::quiet || veils.Side->look() == core::pending_look::partial, "the column is never covered whole: its plate says what is coming");
+		page.present_observed_checks(application::overview_checks_projection{ });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true });
+		settle(20);
+		expect(!veils.Checks->busy() && veils.People->busy() && veils.Merge->busy() && veils.MyReview->busy(), "the checks show while the other sections still wait");
+		page.present_observed_people(application::overview_people_projection{ });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true, .People = true });
+		settle(20);
+		expect(!veils.People->busy() && !veils.Roster->busy() && veils.Merge->busy(), "the people show on their own");
+		page.present(application::pull_request_overview_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Ready" });
+		page.present_loading_readiness({ });
+		settle(20);
+		for (auto* const veil : { veils.Merge, veils.MyReview, veils.Checks, veils.People, veils.Side }) {
+			expect(!veil->busy(), "the accepted review makes every section ready");
+		}
+	}
+
+	// [[BPR-2180]]. The private tour waits as stop cards; Finish review holds
+	// its pending comments' place.
+	void test_tour_and_finish_review_wait_in_shape()
+	{
+		auto tour = qt::review_tour_editor{ };
+		tour.resize(720, 560);
+		tour.show();
+		settle();
+		auto* const tourVeil = qt::pending_veil::find(tour, QStringLiteral("tourPendingVeil"));
+		expect(tourVeil != nullptr && tourVeil->shape() == qt::pending_shape::cards, "the tour has a veil of stop cards");
+		tour.present(application::tour_presentation{ .Loading = true });
+		settle(20);
+		expect(tourVeil->busy() && tourVeil->words().Loading == QStringLiteral("Loading private tour…"), "a loading tour waits as cards");
+		tour.present(application::tour_presentation{ });
+		settle(20);
+		expect(!tourVeil->busy(), "a loaded tour shows itself");
+
+		auto       editor        = qt::review_submission_editor{ [](auto) { } };
+		const auto head          = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01");
+		const auto draft         = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ 1U },
+																  .Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head.value() },
+																  .ActingAccount = core::github_account_id{ 4U } };
+		auto       controls      = core::controls(draft);
+		controls.CommentsUnknown = true;
+		editor.resize(900, 640);
+		editor.show();
+		editor.present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = controls });
+		settle(20);
+		auto* const pending = editor.findChild<QWidget*>(QStringLiteral("wholeReviewPending"));
+		auto* const veil    = pending != nullptr ? qt::pending_veil::find(*pending, QStringLiteral("wholeReviewPendingVeil")) : nullptr;
+		expect(veil != nullptr && pending->isVisible() && pending->height() > QFontMetrics{ pending->font() }.height() * 4, "unread pending comments hold their place");
+		expect(veil->busy() && veil->placeholders() == 3, "with three comment rows in it");
+		editor.present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft) });
+		settle(20);
+		expect(!veil->busy() && !pending->isVisible(), "read, and none: the place is gone");
 	}
 
 	void render(const QString& aDirectory)
@@ -366,6 +557,61 @@ namespace {
 		subject.Veil->present(core::pending_activity::failed, true, false, words());
 		settle(20);
 		subject.Window.grab().save(aDirectory + QStringLiteral("/veil-failed-retained.png"));
+		// [[BPR-2180]]. Cards and people, in a light and a dark palette.
+		for (const auto dark : { false, true }) {
+			auto shades = QPalette{ };
+			if (dark) {
+				shades.setColor(QPalette::Window, QColor{ 0x1e, 0x1f, 0x22 });
+				shades.setColor(QPalette::WindowText, QColor{ 0xe6, 0xe6, 0xe6 });
+				shades.setColor(QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				shades.setColor(QPalette::Text, QColor{ 0xe6, 0xe6, 0xe6 });
+				shades.setColor(QPalette::PlaceholderText, QColor{ 0x9a, 0x9a, 0x9a });
+			}
+			const auto theme = dark ? QStringLiteral("dark") : QStringLiteral("light");
+			auto       cards = pane{ qt::pending_shape::cards };
+			cards.Window.setPalette(shades);
+			cards.Veil->present(core::pending_activity::loading, false, false, words());
+			cards.advance(core::pending_reveal_milliseconds);
+			cards.Window.grab().save(aDirectory + QStringLiteral("/veil-cards-%1.png").arg(theme));
+			auto people = pane{ qt::pending_shape::people };
+			people.Window.setPalette(shades);
+			people.Veil->present(core::pending_activity::loading, false, false, words());
+			people.advance(core::pending_reveal_milliseconds);
+			people.Window.grab().save(aDirectory + QStringLiteral("/veil-people-%1.png").arg(theme));
+		}
+		// [[BPR-2180]]. The Overview's side column, each section waiting.
+		{
+			auto page = qt::pull_request_overview_page{ };
+			page.resize(1'100, 720);
+			page.show();
+			settle();
+			page.present_loading();
+			page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
+			page.present_observation(application::github_loading_overview_projection{ .Title = "Seven", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
+			settle(core::pending_reveal_milliseconds + 100);
+			page.grab().save(aDirectory + QStringLiteral("/overview-side-sections.png"));
+		}
+		// [[BPR-2180]]. The private tour and Finish review as they wait: both
+		// read local storage, which is usually done before the reveal.
+		auto tour = qt::review_tour_editor{ };
+		tour.resize(720, 560);
+		tour.show();
+		settle();
+		tour.present(application::tour_presentation{ .Loading = true });
+		settle(core::pending_reveal_milliseconds + 100);
+		tour.grab().save(aDirectory + QStringLiteral("/tour-loading.png"));
+		auto       editor        = qt::review_submission_editor{ [](auto) { } };
+		const auto head          = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01");
+		const auto draft         = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ 1U },
+																  .Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head.value() },
+																  .ActingAccount = core::github_account_id{ 4U } };
+		auto       controls      = core::controls(draft);
+		controls.CommentsUnknown = true;
+		editor.resize(900, 640);
+		editor.show();
+		editor.present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = controls });
+		settle(core::pending_reveal_milliseconds + 100);
+		editor.grab().save(aDirectory + QStringLiteral("/finish-review-loading.png"));
 	}
 } // namespace
 
@@ -385,6 +631,10 @@ try {
 	test_overview_sections_arrive_in_turn();
 	test_window_panes_follow_the_read();
 	test_the_updates_line_turns_before_its_words();
+	test_reported_files_are_the_drawers_rows();
+	test_cards_and_people_take_their_shape();
+	test_overview_side_sections_wait_on_their_own();
+	test_tour_and_finish_review_wait_in_shape();
 	render(at >= 0 ? arguments.value(at + 1) : QString{ });
 	std::cout << "pending-veil-tests:pass\n";
 	return EXIT_SUCCESS;

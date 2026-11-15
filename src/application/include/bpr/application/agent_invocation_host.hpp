@@ -104,6 +104,23 @@ namespace bpr::application {
 		std::string NativeQuestion;
 		std::string SelectedConversation;
 		bool        TranscriptReplay = false;
+		/// [[BPR-2007]], RFC-BPR-0104. The turn gets its session's scratch
+		/// folder and the narrow allowance to write and run there. Only an
+		/// Agent tab turn: never with `WritingOnly` or `ReadOnlyTools`.
+		bool ScratchFolder = false;
+		/// [[BPR-2008]]. The reviewer allowed building and testing in this
+		/// pull request; granted only in a disposable checkout.
+		bool BuildsAndTests = false;
+		/// RFC-BPR-0104 as amended 2026-11-11. The scratch folder's limit as
+		/// set; a turn that passes it is stopped.
+		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
+		/// [[BPR-2138]], [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12). The
+		/// launch path, the agent's MCP servers setting, and a built-in
+		/// prompt's instructions with where they go (`agent_launch_options`).
+		core::agent_run_path             Path       = core::agent_run_path::agent_tab;
+		core::agent_mcp_servers          McpServers = core::agent_mcp_servers::off;
+		std::string                      SystemInstructions;
+		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -235,6 +252,10 @@ namespace bpr::application {
 		void cancel();
 		void shutdown();
 		void retry_cleanup();
+		/// \brief [[BPR-2007]]. Where scratch folders are made, one per native
+		/// session (kept with it) or per turn (removed when it ends). Set once
+		/// at composition, before any dispatch; empty grants none.
+		void set_scratch_root(std::filesystem::path aRoot);
 
 		/// \brief [[BPR-1751]], RFC-BPR-0092 Check it works. Makes the
 		/// workspace an Ask on this binding would make, through the same
@@ -247,6 +268,11 @@ namespace bpr::application {
 							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer, std::stop_token aStop = { });
 
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		/// \brief [[BPR-2181]]. Called on the decision lane when the host is
+		/// quiescent again after a run retired (its workspace cleaned up and
+		/// its helpers settled): the retirement event a queue releases its
+		/// next message on. Set on the decision lane.
+		void               set_retired_observer(std::function<void()> aObserver);
 		[[nodiscard]] auto statistics() const noexcept
 			-> agent_invocation_host_statistics;
 

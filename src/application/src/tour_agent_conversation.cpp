@@ -285,7 +285,11 @@ namespace bpr::application {
 			"A stop_code passage is lines of the code the stop points at: read them at that path and those lines.\n"
 			"Answer this_turn's question in reply. About a passage, explain it in terms of the code: name the files and lines you read as `path:line` or `path:first-last`, "
 			"and say what they do. Say plainly when the code does not support what the passage claims. Keep a reply under about 250 words.\n"
-			"Change the tour only when the author asks for a change. Put a changed Problem or Solution in its field as the field's whole new text, a new stop in stops, "
+			// [[BPR-1995]], RFC-BPR-0100: a request is answered with the change,
+			// in the turn that asked; a question is answered in words.
+			"A question (what, why, whether, how) is answered in words, and changes nothing. A request to change the tour or this part (fewer stops, a merge, an order, a focus, "
+			"a rewrite, other wording) is answered with that change in the fields below, in this same answer: never describe a change in reply without making it, and never ask "
+			"whether to make it. Put a changed Problem or Solution in its field as the field's whole new text, a new stop in stops, "
 			"and a new explanation for a stop of tour_so_far in stop_texts with that stop's number. Leave everything you do not change as an empty string or an empty list. "
 			"The author accepts or discards each change; say in one sentence of reply what you proposed.\n"
 		};
@@ -299,7 +303,8 @@ namespace bpr::application {
 			// particular part of the PR>".
 			prompt += "This turn is in the chat about the tour as a whole. The author may give feedback on its shape: too many or too few stops, stops to add, remove, merge or split, "
 					  "a different order, or a part of the pull request to focus on. Answer it with a revision of the tour, not only words: a request such as \"get it to 8 stops\", \"merge 4 and 5\" or \"move 8 and 9 earlier\" "
-					  "is answered with that revision in the fields below, in this same answer, never only described in reply. Stop numbers are tour_so_far's.\n"
+					  "is answered with that revision in the fields below, in this same answer, never only described in reply and never put off to a later turn: the app shows it to the author as a revision to accept. "
+					  "A question about the tour is answered in words with every revision field empty. Stop numbers are tour_so_far's.\n"
 					  "- remove_stops: numbers of stops to take out.\n"
 					  "- merge_stops: stops to make one, each entry two or more numbers with the merged stop's title and its whole explanation; the merged stop keeps all their lines.\n"
 					  "- split_stops: a stop to make several, each piece on lines inside that stop's own lines, with its own title and explanation.\n"
@@ -340,6 +345,12 @@ namespace bpr::application {
 					  "new stops in stops, and new text in problem, solution and stop_texts. An update is not limited to text. "
 					  "Use tour_so_far's numbers now; the earlier turns may have used other numbers before changes were accepted. "
 					  "Restate every part of waiting_revision you still want: this revision replaces it. Say in one sentence of reply what you proposed.\n";
+		} else if (aUpdate && aPassage && aPassage->Field != core::tour_passage_field::stop_code) {
+			// [[BPR-1995]], RFC-BPR-0100. Enhance on a selection rewrites only
+			// the selection; the app puts it back in its place.
+			prompt += "This turn is an update of one passage (this_turn.update is true and this_turn.passage is set): rewrite only this_turn.passage.text, which is part of " + thread_of(aThread, aDraft)
+				+ ", from this conversation and the code you read. Put only the passage's new text in the matching field (problem for the Problem, solution for the Solution, "
+				  "or stop_texts with that stop's number for a stop); it replaces exactly that passage and nothing else. Leave every other field empty, and say in one sentence of reply what you changed.\n";
 		} else if (aUpdate) {
 			prompt += "This turn is an update (this_turn.update is true): rewrite " + thread_of(aThread, aDraft)
 				+ " as its whole new text, from this conversation and the code you read, keeping what the author wrote that the conversation did not change. "

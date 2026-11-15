@@ -292,8 +292,13 @@ namespace bpr::adapters::github::detail {
 			/// asked again on every poll. Only GitHub's answers are kept (member,
 			/// not a member, not visible, needs `read:org`), never a failure.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::string, std::string>, application::github_team_membership> TeamMemberships;
-			std::atomic<std::uint64_t>                                                                                        NextSnapshot{ 1U };
-			bool                                                                                                              Closing = false;
+			/// RFC-BPR-0128 ([[BPR-2167]]). The commits a merge brought in, by
+			/// host, profile, repository and its two parents, under `Mutex`:
+			/// fixed for the pair, so asked once a session. Only answers are
+			/// kept.
+			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::uint64_t> Brought;
+			std::atomic<std::uint64_t>                                                                                 NextSnapshot{ 1U };
+			bool                                                                                                       Closing = false;
 			/// RFC-BPR-0084. Serial image lanes, each with its own media
 			/// transport per profile, touched only on that lane.
 			struct media_lane
@@ -571,6 +576,22 @@ namespace bpr::adapters::github::detail {
 			/// the native HTTPS transport; the session refuses any other host,
 			/// account or server contract before a request exists.
 			[[nodiscard]] auto acquire_publication_session() noexcept -> std::shared_ptr<application::github_publication_port> override
+			{
+				auto* const wire = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				if (wire == nullptr || !wire->carries_git_data()) {
+					return { };
+				}
+				try {
+					auto owned = std::make_shared<github_owned_publication_session>(Transport, *wire, CredentialContext);
+					return std::shared_ptr<application::github_publication_port>{ owned, &owned->Session };
+				} catch (...) {
+					return { };
+				}
+			}
+
+			/// RFC-BPR-0111. A `gh` connection carries this catalog too; its
+			/// wire refuses every object and reference write.
+			[[nodiscard]] auto acquire_pull_request_session() noexcept -> std::shared_ptr<application::github_publication_port> override
 			{
 				auto* const wire = dynamic_cast<github_publication_wire_transport*>(Transport.get());
 				if (wire == nullptr) {
@@ -996,6 +1017,7 @@ namespace bpr::adapters::github::detail {
 		// gh auth switch. A mismatch permanently refuses this observed lease.
 		class cli_observed_account_transport final : public github_wire_transport_port,
 													 public github_mutation_wire_transport,
+													 public github_publication_wire_transport,
 													 public application::git_smart_transport_factory_port,
 													 public std::enable_shared_from_this<cli_observed_account_transport>
 		{
@@ -1314,6 +1336,45 @@ namespace bpr::adapters::github::detail {
 				}
 				return result;
 			}
+
+			/// RFC-BPR-0111. A pull request created from a pushed branch, and
+			/// the reads around it, between two observations of the account: a
+			/// changed account sends nothing and reports a sent write as possibly sent.
+			auto perform_publication(const github_publication_wire_call& aCall, std::stop_token aStop) -> github_publication_wire_completion override
+			{
+				// The lease's transport may be a layer over gh; its mutation
+				// operation scope is the gh transport itself, holding one
+				// named credential for this exchange.
+				auto* inner  = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				auto  scoped = std::shared_ptr<github_mutation_wire_transport>{ };
+				if (inner == nullptr) {
+					if (auto* const mutation = dynamic_cast<github_mutation_wire_transport*>(Transport.get()); mutation != nullptr && Transport->strict_cli()) {
+						if (auto acquired = mutation->begin_mutation_operation(aStop); acquired && *acquired) {
+							scoped = std::move(*acquired);
+							inner  = dynamic_cast<github_publication_wire_transport*>(scoped.get());
+						}
+					}
+				}
+				const auto& session   = std::get<core::github_session_request_context>(Viewer.Correlation.Parent);
+				const auto& authority = aCall.Context.Authority;
+				if (inner == nullptr || !pull_request_publication_operation(aCall.Wire.Operation) || !application::valid(aCall.Context) || authority.Account != Account
+					|| authority.Profile != session.Profile || authority.Host != Viewer.Correlation.Host || authority.ProfileRevision != Viewer.Correlation.ProfileRevision
+					|| aCall.Context.ApplicationSession != session.ApplicationSession || aCall.Context.IdentityGeneration != session.IdentityGeneration) {
+					return github_publication_wire_error{ };
+				}
+				if (check(Viewer, aStop)) {
+					return aStop.stop_requested() ? github_publication_wire_completion{ github_publication_wire_cancelled{ } } : github_publication_wire_completion{ github_publication_wire_error{ } };
+				}
+				auto result = inner->perform_publication(aCall, aStop);
+				if (check(Viewer, aStop)) {
+					const auto write = publication_exchange_for(aCall.Wire.Operation).value_or(publication_exchange{ }).Write;
+					const auto sent  = write ? github_mutation_transmission::indeterminate : github_mutation_transmission::definitely_not_sent;
+					return aStop.stop_requested() ? github_publication_wire_completion{ github_publication_wire_cancelled{ .Transmission = sent } }
+												  : github_publication_wire_completion{ github_publication_wire_error{ .Transmission = sent } };
+				}
+				return result;
+			}
+			[[nodiscard]] auto carries_git_data() const noexcept -> bool override { return false; }
 
 			auto perform_capability_probe(const github_capability_probe_wire_request& aRequest, std::stop_token aStop) -> github_capability_probe_wire_completion override
 			{
@@ -2483,6 +2544,85 @@ namespace bpr::adapters::github::detail {
 		application::github_pull_request_progress_handler   aProgress)
 	{
 		fetch_pull_request_with_observations(std::move(aRequest), std::move(aCompletion), std::move(aProgress), { });
+	}
+
+	/// RFC-BPR-0128 ([[BPR-2167]], [[BPR-2184]] review N3). What each merge
+	/// brought in: one compare of its first and second parents (`ahead_by`),
+	/// asked only when What changed is composed, never inside a pull request
+	/// read, and only on an account's own transport. Each answer is
+	/// remembered for the session, by host, profile, repository and the two
+	/// parents. A compare that fails leaves that merge and the rest uncounted.
+	void github_provider::count_merges(application::github_merge_count_request aRequest, application::github_merge_count_handler aDone)
+	{
+		const auto answer = [&aDone](std::vector<std::pair<std::string, std::uint64_t>> aCounts) {
+			if (aDone) {
+				aDone(std::move(aCounts));
+			}
+		};
+		const auto& read  = aRequest.Read;
+		const auto  state = Implementation->State;
+		if (aRequest.Merges.empty() || read.Mode != core::github_access_mode::authenticated || state->ReadAuthority != github_provider_read_authority::authenticated || !valid_request(read)) {
+			answer({ });
+			return;
+		}
+		const auto profile = find_exact_profile(*state, read.ProfileAuthority);
+		const auto account = profile == nullptr ? nullptr
+												: exact_account_transport(read.AccountTransport, read.ProfileAuthority, read.AuthenticationSession.value_or(read.Context.ApplicationSession),
+																		  read.Context.IdentityGeneration, read.Context.Account);
+		if (account == nullptr || account->Transport == nullptr) {
+			answer({ });
+			return;
+		}
+		const auto jobResult = make_job(state, provider_phase::pull_request, read.Context, read.Attempt);
+		if (!jobResult.has_value()) {
+			answer({ });
+			return;
+		}
+		const auto job      = *jobResult;
+		auto       delivery = make_delivery(std::move(aDone));
+		try {
+			state->Effects->post([state, job, profile, account, request = std::move(aRequest), delivery]() mutable {
+				auto counts = std::vector<std::pair<std::string, std::uint64_t>>{ };
+				try {
+					auto transport = account->Transport;
+					auto operation = transport->begin_operation(job->Stop.get_token());
+					if (operation && *operation) {
+						transport = std::move(*operation);
+					}
+					for (const auto& merge : request.Merges) {
+						if (job->Stop.stop_requested() || !operation) {
+							break;
+						}
+						const auto key = std::tuple{ request.Read.Context.Host.value(), request.Read.Context.Profile.value(), request.Repository.value(), merge.First, merge.Second };
+						{
+							std::scoped_lock lock{ state->Mutex };
+							if (const auto found = state->Brought.find(key); found != state->Brought.end()) {
+								counts.emplace_back(merge.Merge, found->second);
+								continue;
+							}
+						}
+						const auto answered = perform_github_merge_base_read(*transport, *profile, request.Read, request.Repository, github_merge_base_basis{ .BaseOid = merge.First }, merge.Second,
+																			 job->Stop.get_token(), { }, state->ReadAuthority, nullptr);
+						if (!answered || !answered->AheadBy) {
+							break;
+						}
+						counts.emplace_back(merge.Merge, *answered->AheadBy);
+						constexpr auto   maximumRemembered = std::size_t{ 256U };
+						std::scoped_lock lock{ state->Mutex };
+						if (state->Brought.size() >= maximumRemembered) {
+							state->Brought.clear();
+						}
+						state->Brought.insert_or_assign(key, *answered->AheadBy);
+					}
+				} catch (...) {
+				}
+				static_cast<void>(finish_job(state, job));
+				delivery->deliver(std::move(counts));
+			});
+		} catch (...) {
+			static_cast<void>(stop_after_failed_post(state, job));
+			delivery->deliver(std::vector<std::pair<std::string, std::uint64_t>>{ });
+		}
 	}
 
 	void github_provider::fetch_pull_request_with_observations(

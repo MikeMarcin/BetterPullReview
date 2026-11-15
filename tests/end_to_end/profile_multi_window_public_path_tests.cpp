@@ -582,8 +582,8 @@ try {
 			&& windowB->overview_page()->projection()->Progress.PrivateNotes == 2U;
 	},
 			 "accepted private notes refresh both exact-review overviews");
-	expect(windowA->overview_page()->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("2")
-			   && windowB->overview_page()->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("2"),
+	expect(windowA->overview_page()->value_label(qt::overview_value::local_comments)->text() == QStringLiteral("2")
+			   && windowB->overview_page()->value_label(qt::overview_value::local_comments)->text() == QStringLiteral("2"),
 		   "both overview labels render the accepted private-note count");
 	expect(windowA->comparison_surface()->current_result() == comparisonA
 			   && windowA->comparison_surface()->selection() == noteSelectionA

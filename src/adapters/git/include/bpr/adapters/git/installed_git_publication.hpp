@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_PUBLICATION_HPP
 
 #include "bpr/application/git_process_port.hpp"
+#include "bpr/application/local_draft_git_port.hpp"
 #include "bpr/application/publication_candidate_port.hpp"
 #include "bpr/application/repository_skill_port.hpp"
 
@@ -42,6 +43,17 @@ namespace bpr::adapters::git {
 		std::stop_token                                aStop = { })
 		-> std::expected<
 			std::unique_ptr<application::repository_skill_port>,
+			application::git_process_error>;
+
+	/// \brief RFC-BPR-0108. The same private catalog, read-only: a local
+	/// draft's merge bases, trees and blobs from a worktree's objects and its
+	/// remote chain's (`application::local_draft_git_port`). Give it its own
+	/// isolation root, as publication has.
+	[[nodiscard]] auto make_installed_git_local_draft_reader(
+		const installed_git_publication_configuration& aConfiguration,
+		std::stop_token                                aStop = { })
+		-> std::expected<
+			std::unique_ptr<application::local_draft_git_port>,
 			application::git_process_error>;
 }
 

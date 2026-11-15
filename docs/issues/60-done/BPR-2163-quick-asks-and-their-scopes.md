@@ -26,7 +26,7 @@ Core: RFC-BPR-0125's macro gains Quick ask and the Thread, File and Pull request
 
 ## Progress (2026-11-14)
 
-Built and evidenced; see the verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`).
+Built and evidenced; see the [verification record](../../verification/RFC-BPR-0128.md#milestone-ask-menu-bpr-2163-bpr-2164).
 
 - **AC03** passes: `core_quick_ask` (subject absent not listed, present and
   unable greyed with a typed reason, the agent's state greys) and

@@ -142,6 +142,23 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # helper reaches agent-chat-composition-failure:private-test-root.
     # This names the first predicate, without inferring an unsampled cause.
     "application_agent_chat_custom_agent_contract": "private-test-root-refused",
+    # Re-review N2 of RFC-BPR-0104 (2026-11-11). The custom-agent course with a
+    # refusing Codex configuration, same private test root.
+    "application_agent_chat_custom_agent_refused_contract": "unmeasured (registered on macOS)",
+    # [[BPR-2002]]. The question-subject course, same private test root.
+    "application_agent_chat_subject_contract": "unmeasured (registered on macOS)",
+    "application_agent_chat_helpers_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0108, 0110 and 0111. The local PR draft courses run installed Git
+    # on a real worktree under the test root, as the review-cycle courses do.
+    "local_draft": "unmeasured (registered on macOS)",
+    "local_draft_publication": "unmeasured (registered on macOS)",
+    "application_local_draft_desktop_public_path": "unmeasured (registered on macOS)",
+    "application_local_draft_tour_desktop_public_path": "unmeasured (registered on macOS)",
+    "application_local_draft_publication_desktop_public_path": "unmeasured (registered on macOS)",
+    # The owner's redesign, 2026-11-12: author state's real-worktree courses.
+    "local_changes": "unmeasured (registered on macOS)",
+    "application_local_draft_author_desktop_public_path": "unmeasured (registered on macOS)",
+    "application_agent_chat_helpers_unfinished_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1800]]. Source a74c9a875, native Release/Debug on 2026-10-29:
     # same-image direct baselines pass; contained runs fail the exact first
     # predicate "fixture application starts". No Win32 cause was sampled.
@@ -287,8 +304,34 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_progressive_open_public_path": "private-desktop-root-refused",
     # [[BPR-1848]]. Coming back to Home on the same slow fixture network.
     "application_home_return_public_path": "private-desktop-root-refused",
+    # [[RFC-BPR-0105]]. The dependable-session course, on the same fixture desktop root.
+    "application_dependable_session_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1865]]. Home's filter, same public-path fixture desktop root.
     "application_home_filter_public_path": "private-desktop-root-refused",
+    # [[RFC-BPR-0098]]. Home's next moves, same public-path fixture desktop root.
+    "application_home_next_move_public_path": "unmeasured (registered on macOS)",
+    "application_home_oversized_public_path": "unmeasured (registered on macOS)",
+    "application_home_approve_again_public_path": "unmeasured (registered on macOS)",
+    "application_enhance_comment_note_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0116. The returning pull request courses, same private test root.
+    "application_returning_review_latest_public_path": "unmeasured (registered on macOS)",
+    "application_returning_review_addressed_public_path": "unmeasured (registered on macOS)",
+    "application_returning_review_gone_public_path": "unmeasured (registered on macOS)",
+    "application_explain_file_public_path": "unmeasured (registered on macOS)",
+    "application_suggest_change_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0127 and BPR-2171, registered on this lane without an entry.
+    "sqlite_discuss_preferences_store": "unmeasured (registered on macOS)",
+    "application_agent_keep_action_public_path": "unmeasured (registered on macOS)",
+    "application_discuss_busy_public_path": "unmeasured (registered on macOS)",
+    "application_local_comments_composition_public_path": "unmeasured (registered on macOS)",
+    "application_local_comments_found_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0128 ([[BPR-2164]], [[BPR-2165]]). The Ask menus' courses.
+    "application_ask_menu_public_path": "unmeasured (registered on macOS)",
+    "application_ask_addressed_public_path": "unmeasured (registered on macOS)",
+    "application_ask_report_public_path": "unmeasured (registered on macOS)",
+    "application_ask_queue_public_path": "unmeasured (registered on macOS)",
+    "application_prompt_macros_public_path": "unmeasured (registered on macOS)",
+    "application_fixture_agent_guard_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
@@ -318,6 +361,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # but contained fails the first load: "a profile with nothing stored
     # reads defaults" (0.024s). This pin names that observed store refusal.
     "sqlite_agent_setup_storage": "agent-setup-default-read-refused",
+    "sqlite_agent_configuration_storage": "unmeasured (registered on macOS)",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now
     # measured ([[BPR-1631]]).
@@ -895,6 +939,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_tour_publication_repairs": "private-test-root-refused",
     "application_review_tour_publication_reconciliation": "dos-volume-name",
     "application_review_tour_publication_stop": "dos-volume-name",
+    # [[BPR-2117]]. The composed push course, same private test root as its
+    # siblings; not yet measured on Windows.
+    "application_review_tour_publication_push": "unmeasured (registered on macOS)",
     "application_review_tour_publication_unsupported": "dos-volume-name",
     "application_diagnostic_controls_public_path": "dos-volume-name",
     "application_review_submission_composition_scale_125": "dos-volume-name",

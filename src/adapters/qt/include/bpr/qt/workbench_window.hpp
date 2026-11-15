@@ -1,15 +1,20 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #include "bpr/core/conversation_reply.hpp"
+#include "bpr/core/draft_roster.hpp"
 #include "bpr/core/identity_avatar_picture.hpp"
 
 #include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/application/profile_management_projection.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
+#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
+#include "bpr/application/local_changes_host.hpp"
+#include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/application/local_presentation.hpp"
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
@@ -19,6 +24,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
@@ -27,16 +33,22 @@
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/suggest_change.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/account_setup_view.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/enhance_control.hpp"
+#include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -46,6 +58,7 @@
 #include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/resident_filter.hpp"
@@ -70,6 +83,8 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QSplitter>
+class QAbstractButton;
+class QAbstractItemView;
 class QTabWidget;
 #include <QString>
 
@@ -83,6 +98,7 @@ class QTabWidget;
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -145,6 +161,7 @@ namespace bpr::qt {
 	class dif_widget;
 	class home_list;
 	class home_filter_field;
+	class pending_mark;
 	class pending_veil;
 	class refresh_note;
 	class keyboard_shortcuts_window;
@@ -158,14 +175,15 @@ namespace bpr::qt {
 	class finding_queue_view;
 	class side_chat_panel;
 	class private_review_panel;
-	class private_notes_panel;
 	class agent_tab_view;
-	struct private_note_item;
+	class agent_footer;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
 	// not need the panel's shape to ask for it.
 	class device_authorization_panel;
 	class review_cycle_view;
+	class local_draft_parts;
+	class view_picker;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -182,6 +200,31 @@ namespace bpr::qt {
 	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
 	/// [[BPR-0657]]. A card's Reply: the thread identity the next draft answers.
 	using workbench_review_reply_dispatch = std::function<void(const std::string&)>;
+	/// RFC-BPR-0127 ([[BPR-2158]]). A comment's state change asked from a
+	/// card or the composer: Keep local on my draft (`Draft`), Make draft or
+	/// Delete on my Local comment (`Local`), or Save the composer's words as
+	/// a Local comment. The composition decides it through the core and the
+	/// store; nothing here does.
+	struct comment_state_gesture
+	{
+		card_action                          Action = card_action::keep_local;
+		std::string                          Identity;
+		std::optional<core::review_draft_id> Draft;
+		std::optional<std::uint64_t>         Local;
+		/// What the composer holds, for Save: its words and where it is.
+		std::string                          Body;
+		std::optional<core::source_line_ref> Anchor;
+		std::optional<std::uint32_t>         StartLine;
+		/// The thread the composer's reply answers.
+		std::optional<std::string> ReplyToThread;
+		/// For an edit in place: the Local comment's revision it began from.
+		std::optional<std::uint64_t> Revision;
+		/// RFC-BPR-0127 ([[BPR-2159]]). Keep Local from a list (Finish your
+		/// review): the draft's file, as the roster has it, when its
+		/// comparison is not the one shown.
+		std::string Path;
+	};
+	using workbench_comment_state_dispatch = std::function<void(const comment_state_gesture&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
 	/// of the thread and the server so the composition can decide it.
 	struct thread_resolution_gesture
@@ -249,6 +292,7 @@ namespace bpr::qt {
 	using workbench_queue_follow_dispatch = std::function<void(application::queue_follow_intent)>;
 	/// \brief [[BPR-1683]]. Home's Ignore or Unignore of one queue row.
 	using workbench_home_ignore_dispatch = std::function<void(core::home_ignore_intent)>;
+	using workbench_home_seen_dispatch   = std::function<void(application::queue_seen_intent)>;
 	/// \brief [[BPR-0990]]. Home's activation and its explicit Refresh.
 	using workbench_queue_discovery_dispatch = std::function<void(application::queue_discovery_intent)>;
 	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
@@ -765,6 +809,23 @@ namespace bpr::qt {
 		/// draft at the revision the page listed. Nothing is published.
 		void set_comment_draft_unavailable(QString aReason);
 		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
+		/// \brief [[BPR-2092]] [[BPR-2093]] [[BPR-2094]]. Every unsent draft
+		/// of mine, as the core's roster places and stands it: Threads lists
+		/// them, Overview's Comments column counts them per file, and Finish
+		/// your review lists those the review does not carry.
+		void               present_draft_roster(core::draft_roster aRoster);
+		[[nodiscard]] auto draft_roster() const noexcept -> const core::draft_roster&;
+		/// \brief [[BPR-2092]]. Goes to one draft: its lines in Review with it
+		/// open beside them, or a reply's thread.
+		auto open_roster_draft(core::review_draft_id aDraft) -> bool;
+		/// \brief [[BPR-2093]]. Threads with My drafts on, at the first draft
+		/// in \p aPath (a file or a folder; empty for all).
+		auto show_drafts_in_threads(const QString& aPath) -> bool;
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). Threads on a state (Local),
+		/// at its first row in \p aPath (a file, a folder, or all).
+		auto show_state_in_threads(finder_state aState, const QString& aPath) -> bool;
+		/// \brief [[BPR-2094]]. Where Add (true) and Leave out (false) go.
+		void set_draft_review_dispatch(std::function<void(std::vector<core::review_draft_id>, bool)> aDispatch);
 		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
 		/// of the file shown, as the core decided them at this head: each a
 		/// note at its lines, offering Carry to the new head or Copy change.
@@ -784,9 +845,40 @@ namespace bpr::qt {
 		/// \brief [[BPR-1773]]. Where a thread's Ask agent goes, by the
 		/// thread's card identity.
 		void set_conversation_ask_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Where Keep local, Make draft,
+		/// Delete and Save of a Local comment go.
+		void set_comment_state_dispatch(workbench_comment_state_dispatch aDispatch);
+		/// \brief RFC-BPR-0127. My Local comments, as the composition placed
+		/// them against the comparison shown.
+		void present_local_comments(std::vector<local_comment_card> aComments);
+		/// \brief RFC-BPR-0127. A refused state change, said where it was asked.
+		void refuse_comment_state(const QString& aWhy);
+		/// \brief RFC-BPR-0127. Closes the drawer's composer after its words
+		/// were saved as a Local comment.
+		void close_drawer_composer(bool aDiscard);
+		/// \brief RFC-BPR-0127. My Local comment's edit in place was refused:
+		/// why, and its words are kept in the editor.
+		void refuse_local_edit(const QString& aWhy);
+		/// \brief RFC-BPR-0116 ([[BPR-2074]]). A thread's Was this addressed?,
+		/// on the threads named here.
+		void set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch);
+		void set_addressed_threads(std::set<std::string> aThreads);
+		/// \brief RFC-BPR-0116 ([[BPR-2073]]). The Pull Request menu's What
+		/// Changed Since My Review, beside Seen, and the Agent tab's
+		/// suggestion: offered, unavailable with why, or not shown.
+		void               present_latest_upload(const core::latest_upload_offer& aOffer);
+		void               set_what_changed_dispatch(std::function<void()> aDispatch);
+		[[nodiscard]] auto what_changed_action() const noexcept -> QAction* { return WhatChangedPullRequest; }
+		/// \brief [[BPR-2049]]. The head I said Seen on, for the open pull
+		/// request's queue item; empty when never said.
+		[[nodiscard]] auto open_pull_request_seen_head() const -> std::string;
 		/// \brief [[BPR-1773]]. Opens the drawer on the Agent tab with the
 		/// keyboard in its question field; nothing is sent.
 		void open_agent_question();
+		/// \brief [[BPR-2051]]. The Agent tab's setup, at its first unfinished
+		/// step, shown: what the Tour tab's Set up the agent did before the
+		/// footer took the setup state.
+		void open_agent_setup();
 		/// \brief [[BPR-1773]]. Lines `aFirst` to `aLast` (one-based,
 		/// clamped to the document) of the compared file `aPath` on `aSide`,
 		/// with the number of the first; none when that file is not the one
@@ -866,6 +958,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1683]]. Where Home's Ignore and Unignore go: the
 		/// profile's queue, never a provider.
 		void set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch);
+		/// \brief [[BPR-2049]]. Where a Home row's Seen goes: the profile's
+		/// queue, never a provider.
+		void set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch);
 		/// \brief [[BPR-1683]]. The row menu's Ignore, named Unignore on an ignored row.
 		[[nodiscard]] auto home_ignore_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
@@ -954,6 +1049,16 @@ namespace bpr::qt {
 		/// opens a pull request, and tells a reviewer's own choice. The
 		/// memory is never pushed into a window: each keeps its own filters.
 		void set_view_filter_memory(std::function<core::view_filter_defaults()> aDefaults, std::function<void(const core::view_filter_remember&)> aRemember);
+		/// \brief [[BPR-2171]]. The profile's Discuss preferences: what they
+		/// are now, a Mark as bot or Not a bot in a repository, and the
+		/// column's width. The window shows them on each pull request and
+		/// each time Discuss shows.
+		void set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
+									 std::function<void(core::discuss_column)> aColumn);
+		/// \brief [[BPR-2171]]. Shows the profile's Discuss preferences again.
+		void apply_discuss_preferences();
+		/// \brief [[BPR-2171]]. Settings › Review › Reading: Discuss column.
+		[[nodiscard]] auto discuss_column_buttons() const -> const std::vector<QAbstractButton*>&;
 		/// \brief [[BPR-1844]]. This window's filters, view by view, as the
 		/// pull request opened with them and the reviewer then chose; a
 		/// filter the window cleared by itself (a reveal, a count's listing)
@@ -1016,6 +1121,12 @@ namespace bpr::qt {
 		/// \brief Next new comment: window-owned, with its key, and no presenter
 		/// in the title row ([[BPR-1129]]).
 		[[nodiscard]] auto next_new_comment_action() const noexcept -> QAction*;
+		/// \brief Owner look v002 ([[BPR-2158]]). Previous and Next comment:
+		/// the Comments tab's tools, and their keys.
+		[[nodiscard]] auto previous_comment_action() const noexcept -> QAction* { return PreviousCommentAction; }
+		[[nodiscard]] auto next_comment_action() const noexcept -> QAction* { return NextCommentAction; }
+		[[nodiscard]] auto previous_comment_button() const noexcept -> QToolButton* { return PreviousCommentButton; }
+		[[nodiscard]] auto next_comment_button() const noexcept -> QToolButton* { return NextCommentButton; }
 		/// \brief Adopts the complete bounded local defect queue.
 		void present_defects(std::vector<core::defect_history> aDefects, std::map<core::defect_id, std::string> aThreads = { });
 		void clear_defects();
@@ -1029,7 +1140,7 @@ namespace bpr::qt {
 		/// change and file navigation with their positions and private
 		/// progress; at its right Compose review and Comment. Home has none.
 		[[nodiscard]] auto review_bar() const noexcept -> QToolBar*;
-		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, then Notes.
+		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, Tour and Agent.
 		[[nodiscard]] auto tray_tabs() const noexcept -> QTabBar*;
 		/// \brief [[BPR-1134]]. Each tab's own scrolled column.
 		[[nodiscard]] auto comments_tab_scroll() const noexcept -> QScrollArea*;
@@ -1076,17 +1187,30 @@ namespace bpr::qt {
 		void open_pending_comment(const core::review_submission_comment& aComment, core::workbench_thread_destination aDestination);
 		/// \brief [[BPR-1345]]. Where the shown draft stands with the review.
 		[[nodiscard]] auto draft_review() const -> draft_review_state;
-		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
-		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
-		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
+		/// \brief RFC-BPR-0127. Why the core would refuse to keep this draft
+		/// local now, in words; empty when Local is offered.
+		[[nodiscard]] static auto local_refusal_words(const core::review_comment_draft& aDraft) -> QString;
+		[[nodiscard]] auto        prepare_tour_action() const noexcept -> QAction*;
+		[[nodiscard]] auto        add_tour_stop_action() const noexcept -> QAction*;
+		[[nodiscard]] auto        tour_editor() const noexcept -> review_tour_editor*;
 		/// \brief [[BPR-1593]]. Expand: the tour page in the main pane; with
 		/// \p aPublication, at what GitHub will show.
+		/// \brief [[RFC-BPR-0105]]. The composition is opening a pull request
+		/// in this window, from Home, a link or a restored review: the review
+		/// surface returns to its default now, so a tab chosen while the pull
+		/// request loads is kept, and a refresh never resets it.
+		void begin_review_open();
 		void open_tour_page(bool aPublication = false);
 		/// \brief [[BPR-1593]]. Back to the code: the route in the drawer.
 		void               close_tour_page();
 		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
 		/// \brief [[BPR-1594]]. The Agent tab, and its two keys' actions.
 		[[nodiscard]] auto agent_tab() const noexcept -> agent_tab_view* { return AgentTab; }
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1").
+		/// The pull request window's agent footer in the status bar: the one
+		/// agent picker, what runs and where it started with Stop, and what
+		/// this pull request's agent work has cost.
+		[[nodiscard]] auto agent_footer_widget() const noexcept -> agent_footer* { return AgentFooter; }
 		/// \brief [[BPR-1753]], owner decision 2026-10-23. Opens one of
 		/// the pull request's files in Review, as choosing it in Files does, for
 		/// a finding card's draft or note at its lines. False when the path is
@@ -1101,10 +1225,13 @@ namespace bpr::qt {
 		/// the head or (`aBefore`) the base, once its comparison is shown.
 		/// False, and the status line says so, when the path is not one of the
 		/// pull request's files.
-		auto go_to_file_line(const QString& aPath, std::uint32_t aLine, bool aBefore) -> bool;
+		/// [[BPR-1998]]: with `aLast` after `aLine`, the range is selected
+		/// and revealed.
+		auto go_to_file_line(const QString& aPath, std::uint32_t aLine, bool aBefore, std::uint32_t aLast = 0U) -> bool;
+		/// \brief [[BPR-1998]]. Every changed file of the pull request, by path.
+		[[nodiscard]] auto review_changed_files() const -> std::vector<std::string>;
 		/// \brief Owner look v004 ("After save as note it should turn into Go
-		/// to note"): opens one private note in Notes, its file first when it
-		/// is on another; an open note stays open.
+		/// to note"): opens one Local comment's card in Comments (RFC-BPR-0127).
 		void               go_to_private_note(std::uint64_t aId);
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
@@ -1116,9 +1243,6 @@ namespace bpr::qt {
 		/// and tooltip name that target ("Comment on line 431…", "Reply to
 		/// tbutler's thread…").
 		[[nodiscard]] auto comment_action() const noexcept -> QAction*;
-		/// \brief [[BPR-1133]]. Comment's arrow menu: the target-named command,
-		/// where RFC-BPR-0048's labels will be offered.
-		[[nodiscard]] auto comment_menu() const noexcept -> QMenu*;
 		/// \brief [[BPR-1132]]. Shows the window's document tabs, as the host
 		/// published them, in the comparison's header.
 		void publish(const application::document_tabs_projection& aProjection);
@@ -1128,6 +1252,71 @@ namespace bpr::qt {
 		void set_document_tab_dispatch(document_tab_dispatch aDispatch);
 		/// \brief [[BPR-1132]]. The comparison's header: the document tabs.
 		[[nodiscard]] auto document_tabs() const noexcept -> document_tab_strip*;
+		/// \brief RFC-BPR-0117 ([[BPR-2076]]). Explain this file, at the
+		/// comparison's header and in a tab's menu: where a press goes, with
+		/// the active tab's file.
+		void set_explain_file_dispatch(std::function<void(const QString& aPath)> aDispatch);
+		/// \brief RFC-BPR-0117. Whether a press can be sent now (the agent is
+		/// set up and not answering); the control stays where it is either way.
+		void set_explain_file_offered(bool aOffered);
+		/// \brief RFC-BPR-0128 ([[BPR-2164]]): the file header's Ask, in
+		/// Explain this file's place (Q3).
+		[[nodiscard]] auto explain_file_button() const noexcept -> QToolButton* { return ExplainFileButton; }
+		/// \brief RFC-BPR-0128 ([[BPR-2164]]). The Ask controls: the review
+		/// bar's, the file header's and each thread's (its reply row and its
+		/// right-click menu), and a file tab's right-click Ask. The source
+		/// decides the rows when a menu opens; a press goes to the dispatch.
+		void set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch);
+		/// \brief RFC-BPR-0128 ([[BPR-2166]]). Opens an agent's report as a
+		/// tab beside the files (owner, Q8), its title and Markdown as given.
+		void               open_report(const std::string& aKey, const agent_report_document& aReport);
+		[[nodiscard]] auto report_view() const noexcept -> agent_report_view* { return ReportView; }
+		/// \brief Whether the active tab is a report.
+		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
+		[[nodiscard]] auto review_ask_button() const noexcept -> ask_menu_button* { return ReviewAskButton; }
+		[[nodiscard]] auto file_ask_button() const noexcept -> ask_menu_button* { return FileAskButton; }
+		/// \brief What an Ask menu of `aAnchor` is about now: the active file
+		/// and the Comments drawer's open thread.
+		[[nodiscard]] auto ask_request(core::quick_ask_anchor aAnchor) const -> ask_menu_request;
+		/// \brief Fills `aMenu` for `aRequest`, as each Ask control does.
+		void fill_quick_ask(QMenu& aMenu, const ask_menu_request& aRequest);
+		/// \brief RFC-BPR-0117. The answer's card at the file's header; shown
+		/// while it holds a turn for the active tab's file.
+		[[nodiscard]] auto explain_card() const noexcept -> explain_file_card* { return ExplainCard; }
+		void               present_explain_file(const explain_file_progress& aProgress);
+		void               dismiss_explain_file();
+		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One press of Suggest the change
+		/// on the drawer draft: its lines, the head as the press read it, and
+		/// the reviewer's words.
+		struct suggest_change_press
+		{
+			core::review_draft_id        Draft;
+			core::source_line_ref        Anchor;
+			std::uint32_t                First = 0U;
+			std::uint32_t                Last  = 0U;
+			std::vector<core::text_line> Head;
+			std::string                  Prose;
+		};
+		/// \brief RFC-BPR-0118. Where a press goes, and where Stop goes.
+		void set_suggest_change_dispatch(std::function<void(const suggest_change_press&)> aDispatch, std::function<void()> aCancel);
+		/// \brief RFC-BPR-0118. Whether an agent is set up; a press without
+		/// one says so in the panel.
+		void set_suggest_change_ready(bool aReady);
+		/// \brief RFC-BPR-0118. The press was not sent, or the run ended
+		/// without an answer: \p aWords, in the panel.
+		void refuse_suggest_change(const QString& aWords);
+		/// \brief RFC-BPR-0118. The agent's answer to the running press. The
+		/// core decides (`core::decide_suggested_change`) against the head
+		/// now: an accepted reply opens in the head pane, unsaved; a refused
+		/// one says which check failed and keeps the reply as text.
+		/// \returns The core's refusal, `none` when it opened.
+		auto offer_suggested_change(const std::string& aAnswer) -> core::suggest_change_refusal;
+		/// \brief RFC-BPR-0118. The panel's state, for tests and the composition.
+		[[nodiscard]] auto agent_suggestion_presentation_now() const -> agent_suggestion_presentation;
+		/// \brief RFC-BPR-0118. The card actions, as the drawer's buttons send them.
+		void act_on_agent_suggestion(card_action aAction);
+		/// \brief The active tab's file; empty when no tab is open.
+		[[nodiscard]] auto active_document_path() const -> QString;
 		/// \brief [[BPR-1132]]. Ctrl+Tab and Ctrl+Shift+Tab (the Control key on
 		/// macOS too), window-owned.
 		[[nodiscard]] auto next_tab_action() const noexcept -> QAction*;
@@ -1165,7 +1354,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto account_setup() const noexcept -> account_setup_view*;
 		/// \brief The decorative Home presentation, absent when assets were refused.
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
-		/// \brief The explicit action that reveals the private Notes area.
+		/// \brief The explicit action that reveals the Agent tab.
 		[[nodiscard]] auto ai_tools_action() const noexcept -> QAction*;
 		/// \brief Compose's illustration slot for the currently offered workshop revision.
 		[[nodiscard]] auto dif_workshop_slot() const noexcept -> QWidget*;
@@ -1252,6 +1441,62 @@ namespace bpr::qt {
 		void               present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents);
 		void               set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume);
 		[[nodiscard]] auto home_cycles_list() const noexcept -> QListWidget*;
+		/// \brief The Home rows selected now, in every list: one at most.
+		[[nodiscard]] auto home_selected_rows() const -> int;
+		/// \brief RFC-BPR-0108 as amended by the owner, 2026-11-13: a local
+		/// draft is shown in this window's own review surface, with only the
+		/// additions `local_draft_parts` names. Built with the window.
+		[[nodiscard]] auto local_draft() const noexcept -> local_draft_parts*;
+		/// \brief Shows the local draft in the review surface, titled in the
+		/// title row with its Local draft badge. A pull request open behind it
+		/// returns when the draft is left.
+		void show_local_draft(const QString& aTitle);
+		/// \brief Returns to Home or to the open pull request.
+		void               leave_local_draft();
+		[[nodiscard]] auto showing_local_draft() const noexcept -> bool;
+		/// \brief RFC-BPR-0111 as drawn: Create Draft PR… opens Overview at the
+		/// Status tab, where the publish steps are.
+		void show_local_publication();
+		/// \brief The draft's projection: its files fill the Files tree and
+		/// Overview, its parts are presented.
+		void present_local_draft(const application::local_draft_workbench_projection& aProjection);
+		/// \brief Author state's projection: the Local Changes tab, the Edit
+		/// view and the branch.
+		void present_local_changes(const application::local_changes_projection& aProjection);
+		/// \brief Shows one local comparison in the diff viewer, as a pull
+		/// request's file is shown. A presentation already shown is not shown again.
+		void present_local_comparison(const std::shared_ptr<const application::local_presentation>& aPresentation);
+		/// \brief The comparison the diff viewer shows for the draft, if any.
+		[[nodiscard]] auto local_comparison() const noexcept -> const std::shared_ptr<const application::local_presentation>&;
+		/// \brief Where a local draft's syntax requests go: a comparison's sides
+		/// and the Edit view's text are classified by the window's own definitions.
+		void set_local_syntax_dispatch(std::function<void(const std::string& aPath, const std::string& aDocument)> aDispatch);
+		/// \brief Adopts a classification for any local text it describes:
+		/// either side of the shown comparison, or the Edit view's text.
+		void adopt_local_syntax(const std::string& aDocument, const application::shared_token_spans& aSpans);
+		/// \brief The Files tab and the Local Changes tab, for courses.
+		[[nodiscard]] auto file_search_tabs() const noexcept -> QTabWidget*;
+		/// \brief Chooses a draft file's row in the Files tree, as a click on it does.
+		/// \returns Whether the draft has that file.
+		auto open_local_file(const QString& aPath) -> bool;
+		/// \brief Where Stage Change and Unstage Change on the code's menu go:
+		/// the path, the change, and whether it is staged (true) or unstaged.
+		void set_local_change_dispatch(std::function<void(const std::string&, core::local_change_hunk, bool)> aDispatch);
+		/// \brief Told when a local draft starts or stops being shown, so the
+		/// Search tab's results go to the draft's search or the pull request's.
+		void set_local_draft_observer(std::function<void(bool)> aObserver);
+		/// \brief The tab index of Local Changes, or -1 when it is not in the tabs.
+		[[nodiscard]] auto local_changes_tab() const -> int;
+		/// \brief Home's author entry: Prepare pull request… and In
+		/// preparation, above Home's sections (X01), and the marks on pull
+		/// request rows a draft became (X02).
+		void present_local_drafts(const application::local_draft_home_projection& aHome);
+		/// \brief Home variant 1: a local draft row's age, as Home's rows say theirs.
+		[[nodiscard]] auto home_draft_age(std::int64_t aUpdated) const -> QString;
+		void               set_local_draft_entry_dispatch(std::function<void()> aPrepare, std::function<void(const core::local_draft_id&)> aResume);
+		[[nodiscard]] auto home_prepare_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto home_drafts_list() const noexcept -> QListWidget*;
+		[[nodiscard]] auto home_open_preparation_action() const noexcept -> QAction*;
 		/// [[BPR-0727]]. The reason of the last gesture the core refused, as
 		/// published; `none` until one is.
 		[[nodiscard]] auto last_refusal() const noexcept -> core::workbench_reason_code;
@@ -1329,6 +1574,8 @@ namespace bpr::qt {
 		/// [[BPR-1334]]. View > Line Details.
 		[[nodiscard]] auto line_details_action() const noexcept -> QAction*;
 		[[nodiscard]] auto one_pane_action() const noexcept -> QAction*;
+		/// \brief The review bar's view picker (two panes, one pane; Edit in author state).
+		[[nodiscard]] auto review_view_picker() const noexcept -> view_picker* { return ReviewViewPicker; }
 		/// \brief [[BPR-1336]]. View > Zoom In, Zoom Out and Actual Size.
 		[[nodiscard]] auto zoom_in_action() const noexcept -> QAction*;
 		[[nodiscard]] auto zoom_out_action() const noexcept -> QAction*;
@@ -1361,6 +1608,16 @@ namespace bpr::qt {
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
+		/// \brief [[BPR-2179]]. Settings › Prompts: Surfaces and the Prompt
+		/// library, the system prompts among them.
+		[[nodiscard]] auto prompts() const noexcept -> prompts_page* { return Prompts; }
+		/// \brief The profile's suggested prompts reach the Agent tab's chips,
+		/// the tour chats and Settings.
+		/// [[BPR-2179]]: with `aRepository`'s layer applied to them, the
+		/// chips and menus being the open pull request's.
+		void present_prompt_macros(const application::prompt_macro_projection& aProjection, const std::string& aRepository = { });
+		/// \brief Edit Quick Asks…: Settings › Prompts, brought into view.
+		void reveal_prompt_macros();
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
 		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
@@ -1378,7 +1635,12 @@ namespace bpr::qt {
 		/// own tests bind by name is untouched.
 		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
 		[[nodiscard]] auto private_review() const noexcept -> private_review_panel* { return PrivateReview; }
-		[[nodiscard]] auto private_notes() const noexcept -> private_notes_panel*;
+		/// \brief [[BPR-2051]]. Where Enhance on a draft comment, a reply or
+		/// a Local comment goes, and how a run it started is stopped.
+		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		/// \brief [[BPR-2051]]. The answer to one Enhance press, to the field
+		/// that asked; false when none still does.
+		auto present_enhancement(const enhance_outcome& aOutcome) -> bool;
 		/// \brief The finding queue, placed above the draft the promotion fills.
 		///
 		/// \details BPR-0513, on the same terms as `side_chat()`. Its
@@ -1418,6 +1680,8 @@ namespace bpr::qt {
 		void open_review_sheet(bool aFocus = true);
 		/// \brief [[BPR-1590]]. Closes the sheet; nothing else changes.
 		void close_review_sheet();
+		/// \brief [[BPR-2175]]. Where the lightbox's dimmed area begins.
+		[[nodiscard]] auto review_sheet_top() const -> int;
 		/// \brief [[BPR-1590]]. The sheet's Expand: the same review as the
 		/// focused page in Discuss, its text, caret and scroll kept.
 		void               expand_review_sheet();
@@ -1461,6 +1725,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-1212]]. The code's Add comment and Suggest change, as
 		/// the right-click menu offers them.
 		[[nodiscard]] auto add_comment_action() const noexcept -> QAction*;
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). N: a Local comment on the
+		/// selected lines, the composer in Comments opened on Local.
+		[[nodiscard]] auto local_comment_action() const noexcept -> QAction*;
+		/// \brief RFC-BPR-0127. The composer in Comments is on Local.
+		[[nodiscard]] auto composing_local() const noexcept -> bool;
 		[[nodiscard]] auto suggest_change_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1212]]. The menu a right-click on the code opens at a
 		/// point of a pane, built as the gesture builds it; the caller owns it.
@@ -1574,7 +1843,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1576]]. The loading-state presenters the window lays
 		/// over its own panes, for courses: the review's content while it is
 		/// refreshed, the Files drawer, conversations, Threads, the
-		/// repositories drawer and Home's list.
+		/// repositories drawer and Home's list. [[BPR-2180]]: conversations
+		/// and Threads wait as thread cards, and the status bar's line turns
+		/// the pattern's mark while it says a load.
 		struct pending_panes
 		{
 			pending_veil* Content       = nullptr;
@@ -1583,6 +1854,7 @@ namespace bpr::qt {
 			pending_veil* Threads       = nullptr;
 			pending_veil* Repositories  = nullptr;
 			pending_veil* HomeList      = nullptr;
+			pending_mark* Status        = nullptr;
 		};
 		[[nodiscard]] auto pending_veils() const noexcept -> const pending_panes&;
 		/// \brief [[BPR-1576]]. Whether waits are drawn turning: only when the
@@ -1868,6 +2140,9 @@ namespace bpr::qt {
 		/// description and the open thread's posts to the application's
 		/// snippet host.
 		void set_markdown_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		/// \brief [[BPR-1996]]. The permalinks a tour stop's references are
+		/// shown as (snippets), made by the host at the tour's pinned head.
+		void set_tour_permalink_source(tour_permalink_source aSource) { TourPermalinkSource = std::move(aSource); }
 		/// \brief Shows the answer's lines in every reader that holds the permalink.
 		void apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
 		/// \brief Asks every reader again for the permalinks it does not show
@@ -2029,6 +2304,23 @@ namespace bpr::qt {
 		/// \brief Presents the Home button for where the window is: Home,
 		/// checked on Home, or the return to the review open behind Home.
 		void present_home_action(bool aHome);
+		/// \brief A local draft's slots, review bar and centre, after any change.
+		void apply_local_draft_surface();
+		/// \brief Places the draft's parts in the window's slots, once.
+		void build_local_draft_slots();
+		/// \brief Owner, Home 1 accept with a note (2026-11-13): one row is
+		/// selected across Home's lists, and Escape in a list clears it.
+		void build_home_selection();
+		/// \brief Clears every Home list's selection but `aKept`'s.
+		void clear_home_selection(const QAbstractItemView* aKept);
+		/// \brief Stage Change or Unstage Change for the change on a line, in Local Changes' uncommitted comparison.
+		void add_local_change_items(QMenu& aMenu, core::diff_side aSide, std::uint32_t aLine);
+		/// \brief The status bar's line for a local draft.
+		[[nodiscard]] auto local_draft_status() const -> QString;
+		/// \brief Steps the Files tree to the previous or next draft file.
+		void step_local_file(bool aNext);
+		/// \brief Shows the comparison of the source the open tab names.
+		void apply_local_comparison();
 		/// \brief [[BPR-1331]] v003. Paints the review bar's progress button
 		/// with the selected file's mark and each of its menu's actions with
 		/// the mark it names, all from one painter in the theme's colours.
@@ -2124,12 +2416,16 @@ namespace bpr::qt {
 		/// \brief [[BPR-1157]] [[BPR-1364]]. Resumes one of Home's recent review
 		/// cycles, by a double-click or Return on its row.
 		void resume_home_cycle(int aRow);
+		/// RFC-BPR-0108. Resumes the In preparation row `aRow`.
+		void resume_home_draft(int aRow);
 		/// [[BPR-1365]]. Home's lists: the queue (every arrangement's rows),
 		/// Recently viewed and Review Cycles.
 		enum class home_selection_list : std::uint8_t {
 			queue,
 			recent,
 			cycles,
+			/// RFC-BPR-0108 (owner, 2026-11-13): In preparation's local drafts.
+			drafts,
 		};
 		/// \brief [[BPR-1365]]. Makes one Home list the one that shows a
 		/// selection: its current row is selected, natively, and every other
@@ -2262,6 +2558,11 @@ namespace bpr::qt {
 		void present_reply_placement();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
+		/// Owner look v002. The comment before or after the one open (or the
+		/// first or last in view), in Comments' order, then the next file's.
+		void step_comment(bool aForward);
+		/// Their enablement and tooltips follow the comments.
+		void update_comment_steps();
 		/// \brief [[BPR-1601, BPR-1810]]. Goes to one conversation where the
 		/// reader is, as Next new comment does: a comment on the pull request
 		/// in its conversation, a thread on another file at its line, and
@@ -2344,6 +2645,10 @@ namespace bpr::qt {
 		void               infer_modality_from_drawers();
 		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
 		[[nodiscard]] auto presented_repositories_state() const -> core::workbench_drawer_state;
+		/// \brief Whether a local draft shows on Overview. Its modality never
+		/// reaches the core, so Overview's rule (every drawer closed) is kept
+		/// here: Review's drawers leave while it shows.
+		[[nodiscard]] auto local_overview() const -> bool;
 		void               apply_focus_order();
 		void               update_action_state();
 		void               update_header_source_action();
@@ -2394,8 +2699,23 @@ namespace bpr::qt {
 			core::workbench_command_id   aId,
 			core::workbench_drawer_state aState);
 		void update_status_text();
+		/// \brief [[BPR-2180]]. The status line's words and whether they say a
+		/// load, decided together so the mark beside them never disagrees.
+		struct status_line_words
+		{
+			QString Text;
+			bool    Waits = false;
+		};
 		/// \brief The status line for what the window shows now, computed without side effects.
-		[[nodiscard]] auto status_line() const -> QString;
+		[[nodiscard]] auto status_line() const -> status_line_words;
+		/// \brief [[BPR-2180]]. Shows the status line and turns its mark while it says a load.
+		void present_status_line();
+		/// \brief [[BPR-2180]]. A first read's reported files as the file rows,
+		/// through the ordinary file-row path; an empty list withdraws them.
+		void present_provisional_files(const std::vector<application::github_provisional_file>& aFiles);
+		/// \brief [[BPR-2180]]. Asks for the reported file the reviewer
+		/// clicked, now that a review lists the files; or takes its wait back.
+		void open_provisional_file();
 		/// \brief [[BPR-0775]]. Home's session line.
 		[[nodiscard]] auto home_session_line() const -> QString;
 		/// \brief Whether the session is signed in, with or without an account.
@@ -2491,6 +2811,11 @@ namespace bpr::qt {
 		void popup_home_row_menu(const QPoint& aGlobal);
 		/// \brief [[BPR-1683]]. Ignores a queue row, or unignores an ignored one.
 		void dispatch_home_ignore(const core::queue_item& aItem);
+		/// \brief [[BPR-2049]]. A row's Seen or Approve again, as the core offers it.
+		void dispatch_home_followup(const core::queue_item& aItem);
+		/// \brief [[BPR-2049]]. The pull request Approve again opened, once it
+		/// is shown: its review with Approve ready.
+		void take_pending_approve_again();
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
@@ -2603,7 +2928,24 @@ namespace bpr::qt {
 		/// sink and the drawer Delete's question.
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
-		std::function<void(core::review_draft_id, std::uint64_t)> CarriedSuggestionDispatch;
+		/// [[BPR-2092]].
+		core::draft_roster DraftRoster;
+		/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments counted by file, and
+		/// all of them, beside the drafts.
+		std::map<QString, std::size_t> LocalByPath;
+		std::size_t                    LocalTotal = 0U;
+		/// Overview's Comments column: my drafts and Local comments by file.
+		void present_mine_counts();
+		/// Threads' Local rows, the counts and Finish your review's line.
+		void present_local_found(const std::vector<local_comment_card>& aComments);
+		/// [[BPR-1293]]. The draft open in the drawer, as a Threads row.
+		void present_finder_draft();
+		/// Keep Local on a listed draft (Finish your review, Threads).
+		void keep_listed_draft_local(core::review_draft_id aDraft);
+		/// A Local row of Threads: its card in Review; then Make Draft.
+		void                                                          open_local_from_threads(std::uint64_t aLocal, bool aMakeDraft);
+		std::function<void(std::vector<core::review_draft_id>, bool)> DraftReviewDispatch;
+		std::function<void(core::review_draft_id, std::uint64_t)>     CarriedSuggestionDispatch;
 		/// [[BPR-1733]]. The moved suggestions the composition last presented.
 		std::vector<moved_suggestion_card> MovedSuggestions;
 		/// [[BPR-1733]]. A suggestion being carried to this head: the draft it
@@ -2631,11 +2973,52 @@ namespace bpr::qt {
 		QPointer<destructive_question>                                  DiscardReplyConfirmation;
 		void                                                            act_on_kept_reply(card_action aAction, const std::string& aIdentity);
 		/// [[BPR-1133]]. Comment's arrow menu.
-		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,
 		/// the tabs the host last published, the tab keys and the older-pair
 		/// notice.
-		document_tab_strip*                                  DocumentTabs = nullptr;
+		document_tab_strip* DocumentTabs = nullptr;
+		/// RFC-BPR-0118. Suggest the change: where a press and Stop go, and
+		/// the press under way or its outcome, for the draft it was made on.
+		std::function<void(const suggest_change_press&)> SuggestChangeDispatch;
+		std::function<void()>                            SuggestChangeCancel;
+		bool                                             SuggestChangeReady = false;
+		struct agent_suggestion_state
+		{
+			core::review_draft_id        Draft;
+			core::source_line_ref        Anchor;
+			std::uint32_t                First = 0U;
+			std::uint32_t                Last  = 0U;
+			std::vector<core::text_line> Asked;
+			agent_suggestion_phase       Phase = agent_suggestion_phase::idle;
+			QString                      Line;
+			QString                      Reply;
+			/// Kept: the draft's body before Keep, which Undo restores.
+			QString BodyBefore;
+			/// The head pane's edit was open before the agent's change.
+			bool WasOpen = false;
+		};
+		std::optional<agent_suggestion_state> AgentSuggestion;
+		[[nodiscard]] auto                    suggest_change_offered() const -> bool;
+		void                                  press_suggest_change();
+		/// RFC-BPR-0117. Explain this file's control, its card and where a
+		/// press goes.
+		QToolButton*                                 ExplainFileButton = nullptr;
+		ask_menu_button*                             FileAskButton     = nullptr;
+		ask_menu_button*                             ReviewAskButton   = nullptr;
+		ask_menu_source                              QuickAskSource;
+		ask_menu_dispatch                            QuickAskDispatch;
+		agent_report_view*                           ReportView  = nullptr;
+		bool                                         ReportShown = false;
+		std::map<std::string, agent_report_document> Reports;
+		/// The file controls' enabled states while a report is shown (Q9).
+		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;
+		void                                                 apply_report_surface();
+		void                                                 refresh_ask_controls();
+		void                                                 activate_document_path(const QString& aPath);
+		explain_file_card*                                   ExplainCard = nullptr;
+		std::function<void(const QString&)>                  ExplainFileDispatch;
+		bool                                                 ExplainFileOffered = false;
+		void                                                 refresh_explain_file();
 		document_tab_dispatch                                DocumentTabDispatch;
 		std::optional<application::document_tabs_projection> TabsProjection;
 		QAction*                                             NextTabAction     = nullptr;
@@ -2686,12 +3069,53 @@ namespace bpr::qt {
 		bool                                  DifResolutionReady = false;
 		QWidget*                              HomePage           = nullptr;
 		/// [[BPR-1157]]. The local cycle page and Home's Review Cycles section.
-		review_cycle_view*                                    LocalCyclePage  = nullptr;
-		bool                                                  LocalCycleShown = false;
-		QString                                               LocalCycleTitle;
-		QAction*                                              OpenProjectAction = nullptr;
-		QWidget*                                              HomeCycles        = nullptr;
-		QListWidget*                                          HomeCyclesList    = nullptr;
+		review_cycle_view* LocalCyclePage  = nullptr;
+		bool               LocalCycleShown = false;
+		QString            LocalCycleTitle;
+		QAction*           OpenProjectAction = nullptr;
+		/// RFC-BPR-0108.
+		local_draft_parts* LocalDraft = nullptr;
+		/// The comparison the diff viewer shows for the draft.
+		std::shared_ptr<const application::local_presentation> LocalShown;
+		/// Which source the diff viewer shows: Local Changes' file (true) or the candidate's.
+		bool                                                                   LocalChangesShown = false;
+		std::function<void(const std::string&, const std::string&)>            LocalSyntaxDispatch;
+		std::function<void(const std::string&, core::local_change_hunk, bool)> LocalChangeDispatch;
+		std::function<void(bool)>                                              LocalDraftObserver;
+		/// What a pull request open behind the draft had, restored on leaving.
+		std::optional<application::pull_request_overview_projection> OverviewBehindDraft;
+		bool                                                         DescriptionEditableBehindDraft = false;
+		/// Lines a tour stop asked for, selected once their file shows.
+		struct local_reveal
+		{
+			std::string   Path;
+			std::uint32_t First = 0U;
+			std::uint32_t Last  = 0U;
+		};
+		std::optional<local_reveal>                         LocalReveal;
+		void                                                apply_local_reveal();
+		std::vector<application::workbench_file_projection> FilesBehindDraft;
+		/// The draft's own rows, by path, in the Files tree's order.
+		std::vector<std::string> LocalFiles;
+		/// The review bar's actions a draft hides, and its own slots.
+		QAction* LocalBarLeadingAction  = nullptr;
+		QAction* LocalBarTrailingAction = nullptr;
+		/// The centre's Edit page holder and the draft's notice row holder.
+		QWidget* LocalEditHolder   = nullptr;
+		QWidget* LocalNoticeHolder = nullptr;
+		/// Home variant 1: the Open row, where Prepare Pull Request… stands.
+		QHBoxLayout*                                          HomePrepareSlot           = nullptr;
+		bool                                                  LocalDraftShown           = false;
+		QWidget*                                              HomeAuthor                = nullptr;
+		QPushButton*                                          HomePrepare               = nullptr;
+		QWidget*                                              HomeDrafts                = nullptr;
+		QListWidget*                                          HomeDraftsList            = nullptr;
+		QAction*                                              HomeOpenPreparationAction = nullptr;
+		application::local_draft_home_projection              DraftHome;
+		std::function<void()>                                 PrepareDispatch;
+		std::function<void(const core::local_draft_id&)>      ResumeDraftDispatch;
+		QWidget*                                              HomeCycles     = nullptr;
+		QListWidget*                                          HomeCyclesList = nullptr;
 		std::vector<application::review_cycle_recent>         CycleRecents;
 		std::function<void()>                                 OpenProjectDispatch;
 		std::function<void(const core::local_cycle_subject&)> ResumeCycleDispatch;
@@ -2700,23 +3124,20 @@ namespace bpr::qt {
 		bool                                                  HomeFocused   = false;
 		/// [[BPR-1134]]. The right tray: its tabs, their pages, and the
 		/// Comments tab's column, tool and count. ConversationScroll is the
-		/// Notes tab's column.
+		/// agent's legacy hidden column.
 		QTabBar*        TrayTabs             = nullptr;
 		QStackedWidget* TrayPages            = nullptr;
 		QScrollArea*    CommentsScroll       = nullptr;
 		QToolButton*    NextNewCommentButton = nullptr;
 		QWidget*        DefectRow            = nullptr;
 		QWidget*        CommentsTools        = nullptr;
-		/// [[BPR-1592]]. The Notes tab's tools in the tray's header.
-		QWidget* NotesTools = nullptr;
 		/// [[BPR-1593]]. The Tour tab's tools, and the tour page.
 		QWidget* TourTools  = nullptr;
 		QWidget* TourHolder = nullptr;
 		/// [[BPR-1781]]. The homes in Review's tray of what Overview's drawer
-		/// borrows: the conversation panel, the notes panel and the agent's
-		/// page. While Overview shows they are in its holders.
+		/// borrows: the conversation panel and the agent's page. While
+		/// Overview shows they are in its holders.
 		QWidget*              ConversationHome     = nullptr;
-		QWidget*              NotesHome            = nullptr;
 		QWidget*              AgentHome            = nullptr;
 		QWidget*              AgentBody            = nullptr;
 		bool                  ConversationTabsLent = false;
@@ -2734,8 +3155,16 @@ namespace bpr::qt {
 		QWidget* TourPageBody = nullptr;
 		bool     TourPageOpen = false;
 		void     wire_tour_page();
+		/// [[BPR-2051]]. The footer's setup state, from the Agent tab's setup.
+		void present_agent_footer_setup();
+		/// \brief [[RFC-BPR-0105]]. A pull request opened in this window
+		/// starts on the default review surface: the tray on Comments, the
+		/// tour's side chat and page closed. Filters, drawer widths, sessions
+		/// and drafts are kept.
+		void reset_review_surface();
 		/// [[BPR-1594]]. The Agent tab, and its keys.
 		agent_tab_view* AgentTab        = nullptr;
+		agent_footer*   AgentFooter     = nullptr;
 		QAction*        OpenAgentAction = nullptr;
 		QAction*        AskAgentAction  = nullptr;
 		/// [[BPR-1594]]. Opens the drawer on the Agent tab; with \p aAsk, the
@@ -2743,14 +3172,19 @@ namespace bpr::qt {
 		void show_agent(bool aAsk);
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
+		/// RFC-BPR-0127 ([[BPR-2159]]). Make Draft once the pending Local
+		/// comment is open in its file.
+		bool PendingLocalMakeDraft = false;
 		/// Owner look v004. A line a link asked for, selected once its file's
 		/// comparison is shown and measured; tried again until then, ten seconds at most.
 		struct pending_line_go
 		{
 			core::file_identity File;
-			core::diff_side     Side  = core::diff_side::right;
-			std::uint32_t       Line  = 0U;
-			int                 Tries = 0;
+			core::diff_side     Side = core::diff_side::right;
+			std::uint32_t       Line = 0U;
+			/// Zero-based last line of a range; equal to `Line` for one line.
+			std::uint32_t Last  = 0U;
+			int           Tries = 0;
 		};
 		std::optional<pending_line_go> PendingLineGo;
 		void                           resume_line_go();
@@ -2765,15 +3199,15 @@ namespace bpr::qt {
 		/// them; then the open tab's glyph and name and the others' glyphs;
 		/// then glyphs only. A tab without its name says it in its tooltip.
 		void fit_tray_tabs(bool aRepaint = false);
-		/// [[BPR-1592]]. Connects Notes to the code it hangs beside.
-		void wire_private_notes();
-		/// [[BPR-1592]]. Opens one private note in the Notes tab.
+		/// RFC-BPR-0127. Opens one Local comment's card in Comments.
 		void show_private_note(std::uint64_t aId);
-		/// [[BPR-1592]]. Goes to another file's note: its file, then its line.
-		void open_private_note_elsewhere(const private_note_item& aNote);
 		/// [[BPR-1592]]. Opens a note waiting for its file once it shows.
-		void     resume_private_note_open();
-		QWidget* TrayCommentsCount = nullptr;
+		void resume_private_note_open();
+		/// RFC-BPR-0127. Delete on my Local comment, once asked.
+		void                           confirm_delete_local(const std::string& aIdentity);
+		QPointer<destructive_question> DeleteLocalConfirmation;
+		void                           open_local_elsewhere(const std::string& aIdentity);
+		QWidget*                       TrayCommentsCount = nullptr;
 
 		/// The Home button is the way back to the review behind Home.
 		bool HomeActionReturns = false;
@@ -2843,6 +3277,8 @@ namespace bpr::qt {
 
 		QAction* LineNumbersAction = nullptr;
 		QAction* OnePaneAction     = nullptr;
+		/// Owner, 2026-11-12: the review bar's view picker.
+		view_picker* ReviewViewPicker = nullptr;
 		/// [[BPR-1336]]. The zoom commands, their sink, and the accepted code record.
 		QAction*                                  ZoomInAction     = nullptr;
 		QAction*                                  ZoomOutAction    = nullptr;
@@ -3038,6 +3474,10 @@ namespace bpr::qt {
 			bool OwnBlock = false;
 			/// The head pane's edit is open.
 			bool Open = false;
+			/// RFC-BPR-0118. The agent's change is in the edit and not in the
+			/// draft: the body keeps `Kept`, the lines before it, until Keep.
+			bool                         Proposed = false;
+			std::vector<core::text_line> Kept;
 		};
 		std::optional<pane_suggestion> PaneSuggestion;
 		/// [[RFC-BPR-0090]]. Suggestions GitHub cannot apply where they go, by
@@ -3062,9 +3502,12 @@ namespace bpr::qt {
 		void                                                        publish_pending_file_comment();
 		QString                                                     CommentDraftUnavailable;
 		std::optional<core::source_line_ref>                        WritingAnchor;
-		QAction*                                                    AddCommentAction    = nullptr;
-		QAction*                                                    SuggestChangeAction = nullptr;
-		QPointer<QWidget>                                           DiscussReturnFocus;
+		QAction*                                                    AddCommentAction   = nullptr;
+		QAction*                                                    LocalCommentAction = nullptr;
+		/// RFC-BPR-0127. The drawer's composer opens, or was switched, on Local.
+		bool              ComposeLocal        = false;
+		QAction*          SuggestChangeAction = nullptr;
+		QPointer<QWidget> DiscussReturnFocus;
 		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
 		/// Discuss, so going back to the Overview finds the same cell.
 		QPointer<QWidget> OverviewReturnFocus;
@@ -3075,7 +3518,11 @@ namespace bpr::qt {
 		/// [[BPR-1532]]. First and Last change; menu and keys only, no
 		/// review-bar button.
 		std::array<navigation_entry, 2>                                                      ChangeEnds{ };
-		QAction*                                                                             NextNewCommentAction = nullptr;
+		QAction*                                                                             NextNewCommentAction  = nullptr;
+		QAction*                                                                             PreviousCommentAction = nullptr;
+		QAction*                                                                             NextCommentAction     = nullptr;
+		QToolButton*                                                                         PreviousCommentButton = nullptr;
+		QToolButton*                                                                         NextCommentButton     = nullptr;
 		conversation_read_dispatch                                                           ConversationReadDispatch;
 		std::function<void(core::conversation_reply_action, core::conversation_reply_draft)> ConversationReplyDispatch;
 		std::optional<thread_reply_presentation>                                             ConversationReply;
@@ -3109,12 +3556,11 @@ namespace bpr::qt {
 		bool                       EnteringOpeningModality = false;
 		github_conversation_panel* ConversationPanel       = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                 ApplyingConversationAnchor       = false;
-		bool                 LeftConversationEndpointCurrent  = false;
-		bool                 RightConversationEndpointCurrent = false;
-		agent_launch_panel*  AgentPanel                       = nullptr;
-		private_notes_panel* PrivateNotes                     = nullptr;
-		review_tour_editor*  TourEditor                       = nullptr;
+		bool                ApplyingConversationAnchor       = false;
+		bool                LeftConversationEndpointCurrent  = false;
+		bool                RightConversationEndpointCurrent = false;
+		agent_launch_panel* AgentPanel                       = nullptr;
+		review_tour_editor* TourEditor                       = nullptr;
 		/// [[BPR-1925]]. The Tour tab: the tour, and beside it the chat about
 		/// its marked part while one is open.
 		QSplitter* TourChatSplit = nullptr;
@@ -3209,11 +3655,16 @@ namespace bpr::qt {
 		QAction*                                           QueueRefreshAction        = nullptr;
 		QMenu*                                             PullRequestMenu           = nullptr;
 		QAction*                                           FollowPullRequest         = nullptr;
+		QAction*                                           SeenPullRequest           = nullptr;
+		QAction*                                           WhatChangedPullRequest    = nullptr;
 		QAction*                                           SavePullRequestRepository = nullptr;
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
-		QAction*                                           HomeIgnoreAction = nullptr;
-		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
+		workbench_home_seen_dispatch                       HomeSeenDispatch;
+		/// [[BPR-2049]]. The pull request a row's Approve again is opening.
+		std::optional<core::pull_request_ref> PendingApproveAgain;
+		QAction*                              HomeIgnoreAction = nullptr;
+		workbench_queue_discovery_dispatch    QueueDiscoveryDispatch;
 		/// [[BPR-1867]]. Coming back in front on the pull request shown.
 		std::function<void(std::int64_t)>                  PullRequestReturnDispatch;
 		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;
@@ -3293,6 +3744,10 @@ namespace bpr::qt {
 		bool                                    DeferredReplyInPlace = false;
 		workbench_thread_resolution_dispatch    ThreadResolutionDispatch;
 		std::function<void(const std::string&)> ConversationAskDispatch;
+		workbench_comment_state_dispatch        CommentStateDispatch;
+		void                                    dispatch_comment_state(card_action aAction, const std::string& aIdentity);
+		std::function<void(const std::string&)> ConversationAddressedDispatch;
+		std::function<void()>                   WhatChangedDispatch;
 		/// [[BPR-1773]]. Words waiting for a thread's reply to open, and how
 		/// many more times to look for it.
 		std::optional<std::pair<std::string, QString>> PendingReplyText;
@@ -3351,9 +3806,15 @@ namespace bpr::qt {
 		bool                                 ReturnComparisonPending = false;
 		/// [[BPR-1844]]. This window's Discuss, Threads and Review Comments
 		/// filters, and the profile's memory it opens with and tells.
-		core::view_filter_state                                ViewFilters;
-		std::function<core::view_filter_defaults()>            ViewFilterDefaults;
-		std::function<void(const core::view_filter_remember&)> ViewFilterRemember;
+		core::view_filter_state                     ViewFilters;
+		std::function<core::view_filter_defaults()> ViewFilterDefaults;
+		/// [[BPR-2171]].
+		std::function<core::discuss_preferences()>                        DiscussPreferencesRead;
+		std::function<void(const std::string&, const std::string&, bool)> DiscussMark;
+		std::function<void(core::discuss_column)>                         DiscussColumnDispatch;
+		std::string                                                       DiscussRepository;
+		std::vector<QAbstractButton*>                                     DiscussColumnButtons;
+		std::function<void(const core::view_filter_remember&)>            ViewFilterRemember;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                                                     BehaviourPublished    = false;
@@ -3387,6 +3848,7 @@ namespace bpr::qt {
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
 		writing_hooks_panel*                               WritingHooks  = nullptr;
+		prompts_page*                                      Prompts       = nullptr;
 		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
 		agent_setup_view*                                  AgentSetup    = nullptr;
 		agent_programs_panel*                              AgentPrograms = nullptr;
@@ -3445,6 +3907,7 @@ namespace bpr::qt {
 		std::string                                                                 MarkdownAuthority;
 		/// [[BPR-1802]]. The standing permalinks' lane to the snippet host.
 		std::function<void(std::vector<application::markdown_blob_snippet_request>)> MarkdownPermalinkDispatch;
+		tour_permalink_source                                                        TourPermalinkSource;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
 		std::function<core::markdown_link_result(core::reference_page)>                         ReferenceDispatch;
@@ -3493,7 +3956,17 @@ namespace bpr::qt {
 		bool                                                       HasCommands           = false;
 		bool                                                       ApplyingLayout        = false;
 		bool                                                       ApplyingFileSelection = false;
-		bool                                                       QueueReady            = false;
+		/// The draft's own rows are being applied; a pull request's are kept aside.
+		bool ApplyingLocalRows = false;
+		/// [[BPR-2180]]. The read lane's account of the first read, as published.
+		core::github_loading_readiness LoadingReadiness;
+		/// [[BPR-2180]]. The file rows are a first read's reported files, not yet
+		/// the accepted review's; and the path a click on one asked to open.
+		std::vector<application::workbench_file_projection> ProvisionalFiles;
+		QString                                             ProvisionalOpen;
+		/// The file rows last published for a pull request, kept while a draft shows.
+		std::vector<application::workbench_file_projection> PublishedFiles;
+		bool                                                QueueReady = false;
 		/// [[BPR-0776]]. Whether the window has an account to list a queue for.
 		/// Until the session decides, the queue is shown, as its surface always was.
 		bool HomeAccount = true;

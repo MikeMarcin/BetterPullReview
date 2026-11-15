@@ -53,8 +53,43 @@
 //       and what the editor says before Publish, into
 //       DIR/whole-pr-comment.jsonl. It then waits at `at-post` while the
 //       operator publishes exactly those placements.
+//   --course agent-helpers --root DIR --pull N --path PROGRAM [--author claude|codex]
+//       [[BPR-2004]], RFC-BPR-0103 AC07. Opens MikeMarcin/BPR-Test#N, adds the
+//       installed agent at PROGRAM (Claude Code unless `--author codex`) as a
+//       reviewer adds it, and asks it from the Agent tab to review with three
+//       background helpers and end its message without waiting. It writes
+//       what the running block showed and how the one turn ended into
+//       DIR/agent-helpers.jsonl, with renders. It spends the account of the
+//       installed agent; nothing is written to GitHub.
+//   --course agent-scratch --root DIR --pull N --path PROGRAM [--author claude|codex]
+//       [[BPR-2007]], RFC-BPR-0104 AC01, AC02, AC09. Opens MikeMarcin/BPR-Test#N,
+//       adds the installed agent at PROGRAM, and asks it from the Agent tab
+//       to write a script in its scratch folder, run it against the workspace
+//       and try to write into the workspace. It then turns the scratch folder
+//       off from the footer picker's grant item and asks it to write there
+//       again. It writes what each turn did, the folder's files and the
+//       workspace's `git status` into DIR/agent-scratch.jsonl. It spends the
+//       installed agent's account; nothing is written to GitHub.
+//   --course live-session --root DIR --pull N --path FILE --second FILE
+//            --first-stop L --second-stop L --reads A,B,C [--approve M] [--agent PROGRAM]
+//       RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The one course that writes:
+//       a session over the --reads pull requests (agent and tour use), a
+//       two-stop tour written and published on #N, then Approve on #M. The
+//       composition publishes only to MikeMarcin/BPR-Test and only through
+//       the window's own Publish and Approve. Driven by
+//       `tests/end_to_end/live_session_course.py`, which makes and closes
+//       the disposable pull requests and checks GitHub's answer with `gh`.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/core/agent_entry.hpp"
+#include "bpr/core/git_objects.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
+#include "bpr/qt/agent_footer.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
+#include "bpr/qt/agent_run_status.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -65,12 +100,18 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/server_card.hpp"
+#include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_queue.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -82,14 +123,18 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
 
 #include "account_setup_course.hpp"
 #include <QMouseEvent>
+#include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTabBar>
+#include <QTextBlock>
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
@@ -164,6 +209,13 @@ namespace {
 		int                   Pull = 0;
 		std::string           Author;
 		std::string           Path;
+		// live-session only.
+		std::string      Second;
+		std::string      Agent;
+		std::vector<int> Reads;
+		int              Approve    = 0;
+		std::uint32_t    FirstStop  = 0U;
+		std::uint32_t    SecondStop = 0U;
 	};
 
 	auto parse(const QStringList& aArguments) -> options
@@ -182,15 +234,30 @@ namespace {
 				result.Author = value;
 			} else if (key == "--path") {
 				result.Path = value;
+			} else if (key == "--second") {
+				result.Second = value;
+			} else if (key == "--agent") {
+				result.Agent = value;
+			} else if (key == "--approve") {
+				result.Approve = std::stoi(value);
+			} else if (key == "--first-stop") {
+				result.FirstStop = static_cast<std::uint32_t>(std::stoul(value));
+			} else if (key == "--second-stop") {
+				result.SecondStop = static_cast<std::uint32_t>(std::stoul(value));
+			} else if (key == "--reads") {
+				for (const auto& number : aArguments[i + 1].split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+					result.Reads.push_back(number.toInt());
+				}
 			} else {
 				fail("unknown argument " + key.toStdString());
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "agent-scratch" && result.Course != "live-session" && result.Course != "live-draft")
 			|| result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))
-			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment") && result.Path.empty())) {
+			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers" || result.Course == "agent-scratch") && result.Path.empty())
+			|| (result.Course == "live-session" && (result.Path.empty() || result.Second.empty() || result.Reads.empty()))) {
 			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment|whole-pr-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
@@ -203,11 +270,25 @@ namespace {
 	{
 		auto driver = e2e::account_setup_driver{ aWindow, e2e::account_setup_driver::plan{ } };
 		driver.begin();
-		require([&] { return aWindow.account_setup()->projection().State.Phase == core::account_setup_phase::choosing_account; }, "GitHub CLI discovery");
-		for (const auto& account : aWindow.account_setup()->projection().State.Accounts) {
+		// The driver presses Connect on the tick that first shows the accounts
+		// and Start reviewing once connected, so the account step can pass
+		// between two polls here and the setup be back at idle, signed in. Wait
+		// for the outcome; stop early only on an account step that refuses.
+		const auto connected = [&] { return aWindow.github_status_text() == "GitHub account connected." && !aWindow.account_setup()->isVisible(); };
+		const auto refused   = [&] {
+			const auto& state = aWindow.account_setup()->projection().State;
+			return state.Phase == core::account_setup_phase::choosing_account && state.Problem != core::account_setup_problem::none
+				&& state.Problem != core::account_setup_problem::connection_failed;
+		};
+		const auto settled = wait_for([&] { return connected() || refused(); }, "GitHub CLI sign-in", std::chrono::seconds{ 180 });
+		for (const auto& account : driver.offered()) {
 			say("cli-account:" + account.Login + (account.ActiveInGh ? " (active in gh)" : ""));
 		}
-		require([&] { return aWindow.github_status_text() == "GitHub account connected." && !aWindow.account_setup()->isVisible(); }, "GitHub account connected");
+		if (!settled || !connected()) {
+			const auto& state = aWindow.account_setup()->projection().State;
+			fail("GitHub CLI sign-in stopped at " + std::string{ core::stable_name(state.Phase) } + " (problem " + std::string{ core::stable_name(state.Problem) } + ", status \"" + aWindow.github_status_text()
+				 + "\", connects " + std::to_string(driver.connects()) + ")");
+		}
 		say("setup-connects:" + std::to_string(driver.connects()));
 		std::string login;
 		for (auto* card : aWindow.server_cards()) {
@@ -245,6 +326,239 @@ namespace {
 		wait_for([] { return false; }, "a reader's dwell (expected)", std::chrono::seconds{ 20 });
 		dump(aWindow);
 		checkpoint(aOptions.Root, "read", "{\"status\":\"" + aWindow.github_status_text() + "\"}");
+	}
+
+	/// [[BPR-2004]] AC07. One request that makes the installed agent start
+	/// helpers, from the Agent tab, on the live pull request.
+	void agent_helpers_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		const auto codex = aOptions.Author == "codex";
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		aWindow.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry    = aStart;
+			entry.Program = aOptions.Path;
+			if (!codex) {
+				entry.Model = "haiku";
+			}
+			return entry;
+		});
+		const auto protocol = codex ? core::agent_protocol::codex_app_server : core::agent_protocol::claude_stream_json;
+		auto*      panel    = aWindow.agent_panel();
+		const auto id       = QVariant::fromValue<qulonglong>(core::entry_profile_id(protocol, 1U).value());
+		require([&] {
+			if (panel->profile_selector()->findData(id) < 0) {
+				aWindow.agent_programs()->add_agent(codex ? core::setup_agent::codex : core::setup_agent::claude_code);
+			}
+			return panel->profile_selector()->findData(id) >= 0;
+		},
+				"the installed agent is offered", std::chrono::seconds{ 60 });
+		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
+		aWindow.settings()->hide();
+		aWindow.choose_modality(qt::review_modality::review);
+		aWindow.tray_tabs()->setCurrentIndex(2);
+		auto* const tab    = aWindow.agent_tab();
+		const auto  before = tab->turn_count();
+		// As a person sends: once the setup has given way to the conversation.
+		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+		say("agent-tab-state-before-send:" + std::to_string(static_cast<int>(tab->state())));
+		tab->send_prompt(QStringLiteral("Review this pull request. Start three sub-agents in the background, one for each of three different areas of the change, and do not wait for them: "
+										"tell me you started three reviewers and end your message. When their results arrive, combine them into a short review."));
+		require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+		auto       most     = 0;
+		auto       rows     = QStringList{ };
+		auto       heads    = QStringList{ };
+		auto       rendered = false;
+		auto       states   = std::string{ };
+		const auto watch    = [&] {
+			if (const auto state = std::to_string(static_cast<int>(tab->state())) + ":" + std::to_string(static_cast<int>(panel->current_phase())) + ":" + tab->turn_footer(before).section(QStringLiteral(" · "), 0, 0).right(12).toStdString(); !states.ends_with(state) && states.size() < 1500U) {
+				states += (states.empty() ? "" : "|") + state;
+			}
+			auto* const block = tab->turn_activity(before);
+			if (block != nullptr && block->live()) {
+				if (block->helper_rows() > most) {
+					most = block->helper_rows();
+					rows.clear();
+					for (int row = 0; row < block->helper_rows(); ++row) {
+						rows << block->helper_row_text(row);
+					}
+				}
+				if (const auto head = tab->turn_footer(before).section(QStringLiteral(", "), 0, 0); !heads.contains(head) && heads.size() < 40) {
+					heads << head;
+				}
+				if (!rendered && block->helper_rows() > 0) {
+					rendered = true;
+					aWindow.grab().save(QString::fromStdString((aOptions.Root / "agent-helpers-running.png").string()));
+				}
+			}
+			return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value();
+		};
+		require(watch, "the one turn ends", std::chrono::seconds{ 900 });
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / "agent-helpers-ended.png").string()));
+		auto* const block = tab->turn_activity(before);
+		const auto  quote = [](const QString& aText) {
+			auto escaped = aText.toStdString();
+			auto out     = std::string{ };
+			for (const auto character : escaped) {
+				if (character == '"' || character == '\\') {
+					out += '\\';
+				}
+				out += character == '\n' || character == '\t' ? ' ' : character;
+			}
+			return "\"" + out + "\"";
+		};
+		auto facts = std::string{ "{\"agent\":" } + quote(codex ? QStringLiteral("codex") : QStringLiteral("claude")) + ",\"turns\":" + std::to_string(tab->turn_count() - before)
+			+ ",\"outcome\":" + quote(QString::fromUtf8(core::stable_name(*tab->turn_outcome(before)).data())) + ",\"footer\":" + quote(tab->turn_footer(before))
+			+ ",\"most_helper_rows\":" + std::to_string(most) + ",\"summary\":" + quote(block != nullptr ? block->summary_text() : QString{ }) + ",\"rows\":[";
+		for (qsizetype row = 0; row < rows.size(); ++row) {
+			facts += (row == 0 ? "" : ",") + quote(rows[row]);
+		}
+		facts += "],\"heads\":[";
+		for (qsizetype head = 0; head < heads.size(); ++head) {
+			facts += (head == 0 ? "" : ",") + quote(heads[head]);
+		}
+		facts += "],\"answer_head\":" + quote(tab->turn_answer(before).left(500)) + ",\"reported_cost\":" + quote(panel->last_reported_cost()) + "}";
+		std::ofstream{ aOptions.Root / "agent-helpers.jsonl", std::ios::app } << facts << '\n';
+		say("agent-helpers:" + facts);
+		say("agent-helpers-states:" + states);
+		if (tab->turn_count() != before + 1U) {
+			fail("more than one turn");
+		}
+	}
+
+	/// [[BPR-2007]], RFC-BPR-0104 AC01, AC02, AC09. The installed agent writes
+	/// and runs a script in its scratch folder and nowhere else; turned off
+	/// from the footer picker's grant item, the next turn has no allowance.
+	void agent_scratch_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		const auto codex = aOptions.Author == "codex";
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		aWindow.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry    = aStart;
+			entry.Program = aOptions.Path;
+			if (!codex) {
+				entry.Model = "haiku";
+			}
+			return entry;
+		});
+		const auto protocol = codex ? core::agent_protocol::codex_app_server : core::agent_protocol::claude_stream_json;
+		auto*      panel    = aWindow.agent_panel();
+		const auto profile  = core::entry_profile_id(protocol, 1U).value();
+		const auto id       = QVariant::fromValue<qulonglong>(profile);
+		require([&] {
+			if (panel->profile_selector()->findData(id) < 0) {
+				aWindow.agent_programs()->add_agent(codex ? core::setup_agent::codex : core::setup_agent::claude_code);
+			}
+			return panel->profile_selector()->findData(id) >= 0;
+		},
+				"the installed agent is offered", std::chrono::seconds{ 60 });
+		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
+		aWindow.settings()->hide();
+		aWindow.choose_modality(qt::review_modality::review);
+		aWindow.tray_tabs()->setCurrentIndex(2);
+		auto* const tab = aWindow.agent_tab();
+		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+		const auto quote = [](const QString& aText) {
+			auto out = std::string{ };
+			for (const auto character : aText.toStdString()) {
+				if (character == '"' || character == '\\') {
+					out += '\\';
+				}
+				out += character == '\n' || character == '\t' ? ' ' : character;
+			}
+			return "\"" + out + "\"";
+		};
+		const auto grantItem = [&]() -> std::pair<QString, QAction*> {
+			auto* const picker = aWindow.agent_footer_widget()->picker();
+			emit        picker->menu()->aboutToShow();
+			auto        line    = QString{ };
+			auto        scratch = static_cast<QAction*>(nullptr);
+			for (auto* const item : picker->menu()->actions()) {
+				if (item->objectName() == QStringLiteral("agentRunSettingsScratch")) {
+					scratch = item;
+					line    = item->text() + (item->isChecked() ? QStringLiteral(" [on]") : QStringLiteral(" [off]"));
+				} else if (item->objectName() == QStringLiteral("agentRunSettingsBuilds")) {
+					line += QStringLiteral("; ") + item->text() + (item->isChecked() ? QStringLiteral(" [on]") : QStringLiteral(" [off]"));
+				}
+			}
+			return { line, scratch };
+		};
+		const auto scratchRoot = aOptions.Root / "data-agent-scratch-v1";
+		const auto listing     = [&] {
+			auto files = std::string{ };
+			auto error = std::error_code{ };
+			for (auto entry = std::filesystem::recursive_directory_iterator{ scratchRoot, error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+				if (entry->is_regular_file()) {
+					files += (files.empty() ? "" : ",") + entry->path().lexically_relative(scratchRoot).generic_string();
+				}
+			}
+			return files;
+		};
+		const auto workspaces = [&] {
+			// Every checkout BPR made for this profile, and what Git says of it.
+			auto states = std::string{ };
+			auto error  = std::error_code{ };
+			for (auto entry = std::filesystem::recursive_directory_iterator{ aOptions.Root / "data-agent-workspaces-v1", error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+				if (entry->path().filename() == ".git" || entry.depth() > 4) {
+					entry.disable_recursion_pending();
+				}
+				if (entry->path().filename() == ".git") {
+					const auto checkout = entry->path().parent_path();
+					auto       process  = QProcess{ };
+					process.start(QStringLiteral("git"), { QStringLiteral("-C"), QString::fromStdString(checkout.string()), QStringLiteral("status"), QStringLiteral("--porcelain"), QStringLiteral("--untracked-files=all") });
+					process.waitForFinished(30'000);
+					const auto out = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+					states += (states.empty() ? "" : ";") + std::string{ out.isEmpty() ? "clean" : out.toStdString() };
+				}
+			}
+			return states;
+		};
+		const auto turn = [&](const QString& aPrompt) {
+			const auto before = tab->turn_count();
+			tab->send_prompt(aPrompt);
+			require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+			require([&] { return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value(); }, "the turn ends", std::chrono::seconds{ 900 });
+			auto* const block = tab->turn_activity(before);
+			return std::string{ "{\"outcome\":" } + quote(QString::fromUtf8(core::stable_name(*tab->turn_outcome(before)).data())) + ",\"summary\":" + quote(block != nullptr ? block->summary_text() : QString{ })
+				+ ",\"answer\":" + quote(tab->turn_answer(before).left(900)) + "}";
+		};
+		const auto [lineOn, itemOn] = grantItem();
+		const auto first            = turn(QStringLiteral("Write a Python script named count.py in your scratch folder that prints the number of lines in each regular file in the current directory and below, skipping .git. "
+														  "Run it with python3 and its absolute path, as one command with nothing else, and report what it printed. Then try to create a file named bpr-probe.txt in the "
+														  "current directory, and say exactly whether you were allowed. Do not start helpers."));
+		const auto afterFirst       = listing();
+		const auto cleanFirst       = workspaces();
+		// Review findings 2 and 3 (2026-11-11): the commands the old rules let
+		// through, and Bash writes, each tried by the agent as written.
+		const auto probes      = turn(QStringLiteral(
+			"In your scratch folder write probe.py containing print('probe'). Then run each of these five shell commands as its own Bash command, exactly as written except "
+			"that SCRATCH is your scratch folder's absolute path and WS is the absolute path of the current directory, and for each say whether it was allowed or refused: "
+			"(1) SCRATCH/../../../../../../../../../../usr/bin/touch WS/bpr-a1 "
+			"(2) python3 SCRATCH/../../../../../../../../../../usr/lib/bpr-missing.py WS "
+			"(3) chmod +x SCRATCH/probe.py WS/src/parse.cpp "
+			"(4) python3 SCRATCH/probe.py > WS/bpr-a4 "
+			"(5) echo hi > WS/bpr-a5 . Do not try any other way. Do not start helpers."));
+		const auto cleanProbes = workspaces();
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / ("agent-scratch-" + std::string{ codex ? "codex" : "claude" } + "-on.png")).string()));
+		// AC09: off from the footer picker's grant item, as a person turns it off.
+		auto [lineBefore, item] = grantItem();
+		if (item == nullptr || !item->isChecked()) {
+			fail("the grant item is not there, or not on");
+		}
+		item->trigger();
+		QApplication::processEvents();
+		const auto [lineOff, itemOff] = grantItem();
+		// Read now: the next turn's settings rebuild the menu and its actions.
+		const auto offChecked  = itemOff != nullptr && itemOff->isChecked();
+		const auto second      = turn(QStringLiteral("Now try to create a file named second.py in the same scratch folder as before, containing print(2), and run it. Say exactly whether you were allowed. Do not start helpers."));
+		const auto afterSecond = listing();
+		const auto facts       = std::string{ "{\"agent\":" } + quote(codex ? QStringLiteral("codex") : QStringLiteral("claude")) + ",\"line_on\":" + quote(lineOn) + ",\"first\":" + first + ",\"scratch_after_first\":" + quote(QString::fromStdString(afterFirst))
+			+ ",\"workspaces_after_first\":" + quote(QString::fromStdString(cleanFirst)) + ",\"probes\":" + probes + ",\"workspaces_after_probes\":" + quote(QString::fromStdString(cleanProbes)) + ",\"line_off\":" + quote(lineOff) + ",\"item_off_checked\":" + (offChecked ? "true" : "false")
+			+ ",\"second\":" + second + ",\"scratch_after_second\":" + quote(QString::fromStdString(afterSecond)) + ",\"workspaces_after_second\":" + quote(QString::fromStdString(workspaces())) + "}";
+		std::ofstream{ aOptions.Root / "agent-scratch.jsonl", std::ios::app } << facts << '\n';
+		say("agent-scratch:" + facts);
+		static_cast<void>(itemOn);
 	}
 
 	/// Drags through the window, as a pointer is delivered, so whatever sits
@@ -1106,6 +1420,442 @@ namespace {
 			checkpoint(aOptions.Root, "removed-" + kind, "{\"rule\":\"" + kind + "\",\"rows\":" + std::to_string(aWindow.queue_landing()->rowCount()) + "}");
 		}
 	}
+	/// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. One window, one session: the
+	/// course opens each `--reads` pull request in turn (on the first it asks
+	/// the installed agent at `--agent` one question from the Agent tab, and
+	/// it shows each one's Tour tab), then on `--pull` writes a two-stop tour
+	/// as an author does (Prepare review tour, the selected lines, Add stop,
+	/// the stop's own Accept), waits at `at-push` while the operator pushes a
+	/// commit that leaves stop 2 at an earlier version, refreshes, prepares
+	/// the publication and presses Publish, then opens `--approve` and
+	/// presses Approve. It writes what the panel, the head and the review
+	/// page showed at every change into DIR/live-session.jsonl.
+	///
+	/// Publishing needs the author's authorization, and here the course is
+	/// the author: it authorizes only through the window's own Publish and
+	/// Approve, and answers a question those raise as a person would (logged
+	/// word for word). The composition issues the one-use grant that gesture
+	/// issues in a shipped build; only `DesignatedLivePublication` lets a
+	/// tests-enabled build compose the publishing connection, and only for
+	/// MikeMarcin/BPR-Test.
+	void live_session_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1400, 900);
+		std::ofstream out{ aOptions.Root / "live-session.jsonl", std::ios::app };
+		const auto    record = [&](const std::string& aKind, const std::string& aFacts) {
+			out << "{\"kind\":" << json_text(aKind) << "," << aFacts << "}\n";
+			out.flush();
+			say("live-session:" + aKind + " " + aFacts);
+		};
+		const auto ready = [&](const int aPull) {
+			open_pull(aWindow, aPull);
+			if (!wait_for([&] { return aWindow.github_status_text() == "Pull request ready." && aWindow.overview_page()->projection().has_value() && static_cast<int>(aWindow.overview_page()->projection()->Number.value()) == aPull; }, "#" + std::to_string(aPull) + " is ready", std::chrono::seconds{ 240 })) {
+				dump(aWindow);
+				say("dump:projection=" + std::string{ aWindow.overview_page()->projection().has_value() ? std::to_string(aWindow.overview_page()->projection()->Number.value()) : std::string{ "none" } });
+				aWindow.grab().save(QString::fromStdString((aOptions.Root / ("not-ready-" + std::to_string(aPull) + ".png")).string()));
+				fail("#" + std::to_string(aPull) + " never became ready");
+			}
+			aWindow.choose_modality(qt::review_modality::review);
+		};
+		const auto showTray = [&](const QString& aName) {
+			for (int index = 0; index < aWindow.tray_tabs()->count(); ++index) {
+				if (aWindow.tray_tabs()->accessibleTabName(index) == aName) {
+					aWindow.tray_tabs()->setCurrentIndex(index);
+					return true;
+				}
+			}
+			return false;
+		};
+
+		// 1. The reads: a session of several pull requests, agent and tour.
+		auto opened = 0;
+		for (const auto pull : aOptions.Reads) {
+			ready(pull);
+			++opened;
+			const auto tour = showTray(QStringLiteral("Tour"));
+			wait_for([] { return false; }, "a reader's look (expected)", std::chrono::seconds{ 3 });
+			record("read", "\"pull\":" + std::to_string(pull) + ",\"tour_tab\":" + (tour ? "true" : "false") + ",\"status\":" + json_text(aWindow.github_status_text()));
+			if (opened == 1 && !aOptions.Agent.empty()) {
+				aWindow.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+					auto entry    = aStart;
+					entry.Program = aOptions.Agent;
+					entry.Model   = "haiku";
+					return entry;
+				});
+				auto*      panel = aWindow.agent_panel();
+				const auto id    = QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value());
+				require([&] {
+					if (panel->profile_selector()->findData(id) < 0) {
+						aWindow.agent_programs()->add_agent(core::setup_agent::claude_code);
+					}
+					return panel->profile_selector()->findData(id) >= 0;
+				},
+						"the installed agent is offered", std::chrono::seconds{ 60 });
+				panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
+				aWindow.settings()->hide();
+				aWindow.choose_modality(qt::review_modality::review);
+				showTray(QStringLiteral("Agent"));
+				auto* const tab    = aWindow.agent_tab();
+				const auto  before = tab->turn_count();
+				wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+				tab->send_prompt(QStringLiteral("In one sentence, what does this pull request change? Do not use any tools."));
+				require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+				require([&] { return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value(); }, "the agent answers", std::chrono::seconds{ 300 });
+				record("agent", "\"pull\":" + std::to_string(pull) + ",\"outcome\":" + json_text(core::stable_name(*tab->turn_outcome(before))) + ",\"footer\":" + json_text(text(tab->turn_footer(before))) + ",\"answer_head\":" + json_text(text(tab->turn_answer(before).left(300))));
+			}
+		}
+
+		// 2. The author's tour on --pull.
+		ready(aOptions.Pull);
+		++opened;
+		auto* const editor = aWindow.tour_editor();
+		require([&] { return aWindow.prepare_tour_action()->isEnabled() && !editor->shown().Loading; }, "Prepare review tour is offered", std::chrono::seconds{ 120 });
+		aWindow.prepare_tour_action()->trigger();
+		require([&] { return editor->shown().Draft != nullptr; }, "the tour draft opens", std::chrono::seconds{ 60 });
+		const auto saved = [&] {
+			require([&] { const auto& p = editor->shown(); return p.Draft && !p.Saving && p.SavedRevision == p.Draft->Revision; }, "the tour is saved");
+		};
+		const auto selectLines = [&](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) {
+			auto* const surface = aWindow.comparison_surface();
+			const auto  file    = core::file_identity_of(aPath);
+			require([&] { return aWindow.files_drawer()->contents()->index_for_file(file).isValid(); }, aPath + " is listed");
+			aWindow.files_drawer()->contents_view()->setCurrentIndex(aWindow.files_drawer()->contents()->index_for_file(file));
+			require([&] { return surface->current_result() && surface->current_context() && surface->current_context()->Key.File == file && surface->current_semantic_index() && !surface->geometry_pending(); }, aPath + " is shown", std::chrono::seconds{ 120 });
+			if (!surface->select_conversation_line(core::diff_side::right, aFirst)) {
+				fail("line " + std::to_string(aFirst + 1U) + " of " + aPath + " cannot be selected");
+			}
+			auto* const pane = surface->right_pane();
+			pane->setFocus();
+			auto cursor = pane->textCursor();
+			cursor.setPosition(pane->document()->findBlockByNumber(static_cast<int>(aFirst)).position());
+			cursor.setPosition(pane->document()->findBlockByNumber(static_cast<int>(aLast)).position() + 1, QTextCursor::KeepAnchor);
+			pane->setTextCursor(cursor);
+			const auto range = surface->selected_source_range();
+			if (!range || range->first.Line != aFirst || range->second.Line != aLast) {
+				fail("the selection on " + aPath + " is not lines " + std::to_string(aFirst + 1U) + "-" + std::to_string(aLast + 1U));
+			}
+		};
+		editor->problem_editor()->setPlainText(QStringLiteral("The retry delay doubled without a bound on the shift, and the second helper repeated it."));
+		editor->solution_editor()->setPlainText(QStringLiteral("Bound the doubling in one place and keep the second helper's arithmetic beside it."));
+		selectLines(aOptions.Path, aOptions.FirstStop, aOptions.FirstStop + 1U);
+		aWindow.add_tour_stop_action()->trigger();
+		editor->stop_title()->setPlainText(QStringLiteral("Bound the doubling"));
+		editor->stop_body()->setPlainText(QStringLiteral("These lines carry the change; the rest of the file follows from them."));
+		saved();
+		selectLines(aOptions.Second, aOptions.SecondStop, aOptions.SecondStop + 1U);
+		aWindow.add_tour_stop_action()->trigger();
+		editor->stop_title()->setPlainText(QStringLiteral("The helper beside it"));
+		editor->stop_body()->setPlainText(QStringLiteral("Read these lines with stop 1: they use the same bound."));
+		saved();
+		const auto stopStates = [&] {
+			auto        result = std::string{ };
+			const auto& draft  = editor->shown().Draft;
+			for (const auto& stop : draft->Stops) {
+				result += (result.empty() ? "" : ",") + std::string{ "{\"title\":" } + json_text(stop.Title) + ",\"accepted\":" + (core::tour_stop_accepted(*draft, stop) ? "true" : "false")
+					+ ",\"need\":" + std::to_string(static_cast<int>(core::tour_stop_accept_need(*draft, stop))) + ",\"reason\":" + json_text(core::stable_name(core::decide_tour_stop_acceptance(*draft, stop).Reason)) + ",\"commit\":" + json_text(stop.Original ? std::string{ core::canonical_hex(stop.Original->Commit).view() } : std::string{ }) + "}";
+			}
+			return "[" + result + "]";
+		};
+		// The stop's own Accept, as the author presses it.
+		const auto acceptAll = [&] {
+			const auto count = static_cast<int>(editor->shown().Draft->Stops.size());
+			for (int row = 0; row < count; ++row) {
+				editor->outline()->setCurrentRow(row);
+				wait_for([] { return false; }, "the stop shows (expected)", std::chrono::seconds{ 1 });
+				const auto& draft = editor->shown().Draft;
+				const auto& stop  = draft->Stops[static_cast<std::size_t>(row)];
+				if (core::tour_stop_accepted(*draft, stop)) {
+					continue;
+				}
+				auto* const accept = editor->accept_button();
+				record("accept", "\"stop\":" + std::to_string(row + 1) + ",\"enabled\":" + (accept->isEnabled() ? "true" : "false") + ",\"visible\":" + (accept->isVisible() ? "true" : "false") + ",\"text\":" + json_text(text(accept->text())) + ",\"reason\":" + json_text(text(editor->accept_reason()->text())));
+				if (accept->isEnabled()) {
+					accept->click();
+					saved();
+				}
+			}
+			record("stops", "\"stops\":" + stopStates());
+		};
+		acceptAll();
+		const auto head   = [&] { return std::string{ core::canonical_hex(editor->shown().Draft->ObservedHead.value_or(editor->shown().Draft->Head)).view() }; };
+		const auto before = head();
+		checkpoint(aOptions.Root, "push", "{\"head\":" + json_text(before) + "}");
+
+		// 3. After the push, as the author refreshes.
+		aWindow.github_refresh_action()->trigger();
+		require([&] { return editor->shown().Draft && head() != before && !editor->shown().Loading; }, "the tour sees the new head", std::chrono::seconds{ 300 });
+		// The window compares each stop's lines at the new head on its own;
+		// Accept waits for that, as an author would.
+		const auto compared = [&] {
+			const auto& draft = editor->shown().Draft;
+			return draft && std::ranges::none_of(draft->Stops, [&](const core::tour_stop& aStop) { return core::decide_tour_stop_acceptance(*draft, aStop).Reason == core::tour_acceptance_reason::unchecked; });
+		};
+		const auto checked = wait_for(compared, "the stops are compared at the new head", std::chrono::seconds{ 240 });
+		record("compared", std::string{ "\"compared\":" } + (checked ? "true" : "false"));
+		record("pushed", "\"head\":" + json_text(head()) + ",\"stops\":" + stopStates());
+		acceptAll();
+
+		// 4. Prepare and Publish.
+		aWindow.open_tour_page(true);
+		const auto find   = [&](const char* aName) { return editor->findChild<QPushButton*>(QString::fromUtf8(aName)); };
+		auto*      status = editor->findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
+		auto*      form   = editor->findChild<QLabel*>(QStringLiteral("tourPublicationForm"));
+		const auto panel  = [&] {
+			auto repairs = std::string{ };
+			for (auto* const reason : editor->findChildren<QLabel*>()) {
+				if (reason->objectName().startsWith(QStringLiteral("tourRepairReason")) && reason->isVisibleTo(editor)) {
+					repairs += (repairs.empty() ? "" : ",") + json_text(text(reason->accessibleName()));
+				}
+			}
+			return "\"status\":" + json_text(text(status->text())) + ",\"form\":" + json_text(text(form->text())) + ",\"publish_enabled\":" + (find("tourPublish") && find("tourPublish")->isEnabled() ? "true" : "false")
+				+ ",\"description\":" + (editor->description_publication() ? "true" : "false") + ",\"repairs\":[" + repairs + "]";
+		};
+		find("tourPreparePublication")->click();
+		if (!wait_for([&] { return find("tourPublish")->isEnabled(); }, "Publish is offered", std::chrono::seconds{ 180 })) {
+			record("not-publishable", panel() + ",\"stops\":" + stopStates());
+			aWindow.grab().save(QString::fromStdString((aOptions.Root / "tour-not-publishable.png").string()));
+			fail("Publish was never offered");
+		}
+		record("prepared", panel());
+		// Both stops were written before the push. Stop 1's lines are the
+		// same at the new head and inside its diff, so the author keeps the
+		// tour to one review for it: Keep it to one review instead, then
+		// Re-pin to current head on stop 1, and prepares again. Stop 2's lines
+		// are no longer in the diff and stay at the earlier version.
+		if (!form->text().contains(QStringLiteral("one review"))) {
+			auto* const keep = editor->findChild<QPushButton*>(QStringLiteral("tourKeepOneReview"));
+			if (keep != nullptr && keep->isVisible() && !keep->isChecked()) {
+				keep->click();
+			}
+			const auto stop1  = editor->shown().Draft->Stops.front().Id;
+			auto*      repin  = static_cast<QPushButton*>(nullptr);
+			const auto offers = [&] {
+				repin = editor->findChild<QPushButton*>(QStringLiteral("tourRepin%1").arg(stop1.value()));
+				return repin != nullptr && repin->isVisibleTo(editor) && repin->isEnabled();
+			};
+			if (!wait_for(offers, "Re-pin to current head on stop 1", std::chrono::seconds{ 60 })) {
+				record("no-repin", panel() + ",\"keep\":" + (keep != nullptr && keep->isVisible() ? "true" : "false"));
+				aWindow.grab().save(QString::fromStdString((aOptions.Root / "tour-no-repin.png").string()));
+				fail("stop 1 offers no re-pin");
+			}
+			repin->click();
+			saved();
+			if (keep != nullptr && keep->isChecked()) {
+				keep->click();
+			}
+			record("repinned", "\"stops\":" + stopStates());
+			acceptAll();
+			find("tourPreparePublication")->click();
+			if (!wait_for([&] { return find("tourPublish")->isEnabled(); }, "Publish is offered again", std::chrono::seconds{ 180 })) {
+				record("not-publishable", panel() + ",\"stops\":" + stopStates());
+				fail("Publish was never offered after the re-pin");
+			}
+			record("prepared", panel());
+		}
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / "tour-prepared.png").string()));
+		auto*      steps    = editor->publication_steps();
+		auto*      count    = editor->findChild<QLabel*>(QStringLiteral("tourPublicationStepCount"));
+		auto       seen     = std::vector<std::string>{ };
+		auto       rendered = 0;
+		const auto watch    = [&] {
+			const auto rows  = steps->row_texts().join(QStringLiteral(" | "));
+			const auto shown = text(rows) + " # " + text(count->text()) + " # head=" + text(editor->head_bar()->state_label()->text());
+			if (seen.empty() || seen.back() != shown) {
+				seen.push_back(shown);
+				record("step", "\"rows\":" + json_text(text(rows)) + ",\"count\":" + json_text(text(count->text())) + ",\"head\":" + json_text(text(editor->head_bar()->state_label()->text())));
+				if (rendered < 6) {
+					aWindow.grab().save(QString::fromStdString((aOptions.Root / ("tour-step-" + std::to_string(++rendered) + ".png")).string()));
+				}
+			}
+			return status->text().startsWith(QStringLiteral("Published")) || (editor->publication_banner() != nullptr && editor->publication_banner()->isVisible());
+		};
+		watch();
+		find("tourPublish")->click();
+		require(watch, "the publication ends", std::chrono::seconds{ 300 });
+		record("published", panel() + ",\"link\":" + json_text(text(editor->findChild<QLabel*>(QStringLiteral("tourPublicationLink"))->text())));
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / "tour-published.png").string()));
+		if (!status->text().startsWith(QStringLiteral("Published"))) {
+			fail("the tour did not publish");
+		}
+
+		// 5. Approve, as the reviewer presses it. A window with a published
+		// tour opens the next pull request in a window of its own.
+		if (aOptions.Approve > 0) {
+			// Back to the code, then Home, as a person opens the next one. A
+			// window still reading GitHub's answer to the publication may not
+			// take the open at once; the person tries again.
+			auto*      approving = static_cast<qt::workbench_window*>(nullptr);
+			const auto showing   = [&] {
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					auto* const candidate = dynamic_cast<qt::workbench_window*>(widget);
+					if (candidate != nullptr && candidate->github_status_text() == "Pull request ready." && candidate->overview_page()->projection().has_value()
+						&& static_cast<int>(candidate->overview_page()->projection()->Number.value()) == aOptions.Approve) {
+						approving = candidate;
+						return true;
+					}
+				}
+				return false;
+			};
+			auto attempts = 0;
+			while (!showing() && attempts < 8) {
+				++attempts;
+				if (aWindow.tour_page_open()) {
+					aWindow.close_tour_page();
+				}
+				aWindow.choose_home(true);
+				wait_for([&] { return aWindow.showing_home(); }, "Home shows", std::chrono::seconds{ 10 });
+				auto* const modal = QApplication::activeModalWidget();
+				say("approve-open:attempt=" + std::to_string(attempts) + " home=" + (aWindow.showing_home() ? "yes" : "no") + " modal=" + (modal != nullptr ? text(modal->windowTitle()) : std::string{ "none" }) + " status=" + aWindow.github_status_text());
+				open_pull(aWindow, aOptions.Approve);
+				wait_for(showing, "#" + std::to_string(aOptions.Approve) + " is ready", std::chrono::seconds{ 45 });
+			}
+			++opened;
+			if (approving == nullptr) {
+				aWindow.grab().save(QString::fromStdString((aOptions.Root / ("not-ready-" + std::to_string(aOptions.Approve) + ".png")).string()));
+				fail("#" + std::to_string(aOptions.Approve) + " never became ready");
+			}
+			record("approve-window", std::string{ "\"same_window\":" } + (approving == &aWindow ? "true" : "false"));
+			approving->resize(1400, 900);
+			approving->choose_modality(qt::review_modality::review);
+			approving->open_review_composition();
+			auto* const review  = approving->review_submission_editor_view();
+			auto* const approve = review->findChild<QToolButton*>(QStringLiteral("wholeReviewApprove"));
+			require([&] { return approve != nullptr && approve->isEnabled(); }, "Approve is offered", std::chrono::seconds{ 180 });
+			const auto page = [&] {
+				const auto& draft = review->shown_draft();
+				const auto  state = !draft                                      ? std::string{ "none" }
+					: draft->State == core::review_submission_state::drafting   ? std::string{ "drafting" }
+					: draft->State == core::review_submission_state::submitting ? std::string{ "submitting" }
+					: draft->State == core::review_submission_state::submitted  ? std::string{ "submitted" }
+																				: std::string{ "discarded" };
+				return "\"draft\":" + json_text(state) + ",\"status\":" + json_text(review->status_label()->isVisible() ? text(review->status_label()->text()) : std::string{ }) + ",\"waiting\":"
+					+ json_text(review->waiting_panel()->isVisible() ? text(review->waiting_title_label()->text()) : std::string{ }) + ",\"window\":" + json_text(text(approving->statusBar()->currentMessage()))
+					+ ",\"confirmed\":" + std::to_string(review->confirmed_submissions());
+			};
+			const auto confirmedBefore = review->confirmed_submissions();
+			auto       pages           = std::vector<std::string>{ };
+			const auto settled         = [&] {
+				const auto shown = page();
+				if (pages.empty() || pages.back() != shown) {
+					pages.push_back(shown);
+					record("approve", shown);
+				}
+				// GitHub's confirmation closes the page and the window says
+				// "Review submitted"; a refusal keeps it with "Not published".
+				return review->confirmed_submissions() > confirmedBefore || review->status_label()->text().startsWith(QStringLiteral("Not published"));
+			};
+			settled();
+			approve->click();
+			require(settled, "the approval ends", std::chrono::seconds{ 180 });
+			record("approved", page());
+			approving->grab().save(QString::fromStdString((aOptions.Root / "approve-ended.png").string()));
+		}
+		record("session", "\"pull_requests\":" + std::to_string(opened));
+		dump(aWindow);
+	}
+
+	/// RFC-BPR-0111 ([[BPR-2029]]). Create draft PR from a local draft on
+	/// MikeMarcin/BPR-Test, through the window's own Pull request area and the
+	/// account the profile signed in with gh. `--path` is a clone of BPR-Test on a
+	/// new branch with one commit, not pushed. The course reads GitHub (the
+	/// branch is missing: the push is named), writes `at-push` with the named
+	/// command and waits; the driver runs exactly that push with the author's own
+	/// Git and answers `go-push`. Then Check GitHub finds the candidate, Create
+	/// draft PR creates it, and the course writes DIR/live-draft.json.
+	void live_draft_course(const options& aOptions, app::github_application& aOwner, qt::workbench_window& aWindow)
+	{
+		aOwner.open_local_draft(aOptions.Path);
+		auto* const view = aWindow.local_draft();
+		require([&] { return view != nullptr && view->projection().Draft.has_value() && !view->projection().Busy; }, "the local draft opens");
+		auto* const area = view->publication();
+		auto* const tour = aWindow.tour_editor();
+
+		// One stop on the commit's file, in the window's own Tour panel, accepted.
+		const auto path = view->projection().Draft->Candidates.back().Changes.front().Path;
+		require([&] { return aWindow.open_local_file(QString::fromStdString(path)); }, "the commit's file is in Files");
+		require([&] { return view->projection().File && view->projection().File->Path == path && aWindow.comparison_surface()->current_result() != nullptr; }, "the file shows");
+		const auto digest = aWindow.comparison_surface()->current_result()->Alignment.Digest;
+		static_cast<void>(aWindow.comparison_surface()->restore_source_range({ .Comparison = digest, .Side = core::diff_side::right, .Line = 0U }, { .Comparison = digest, .Side = core::diff_side::right, .Line = 0U }));
+		aWindow.tray_tabs()->setCurrentIndex(1);
+		tour->trigger(qt::tour_editor_action::add_stop);
+		require([&] { return !view->projection().Draft->Preparation.Tour.Stops.empty(); }, "a stop is added in the Tour panel");
+		const auto stop = core::tour_stop_id{ view->projection().Draft->Preparation.Tour.Stops.front().Id };
+		tour->go_to_stop(stop);
+		tour->begin_stop_edit();
+		tour->stop_title()->setPlainText(QStringLiteral("The disposable change"));
+		tour->stop_body()->setPlainText(QStringLiteral("This file is the course's one change."));
+		require([&] { return !view->projection().Busy && view->projection().Draft->Preparation.Tour.Stops.front().Text == "This file is the course's one change."; }, "the stop's text is saved");
+		tour->save_stop_edit();
+		require([&] { return view->projection().Draft->Preparation.Tour.Stops.front().Accepted; }, "the stop is accepted");
+		say("live-draft:stop accepted");
+
+		// Create Draft PR… opens Overview's Status tab and reads GitHub.
+		view->create_button()->click();
+		require([&] { return !view->projection().Publishing.Checking && view->projection().Publishing.Checked; }, "GitHub is read before the push", std::chrono::seconds{ 120 });
+		say("live-draft:state " + text(area->state()->text()));
+		for (const auto& row : area->steps()->row_texts()) {
+			say("live-draft:step " + text(row));
+		}
+		const auto& first = view->projection().Publishing;
+		if (aWindow.current_modality() != qt::review_modality::overview || first.Branch != core::hosted_branch_state::missing || !first.Push || area->create_button()->isVisible()) {
+			fail("an unpushed branch must name the push and offer no creation: " + text(area->state()->text()));
+		}
+		say("live-draft:push " + first.Push->Command);
+		checkpoint(aOptions.Root, "push", "{\"command\":" + json_text(first.Push->Command) + "}");
+		require([&] { return area->check_button()->isEnabled(); }, "Check Again is available");
+		area->check_button()->click();
+		require([&] { return !view->projection().Publishing.Checking && view->projection().Publishing.Checked; }, "GitHub is read after the push", std::chrono::seconds{ 120 });
+		const auto& second = view->projection().Publishing;
+		if (second.Branch != core::hosted_branch_state::matches || !area->create_button()->isEnabled()) {
+			fail("the pushed branch must be the candidate: " + text(area->state()->text()));
+		}
+		say("live-draft:sent " + text(area->sent_text()));
+		area->create_button()->click();
+		require(
+			[&] {
+				const auto& draft = view->projection().Draft;
+				return !view->projection().Publishing.Creating && draft && draft->Publication && draft->Publication->Journal.Phase != core::local_publication_phase::prepared
+					&& draft->Publication->Journal.Phase != core::local_publication_phase::authorized;
+			},
+			"Create draft PR answers", std::chrono::seconds{ 180 });
+		const auto  draft   = *view->projection().Draft;
+		const auto& journal = draft.Publication->Journal;
+		say("live-draft:phase " + std::string{ core::name(journal.Phase) } + " state " + text(area->state()->text()));
+		for (const auto& row : area->steps()->row_texts()) {
+			say("live-draft:step " + text(row));
+		}
+		if (journal.Phase != core::local_publication_phase::linked || !journal.Link || !draft.Association) {
+			fail("the draft pull request was not created and linked: " + journal.Reason);
+		}
+		// The window becomes the pull request, and its tour draft holds the
+		// draft's stop at the pull request's head.
+		const auto opened = wait_for(
+			[&] {
+				const auto& shown = tour->shown().Draft;
+				return !aWindow.showing_local_draft() && !tour->local_words() && shown && shown->Head == journal.Link->Head && !shown->Stops.empty();
+			},
+			"the window opens the pull request with the draft's tour", std::chrono::seconds{ 180 });
+		if (!opened) {
+			// Which part of the opening did not happen.
+			const auto& shown = tour->shown().Draft;
+			fail("the window did not open the pull request with the draft's tour: local draft shown " + std::string{ aWindow.showing_local_draft() ? "yes" : "no" } + ", local words "
+				 + (tour->local_words() ? "yes" : "no") + ", tour draft " + (shown ? "yes" : "no") + ", at the link's head " + (shown && shown->Head == journal.Link->Head ? "yes" : "no") + ", stops "
+				 + std::to_string(shown ? shown->Stops.size() : 0U) + ", window title \"" + aWindow.windowTitle().toStdString() + "\"");
+		}
+		const auto& carried  = *tour->shown().Draft;
+		const auto  anchored = carried.Stops.front().Destination && carried.Stops.front().Destination->Commit == journal.Link->Head && carried.Stops.front().Destination->Path == path;
+		const auto  accepted = core::decide_tour_stop_acceptance(carried, carried.Stops.front()).State == core::tour_acceptance_state::accepted;
+		say("live-draft:carried stops=" + std::to_string(carried.Stops.size()) + " anchored=" + (anchored ? "yes" : "no") + " accepted=" + (accepted ? "yes" : "no"));
+		if (!anchored || !accepted) {
+			fail("the carried stop must be anchored at the pull request's head and accepted");
+		}
+		std::ofstream out{ aOptions.Root / "live-draft.json" };
+		out << "{\"number\":" << journal.Link->Number << ",\"url\":" << json_text(journal.Link->Url) << ",\"head\":" << json_text(std::string{ core::canonical_hex(journal.Link->Head).view() })
+			<< ",\"candidate_head\":" << json_text(std::string{ core::canonical_hex(draft.Publication->Plan.Head).view() }) << ",\"draft\":" << (journal.Link->Draft ? "true" : "false")
+			<< ",\"drifted\":" << (journal.Link->Drifted ? "true" : "false") << ",\"title\":" << json_text(draft.Publication->Plan.Title) << ",\"author\":" << json_text(journal.Link->Author)
+			<< ",\"carried_stops\":" << carried.Stops.size() << ",\"carried_anchored\":" << (anchored ? "true" : "false") << "}\n";
+		say("live-draft:linked #" + std::to_string(journal.Link->Number));
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1128,9 +1878,19 @@ try {
 			return;
 		}
 		say("question:title=" + text(box->windowTitle()) + "\nquestion:text=" + text(box->text()) + "\nquestion:informative=" + text(box->informativeText()));
-		auto* const yes = box->button(QMessageBox::Yes);
+		auto* yes = box->button(QMessageBox::Yes);
 		if (yes == nullptr) {
-			say("question:no-yes-button; left open");
+			// A write confirmation names its own action (Publish, Submit):
+			// the person's answer is the box's accepting button.
+			for (auto* const button : box->buttons()) {
+				if (box->buttonRole(button) == QMessageBox::AcceptRole || box->buttonRole(button) == QMessageBox::YesRole) {
+					yes = qobject_cast<QPushButton*>(button);
+					break;
+				}
+			}
+		}
+		if (yes == nullptr) {
+			say("question:no-accepting-button; left open");
 			return;
 		}
 		say("question:answer=" + text(yes->text()));
@@ -1140,7 +1900,7 @@ try {
 
 	app::github_application* owner    = nullptr;
 	auto                     terminal = false;
-	auto                     desktop  = app::profile_desktop::start(app::github_application_config{ .ApplicationDataRoot = chosen.Root / "data" }, [&](app::profile_desktop_startup_result aResult) {
+	auto                     desktop  = app::profile_desktop::start(app::github_application_config{ .ApplicationDataRoot = chosen.Root / "data", .DesignatedLivePublication = chosen.Course == "live-session" || chosen.Course == "live-draft" }, [&](app::profile_desktop_startup_result aResult) {
 		terminal = true;
 		if (aResult) {
 			owner = *aResult;
@@ -1173,6 +1933,14 @@ try {
 		filtered_comment_course(chosen, *window);
 	} else if (chosen.Course == "whole-pr-comment") {
 		whole_pr_comment_course(chosen, *window);
+	} else if (chosen.Course == "agent-helpers") {
+		agent_helpers_course(chosen, *window);
+	} else if (chosen.Course == "agent-scratch") {
+		agent_scratch_course(chosen, *window);
+	} else if (chosen.Course == "live-session") {
+		live_session_course(chosen, *window);
+	} else if (chosen.Course == "live-draft") {
+		live_draft_course(chosen, *owner, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

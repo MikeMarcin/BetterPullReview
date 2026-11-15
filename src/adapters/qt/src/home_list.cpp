@@ -390,8 +390,21 @@ namespace bpr::qt {
 		return Chips;
 	}
 
+	void home_slice_model::set_prepared(const QSet<QString>* const aPrepared) noexcept
+	{
+		Prepared = aPrepared;
+	}
+
 	auto home_slice_model::data(const QModelIndex& aIndex, const int aRole) const -> QVariant
 	{
+		if (aRole == home_row_role::local_preparation) {
+			if (Prepared == nullptr || Prepared->isEmpty()) {
+				return false;
+			}
+			const auto repository = QSortFilterProxyModel::data(aIndex, review_landing_model::repository_role).toString();
+			const auto number     = QSortFilterProxyModel::data(aIndex, review_landing_model::number_role).toLongLong();
+			return Prepared->contains(QStringLiteral("%1#%2").arg(repository).arg(number));
+		}
 		if (aRole == home_row_role::title_marks || aRole == home_row_role::identity_marks || aRole == home_row_role::author_marks) {
 			// [[BPR-1865]]. What the filter matched in this row, if it filters.
 			if (!filtering()) {
@@ -561,6 +574,11 @@ namespace bpr::qt {
 		option.font   = View.font();
 		option.widget = &View;
 		setText(index.data(Role).toString());
+		// [[BPR-2049]]. A row's labelled action says what it does.
+		if (const auto tip = index.data(home_row_role::row_action_tip).toString(); Role == home_row_role::row_action && !tip.isEmpty()) {
+			setToolTip(tip);
+			setAccessibleDescription(tip);
+		}
 		setAccessibleName(QStringLiteral("%1 %2").arg(text(), index.data(home_row_role::identity).toString()));
 		setGeometry(home_row_delegate::action_rect(option, index));
 		show();
@@ -677,8 +695,9 @@ namespace bpr::qt {
 
 		Delegate = new home_row_delegate{ this };
 		for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
-			const auto  group   = groups[index];
-			auto* const model   = new home_slice_model{ Queue, this };
+			const auto  group = groups[index];
+			auto* const model = new home_slice_model{ Queue, this };
+			model->set_prepared(&Prepared);
 			auto* const panel   = new home_panel{ group, home_panel_style::panel, Column };
 			auto* const content = new QWidget{ panel };
 			auto* const column  = new QVBoxLayout{ content };
@@ -733,6 +752,7 @@ namespace bpr::qt {
 		// rows in state order, each carrying its state's mark. It has no name, so
 		// it has no header and no toggle either.
 		FlatModel = new home_slice_model{ Queue, this };
+		FlatModel->set_prepared(&Prepared);
 		FlatModel->set_state_ordered(true);
 		FlatPanel = new home_panel{ std::nullopt, home_panel_style::panel, Column };
 		FlatPanel->setObjectName(QStringLiteral("homeFlatPanel"));
@@ -764,6 +784,7 @@ namespace bpr::qt {
 		// and starts collapsed to its count. Expanding it is the way back; each
 		// row's Unignore returns it to its own section.
 		IgnoredModel = new home_slice_model{ Queue, this };
+		IgnoredModel->set_prepared(&Prepared);
 		IgnoredModel->set_state(home_group::ignored);
 		IgnoredPanel = new home_panel{ std::nullopt, home_panel_style::panel, Column };
 		IgnoredPanel->setObjectName(panel_name(home_group::ignored));
@@ -872,6 +893,20 @@ namespace bpr::qt {
 				PageDispatch(*item);
 			}
 		});
+		// [[BPR-2049]]. Seen or Approve again on a reviewed row back for new
+		// commits; the ignored list's own action is its Unignore.
+		if (&aView != IgnoredView) {
+			auto* const followup = new home_row_action{ aView, QString{ } };
+			followup->setObjectName(QStringLiteral("homeRowFollowupButton"));
+			followup->set_trigger([this, view = &aView](const int aRow) {
+				if (!FollowupDispatch || view->model() == nullptr) {
+					return;
+				}
+				if (const auto item = item_of(*view, view->model()->index(aRow, 0, view->rootIndex())); item.has_value()) {
+					FollowupDispatch(*item);
+				}
+			});
+		}
 		aView.setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(&aView, &QWidget::customContextMenuRequested, this, [this, view = &aView](const QPoint& aPosition) {
 			const auto index = view->indexAt(aPosition);
@@ -898,6 +933,11 @@ namespace bpr::qt {
 	auto home_list::selection_shown() const noexcept -> bool
 	{
 		return SelectionShown;
+	}
+
+	void home_list::set_followup_dispatch(std::function<void(const core::queue_item&)> aDispatch)
+	{
+		FollowupDispatch = std::move(aDispatch);
 	}
 
 	void home_list::set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch)
@@ -1434,8 +1474,9 @@ namespace bpr::qt {
 				for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
 					const auto  state = groups[index];
 					auto* const model = new home_slice_model{ Queue, aGroup.Panel };
-					auto* const band  = new home_panel{ state, home_panel_style::band, aGroup.Content };
-					auto* const view  = new home_row_view{ band };
+					model->set_prepared(&Prepared);
+					auto* const band = new home_panel{ state, home_panel_style::band, aGroup.Content };
+					auto* const view = new home_row_view{ band };
 					model->set_state(state);
 					model->set_key(Grouping, aGroup.Key);
 					band->setObjectName(QStringLiteral("homeGroupBand"));
@@ -1484,6 +1525,7 @@ namespace bpr::qt {
 		} else {
 			if (aGroup.RowsModel == nullptr) {
 				aGroup.RowsModel = new home_slice_model{ Queue, aGroup.Panel };
+				aGroup.RowsModel->set_prepared(&Prepared);
 				aGroup.RowsModel->set_state_ordered(true);
 				aGroup.RowsView = new home_row_view{ aGroup.Content };
 				adopt_rows(*aGroup.RowsView, *aGroup.RowsModel, QStringLiteral("homeGroupRows"), aGroup.Name);
@@ -2747,5 +2789,21 @@ namespace bpr::qt {
 			return true;
 		}
 		return QScrollArea::eventFilter(aWatched, aEvent);
+	}
+
+	void home_list::set_prepared(QSet<QString> aPrepared)
+	{
+		if (aPrepared == Prepared) {
+			return;
+		}
+		Prepared = std::move(aPrepared);
+		for (auto* const view : findChildren<QAbstractItemView*>()) {
+			view->viewport()->update();
+		}
+	}
+
+	auto home_list::prepared() const noexcept -> const QSet<QString>&
+	{
+		return Prepared;
 	}
 } // namespace bpr::qt

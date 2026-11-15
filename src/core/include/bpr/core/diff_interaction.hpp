@@ -44,10 +44,18 @@ namespace bpr::core {
 		auto operator<=>(const navigate_diff_change_intent&) const = default;
 	};
 
+	/// \brief [[BPR-2002]], RFC-BPR-0102. Clears the line selection, as
+	/// Escape in the diff does when nothing there has a use for it first.
+	struct clear_diff_selection_intent
+	{
+		auto operator<=>(const clear_diff_selection_intent&) const = default;
+	};
+
 	using diff_interaction_intent = std::variant<
 		select_diff_line_intent,
 		select_diff_group_intent,
-		navigate_diff_change_intent>;
+		navigate_diff_change_intent,
+		clear_diff_selection_intent>;
 
 	/// \brief Reconciles retained semantic state against an accepted replacement.
 	[[nodiscard]] auto reconcile_diff_interaction(

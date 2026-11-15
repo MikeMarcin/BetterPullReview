@@ -10,11 +10,11 @@ are nongating; nothing below is a timing claim.
 ## What was built
 
 - **Head.** The core decides the head once
-  (`src/core/include/bpr/core/tour_publication_head.hpp`):
+  ([tour_publication_head.hpp](../../src/core/include/bpr/core/tour_publication_head.hpp)):
   the table's six states, the stop and to-accept counts, the changes not on
   GitHub, the step count, what keeps a draft from publishing, and the actions
   in order. The Tour tab and Overview both draw it with one widget
-  (`src/adapters/qt/include/bpr/qt/tour_publication_surfaces.hpp`).
+  ([tour_publication_surfaces.hpp](../../src/adapters/qt/include/bpr/qt/tour_publication_surfaces.hpp)).
 - **Bands.** The Tour tab is the head, the route in its own scroll area, the
   save line and the agent bar. The drawer's scroll area around the whole tab
   is gone; the route keeps the tab's 280-pixel floor, so a narrow drawer

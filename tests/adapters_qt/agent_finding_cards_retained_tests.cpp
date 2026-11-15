@@ -22,6 +22,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QLabel>
 #include <QPushButton>
@@ -66,7 +67,7 @@ namespace {
 		settle();
 		aWindow.choose_modality(qt::review_modality::review);
 		settle();
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
 		profile.DisplayName = "Claude Code";
@@ -113,8 +114,8 @@ namespace {
 			switch (state_of(card)) {
 			case qt::agent_finding_card_state::open: {
 				++counted.Open;
-				const auto* const draft = card->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
-				counted.Offered         = counted.Offered && draft != nullptr && !draft->isHidden();
+				const auto* const draft = card->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
+				counted.Offered         = counted.Offered && draft != nullptr && draft->isVisibleTo(card) && draft->isEnabled();
 				break;
 			}
 			case qt::agent_finding_card_state::drafted: ++counted.Drafted; break;
@@ -165,7 +166,7 @@ namespace {
 		// Add the second one as a draft; the host says it was drafted.
 		auto asked = std::vector<qt::agent_finding_card_request>{ };
 		agent->set_finding_card_dispatch([&asked](const qt::agent_finding_card_request& aRequest) { asked.push_back(aRequest); });
-		agent->turn_cards(0U)[1]->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+		agent->turn_cards(0U)[1]->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 		settle();
 		expect(asked.size() == 1U && asked.back().Ordinal == 1U, "Add as draft comment asks the host for that finding");
 		agent->present_finding_card_state(asked.back().Session, asked.back().Ordinal, qt::agent_finding_card_state::drafted);
@@ -183,7 +184,7 @@ namespace {
 		expect_three_open_one_drafted(*agent, 0U, "after the native history is shown again");
 
 		// The cards made again still act, and still report to the same place.
-		agent->turn_cards(0U)[2]->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+		agent->turn_cards(0U)[2]->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 		settle();
 		expect(asked.size() == 2U && asked.back().Ordinal == 2U && asked.back().Session == identity.Session.Id.value() && asked.back().Finding == finding_at(30U),
 			   "a card made again asks for its own finding");

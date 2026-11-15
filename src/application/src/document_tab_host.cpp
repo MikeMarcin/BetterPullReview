@@ -40,6 +40,7 @@ namespace bpr::application {
 					.State         = tab.State,
 					.Active        = State.Active == tab.Id,
 					.OwnComparison = core::has_own_comparison(State, tab),
+					.Report        = tab.Report,
 				});
 			}
 			return result;

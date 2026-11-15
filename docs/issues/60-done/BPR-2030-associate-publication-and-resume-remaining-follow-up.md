@@ -27,11 +27,20 @@ This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
 
+## Implementation record (not claimed)
+
+Engineered on the lane while its dependencies wait (the owner rejected the
+RFC-BPR-0109 and 0110 looks on 2026-11-12); this card was not readied or
+claimed. Commits `387f7298d` (core), `4675974cf` and `62f740fc6` (gh pull
+request catalog), `6bc5217f5` and `433068905` (application), `36dcd7e21` (Qt
+area, composition), `75c035a49` (real-worktree course). Evidence, including
+the live BPR-Test drafts #178 and #179: [ledger](../../verification/RFC-BPR-0111.md).
+
 Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred; reconciliation covers the tour only (RFC-BPR-0111 AC03 amended).
 
 ## Closeout (2026-11-13)
 
-BPR-2029 is Done. Evidence from the RFC-BPR-0111 ledger on the lane `claude/v0-5-0-prerelease-targets-52265d` (`docs/verification/RFC-BPR-0111.md`), re-run at `0f444ac0a`:
+BPR-2029 is Done. Evidence from the [ledger](../../verification/RFC-BPR-0111.md#ac07s-submission-clause-and-closeout-2026-11-13), re-run at `0f444ac0a`:
 
 - AC03 (amended 2026-11-12: tour anchors only): Pass. `core_local_draft_publication`: working files are never the pushed branch, base movement is said in the preview, a drifted pull request refuses the tour follow-up. `application_local_draft_publication_desktop_public_path`: the carried tour anchors at the pull request's head and at another head anchors nothing, the stop kept without lines.
 - AC04: Pass. `local_draft_publication`: lost answers read for and never resent, a restart mid-creation recovered by reading, concurrent drift sends nothing (negative control fails without the re-read), an existing pull request associated without a creation; no confirmation survives a restart.

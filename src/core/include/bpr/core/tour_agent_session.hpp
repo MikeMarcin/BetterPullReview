@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_TOUR_AGENT_SESSION_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_TOUR_AGENT_SESSION_HPP
 
+#include "bpr/core/agent_cost.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_tour.hpp"
 
@@ -54,6 +55,33 @@ namespace bpr::core {
 	/// \brief The split the card asks to record: drafting reads the
 	/// repository, small rewrites stay tool-free and fast.
 	[[nodiscard]] auto tools_for(tour_agent_request aRequest) noexcept -> tour_agent_tools;
+	/// \brief [[BPR-2141]], RFC-BPR-0101 AC13 (owner, 2026-11-12: "One API
+	/// call per click for fresh one-offs: no tools, context supplied up
+	/// front"). The most diff a fresh Draft Tour, field draft or outline
+	/// carries in its one request: well inside the tour prompt's carrier
+	/// (`maximum_tour_prompt_bytes`) with its instructions and evidence.
+	inline constexpr std::size_t maximum_up_front_diff_bytes = 96U * 1024U;
+	/// \brief How a fresh drafting run gets the pull request's code.
+	enum class tour_context_route : std::uint8_t {
+		/// One tool-free call with the diff in its request.
+		up_front,
+		/// The diff is past `maximum_up_front_diff_bytes`: the agent reads
+		/// the repository with read-only tools (several calls), and says so.
+		reads_repository_diff_too_large,
+		/// The agent has no tool-free mode (only Claude's stream JSON has
+		/// one): it reads the repository, and says so.
+		reads_repository_no_tool_free_mode,
+	};
+	[[nodiscard]] auto stable_name(tour_context_route aRoute) noexcept -> std::string_view;
+	/// \brief The route for a fresh drafting run whose diff is `aDiffBytes`.
+	[[nodiscard]] constexpr auto choose_tour_context(const std::size_t aDiffBytes, const bool aToolFreeAgent) noexcept -> tour_context_route
+	{
+		if (!aToolFreeAgent) {
+			return tour_context_route::reads_repository_no_tool_free_mode;
+		}
+		return aDiffBytes <= maximum_up_front_diff_bytes ? tour_context_route::up_front : tour_context_route::reads_repository_diff_too_large;
+	}
+
 	/// \brief The request a writing hook press is: the outline, an empty
 	/// Problem or Solution ("Draft from PR context"), or a rewrite.
 	[[nodiscard]] auto tour_request_of(writing_hook aHook, writing_scope aScope) noexcept -> tour_agent_request;
@@ -303,12 +331,21 @@ namespace bpr::core {
 		/// [[BPR-1914]] v003. How long the run worked, as the host measured
 		/// it, for "Worked for Ns".
 		std::optional<std::uint32_t> Seconds;
+		/// [[BPR-1999]], RFC-BPR-0101. What the run cost, as the core
+		/// accounted the agent's figure, and its conversation's total after
+		/// it; none when the agent reported none.
+		std::optional<agent_cost> Cost;
+		std::optional<agent_cost> SessionCost;
 		/// [[BPR-1930]] follow-up. The focus this turn set, the one it
 		/// replaced, and whether the author undid it.
 		std::string FocusSet;
 		std::string FocusBefore;
-		bool        FocusUndone                                     = false;
-		auto        operator==(const tour_agent_run&) const -> bool = default;
+		bool        FocusUndone = false;
+		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). An Enhance on a
+		/// stop or a part: a fresh run, never a turn of its side chat, so no
+		/// conversation replays it.
+		bool Fresh                                           = false;
+		auto operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;
@@ -614,6 +651,13 @@ namespace bpr::core {
 	/// \brief [[BPR-1914]] v003. Records how long a run worked, once it has
 	/// ended; false for a running or unknown run.
 	auto time_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::uint32_t aSeconds) -> bool;
+	/// \brief [[BPR-1999]]. Records what an ended run cost and its
+	/// conversation's total; false for a running or unknown run.
+	auto cost_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::optional<agent_cost> aCost, std::optional<agent_cost> aSessionCost) -> bool;
+	/// \brief [[BPR-1999]]. What a thread's chat has cost: its newest run's
+	/// conversation total when known, else its runs' costs added up; none
+	/// when no run reported one.
+	[[nodiscard]] auto tour_thread_cost(const tour_agent_session& aSession, const tour_thread& aThread) -> std::optional<agent_cost>;
 	/// \brief [[BPR-1941]]. Delete on a tour chat turn that ended without an
 	/// answer, as the Agent tab's error turns have ([[BPR-1876]],
 	/// [[BPR-1880]]): the ask turn leaves its thread, and later turns are
@@ -735,6 +779,14 @@ namespace bpr::core {
 	/// \brief Resolves numbers through the submitted draft and refuses changed targets.
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id, const tour_ask_answer&, const std::vector<tour_anchor_file>&, const review_tour& aSubmitted, const review_tour& aCurrent, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal;
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead = std::nullopt) -> tour_proposal;
+	/// \brief [[BPR-1995]], RFC-BPR-0100. Enhance on a selection: the
+	/// answer's new text for the passage's part is the passage's new text,
+	/// and the proposal is the part as submitted with only that passage
+	/// replaced. The passage must stand exactly once in the part; otherwise
+	/// the answer proposes nothing for it. An answer that gave the whole part
+	/// back, unchanged outside the passage, is read as its passage alone.
+	/// The other fields of the answer are emptied.
+	[[nodiscard]] auto confine_to_passage(tour_ask_answer aAnswer, const review_tour& aSubmitted, const tour_thread& aThread, const tour_passage& aPassage) -> tour_ask_answer;
 	/// \brief What a proposal holds, counted.
 	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) -> tour_proposal_tally;
 	/// \brief The proposal shown after `aIncoming` arrives: `aIncoming`'s items,

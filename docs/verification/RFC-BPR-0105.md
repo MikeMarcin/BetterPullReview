@@ -6,7 +6,7 @@ Frontend-design was loaded before the Qt surface work. Debug timings are
 nongating; nothing below is a timing claim.
 
 The public-path course is `application_dependable_session_public_path`
-(`tests/end_to_end/dependable_session_public_path_tests.cpp`):
+([source](../../tests/end_to_end/dependable_session_public_path_tests.cpp)):
 the composed desktop, a profile window, two pull requests opened from Home,
 the real review page and its buttons, the fixture GitHub server and the
 normal diagnostic log. Each step prints what the review page shows

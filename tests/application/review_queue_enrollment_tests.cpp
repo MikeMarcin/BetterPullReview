@@ -1849,8 +1849,11 @@ namespace {
 		expect(durable && durable->LastFacts.MyReview == fixture.item(17)->Facts.MyReview, "the private record keeps it");
 		const auto encoded = application::encode_queue_facts(durable->LastFacts);
 		const auto decoded = encoded ? application::decode_queue_facts(*encoded) : std::nullopt;
-		expect(encoded && encoded->starts_with("3;") && decoded && decoded->MyReview == durable->LastFacts.MyReview && decoded->Change == durable->LastFacts.Change,
-			   "the store's codec carries the verdict across a restart as version 3");
+		// [[RFC-BPR-0098]]. A retained read also carries the other
+		// reviewers' verdicts, so the row is written as version 4.
+		expect(encoded && encoded->starts_with("4;") && decoded && decoded->MyReview == durable->LastFacts.MyReview && decoded->Change == durable->LastFacts.Change
+				   && decoded->Waiting.ReviewsKnown && decoded->Waiting.LatestReviews == durable->LastFacts.Waiting.LatestReviews,
+			   "the store's codec carries the verdict and the reviewers' verdicts across a restart as version 4");
 
 		fixture.Discovery.refresh();
 		auto dismissed    = approved;
@@ -1865,8 +1868,93 @@ namespace {
 		fixture.Provider.answer(fixture.Provider.rows({ none }));
 		fixture.settle();
 		expect(fixture.item(17)->Facts.MyReview == core::queue_my_review{ }, "a read with none of my reviews leaves no verdict");
-		const auto plain = application::encode_queue_facts(fixture.record(17)->LastFacts);
-		expect(plain && plain->starts_with("2;"), "a row with no verdict keeps its version 2 bytes");
+		auto older                  = fixture.record(17)->LastFacts;
+		older.Waiting.ReviewsKnown  = false;
+		older.Waiting.LatestReviews = { };
+		older.Waiting.Decision      = std::nullopt;
+		older.Waiting.Merge         = core::queue_merge_state::unknown;
+		older.Waiting.PendingChecks = 0U;
+		older.Waiting.AwaitingReply = std::nullopt;
+		const auto plain            = application::encode_queue_facts(older);
+		expect(plain && plain->starts_with("2;"), "a row with no verdict and no next-move facts keeps its version 2 bytes");
+		const auto mine = application::encode_queue_facts(fixture.record(17)->LastFacts);
+		expect(mine && mine->starts_with("4;"), "[[RFC-BPR-0098]] with the reviewers' verdicts read it is version 4");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-2048]]. One retained pull request too large to read marks its
+	/// own row and fails nothing: the other rows load, the refresh is current,
+	/// and the next read that answers clears the mark.
+	void test_too_large_row_does_not_fail_the_refresh()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } }, { .Ref = ref(18), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		while (fixture.Provider.Answered < fixture.Provider.Requests.size()) {
+			const auto number = fixture.Provider.next().Number->value();
+			fixture.Provider.answer(number == 17U ? fixture.Provider.failure(application::github_provider_failure::response_limit) : fixture.Provider.rows({ metadata_row(number) }));
+			fixture.settle();
+		}
+		expect(fixture.item(17) && fixture.item(17)->Facts.TooLarge && fixture.item(17)->Bucket == core::attention_bucket::initial_review_requested,
+			   "the oversized row stays in Needs me, marked too large");
+		expect(fixture.item(18) && fixture.item(18)->Facts.Title == "Pull request 18" && !fixture.item(18)->Facts.TooLarge, "the other row loads");
+		// No repository is saved here, so a refresh that failed nothing ends as
+		// "no saved repository", never stale.
+		expect(fixture.Discovery.status().State != application::queue_discovery_state::stale && fixture.Discovery.status().Problem == application::queue_discovery_problem::no_saved_repository,
+			   "the refresh is not failed: state " + std::to_string(static_cast<int>(fixture.Discovery.status().State)) + " problem " + std::to_string(static_cast<int>(fixture.Discovery.status().Problem)));
+		expect(fixture.Discovery.statistics().TooLarge == 1U && fixture.Discovery.statistics().Failed == 0U, "it is counted as too large, not as a failed read");
+
+		fixture.Discovery.refresh();
+		while (fixture.Provider.Answered < fixture.Provider.Requests.size()) {
+			fixture.Provider.answer(fixture.Provider.rows({ metadata_row(fixture.Provider.next().Number->value()) }));
+			fixture.settle();
+		}
+		expect(!fixture.item(17)->Facts.TooLarge && fixture.item(17)->Facts.Title == "Pull request 17", "a read that answers clears the mark");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-2049]]. Approved, then commits: Seen moves the row to Following at
+	/// once, survives the store, and a later push brings it back.
+	void test_seen_moves_an_approved_row_back_to_following()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		auto approved = metadata_row(17U, true);
+		fixture.Provider.answer(fixture.Provider.rows({ approved }));
+		fixture.settle();
+		fixture.Discovery.refresh();
+		auto moved = metadata_row(17U, true, true);
+		fixture.Provider.answer(fixture.Provider.rows({ moved }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review && core::review_followup_for(*fixture.item(17)) == core::review_followup::seen,
+			   "an approval with commits after it needs me and offers Seen");
+		const auto head = std::string(40U, 'b');
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = std::string(40U, 'c') });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review, "Seen on a head the row no longer shows is refused");
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = head });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket != core::attention_bucket::changed_since_my_review && core::home_section_for(*fixture.item(17)) == core::home_queue_section::following
+				   && !fixture.item(17)->Facts.MyReview.NewCommits && core::review_followup_for(*fixture.item(17)) == core::review_followup::none,
+			   "Seen moves it to Following at once, with no new commits said");
+		expect(fixture.Provider.Answered == fixture.Provider.Requests.size(), "Seen reads and writes nothing on GitHub");
+		const auto durable = fixture.record(17);
+		const auto encoded = durable ? application::encode_queue_facts(durable->LastFacts) : std::nullopt;
+		const auto decoded = encoded ? application::decode_queue_facts(*encoded) : std::nullopt;
+		expect(encoded && encoded->starts_with("5;") && decoded && decoded->SeenHead == head, "the seen head is kept and survives the store as version 5");
+		expect(!application::decode_queue_facts(encoded->substr(0U, encoded->size() - 43U) + "0:"), "an empty seen head is refused");
+
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ moved }));
+		fixture.settle();
+		expect(core::home_section_for(*fixture.item(17)) == core::home_queue_section::following, "a refresh of the same head keeps it in Following");
+		fixture.Discovery.refresh();
+		auto pushed    = moved;
+		pushed.HeadOid = application::commit_oid{ head.substr(0U, 39U) + "d" };
+		fixture.Provider.answer(fixture.Provider.rows({ pushed }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review, "a later push is news again");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -1889,6 +1977,51 @@ namespace {
 		expect(unread && unread->MyReview == core::queue_my_review{ .Verdict = core::my_review_verdict::approved, .NewCommits = true }, "an unread time reads back as unread");
 		facts.MyReview.SubmittedAt = -1;
 		expect(!application::encode_queue_facts(facts), "a submission before the epoch is refused");
+	}
+
+	// [[RFC-BPR-0098]]. The facts a next move is decided from survive a
+	// restart, read back as last known, and a malformed version 4 is refused.
+	void test_next_move_facts_codec_version_four()
+	{
+		auto  facts               = core::queue_item_facts{ .Title = "Mine", .Author = "octocat", .Authored = true };
+		auto& waiting             = facts.Waiting;
+		waiting.Decision          = core::queue_review_decision::changes_requested;
+		waiting.Merge             = core::queue_merge_state::conflicts;
+		waiting.PendingChecks     = 2U;
+		waiting.ChecksKnown       = true;
+		waiting.ReviewsKnown      = true;
+		waiting.LatestReviews     = { { .Login = "alice", .State = core::my_review_verdict::changes_requested }, { .Login = "bo", .State = core::my_review_verdict::approved } };
+		waiting.AwaitingReply     = 3U;
+		waiting.MoreConversations = true;
+		const auto encoded        = application::encode_queue_facts(facts).value_or(std::string{ });
+		const auto decoded        = application::decode_queue_facts(encoded);
+		expect(encoded.starts_with("4;") && decoded.has_value(), "next-move facts are written as version 4: " + encoded);
+		const auto& read = decoded->Waiting;
+		expect(read.Decision == waiting.Decision && read.Merge == waiting.Merge && read.PendingChecks == 2U && read.LatestReviews == waiting.LatestReviews
+				   && read.AwaitingReply == 3U && read.MoreConversations && decoded->MyReview == core::queue_my_review{ },
+			   "every next-move fact reads back, with no verdict of mine");
+		expect(read.AssessmentStale && read.ReviewsStale && read.ConversationsStale, "and reads back as last known");
+		// No conversations read is not zero.
+		facts.Waiting.AwaitingReply = std::nullopt;
+		const auto unread           = application::decode_queue_facts(application::encode_queue_facts(facts).value_or(std::string{ }));
+		expect(unread && !unread->Waiting.AwaitingReply && !unread->Waiting.ConversationsStale, "conversations not read stay unread");
+		expect(!application::decode_queue_facts(encoded.substr(0U, encoded.size() - 4U)), "a truncated version 4 is refused");
+		facts.Waiting.AwaitingReply = core::maximum_queue_review_threads + 1U;
+		expect(!application::encode_queue_facts(facts), "more conversations than are read is refused");
+		facts.Waiting.AwaitingReply = 1U;
+		facts.Waiting.LatestReviews = { { .Login = "", .State = core::my_review_verdict::approved } };
+		expect(!application::encode_queue_facts(facts), "a reviewer without a login is refused");
+
+		// A later read without conversations keeps the count, last known; one
+		// with them replaces it.
+		auto retained = decoded->Waiting;
+		auto blind    = core::queue_waiting_facts{ .ChecksKnown = true, .Head = std::string(40U, 'a') };
+		application::merge_queue_waiting(retained, blind);
+		expect(retained.AwaitingReply == 3U && retained.ConversationsStale && retained.ReviewsStale, "a read that could not see them keeps them as last known");
+		blind.AwaitingReply = 0U;
+		blind.ReviewsKnown  = true;
+		application::merge_queue_waiting(retained, blind);
+		expect(retained.AwaitingReply == 0U && !retained.ConversationsStale && retained.LatestReviews.empty() && !retained.ReviewsStale, "a read that saw them replaces them");
 	}
 
 	void test_change_facts_codec_reads_version_one()
@@ -3348,6 +3481,7 @@ namespace {
 
 auto main() -> int
 {
+	test_next_move_facts_codec_version_four();
 	test_repository_addition_refuses_unknown_durable_state();
 	test_repository_addition_results_without_a_pull_request();
 	test_repository_addition_fanout_and_stale_terminals();
@@ -3388,6 +3522,8 @@ auto main() -> int
 	test_change_facts_merge_and_persist();
 	test_change_facts_codec_reads_version_one();
 	test_my_review_verdict_from_retained_reads();
+	test_too_large_row_does_not_fail_the_refresh();
+	test_seen_moves_an_approved_row_back_to_following();
 	test_my_review_codec_refuses_malformed_version_three();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();

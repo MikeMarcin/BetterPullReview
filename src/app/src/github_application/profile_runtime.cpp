@@ -1,5 +1,6 @@
 #include "github_application/profile_runtime.hpp"
 
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/insights_projection.hpp"
 #include "bpr/application/profile_storage_authority.hpp"
@@ -481,4 +482,99 @@ namespace bpr::app {
 		active.erase(unique.begin(), unique.end());
 		ActiveQueueNotifications = std::move(active);
 	}
+#if defined(BPR_AGENT_INTEGRATIONS)
+	/// RFC-BPR-0126 AC04 ([[BPR-2151]], [[BPR-2181]]). The profile's session
+	/// queue host, made by the first window that asks. Its store is read once
+	/// here and written on the queue lane, off the decision lane (AC05).
+	void github_profile_runtime::compose_agent_queue()
+	{
+		if (!AgentQueue) {
+			AgentQueueStore      = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
+			auto dependencies    = application::agent_queue_dependencies{ };
+			dependencies.Store   = AgentQueueStore.get();
+			dependencies.Runner  = &AgentRunner;
+			dependencies.Effects = &QueueEffects;
+			AgentQueue           = std::make_unique<application::agent_queue_host>(dependencies);
+			AgentRunner.bind(*AgentQueue);
+			AgentQueue->load();
+		}
+		compose_agent_runtimes();
+	}
+
+	/// [[BPR-2181]], RFC-BPR-0126 AC01. The registry runs the Agent tab's
+	/// sessions; a tour's still runs in its window (slice 6). Each runtime is
+	/// composed from the seed the window that opened it handed over, on the
+	/// profile's own ports, under an application session of its own.
+	void github_profile_runtime::compose_agent_runtimes()
+	{
+		if (AgentRuntimes || !AgentQueue || !EpochActors || !EpochCatalogs || !EpochEntropy || !EpochClock) {
+			return;
+		}
+		auto dependencies         = application::review_agent_runtime_dependencies{ };
+		dependencies.Queue        = AgentQueue.get();
+		dependencies.Runner       = &AgentRunner;
+		dependencies.DecisionLane = &DecisionLane;
+		dependencies.Runs         = [](const std::string& aSession) { return aSession.starts_with("agent-tab:"); };
+		dependencies.Compose      = [this](const std::string& aSession, application::agent_invocation_projection_port& aProjection, std::function<void()> aRetired) -> std::unique_ptr<application::review_agent_turn_port> {
+			const auto seed = AgentRuntimeSeeds.find(aSession);
+			if (seed == AgentRuntimeSeeds.end() || Closing) {
+				return nullptr;
+			}
+			// Above every window's session (a window's is its id plus one).
+			const auto session = core::application_session_id{ (std::uint64_t{ 1U } << 40U) + ++LastAgentRuntimeSession };
+			const auto ports   = review_agent_stack_ports{
+				.Actors          = *EpochActors,
+				.Catalogs        = *EpochCatalogs,
+				.Entropy         = *EpochEntropy,
+				.Clock           = *EpochClock,
+				.EpochEffects    = EpochEffects,
+				.AgentEffects    = AgentEffects,
+				.LedgerEffects   = ReviewLedgerStoreEffects,
+				.DecisionLane    = DecisionLane,
+				.LedgerFile      = ReviewLedgerFile,
+				.WorkspaceParent = AgentWorkspaceNeighbourhood,
+				.NativeSessions  = NativeAgentSessions.get(),
+				.Log             = DiagnosticLog,
+			};
+			// The review's epoch is accepted and observed after construction:
+			// the queue is told then that the session's agent may take a turn.
+			auto ready = [this, aSession, alive = std::weak_ptr<application::review_agent_runtimes>{ AgentRuntimes }] {
+				DecisionLane.post([this, aSession, alive] {
+					if (!alive.expired() && !Closing && AgentQueue) {
+						AgentQueue->agent_changed(aSession);
+					}
+				});
+			};
+			auto stack = review_agent_stack::make(session, seed->second, ports, aProjection, std::move(aRetired), std::move(ready));
+			if (stack) {
+				AgentRuntimeStacks[aSession] = agent_runtime_stack{ .Stack = stack.get(), .Alive = stack->liveness() };
+			}
+			return stack;
+		};
+		AgentRuntimes = std::make_shared<application::review_agent_runtimes>(std::move(dependencies));
+	}
+
+	auto github_profile_runtime::open_agent_runtime(const std::string& aSession, review_agent_stack_seed aSeed) -> application::review_agent_runtime*
+	{
+		compose_agent_runtimes();
+		if (!AgentRuntimes || Closing) {
+			return nullptr;
+		}
+		if (auto* const found = AgentRuntimes->find(aSession); found != nullptr) {
+			return found;
+		}
+		AgentRuntimeSeeds.insert_or_assign(aSession, std::move(aSeed));
+		return AgentRuntimes->open(aSession);
+	}
+
+	auto github_profile_runtime::agent_stack(const std::string& aSession) const -> review_agent_stack*
+	{
+		const auto found = AgentRuntimeStacks.find(aSession);
+		if (found == AgentRuntimeStacks.end()) {
+			return nullptr;
+		}
+		const auto alive = found->second.Alive.lock();
+		return alive && *alive ? found->second.Stack : nullptr;
+	}
+#endif
 }

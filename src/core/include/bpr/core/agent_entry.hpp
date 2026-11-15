@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_ENTRY_HPP
 
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 
@@ -61,6 +62,21 @@ namespace bpr::core {
 		/// ending on it (`application::agent_run_checks::relaxed`). A popular
 		/// agent keeps strict checks: only a custom agent may turn them off.
 		bool StrictRunChecks = true;
+		/// [[BPR-2007]], RFC-BPR-0104 (owner, 2026-11-10: "Should start on,
+		/// can have that initial state be a setting in the agent settings").
+		/// Whether a pull request the reviewer has not changed starts with the
+		/// scratch folder on. On for a new agent and one carried over.
+		bool ScratchStarts = true;
+		/// [[BPR-2008]]. Build and run tests: off until the reviewer turns it
+		/// on; then a disposable checkout asks once per pull request.
+		bool BuildsAndTests = false;
+		/// [[BPR-2139]], RFC-BPR-0104 (owner, 2026-11-12). Off for a new
+		/// agent and one carried over.
+		agent_mcp_servers McpServers = agent_mcp_servers::off;
+		/// [[BPR-2140]], RFC-BPR-0107. Where a built-in prompt's
+		/// instructions go; the message is the fallback for a wrapper that
+		/// drops the system prompt.
+		agent_instruction_delivery Instructions = agent_instruction_delivery::system_prompt;
 		/// Host-minted incarnation; replacement/reset never inherits a reused slot.
 		std::string Identity;
 

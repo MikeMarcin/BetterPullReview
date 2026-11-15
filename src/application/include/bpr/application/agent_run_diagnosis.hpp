@@ -53,6 +53,15 @@ namespace bpr::application {
 		/// [[BPR-1918]]. A relaxed run's counts by `relaxed_check`; absent
 		/// for a strict run.
 		std::optional<std::array<std::uint64_t, relaxed_check_count>> Relaxed;
+		/// [[BPR-2004]], RFC-BPR-0103. The helpers the runtime reported, by
+		/// how they ended; absent when it reported none.
+		std::optional<core::agent_helper_tally> Helpers;
+		/// The longest time between two frames, in milliseconds; absent
+		/// when none was measured.
+		std::optional<std::uint64_t> LongestSilenceMs;
+		/// The frame types the decoder read past, comma separated; never
+		/// their content.
+		std::string ReadPast;
 
 		auto operator<=>(const agent_run_diagnosis&) const = default;
 	};
@@ -65,7 +74,10 @@ namespace bpr::application {
 	/// when a thinking block was, then `outside_list=N` for a read-only
 	/// Claude run ([[BPR-1912]]), then `relaxed=on relaxed_init=N
 	/// relaxed_tool=N relaxed_block=N relaxed_skill=N` for a relaxed run
-	/// ([[BPR-1918]]).
+	/// ([[BPR-1918]]), then `helpers_started=N helpers_finished=N
+	/// helpers_failed=N helpers_abandoned=N` when helpers were reported,
+	/// `longest_silence_ms=N`, and `read_past=system/post_turn_summary,...`
+	/// ([[BPR-2004]]).
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;

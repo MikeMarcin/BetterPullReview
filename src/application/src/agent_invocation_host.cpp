@@ -1,5 +1,6 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_conversation_host.hpp"
+#include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/tour_agent_conversation.hpp"
 
@@ -7,13 +8,17 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <mutex>
 #include <ranges>
 #include <stop_token>
+#include <system_error>
 #include <thread>
 #include <utility>
 
@@ -137,14 +142,36 @@ namespace bpr::application {
 			std::optional<owned_agent_workspace> OwnedWorkspace;
 			std::optional<native_agent_session>  Native;
 			bool                                 RetainWorkspace = false;
+			/// [[BPR-1999]]. The run resumed the runtime's own session (its
+			/// handle was known at launch), so its reported cost is that
+			/// session's running total.
+			bool                                 ResumedNative   = false;
 			bool                                 NativeSubmitted = false;
 			std::optional<private_run_admission> PrivateAdmission;
-			std::atomic_uint64_t                 DurableRun          = 0;
-			std::atomic_bool                     Superseded          = false;
-			std::atomic_bool                     TerminalComplete    = false;
-			std::atomic_bool                     CleanupScheduled    = false;
-			std::atomic_bool                     Retired             = false;
-			std::atomic_bool                     ExplicitlyCancelled = false;
+			/// [[BPR-2007]]. The turn's scratch folder, its key under the
+			/// root, whether it is kept with a native session, and what it
+			/// held when the turn started.
+			std::filesystem::path             ScratchFolder;
+			std::string                       ScratchKey;
+			bool                              ScratchKept = false;
+			agent_scratch_listing             ScratchBefore;
+			std::optional<agent_launch_grant> Grant;
+			/// Re-review N3. A folder was asked for and none could be made.
+			bool ScratchUnmade = false;
+			/// RFC-BPR-0104 as amended 2026-11-11. The folder's limit, when
+			/// it is watched during the turn (it was below it at the start;
+			/// a turn starting full is given no write and, for Claude, no run
+			/// allowance there, so nothing of its grant writes it);
+			/// when it was last measured; whether the turn passed it.
+			std::uint64_t        ScratchLimit        = 0U;
+			std::atomic_int64_t  ScratchMeasuredAt   = 0;
+			std::atomic_bool     ScratchOverflowed   = false;
+			std::atomic_uint64_t DurableRun          = 0;
+			std::atomic_bool     Superseded          = false;
+			std::atomic_bool     TerminalComplete    = false;
+			std::atomic_bool     CleanupScheduled    = false;
+			std::atomic_bool     Retired             = false;
+			std::atomic_bool     ExplicitlyCancelled = false;
 		};
 
 		implementation(
@@ -466,7 +493,10 @@ namespace bpr::application {
 			// travels in the tour prompt's own carrier; a refusal for size or
 			// for a misplaced prompt says so by name.
 			auto supplement = build_agent_context_supplement(
-				aRequest.Context, provisionalSession, aRequest.ReadOnlyTools ? agent_context_run::read_only_tour : agent_context_run::ordinary);
+				aRequest.Context, provisionalSession,
+				aRequest.ReadOnlyTools                                             ? agent_context_run::read_only_tour
+					: aRequest.WritingOnly && !aRequest.Context.TourPrompt.empty() ? agent_context_run::tool_free_tour
+																				   : agent_context_run::ordinary);
 			if (!supplement.has_value()) {
 				project_refuse(refusal_name(supplement.error()));
 				return;
@@ -533,7 +563,10 @@ namespace bpr::application {
 					self->AdmissionPending = false;
 					cancelled              = std::exchange(self->AdmissionCancelled, false);
 				}
-				const auto idle = [&self] { self->ActiveJobs.store(0U, std::memory_order_release); };
+				const auto idle = [&self] {
+					self->ActiveJobs.store(0U, std::memory_order_release);
+					self->announce_retirement();
+				};
 				if (!aAdmitted) {
 					++self->SessionAdmissionFailures;
 					idle();
@@ -785,8 +818,9 @@ namespace bpr::application {
 					aInvocation->DurableRun.store(aInvocation->PrivateAdmission->Delta.Run.value(), std::memory_order_release);
 					post_private(aInvocation, aInvocation->PrivateAdmission->Delta, { });
 				}
+				// [[BPR-2138]]. Only a resumed path keeps a native session.
 				const auto native = NativeSessions != nullptr && !aRequest.NativeAgentIdentity.empty() && !aRequest.NativeScope.empty()
-					&& !aRequest.WritingOnly && !aRequest.ExistingCheckoutChosen;
+					&& !aRequest.WritingOnly && !aRequest.ExistingCheckoutChosen && core::session_mode_of(aRequest.Path) == core::agent_session_mode::resumed;
 				const auto refuseNative = [&](const std::string& aReason, const core::operation_failure aFailure,
 											  const agent_run_outcome                                 aOutcome         = agent_run_outcome::private_storage_failure,
 											  const std::optional<agent_workspace_unavailable_reason> aWorkspaceReason = std::nullopt) {
@@ -931,7 +965,11 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
-				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly, .ReadOnlyTools = aRequest.ReadOnlyTools, .RunChecks = aRequest.RunChecks };
+				auto options               = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly, .ReadOnlyTools = aRequest.ReadOnlyTools, .RunChecks = aRequest.RunChecks };
+				options.Path               = aRequest.Path;
+				options.McpServers         = aRequest.McpServers;
+				options.SystemInstructions = aRequest.SystemInstructions;
+				options.Instructions       = aRequest.Instructions;
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.
@@ -941,6 +979,65 @@ namespace bpr::application {
 					framed->Brief->Workspace = workspace->Shallow ? core::brief_workspace::private_snapshot
 						: workspace->BorrowsHistory               ? core::brief_workspace::linked_clone_history
 																  : core::brief_workspace::private_copy;
+				}
+				// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The grant this
+				// turn launches with: a scratch folder kept with a native
+				// session (or this turn's own), and the disposable checkout to
+				// build in. A folder that cannot be made, or named in a rule,
+				// is no grant; the turn reads only.
+				// Re-review N1a (2026-11-11): Codex in the reviewer's own
+				// checkout reads that checkout's trusted `.codex/config.toml`,
+				// which BPR's profile would replace, so it is given nothing
+				// there (the picker says why).
+				// F1 (third round, 2026-11-11). A checkout BPR made holds the
+				// pull request's own `.codex` and `.claude` settings; the
+				// launch names it so they are never loaded, by the path the
+				// agent runs in and the canonical one Codex matches.
+				// Fourth review (2026-11-11): Codex keys the project by the
+				// kernel's name for its working folder, which a firmlink
+				// spelling's canonical path is not, so the opened folder's
+				// path is named too; a checkout that cannot be resolved is
+				// never launched in (it failed open before).
+				if (!aRequest.ExistingCheckoutChosen && workspace) {
+					auto spellings = agent_checkout_spellings(workspace->Path);
+					if (!spellings) {
+						finish_run(
+							{ .Session       = aInvocation->Identity.Session.Id,
+							  .Outcome       = agent_run_outcome::failed_to_start,
+							  .StandardError = "The pull request's checkout could not be resolved, so its own agent settings could not be shut out. No question was sent." },
+							aInvocation);
+						return;
+					}
+					options.PullRequestCheckout = std::move(*spellings);
+				}
+				const auto codexOwn = aRequest.ExistingCheckoutChosen
+					&& (aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server);
+				if ((aRequest.ScratchFolder || aRequest.BuildsAndTests) && !aRequest.WritingOnly && !aRequest.ReadOnlyTools && !codexOwn) {
+					auto grant                 = agent_launch_grant{ };
+					aInvocation->ScratchUnmade = aRequest.ScratchFolder;
+					if (aRequest.ScratchFolder && !ScratchRoot.empty()) {
+						const auto kept = aInvocation->Native.has_value() && valid_agent_scratch_key(aInvocation->Native->Id);
+						const auto key  = kept ? aInvocation->Native->Id
+											   : "run-" + std::to_string(aRequest.ApplicationSession.value()) + "-" + std::to_string(aInvocation->Identity.Session.Id.value());
+						if (const auto folder = prepare_agent_scratch_folder(ScratchRoot, key); folder && valid_agent_grant_path(folder->string())) {
+							aInvocation->ScratchUnmade = false;
+							aInvocation->ScratchFolder = *folder;
+							aInvocation->ScratchKey    = key;
+							aInvocation->ScratchKept   = kept;
+							aInvocation->ScratchBefore = list_agent_scratch_folder(*folder);
+							grant.ScratchFolder        = folder->string();
+							grant.ScratchLimitMiB      = core::agent_scratch_limit_mib(aRequest.ScratchLimitMiB);
+							grant.ScratchFull          = agent_scratch_full(aInvocation->ScratchBefore, core::agent_scratch_limit_bytes(aRequest.ScratchLimitMiB));
+							aInvocation->ScratchLimit  = grant.ScratchFull ? 0U : core::agent_scratch_limit_bytes(aRequest.ScratchLimitMiB);
+						}
+					}
+					if (aRequest.BuildsAndTests && !aRequest.ExistingCheckoutChosen && workspace && valid_agent_build_path(workspace->Path)) {
+						grant.BuildWorkspace = workspace->Path;
+					}
+					if (!grant.ScratchFolder.empty() || !grant.BuildWorkspace.empty()) {
+						options.Grant      = grant;
+						aInvocation->Grant = grant;
+					}
 				}
 				auto launch = build_agent_launch(aProfile, framed ? *framed : aSupplement, Environment, options);
 				options.PrivateSources.clear();
@@ -967,6 +1064,7 @@ namespace bpr::application {
 					if (!session.Replay) {
 						launch->NativeConversation = session.Id;
 						launch->NativeHandle       = session.Handle;
+						aInvocation->ResumedNative = !session.Handle.empty();
 						launch->NativeTurn         = session.Turn;
 						launch->SaveNativeHandle   = std::make_shared<std::function<bool(const std::string&)>>([this, aInvocation](const std::string& aHandle) {
 							aInvocation->Native->Handle = aHandle;
@@ -986,6 +1084,9 @@ namespace bpr::application {
 				}
 				launch->WorkingDirectory       = workspace->Path;
 				launch->WorkspaceLifetimeGuard = std::move(lifetimeGuard);
+				// [[BPR-2004]], RFC-BPR-0103. A run that shows a turn shows
+				// what it is doing; a writing run shows no turn.
+				launch->ReportActivity = !aRequest.WritingOnly;
 				if (aInvocation->Stop->stop_requested()) {
 					finish_run(
 						{ .Session = aInvocation->Identity.Session.Id,
@@ -1015,6 +1116,7 @@ namespace bpr::application {
 					*launch,
 					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
+						watch_scratch(*aInvocation);
 						if (auto self = weak.lock()) {
 							self->post_stream(aInvocation, aEvent);
 						}
@@ -1023,8 +1125,19 @@ namespace bpr::application {
 				if (launch->PrivateInputClaim) {
 					launch->PrivateInputClaim->release();
 				}
+				// [[BPR-1999]], RFC-BPR-0101. The turn's cost, accounted by the
+				// core: a run that resumed the runtime's own session reports
+				// that session's running total, so the turn cost the
+				// difference; any other run's figure is its own.
+				const auto reported = result.ReportedCostUsd ? core::parse_agent_cost(*result.ReportedCostUsd) : std::nullopt;
+				result.TurnCost     = reported;
 				if (aInvocation->Native) {
-					auto& session       = *aInvocation->Native;
+					auto&      session  = *aInvocation->Native;
+					const auto resumed  = aInvocation->ResumedNative;
+					const auto cost     = core::account_agent_turn_cost(session.Cost, reported, resumed);
+					session.Cost        = cost.Ledger;
+					result.TurnCost     = cost.Turn;
+					result.SessionCost  = cost.Ledger.Known ? std::optional{ cost.Ledger.Total } : std::nullopt;
 					result.Conversation = session.Id;
 					if (!session.Replay && !result.NativeHandle.empty()) {
 						session.Handle = result.NativeHandle;
@@ -1116,6 +1229,21 @@ namespace bpr::application {
 					aResult.Findings.reset();
 				}
 			}
+			// [[BPR-2007]]. What the turn left in its scratch folder; a turn's
+			// own folder goes with it.
+			aResult.Grant         = aInvocation->Grant;
+			aResult.ScratchUnmade = aInvocation->ScratchUnmade;
+			if (!aInvocation->ScratchFolder.empty()) {
+				const auto after          = list_agent_scratch_folder(aInvocation->ScratchFolder);
+				aResult.ScratchFolder     = aInvocation->ScratchFolder.string();
+				aResult.ScratchFiles      = agent_scratch_written(aInvocation->ScratchBefore, after, core::maximum_agent_activity_listed);
+				aResult.ScratchFull       = aInvocation->Grant && agent_scratch_full(after, core::agent_scratch_limit_bytes(aInvocation->Grant->ScratchLimitMiB));
+				aResult.ScratchOverflowed = aInvocation->ScratchOverflowed.load(std::memory_order_acquire);
+				if (!aInvocation->ScratchKept) {
+					static_cast<void>(remove_agent_scratch_folder(ScratchRoot, aInvocation->ScratchKey));
+					aResult.ScratchFolder.clear();
+				}
+			}
 			complete(std::move(aResult), aInvocation);
 		}
 
@@ -1137,6 +1265,27 @@ namespace bpr::application {
 						}
 					});
 			} catch (...) {
+			}
+		}
+
+		/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d). A
+		/// turn's folder is measured as it reports its steps, at most every
+		/// half second; the turn is stopped once the folder reaches its limit.
+		/// A step that writes past the limit finishes before the stop, so the
+		/// folder can end above it by what that step wrote.
+		static void watch_scratch(invocation& aInvocation)
+		{
+			if (aInvocation.ScratchLimit == 0U || aInvocation.ScratchOverflowed.load(std::memory_order_acquire)) {
+				return;
+			}
+			const auto now  = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			auto       last = aInvocation.ScratchMeasuredAt.load(std::memory_order_acquire);
+			if (now - last < 500 || !aInvocation.ScratchMeasuredAt.compare_exchange_strong(last, now, std::memory_order_acq_rel)) {
+				return;
+			}
+			if (agent_scratch_full(list_agent_scratch_folder(aInvocation.ScratchFolder), aInvocation.ScratchLimit)) {
+				aInvocation.ScratchOverflowed.store(true, std::memory_order_release);
+				static_cast<void>(aInvocation.Stop->request_stop());
 			}
 		}
 
@@ -1332,11 +1481,13 @@ namespace bpr::application {
 				}
 			}
 			ActiveJobs.store(0U, std::memory_order_release);
+			announce_retirement();
 			if (HasDeferredNativeHistory.exchange(false)) {
 				++Probes;
 				try {
 					DecisionLane.post([self = shared_from_this()] {
 						--self->Probes;
+						self->announce_retirement();
 						if (!self->Closing) {
 							auto choice      = std::exchange(self->DeferredNativeChoice, { });
 							auto observation = std::exchange(self->DeferredNativeHistory, { });
@@ -1429,6 +1580,7 @@ namespace bpr::application {
 		std::vector<core::agent_profile>     Profiles;
 		std::vector<core::agent_host_policy> Policies;
 		std::filesystem::path                WorkspaceParent;
+		std::filesystem::path                ScratchRoot;
 		agent_session_catalog_port&          Sessions;
 		agent_workspace_port&                Workspaces;
 		agent_process_port&                  Processes;
@@ -1560,6 +1712,29 @@ namespace bpr::application {
 			}
 		}
 
+		/// [[BPR-2181]]. Told on the decision lane each time the host is
+		/// quiescent after a run retired: the run's own retirement event,
+		/// so nothing watches for it on a timer. Decision lane only.
+		std::function<void()> RetiredObserver;
+
+		[[nodiscard]] auto quiescent() const noexcept -> bool
+		{
+			return ActiveJobs.load(std::memory_order_acquire) == 0U && Probes.load(std::memory_order_acquire) == 0U
+				&& (!NativeDrainRequested || Processes.native_connections_quiescent());
+		}
+
+		void announce_retirement() noexcept
+		{
+			try {
+				DecisionLane.post([weak = weak_from_this()] {
+					const auto self = weak.lock();
+					if (self && !self->Closing.load(std::memory_order_acquire) && self->RetiredObserver && self->quiescent()) {
+						self->RetiredObserver();
+					}
+				});
+			} catch (...) { }
+		}
+
 		std::function<void()> DeferredNativeHistory;
 		std::function<void()> DeferredNativeChoice;
 		std::atomic_bool      HasDeferredNativeHistory = false;
@@ -1677,6 +1852,11 @@ namespace bpr::application {
 		implementation->cancel();
 	}
 
+	void agent_invocation_host::set_scratch_root(std::filesystem::path aRoot)
+	{
+		Implementation->ScratchRoot = std::move(aRoot);
+	}
+
 	void agent_invocation_host::retry_cleanup()
 	{
 		const auto implementation = Implementation;
@@ -1685,9 +1865,12 @@ namespace bpr::application {
 
 	auto agent_invocation_host::is_quiescent() const noexcept -> bool
 	{
-		const auto implementation = Implementation;
-		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U && implementation->Probes.load(std::memory_order_acquire) == 0U
-			&& (!implementation->NativeDrainRequested || implementation->Processes.native_connections_quiescent());
+		return Implementation->quiescent();
+	}
+
+	void agent_invocation_host::set_retired_observer(std::function<void()> aObserver)
+	{
+		Implementation->RetiredObserver = std::move(aObserver);
 	}
 
 	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,

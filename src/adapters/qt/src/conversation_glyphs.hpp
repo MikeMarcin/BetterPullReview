@@ -65,6 +65,20 @@ namespace bpr::qt {
 		dismiss,
 		/// [[BPR-1741]]. Add reaction: a face with a plus.
 		react,
+		/// RFC-BPR-0127 (owner, Q1). Local, only on this computer: a computer
+		/// (a screen on its stand). It means Local and nothing else.
+		computer,
+		/// [[BPR-2171]]. Fold bots: a robot's head, its antenna and eyes.
+		bot,
+		/// [[BPR-2171]]. Only this file: a page with its corner turned.
+		file,
+		/// RFC-BPR-0127, owner look v003 ("can we do pencil with slash when
+		/// you're not allowed to make a draft"). Draft refused: the pencil
+		/// struck through.
+		edit_refused,
+		/// [[BPR-2172]]. A caution about the comment: a triangle with an
+		/// exclamation mark, as the platforms draw a warning.
+		warning,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

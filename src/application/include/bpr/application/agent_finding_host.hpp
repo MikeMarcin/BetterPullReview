@@ -79,8 +79,8 @@ namespace bpr::application {
 			= core::agent_finding_standing::delivered;
 		std::optional<core::review_comment_draft> Draft;
 		std::optional<core::defect_record>        Defect;
-		local_note_id                             Note;
-		std::optional<local_note_attachment>      Attachment;
+		local_comment_id                          Note;
+		std::optional<local_comment_attachment>   Attachment;
 
 		auto operator<=>(const agent_finding_action_request&) const = default;
 	};
@@ -153,7 +153,7 @@ namespace bpr::application {
 		std::optional<agent_delivered_finding>      Subject;
 		std::optional<core::review_draft_command>   Draft;
 		std::optional<core::defect_command>         Defect;
-		std::optional<local_note_record>            Note;
+		std::optional<local_comment_record>         Note;
 		std::optional<agent_note_promotion_failure> NoteFailure;
 
 		/// \brief Whether exactly one local artifact was produced.
@@ -240,8 +240,8 @@ namespace bpr::application {
 		/// complete answer and produces `note_not_stored`; otherwise the
 		/// answer arrives later, once, on the decision lane.
 		using promoted_note_store = std::function<bool(
-			const local_note_record&,
-			std::function<void(std::expected<local_note_record, local_note_failure>)>)>;
+			const local_comment_record&,
+			std::function<void(std::expected<local_comment_record, local_comment_failure>)>)>;
 
 		agent_finding_host(
 			promoted_note_store            aStore,

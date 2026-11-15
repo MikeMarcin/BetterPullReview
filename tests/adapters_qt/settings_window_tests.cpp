@@ -1,5 +1,6 @@
 /// \file
 /// \brief Proves the Settings window places panels and holds no state of its own.
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -285,7 +286,7 @@ namespace {
 		for (auto row = 0; row < settings->sidebar()->count(); ++row) {
 			pages.push_back(settings->sidebar()->item(row)->text());
 		}
-		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents & context"), QStringLiteral("Storage & privacy") },
+		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents & context"), QStringLiteral("Prompts"), QStringLiteral("Storage & privacy") },
 			   "the sidebar is General, Accounts & hosts, Repositories, Home & queue, Review, Comments, then the rest as before");
 		for (auto index = std::size_t{ 0U }; index < qt::settings_page_count; ++index) {
 			const auto page = static_cast<qt::settings_page>(index);
@@ -485,11 +486,19 @@ namespace {
 		expect(page->findChild<QListWidget*>(QStringLiteral("settingsAgentList")) != nullptr && page->findChild<QPushButton*>(QStringLiteral("settingsAddAgent")) != nullptr,
 			   "the page is the agent list with Add agent…");
 		// [[BPR-1753]]. The review skill's Restore default has its own
-		// "Save my copy to Downloads first", and the run limit its toggle;
-		// neither is a sign-in switch.
+		// "Save my copy to Downloads first", the run limit its toggle, and
+		// (RFC-BPR-0104 as amended 2026-11-11) the scratch folders how long
+		// an unused one is kept; none is a sign-in switch.
 		const auto boxes = page->findChildren<QCheckBox*>();
-		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 1,
-			   "no sign-in switch is offered; the only other check box is the private draft");
+		expect(std::ranges::count_if(boxes,
+									 [](const QCheckBox* aBox) {
+										 return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn")
+											 && aBox->objectName() != QStringLiteral("settingsScratchKeepOn");
+									 })
+				   == 0,
+			   "no sign-in switch is offered, and [[BPR-2051]] the next request's choices left the page (the footer picks the agent; the Agent tab what a question includes)");
+		expect(page->findChild<QWidget*>(QStringLiteral("settingsNextRequest")) == nullptr && page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile")) == nullptr,
+			   "[[BPR-2051]] the page opens on the agents roster");
 		auto* const settings = workbench.settings();
 		settings->search_field()->setText(QStringLiteral("process wrapper"));
 		expect(!result_names(*settings).contains(QStringLiteral("Process wrapper")), "search finds no wrapper row");
@@ -501,10 +510,10 @@ namespace {
 	{
 		qt::workbench_window workbench;
 		auto* const          settings = workbench.settings();
-		settings->search_field()->setText(QStringLiteral("private draft"));
-		expect(result_names(*settings).contains(QStringLiteral("Private draft")), "a setting on a page is found");
+		settings->search_field()->setText(QStringLiteral("stop a run"));
+		expect(result_names(*settings).contains(QStringLiteral("Stop a run after")), "a setting on a page is found");
 		settings->withdraw_page(qt::settings_page::agents_and_context);
-		expect(!result_names(*settings).contains(QStringLiteral("Private draft"))
+		expect(!result_names(*settings).contains(QStringLiteral("Stop a run after"))
 				   && !result_names(*settings).contains(QStringLiteral("Agents & context")),
 			   "a withdrawn page never appears");
 		auto* const panel  = new QWidget;
@@ -545,9 +554,68 @@ namespace {
 	}
 } // namespace
 
+/// \brief [[BPR-2051]], owner decision 2026-11-11 (mockup "A · Roster").
+/// `--agents-roster FOLDER` saves Settings › Agents & context with three
+/// agents: one passed, one not signed in, one never checked. Run it under
+/// `BPR_NATIVE_LOOK` with each `BPR_NATIVE_LOOK_SCHEME` for the owner's look.
+void render_agents_roster(const QString& aFolder, const bool aLook = false)
+{
+	qt::workbench_window window;
+	auto                 preferences = application::agent_setup_preferences{ };
+	auto                 claude      = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, "/opt/homebrew/bin/claude");
+	claude.Model                     = "claude-opus-5-5";
+	claude.Effort                    = "high";
+	preferences.Agents               = *core::add_agent_entry({ }, claude);
+	preferences.Agents               = *core::add_agent_entry(preferences.Agents, core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, "/opt/homebrew/bin/codex"));
+	preferences.Agents               = *core::add_agent_entry(preferences.Agents, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude-wrapper", .Model = "claude-sonnet-5-5", .Effort = "medium" });
+	// [[BPR-2007]], [[BPR-2008]]. Codex may build and test; Work Claude's
+	// scratch folder starts off; Claude Code keeps the defaults.
+	preferences.Agents[1].BuildsAndTests = true;
+	preferences.Agents[2].ScratchStarts  = false;
+	preferences.EntryChecks              = { { .Id = preferences.Agents[0].Id, .Check = { .State = core::setup_check_state::passed, .Version = "2.1.321" } },
+											 { .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::not_signed_in) } };
+	window.agent_programs()->present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+	// RFC-BPR-0104 as amended 2026-11-11: what the scratch folders hold.
+	window.agent_programs()->present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 41U * 1024U * 1024U + 300U * 1024U, 3U });
+	if (aLook) {
+		// A row's sheet opens and its OK answers; nothing is kept. Clear
+		// scratch folders answers as the application does.
+		window.agent_programs()->set_dispatch({ .CheckAll = [] { }, .CheckEntry = [](std::uint32_t) { }, .Update = [](core::agent_entry, qt::agent_programs_panel::answer aAnswer) { aAnswer(std::nullopt); }, .SetScratchPolicy = [](std::uint32_t, std::uint32_t) { return true; }, .ClearScratch = [&window] { window.agent_programs()->present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, QStringLiteral("Cleared 41.3 MB from 3 folders.")); } });
+	}
+	auto* const settings = window.settings();
+	settings->resize(980, 760);
+	settings->present(qt::settings_page::agents_and_context);
+	settings->show();
+	for (int pass = 0; pass < 4; ++pass) {
+		QApplication::processEvents();
+	}
+	if (aLook) {
+		// The owner's look: the page live. Rows open their sheet, their menu
+		// checks, moves or removes (nothing is saved: no host behind it).
+		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: the scratch folder limit, how long unused folders are kept, what they hold, and Clear scratch folders"));
+		QApplication::exec();
+		return;
+	}
+	const auto scheme = qEnvironmentVariable("BPR_NATIVE_LOOK_SCHEME", QStringLiteral("light"));
+	expect(settings->grab().save(QStringLiteral("%1/agents-roster-%2.png").arg(aFolder, scheme)), "the roster render saves");
+	auto* const programs = window.agent_programs();
+	expect(programs->roster_row_text(0).contains(QStringLiteral("Signed in, version 2.1.321")) && programs->roster_row_text(1).contains(QStringLiteral("Not signed in"))
+			   && programs->roster_row_text(1).contains(QStringLiteral("codex login")) && programs->roster_row_text(2).contains(QStringLiteral("Not checked")),
+		   "each row says its kept check");
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (argc > 1 && std::string_view{ argv[1] } == "--agents-roster-look") {
+		render_agents_roster({ }, true);
+		return EXIT_SUCCESS;
+	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--agents-roster") {
+		render_agents_roster(QString::fromLocal8Bit(argv[2]));
+		std::cout << "settings-window:rendered\n";
+		return EXIT_SUCCESS;
+	}
 	test_composed_pages_fit_and_render_at_minimum_size();
 	test_large_page_scrolls_without_growing_the_window();
 	test_close_cancels_preview_without_destroying_accepted_controls();
@@ -560,9 +628,11 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 9 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Comments" && hook->item(6)->text() == "Review feedback" && hook->item(7)->text() == "Agent tab"
-				   && hook->item(8)->text() == "Review skill" && !text->toPlainText().isEmpty(),
-			   "[[BPR-1917]] every built-in prompt is listed under where it is used: four tour prompts, review feedback and the review skill");
+		expect(hook->count() == 20 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
+				   && hook->item(8)->text() == "Enhance writing" && hook->item(9)->text() == "Local drafts" && hook->item(10)->text() == "Description writing"
+				   && hook->item(11)->text() == "Change discussion" && hook->item(12)->text() == "Commit message" && hook->item(13)->text() == "Agent tab" && hook->item(14)->text() == "Suggested comments"
+				   && hook->item(15)->text() == "What changed" && hook->item(16)->text() == "Was this addressed" && hook->item(17)->text() == "Explain this file" && hook->item(18)->text() == "Suggest the change" && hook->item(19)->text() == "Review skill" && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill");
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
@@ -580,7 +650,7 @@ auto main(int argc, char** argv) -> int
 		auto* source = panel->findChild<QLabel*>("writingHookSource");
 		auto* test   = panel->findChild<QPushButton*>("writingHookTest");
 		panel->select_hook(core::writing_hook::comment);
-		expect(scope->isHidden() && test->isEnabled() && source->text().contains("review-preparation-v1"), "a tour hook shows no feedback line and can be tested");
+		expect(scope->isHidden() && test->isEnabled() && source->text().contains("tour-stop-comment-v2"), "a tour hook shows no feedback line and can be tested");
 		panel->select_hook(core::writing_hook::feedback);
 		expect(panel->selected_hook() == core::writing_hook::feedback && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "the feedback row previews the shipped guidance");
 		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v1"), "with the label helper off the row says the guidance is off");
@@ -596,6 +666,33 @@ auto main(int argc, char** argv) -> int
 		expect(settings.Overrides[4].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
 		panel->present_label_helper(application::review_label_helper::off);
 		expect(scope->text().startsWith("Off."), "and turning the helper off again says so");
+		// [[BPR-2051]] Each Enhance prompt: its own default and version, its
+		// own override, and its restore; the others are untouched.
+		for (const auto [enhance, version] : std::array{ std::pair{ core::writing_hook::enhance_stop, "enhance-tour-stop-v1" }, std::pair{ core::writing_hook::enhance_writing, "enhance-writing-v1" } }) {
+			const auto index = static_cast<std::size_t>(enhance);
+			panel->select_hook(enhance);
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(enhance) && source->text().contains(QString::fromLatin1(version)) && scope->isHidden() && test->isEnabled(),
+				   "an Enhance prompt shows its shipped text and version, and can be tested");
+			text->setPlainText("Our voice");
+			panel->findChild<QPushButton*>("writingHookSave")->click();
+			expect(settings.Overrides[index] == "Our voice" && settings.Overrides[0] == "precise" && source->text().contains("Changed from built-in"), "its override is its own");
+			panel->findChild<QPushButton*>("writingHookReset")->click();
+			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(enhance), "Reset to built-in restores it in one click");
+		}
+		// [[BPR-2059]] The suggested-comment format: its shipped text and
+		// version, its own override and Reset; Test does not apply to it.
+		{
+			const auto index = static_cast<std::size_t>(core::writing_hook::suggested_comment);
+			panel->select_hook(core::writing_hook::suggested_comment);
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v1"))
+					   && !test->isEnabled(),
+				   "the suggested-comment format shows its shipped text and version");
+			text->setPlainText("Short comments");
+			panel->findChild<QPushButton*>("writingHookSave")->click();
+			expect(settings.Overrides[index] == "Short comments" && settings.Overrides[0] == "precise", "its override is its own");
+			panel->findChild<QPushButton*>("writingHookReset")->click();
+			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment), "Reset to built-in restores it");
+		}
 		// For a look at the row as drawn, when BPR_SETTINGS_RENDER_DIR is set.
 		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
 			window.settings()->present(qt::settings_page::agents_and_context);
@@ -609,6 +706,10 @@ auto main(int argc, char** argv) -> int
 			panel->select_hook(core::writing_hook::problem);
 			QApplication::processEvents();
 			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-problem.png")), "the problem row render is saved");
+			// [[BPR-2059]] The suggested-comment format, as shipped.
+			panel->select_hook(core::writing_hook::suggested_comment);
+			QApplication::processEvents();
+			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-suggested-comment.png")), "the suggested-comment row render is saved");
 		}
 	}
 	{
@@ -633,7 +734,9 @@ auto main(int argc, char** argv) -> int
 		expect(badge->text() == "Built-in" && !save->isEnabled() && !reset->isEnabled() && row_marker(1).isEmpty(), "a built-in prompt says so and has nothing to save or reset");
 		const auto builtIn = text->toPlainText();
 		text->setPlainText(builtIn + "\nUse /fixture-technical-writer.");
-		expect(save->isEnabled() && row_marker(1) == "Unsaved" && state->text().startsWith("Unsaved"), "an edit is marked unsaved, in the list too");
+		// [[BPR-2179]]: in the Prompts library a system prompt saves as it is
+		// typed; until it does, it says so.
+		expect(save->isEnabled() && row_marker(1) == "Unsaved" && (state->text().startsWith("Unsaved") || state->text() == QStringLiteral("Saving\u2026")), "an edit is marked unsaved, in the list too");
 		panel->select_hook(core::writing_hook::solution);
 		panel->select_hook(core::writing_hook::problem);
 		expect(text->toPlainText().endsWith("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U, "moving to another prompt keeps the unsaved edit");
@@ -651,7 +754,9 @@ auto main(int argc, char** argv) -> int
 		const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR");
 		const auto render    = [&](const QString& aName) {
 			if (!directory.isEmpty()) {
-				window.settings()->present(qt::settings_page::agents_and_context);
+				// [[BPR-2179]]: the system prompts are in Prompts' library.
+				window.settings()->present(qt::settings_page::prompts);
+				window.prompts()->select_system(static_cast<int>(core::writing_hook::problem));
 				window.settings()->resize(1100, 900);
 				panel->resize(900, 640);
 				QApplication::processEvents();
@@ -662,7 +767,8 @@ auto main(int argc, char** argv) -> int
 		panel->show_preview(false);
 		render(QStringLiteral("prompt-editor-changed.png"));
 		// Completion while typing, with each skill's source.
-		window.settings()->present(qt::settings_page::agents_and_context);
+		window.settings()->present(qt::settings_page::prompts);
+		window.prompts()->select_system(static_cast<int>(core::writing_hook::problem));
 		window.settings()->show();
 		text->setFocus();
 		QApplication::processEvents();

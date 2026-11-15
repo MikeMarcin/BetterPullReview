@@ -102,6 +102,9 @@ namespace bpr::application {
 		/// returns that moved that row's read to the front of a running refresh.
 		std::uint64_t ReturnReads      = 0U;
 		std::uint64_t ReturnPromotions = 0U;
+		/// [[BPR-2048]]. Retained pull requests whose own read exceeded the
+		/// response limits; each marked on its row, none failing a refresh.
+		std::uint64_t TooLarge = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};

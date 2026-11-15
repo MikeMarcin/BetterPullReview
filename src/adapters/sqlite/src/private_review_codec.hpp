@@ -196,6 +196,7 @@ namespace bpr::adapters::sqlite::detail {
 	inline void fields(private_codec& aCodec, core::review_composition_revision& aValue) { aCodec.values(aValue.Identity, aValue.SourceSetDigest, aValue.Actor, aValue.Body, aValue.Derivation); }
 	inline void fields(private_codec& aCodec, core::review_composition_link& aValue) { aCodec.values(aValue.Scope, aValue.Composition, aValue.Revision, aValue.BodyDigest); }
 	inline void fields(private_codec& aCodec, core::review_pending_mark& aValue) { aCodec.values(aValue.Path, aValue.Head, aValue.Submission); }
+	inline void fields(private_codec& aCodec, core::review_draft_place& aValue) { aCodec.values(aValue.Path, aValue.ReviewHead); }
 	inline void fields(private_codec& aCodec, core::review_comment_draft& aValue) { aCodec.values(aValue.Id, aValue.Anchor, aValue.Body, aValue.State, aValue.ReplyToThread); }
 	inline void fields(private_codec& aCodec, core::revisioned_review_draft& aValue) { aCodec.values(aValue.Draft, aValue.Revision, aValue.Scope, aValue.Composition); }
 	inline void fields(private_codec& aCodec, application::private_composition_record& aValue) { aCodec.values(aValue.State, aValue.Version, aValue.Sources); }
@@ -213,8 +214,12 @@ namespace bpr::adapters::sqlite::detail {
 		// first line, then its pending mark. Every other draft keeps its
 		// version 1 or 2 bytes, and every stored one reads as not pending.
 		if constexpr (std::is_same_v<T, application::private_draft_record>) {
-			version = aValue.Draft.Draft.InReview ? 3 : aValue.Draft.Draft.StartLine ? 2
-																					 : 1;
+			// [[BPR-2092]]. A draft that records where it was written is
+			// version 4: version 3's optional first line and optional pending
+			// mark, then its place. Every other draft keeps its earlier bytes.
+			version = aValue.Draft.Draft.Place ? 4 : aValue.Draft.Draft.InReview ? 3
+				: aValue.Draft.Draft.StartLine                                   ? 2
+																				 : 1;
 		}
 		codec.value(version);
 		codec.value(aValue);
@@ -228,6 +233,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (version == 3) {
 				codec.value(aValue.Draft.Draft.StartLine);
 				codec.value(*aValue.Draft.Draft.InReview);
+			}
+			if (version == 4) {
+				codec.value(aValue.Draft.Draft.StartLine);
+				codec.value(aValue.Draft.Draft.InReview);
+				codec.value(*aValue.Draft.Draft.Place);
 			}
 		}
 		if constexpr (std::is_same_v<T, application::private_publication_record>) {
@@ -250,7 +260,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::uint64_t version = 0;
 		codec.value(version);
 		if (version != 1 && !((std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record> || std::is_same_v<T, application::private_draft_record>) && version == 2)
-			&& !(std::is_same_v<T, application::private_draft_record> && version == 3)) {
+			&& !(std::is_same_v<T, application::private_draft_record> && (version == 3 || version == 4))) {
 			return { };
 		}
 		T result{ };
@@ -276,6 +286,13 @@ namespace bpr::adapters::sqlite::detail {
 				auto mark = core::review_pending_mark{ };
 				codec.value(mark);
 				result.Draft.Draft.InReview = std::move(mark);
+			}
+			if (version == 4) {
+				codec.value(result.Draft.Draft.StartLine);
+				codec.value(result.Draft.Draft.InReview);
+				auto place = core::review_draft_place{ };
+				codec.value(place);
+				result.Draft.Draft.Place = std::move(place);
 			}
 		}
 		if (!codec.Good || !codec.Input.empty()) {

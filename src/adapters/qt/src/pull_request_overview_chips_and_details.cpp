@@ -108,6 +108,20 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::activate_chip(const QModelIndex& aCell, const overview_comment_chip& aChip)
 	{
+		// [[BPR-2093]]. My drafts: Threads lists them, from this row's.
+		if (aChip.Kind == overview_comment_chip::kind::drafts) {
+			if (DraftsDispatch) {
+				DraftsDispatch(Model->path_at(aCell));
+			}
+			return;
+		}
+		// RFC-BPR-0127 ([[BPR-2159]]). My Local comments: Threads on Local.
+		if (aChip.Kind == overview_comment_chip::kind::local) {
+			if (LocalDispatch) {
+				LocalDispatch(Model->path_at(aCell));
+			}
+			return;
+		}
 		const auto row = Model->feedback_row(aCell);
 		if (!row) {
 			return;
@@ -126,6 +140,9 @@ namespace bpr::qt {
 			break;
 		case overview_comment_chip::kind::more:
 			open_comments_menu(aCell, Files->viewport()->mapToGlobal(aChip.Box.bottomLeft().toPoint()));
+			break;
+		case overview_comment_chip::kind::drafts:
+		case overview_comment_chip::kind::local:
 			break;
 		}
 	}

@@ -46,6 +46,11 @@ namespace bpr::core {
 		/// Anything else is a policy refusal (`invalid_review_mark`).
 		bool                               ChangePending = false;
 		std::optional<review_pending_mark> Pending       = { };
+		/// [[BPR-2092]]. With an edit, records where the draft was written
+		/// (`valid(review_draft_place)`); none forgets it. Anything else is an
+		/// invalid command.
+		bool                              ChangePlace = false;
+		std::optional<review_draft_place> Place       = { };
 	};
 	enum class revisioned_draft_refusal : std::uint8_t { none,
 														 conflict,

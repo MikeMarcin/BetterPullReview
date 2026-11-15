@@ -6,6 +6,8 @@
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QInputMethodEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
 #include <QPlainTextEdit>
@@ -151,17 +153,17 @@ namespace bpr::qt {
 		}
 
 		Members.NoteOptIn = new QCheckBox{
-			QStringLiteral("Include my private notes"), this
+			QStringLiteral("Include my local comments"), this
 		};
 		Members.NoteOptIn->setObjectName(QStringLiteral("sideChatNoteOptIn"));
 		Members.NoteOptIn->setAccessibleName(
-			QStringLiteral("Include private notes in this session"));
+			QStringLiteral("Include local comments in this session"));
 		Members.DraftOptIn = new QCheckBox{
-			QStringLiteral("Include my unpublished drafts"), this
+			QStringLiteral("Include my drafts"), this
 		};
 		Members.DraftOptIn->setObjectName(QStringLiteral("sideChatDraftOptIn"));
 		Members.DraftOptIn->setAccessibleName(
-			QStringLiteral("Include unpublished drafts in this session"));
+			QStringLiteral("Include drafts in this session"));
 
 		Members.Composer = new QPlainTextEdit{ this };
 		Members.Composer->setObjectName(QStringLiteral("sideChatComposer"));
@@ -169,6 +171,8 @@ namespace bpr::qt {
 			QStringLiteral("Message to the agent"));
 		Members.Composer->setPlaceholderText(
 			QStringLiteral("Ask about the selected lines"));
+		Members.Composer->setToolTip(tr("Return sends. Shift+Return starts a new line."));
+		Members.Composer->installEventFilter(this);
 
 		auto* const layout = new QVBoxLayout{ this };
 		auto* const form   = new QFormLayout{ };
@@ -240,9 +244,11 @@ namespace bpr::qt {
 			Members.Dispatch(send_chat_message_intent{
 				.Session = Members.Shown->Session.Id,
 				.Action  = core::agent_action_intent{
-					Members.Shown->EntryPoint },
-				.Scope = Members.Shown->Chat.Scope,
-				.Text  = Members.Composer->toPlainText().toStdString(),
+					Members.Question ? Members.Question->EntryPoint : Members.Shown->EntryPoint },
+				.Scope     = Members.Shown->Chat.Scope,
+				.Text      = Members.Composer->toPlainText().toStdString(),
+				.Question  = Members.Question,
+				.SkillText = Members.SkillText,
 			});
 		});
 		connect(Members.AddContext, &QAction::triggered, this, [this]() {
@@ -291,6 +297,29 @@ namespace bpr::qt {
 	{
 		Members.Dispatch = std::move(aDispatch);
 	}
+
+	auto side_chat_panel::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
+	{
+		// While an input method composes, Return is its own.
+		if (aWatched == Members.Composer && aEvent->type() == QEvent::InputMethod) {
+			Members.Composer->setProperty("bprInputComposing", !static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty());
+		}
+		if (aWatched == Members.Composer && aEvent->type() == QEvent::KeyPress && !Members.Composer->property("bprInputComposing").toBool()) {
+			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
+			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !modifiers.testFlag(Qt::ShiftModifier) && !modifiers.testFlag(Qt::AltModifier)) {
+				if (!Members.Composer->toPlainText().trimmed().isEmpty() && Members.Send->isEnabled()) {
+					Members.Send->trigger();
+				}
+				return true;
+			}
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
+	}
+
+	void side_chat_panel::set_question(std::optional<core::agent_question> aQuestion) { Members.Question = std::move(aQuestion); }
+
+	void side_chat_panel::set_skill_text(std::optional<std::string> aSkillText) { Members.SkillText = std::move(aSkillText); }
 
 	void side_chat_panel::present(const side_chat_projection& aProjection)
 	{

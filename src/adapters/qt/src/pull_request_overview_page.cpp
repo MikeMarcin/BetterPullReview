@@ -136,14 +136,15 @@ namespace bpr::qt {
 				return QStringLiteral("Checks");
 			case overview_value::files_read:
 				return QStringLiteral("Files read");
-			case overview_value::private_notes:
-				return QStringLiteral("Private notes");
-			case overview_value::drafted_comments:
+			case overview_value::in_review:
+				return QStringLiteral("In review");
+			case overview_value::not_in_review:
+				return QStringLiteral("Not in review");
+			case overview_value::local_comments:
 				break;
 			}
-			// [[BPR-1589]]. My comments not yet published, as Compose review
-			// lists them.
-			return QStringLiteral("Pending comments");
+			// RFC-BPR-0127 ([[BPR-2159]]). My comments by state.
+			return QStringLiteral("Local comments");
 		}
 
 		[[nodiscard]] auto value_object_name(const overview_value aValue) -> QString
@@ -163,12 +164,14 @@ namespace bpr::qt {
 				return QStringLiteral("overviewChecksValue");
 			case overview_value::files_read:
 				return QStringLiteral("overviewFilesReadValue");
-			case overview_value::private_notes:
-				return QStringLiteral("overviewPrivateNotesValue");
-			case overview_value::drafted_comments:
+			case overview_value::in_review:
+				return QStringLiteral("overviewInReviewValue");
+			case overview_value::not_in_review:
+				return QStringLiteral("overviewNotInReviewValue");
+			case overview_value::local_comments:
 				break;
 			}
-			return QStringLiteral("overviewDraftedCommentsValue");
+			return QStringLiteral("overviewLocalCommentsValue");
 		}
 
 		void expand_new_folders(QTreeView& aView, const QModelIndex& aParent, const int aFirst, const int aLast)
@@ -566,7 +569,7 @@ namespace bpr::qt {
 		Files->setAccessibleName(QStringLiteral("Files table"));
 		const auto keysHelp = QStringLiteral(
 			"Every file with its operation, line counts, whether it changed "
-			"since my last review, my read state, comment counts and my note; "
+			"since my last review, my read state and comment counts; "
 			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files; "
 			"%1; "
 			"Tab steps from a row onto its comment chips, Enter or Space lists a chip's threads and Escape returns to the row; "
@@ -590,10 +593,13 @@ namespace bpr::qt {
 		Files->setEditTriggers(QAbstractItemView::NoEditTriggers);
 		// [[BPR-1363]]. Each column as wide as the widest cell of the whole
 		// tree, every file whether its folder is open or not, so opening or
-		// closing a folder, a scroll or a refresh moves no column; Note takes
-		// the rest. Delegate measures stay bounded on a large review: only the
+		// closing a folder, a scroll or a refresh moves no column. RFC-BPR-0127
+		// ([[BPR-2159]]): the Note column that took the rest is gone. No column
+		// fills its place, as a native list leaves the space after its last
+		// column: File keeps the width a drag gives it, and Comments its
+		// chips' width, its count and chips together. Delegate measures stay bounded on a large review: only the
 		// widest few cells by their text are measured.
-		FileColumns = new steady_columns{ *Files, overview_file_model::note_column, [](const QModelIndex& aIndex) {
+		FileColumns = new steady_columns{ *Files, -1, [](const QModelIndex& aIndex) {
 											 return aIndex.data(overview_file_model::folder_role).toBool() ? 1 : 0;
 										 } };
 		connect(Model, &QAbstractItemModel::rowsInserted, this,
@@ -655,7 +661,8 @@ namespace bpr::qt {
 		anchor_tooltips(*Files->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
 			if (const auto chip = chip_at(aPosition)) {
 				const auto* counts = Model->feedback_at(chip->first);
-				return anchored_tooltip_target{ .Anchor = chip->second.Box.toAlignedRect(), .Text = chip_tooltip(chip->second, *counts, any_columns(Model->feedback())) };
+				const auto  tip    = chip->second.Kind == overview_comment_chip::kind::drafts ? overview_drafts_text(chip->second) : chip_tooltip(chip->second, *counts, any_columns(Model->feedback()));
+				return anchored_tooltip_target{ .Anchor = chip->second.Box.toAlignedRect(), .Text = tip };
 			}
 			const auto index = Files->indexAt(aPosition);
 			const auto text  = index.isValid() ? index.data(Qt::ToolTipRole).toString() : QString{ };
@@ -766,6 +773,7 @@ namespace bpr::qt {
 			bodyLayout->setContentsMargins(4, 0, 4, 0);
 			bodyLayout->setSpacing(2);
 			column->addWidget(body);
+			parts.Body                = body;
 			parts.Details             = new QWidget{ parts.Frame };
 			auto* const detailsLayout = new QVBoxLayout{ parts.Details };
 			detailsLayout->setContentsMargins(4, 8, 4, 2);
@@ -824,7 +832,7 @@ namespace bpr::qt {
 		attention.Details->addWidget(RequirementDetails);
 		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) { RequirementDetails->setVisible(aOpen); });
 
-		// My review: files read with a bar, my notes and pending comments, and
+		// My review: files read with a bar, my comments by state, and
 		// the threads with posts I have not read, with Go to them. It opens to
 		// what happened since my last review that has a value.
 		const auto  myReview = makeSection(overview_status_section::my_review, QStringLiteral("My review"), QStringLiteral("overviewMyReviewSection"));
@@ -834,8 +842,9 @@ namespace bpr::qt {
 		ReadMeter->setObjectName(QStringLiteral("overviewReadMeter"));
 		myReview.Body->addWidget(ReadMeter);
 		myReview.Body->addSpacing(4);
-		addValue(myReview.Body, overview_value::private_notes);
-		addValue(myReview.Body, overview_value::drafted_comments);
+		addValue(myReview.Body, overview_value::in_review);
+		addValue(myReview.Body, overview_value::not_in_review);
+		addValue(myReview.Body, overview_value::local_comments);
 		NewThreadsRow = new QWidget{ myBody };
 		NewThreadsRow->setObjectName(QStringLiteral("overviewNewThreads"));
 		auto* const newLayout = new QHBoxLayout{ NewThreadsRow };
@@ -1041,6 +1050,26 @@ namespace bpr::qt {
 		Veils.Header->set_announces(false);
 		Veils.Description->set_announces(false);
 		Veils.Side->set_announces(false);
+		// [[BPR-2180]]. The owner, rejecting People alone on 2026-11-14: "It
+		// feels like there should be more that one section on the status
+		// drawer with separate loading." Each section stands in its place
+		// under its heading and waits in its own shape for its own part of
+		// the read; the heading names it, so its placeholders take the words'
+		// place.
+		const auto section = [this](const overview_status_section aSection, const pending_shape aShape, const QString& aName, const int aCount) {
+			auto* const veil = new pending_veil{ *this, aShape, aName, Sections[static_cast<std::size_t>(aSection)].Body };
+			veil->set_announces(false);
+			veil->set_words_beside(true);
+			veil->set_placeholder_count(aCount);
+			return veil;
+		};
+		Veils.Merge    = section(overview_status_section::attention, pending_shape::pairs, QStringLiteral("Needs attention"), 2);
+		Veils.MyReview = section(overview_status_section::my_review, pending_shape::pairs, QStringLiteral("My review"), 4);
+		Veils.Checks   = section(overview_status_section::checks, pending_shape::rows, QStringLiteral("Checks"), 2);
+		Veils.People   = section(overview_status_section::people, pending_shape::people, QStringLiteral("People"), 3);
+		Veils.Roster   = new pending_veil{ *this, pending_shape::people, QStringLiteral("Participants"), Sections[static_cast<std::size_t>(overview_status_section::people)].Details };
+		Veils.Roster->set_announces(false);
+		Veils.Roster->set_words_beside(true);
 		clear();
 	}
 }

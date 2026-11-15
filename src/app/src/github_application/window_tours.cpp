@@ -1,11 +1,15 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
@@ -196,6 +200,11 @@ namespace bpr::app {
 	{
 		PendingTourSource.reset();
 		++TourRepairGeneration;
+		++TourMaterialGeneration;
+		TourMaterialRequests.clear();
+		TourMaterialReading = false;
+		// Re-review finding 3: what was asked and is now dropped is asked again.
+		TourMaterial.dropped();
 		TourRepairComparisons.clear();
 		TourRepairFiles.clear();
 		TourRepairCommand.reset();
@@ -214,7 +223,9 @@ namespace bpr::app {
 			return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 		});
 		Window->prepare_tour_action()->setEnabled(false);
-		Window->tour_editor()->present({ });
+		if (!local_tour_shown()) {
+			Window->tour_editor()->present({ });
+		}
 	}
 
 	/// The draft this window holds in memory for an opaque selector, current or retired; decision lane.
@@ -231,7 +242,7 @@ namespace bpr::app {
 			return tour_draft_token(target) == aSelector;
 		};
 		if (TourHost && matches(*TourHost)) {
-			return { TourHost.get(), true, Window && Window->tour_editor()->composing() };
+			return { TourHost.get(), true, Window && Window->tour_editor()->composing(), tour_changed_files() };
 		}
 		for (const auto& retained : RetiredTourHosts) {
 			if (matches(*retained.Host)) {
@@ -421,13 +432,24 @@ namespace bpr::app {
 			refresh_tour_imports();
 			return;
 		}
+		// [[BPR-2051]]. Another pull request: the footer's total is this one's.
+		TourFooterCosts = { };
+		if (Window != nullptr && Window->agent_footer_widget() != nullptr) {
+			for (const auto place : { qt::agent_footer_place::tour_chat, qt::agent_footer_place::enhance, qt::agent_footer_place::draft_tour, qt::agent_footer_place::tour_tab }) {
+				Window->agent_footer_widget()->present_cost(place, std::nullopt);
+			}
+		}
 		suspend_review_tour();
 		if (const auto found = std::ranges::find(RetiredTourHosts, owner, &retained_tour_host::Owner); found != RetiredTourHosts.end()) {
 			TourHost = std::move(found->Host);
 			RetiredTourHosts.erase(found);
-			TourOwner         = owner;
-			TourAttentionHead = { };
-			Window->tour_editor()->present(TourHost->presentation());
+			TourOwner          = owner;
+			TourAttentionHead  = { };
+			auto shown         = TourHost->presentation();
+			shown.ChangedFiles = tour_changed_files();
+			if (!local_tour_shown()) {
+				Window->tour_editor()->present(shown);
+			}
 			Window->prepare_tour_action()->setEnabled(static_cast<bool>(TourHost->presentation().Draft));
 			observe_tour_head();
 			return;
@@ -438,14 +460,25 @@ namespace bpr::app {
 		}
 		TourOwner         = owner;
 		TourAttentionHead = { };
-		auto       seed   = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
-		const auto weak   = std::weak_ptr<const int>{ WindowLifetime };
-		TourHost          = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
-																			[this, weak, owner](const application::tour_presentation& aProjection) {
+		// RFC-BPR-0110 X19: a pull request made from a local draft keeps its
+		// accepted description; publishing its tour starts with the option off.
+		if (DraftDesktop && WindowRead->accepted_snapshot()) {
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto& marks    = DraftDesktop->host().home().Marks;
+			const auto  local    = std::ranges::any_of(marks, [&snapshot](const application::local_draft_mark& aMark) {
+				return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
+			});
+			Window->tour_editor()->set_description_publication_default(core::update_description_by_default(local));
+		}
+		auto       seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
+		const auto weak = std::weak_ptr<const int>{ WindowLifetime };
+		TourHost        = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
+																		  [this, weak, owner](const application::tour_presentation& aProjection) {
 																	   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																		   return;
 																	   }
-																	   auto projected = aProjection;
+																	   auto projected         = aProjection;
+																	   projected.ChangedFiles = tour_changed_files();
 																	   if (projected.Draft && WindowRead->accepted_snapshot()) {
 																		   const auto& snapshot = *WindowRead->accepted_snapshot();
 																		   if (const auto* profile = find_profile(snapshot.Profile)) {
@@ -465,17 +498,21 @@ namespace bpr::app {
 																			   }
 																		   }
 																	   }
-																	   Window->tour_editor()->present(projected);
+																	   if (!local_tour_shown()) {
+																		   Window->tour_editor()->present(projected);
+																	   }
 #if defined(BPR_AGENT_INTEGRATIONS)
 																	   // [[BPR-1931]]. Undo reset goes once the tour changes.
 																	   present_tour_reset();
 #endif
 																	   finish_pending_tour_start(projected);
+																	   carry_local_tour(projected);
 																	   if (TourPublication) {
 																		   TourPublication->observe(projected);
 																	   }
 																	   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																	   observe_tour_head();
+																	   check_tour_material();
 																   });
 		TourHost->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 		TourHost->start();
@@ -525,6 +562,27 @@ namespace bpr::app {
 		TourHost->observe_imports(observe_published_tours(seed, snapshot, profile->hostname()));
 	}
 
+	auto github_application::implementation::tour_permalink(const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) const -> std::optional<std::string>
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (!draft || !WindowRead->accepted_snapshot() || aFirst == 0U || aLast < aFirst) {
+			return std::nullopt;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		const auto* profile  = find_profile(snapshot.Profile);
+		if (profile == nullptr) {
+			return std::nullopt;
+		}
+		const auto scope       = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+		auto       destination = core::tour_code_destination{ };
+		destination.Commit     = aBefore ? draft->Base : draft->Head;
+		destination.Path       = aPath;
+		destination.Side       = aBefore ? core::diff_side::left : core::diff_side::right;
+		destination.FirstLine  = aFirst - 1U;
+		destination.LastLine   = aLast - 1U;
+		return adapters::github::detail::compile_tour_permalink(scope, destination);
+	}
+
 	/// [[BPR-1900]]. Whether the tour session can take a request now: its
 	/// own host is idle and no run of it is still running. The Agent tab's
 	/// chat being busy does not matter.
@@ -560,6 +618,12 @@ namespace bpr::app {
 		const auto projectedGeneration = TourIdleObservationGeneration;
 		const auto idle                = tour_session_idle();
 		editor->set_tour_host_idle(idle);
+		if (idle) {
+			// Feedback left from a draft no window has any more comes back
+			// to the chat as not sent (deferred out of the presentation).
+			QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
+		}
+
 		// A presentation callback can replace either identity or an observer.
 		// Never let the older refresh overwrite that reentrant observation.
 		if (Closing || !Window || !editor || Window->tour_editor() != editor.data()
@@ -594,6 +658,7 @@ namespace bpr::app {
 			}
 			const auto ready = tour_session_idle();
 			editor->set_tour_host_idle(ready);
+
 			// Reentrant presentation may have deleted this exact observer.
 			if (ready && observer) {
 				observer->stop();
@@ -606,11 +671,14 @@ namespace bpr::app {
 	void github_application::implementation::cancel_writing()
 	{
 		WritingState.cancel();
-		if (OutlineProposal) {
-			OutlineProposal.reset();
-			Window->tour_editor()->present_outline({ });
-		}
 		if (!PendingWriting) {
+			return;
+		}
+		// [[BPR-2051]]. An Enhance run is the Agent tab host's, and its field
+		// is told it ended.
+		if (const auto enhance = PendingWriting->Enhance) {
+			cancel_enhancement(*enhance);
+			answer_enhancement(*enhance, std::nullopt, QStringLiteral("Stopped. Your text is unchanged."));
 			return;
 		}
 		PendingWriting.reset();
@@ -795,7 +863,7 @@ namespace bpr::app {
 			// the agent picker at its bottom.
 			const auto agent = writing_agent();
 			Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or keep writing yourself.")
-														   : !agent                                ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+														   : !agent                                ? QStringLiteral("Choose an agent with the agent picker in the window's footer, or keep writing yourself.")
 														   : !target                               ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
 																								   : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
 			return;
@@ -837,7 +905,8 @@ namespace bpr::app {
 			Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation. Add the author's problem or solution first."));
 			return;
 		}
-		const auto prompt = application::build_writing_prompt(Profile->WorkbenchPreferences->accepted()->WritingHooks, *request, sources);
+		// [[BPR-2140]]. The built-in prompt's instructions apart from the material.
+		const auto prompt = application::build_writing_prompt_parts(Profile->WorkbenchPreferences->accepted()->WritingHooks, *request, sources);
 		if (!prompt) {
 			WritingState.cancel();
 			Window->tour_editor()->show_writing_notice(QStringLiteral("This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions."));
@@ -847,22 +916,42 @@ namespace bpr::app {
 		// [[BPR-1900]]. Draft from PR context and Suggest an outline read the
 		// repository in the background; a small rewrite stays tool-free.
 		const auto kind     = core::tour_request_of(aHook, request->Scope);
-		const auto readOnly = core::tools_for(kind) == core::tour_agent_tools::read_only;
-		PendingWriting      = writing_operation{ *request, std::move(sources), { }, false, readOnly };
-		Window->tour_editor()->show_writing_notice(readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable."));
-		const auto asked = Window->tour_editor()->request_name(aHook);
-		// [[BPR-1916]]. The skills the hook names, inline.
-		auto skills = skill_run_for(aHook);
-		auto text   = (readOnly ? std::string{ application::read_only_writing_preamble() } + *prompt : *prompt) + skills.Directive;
-		if (skills.Note) {
-			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
-													   + QString::fromStdString(*skills.Note));
+		auto       readOnly = core::tools_for(kind) == core::tour_agent_tools::read_only;
+		// [[BPR-2141]], RFC-BPR-0101 AC13. Draft from PR context and Suggest
+		// an outline are one tool-free call with the diff up front; past the
+		// budget they read the repository, and the notice says so.
+		auto files = std::vector<application::tour_draft_file>{ };
+		auto bytes = std::size_t{ 0U };
+		auto route = core::tour_context_route::up_front;
+		if (readOnly) {
+			files    = tour_request_files();
+			bytes    = application::tour_diff_bytes(files);
+			route    = core::choose_tour_context(bytes, true);
+			readOnly = route != core::tour_context_route::up_front;
 		}
-		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly ? std::optional{ aHook } : std::nullopt, std::nullopt, core::tour_thread{ }, false, std::move(skills))) {
+		const auto upFront = core::tools_for(kind) == core::tour_agent_tools::read_only && !readOnly;
+		const auto notice  = readOnly || upFront ? tour_context_notice(route, bytes) : QStringLiteral("Writing assistance running… Your text remains editable.");
+		PendingWriting     = writing_operation{ *request, std::move(sources), { }, false, readOnly, std::nullopt };
+		Window->tour_editor()->show_writing_notice(notice);
+		const auto asked = Window->tour_editor()->request_name(aHook);
+		// [[BPR-1916]]. The skills the hook names, inline. [[BPR-2051]] A
+		// stop's Enhance sends the stop's Enhance prompt, and its skills.
+		auto skills         = skill_run_for(core::writing_instructions_for(aHook, request->Scope));
+		auto text           = prompt->Message + (upFront ? application::render_up_front_diff(files) : std::string{ }) + skills.Directive;
+		TourRunInstructions = (readOnly      ? std::string{ application::read_only_writing_preamble() }
+								   : upFront ? std::string{ application::up_front_writing_preamble() }
+											 : std::string{ })
+			+ prompt->Instructions;
+		TourRunUpFront = upFront;
+		if (skills.Note) {
+			Window->tour_editor()->show_writing_notice(notice + QStringLiteral(" ") + QString::fromStdString(*skills.Note));
+		}
+		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly || upFront ? std::optional{ aHook } : std::nullopt, std::nullopt, core::tour_thread{ }, false, std::move(skills))) {
+			TourRunUpFront = false;
 			cancel_writing();
 		}
 #else
-		PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
+		PendingWriting = writing_operation{ *request, std::move(sources), { }, false, false, std::nullopt };
 		cancel_writing();
 #endif
 	}
@@ -884,7 +973,11 @@ namespace bpr::app {
 		// Counted as the Agent tab's launcher is, so a course sees a tour
 		// run start and finish.
 		TourProcessProbe = std::make_unique<composition_agent_process_launcher_probe>(*TourProcess);
-		auto& launcher   = static_cast<application::agent_process_port&>(*TourProcessProbe);
+		// [[BPR-2177]]. The tour's runs keep to the fixture agent too.
+		if (Fixture) {
+			TourProcessProbe->set_admission(fixture_agent_admission());
+		}
+		auto& launcher = static_cast<application::agent_process_port&>(*TourProcessProbe);
 	#else
 		auto& launcher = static_cast<application::agent_process_port&>(*TourProcess);
 	#endif
@@ -901,7 +994,7 @@ namespace bpr::app {
 			},
 			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { tour_run_finished(aIdentity, aResult); },
 			[this](const std::string_view aReason) { tour_run_refused(aReason); },
-			[this](const application::agent_invocation_projection_identity& aIdentity) { tour_run_streamed(aIdentity); });
+			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent) { tour_run_streamed(aIdentity, aEvent); });
 		TourSession = std::make_unique<application::agent_invocation_host>(
 			aProfiles, aPolicies, AgentWorkspaceNeighbourhood, *this, *EpochHost, *TourDiagnosedProcess,
 			[](const std::string& aName) -> std::optional<std::string> {
@@ -911,6 +1004,9 @@ namespace bpr::app {
 				return qEnvironmentVariable(aName.c_str()).toStdString();
 			},
 			TourAgentEffects, DecisionLane, *TourProjection, nullptr, NativeAgentSessions.get(), DiagnosticLog.get());
+		// [[BPR-2181]]. The tour session's retirement event releases the
+		// feedback queued for its draft.
+		TourSession->set_retired_observer([this] { tour_runtime_retired(); });
 		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
 		TourProjection->NativeSession = [this](const core::agent_session& aSession) {
 			if (Closing || !Window) {
@@ -921,6 +1017,114 @@ namespace bpr::app {
 				present_tour_continuation();
 			}
 		};
+	}
+
+	/// RFC-BPR-0110. A local draft's conversations run tool-free (no tools,
+	/// no session saved, an empty folder of their own): the request the
+	/// draft's host composed from the captured candidate is the only input,
+	/// so nothing in the worktree can reach the agent. The agent is the one
+	/// the window's agent picker names; it must speak Claude Code's stream JSON.
+	void github_application::implementation::compose_local_draft_agent(const std::vector<core::agent_profile>& aProfiles)
+	{
+		if (!DraftDesktop) {
+			return;
+		}
+		LocalDraftProcess        = std::make_unique<adapters::agent::agent_process_launcher>();
+		LocalDraftClaudeProcess  = std::make_unique<application::wrapped_claude_process>(*LocalDraftProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+		LocalDraftLocatedProcess = std::make_unique<application::located_agent_process>(*LocalDraftClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper,
+																						locate_agent_program());
+		LocalDraftEntryProcess   = std::make_unique<application::agent_entry_process>(*LocalDraftProcess, *LocalDraftLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper,
+																					  locate_claude(), locate_agent_program());
+		auto runner              = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot](
+									   const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
+			const auto profile = std::ranges::find_if(*profiles, [&aRun](const core::agent_profile& aProfile) { return aProfile.Id.value() == aRun.Profile; });
+			if (profile == profiles->end()) {
+				return { .Failure = "That agent is no longer set up. Choose one with the agent picker." };
+			}
+			auto supplement    = core::agent_context_supplement{ };
+			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
+			supplement.Message = aRun.Prompt;
+			const auto launch  = application::build_agent_launch(
+				*profile, supplement,
+				[](const std::string& aName) -> std::optional<std::string> {
+					if (!qEnvironmentVariableIsSet(aName.c_str())) {
+						return std::nullopt;
+					}
+					return qEnvironmentVariable(aName.c_str()).toStdString();
+				},
+				application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery });
+			if (!launch) {
+				return { .Failure = launch.error() == application::agent_launch_failure::input_too_large
+							 ? "The question is longer than one request can carry."
+							 : "This agent cannot answer without tools here. Choose one that speaks Claude Code's stream JSON." };
+			}
+			auto request = *launch;
+			// [[BPR-2138]]. The draft's discussion is a native session: it
+			// runs in an empty folder kept for the draft, where the agent
+			// saves it, and a later turn resumes it there by its handle.
+			if (core::session_mode_of(aRun.Path) == core::agent_session_mode::resumed) {
+				const auto folder = root / "local-draft-sessions-v1" / aRun.Draft;
+				if (!core::valid(core::local_draft_id{ aRun.Draft }) || !adapters::sqlite::create_storage_root_owner_private(folder)) {
+					return { .Failure = "The folder this draft's conversation runs in could not be made." };
+				}
+				request.NativeHandle = aRun.Handle;
+				auto resumed         = application::prepare_native_agent_turn(std::move(request), false);
+				if (!resumed) {
+					return { .Failure = "This agent cannot resume the conversation's session." };
+				}
+				request                  = std::move(*resumed);
+				request.WorkingDirectory = folder.string();
+			}
+			const auto result = process->run(request, 10 * 60 * 1000, { }, aStop);
+			if (aStop.stop_requested()) {
+				return { .Failure = "Stopped." };
+			}
+			if (result.Outcome != application::agent_run_outcome::success) {
+				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ")." };
+			}
+			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle };
+			for (const auto& item : result.AssistantItems) {
+				answer.Text += answer.Text.empty() ? item : "\n\n" + item;
+			}
+			if (result.TurnCost) {
+				answer.CostMicros = *result.TurnCost / 1000U;
+			} else if (result.ReportedCostUsd) {
+				if (const auto cost = core::parse_agent_cost(*result.ReportedCostUsd)) {
+					answer.CostMicros = *cost / 1000U;
+				}
+			}
+			return answer;
+		};
+		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this]() -> std::optional<local_draft_desktop::agent_choice> {
+			const auto  profile = writing_agent();
+			const auto& prefs   = Profile->WorkbenchPreferences->accepted();
+			if (Closing || !profile || !writes_tool_free(*profile) || !prefs) {
+				Window->tour_editor()->show_notice(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker, or keep writing yourself."));
+				return std::nullopt;
+			}
+			auto identity = tour_native_agent();
+			if (identity.empty()) {
+				identity = "profile-" + std::to_string(profile->value());
+			}
+			// [[BPR-2140]]. The agent's own switch says where instructions go.
+			auto delivery = core::agent_instruction_delivery::system_prompt;
+			if (AgentSetup) {
+				if (const auto* const entry = core::entry_of_profile(AgentSetup->projection().Preferences.Agents, *profile); entry != nullptr) {
+					delivery = entry->Instructions;
+				}
+			}
+			return local_draft_desktop::agent_choice{
+				.Identity           = std::move(identity),
+				.Name               = agent_display_name(*profile).toStdString(),
+				.Profile            = profile->value(),
+				.Description        = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_description) },
+				.DescriptionVersion = std::string{ application::writing_hook_version_of(core::writing_hook::local_description) },
+				.Discussion         = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_discussion) },
+				.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
+				.CommitMessage      = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_commit_message) },
+				.Delivery           = delivery,
+			};
+		});
 	}
 
 	/// [[BPR-1900]]. What a drafting run says while it reads, and that a
@@ -953,7 +1157,14 @@ namespace bpr::app {
 															   const std::optional<core::tour_passage>& aPassage, const core::tour_thread& aThread, const bool aUpdate, skill_run aSkills) -> bool
 	{
 		adopt_tour_conversation();
-		const auto conversational = aKind == core::tour_agent_request::ask || aKind == core::tour_agent_request::draft_tour;
+		// [[BPR-2140]]. This run's instructions, never the next one's.
+		auto instructions = std::move(TourRunInstructions);
+		TourRunInstructions.clear();
+		const auto fresh = std::exchange(TourAskFresh, false) && aKind == core::tour_agent_request::ask;
+		// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Only a turn of a
+		// side chat or of the whole-tour conversation resumes; Draft Tour's
+		// first draft, a field's draft and an Enhance run fresh.
+		const auto conversational = aKind == core::tour_agent_request::ask && !fresh;
 		const auto continued      = conversational ? continued_tour_session(aThread) : std::nullopt;
 		const auto key            = tour_native_agent() + ":" + tour_native_scope(aThread);
 		const auto session        = TourNativeSessions.find(key);
@@ -963,13 +1174,20 @@ namespace bpr::app {
 			present_tour_continuation();
 			return false;
 		}
-		const auto tools = core::tools_for(aKind);
-		const auto run   = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aThread, aPassage, aAsked, aUpdate) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
+		// [[BPR-2141]]. A drafting run with its context up front has no tools.
+		const auto upFront = std::exchange(TourRunUpFront, false) && aKind != core::tour_agent_request::ask;
+		const auto tools   = upFront ? core::tour_agent_tools::none : core::tools_for(aKind);
+		const auto run     = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aThread, aPassage, aAsked, aUpdate) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
 		if (!run) {
 			return false;
 		}
 		TourRunScope.clear();
-		if ((aKind == core::tour_agent_request::ask || aKind == core::tour_agent_request::draft_tour) && !tour_native_agent().empty()) {
+		if (fresh) {
+			if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
+				found->Fresh = true;
+			}
+		}
+		if ((conversational || aKind == core::tour_agent_request::draft_tour) && !tour_native_agent().empty()) {
 			TourRunScope = tour_native_agent() + ":" + tour_native_scope(aThread);
 			if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
 				found->ConversationScope = TourRunScope;
@@ -989,7 +1207,13 @@ namespace bpr::app {
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
 		TourWorkspaceHead.reset();
-		auto launch = tour_launch{ .NativeScope = TourRunScope.empty() ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
+		auto launch               = tour_launch{ .NativeScope = TourRunScope.empty() || !conversational ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
+		launch.Path               = aKind == core::tour_agent_request::draft_tour ? core::agent_run_path::draft_tour_first_draft
+			: aKind == core::tour_agent_request::rewrite || fresh                 ? core::agent_run_path::tour_enhance
+			: aKind == core::tour_agent_request::ask                              ? (aThread.Kind == core::tour_thread_kind::tour ? core::agent_run_path::tour_conversation : core::agent_run_path::tour_side_chat)
+																				  : core::agent_run_path::tour_field_draft;
+		launch.SystemInstructions = std::move(instructions);
+		launch.UpFront            = upFront;
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
 				if (file.Change != application::github_file_change::removed) {
@@ -998,12 +1222,16 @@ namespace bpr::app {
 			}
 		}
 		refresh_tour_host_idle();
-		Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
+		if (!local_tour_shown()) {
+			Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
+		}
 		present_tour_session();
 		if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, continued, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
 			static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, "The tour session could not start this request."));
 			TourRun.reset();
-			Window->tour_editor()->set_tour_running(std::nullopt, false);
+			if (!local_tour_shown()) {
+				Window->tour_editor()->set_tour_running(std::nullopt, false);
+			}
 			present_tour_session();
 			return false;
 		}
@@ -1031,21 +1259,32 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity }) {
 			return;
 		}
-		auto live      = TourLive.value_or(qt::agent_run_status{ });
-		live.Agent     = agent_display_name(aIdentity.Session.Profile);
-		live.Stage     = qt::agent_run_stage::thinking;
-		live.FilesOnly = aWorkspace.Shallow;
+		auto live              = TourLive.value_or(qt::agent_run_status{ });
+		live.Agent             = agent_display_name(aIdentity.Session.Profile);
+		live.Stage             = qt::agent_run_stage::thinking;
+		live.FilesOnly         = aWorkspace.Shallow;
+		live.Activity          = std::nullopt;
+		live.ActivityStartedMs = qt::agent_activity_clock_ms();
 		present_tour_live(std::move(live));
 	}
 
-	void github_application::implementation::tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity)
+	void github_application::implementation::tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent)
 	{
-		// Only a change of what it does is said; each event is not.
-		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity } || !TourLive || TourLive->Stage == qt::agent_run_stage::writing) {
+		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity } || !TourLive) {
 			return;
 		}
-		auto live  = *TourLive;
-		live.Stage = qt::agent_run_stage::writing;
+		auto live = *TourLive;
+		// [[BPR-2005]], RFC-BPR-0103. The side chat's running block hears
+		// what the agent and its helpers do, and every frame.
+		const auto at = static_cast<std::uint64_t>(std::max<qint64>(0, qt::agent_activity_clock_ms() - live.ActivityStartedMs));
+		if (aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity) {
+			live.Activity = core::apply_agent_activity(live.Activity.value_or(core::agent_turn_activity{ }), *aEvent.Activity, at);
+		} else if (aEvent.Kind == application::agent_stream_kind::heartbeat || live.Activity) {
+			live.Activity = core::note_agent_frame(live.Activity.value_or(core::agent_turn_activity{ }), at);
+		}
+		if (aEvent.Kind == application::agent_stream_kind::text) {
+			live.Stage = qt::agent_run_stage::writing;
+		}
 		present_tour_live(std::move(live));
 	}
 
@@ -1055,6 +1294,64 @@ namespace bpr::app {
 		if (Window != nullptr && Window->tour_editor() != nullptr) {
 			Window->tour_editor()->present_run_status(TourLive);
 		}
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). The
+		// window's footer says the run and where it started, with Stop.
+		if (Window != nullptr && Window->agent_footer_widget() != nullptr) {
+			if (TourLive) {
+				if (!TourFooterPlace) {
+					TourFooterPlace = tour_footer_place();
+					TourFooterStarted.start();
+				}
+				Window->agent_footer_widget()->present_run(*TourFooterPlace, qt::agent_footer_run{ .Status = *TourLive, .Started = TourFooterStarted, .Stop = [this] { cancel_tour_run(); } });
+			} else if (TourFooterPlace) {
+				Window->agent_footer_widget()->present_run(*TourFooterPlace, std::nullopt);
+			}
+		}
+	}
+
+	auto github_application::implementation::tour_footer_place() const -> qt::agent_footer_place
+	{
+		if (TourDraftPending) {
+			return qt::agent_footer_place::draft_tour;
+		}
+		if (TourAskPending) {
+			return qt::agent_footer_place::tour_chat;
+		}
+		if (PendingWriting && PendingWriting->Enhance) {
+			return qt::agent_footer_place::enhance;
+		}
+		// A tour field's Enhance is Enhance; Draft from PR context and
+		// Generate comment are the Tour tab's.
+		if (PendingWriting && Window != nullptr && Window->tour_editor()->request_name(PendingWriting->Request.Target.Hook).startsWith(QStringLiteral("Enhance"))) {
+			return qt::agent_footer_place::enhance;
+		}
+		return qt::agent_footer_place::tour_tab;
+	}
+
+	void github_application::implementation::finish_tour_footer(const application::agent_run_result& aResult)
+	{
+		if (!TourFooterPlace) {
+			return;
+		}
+		const auto place   = *TourFooterPlace;
+		const auto seconds = TourFooterStarted.isValid() ? TourFooterStarted.elapsed() / 1000 : 0;
+		TourFooterPlace.reset();
+		auto& cost = TourFooterCosts[static_cast<std::size_t>(place)];
+		if (aResult.TurnCost) {
+			cost = cost.value_or(0U) + *aResult.TurnCost;
+		}
+		if (Window == nullptr || Window->agent_footer_widget() == nullptr) {
+			return;
+		}
+		auto* const footer = Window->agent_footer_widget();
+		footer->present_cost(place, cost);
+		auto ending = aResult.Outcome == application::agent_run_outcome::success ? QStringLiteral("answered in %1").arg(qt::agent_elapsed_words(seconds))
+			: aResult.Outcome == application::agent_run_outcome::cancelled       ? QStringLiteral("stopped after %1").arg(qt::agent_elapsed_words(seconds))
+																				 : QStringLiteral("didn't finish");
+		if (aResult.TurnCost) {
+			ending += QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*aResult.TurnCost));
+		}
+		footer->present_finished(place, ending);
 	}
 
 	void github_application::implementation::tour_run_refused(const std::string_view aReason)
@@ -1068,16 +1365,25 @@ namespace bpr::app {
 			TourRun.reset();
 		}
 		present_tour_live(std::nullopt);
-		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		TourFooterPlace.reset();
+		if (!local_tour_shown()) {
+			Window->tour_editor()->set_tour_running(std::nullopt, false);
+		}
 		TourAskPending = false;
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(aReason == "agent_context_too_large"
 															   ? QStringLiteral("This pull request is too large to describe to the agent in one request.")
-															   : QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker at the bottom of this tab."));
+															   : QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker in the window's footer."));
 		}
 		present_tour_session();
 		if (!PendingWriting) {
+			return;
+		}
+		if (const auto enhance = PendingWriting->Enhance) {
+			PendingWriting.reset();
+			WritingState.cancel();
+			answer_enhancement(*enhance, std::nullopt, QStringLiteral("The agent refused this request. Your text is unchanged."));
 			return;
 		}
 		const bool test = PendingWriting->Test;
@@ -1095,7 +1401,11 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
-		const auto words = aResult.RefusalReason.empty() ? qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile)) : QString::fromStdString(aResult.RefusalReason);
+		auto words = aResult.RefusalReason.empty() ? qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile)) : QString::fromStdString(aResult.RefusalReason);
+		// [[BPR-2004]]. A runtime that ended under its helpers says so.
+		if (aResult.ProtocolFailure == application::agent_protocol_failure::helpers_unfinished) {
+			words = QStringLiteral("%1 stopped before its %2 remaining helpers finished. What arrived is kept.").arg(qt::agent_short_name(agent_display_name(aIdentity.Session.Profile))).arg(aResult.UnfinishedHelpers.size());
+		}
 		if (TourRun) {
 			if (!aResult.Conversation.empty()) {
 				TourSelectedConversations[TourRunScope] = aResult.Conversation;
@@ -1127,27 +1437,40 @@ namespace bpr::app {
 		// [[BPR-1914]] v003. How long it worked, as "Worked for Ns" says.
 		if (run) {
 			static_cast<void>(core::time_tour_run(TourAgent, *run, static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - TourRunStarted).count())));
+			// [[BPR-1999]]. What it cost, and its conversation's total.
+			static_cast<void>(core::cost_tour_run(TourAgent, *run, aResult.TurnCost, aResult.SessionCost));
+			// [[BPR-2005]]. The block folds under the turn's ending.
+			if (TourLive && TourLive->Activity) {
+				const auto at = static_cast<std::uint64_t>(std::max<qint64>(0, qt::agent_activity_clock_ms() - TourLive->ActivityStartedMs));
+				Window->tour_editor()->side_chat()->record_run_activity(*run, core::end_agent_activity(*TourLive->Activity, at), static_cast<qint64>(at / 1000U));
+			}
 		}
 		TourRun.reset();
 		TourInvocation.reset();
+		finish_tour_footer(aResult);
 		present_tour_live(std::nullopt);
 		refresh_tour_host_idle();
-		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		if (!local_tour_shown()) {
+			Window->tour_editor()->set_tour_running(std::nullopt, false);
+		}
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			finish_tour_draft(run, aResult, words);
-			// [[BPR-1930]] AC3. Feedback given while it drafted goes next, to
-			// revise what it proposed; a draft that didn't finish says so in
-			// the tour chat, with the feedback as written.
-			if (TourAgent.Waiting && aResult.Outcome == application::agent_run_outcome::success && TourProposal) {
-				send_waiting_tour_feedback();
-			} else if (const auto waiting = core::take_tour_feedback(TourAgent)) {
-				if (const auto turn = core::begin_tour_ask(TourAgent, core::tour_thread{ }, std::nullopt, *waiting)) {
-					static_cast<void>(core::finish_tour_run(TourAgent, *turn, core::tour_agent_run_state::failed, "The draft didn't propose a tour, so this feedback wasn't sent. Send it again when you want."));
-				}
+			// [[BPR-1930]] AC3, RFC-BPR-0126 Q1. Feedback given while it
+			// drafted is the whole-tour conversation's first queued message:
+			// it goes once the run has really ended (the host retired), to
+			// revise what it proposed. A draft that didn't propose a tour says
+			// so in the tour chat, with the feedback as written.
+			if (!(aResult.Outcome == application::agent_run_outcome::success && TourProposal)) {
+				return_tour_feedback("The draft didn't propose a tour, so this feedback wasn't sent. Send it again when you want.");
+			} else {
+				// Released once the session retires (its retirement event).
+				drain_tour_queue();
 			}
 		} else if (TourAskPending) {
 			TourAskPending = false;
+			// Its run's retirement event settles it (`tour_runtime_retired`).
+			TourQueueAnswered = TourQueueSending;
 		} else {
 			finish_writing(aIdentity, aResult);
 		}
@@ -1319,7 +1642,7 @@ namespace bpr::app {
 			context.PublicationAllowed = shown.Publish;
 			context.PublicationStatus  = shown.Status;
 			context.BodyEdits          = TourPublication->operation_support();
-			context.Compatibility      = Window->tour_editor()->compatibility_publication();
+			context.Compatibility      = TourPublication->compatibility_chosen();
 			context.Destinations.clear();
 			if (TourHost && TourHost->presentation().Draft) {
 				for (const auto& stop : TourHost->presentation().Draft->Stops) {
@@ -1350,9 +1673,33 @@ namespace bpr::app {
 		// [[BPR-1930]] AC3, owner: "particularly during the initial agent
 		// draft". Feedback on the whole tour while Draft the tour runs waits
 		// for its proposal, then revises it.
-		if (aThread.Kind == core::tour_thread_kind::tour && !aUpdate && TourDraftPending && core::queue_tour_feedback(TourAgent, question)) {
-			Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback is sent to the tour agent when the draft is ready, so it revises that draft."));
-			present_tour_session();
+		// RFC-BPR-0126 Q1: it is the whole-tour conversation's first queued
+		// message; more feedback before the draft is ready joins it.
+		if (aThread.Kind == core::tour_thread_kind::tour && !aUpdate && TourDraftPending && AgentQueue && !tour_queue_key().empty()) {
+			const auto  key     = tour_queue_key();
+			const auto* queue   = AgentQueue->queue(key);
+			auto        refused = core::queue_refusal::none;
+			if (queue != nullptr && !queue->Entries.empty() && queue->Entries.front().State == core::queued_state::queued && !queue->Entries.front().Held) {
+				const auto id     = queue->Entries.front().Id;
+				const auto joined = queue->Entries.front().Input.Text + "\n\n" + question;
+				refused           = joined.size() > core::maximum_queued_text_bytes ? core::queue_refusal::too_long : AgentQueue->hold(key, id);
+				if (refused == core::queue_refusal::none) {
+					refused = AgentQueue->release_hold(key, id, joined);
+				}
+			} else {
+				auto label = question.substr(0U, question.find('\n'));
+				if (label.size() > 80U) {
+					label = label.substr(0U, 79U) + "\u2026";
+				}
+				refused = AgentQueue->enqueue(key, core::queued_input{ .Scope = "tour", .Label = std::move(label), .Text = question });
+			}
+			if (refused == core::queue_refusal::none) {
+				TourFeedbackQueued = true;
+				present_tour_feedback();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback is sent to the tour agent when the draft is ready, so it revises that draft."));
+				return;
+			}
+			Window->tour_editor()->show_writing_notice(QStringLiteral("This feedback is too long to wait for the draft. Nothing was added; send it once the draft is ready."));
 			return;
 		}
 		// A turn that cannot run still lands in its side chat, saying why.
@@ -1368,7 +1715,7 @@ namespace bpr::app {
 		};
 		const auto agent = writing_agent();
 		if (!agent) {
-			refuse("No agent is chosen. Choose one with the agent picker at the bottom of the Tour tab.");
+			refuse("No agent is chosen. Choose one with the agent picker in the window's footer.");
 			return;
 		}
 		if (!tour_session_idle()) {
@@ -1376,7 +1723,7 @@ namespace bpr::app {
 			return;
 		}
 		if (!reads_read_only(*agent)) {
-			refuse(QStringLiteral("%1 has no read-only mode to read the code with. Choose Claude or Codex with the agent picker at the bottom of the Tour tab.").arg(agent_display_name(*agent)).toStdString());
+			refuse(QStringLiteral("%1 has no read-only mode to read the code with. Choose Claude or Codex with the agent picker in the window's footer.").arg(agent_display_name(*agent)).toStdString());
 			return;
 		}
 		auto files = std::vector<application::tour_draft_file>{ };
@@ -1390,9 +1737,13 @@ namespace bpr::app {
 		// [[BPR-1916]]. The skills the question names, inline; an unknown
 		// name stays text, said once in the notice. [[BPR-1935]]: the
 		// directive is part of the prompt the bound below is checked on.
-		const auto texts  = std::array{ std::string_view{ question } };
+		// RFC-BPR-0125 (AC09): a suggested prompt sent as offered names
+		// skills only in its template's own text.
+		const auto texts  = std::array{ TourAskSkillText ? std::string_view{ *TourAskSkillText } : std::string_view{ question } };
 		auto       skills = prepare_skill_run(SkillLibrary, texts);
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive, capture_tour_agent_context(aThread));
+		// [[BPR-2138]]. An Enhance is fresh: no conversation goes with it.
+		const auto fresh  = TourAskFresh;
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() && !fresh ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive, capture_tour_agent_context(aThread));
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
@@ -1400,9 +1751,23 @@ namespace bpr::app {
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice(QString::fromStdString(*skills.Note));
 		}
-		TourAskPending = true;
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, *prompt, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
+		// [[BPR-2140]]. The turn's instructions are the system prompt; the
+		// message is the pull request, the tour and the conversation.
+		auto parts = application::split_tour_prompt(*prompt);
+		// [[BPR-2138]], RFC-BPR-0101 AC12. Ask more, pressed on a fresh
+		// answer (Draft Tour's first draft, a part's Enhance), puts that
+		// answer in this thread's next turn: the session that resumes from
+		// here holds it.
+		const auto seed = !fresh && TourAskMore && TourAskMore->Thread == aThread;
+		if (seed) {
+			parts.Message = "Earlier, in a separate run, the agent answered this. It is context for this conversation:\n" + TourAskMore->Seed + "\n\n" + parts.Message;
+		}
+		TourRunInstructions = std::move(parts.Instructions);
+		TourAskPending      = true;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, parts.Message, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
 			TourAskPending = false;
+		} else if (seed) {
+			TourAskMore.reset();
 		}
 	}
 
@@ -1411,13 +1776,18 @@ namespace bpr::app {
 	void github_application::implementation::finish_tour_ask(const core::tour_agent_run_id aRun, const application::agent_run_result& aResult)
 	{
 		const auto said   = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
-		const auto answer = application::decode_tour_ask_answer(said);
+		auto       answer = application::decode_tour_ask_answer(said);
 		if (!answer) {
 			static_cast<void>(core::finish_tour_run(TourAgent, aRun, core::tour_agent_run_state::failed, "The agent's answer wasn't one this app can read. Nothing in the tour changed.\n\n" + said.substr(0U, std::min<std::size_t>(said.size(), 1500U))));
 			return;
 		}
-		const auto draft    = TourHost ? TourHost->presentation().Draft : nullptr;
-		auto       proposal = std::optional<core::tour_proposal>{ };
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		// [[BPR-1995]], RFC-BPR-0100. Enhance on a selection replaces only the
+		// selection: the core puts the passage's new text back in its place.
+		if (const auto* const asked = core::find_tour_run(TourAgent, aRun); draft && asked != nullptr && asked->Update && asked->Passage && asked->Passage->Field != core::tour_passage_field::stop_code) {
+			answer = core::confine_to_passage(std::move(*answer), TourSubmittedDraft.value_or(*draft), asked->Thread, *asked->Passage);
+		}
+		auto proposal = std::optional<core::tour_proposal>{ };
 		if (draft) {
 			auto files = tour_anchor_files(aResult);
 			proposal   = core::propose_tour_changes(aRun, *answer, files, TourSubmittedDraft.value_or(*draft), *draft, TourWorkspaceHead);
@@ -1461,26 +1831,140 @@ namespace bpr::app {
 			Window->tour_editor()->show_writing_notice(items ? QStringLiteral("The tour agent's other changes wait in the tour, marked grey. ") + refusal : refusal);
 		} else if (items) {
 			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself.
-			Window->tour_editor()->show_writing_notice(whole ? QStringLiteral("The tour agent's changes wait in the tour, marked grey. Nothing changes until you accept them.")
-															 : QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you accept it."));
+			Window->tour_editor()->show_writing_notice(whole ? QStringLiteral("The tour agent's changes wait in the tour, marked grey. Nothing changes until you apply them.")
+															 : QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you apply it."));
 		}
 	}
 
-	/// [[BPR-1930]] AC3. The feedback given while Draft the tour ran, sent as
-	/// the tour chat's next turn once the run has fully ended, so it is given
-	/// the draft's proposal and revises it.
-	void github_application::implementation::send_waiting_tour_feedback(const int aTries)
+	/// RFC-BPR-0126 Q1 ([[BPR-2151]]). The whole-tour conversation's queue
+	/// on this pull request.
+	auto github_application::implementation::tour_queue_key() const -> std::string
 	{
-		if (Closing || Window == nullptr || !TourAgent.Waiting) {
+		const auto session = ask_session_key();
+		return session.empty() ? std::string{ } : "tour-feedback:" + session.substr(session.find(':') + 1U);
+	}
+
+	/// The tour conversation takes its next turn only after Draft the tour
+	/// has really ended: the answer handled, its proposal made and the run
+	/// retired (RFC-BPR-0126: real completion, no timer retry).
+	auto github_application::implementation::tour_queue_agent() const -> core::queue_agent
+	{
+		if (Closing || Window == nullptr || TourDraftPending || TourAskPending || TourQueueSending) {
+			return core::queue_agent::busy;
+		}
+		return tour_session_idle() && TourProposal ? core::queue_agent::idle : core::queue_agent::busy;
+	}
+
+	/// The feedback goes as the whole-tour conversation's next turn, with the
+	/// draft's answer as the Ask more seed and its proposal in the request,
+	/// so it revises that draft (Q1).
+	auto github_application::implementation::release_tour_feedback(const core::queued_entry& aEntry) -> bool
+	{
+		if (Closing || Window == nullptr) {
+			return false;
+		}
+		TourFeedbackQueued = false;
+		TourAgent.Waiting.reset();
+		TourAskMore      = tour_ask_more{ .Thread = core::tour_thread{ }, .Seed = TourDraftSeed.empty() ? std::string{ "Draft Tour proposed a tour." } : TourDraftSeed };
+		TourQueueSending = true;
+		request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(aEntry.Input.Text), false);
+		if (!TourAskPending) {
+			// It could not run: the tour chat holds it as a turn that says
+			// why, with the feedback as written, so it settles once the
+			// runner has recorded the start.
+			TourQueueSending = false;
+			QTimer::singleShot(0, Window->tour_editor(), [this, key = tour_queue_key()] {
+				if (!Closing && AgentRuntime) {
+					AgentRunner.retired(*AgentRuntime, key, core::queue_pause::none);
+				}
+			});
+		}
+		return true;
+	}
+
+	/// Releases the feedback once this window's draft has really ended. A
+	/// queue no open window drafted (the app closed, or the window that
+	/// drafted did) comes back to the tour chat as not sent.
+	void github_application::implementation::drain_tour_queue()
+	{
+		const auto key = tour_queue_key();
+		if (Closing || Window == nullptr || !AgentQueue || key.empty() || TourQueueSending) {
 			return;
 		}
-		if (!tour_session_idle() && aTries < 50) {
-			QTimer::singleShot(100, Window->tour_editor(), [this, aTries] { send_waiting_tour_feedback(aTries + 1); });
+		const auto* queue = AgentQueue->queue(key);
+		if (queue == nullptr || queue->Entries.empty()) {
 			return;
 		}
-		const auto feedback = core::take_tour_feedback(TourAgent);
-		if (feedback) {
-			request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(*feedback), false);
+		if (!TourFeedbackQueued) {
+			if (!AgentQueue->sending(key) && AgentRunner.state(key) == core::queue_agent::not_set_up) {
+				return_tour_feedback("The draft this feedback waited for ended before it was ready, so it wasn't sent. Send it again when you want.");
+			}
+			return;
+		}
+		AgentQueue->agent_changed(key);
+	}
+
+	/// [[BPR-2181]]. The tour session's own retirement event: a feedback
+	/// turn released here that has answered is settled; otherwise the host
+	/// is told the tour conversation may take its turn.
+	void github_application::implementation::tour_runtime_retired()
+	{
+		const auto key = tour_queue_key();
+		if (Closing || !AgentQueue || !AgentRuntime || key.empty()) {
+			return;
+		}
+		if (std::exchange(TourQueueAnswered, false) && std::exchange(TourQueueSending, false)) {
+			AgentRunner.retired(*AgentRuntime, key, core::queue_pause::none);
+			return;
+		}
+		drain_tour_queue();
+	}
+
+	void github_application::implementation::return_tour_feedback(const std::string& aWhy)
+	{
+		const auto key     = tour_queue_key();
+		TourFeedbackQueued = false;
+		TourAgent.Waiting.reset();
+		if (!AgentQueue || key.empty() || AgentQueue->queue(key) == nullptr) {
+			return;
+		}
+		auto texts = std::string{ };
+		// A copy: withdrawing changes the list.
+		const auto entries = AgentQueue->queue(key)->Entries;
+		for (const auto& entry : entries) {
+			if (entry.State == core::queued_state::queued && AgentQueue->withdraw(key, entry.Id) == core::queue_refusal::none) {
+				texts += (texts.empty() ? "" : "\n\n") + entry.Input.Text;
+			}
+		}
+		// A tour's feedback queue holds only what waits for a draft: emptied,
+		// it takes the next draft's.
+		static_cast<void>(AgentQueue->resume(key));
+		if (!texts.empty()) {
+			if (const auto turn = core::begin_tour_ask(TourAgent, core::tour_thread{ }, std::nullopt, texts)) {
+				static_cast<void>(core::finish_tour_run(TourAgent, *turn, core::tour_agent_run_state::failed, aWhy));
+			}
+		}
+		present_tour_session();
+	}
+
+	/// The tour chat shows the queued feedback where it showed the buffer.
+	void github_application::implementation::present_tour_feedback()
+	{
+		if (Closing || Window == nullptr || !AgentQueue) {
+			return;
+		}
+		const auto* queue  = AgentQueue->queue(tour_queue_key());
+		auto        joined = std::optional<std::string>{ };
+		if (queue != nullptr && TourFeedbackQueued) {
+			for (const auto& entry : queue->Entries) {
+				if (entry.State == core::queued_state::queued) {
+					joined = joined ? *joined + "\n\n" + entry.Input.Text : entry.Input.Text;
+				}
+			}
+		}
+		if (joined != TourAgent.Waiting) {
+			TourAgent.Waiting = std::move(joined);
+			present_tour_session();
 		}
 	}
 
@@ -1650,8 +2134,39 @@ namespace bpr::app {
 		return words + ".";
 	}
 
+	auto github_application::implementation::tour_request_files() const -> std::vector<application::tour_draft_file>
+	{
+		auto        files    = std::vector<application::tour_draft_file>{ };
+		const auto* snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+		if (snapshot == nullptr) {
+			return files;
+		}
+		for (const auto& file : snapshot->Files) {
+			const auto change = file.Change == application::github_file_change::added ? "added"
+				: file.Change == application::github_file_change::removed             ? "removed"
+				: file.Change == application::github_file_change::renamed             ? "renamed"
+																					  : "modified";
+			files.push_back({ .Path = file.Path, .Change = change, .Hunks = file.HeadHunks, .Patch = file.Patch });
+		}
+		return files;
+	}
+
+	auto github_application::implementation::tour_context_notice(const core::tour_context_route aRoute, const std::size_t aDiffBytes) const -> QString
+	{
+		switch (aRoute) {
+		case core::tour_context_route::up_front: return QStringLiteral("Drafting in the background from the pull request's diff, in one request. Keep writing.");
+		case core::tour_context_route::reads_repository_diff_too_large:
+			return QStringLiteral("This pull request's diff (%1 KiB) is more than one request carries (%2 KiB), so the agent reads the repository instead, in several requests. Keep writing.")
+				.arg(aDiffBytes / 1024U)
+				.arg(core::maximum_up_front_diff_bytes / 1024U);
+		case core::tour_context_route::reads_repository_no_tool_free_mode:
+			return QStringLiteral("This agent has no tool-free mode, so it reads the repository, in several requests. Keep writing.");
+		}
+		return tour_reading_notice();
+	}
+
 	/// [[BPR-1900]], owner addition. Draft the tour: the whole tour,
-	/// drafted in the background from the workspace, as a proposal.
+	/// drafted in the background from the pull request, as a proposal.
 	void github_application::implementation::request_tour_draft()
 	{
 		const auto* const snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
@@ -1662,24 +2177,31 @@ namespace bpr::app {
 		}
 		const auto agent = writing_agent();
 		if (!agent || !tour_session_idle()) {
-			Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+			Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker in the window's footer, or keep writing yourself.")
 															  : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
 			return;
 		}
-		if (!reads_read_only(*agent)) {
-			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("%1 has no read-only drafting mode. Choose Claude or Codex with the agent picker at the bottom of this tab.").arg(agent_display_name(*agent)));
+		// [[BPR-2141]], RFC-BPR-0101 AC13. One tool-free call with the diff
+		// up front; a diff past the budget, or an agent with no tool-free
+		// mode, reads the repository instead, and the notice says so.
+		const auto files = tour_request_files();
+		const auto bytes = application::tour_diff_bytes(files);
+		auto       route = core::choose_tour_context(bytes, writes_tool_free(*agent));
+		if (route != core::tour_context_route::up_front && !reads_read_only(*agent)) {
+			Window->tour_editor()->show_tour_draft_failure(route == core::tour_context_route::reads_repository_diff_too_large
+															   ? QStringLiteral("This pull request's diff (%1 KiB) is more than one request carries (%2 KiB), and %3 cannot read the repository instead. Choose Claude or Codex with the agent picker in the window's footer.")
+																	 .arg(bytes / 1024U)
+																	 .arg(core::maximum_up_front_diff_bytes / 1024U)
+																	 .arg(agent_display_name(*agent))
+															   : QStringLiteral("%1 has no drafting mode. Choose Claude or Codex with the agent picker in the window's footer.").arg(agent_display_name(*agent)));
 			return;
 		}
-		auto files = std::vector<application::tour_draft_file>{ };
-		for (const auto& file : snapshot->Files) {
-			const auto change = file.Change == application::github_file_change::added ? "added"
-				: file.Change == application::github_file_change::removed             ? "removed"
-				: file.Change == application::github_file_change::renamed             ? "renamed"
-																					  : "modified";
-			files.push_back({ file.Path, change, file.HeadHunks });
-		}
 		adopt_tour_conversation();
-		const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context());
+		auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context(), route == core::tour_context_route::up_front);
+		if (!prompt && route == core::tour_context_route::up_front && reads_read_only(*agent)) {
+			route  = core::tour_context_route::reads_repository_diff_too_large;
+			prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context());
+		}
 		if (!prompt) {
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("This pull request is too large to describe to the agent in one request."));
 			return;
@@ -1687,8 +2209,14 @@ namespace bpr::app {
 		core::remember_tour_proposal(TourAgent, TourProposal, std::nullopt);
 		TourProposal.reset();
 		TourDraftPending = true;
-		Window->tour_editor()->show_writing_notice(tour_reading_notice());
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft Tour", *prompt, std::nullopt)) {
+		TourAskMore.reset();
+		Window->tour_editor()->show_writing_notice(tour_context_notice(route, bytes));
+		// [[BPR-2140]]. Its instructions are the system prompt; the message
+		// is the pull request and the tour so far.
+		auto parts          = application::split_tour_prompt(*prompt);
+		TourRunInstructions = std::move(parts.Instructions);
+		TourRunUpFront      = route == core::tour_context_route::up_front;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft Tour", parts.Message, std::nullopt)) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The tour session could not start this request."));
 		}
@@ -1718,13 +2246,58 @@ namespace bpr::app {
 		auto       files    = tour_anchor_files(aResult);
 		const auto proposed = core::propose_tour(*aRun, *answer, files, *draft, TourWorkspaceHead);
 		core::remember_tour_proposal(TourAgent, TourProposal, proposed);
+		// [[BPR-2138]]. What the fresh first draft said, for Ask more.
+		TourDraftSeed = "Draft Tour";
+		if (answer->Problem) {
+			TourDraftSeed += "\n\nProblem: " + *answer->Problem;
+		}
+		if (answer->Solution) {
+			TourDraftSeed += "\n\nSolution: " + *answer->Solution;
+		}
+		TourDraftSeed += "\n\nProposed stops: " + std::to_string(answer->Stops.size()) + ".";
+		if (TourDraftSeed.size() > 8192U) {
+			TourDraftSeed.resize(8192U);
+		}
 		TourProposal    = proposed;
 		TourAnchorFiles = std::move(files);
 		// [[BPR-1900]] owner look v002. Stops left out of the proposal are
 		// kept in the run's transcript, so nothing the agent said is lost.
 		static_cast<void>(core::note_finished_tour_run(TourAgent, *aRun, core::left_out_entries(*TourProposal)));
 		Window->tour_editor()->show_writing_notice(TourProposal->Items.empty() ? QStringLiteral("The agent proposed nothing for this tour.")
-																			   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you accept it."));
+																			   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you apply it."));
+	}
+
+	void github_application::implementation::ask_more_from(const core::tour_agent_run_id aRun)
+	{
+		const auto* const run = core::find_tour_run(TourAgent, aRun);
+		if (Closing || Window == nullptr || run == nullptr) {
+			return;
+		}
+		auto more = tour_ask_more{ };
+		if (run->Request == core::tour_agent_request::draft_tour) {
+			// Draft Tour continues in the chat about the tour as a whole.
+			more.Seed = TourDraftSeed.empty() ? std::string{ "Draft Tour proposed a tour." } : TourDraftSeed;
+		} else if (run->Fresh) {
+			// An Enhance continues in its part's own chat.
+			more.Thread = run->Thread;
+			more.Seed   = "Enhance, asked: " + run->Question + "\n\nIt answered: " + run->Reply;
+			if (TourProposal) {
+				for (const auto& item : TourProposal->Items) {
+					if (item.Run == aRun && !item.Text.empty()) {
+						more.Seed += "\n\nIts suggestion:\n" + item.Text;
+					}
+				}
+			}
+		} else {
+			return;
+		}
+		if (more.Seed.size() > 8192U) {
+			more.Seed.resize(8192U);
+		}
+		const auto thread = more.Thread;
+		TourAskMore       = std::move(more);
+		Window->tour_editor()->side_chat()->open(thread);
+		Window->tour_editor()->show_writing_notice(QStringLiteral("Ask your follow-up in the chat. It starts from that answer and keeps the conversation."));
 	}
 
 	/// [[BPR-1900]]. The author accepts (with their edit) or discards one
@@ -1878,7 +2451,9 @@ namespace bpr::app {
 					return aRun.ConversationScope != key || (selected != TourSelectedConversations.end() && aRun.Conversation != selected->second);
 				});
 			}
-			Window->tour_editor()->present_tour_session(shown, TourProposal);
+			if (!local_tour_shown()) {
+				Window->tour_editor()->present_tour_session(shown, TourProposal);
+			}
 			refresh_tour_host_idle();
 			present_tour_continuation();
 			present_tour_reset();
@@ -1896,26 +2471,6 @@ namespace bpr::app {
 		}
 	}
 #endif
-	auto github_application::implementation::outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>
-	{
-		std::vector<core::tour_outline_entry> entries;
-		for (const auto& stop : aResult.Stops) {
-			const auto source = std::ranges::find(aOperation.Sources, stop.Anchor, &application::writing_source::Id);
-			if (source == aOperation.Sources.end()) {
-				return std::nullopt;
-			}
-			core::tour_outline_entry entry{ .Title = stop.Title, .Source = source->Source, .Suggestion = { stop.Anchor, stop.Reason, stop.Question } };
-			for (const auto& ref : stop.Related) {
-				const auto related = std::ranges::find(aOperation.Sources, ref, &application::writing_source::Id);
-				if (related == aOperation.Sources.end() || !related->Source) {
-					return std::nullopt;
-				}
-				entry.Related.push_back(*related->Source);
-			}
-			entries.push_back(std::move(entry));
-		}
-		return entries;
-	}
 
 	auto github_application::implementation::apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string
 	{
@@ -1931,19 +2486,6 @@ namespace bpr::app {
 		}
 		if (!Window->tour_editor()->writing_visible(hook)) {
 			return "The captured editor is no longer active. Your text is unchanged.";
-		}
-		if (hook == core::writing_hook::outline) {
-			const auto target = current_outline_target();
-			if (!target || !WritingState.complete_outline(aOperation.Request.Id, *target)) {
-				return "The captured tour changed. No skeletons were inserted.";
-			}
-			auto entries = outline_entries(aOperation, aResult);
-			if (!entries) {
-				return "An outline source or related destination is unavailable. No skeletons were inserted.";
-			}
-			Window->tour_editor()->present_outline(*entries);
-			OutlineProposal = tour_outline_proposal{ *target, std::move(*entries) };
-			return "Choose the skeletons to insert. Each starts empty and needs your individual completion.";
 		}
 		auto*      editor  = Window->tour_editor()->writing_editor(hook);
 		const auto capture = editor->capture();
@@ -1996,6 +2538,37 @@ namespace bpr::app {
 		}
 		const auto  result = aResult.Outcome == application::agent_run_outcome::success && bounded ? application::decode_writing_result(json, operation.Request.Target.Hook, operation.Sources, operation.Request.Scope == core::writing_scope::empty_field) : std::nullopt;
 		const auto& prefs  = Profile->WorkbenchPreferences->accepted();
+		// [[BPR-2051]]. Enhance on a comment or a note: a suggestion for the
+		// field that asked, whatever the prompt says now (it ran with the one
+		// saved when pressed), while the pull request is the one it read.
+		if (operation.Enhance) {
+			WritingState.cancel();
+			const auto id = *operation.Enhance;
+			if (result && enhancement_context_key() == operation.Request.Target.ContextDigest) {
+				if (result->Insufficient) {
+					answer_enhancement(id, std::nullopt, QStringLiteral("The agent needs more to go on: %1 Your text is unchanged.").arg(QString::fromStdString(result->Reason)));
+				} else if (result->Replacement == std::string_view{ operation.Request.Raw }.substr(operation.Request.Selection.Begin, operation.Request.Selection.End - operation.Request.Selection.Begin)) {
+					answer_enhancement(id, std::nullopt, QStringLiteral("The agent suggested no change. Your text is unchanged."));
+				} else {
+					answer_enhancement(id, result->Replacement, { });
+				}
+			} else if (aResult.Outcome == application::agent_run_outcome::cancelled) {
+				answer_enhancement(id, std::nullopt, QStringLiteral("Stopped. Your text is unchanged."));
+			} else if (aResult.Outcome == application::agent_run_outcome::success) {
+				answer_enhancement(id, std::nullopt,
+								   result ? QStringLiteral("The pull request changed while Enhance ran. Your text is unchanged; Enhance again.")
+										  : QStringLiteral("The agent's answer could not be used. Your text is unchanged."));
+			} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
+				answer_enhancement(id, std::nullopt, QStringLiteral("Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged."));
+			} else {
+#if defined(BPR_AGENT_INTEGRATIONS)
+				answer_enhancement(id, std::nullopt, qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(operation.Request.Target.Agent)) + QStringLiteral(" Your text is unchanged."));
+#else
+				answer_enhancement(id, std::nullopt, QStringLiteral("Enhance did not finish. Your text is unchanged."));
+#endif
+			}
+			return;
+		}
 		if (result && prefs && prefs->WritingHooks.Revision == operation.Request.Target.HookRevision && writing_context_key() == operation.Request.Target.ContextDigest) {
 			message = apply_writing_result(operation, *result);
 		} else if (aResult.Outcome == application::agent_run_outcome::success) {
@@ -2026,38 +2599,130 @@ namespace bpr::app {
 		}
 	}
 
-	auto github_application::implementation::current_outline_target() const -> std::optional<core::writing_target>
+	auto github_application::implementation::enhancement_context_key() const -> std::array<std::uint8_t, 32>
 	{
-		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
-		if (!draft || draft->ReadOnly) {
-			return std::nullopt;
+		// [[BPR-2051]]. The pull request at the head Enhance read; the tour,
+		// the comparison and the selected lines may move while it runs.
+		auto key = std::string{ "enhance" };
+		if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
+			key += ":" + std::to_string(snapshot->Snapshot.value()) + ":" + std::string{ snapshot->PullRequest.HeadOid.value() };
 		}
-		return writing_target(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
+		return core::writing_digest(key);
 	}
 
-	void github_application::implementation::insert_tour_outline()
+	void github_application::implementation::answer_enhancement(const std::uint64_t aRequest, std::optional<std::string> aReplacement, const QString& aNotice)
 	{
-		const auto target = current_outline_target();
-		if (!OutlineProposal || !target || *target != OutlineProposal->Target || !Window->tour_editor()->writing_visible(core::writing_hook::outline)) {
-			cancel_writing();
-			Window->tour_editor()->show_writing_notice(QStringLiteral("The captured tour changed. Request a new outline before inserting stops."));
+		if (Closing || Window == nullptr) {
 			return;
 		}
-		const auto         draft = TourHost->presentation().Draft;
-		core::tour_command command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert_outline, .Position = draft->Stops.size() };
-		for (const auto index : Window->tour_editor()->retained_outline_entries()) {
-			if (index >= OutlineProposal->Entries.size()) {
+		static_cast<void>(Window->present_enhancement(qt::enhance_outcome{ .Id = aRequest, .Replacement = std::move(aReplacement), .Notice = aNotice }));
+	}
+
+	void github_application::implementation::cancel_enhancement(const std::uint64_t aRequest)
+	{
+		if (!PendingWriting || PendingWriting->Enhance != std::optional{ aRequest }) {
+			return;
+		}
+		PendingWriting.reset();
+		WritingState.cancel();
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2051]]. Enhance runs on the tour session's lane (every writing
+		// run does), so Stop stops that lane, never the Agent tab's run.
+		if (TourSession != nullptr) {
+			TourSession->cancel();
+		}
+#endif
+	}
+
+	void github_application::implementation::request_enhancement(qt::enhance_request aRequest)
+	{
+		const auto id     = aRequest.Id;
+		const auto refuse = [this, id](const QString& aWhy) { answer_enhancement(id, std::nullopt, aWhy); };
+		// One Enhance writing prompt for every comment, reply and note; the
+		// `writing-kind` source tells the agent which this is.
+		const auto  hook  = core::writing_hook::enhance_writing;
+		const auto& prefs = Profile->WorkbenchPreferences->accepted();
+		const auto  agent = writing_agent();
+		if (Closing || !prefs || !WindowRead->accepted_snapshot()) {
+			refuse(QStringLiteral("Open a pull request to use Enhance. Your text is unchanged."));
+			return;
+		}
+		if (Window->agent_panel()->offered_count() == 0 || !agent) {
+			refuse(QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or choose one with the agent picker in the window's footer. Your text is unchanged."));
+			return;
+		}
+		if (!writes_tool_free(*agent)) {
+			refuse(QStringLiteral("Enhance needs an agent that speaks Claude Code's stream JSON. Choose one with the agent picker in the window's footer. Your text is unchanged."));
+			return;
+		}
+		if (PendingWriting || !tour_session_idle()) {
+			refuse(QStringLiteral("The agent is already writing. Wait for it to finish, then Enhance again. Your text is unchanged."));
+			return;
+		}
+		if (aRequest.Begin > aRequest.End || aRequest.End > aRequest.Raw.size() || !core::valid_writing_utf8(aRequest.Raw) || !core::writing_boundary(aRequest.Raw, aRequest.Begin)
+			|| !core::writing_boundary(aRequest.Raw, aRequest.End) || core::writing_blank(std::string_view{ aRequest.Raw }.substr(aRequest.Begin, aRequest.End - aRequest.Begin))) {
+			refuse(QStringLiteral("Write or select some text first."));
+			return;
+		}
+		auto request                 = core::writing_request{ };
+		request.Id                   = id;
+		request.Target.Hook          = hook;
+		request.Target.Window        = DraftWindow;
+		request.Target.Agent         = *agent;
+		request.Target.HookRevision  = prefs->WritingHooks.Revision;
+		request.Target.ContextDigest = enhancement_context_key();
+		request.Scope                = aRequest.Selection ? core::writing_scope::selection : core::writing_scope::field;
+		request.Selection.Begin      = aRequest.Begin;
+		request.Selection.End        = aRequest.End;
+		request.Raw                  = std::move(aRequest.Raw);
+		request.RawDigest            = core::writing_digest(request.Raw);
+		auto        sources          = std::vector<application::writing_source>{ };
+		std::size_t total            = 0;
+		const auto  add              = [&](std::string aId, std::string_view aText, const std::size_t aLimit) {
+			auto size = std::min({ aText.size(), aLimit, std::size_t{ 8192 } - total });
+			while (size > 0 && !core::writing_boundary(aText, size)) {
+				--size;
+			}
+			if (size == 0 || sources.size() == 8 || !core::valid_writing_utf8(aText.substr(0, size))) {
 				return;
 			}
-			command.Outline.push_back(OutlineProposal->Entries[index]);
+			sources.push_back({ std::move(aId), std::string{ aText.substr(0, size) } });
+			total += size;
+		};
+		// What the field is about: the pull request's description and, for a
+		// comment, the lines it is on.
+		add("writing-kind", aRequest.Surface == qt::enhance_surface::note ? std::string_view{ "A local comment the reviewer keeps for themselves; it stays on this computer and nobody else reads it." } : std::string_view{ "A draft comment or reply on the pull request, which its author will read." },
+			256);
+		add("pr-description", WindowRead->accepted_snapshot()->PullRequest.Body, 2048);
+		if (aRequest.Surface == qt::enhance_surface::comment) {
+			if (const auto source = selected_writing_source(true)) {
+				add("comment-lines", source->Text, 3072);
+			}
 		}
-		if (command.Outline.empty()) {
+		if (request.Scope == core::writing_scope::selection) {
+			add("field-before", std::string_view{ request.Raw }.substr(0, request.Selection.Begin), 512);
+			add("field-after", std::string_view{ request.Raw }.substr(request.Selection.End), 512);
+		}
+		// The prompt saved now is the one this run uses.
+		const auto prompt = application::build_writing_prompt_parts(prefs->WritingHooks, request, sources);
+		if (!prompt) {
+			refuse(QStringLiteral("This text is too long for Enhance. Select a shorter passage, or shorten the Enhance prompt in Settings. Your text is unchanged."));
 			return;
 		}
-		OutlineProposal.reset();
-		Window->tour_editor()->present_outline({ });
-		TourHost->dispatch(command);
-		Window->tour_editor()->show_writing_notice(QStringLiteral("Skeleton stops inserted. Undo arrangement removes this insertion. Visit each stop, write or explicitly generate its comment, then choose Ready and next."));
+#if defined(BPR_AGENT_INTEGRATIONS)
+		auto skills     = skill_run_for(hook);
+		PendingWriting  = writing_operation{ .Request = request, .Sources = std::move(sources), .Invocation = { }, .Test = false, .ReadOnly = false, .Enhance = id };
+		const auto text = prompt->Message + skills.Directive;
+		// [[BPR-2138]], [[BPR-2140]]. A fresh run; the Enhance prompt in the
+		// system prompt.
+		if (!dispatch_agent_invocation(*agent, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true,
+									   tour_launch{ .Skills = std::move(skills), .Path = core::agent_run_path::enhance_writing, .SystemInstructions = prompt->Instructions })) {
+			PendingWriting.reset();
+			refuse(QStringLiteral("The agent could not start. Check it in the Agent tab, then Enhance again. Your text is unchanged."));
+		}
+#else
+		refuse(QStringLiteral("This build has no agent. Your text is unchanged."));
+#endif
 	}
 
 	void github_application::implementation::test_writing_hook(core::writing_hook aHook)
@@ -2075,23 +2740,26 @@ namespace bpr::app {
 			return;
 		}
 		core::writing_request request;
-		request.Target.Hook                              = aHook;
+		// [[BPR-2051]] A stop's Enhance prompt is tried as a stop's Enhance:
+		// the stop with text, whose instructions it is.
+		request.Target.Hook                              = aHook == core::writing_hook::enhance_stop ? core::writing_hook::comment : aHook;
 		request.Target.HookRevision                      = prefs->WritingHooks.Revision;
 		request.Target.ContextDigest                     = writing_context_key();
 		request.Raw                                      = "The cache reduces repeated work.";
 		request.Selection.End                            = request.Raw.size();
 		std::vector<application::writing_source> sources = { { "test-source", "The cache reuses previously computed results. No performance or test-success claim is supplied." } };
-		const auto                               prompt  = application::build_writing_prompt(prefs->WritingHooks, request, sources);
+		const auto                               prompt  = application::build_writing_prompt_parts(prefs->WritingHooks, request, sources);
 		if (!prompt) {
 			Window->writing_hooks()->show_notice("Hook instructions exceed the test context limit.");
 			return;
 		}
-		PendingWriting = writing_operation{ request, std::move(sources), { }, true };
+		PendingWriting = writing_operation{ request, std::move(sources), { }, true, false, std::nullopt };
 		auto skills    = skill_run_for(aHook);
 		Window->writing_hooks()->show_notice(skills.Note ? "Testing saved prompt… Nothing will be inserted or published. " + *skills.Note : std::string{ "Testing saved prompt… Nothing will be inserted or published." });
 #if defined(BPR_AGENT_INTEGRATIONS)
-		const auto text = *prompt + skills.Directive;
-		if (!dispatch_agent_invocation(*selected, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true, tour_launch{ .Skills = std::move(skills) })) {
+		const auto text = prompt->Message + skills.Directive;
+		if (!dispatch_agent_invocation(*selected, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true,
+									   tour_launch{ .Skills = std::move(skills), .Path = core::agent_run_path::tour_enhance, .SystemInstructions = prompt->Instructions })) {
 			PendingWriting.reset();
 			Window->writing_hooks()->show_notice("An available agent and exact approved review context are required.");
 		}
@@ -2106,7 +2774,28 @@ namespace bpr::app {
 		if (!draft || !TourPublication) {
 			return;
 		}
+		const auto anchorFiles = [this] {
+			auto result = std::vector<core::tour_anchor_file>{ };
+			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+				auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
+				if (file.HeadHunks) {
+					anchor.Hunks.emplace();
+					for (const auto& [first, last] : *file.HeadHunks) {
+						anchor.Hunks->push_back({ first, last });
+					}
+				}
+				result.push_back(std::move(anchor));
+			}
+			return result;
+		};
 		if (draft->Remote || !EpochHost || !LastAcceptedHandoff || !WindowRead->accepted_snapshot()) {
+			// [[BPR-2116]], RFC-BPR-0100 AC06. An update publishes an edited
+			// stop's references as permalinks, so it needs the pull request's
+			// files as a first publication does; a published tour's stops
+			// keep their destinations, so nothing else is checked here.
+			if (draft->Remote && WindowRead && WindowRead->accepted_snapshot() && TourHead == draft->ObservedHead.value_or(draft->Head)) {
+				TourPublication->observe_anchors(TourHead, anchorFiles());
+			}
 			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
 			return;
 		}
@@ -2117,17 +2806,7 @@ namespace bpr::app {
 			TourPublication->dispatch(qt::tour_editor_action::preview_publication);
 			return;
 		}
-		auto files = std::vector<core::tour_anchor_file>{ };
-		for (const auto& file : WindowRead->accepted_snapshot()->Files) {
-			auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
-			if (file.HeadHunks) {
-				anchor.Hunks.emplace();
-				for (const auto& [first, last] : *file.HeadHunks) {
-					anchor.Hunks->push_back({ first, last });
-				}
-			}
-			files.push_back(std::move(anchor));
-		}
+		auto files    = anchorFiles();
 		auto requests = std::vector<application::workbench_selected_diff_request>{ };
 		for (const auto& stop : draft->Stops) {
 			const auto source = core::publication_source(stop);
@@ -2192,39 +2871,194 @@ namespace bpr::app {
 			read_next_tour_repair();
 			return;
 		}
-		request.Diff      = *context;
-		auto* const epoch = EpochHost.get();
-		auto* const lane  = &DecisionLane;
-		TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
-		try {
-			DiffEffects.post([this, epoch, lane, matcher = LineMatcher, request, generation = TourRepairGeneration, token = TourSourceStop.get_token()] {
-				auto comparison = std::optional<application::tour_source_comparison>{ };
-				try {
-					comparison = application::materialize_tour_source_comparison(*epoch, *matcher, request, token);
-				} catch (...) { }
-				try {
-					lane->post([this, generation, produced = std::move(comparison)]() mutable {
-						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-						if (Closing || generation != TourRepairGeneration) {
-							return;
-						}
-						if (produced) {
-							const auto found = std::ranges::find(TourRepairFiles, produced->Right.Path, &core::tour_anchor_file::Path);
-							if (found != TourRepairFiles.end() && produced->Index.diff().RightDocument) {
-								found->HeadLines = static_cast<std::uint32_t>(produced->Index.diff().RightDocument->Lines.size());
-							}
-							TourRepairComparisons.push_back(std::move(*produced));
-						}
-						read_next_tour_repair();
-					});
-				} catch (...) {
-					TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+		request.Diff = *context;
+		read_tour_comparison(std::move(request), [this, generation = TourRepairGeneration](std::optional<application::tour_source_comparison> aProduced) {
+			if (Closing || generation != TourRepairGeneration) {
+				return;
+			}
+			if (aProduced) {
+				const auto found = std::ranges::find(TourRepairFiles, aProduced->Right.Path, &core::tour_anchor_file::Path);
+				if (found != TourRepairFiles.end() && aProduced->Index.diff().RightDocument) {
+					found->HeadLines = static_cast<std::uint32_t>(aProduced->Index.diff().RightDocument->Lines.size());
 				}
-			});
-		} catch (...) {
-			TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
-			Window->tour_editor()->show_notice(QStringLiteral("The source check could not start. Keep preparing locally and preview again."));
+				TourRepairComparisons.push_back(std::move(*aProduced));
+			}
+			read_next_tour_repair();
+		});
+	}
+
+	void github_application::implementation::read_tour_comparison(application::workbench_selected_diff_request aComparison, std::function<void(std::optional<application::tour_source_comparison>)> aDone)
+	{
+		struct comparison_read
+		{
+			application::workbench_selected_diff_request                            Comparison;
+			std::function<void(std::optional<application::tour_source_comparison>)> Done;
+			std::optional<application::tour_pinned_file>                            Left;
+		};
+		auto read = std::make_shared<comparison_read>(comparison_read{ std::move(aComparison), std::move(aDone), std::nullopt });
+		// One side: grant its identical-commit pair here, read it on the diff
+		// lane, and come back here for the other side or the answer.
+		auto side = std::make_shared<std::function<void(core::diff_side)>>();
+		*side     = [this, read, weak = std::weak_ptr{ side }](const core::diff_side aSide) {
+			const auto& comparison = read->Comparison;
+			const auto  commit     = aSide == core::diff_side::left ? comparison.Diff.Comparison.Left.Commit : comparison.Diff.Comparison.Right.Commit;
+			const auto  current    = Closing || !EpochHost ? std::optional<application::workbench_selected_diff_context>{ } : EpochHost->context(comparison.WorkbenchAuthority);
+			const auto  context    = current ? EpochHost->realignment_context(comparison.WorkbenchAuthority, { comparison.WorkbenchAuthority.Host, comparison.WorkbenchAuthority.Repository, comparison.WorkbenchAuthority.PullRequest, commit, commit, current->Comparison.Left.Identity.Epoch, current->Comparison.Right.Identity.Epoch })
+											 : std::optional<application::workbench_selected_diff_context>{ };
+			if (!context) {
+				read->Done(std::nullopt);
+				return;
+			}
+			auto request        = comparison;
+			request.Diff        = *context;
+			request.File.Change = application::workbench_file_change_kind::unchanged;
+			auto* const epoch   = EpochHost.get();
+			auto* const lane    = &DecisionLane;
+			TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
+			try {
+				DiffEffects.post([this, epoch, lane, matcher = LineMatcher, read, request, aSide, next = weak.lock(), token = TourSourceStop.get_token()] {
+					auto produced = std::optional<application::tour_source_comparison>{ };
+					auto file     = std::optional<application::tour_pinned_file>{ };
+					try {
+						file = application::materialize_pinned_tour_file(*epoch, request, token);
+						if (file && aSide == core::diff_side::right && read->Left) {
+							produced = application::compare_tour_source_files(*matcher, read->Comparison, *read->Left, *file, token);
+						}
+					} catch (...) {
+						file.reset();
+						produced.reset();
+					}
+					try {
+						lane->post([this, read, aSide, next, pinned = std::move(file), answer = std::move(produced)]() mutable {
+							TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+							if (Closing) {
+								return;
+							}
+							if (aSide == core::diff_side::left && pinned && next) {
+								read->Left = std::move(pinned);
+								(*next)(core::diff_side::right);
+								return;
+							}
+							read->Done(std::move(answer));
+						});
+					} catch (...) {
+						TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+					}
+				});
+			} catch (...) {
+				TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+				read->Done(std::nullopt);
+			}
+		};
+		(*side)(core::diff_side::left);
+	}
+
+	void github_application::implementation::check_tour_material()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Closing || !draft || draft->ReadOnly || TourMaterialReading || !EpochHost || !LastAcceptedHandoff || !WindowRead->accepted_snapshot() || !TourRepairRequests.empty()) {
+			return;
 		}
+		const auto head = core::tour_current_head(*draft);
+		if (TourHead != head) {
+			return;
+		}
+		const auto authority = workbench_authority(*LastAcceptedHandoff);
+		const auto current   = EpochHost->context(authority);
+		if (!current || current->Comparison.Right.Commit != head) {
+			return;
+		}
+		auto requests = std::vector<application::workbench_selected_diff_request>{ };
+		for (const auto& stop : draft->Stops) {
+			if (!stop.Acceptance) {
+				continue;
+			}
+			for (const auto& material : stop.Acceptance->Material) {
+				const auto& range = material.Range;
+				if (range.Commit == head || (material.CheckedAt == head && material.Verdict != core::tour_material_verdict::unchecked)) {
+					continue;
+				}
+				// One read per file, commit and head; a file read once at a
+				// head is not asked again there. A read that failed is asked
+				// again on a later presentation, a bounded number of times.
+				auto key = application::tour_material_key{ range.Commit, head, range.Path };
+				if (!TourMaterial.may_ask(key)) {
+					continue;
+				}
+				const auto binding = core::agent_revision_binding{ .Host = authority.Host, .Repository = authority.Repository, .PullRequest = authority.PullRequest, .BaseOid = range.Commit, .HeadOid = head, .LeftEpoch = current->Comparison.Left.Identity.Epoch, .RightEpoch = current->Comparison.Right.Identity.Epoch };
+				const auto context = EpochHost->realignment_context(authority, binding);
+				if (!context) {
+					// Not readable yet: nothing was asked, so it is asked again.
+					continue;
+				}
+				TourMaterial.asked(std::move(key));
+				application::workbench_selected_diff_request request;
+				request.Context               = { core::request_id{ requests.size() + 1U }, authority.ApplicationSession, core::request_generation{ draft->Revision } };
+				request.WorkbenchAuthority    = authority;
+				request.Diff                  = *context;
+				request.File.File             = core::file_identity_of(range.Path);
+				request.File.PresentationPath = range.Path;
+				request.File.CurrentPath      = native_filesystem_path(QString::fromUtf8(range.Path));
+				request.File.Change           = application::workbench_file_change_kind::modified;
+				request.File.ContentKind      = application::workbench_file_content_kind::text;
+				requests.push_back(std::move(request));
+			}
+		}
+		if (requests.empty()) {
+			return;
+		}
+		++TourMaterialGeneration;
+		TourMaterialRequests = { requests.begin(), requests.end() };
+		TourMaterialReading  = true;
+		read_next_tour_material();
+	}
+
+	void github_application::implementation::read_next_tour_material()
+	{
+		if (Closing || !TourHost || TourMaterialRequests.empty()) {
+			TourMaterialReading = false;
+			TourMaterialRequests.clear();
+			return;
+		}
+		auto request = std::move(TourMaterialRequests.front());
+		TourMaterialRequests.pop_front();
+		// As a repair read: the epoch actor grants one realignment at a time,
+		// so each exact pair is authorized immediately before its read.
+		const auto context = EpochHost->realignment_context(request.WorkbenchAuthority,
+															{ .Host = request.WorkbenchAuthority.Host, .Repository = request.WorkbenchAuthority.Repository, .PullRequest = request.WorkbenchAuthority.PullRequest, .BaseOid = request.Diff.Comparison.Left.Commit, .HeadOid = request.Diff.Comparison.Right.Commit, .LeftEpoch = request.Diff.Comparison.Left.Identity.Epoch, .RightEpoch = request.Diff.Comparison.Right.Identity.Epoch });
+		if (!context) {
+			TourMaterial.answered(tour_material_key_of(request), false);
+			read_next_tour_material();
+			return;
+		}
+		request.Diff = *context;
+		read_tour_comparison(request, [this, request, generation = TourMaterialGeneration](std::optional<application::tour_source_comparison> aProduced) {
+			if (Closing || generation != TourMaterialGeneration) {
+				return;
+			}
+			// Re-review finding 3: a read that left the code uncompared
+			// (no verdict) is asked again like one that failed.
+			const auto key = tour_material_key_of(request);
+			if (aProduced && TourHost && aProduced->Left.Commit != aProduced->Right.Commit) {
+				TourHost->observe_comparison(aProduced->Index, aProduced->Left, aProduced->Right);
+				const auto draft = TourHost->presentation().Draft;
+				TourMaterial.answered(key, draft && application::tour_material_compared(*draft, key));
+			} else {
+				TourMaterial.answered(key, false);
+			}
+			read_next_tour_material();
+		});
+	}
+
+	auto github_application::implementation::tour_material_key_of(const application::workbench_selected_diff_request& aRequest) -> application::tour_material_key
+	{
+		return { aRequest.Diff.Comparison.Left.Commit, aRequest.Diff.Comparison.Right.Commit, aRequest.File.PresentationPath };
+	}
+
+	auto github_application::implementation::tour_changed_files() const -> std::vector<std::string>
+	{
+		const auto& snapshot = WindowRead->accepted_snapshot();
+		return TourOwner ? application::tour_changed_paths(*TourOwner, snapshot ? &*snapshot : nullptr) : std::vector<std::string>{ };
 	}
 
 	void github_application::implementation::dispatch_tour_repair(const core::tour_stop_id aStop, const qt::tour_repair_action aAction)
@@ -2291,22 +3125,100 @@ namespace bpr::app {
 		Window->tour_editor()->show_notice(QStringLiteral("The proposed source text is unavailable. Preview again before moving this destination."));
 	}
 
+	void github_application::implementation::carry_local_tour(const application::tour_presentation& aProjection)
+	{
+		// A pull request made from a local draft starts its private tour
+		// draft with the draft's tour, once, while that draft is still empty.
+		if (!DraftDesktop || !TourOwner || TourCarryAsked == TourOwner || aProjection.Loading || !aProjection.Draft || !WindowRead->accepted_snapshot()) {
+			return;
+		}
+		const auto& draft = *aProjection.Draft;
+		if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote || draft.ReadOnly) {
+			TourCarryAsked = TourOwner;
+			return;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		const auto& marks    = DraftDesktop->host().home().Marks;
+		const auto  mark     = std::ranges::find_if(marks, [&snapshot](const application::local_draft_mark& aMark) {
+			return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
+		});
+		if (mark == marks.end()) {
+			return;
+		}
+		TourCarryAsked   = TourOwner;
+		const auto weak  = std::weak_ptr<const int>{ WindowLifetime };
+		const auto owner = *TourOwner;
+		DraftDesktop->host().carry_tour(mark->Id, draft, [this, weak, owner](core::local_tour_carry aCarry) {
+			if (weak.expired() || Closing || TourOwner != owner || !TourHost) {
+				return;
+			}
+			const auto shown = TourHost->presentation();
+			if (!shown.Draft || !shown.Draft->Stops.empty() || !shown.Draft->Problem.empty() || !shown.Draft->Solution.empty()) {
+				// The author began this tour meanwhile: theirs stands.
+				return;
+			}
+			// A carry the tour draft refuses is said, never dropped in silence
+			// (the refusal that opened #182 with an empty tour was discarded here).
+			auto refusal = core::tour_refusal::conflict;
+			if (aCarry.Tour.Head == shown.Draft->Head) {
+				const auto applied = TourHost->execute({ .Command = { .Draft = shown.Draft->Id, .Owner = shown.Draft->Owner, .ExpectedRevision = shown.Draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = std::move(aCarry.Tour) } });
+				const auto taken   = applied.Status == application::tour_service_status::accepted || applied.Status == application::tour_service_status::unchanged;
+				refusal            = taken ? core::tour_refusal::none : applied.Refusal != core::tour_refusal::none ? applied.Refusal
+																													: core::tour_refusal::conflict;
+			}
+			if (const auto words = core::local_tour_carry_refusal_words(refusal); !words.empty() && Window != nullptr) {
+				Window->tour_editor()->show_notice(QString::fromStdString(words));
+			}
+		});
+	}
+
+	auto github_application::implementation::local_tour_shown() const -> bool
+	{
+		// RFC-BPR-0110 as amended: while the window shows a local draft, its
+		// Tour panel is the draft's, and the pull request's tour waits.
+		return DraftDesktop && DraftDesktop->tour_shown();
+	}
+
+	void github_application::implementation::restore_tour_panel()
+	{
+		if (Window == nullptr || Closing) {
+			return;
+		}
+		Window->tour_editor()->set_local_words(std::nullopt);
+		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		if (TourHost) {
+			auto shown         = TourHost->presentation();
+			shown.ChangedFiles = tour_changed_files();
+			Window->tour_editor()->present(shown);
+		} else {
+			Window->tour_editor()->present({ });
+		}
+		present_tour_session();
+	}
+
 	void github_application::implementation::dispatch_tour_action(qt::tour_editor_action aAction)
 	{
+		if (local_tour_shown()) {
+			DraftDesktop->tour_action(aAction);
+			return;
+		}
 		if (Closing || !TourHost || !current(DraftWindow)) {
 			return;
 		}
 		switch (aAction) {
-		case qt::tour_editor_action::suggest_outline:
-			if (const auto draft = TourHost->presentation().Draft; draft && !draft->ReadOnly) {
-				request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
-			}
-			return;
-		case qt::tour_editor_action::insert_outline:
-			insert_tour_outline();
-			return;
 		case qt::tour_editor_action::preview_publication:
 			prepare_tour_repairs();
+			return;
+		case qt::tour_editor_action::open_published:
+			// [[BPR-1991]]. The head's On GitHub: the published tour's address,
+			// through the window's browser port.
+			if (const auto draft = TourHost->presentation().Draft; draft && draft->Remote && !draft->Remote->WebUrl.empty() && Profile->WindowBrowser != nullptr) {
+				static_cast<void>(Profile->WindowBrowser->open(draft->Remote->WebUrl));
+			}
+			return;
+		case qt::tour_editor_action::choose_connection:
+			// [[BPR-1992]]. A refusal's Use another connection.
+			Window->open_sign_in();
 			return;
 		case qt::tour_editor_action::publish_publication:
 		case qt::tour_editor_action::resume_publication:

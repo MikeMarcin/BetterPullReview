@@ -9,40 +9,53 @@
 #include <functional>
 
 class QLabel;
+class QMouseEvent;
 class QPaintEvent;
 class QScrollArea;
 class QToolButton;
 class QVBoxLayout;
 
 /// \file
-/// \brief [[BPR-1590]]. RFC-BPR-0085 D6: Finish your review as a sheet from
-/// the window's right edge over the current surface.
+/// \brief [[BPR-1590]]. RFC-BPR-0085 D6: Finish your review over the current
+/// surface; [[BPR-2175]]: in a lightbox.
 namespace bpr::qt {
-	/// \brief Finish your review, beside the code: a 540-pixel sheet at the
-	/// right edge of the review area, over whatever the modality shows.
+	/// \brief Finish your review in a lightbox over the window, below its
+	/// title row.
 	///
 	/// \details The owner, 2026-10-17: "I think I like C with an expand to A."
 	/// Its header is the title and two tools, Expand (to the focused page in
 	/// Discuss) and Close; its body scrolls and holds the review composer,
-	/// which the window lends it and takes back. It paints the panel's Base
-	/// with a soft shadow on its left edge, from palette roles only, and
-	/// leaves at least 320 pixels of the surface beneath it visible.
+	/// which the window lends it and takes back.
+	///
+	/// [[BPR-2175]] (owner, mockup round 2, option D): the panel is centred
+	/// over a dimmed window, as wide as the window allows up to
+	/// `lightbox_width` and as tall as its content up to the area. The widget
+	/// covers the whole area it is placed on and paints the scrim there; a
+	/// press on the scrim closes it (the window's title row, with its mode
+	/// tabs and window controls, lies outside it and stays live). Colours
+	/// come from palette roles only.
 	class compose_review_sheet final : public QWidget
 	{
 	public:
-		/// The width the sheet takes when the area allows it.
-		static constexpr int preferred_width = 540;
-		/// The shadow cast on the surface to its left.
-		static constexpr int shadow_width = 14;
+		/// The widest the panel grows.
+		static constexpr int lightbox_width = 1180;
+		/// The narrowest it shrinks to.
+		static constexpr int minimum_width = 360;
+		/// The scrim kept around the panel on each side.
+		static constexpr int margin = 24;
+		/// A panel at least this wide sets the composer in two columns.
+		static constexpr int two_column_width = 820;
 
 		explicit compose_review_sheet(QWidget* aParent = nullptr);
 
 		/// \brief The tools' glyphs, their names with keys, and what they do.
 		void set_tools(const QIcon& aExpand, const QString& aExpandName, std::function<void()> aOnExpand, const QIcon& aClose, const QString& aCloseName,
 					   std::function<void()> aOnClose);
-		/// \brief Lays the sheet at the right edge of `aArea`, in its parent's
-		/// coordinates, over everything else there.
+		/// \brief Covers `aArea`, in its parent's coordinates, over everything
+		/// else there, with the panel centred in it.
 		void place(const QRect& aArea);
+		/// \brief The panel, in the sheet's own coordinates.
+		[[nodiscard]] auto panel() const noexcept -> QRect;
 
 		[[nodiscard]] auto scroll() const noexcept -> QScrollArea*;
 		/// \brief Where the borrowed composer goes.
@@ -53,6 +66,7 @@ namespace bpr::qt {
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
+		void mousePressEvent(QMouseEvent* aEvent) override;
 
 	private:
 		QWidget*              Header  = nullptr;
@@ -61,6 +75,7 @@ namespace bpr::qt {
 		QToolButton*          Close   = nullptr;
 		QScrollArea*          Scroll  = nullptr;
 		QVBoxLayout*          Content = nullptr;
+		QRect                 Panel;
 		std::function<void()> OnExpand;
 		std::function<void()> OnClose;
 	};

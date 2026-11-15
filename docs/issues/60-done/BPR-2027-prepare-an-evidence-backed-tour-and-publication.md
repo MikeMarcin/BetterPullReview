@@ -49,7 +49,7 @@ AC08 stays pending: the tour look was rejected (three differently styled Accept 
 
 All three notes fixed on the lane (`f3fc567f3`, `b8dca6417`, `1f153d3b5`,
 RFC-BPR-0106 amendment `195140d79`); evidence in the
-RFC-BPR-0110 ledger on the lane `claude/v0-5-0-prerelease-targets-52265d` (`docs/verification/RFC-BPR-0110.md`, "Rework of the owner's verdicts").
+[RFC-BPR-0110 ledger](../../verification/RFC-BPR-0110.md#rework-of-the-owners-verdicts-2026-11-13).
 AC08 still waits for the owner's look: session `a0cbb9ddda6d1ae524e5d63d4a3342d7`, state
 `/Users/jaeger/.attended-review-state/local-draft-tour-panel-v006-2026-11-13/state`
 (serve output beside it; the URL stays there), cursor 9, filed 2026-11-13 and

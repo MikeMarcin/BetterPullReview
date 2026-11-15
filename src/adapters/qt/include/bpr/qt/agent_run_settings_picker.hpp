@@ -5,6 +5,8 @@
 #include <QString>
 #include <QToolButton>
 
+class QMessageBox;
+
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -39,6 +41,31 @@ namespace bpr::qt {
 		QString Note;
 		/// Owner look v006. The harness is being asked for its models.
 		bool Listing = false;
+		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
+		/// (owner look e97c6a3d). Two toggles for this pull request under the
+		/// model and effort, each explained in its tooltip; none shown when
+		/// the agent takes no grant. A toggle is checked only while the launch
+		/// carries what it names, and unavailable (with why) when it cannot.
+		bool GrantApplies = false;
+		/// "Use scratch folder", or "Use scratch folder (full)".
+		QString ScratchText;
+		bool    ScratchOn      = false;
+		bool    ScratchEnabled = false;
+		QString ScratchTip;
+		bool    BuildsOn      = false;
+		bool    BuildsEnabled = false;
+		QString BuildsTip;
+		/// The session's scratch folder is known and can be opened.
+		bool ScratchOpenable = false;
+		/// Owner look e97c6a3d ("I'm not even sure if type /MODEL or type
+		/// /EFFORT is true in general with custom agents"): the Model and
+		/// Effort menus' tooltips say the question field takes /model or
+		/// /effort only when it does for this agent; empty otherwise.
+		QString ModelHint;
+		QString EffortHint;
+		/// [[BPR-2139]], RFC-BPR-0104 (owner, 2026-11-12). The agent's own MCP
+		/// servers load in its conversations; the tooltip says so.
+		bool McpOn = false;
 	};
 
 	/// \brief Where a model or effort chosen in the picker goes; answers
@@ -52,6 +79,14 @@ namespace bpr::qt {
 	[[nodiscard]] auto agent_model_display_name(const QString& aModel) -> QString;
 
 	class agent_run_settings_picker;
+
+	/// \brief [[BPR-2008]], RFC-BPR-0104. Asks, once per pull request, before
+	/// the first turn that would build: true allows, false declines (the
+	/// default), none when the question was closed.
+	[[nodiscard]] auto ask_build_question(QWidget* aParent) -> std::optional<bool>;
+	/// \brief The question's box, not yet shown, for `ask_build_question` and
+	/// for a render of it.
+	[[nodiscard]] auto make_build_question(QWidget* aParent) -> std::unique_ptr<QMessageBox>;
 
 	/// \brief [[BPR-1878]]. What every agent picker shows: the agents offered
 	/// with their run settings, the model each last reported running, and
@@ -85,6 +120,13 @@ namespace bpr::qt {
 		std::function<void()> Setup;
 		/// The agent refused a setting.
 		std::function<void(const QString&)> Refused;
+		/// [[BPR-2007]]. The scratch folder turned on or off for this pull
+		/// request and agent; Open scratch folder.
+		std::function<void(std::uint64_t, bool)> ToggleScratch;
+		std::function<void(std::uint64_t)>       OpenScratch;
+		/// Owner look e97c6a3d. Allow build and run tests turned on or off
+		/// for this pull request and agent.
+		std::function<void(std::uint64_t, bool)> ToggleBuilds;
 
 		/// Each picker presents again (settings, report or choice changed).
 		void refresh();
@@ -121,6 +163,16 @@ namespace bpr::qt {
 		void present();
 		/// The pill's whole words, however it is shortened.
 		[[nodiscard]] auto full_text() const -> QString { return Full; }
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). The
+		/// chosen agent needs setup: the pill says what is missing after the
+		/// agent's name ("Codex · not signed in") with an outline. Owner note
+		/// on the footer look ("Why is it red?"): only a check that ran and
+		/// failed (`aFailed`) is drawn in the failed check's colour; an agent
+		/// not yet checked is drawn in the quiet secondary ink. Empty: it
+		/// needs nothing.
+		void               set_attention(const QString& aNeed, bool aFailed = false);
+		[[nodiscard]] auto attention_failed() const noexcept -> bool { return AttentionFailed; }
+		[[nodiscard]] auto attention() const -> const QString& { return Attention; }
 		[[nodiscard]] auto source() const -> const std::shared_ptr<agent_run_settings_source>& { return Source; }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
@@ -138,7 +190,9 @@ namespace bpr::qt {
 		std::shared_ptr<agent_run_settings_source> Source;
 		QString                                    Full;
 		QString                                    Tip;
-		bool                                       MenuStale = false;
+		QString                                    Attention;
+		bool                                       AttentionFailed = false;
+		bool                                       MenuStale       = false;
 
 		/// The words' inset, and the chevron's width and inset on the right.
 		static constexpr int text_left     = 10;

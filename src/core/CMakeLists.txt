@@ -108,16 +108,33 @@ add_library(
         src/view_filter_memory.cpp
         src/pull_request_activity.cpp
         src/agent_chat_scope.cpp
+        src/agent_question.cpp
+        src/agent_reference.cpp
+        src/tour_references.cpp
+        src/agent_activity.cpp
+        src/agent_cost.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp
         src/agent_entry.cpp
+        src/agent_configuration.cpp
+        src/agent_grant.cpp
+        src/agent_run_policy.cpp
         src/agent_profile.cpp
         src/agent_wrapper.cpp
         src/agent_setup.cpp
         src/account_setup.cpp
         src/agent_turn.cpp
         src/clone_discovery.cpp
+        src/local_draft.cpp
+        src/local_changes.cpp
+        src/returning_review.cpp
+        src/explain_file.cpp
+        src/suggest_change.cpp
+        src/local_presentation.cpp
+        src/local_draft_publication.cpp
+        src/local_draft_tour.cpp
+        src/local_tour_view.cpp
         src/review_skill.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
@@ -130,6 +147,8 @@ add_library(
         src/feedback_draft_edit.cpp
         src/feedback_header_edit.cpp
         src/agent_comment_suggestion.cpp
+        src/agent_draft_all.cpp
+        src/draft_roster.cpp
         src/agent_answer_findings.cpp
         src/agent_finding_card_memory.cpp
         src/feedback_conversation.cpp
@@ -149,11 +168,18 @@ add_library(
         src/conversation_mutation_lifecycle.cpp
         src/comment_edit.cpp
         src/overview_tour.cpp
+        src/tour_publication_head.cpp
+        src/tour_stop_acceptance.cpp
         src/tour_steps.cpp
         src/tour_agent_session.cpp
         src/skill_references.cpp
         src/prompt_macro.cpp
+        src/prompt_surfaces.cpp
+        src/prompt_editor.cpp
         src/prompt_macro_shipped.cpp
+        src/quick_ask.cpp
+        src/agent_report.cpp
+        src/agent_queue.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
         src/window_title.cpp
@@ -164,6 +190,8 @@ add_library(
         src/reply_draft_standing.cpp
         src/thread_reply.cpp
         src/conversation_timeline.cpp
+        src/discuss_preferences.cpp
+        src/local_comment.cpp
         src/note_placement.cpp
         src/review_submission.cpp
         src/review_submission_unknown.cpp
@@ -190,7 +218,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Approved dependency inventory; the boundary check enforces exact links.
 # Semantic eligibility follows the architecture external-determinism contract.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::Xdiff BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
+target_link_libraries(better_pull_review_core PRIVATE glaze::glaze BetterPullReview::Xdiff BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
 
 # Reproducible portable builds may explicitly keep the approved HACL backend.
 if(BPR_CORE_SHA256_PORTABLE)

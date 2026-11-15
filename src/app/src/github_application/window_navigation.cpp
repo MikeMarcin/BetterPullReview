@@ -1157,6 +1157,10 @@ namespace bpr::app {
 		RestorationReadAccepted   = false;
 		RestorationReadRequest    = WindowRead->state().NextRequest;
 		restoration_notice(QStringLiteral("Resuming the saved reading…"));
+		// [[RFC-BPR-0105]]. An open starts a fresh review surface.
+		if (Window != nullptr) {
+			Window->begin_review_open();
+		}
 		WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aRequest.Destination.Repository, .Number = aRequest.Destination.Number });
 		if (PendingRestoration && !WindowRead->state().PendingPullRequest && WindowRead->state().NextRequest == *RestorationReadRequest) {
 			Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::unavailable));
@@ -1275,7 +1279,6 @@ if (QueueHost && WindowRead->state().PendingPullRequest && QueueFactRequest != W
 // changes the bodies and threads these were taken from, under the same snapshot.
 if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.ConversationRefreshed) {
 ReadStateCache.reset();
-NotePaths.reset();
 DefectThreadNames.reset();
 }
 				publish_review_conversations(aUpdate.Presentation);

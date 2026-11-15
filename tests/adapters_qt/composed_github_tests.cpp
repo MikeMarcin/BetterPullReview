@@ -9,6 +9,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -162,7 +163,7 @@ namespace {
 	{
 		aWindow.open_agent_action()->trigger();
 		QApplication::processEvents();
-		expect(aWindow.tray_tabs()->currentIndex() == 3 && aWindow.agent_tab()->isVisible(),
+		expect(aWindow.tray_tabs()->currentIndex() == 2 && aWindow.agent_tab()->isVisible(),
 			   "the Agent action opens the accepted drawer tab");
 	}
 
@@ -3959,7 +3960,7 @@ namespace {
 				   "the open thread spans the drawer at its narrowest and widest");
 			expect(window.tray_tabs()->width() >= window.tray_tabs()->sizeHint().width()
 					   && window.conversation_panel()->filter_unread_button()->isVisible()
-					   && window.next_new_comment_button()->isVisible(),
+					   && window.next_comment_button()->isVisible() && window.previous_comment_button()->isVisible(),
 				   "every tab shows whole, and the tools stay on screen, beside the tabs or under them");
 			for (auto* const post : opened->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
 				auto* const reader = dynamic_cast<qt::markdown_body_view*>(post->findChild<QWidget*>(QStringLiteral("threadPostReader")));
@@ -6122,7 +6123,7 @@ namespace {
 		QApplication::processEvents();
 		const auto cards = agent->finding_cards();
 		expect(cards.size() == 1U && cards.front()->isVisible(), "the finding appears in the Agent conversation");
-		auto* const offered = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		auto* const offered = cards.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
 		expect(offered != nullptr && offered->isVisible(), "the visible finding offers Draft a comment");
 		offered->click();
 		QApplication::processEvents();
@@ -7506,7 +7507,8 @@ namespace {
 		const auto  load = [&] {
 			publish_first_read(window);
 			expect(list->topLevelItemCount() == 0, "a replacement read clears earlier checks before its metadata");
-			window.publish(application::github_presentation_update{ .LoadingOverview = metadata });
+			// [[BPR-2180]]. The read lane's account of the read, as its host publishes it.
+			window.publish(application::github_presentation_update{ .LoadingOverview = metadata, .Loading = core::github_loading_readiness{ .FirstRead = true, .Metadata = true } });
 			auto results   = metadata;
 			results.Checks = checks;
 			window.publish(application::github_presentation_update{ .LoadingOverview = std::move(results) });
@@ -7530,7 +7532,9 @@ namespace {
 		load();
 		showSections();
 		load();
-		expect(page->status_section(qt::overview_status_section::people)->isHidden() && page->status_section(qt::overview_status_section::attention)->isHidden(),
+		// [[BPR-2180]]. The sections stand in their places and wait; nothing of
+		// the previous observation is shown in them.
+		expect(page->participant_rows().empty() && page->request_rows().empty() && page->pending_veils().People->busy() && page->pending_veils().Merge->busy(),
 			   "replacement clears people and merge before new observations");
 		page->status_section_header(qt::overview_status_section::checks)->click();
 		list->setCurrentItem(list->topLevelItem(1));
@@ -7553,7 +7557,7 @@ namespace {
 			load();
 			showSections();
 			window.publish(application::github_presentation_update{
-				.Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = status } } });
+				.Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = status } }, .Loading = core::github_loading_readiness{ } });
 			expect(list->topLevelItemCount() == 0 && !page->projection() && !page->has_observed_status()
 					   && page->status_section(qt::overview_status_section::people)->isHidden() && page->status_section(qt::overview_status_section::attention)->isHidden(),
 				   "failed and cancelled opens clear independent results");

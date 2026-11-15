@@ -65,7 +65,6 @@ QMessageBox standard/default/destructive controls keep their platform behavior.
 | [markdown_body_view.cpp](../../src/adapters/qt/src/markdown_body_view.cpp) | Migrated View source/Hide source toggle and Copy source. Native clipboard dispatch and read-only source body remain. |
 | [pending_veil.cpp](../../src/adapters/qt/src/pending_veil.cpp) | Migrated Retry. Busy/unavailable eligibility and veil positioning remain projection-owned. |
 | [private_composition_editor.cpp](../../src/adapters/qt/src/private_composition_editor.cpp) | Factory migrates Use selected exact target and Cancel composition view. Retain Create candidate, Split into exact drafts, Save revision, Ask agent and Accept as Draft: explicit primary composition/persistence operations. Factory branches on the typed action. |
-| [private_notes_panel.cpp](../../src/adapters/qt/src/private_notes_panel.cpp) | Retain New review: icon-only Notes-header tool. |
 | [private_review_panel.cpp](../../src/adapters/qt/src/private_review_panel.cpp) | Migrated source/finding selection, Clear selected sources, Refresh history, Inspect provenance/finding and Open local draft. Factory retains Next thread/revision/body/findings page as bounded-history navigation and primary create/save/ask/compose operations. Discard unpublished draft and Free unused empty drafts retain destructive confirmations. |
 | [profile_data_reset_views.cpp](../../src/adapters/qt/src/profile_data_reset_views.cpp) | Migrated recovery Quit. Retain all four reset-scope actions, recovery Clear caches/Reset everything, destructive `question_button` confirmation and its safe default Cancel. These are reset/default controls, not neutral secondary chips. |
 | [profile_management_window.cpp](../../src/adapters/qt/src/profile_management_window.cpp) | Migrated New profile, Rename, Try again and Cancel. Retain primary Open/New window and Save, including default behavior, row selection and edit/refusal retention. |
@@ -114,7 +113,7 @@ rebase onto `4e318b625`:
 | [agent_setup_view.cpp](../../src/adapters/qt/src/agent_setup_view.cpp) | Shared: Install Claude Code, Install Codex, the suggested clone folders, Choose a folder…, Copy (the sign-in command) and Stop. Retain each step's primary default action (Check and Check again, Use this clone, Choose its folder…), the agent and clone radio choices, and `link_push`: hyperlink-style Change, Look again, Agent settings, Use another program…, Use a private copy and Edit clone folders…, drawn in the palette's link colour. |
 | [agent_setup_settings.cpp](../../src/adapters/qt/src/agent_setup_settings.cpp) | Shared: Set up agent…, Choose…, Remove (a clone folder, which deletes nothing on disk), Compare, Keep mine and Restore default. Retain Save (the programs and the review skill), Use version N (it replaces the edited copy, saved to Downloads first), and Forget (it removes a remembered link, as Forget server does). |
 | [folder_list_editor.cpp](../../src/adapters/qt/src/folder_list_editor.cpp) | Retain Visual Studio's folder-list tools: icon-only New folder, Remove, Move down and Move up, and the editing row's icon-like **…** browse tool. |
-| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | Shared: the header's History and New session, the question field's Context and Suggestions, and a reply's Copy (`make_drawer_tool` icons from `drawer_icon`); the field's Send (and Stop) is its primary push button; the suggested prompts above the question field (`quiet_push_button`), a finding card's Add as draft comment, Save as note, Dismiss and Undo and a reply's Save as note (`quiet_push_button`). The agent chip lists the added agents in its `menu_word` popup. Retain the model and effort chip and Suggestions in the question field, `menu_word` popups like History. The ready line's What the agent gets is a `disclosure_button`; its icon-only dismiss is retained. Check again, which takes `BannerFirst`'s place after an Ask that ended for a setup reason, keeps that primary treatment. |
+| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | Shared: the header's History and New session, the question field's Context and Suggestions, and a reply's Copy (`make_drawer_tool` icons from `drawer_icon`); the field's Send (and Stop) is its primary push button; the suggested prompts above the question field (`quiet_push_button`), a finding card's Add as draft comment, Draft comment or Keep local, Dismiss and Undo and a reply's keep action (`quiet_push_button`). The agent chip lists the added agents in its `menu_word` popup. Retain the model and effort chip and Suggestions in the question field, `menu_word` popups like History. The ready line's What the agent gets is a `disclosure_button`; its icon-only dismiss is retained. Check again, which takes `BannerFirst`'s place after an Ask that ended for a setup reason, keeps that primary treatment. |
 
 ## Dedicated specialized implementations
 
@@ -153,6 +152,39 @@ files and the one header. There is no unaccounted baseline file in that scan.
 At `4e318b625` the scan of `new QPushButton`, `new QToolButton`, the two shared
 classes and `QPushButton`/`QToolButton`/`QAbstractButton` subclasses finds 55
 files, every one of them listed on this page.
+
+## The agent variant
+
+[RFC-BPR-0101](../rfcs/RFC-BPR-0101-agent-chat-conventions.md) adds one
+variant to the shared buttons, decided by one test: **does pressing the control
+start or continue an agent run?** If it does, the control wears the **Agent
+accent** palette role (Appearance › Colours, built-in `#4A3FD6` in Light,
+`#A3A0FF` in Dark, `#3A2FC4` and `#B8B5FF` in the two high-contrast variants)
+for its words and glyph, and its disabled form is the accent faded toward the
+window. Every other control uses the ordinary button roles, even when what it
+handles came from an agent: it only applies, moves, keeps, shows or discards.
+Stop ends spending and is ordinary. Labels that say where text came from (a
+proposal's outline and title, the running status, the focus chip's words, the
+tour's agent marks) are not controls and keep the accent.
+
+A run control is made with `wear_agent_accent` ([agent_feature.hpp](../../src/adapters/qt/include/bpr/qt/agent_feature.hpp)),
+which also marks it `bprAgentRun`; `wear_ordinary_roles` takes both off. No
+surface keeps a fixed colour: `agent_accent` reads the role of the theme on
+screen, which the application sets from the appearance profile.
+
+| Surface | Starts a run: the accent | Starts no run: ordinary roles |
+|---|---|---|
+| Agent tab | Send (`agentAsk`), each suggestion (`agentSuggestion`), Resend on an error turn and in the stopped banner | Stop, History, New session, Suggestions toggle, Attach lines, the lines chip's close, Agent settings…, Start a new session, Continue on the old head, Show the log, Copy, Keep local, Draft comment, Delete |
+| Selected-lines side chat | Send (the Agent tab's, as the panel's composer is the Agent tab's) | Promote reply to draft, the hidden panel's scope and context controls |
+| Tour side chat | Send, Update … from this chat, Resend, each suggestion | Accept (a stop's own text), Add to tour, Use this text, Apply all, Edit, Discard, Show, Copy, Copy chat, Close, the passage's close, History, New session, Continue on the old head |
+| Tour | Enhance (Problem, Solution, a stop), Suggest an outline, Draft the tour | Accept (one button wherever it accepts a stop: the default push button), Add to tour, Use this text, Apply all, Undo reset, Move, Reset tour, Conversation, the chat toggles (each part's and the whole tour's), Clear focus, Insert selected skeleton stops, Show the run, Set up the agent, the agent picker |
+| Comment workshop | none shown: its six operations are actions without a button of their own | Accept revision, Reject revision |
+| Review Cycles | Send in the Send to Agent step (`cycleSendIt`) | Send to Agent… (opens the step), Stop, Details |
+
+`test_the_agent_accent_is_on_exactly_the_run_controls`
+(`qt_workbench_agent_send_refusal`) walks every button of the composed window
+and fails when a marked control lacks the accent or an unmarked one wears it,
+with the shipped accent, with a changed accent and after Reset.
 
 ## Completion and evidence
 

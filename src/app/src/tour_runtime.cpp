@@ -464,7 +464,7 @@ namespace bpr::app {
 																																 : "no_published_root";
 		return tour_local_snapshot{ read->Target, std::move(result), state.UndoLabel, state.RedoLabel, observation, pending }; }, [](const tour_local_snapshot& aValue) { return completed(aValue.Draft.Stops.size()); });
 	}
-	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
+	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh, std::vector<std::string>* aFiles) -> tour_cli_result<tour_source_material>
 	{
 		return observe_tour(Implementation->Log.get(), core::operation_action::tour_source, false, [&]() -> tour_cli_result<tour_source_material> {
 		if (!core::valid(aDestination)) {
@@ -498,6 +498,12 @@ namespace bpr::app {
 		}
 		if (read->Target.Owner != target.Owner || read->Target.Draft != target.Draft) {
 			return failure("identity_changed", "The source read belongs to a different account or target.", 4);
+		}
+		if (aFiles) {
+			aFiles->clear();
+			for (const auto& file : read->Snapshot.Files) {
+				aFiles->push_back(file.Path);
+			}
 		}
 		return reader->source(aDestination); }, [](const tour_source_material&) { return completed(0U); });
 	}

@@ -1,6 +1,7 @@
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <algorithm>
+#include <utility>
 
 namespace bpr::core {
 	auto queue_membership_with_activity(queue_membership aMembership, std::optional<bool> aAuthored, bool aReviewedByMe) noexcept -> queue_membership
@@ -75,9 +76,133 @@ namespace bpr::core {
 		return home_queue_section::following;
 	}
 
+	auto changes_requested(const queue_waiting_facts& aFacts) noexcept -> bool
+	{
+		if (aFacts.Decision && *aFacts.Decision != queue_review_decision::none) {
+			return *aFacts.Decision == queue_review_decision::changes_requested;
+		}
+		return aFacts.ReviewsKnown && std::ranges::any_of(aFacts.LatestReviews, [](const queue_reviewer_state& aReviewer) { return aReviewer.State == my_review_verdict::changes_requested; });
+	}
+
+	auto approved(const queue_waiting_facts& aFacts) noexcept -> bool
+	{
+		if (aFacts.Decision && *aFacts.Decision != queue_review_decision::none) {
+			return *aFacts.Decision == queue_review_decision::approved;
+		}
+		return aFacts.ReviewsKnown && !changes_requested(aFacts)
+			&& std::ranges::any_of(aFacts.LatestReviews, [](const queue_reviewer_state& aReviewer) { return aReviewer.State == my_review_verdict::approved; });
+	}
+
+	auto name(const authored_next_move aMove) noexcept -> std::string_view
+	{
+		switch (aMove) {
+		case authored_next_move::returned:   return "returned";
+		case authored_next_move::failing:    return "failing";
+		case authored_next_move::blocked:    return "blocked";
+		case authored_next_move::ready:      return "ready";
+		case authored_next_move::unread:     return "unread";
+		case authored_next_move::unassigned: return "unassigned";
+		case authored_next_move::draft:      return "draft";
+		case authored_next_move::waiting:    return "waiting";
+		case authored_next_move::checking:   return "checking";
+		case authored_next_move::quiet:      return "quiet";
+		case authored_next_move::unknown:    return "unknown";
+		}
+		return "quiet";
+	}
+
+	auto owner_of(const authored_next_move aMove) noexcept -> next_move_owner
+	{
+		switch (aMove) {
+		case authored_next_move::returned:
+		case authored_next_move::failing:
+		case authored_next_move::blocked:
+		case authored_next_move::ready:
+		case authored_next_move::unread:
+		case authored_next_move::unassigned:
+		case authored_next_move::draft:      return next_move_owner::mine;
+		case authored_next_move::waiting:    return next_move_owner::theirs;
+		case authored_next_move::checking:   return next_move_owner::nobody_yet;
+		case authored_next_move::quiet:
+		case authored_next_move::unknown:    break;
+		}
+		return next_move_owner::nobody;
+	}
+
+	auto next_move_for(const queue_item& aItem) noexcept -> std::optional<authored_next_move>
+	{
+		if (!aItem.Membership.authored()) {
+			return std::nullopt;
+		}
+		if (aItem.Bucket == attention_bucket::detail_unknown) {
+			return authored_next_move::unknown;
+		}
+		const auto& facts = aItem.Facts.Waiting;
+		const auto  draft = aItem.Facts.Draft.value_or(false);
+		// Returned outranks Draft: a reviewer's reply on a draft is still
+		// mine to answer. Unread conversations count only when they were read.
+		if (changes_requested(facts) || facts.AwaitingReply.value_or(0U) > 0U) {
+			return authored_next_move::returned;
+		}
+		if (!facts.FailedChecks.empty()) {
+			return authored_next_move::failing;
+		}
+		// A merge GitHub refuses because a review is outstanding or a check
+		// is still running is explained by that wait; a conflict, or a base
+		// that must be merged in first, is mine whatever else is pending.
+		const auto running = facts.ChecksKnown && facts.PendingChecks > 0U;
+		const auto refused = facts.Merge == queue_merge_state::unknown ? facts.MergeBlocked.value_or(false)
+																	   : facts.Merge == queue_merge_state::blocked || facts.Merge == queue_merge_state::unstable;
+		const auto stuck   = facts.Merge == queue_merge_state::conflicts || facts.Merge == queue_merge_state::behind;
+		const auto awaited = aItem.Bucket == attention_bucket::authored_awaiting_reviewer_action || review_waiting(facts);
+		if (stuck || (refused && !running && !awaited && !draft)) {
+			return authored_next_move::blocked;
+		}
+		const auto passed    = facts.ChecksKnown && facts.PendingChecks == 0U;
+		const auto mergeable = facts.Merge == queue_merge_state::clean || facts.Merge == queue_merge_state::hooks
+			|| (facts.Merge == queue_merge_state::unknown && facts.MergeBlocked == std::optional{ false });
+		if (!draft && approved(facts) && passed && mergeable) {
+			return authored_next_move::ready;
+		}
+		if (aItem.Facts.UnseenComments > 0U || aItem.Bucket == attention_bucket::new_comments_or_author_replies) {
+			return authored_next_move::unread;
+		}
+		if (!draft && aItem.Facts.Draft.has_value() && facts.Requests == std::optional{ 0U } && !facts.RequestsStale && facts.ReviewsKnown
+			&& facts.LatestReviews.empty()) {
+			return authored_next_move::unassigned;
+		}
+		if (draft) {
+			return authored_next_move::draft;
+		}
+		if (aItem.Bucket == attention_bucket::authored_awaiting_reviewer_action) {
+			return authored_next_move::waiting;
+		}
+		if (approved(facts) && running) {
+			return authored_next_move::checking;
+		}
+		// Quiet is a claim that nobody is waiting, which needs the reviews to
+		// have been read: a pull request a search just found has a title and
+		// requests, not yet its reviews, decision or checks.
+		return facts.ReviewsKnown ? authored_next_move::quiet : authored_next_move::unknown;
+	}
+
+	auto home_row_quiet(const queue_item& aItem) noexcept -> bool
+	{
+		if (const auto move = next_move_for(aItem); move) {
+			return *move == authored_next_move::quiet;
+		}
+		return aItem.Bucket == attention_bucket::quiet && !merge_blocked(aItem.Facts.Waiting);
+	}
+
 	auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section
 	{
-		return aItem.Ignored ? home_queue_section::ignored : home_section_for(aItem.Membership, aItem.Bucket);
+		if (aItem.Ignored) {
+			return home_queue_section::ignored;
+		}
+		if (const auto move = next_move_for(aItem); move) {
+			return *move == authored_next_move::waiting ? home_queue_section::waiting_on_others : home_queue_section::my_pull_requests;
+		}
+		return home_section_for(aItem.Membership, aItem.Bucket);
 	}
 
 	auto name(const attention_bucket aBucket) noexcept -> std::string_view
@@ -155,6 +280,33 @@ namespace bpr::core {
 		};
 	}
 
+	auto latest_reviewer_states(const std::span<const reviewer_submitted_review> aReviews) -> std::vector<queue_reviewer_state>
+	{
+		auto logins = std::vector<std::string_view>{ };
+		for (const auto& review : aReviews) {
+			if (!review.Login.empty() && std::ranges::find(logins, review.Login) == logins.end()) {
+				logins.push_back(review.Login);
+			}
+		}
+		auto result = std::vector<queue_reviewer_state>{ };
+		auto theirs = std::vector<my_submitted_review>{ };
+		for (const auto login : logins) {
+			if (result.size() == maximum_queue_reviewer_states) {
+				break;
+			}
+			theirs.clear();
+			for (const auto& review : aReviews) {
+				if (review.Login == login) {
+					theirs.push_back(review.Review);
+				}
+			}
+			if (const auto standing = my_review_for(theirs); standing.Verdict != my_review_verdict::none) {
+				result.push_back({ .Login = std::string{ login }, .State = standing.Verdict });
+			}
+		}
+		return result;
+	}
+
 	auto explanation(const attention_bucket aBucket) noexcept -> std::string_view
 	{
 		switch (aBucket) {
@@ -177,6 +329,34 @@ namespace bpr::core {
 			return "Nothing about it has been read yet, so it is not known to be quiet.";
 		}
 		return "Nothing here is waiting on anyone.";
+	}
+
+	auto head_seen(const queue_item_facts& aFacts) noexcept -> bool
+	{
+		return !aFacts.SeenHead.empty() && aFacts.SeenHead == aFacts.Waiting.Head && aFacts.MyReview.Verdict == my_review_verdict::approved;
+	}
+
+	auto seen_activity(queue_activity_observation aActivity, const queue_item_facts& aFacts) noexcept -> queue_activity_observation
+	{
+		if (head_seen(aFacts)) {
+			aActivity.HeadMovedSinceMyReview = false;
+		}
+		return aActivity;
+	}
+
+	auto review_followup_for(const queue_item& aItem) noexcept -> review_followup
+	{
+		if (aItem.Membership.authored() || aItem.Bucket != attention_bucket::changed_since_my_review) {
+			return review_followup::none;
+		}
+		switch (aItem.Facts.MyReview.Verdict) {
+		case my_review_verdict::approved:          return aItem.Facts.Waiting.Head.empty() ? review_followup::none : review_followup::seen;
+		case my_review_verdict::dismissed:         return review_followup::approve_again;
+		case my_review_verdict::none:
+		case my_review_verdict::commented:
+		case my_review_verdict::changes_requested: break;
+		}
+		return review_followup::none;
 	}
 
 	auto bucket_for(
@@ -235,12 +415,27 @@ namespace bpr::core {
 		return attention_bucket::quiet;
 	}
 
+	namespace {
+		/// The rank one item sorts by before its identity. Buckets take the
+		/// even ranks; [[RFC-BPR-0098]] a row of My pull requests takes the odd
+		/// rank after the last bucket that needs me, then its next move.
+		[[nodiscard]] auto queue_rank(const queue_item& aItem) noexcept -> std::pair<unsigned, unsigned>
+		{
+			if (const auto move = next_move_for(aItem); move && *move != authored_next_move::waiting) {
+				return { 2U * static_cast<unsigned>(attention_bucket::fixes_awaiting_verification) + 1U, static_cast<unsigned>(*move) };
+			}
+			return { 2U * static_cast<unsigned>(aItem.Bucket), 0U };
+		}
+	} // namespace
+
 	auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool
 	{
 		if (aLeft.Ignored != aRight.Ignored) {
 			return aRight.Ignored;
 		}
-		return aLeft.Bucket == aRight.Bucket ? aLeft.Ref < aRight.Ref : aLeft.Bucket < aRight.Bucket;
+		const auto left  = queue_rank(aLeft);
+		const auto right = queue_rank(aRight);
+		return left == right ? aLeft.Ref < aRight.Ref : left < right;
 	}
 
 	auto ordered_queue(const std::span<const queue_item> aItems)

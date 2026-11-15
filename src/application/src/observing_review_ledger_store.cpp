@@ -52,17 +52,17 @@ namespace bpr::application {
 	{
 		return Store->load_conversation_receipts();
 	}
-	auto observing_review_ledger_store::store_note(const local_note_record& aNote, std::optional<local_note_revision> aExpectedRevision) -> std::expected<local_note_record, local_note_failure>
+	auto observing_review_ledger_store::store_local_comment(const local_comment_record& aNote, std::optional<local_comment_revision> aExpectedRevision) -> std::expected<local_comment_record, local_comment_failure>
 	{
-		auto result = Store->store_note(aNote, aExpectedRevision);
+		auto result = Store->store_local_comment(aNote, aExpectedRevision);
 		if (result) {
 			notify(ledger_change{ .Domain = ledger_change_domain::private_records });
 		}
 		return result;
 	}
-	auto observing_review_ledger_store::erase_note(local_note_id aNote, local_note_revision aExpectedRevision) -> std::expected<void, local_note_failure>
+	auto observing_review_ledger_store::erase_local_comment(local_comment_id aNote, local_comment_revision aExpectedRevision) -> std::expected<void, local_comment_failure>
 	{
-		auto result = Store->erase_note(aNote, aExpectedRevision);
+		auto result = Store->erase_local_comment(aNote, aExpectedRevision);
 		if (result) {
 			notify(ledger_change{ .Domain = ledger_change_domain::private_records });
 		}

@@ -80,7 +80,7 @@ auto main(int argc, char** argv) -> int
 	auto* const magic  = child<QPushButton>(editor, "tourProblemMagic");
 	auto* const notice = editor.agent_failure_notice(core::writing_hook::problem);
 	expect(notice != nullptr && !notice->isVisible() && editor.agent_failure_text(core::writing_hook::problem).isEmpty(), "nothing is said before a request fails");
-	for (const auto hook : { core::writing_hook::solution, core::writing_hook::comment, core::writing_hook::outline }) {
+	for (const auto hook : { core::writing_hook::solution, core::writing_hook::comment }) {
 		expect(editor.agent_failure_notice(hook) != nullptr, "every agent request's control has its notice");
 	}
 
@@ -96,9 +96,10 @@ auto main(int argc, char** argv) -> int
 	expect(notice->parentWidget() == magic->parentWidget(), "the notice sits with the helper that made the request");
 	const auto below = notice->mapTo(&editor, QPoint{ 0, 0 }).y() - (magic->mapTo(&editor, QPoint{ 0, 0 }).y() + magic->height());
 	expect(below >= 0 && below <= 16, "it sits right under the helper's row");
-	expect(!editor.agent_failure_notice(core::writing_hook::solution)->isVisible() && !editor.agent_failure_notice(core::writing_hook::outline)->isVisible(), "the other controls say nothing");
+	expect(!editor.agent_failure_notice(core::writing_hook::solution)->isVisible(), "the other controls say nothing");
 	auto* const show = child<QPushButton>(*notice, "tourAgentFailureOpen");
-	expect(show->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()) && !show->icon().isNull(), "the way to the Agent tab wears the agent accent and spark");
+	// [[BPR-2000]]: showing the run starts none, so it is ordinary; the spark says agent.
+	expect(show->palette().color(QPalette::Active, QPalette::ButtonText) != qt::agent_accent(editor.palette()) && !show->icon().isNull(), "the way to the Agent tab is ordinary and keeps the spark");
 	render(editor, prefix, "failure-light");
 
 	// AC2, [[BPR-1900]] AC5. The run is the tour session's: Show the run
@@ -127,23 +128,20 @@ auto main(int argc, char** argv) -> int
 	editor.clear_agent_failure(core::writing_hook::problem);
 	expect(!notice->isVisible(), "a success clears it");
 
-	// The outline's request, beside Suggest an outline.
+	// [[BPR-2013]], RFC-BPR-0106. Suggest an outline left the application,
+	// and with it its control's notice.
 	editor.show_stops();
 	QApplication::processEvents();
-	auto* const suggest = child<QPushButton>(editor, "tourSuggestOutline");
-	suggest->click();
-	editor.show_agent_failure(core::writing_hook::outline, qt::agent_tab_view::run_failure_words(application::agent_run_outcome::timeout, QStringLiteral("Claude Code")));
-	QApplication::processEvents();
-	auto* const outline = editor.agent_failure_notice(core::writing_hook::outline);
-	expect(outline->isVisible() && editor.agent_failure_text(core::writing_hook::outline).startsWith(QStringLiteral("Suggest an outline failed. ")), "Suggest an outline's failure is said beside it");
-	expect(outline->parentWidget() == suggest->parentWidget(), "with Suggest an outline");
+	expect(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) == nullptr && editor.agent_failure_notice(core::writing_hook::outline) == nullptr, "no Suggest an outline, and no notice for it");
 
+	editor.show_problem();
+	editor.show_agent_failure(core::writing_hook::problem, why);
 	QApplication::setPalette(dark_palette(QApplication::palette()));
 	QApplication::processEvents();
-	expect(child<QPushButton>(*outline, "tourAgentFailureOpen")->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()), "the accent follows the palette");
-	render(editor, prefix, "outline-failure-dark");
-	suggest->click();
-	expect(!outline->isVisible(), "asking again clears it");
+	expect(child<QPushButton>(*notice, "tourAgentFailureOpen")->palette().color(QPalette::Active, QPalette::ButtonText) == editor.palette().color(QPalette::Active, QPalette::ButtonText),
+		   "the ordinary way to the run follows the palette");
+	expect(magic->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()), "the helper, which starts a run, keeps the accent in the new palette");
+	render(editor, prefix, "failure-dark");
 
 	std::cout << "review-tour-agent-failure:pass\n";
 	return EXIT_SUCCESS;

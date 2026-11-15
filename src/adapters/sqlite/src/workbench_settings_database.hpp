@@ -93,7 +93,15 @@ namespace bpr::adapters::sqlite::detail {
 	/// Overview, expanded at the default width for a migrated row.
 	/// Twenty-four since [[BPR-1816]]: which finishing verdicts stay on the
 	/// pull request; a migrated row has every verdict go Home.
-	inline constexpr std::int64_t workbench_settings_schema_version = 24;
+	/// Twenty-five since [[BPR-2051]]: the Enhance prompts of a tour stop, a
+	/// draft comment and a note, the shipped defaults for a migrated row.
+	/// Twenty-six since [[BPR-2059]]: how an agent writes the comments it
+	/// suggests, the shipped default for a migrated row.
+	/// Twenty-seven since the owner's look at [[BPR-2051]]: one Enhance
+	/// writing prompt for comments, replies and notes. The tables are
+	/// version twenty-six's; a migrated row keeps the comment's override, or
+	/// the note's when only that was changed, and the note's column is empty.
+	inline constexpr std::int64_t workbench_settings_schema_version = 32;
 
 	/// \brief Owns the durable workbench layout database.
 	///

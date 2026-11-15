@@ -83,9 +83,18 @@ namespace bpr::app {
 		/// included by a target that links the composition without defining
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
-		bool                        NetworkDenied       = false;
-		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
-		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
+		bool NetworkDenied = false;
+		/// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The agent-run live course:
+		/// a tests-enabled composition with no fixture may publish, and only
+		/// to github.com MikeMarcin/BPR-Test (repository 1328277631). Every
+		/// write still waits for the window's own Publish or Submit, its
+		/// write confirmation and the one-use grant that gesture issues; the
+		/// core and host checks are the shipped ones. Read only by a
+		/// tests-enabled build (the field stays outside the guard for the
+		/// reason `NetworkDenied` gives); nothing in a shipped binary sets it.
+		bool                        DesignatedLivePublication = false;
+		core::bpr_profile_id        Profile                   = core::default_bpr_profile_id;
+		core::profile_launch_intent ProfileLaunchIntent       = core::profile_launch_intent::activate;
 		/// [[BPR-1602]]. A confirmed reset of this profile's local data, run once
 		/// under the runtime lease after recovery and before any store opens.
 		std::optional<core::profile_data_reset_request> DataReset;
@@ -676,6 +685,17 @@ namespace bpr::app {
 		/// The compatibility accessor names the initial session only.
 		/// Throws after that session retires; it never selects a sibling.
 		[[nodiscard]] auto window() -> qt::workbench_window&;
+		/// \brief RFC-BPR-0108. Opens a worktree's local draft in the first
+		/// window, as Prepare Pull Request… does.
+		void open_local_draft(const std::string& aLocation);
+		/// \brief For an attended look of author state on a pull request
+		/// opened by its author: records the shown local draft as that pull
+		/// request's, as RFC-BPR-0111's association does, and shows it again.
+		void associate_local_draft_for_look(std::uint64_t aNumber);
+		/// \brief RFC-BPR-0110. For an attended look: the local draft's
+		/// questions go to a scripted agent that answers with proposals,
+		/// never to an installed one.
+		void               script_local_draft_agent_for_look();
 		[[nodiscard]] auto windows() const -> std::vector<core::bpr_window_context>;
 		[[nodiscard]] auto window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>;
@@ -763,6 +783,8 @@ namespace bpr::app {
 
 		/// [[BPR-1168]]. Runs one forwarded cycle command on the profile's cycle-owner lane.
 		void desktop_cycle_owner_route(application::tour_channel_bytes aRequest, application::cycle_owner_request aCycle, std::function<void(application::tour_channel_bytes)> aRespond);
+		/// RFC-BPR-0108 AC05. `bpr draft open` at the desktop.
+		void desktop_local_draft_owner_route(application::local_draft_owner_request aRequest, std::function<void(application::tour_channel_bytes)> aRespond);
 		/// What the open windows hold of a cycle's round draft that the store does not;
 		/// with `aSave`, unsaved text is saved as Return would. Decision lane.
 		[[nodiscard]] auto cycle_draft_editors(core::review_cycle_id aCycle, bool aSave) -> core::cycle_draft_editor;

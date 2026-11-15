@@ -10,6 +10,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
@@ -195,6 +196,13 @@ try {
 		const auto veils = window->overview_page()->pending_veils();
 		if (aAssert) {
 			expect(veils.Files->busy() && veils.Side->busy(), "the file table and the side column wait in their own places");
+			// [[BPR-2180]]. The Comments drawer and Threads wait as thread
+			// cards, and the status bar's line turns the mark while it says
+			// the read.
+			const auto& panes = window->pending_veils();
+			expect(panes.Conversations->busy() && panes.Conversations->shape() == qt::pending_shape::cards, "the Comments drawer waits as thread cards");
+			expect(panes.Threads->busy() && panes.Threads->shape() == qt::pending_shape::cards, "Threads waits as thread cards");
+			expect(panes.Status != nullptr && panes.Status->turning(), "the status line turns the mark while it says the read");
 		}
 		renders(aName + QStringLiteral("-first-answer"));
 		wait_for([&] { return !veils.Header->busy() && !veils.Description->busy(); }, "the title and description show as soon as GitHub names them");
@@ -225,6 +233,106 @@ try {
 		// while the second's sections wait.
 		opens(second, QStringLiteral("overview-switch"), !asserted);
 		asserted = true;
+	}
+
+	// ---- [[BPR-2180]] Overview, then Review, while the review still loads -----
+	// The owner, 2026-11-14: "going to review the file list should be loaded
+	// becuase it's already loaded on overview but now we see loading there
+	// instead of the file list." Once the read has reported the files, Review's
+	// Files drawer lists them uncovered; a file clicked there is remembered and
+	// opened once the review has loaded; and a read that never opens a review
+	// leaves none of its files behind.
+	{
+		const auto covering = [](const qt::pending_veil& aVeil) {
+			const auto look = aVeil.look();
+			return look == core::pending_look::placeholder || look == core::pending_look::loading || look == core::pending_look::loading_slow;
+		};
+		const auto  reported = [&] { return window->overview_page()->file_model()->rowCount() > 0 && !window->overview_page()->projection().has_value(); };
+		auto* const drawer   = window->files_drawer();
+		const auto  open     = [&](const QString& aIdentity) {
+			window->choose_modality(qt::review_modality::overview);
+			window->choose_home(true);
+			pause(100);
+			double_click(row_of(*window, aIdentity));
+			wait_for([&] { return !window->showing_home(); }, "the pull request leaves Home once GitHub names it");
+			window->choose_modality(qt::review_modality::overview);
+		};
+		delay->Milliseconds     = 1'500U;
+		delay->PageMilliseconds = 1'200U;
+		open(first);
+		const auto veils = window->overview_page()->pending_veils();
+		// The side column waits section by section, each in its own place.
+		wait_for([&] { return window->overview_page()->isVisible() && veils.MyReview->busy(); }, "the Overview shows its sections waiting");
+		expect(veils.MyReview->isVisible() && veils.Merge->busy() && veils.Checks->busy() && veils.People->busy(), "each side section waits in its own place");
+		wait_for(reported, "the Overview lists the files GitHub reported", 60'000);
+		window->choose_modality(qt::review_modality::review);
+		pause(200);
+		auto* const files = window->pending_veils().Files;
+		auto* const tree  = window->files_tree();
+		expect(window->current_modality() == qt::review_modality::review && tree->isVisible(), "Review shows its Files drawer");
+		expect(!covering(*files), "Review's Files drawer is not covered once the read has reported the files");
+		expect(files->look() == core::pending_look::partial || files->look() == core::pending_look::quiet, "what is still coming is said at its foot");
+		expect(tree->model()->rowCount() > 0 && drawer->contents()->rowCount() > 0, "the reported files are the drawer's own rows, in the list and the tree");
+		renders(QStringLiteral("review-files-while-loading"));
+		// A click on a reported file is remembered, said, and opened later.
+		const auto selections = window->statistics().FileSelections;
+		drawer->contents_view()->setCurrentIndex(drawer->contents()->index(0, 0));
+		pause(50);
+		expect(files->words().Coming.startsWith(QStringLiteral("Opening ")), "the drawer says it opens the clicked file once the review has loaded");
+		expect(window->statistics().FileSelections == selections, "nothing is asked of a comparison that does not exist yet");
+		// The owner, rejecting v002: "the main diff file pane, no longer shows
+		// the loading." The comparison waits in the shape of code from the
+		// click until the file arrives, with no gap between.
+		auto* const comparison = window->comparison_surface();
+		auto* const code       = comparison->comparison_veil();
+		expect(code->busy() && code->shape() == qt::pending_shape::code && comparison->waiting_path() == drawer->contents()->index(0, 0).data().toString(),
+			   "the comparison waits for the clicked file in the shape of code");
+		{
+			auto clock = QElapsedTimer{ };
+			clock.start();
+			auto arrived = false;
+			while (clock.elapsed() < 90'000) {
+				QApplication::processEvents(QEventLoop::AllEvents, 10);
+				arrived = comparison->current_context().has_value() && !code->busy();
+				if (arrived) {
+					break;
+				}
+				expect(code->busy(), "the code veil shows until the file arrives");
+				QThread::msleep(5);
+			}
+			expect(arrived, "the clicked file arrives");
+		}
+		expect(window->overview_page()->projection().has_value() && window->statistics().FileSelections > selections, "it opened once the review listed it");
+		expect(!files->busy() && !files->isVisible(), "the accepted review leaves the drawer with no veil");
+		// A read that is superseded and then fails opens no review: the files
+		// it reported go, and the drawer lists the review still shown.
+		const auto paths = [&] {
+			auto listed = QStringList{ };
+			for (int row = 0; row < drawer->contents()->rowCount(); ++row) {
+				listed.push_back(drawer->contents()->index(row, 0).data().toString());
+			}
+			return listed;
+		};
+		delay->Milliseconds     = 0U;
+		delay->PageMilliseconds = 0U;
+		open(second);
+		wait_for([&] { return window->overview_page()->projection().has_value() && window->overview_page()->projection()->Number.value() == 18U && drawer->contents()->rowCount() > 0; }, "the second pull request opens");
+		const auto shown        = paths();
+		delay->Milliseconds     = 1'500U;
+		delay->PageMilliseconds = 1'200U;
+		open(first);
+		wait_for([&] { return window->pending_veils().Files->words().Coming.startsWith(QStringLiteral("Files open")); }, "the first pull request's files are reported again", 60'000);
+		const auto provisional = paths();
+		std::cerr << "shown " << shown.join(QLatin1Char{ ',' }).toStdString() << " provisional " << provisional.join(QLatin1Char{ ',' }).toStdString() << '\n';
+		delay->FailNumber = 18U;
+		open(second);
+		wait_for([&] { return window->session_panel()->status() != core::github_status::loading_pull_request; }, "the superseding read fails", 60'000);
+		pause(300);
+		expect(window->pending_veils().Files->words().Coming.isEmpty() || !window->pending_veils().Files->busy(), "nothing reported stays said");
+		expect(paths() == shown, "a read that opened no review leaves none of its reported files behind");
+		delay->FailNumber       = 0U;
+		delay->Milliseconds     = 0U;
+		delay->PageMilliseconds = 0U;
 	}
 
 	static_cast<void>(QAccessible::installUpdateHandler(previous));

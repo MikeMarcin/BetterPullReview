@@ -2124,6 +2124,50 @@ namespace {
 		expect(process.Acquisitions >= 6U, "every session acquires its own named credential");
 	}
 
+	/// RFC-BPR-0111. A pull request created from a pushed branch goes by `gh
+	/// api` on the transport's own account: the reads and the creation, with
+	/// the exact compiled body on stdin. An object or reference write, another
+	/// account or another host never launches.
+	[[maybe_unused]] void test_pull_request_publication_over_gh()
+	{
+		temporary_layout            layout;
+		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                  profile       = validate_github_host_profile(cloud_candidate());
+		successful_counting_process process;
+		gh_cli_transport            transport{ *profile, scoped_configuration(*configuration, *profile), process, synthetic_operation_credential() };
+		const auto                  context = mutation_request_for(*profile).Context;
+		const auto                  target  = application::github_publication_target{
+			.Host = std::string{ profile->hostname() }, .Server = profile->server_contract(), .Account = context.Authority.Account, .Login = "fixture-reviewer", .Owner = "acme", .Repository = "engine"
+		};
+		expect(!transport.carries_git_data(), "a gh connection does not carry Git-data writes");
+		const auto create = compile_create_pull_request(target, { .Title = "Cancel", .Body = "Why", .Head = "feature/search", .Base = "main", .Draft = true });
+		expect(create.has_value(), "the creation compiles");
+		const auto created = transport.perform_publication({ .Context = context, .Wire = *create }, { });
+		const auto args    = gh_arguments(*process.LastRequest);
+		expect(std::holds_alternative<github_publication_wire_success>(created) && args[1] == "repos/acme/engine/pulls" && args[6] == "POST"
+				   && process.LastRequest->StandardInput == create->Body && std::ranges::find(args, "--input") != args.end(),
+			   "the creation is one POST of the compiled body");
+		const auto find = compile_find_pull_requests(target, "feature/search", "main");
+		expect(find.has_value() && std::holds_alternative<github_publication_wire_success>(transport.perform_publication({ .Context = context, .Wire = *find }, { }))
+				   && gh_arguments(*process.LastRequest)[1].starts_with("repos/acme/engine/pulls?state=all&head=") && gh_arguments(*process.LastRequest)[6] == "GET"
+				   && process.LastRequest->StandardInput.empty(),
+			   "finding the branch's pull requests is one GET with its query");
+		const auto calls = process.Calls;
+		const auto bytes = std::array<std::uint8_t, 3>{ 'a', 'b', 'c' };
+		const auto blob  = compile_create_blob(target, bytes);
+		expect(blob.has_value() && std::holds_alternative<github_publication_wire_error>(transport.perform_publication({ .Context = context, .Wire = *blob }, { })) && process.Calls == calls,
+			   "an object write never launches over gh");
+		auto other         = target;
+		other.Account      = core::github_account_id{ context.Authority.Account.value() + 1U };
+		const auto foreign = compile_create_pull_request(other, { .Title = "Cancel", .Body = "Why", .Head = "feature/search", .Base = "main", .Draft = true });
+		expect(foreign.has_value() && std::holds_alternative<github_publication_wire_error>(transport.perform_publication({ .Context = context, .Wire = *foreign }, { })) && process.Calls == calls,
+			   "another account's creation never launches");
+		auto tampered = *create;
+		tampered.Body += " ";
+		expect(std::holds_alternative<github_publication_wire_error>(transport.perform_publication({ .Context = context, .Wire = tampered }, { })) && process.Calls == calls,
+			   "a body changed after compiling never launches");
+	}
+
 	[[maybe_unused]] void test_mutation_closed_shapes_and_ambiguous_results()
 	{
 		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
@@ -2930,6 +2974,7 @@ try {
 	test_cli_mutation_session_recovery();
 	test_thread_replies_publish_over_the_cli_connection();
 	test_mutation_closed_shapes_and_ambiguous_results();
+	test_pull_request_publication_over_gh();
 	test_staged_cli_catalog();
 	test_transport_parses_actual_response_and_fixed_failures();
 	test_capability_probe_uses_closed_query_and_response();

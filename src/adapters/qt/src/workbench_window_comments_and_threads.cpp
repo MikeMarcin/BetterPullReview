@@ -4,15 +4,19 @@
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_footer.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -26,13 +30,17 @@
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAbstractListModel>
+#include <QAccessible>
+#include <QAccessibleAnnouncementEvent>
 #include <QAction>
 #include <QAnyStringView>
 #include <QBoxLayout>
 #include <QByteArrayView>
 #include <QChar>
+#include <QClipboard>
 #include <QFlags>
 #include <QGridLayout>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -44,6 +52,7 @@
 #include <QMainWindow>
 #include <QMargins>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMetaObject>
 #include <QModelIndex>
 #include <QObject>
@@ -69,6 +78,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
@@ -82,6 +92,28 @@
 #include <vector>
 
 namespace bpr::qt {
+	void workbench_window::present_finder_draft()
+	{
+		// [[BPR-1293]]. My draft is a row of Threads.
+		if (Finder != nullptr) {
+			auto draft = std::optional<finder_draft>{ };
+			if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
+				shown.has_value() && !shown->ReplyToThread.has_value() && !shown->shared() && !shown->Body.empty() && ComparisonSurface != nullptr
+				&& ComparisonSurface->current_result() != nullptr && ComparisonSurface->current_context().has_value()
+				&& ComparisonSurface->current_result()->Alignment.Digest == shown->Anchor.Comparison) {
+				draft = finder_draft{
+					.File = ComparisonSurface->current_context()->Key.File,
+					.Line = shown->Anchor.Line + 1U,
+					.Body = QString::fromStdString(shown->Body),
+					// [[BPR-2092]]: its saved row stands for it, so it is not
+					// listed twice (seen by RFC-BPR-0127's [[BPR-2159]] course).
+					.Id = shown->Id.value(),
+				};
+			}
+			Finder->set_draft(std::move(draft));
+		}
+	}
+
 	void workbench_window::refresh_cards()
 	{
 		update_older_pair_notice();
@@ -96,30 +128,10 @@ namespace bpr::qt {
 				: std::nullopt);
 		cards->refresh_geometry();
 		apply_thread_marks();
-		// [[BPR-1293]]. My draft is a row of Threads, with its lock.
-		if (Finder != nullptr) {
-			auto draft = std::optional<finder_draft>{ };
-			if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
-				shown.has_value() && !shown->ReplyToThread.has_value() && !shown->shared() && !shown->Body.empty() && ComparisonSurface != nullptr
-				&& ComparisonSurface->current_result() != nullptr && ComparisonSurface->current_context().has_value()
-				&& ComparisonSurface->current_result()->Alignment.Digest == shown->Anchor.Comparison) {
-				draft = finder_draft{
-					.File = ComparisonSurface->current_context()->Key.File,
-					.Line = shown->Anchor.Line + 1U,
-					.Body = QString::fromStdString(shown->Body),
-				};
-			}
-			Finder->set_draft(std::move(draft));
-		}
+		present_finder_draft();
 		resume_conversation_pick();
 		resume_pending_comment_pick();
-		// [[BPR-1592]]. The notes follow the code as the threads do.
-		if (PrivateNotes != nullptr) {
-			if (PrivateNotes->isVisible()) {
-				PrivateNotes->refresh_geometry();
-			}
-			resume_private_note_open();
-		}
+		resume_private_note_open();
 	}
 
 	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
@@ -338,39 +350,22 @@ namespace bpr::qt {
 		auto* const cards = ConversationPanel->cards();
 		ComparisonSurface->set_mark_colours(cards->marker(), cards->accent());
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
-			auto       marks      = std::vector<diff_line_mark>{ };
-			const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
+			auto marks = std::vector<diff_line_mark>{ };
 			for (const auto& mark : ThreadMarksSuspended ? std::vector<thread_line_mark>{ } : cards->line_marks(side)) {
 				marks.push_back(diff_line_mark{
 					.Line        = mark.Line,
 					.Kind        = mark.Unread ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread,
 					.Resolved    = mark.Resolved,
 					.Draft       = mark.Draft,
-					.Open        = mark.Open && !onNotesTab,
-					.Hovered     = mark.Hovered && !onNotesTab,
-					.Writing     = mark.Writing && !onNotesTab,
+					.Open        = mark.Open,
+					.Hovered     = mark.Hovered,
+					.Writing     = mark.Writing,
 					.FirstLine   = mark.FirstLine,
 					.Description = mark.Description,
 				});
 			}
-			// [[BPR-1592]]. A noted line's number is a dashed cell, as my
-			// draft's is; a line that has a thread keeps the thread's mark.
-			// The open note washes its line in the writing blue.
-			if (PrivateNotes != nullptr) {
-				for (const auto& note : PrivateNotes->line_marks(side)) {
-					const auto taken = std::ranges::find(marks, note.Line, &diff_line_mark::Line);
-					if (taken != marks.end()) {
-						taken->Writing = taken->Writing || (note.Open && onNotesTab);
-						continue;
-					}
-					auto mark        = diff_line_mark{ };
-					mark.Line        = note.Line;
-					mark.Draft       = true;
-					mark.Writing     = note.Open && onNotesTab;
-					mark.Description = note.Description;
-					marks.push_back(std::move(mark));
-				}
-			}
+			// RFC-BPR-0127 ([[BPR-2158]]). Local comments are cards in Comments
+			// and mark their lines through `line_marks`: one mark a line.
 			ComparisonSurface->set_line_marks(side, std::move(marks));
 		}
 		update_new_comment_group();
@@ -403,16 +398,10 @@ namespace bpr::qt {
 
 	void workbench_window::toggle_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
 	{
-		// [[BPR-1592]]. On the Notes tab a noted line's mark opens its note;
-		// elsewhere, a line with no thread but a note opens the note too.
-		const auto note       = PrivateNotes != nullptr ? PrivateNotes->note_on_line(aSide, aLine) : std::nullopt;
-		const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
-		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value() && !(note && onNotesTab)) {
+		// RFC-BPR-0127 ([[BPR-2158]]). One mark a line: a thread, a draft or
+		// a Local comment, all cards in Comments, opened alike.
+		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value()) {
 			ConversationPanel->cards()->toggle_thread(*identity);
-			return;
-		}
-		if (note) {
-			show_private_note(*note);
 		}
 	}
 
@@ -421,14 +410,11 @@ namespace bpr::qt {
 		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
 		}
-		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
-			TrayTabs->setCurrentIndex(tray_notes_tab);
+		// RFC-BPR-0127. A Local comment is a card in Comments.
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
-		if (PrivateNotes->open_note_id() == aId) {
-			PrivateNotes->close_note();
-			return;
-		}
-		PrivateNotes->open_note(aId);
+		ConversationPanel->cards()->toggle_thread(conversation_cards_view::local_comment_identity(aId));
 	}
 
 	void workbench_window::show_agent(const bool aAsk)
@@ -454,10 +440,10 @@ namespace bpr::qt {
 		if (AgentTab == nullptr) {
 			return;
 		}
-		// The selected lines go with the question, through the chat's own
-		// Add context, which the core decides; nothing is sent.
-		if (aAsk && SideChat != nullptr && SideChat->add_context_action()->isEnabled()) {
-			SideChat->add_context_action()->trigger();
+		// [[BPR-2002]]. The selected lines are attached to the next
+		// question, as the chip shows; nothing is sent.
+		if (aAsk) {
+			AgentTab->attach_lines();
 		}
 		AgentTab->refresh();
 		AgentTab->focus_question();
@@ -465,19 +451,18 @@ namespace bpr::qt {
 
 	void workbench_window::fit_tray_tabs(const bool aRepaint)
 	{
-		constexpr auto tabCount = 4;
+		constexpr auto tabCount = 3;
 		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() != tabCount) {
 			return;
 		}
 		auto* const tabs = static_cast<tray_tab_bar*>(TrayTabs);
-		// [[BPR-1594]]. Four tabs. [[BPR-1755]], the owner's accept of
+		// [[BPR-1594]]. Three tabs (RFC-BPR-0127: Notes is gone). [[BPR-1755]], the owner's accept of
 		// look v007 ("Get rid of teh icon on agent when it's full width like
 		// the other tabs do. Only use it for the narrow."): at full width
 		// every tab is its name alone.
-		const QString tabNames[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
+		const QString tabNames[] = { tr("Comments"), tr("Tour"), tr("Agent") };
 		const QString about[]    = {
-			tr("The pull request's threads, with their scope and filters"),
-			tr("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft."),
+			tr("The pull request's threads, your drafts and your local comments, with their scope and filters"),
 			tr("Your review tour, stop by stop. Nothing in it is published until you publish the tour."),
 			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."),
 		};
@@ -505,7 +490,9 @@ namespace bpr::qt {
 				chosen     = candidate;
 				auto width = 0;
 				for (auto index = 0; index < tabCount; ++index) {
-					width += tabs->face_width(index, textOf(candidate, index), glyphOf(candidate, index));
+					if (tabs->isTabVisible(index)) {
+						width += tabs->face_width(index, textOf(candidate, index), glyphOf(candidate, index));
+					}
 				}
 				if (width <= room) {
 					break;
@@ -516,8 +503,6 @@ namespace bpr::qt {
 			switch (aIndex) {
 			case tray_comments_tab:
 				return conversation_icon(conversation_glyph::comment, palette());
-			case tray_notes_tab:
-				return drawer_icon(drawer_glyph::page, palette());
 			case tray_tour_tab:
 				return drawer_icon(drawer_glyph::tour, palette());
 			default:
@@ -550,66 +535,6 @@ namespace bpr::qt {
 		// arrows). The bar says it changed size itself.
 		if (reshaped) {
 			tabs->updateGeometry();
-		}
-	}
-
-	void workbench_window::wire_private_notes()
-	{
-		// [[BPR-1592]]. The notes hang at the code's lines: where a line is,
-		// which comparison is shown and which line is selected are the
-		// surface's; a note elsewhere is reached through the files drawer.
-		PrivateNotes->set_line_locator([this](const core::diff_side aSide, const std::uint32_t aLine) -> std::optional<int> {
-			if (ComparisonSurface == nullptr || PrivateNotes == nullptr) {
-				return std::nullopt;
-			}
-			const auto rect = ComparisonSurface->line_rect(aSide, aLine);
-			if (rect.isEmpty()) {
-				return std::nullopt;
-			}
-			const auto inWindow = ComparisonSurface->mapTo(this, rect.topLeft());
-			return PrivateNotes->mapFrom(this, inWindow).y();
-		});
-		PrivateNotes->set_comparison_source([this]() -> const core::file_alignment* {
-			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr) {
-				return nullptr;
-			}
-			return &ComparisonSurface->current_result()->Alignment;
-		});
-		PrivateNotes->set_selected_line_source([this]() -> std::optional<private_note_line> {
-			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr || !ComparisonSurface->selection()) {
-				return std::nullopt;
-			}
-			const auto& chosen = *ComparisonSurface->selection();
-			if (chosen.PreferredLine.Comparison != ComparisonSurface->current_result()->Alignment.Digest) {
-				return std::nullopt;
-			}
-			return private_note_line{ .Side = chosen.PreferredLine.Side, .Line = chosen.PreferredLine.Line };
-		});
-		PrivateNotes->set_line_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) {
-			if (ComparisonSurface != nullptr) {
-				static_cast<void>(ComparisonSurface->select_conversation_line(aSide, aLine));
-			}
-		});
-		PrivateNotes->set_elsewhere_dispatch([this](const private_note_item& aNote) { open_private_note_elsewhere(aNote); });
-		PrivateNotes->set_marks_observer([this] { apply_thread_marks(); });
-		PrivateNotes->set_scroll_forward([this](QWheelEvent& aEvent) { return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent); });
-		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			PrivateNotes->set_colours(ConversationPanel->cards()->accent(), ConversationPanel->cards()->marker());
-		}
-	}
-
-	void workbench_window::open_private_note_elsewhere(const private_note_item& aNote)
-	{
-		const auto file = file_for_path(QString::fromStdString(aNote.Label));
-		if (!file) {
-			statusBar()->showMessage(tr("That note's file is not in this pull request now."));
-			return;
-		}
-		PendingNoteOpen = aNote.Id;
-		choose_home(false);
-		choose_modality(review_modality::review);
-		if (Dispatch) {
-			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
 	}
 
@@ -648,16 +573,30 @@ namespace bpr::qt {
 		return found;
 	}
 
-	auto workbench_window::go_to_file_line(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> bool
+	auto workbench_window::review_changed_files() const -> std::vector<std::string>
+	{
+		auto        files = std::vector<std::string>{ };
+		const auto* model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		if (model != nullptr) {
+			files.reserve(static_cast<std::size_t>(model->rowCount()));
+			for (int row = 0; row < model->rowCount(); ++row) {
+				files.push_back(model->data(model->index(row, 0), Qt::DisplayRole).toString().toStdString());
+			}
+		}
+		return files;
+	}
+
+	auto workbench_window::go_to_file_line(const QString& aPath, const std::uint32_t aLine, const bool aBefore, const std::uint32_t aLast) -> bool
 	{
 		const auto path = review_file_named(aPath);
 		if (!path || aLine == 0U) {
 			statusBar()->showMessage(tr("%1 is not in this pull request at its current head.").arg(aPath), 6000);
 			return false;
 		}
-		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U };
+		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U, .Last = std::max(aLine, aLast) - 1U };
 		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
-		if (!context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
+		// RFC-BPR-0128 (AC06): from a report, the file's own tab opens.
+		if (ReportShown || !context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
 			if (!open_file_in_review(*path)) {
 				PendingLineGo.reset();
 				return false;
@@ -683,6 +622,10 @@ namespace bpr::qt {
 			PendingLineGo.reset();
 			if (!ComparisonSurface->reveal_conversation_line(go.Side, go.Line)) {
 				statusBar()->showMessage(tr("Line %1 is not in this file at the %2.").arg(go.Line + 1U).arg(go.Side == core::diff_side::left ? tr("base") : tr("head")), 6000);
+			} else if (go.Last > go.Line && ComparisonSurface->current_result() != nullptr) {
+				// [[BPR-1998]]. A range is selected whole, its first line in view.
+				const auto digest = ComparisonSurface->current_result()->Alignment.Digest;
+				static_cast<void>(ComparisonSurface->restore_source_range(core::source_line_ref{ .Comparison = digest, .Side = go.Side, .Line = go.Line }, core::source_line_ref{ .Comparison = digest, .Side = go.Side, .Line = go.Last }));
 			}
 			return;
 		}
@@ -702,32 +645,45 @@ namespace bpr::qt {
 
 	void workbench_window::go_to_private_note(const std::uint64_t aId)
 	{
-		if (PrivateNotes == nullptr) {
+		if (ConversationPanel == nullptr) {
 			return;
 		}
 		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
 		}
-		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
-			TrayTabs->setCurrentIndex(tray_notes_tab);
+		// RFC-BPR-0127. Go to note arrives at its Local comment, in Comments.
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
-		if (PrivateNotes->open_note_id() != aId) {
-			PrivateNotes->open_note(aId);
-		}
+		ConversationPanel->cards()->open_thread(conversation_cards_view::local_comment_identity(aId));
 	}
 
 	void workbench_window::resume_private_note_open()
 	{
-		if (!PendingNoteOpen || PrivateNotes == nullptr) {
+		if (!PendingNoteOpen || ConversationPanel == nullptr) {
 			return;
 		}
-		const auto place = PrivateNotes->placement(*PendingNoteOpen);
-		if (place.Kind == core::note_placement_kind::other_file) {
+		// RFC-BPR-0127. It opens once the composition has placed it in the
+		// file now shown: at its line, or after the placed cards.
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, *PendingNoteOpen, &local_comment_card::Id);
+		if (found == comments.end() || found->Place == local_comment_place::other_file) {
 			return;
 		}
 		const auto id = *PendingNoteOpen;
 		PendingNoteOpen.reset();
-		show_private_note(id);
+		const auto makeDraft = std::exchange(PendingLocalMakeDraft, false);
+		if (ConversationPanel->cards()->open_thread_id() != conversation_cards_view::local_comment_identity(id)) {
+			show_private_note(id);
+		}
+		if (found->Line.has_value() && ComparisonSurface != nullptr) {
+			static_cast<void>(ComparisonSurface->reveal_conversation_line(found->Side, *found->Line - 1U));
+		}
+		// RFC-BPR-0127 ([[BPR-2159]]). Make Draft from a Threads row, now
+		// that its file is shown.
+		if (makeDraft) {
+			dispatch_comment_state(card_action::make_draft, conversation_cards_view::local_comment_identity(id));
+		}
 	}
 
 	void workbench_window::go_to_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
@@ -1028,6 +984,35 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::open_agent_setup()
+	{
+		if (AgentTab != nullptr) {
+			AgentTab->open_setup();
+			show_agent(false);
+		}
+	}
+
+	void workbench_window::present_agent_footer_setup()
+	{
+		if (AgentFooter == nullptr || AgentTab == nullptr) {
+			return;
+		}
+		// [[BPR-2051]], owner decision 2026-11-11: setup is a state of the
+		// footer. The picker says what is missing in a few words; the
+		// failure's whole account stays on Settings.
+		auto need   = QString{ };
+		auto failed = false;
+		if (AgentTab->setup_readiness() == agent_setup_readiness::unfinished) {
+			const auto* const setup = AgentTab->setup_view();
+			const auto&       check = setup != nullptr ? setup->projection().State.AgentCheck : core::setup_check{ };
+			need                    = check.State == core::setup_check_state::failed && check.Failure == core::agent_setup_failure::not_signed_in ? tr("not signed in")
+				: check.State == core::setup_check_state::failed                                                                                  ? tr("check failed")
+																																				  : tr("not checked");
+			failed                  = check.State == core::setup_check_state::failed;
+		}
+		AgentFooter->present_setup(need, failed);
+	}
+
 	void workbench_window::wire_tour_page()
 	{
 		// [[BPR-1593]]. RFC-BPR-0085 D4: Expand opens the tour page in the
@@ -1060,17 +1045,35 @@ namespace bpr::qt {
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(escape, &QShortcut::activated, this, [this] { close_tour_page(); });
 		CentreStack->addWidget(TourPage);
-		// [[BPR-1878]], owner look v001. The Tour tab has the Agent tab's own
-		// agent picker at its bottom: the same component over the same source.
-		TourEditor->set_agent_picker(new agent_run_settings_picker{ AgentTab->run_settings_source(), TourEditor });
-		// [[BPR-1881]]. The Tour tab's agent features follow the Agent tab's
-		// own setup verdict, and its call to action shows that setup.
-		TourEditor->set_agent_setup_dispatch([this] {
-			if (AgentTab != nullptr) {
-				AgentTab->open_setup();
-				show_agent(false);
-			}
-		});
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): one agent
+		// picker for the pull request, in the window's footer, over the Agent
+		// tab's source, so the Agent tab, the tour chat, Enhance and Draft the
+		// tour use one choice. Setup is a state of that footer.
+		AgentFooter = new agent_footer{ AgentTab->run_settings_source(), this };
+		AgentTab->adopt_run_settings_button(AgentFooter->picker());
+		AgentFooter->set_settings_dispatch([this] { open_settings(settings_page::agents_and_context); });
+		statusBar()->addPermanentWidget(AgentFooter, 0);
+		AgentTab->set_footer_observers(
+			[this](const agent_run_status& aStatus, const QElapsedTimer& aStarted) {
+				if (AgentFooter != nullptr) {
+					AgentFooter->present_run(agent_footer_place::agent_tab, agent_footer_run{ .Status = aStatus, .Started = aStarted, .Stop = [this] {
+																								 if (AgentPanel != nullptr) {
+																									 AgentPanel->cancel_action()->trigger();
+																								 }
+																							 } });
+				}
+			},
+			[this](const QString& aEnding) {
+				if (AgentFooter != nullptr) {
+					AgentFooter->present_finished(agent_footer_place::agent_tab, aEnding);
+				}
+			},
+			[this](const std::optional<core::agent_cost> aCost) {
+				if (AgentFooter != nullptr) {
+					AgentFooter->present_cost(agent_footer_place::agent_tab, aCost);
+				}
+			});
+		AgentFooter->setVisible(!showing_home());
 		// [[BPR-1892]]. A failed request's notice sends the person to the
 		// Agent tab's card for the run; nothing switches tabs by itself.
 		TourEditor->set_agent_failure_dispatch([this] {
@@ -1088,7 +1091,17 @@ namespace bpr::qt {
 			if (TourEditor != nullptr && AgentTab != nullptr) {
 				TourEditor->set_agent_readiness(AgentTab->setup_readiness());
 			}
+			present_agent_footer_setup();
+			// RFC-BPR-0117. Explain this file is offered once the agent is set up.
+			if (AgentTab != nullptr) {
+				set_explain_file_offered(AgentTab->setup_readiness() == agent_setup_readiness::ready);
+				// RFC-BPR-0118. Suggest the change asks only once it is.
+				set_suggest_change_ready(AgentTab->setup_readiness() == agent_setup_readiness::ready);
+			}
 		});
+		// Owner on the live build, 2026-11-11: no stray status text in the
+		// Tour panel. A writing request's notice is the window's status line.
+		TourEditor->set_notice_dispatch([this](const QString& aText) { statusBar()->showMessage(aText, 8000); });
 		TourEditor->set_expand_dispatch([this](const bool aPublication) { open_tour_page(aPublication); });
 		TourEditor->set_collapse_dispatch([this] { close_tour_page(); });
 		TourEditor->set_excerpt_source([this](const core::tour_source_range& aRange) -> std::optional<tour_excerpt> {
@@ -1132,6 +1145,11 @@ namespace bpr::qt {
 
 	void workbench_window::open_tour_page(const bool aPublication)
 	{
+		// RFC-BPR-0110 X04: a local draft's tour publishes nothing; its pull
+		// request is created by Create Draft PR….
+		if (aPublication && LocalDraftShown) {
+			return;
+		}
 		if (!TourPageOpen) {
 			TourPageOpen     = true;
 			auto* const body = static_cast<QHBoxLayout*>(TourPageBody->layout());
@@ -1185,6 +1203,24 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::reset_review_surface()
+	{
+		// The tray, the tour's chat and its page are window state; an opened
+		// pull request does not inherit the last review's.
+		close_tour_page();
+		if (TourEditor != nullptr) {
+			TourEditor->side_chat()->set_column_open(false);
+		}
+		if (TrayTabs != nullptr) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
+		}
+	}
+
+	void workbench_window::begin_review_open()
+	{
+		reset_review_surface();
+	}
+
 	auto workbench_window::tour_page_open() const noexcept -> bool
 	{
 		return TourPageOpen;
@@ -1208,7 +1244,7 @@ namespace bpr::qt {
 		if (TourChatSplit != nullptr && TourChatSplit->count() > 0) {
 			TourChatSplit->widget(0)->setMinimumWidth(aShown ? 340 : 0);
 		}
-		if (aShown && !TourChatSized && chat->parentWidget() == TourChatSplit) {
+		if (aShown && !TourChatSized && TourChatSplit != nullptr && chat->parentWidget() == TourChatSplit) {
 			TourChatSized = true;
 			TourChatSplit->setSizes({ 10'000, 10'000 });
 		}
@@ -1248,11 +1284,6 @@ namespace bpr::qt {
 	auto workbench_window::comment_action() const noexcept -> QAction*
 	{
 		return CommentAction;
-	}
-
-	auto workbench_window::comment_menu() const noexcept -> QMenu*
-	{
-		return CommentMenu;
 	}
 
 	void workbench_window::publish(const application::document_tabs_projection& aProjection)
@@ -1359,7 +1390,13 @@ namespace bpr::qt {
 					.State         = entry.State,
 					.Active        = entry.Active,
 					.OwnComparison = entry.OwnComparison,
+					.Report        = !entry.Report.empty(),
 				});
+				if (!entry.Report.empty()) {
+					const auto found = Reports.find(entry.Report);
+					tabs.back().Name = found != Reports.end() && !found->second.Title.isEmpty() ? found->second.Title : tr("Report");
+					tabs.back().Path = { };
+				}
 			}
 			// A tab's name is its file's, with as much of the path before it
 			// as tells it apart from another tab's file of the same name.
@@ -1368,6 +1405,9 @@ namespace bpr::qt {
 				return parts.mid(std::max<qsizetype>(0, parts.size() - aParts)).join(QLatin1Char{ '/' });
 			};
 			for (auto& tab : tabs) {
+				if (tab.Report) {
+					continue;
+				}
 				if (tab.Path.isEmpty()) {
 					tab.Name = tr("Unlisted file");
 					continue;
@@ -1385,6 +1425,136 @@ namespace bpr::qt {
 		}
 		DocumentTabs->present(std::move(tabs));
 		update_tab_actions();
+		refresh_explain_file();
+		apply_report_surface();
+	}
+
+	void workbench_window::open_report(const std::string& aKey, const agent_report_document& aReport)
+	{
+		Reports[aKey] = aReport;
+		if (DocumentTabDispatch) {
+			DocumentTabDispatch(core::open_report_tab_intent{ .Report = aKey });
+		}
+		apply_report_surface();
+	}
+
+	/// RFC-BPR-0128 ([[BPR-2166]]). While a report is the active tab it
+	/// stands where the comparison stands, and the review bar's file controls
+	/// stay where they are, off (Q9); the drawers keep their places.
+	void workbench_window::apply_report_surface()
+	{
+		auto key = std::string{ };
+		if (TabsProjection) {
+			for (const auto& entry : TabsProjection->Tabs) {
+				if (entry.Active) {
+					key = entry.Report;
+				}
+			}
+		}
+		const auto found = Reports.find(key);
+		const auto shown = !key.empty() && found != Reports.end();
+		if (ReportView == nullptr || ComparisonSurface == nullptr) {
+			return;
+		}
+		if (shown) {
+			const auto& open = ReportView->document();
+			if (open.Turn != found->second.Turn || open.Title != found->second.Title || open.Markdown != found->second.Markdown) {
+				ReportView->present(found->second);
+			}
+		}
+		// docs/design/report-card-v4: its card's row is selected while the
+		// report's tab is active.
+		if (AgentTab != nullptr) {
+			AgentTab->mark_open_report(shown ? std::optional{ found->second.Turn } : std::nullopt);
+		}
+		if (shown == ReportShown) {
+			return;
+		}
+		ReportShown = shown;
+		ComparisonSurface->setVisible(!shown);
+		ReportView->setVisible(shown);
+		if (shown) {
+			if (ExplainCard != nullptr) {
+				ExplainCard->hide();
+			}
+			if (SplitStrip != nullptr) {
+				SplitStrip->hide();
+			}
+			ReportDisabled.clear();
+			auto controls = std::vector<QWidget*>{ SeenStepButton, ReadStepButton, AcceptFileButton, ReviewControlsButton, FileAskButton, FilePositionLabel, ChangePositionLabel };
+			for (auto* const action : { Navigation[0].Action, Navigation[1].Action, Navigation[2].Action, Navigation[3].Action }) {
+				if (action != nullptr && ReviewBar != nullptr) {
+					controls.push_back(ReviewBar->widgetForAction(action));
+				}
+			}
+			for (auto* const control : controls) {
+				if (control != nullptr) {
+					ReportDisabled.emplace_back(control, control->isEnabled());
+					control->setEnabled(false);
+				}
+			}
+			return;
+		}
+		for (const auto& [control, enabled] : ReportDisabled) {
+			if (control) {
+				control->setEnabled(enabled);
+			}
+		}
+		ReportDisabled.clear();
+		refresh_explain_file();
+	}
+
+	void workbench_window::set_explain_file_dispatch(std::function<void(const QString&)> aDispatch)
+	{
+		ExplainFileDispatch = std::move(aDispatch);
+		refresh_explain_file();
+	}
+
+	void workbench_window::set_explain_file_offered(const bool aOffered)
+	{
+		ExplainFileOffered = aOffered;
+		refresh_explain_file();
+	}
+
+	auto workbench_window::active_document_path() const -> QString
+	{
+		if (DocumentTabs == nullptr) {
+			return { };
+		}
+		for (const auto& tab : DocumentTabs->tabs()) {
+			if (tab.Active) {
+				return tab.Path;
+			}
+		}
+		return { };
+	}
+
+	void workbench_window::present_explain_file(const explain_file_progress& aProgress)
+	{
+		if (ExplainCard == nullptr) {
+			return;
+		}
+		ExplainCard->present(aProgress);
+		refresh_explain_file();
+	}
+
+	void workbench_window::dismiss_explain_file()
+	{
+		if (ExplainCard != nullptr) {
+			ExplainCard->clear();
+		}
+		refresh_explain_file();
+	}
+
+	/// RFC-BPR-0117. The control is enabled while a press can be sent on an
+	/// open file; the card shows while its file is the active tab's.
+	void workbench_window::refresh_explain_file()
+	{
+		const auto path = active_document_path();
+		refresh_ask_controls();
+		if (ExplainCard != nullptr) {
+			ExplainCard->setVisible(!ExplainCard->path().isEmpty() && ExplainCard->path() == path);
+		}
 	}
 
 	void workbench_window::update_tab_actions()
@@ -1464,6 +1634,7 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
+		update_comment_steps();
 		// [[BPR-1699]]. Offered while anything on the pull request is new.
 		if (MarkAllCommentsRead != nullptr) {
 			MarkAllCommentsRead->setEnabled(!unread.empty() && static_cast<bool>(ConversationsReadDispatch));
@@ -1714,9 +1885,6 @@ namespace bpr::qt {
 		const auto reason             = comment_target_reason(true);
 		const auto promotionAvailable = reason.isEmpty() && !ReviewEditor->body_editor()->isReadOnly();
 		const auto promotionReason    = !reason.isEmpty() ? reason : tr("Resolve the retained draft conflict before promoting an item.");
-		if (PrivateNotes != nullptr) {
-			PrivateNotes->set_promotion_target(promotionAvailable, promotionReason);
-		}
 		if (SideChat != nullptr) {
 			SideChat->set_promotion_target(promotionAvailable, promotionReason);
 		}
@@ -1759,6 +1927,197 @@ namespace bpr::qt {
 		ConversationAskDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_comment_state_dispatch(workbench_comment_state_dispatch aDispatch)
+	{
+		CommentStateDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_local_comments(std::vector<local_comment_card> aComments)
+	{
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		present_local_found(aComments);
+		ConversationPanel->cards()->set_local_comments(std::move(aComments));
+		apply_thread_marks();
+		resume_private_note_open();
+	}
+
+	void workbench_window::close_drawer_composer(const bool aDiscard)
+	{
+		leave_drawer_draft(aDiscard);
+	}
+
+	void workbench_window::refuse_local_edit(const QString& aWhy)
+	{
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->cards()->present_comment_edit_status(aWhy, false);
+		}
+		refuse_comment_state(aWhy);
+	}
+
+	void workbench_window::confirm_delete_local(const std::string& aIdentity)
+	{
+		const auto local = conversation_cards_view::local_comment_of(aIdentity);
+		if (!local.has_value() || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
+		if (found == comments.end()) {
+			return;
+		}
+		if (DeleteLocalConfirmation != nullptr) {
+			DeleteLocalConfirmation->close();
+		}
+		// RFC-BPR-0127. Asked once, as a kept reply's discard is: it is only
+		// on this computer, so nothing else has these words.
+		auto* const box = new destructive_question{ *this, QStringLiteral("deleteLocalConfirmation"), found->ReplyToThread ? tr("Delete this local reply?") : tr("Delete this local comment?"),
+													tr("It is only on this computer, so nothing else has these words. This cannot be undone."), tr("Delete") };
+		if (found->Line.has_value()) {
+			const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+			const auto path    = context.has_value() ? path_of(context->Key.File) : QString{ };
+			box->set_subject(path.section(QLatin1Char{ '/' }, -1), comment_lines(found->Side, *found->Line - 1U, found->FirstLine ? std::optional{ *found->FirstLine - 1U } : std::nullopt),
+							 found->Body.toStdString(), aIdentity, label_marks(), ConversationPanel->cards()->code_font());
+		} else {
+			box->set_subject(found->Path.section(QLatin1Char{ '/' }, -1), QString{ }, found->Body.toStdString(), aIdentity, label_marks(), ConversationPanel->cards()->code_font());
+		}
+		DeleteLocalConfirmation = box;
+		connect(box, &QDialog::accepted, this, [this, id = *local, aIdentity] {
+			auto gesture     = comment_state_gesture{ };
+			gesture.Action   = card_action::delete_local;
+			gesture.Identity = aIdentity;
+			gesture.Local    = id;
+			if (CommentStateDispatch) {
+				CommentStateDispatch(gesture);
+			}
+		});
+		box->open();
+	}
+
+	void workbench_window::open_local_elsewhere(const std::string& aIdentity)
+	{
+		const auto local = conversation_cards_view::local_comment_of(aIdentity);
+		if (!local.has_value() || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
+		if (found == comments.end()) {
+			return;
+		}
+		// RFC-BPR-0127 ("Where a Local comment can be"). Another file's
+		// comment: its file, then its line, where it opens.
+		const auto file = file_for_path(found->Path);
+		if (!file) {
+			statusBar()->showMessage(tr("That comment's file is not in this pull request now."), 6000);
+			return;
+		}
+		PendingNoteOpen = *local;
+		choose_home(false);
+		choose_modality(review_modality::review);
+		if (Dispatch) {
+			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
+	}
+
+	void workbench_window::refuse_comment_state(const QString& aWhy)
+	{
+		statusBar()->showMessage(aWhy, 10000);
+		QAccessibleAnnouncementEvent event{ this, aWhy };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Assertive);
+		QAccessible::updateAccessibility(&event);
+	}
+
+	void workbench_window::dispatch_comment_state(const card_action aAction, const std::string& aIdentity)
+	{
+		auto gesture     = comment_state_gesture{ };
+		gesture.Action   = aAction;
+		gesture.Identity = aIdentity;
+		if (const auto local = conversation_cards_view::local_comment_of(aIdentity); local.has_value()) {
+			gesture.Local = local;
+			if (aAction == card_action::delete_local) {
+				confirm_delete_local(aIdentity);
+				return;
+			}
+			if (aAction == card_action::open_local_elsewhere) {
+				open_local_elsewhere(aIdentity);
+				return;
+			}
+			if (aAction == card_action::copy_local) {
+				const auto& comments = ConversationPanel->cards()->local_comments();
+				const auto  found    = std::ranges::find(comments, *local, &local_comment_card::Id);
+				if (found != comments.end()) {
+					if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+						clipboard->setText(found->Body);
+					}
+					statusBar()->showMessage(tr("Copied the comment."), 4000);
+				}
+				return;
+			}
+		} else if (aIdentity == "draft:unpublished") {
+			if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()) {
+				gesture.Draft = ReviewEditor->shown_draft()->Id;
+			}
+		} else if (aIdentity.starts_with("draft:unpublished:")) {
+			auto       value = std::uint64_t{ 0U };
+			const auto text  = std::string_view{ aIdentity }.substr(18);
+			if (std::from_chars(text.data(), text.data() + text.size(), value).ec == std::errc{ } && value != 0U) {
+				gesture.Draft = core::review_draft_id{ value };
+			}
+		}
+		if (aAction == card_action::save_local && ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()) {
+			gesture.Draft         = ReviewEditor->shown_draft()->Id;
+			gesture.Body          = ReviewEditor->body_editor()->toPlainText().toStdString();
+			gesture.Anchor        = ReviewEditor->shown_draft()->Anchor;
+			gesture.StartLine     = ReviewEditor->shown_draft()->StartLine;
+			gesture.ReplyToThread = ReviewEditor->shown_draft()->ReplyToThread;
+		}
+		if (CommentStateDispatch) {
+			CommentStateDispatch(gesture);
+		}
+	}
+
+	void workbench_window::set_conversation_addressed_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		ConversationAddressedDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_addressed_threads(std::set<std::string> aThreads)
+	{
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->cards()->set_addressed_threads(std::move(aThreads));
+		}
+	}
+
+	void workbench_window::set_what_changed_dispatch(std::function<void()> aDispatch)
+	{
+		WhatChangedDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_latest_upload(const core::latest_upload_offer& aOffer)
+	{
+		if (AgentTab != nullptr) {
+			AgentTab->present_latest_upload(aOffer);
+		}
+		if (WhatChangedPullRequest == nullptr) {
+			return;
+		}
+		// Owner rule: no explainer tooltips. The reason it is unavailable
+		// is in its words, and the item stays where it is.
+		const auto unavailable = aOffer.State == core::latest_upload_state::unavailable && aOffer.Earlier;
+		WhatChangedPullRequest->setText(unavailable ? QStringLiteral("What Changed Since My Review (code at %1 can't be read here)").arg(QString::fromStdString(aOffer.Earlier->Head.substr(0U, 7U)))
+													: QStringLiteral("What &Changed Since My Review"));
+		WhatChangedPullRequest->setEnabled(aOffer.State == core::latest_upload_state::offered && static_cast<bool>(WhatChangedDispatch));
+	}
+
+	auto workbench_window::open_pull_request_seen_head() const -> std::string
+	{
+		const auto ref  = open_queue_ref();
+		const auto item = ref && QueueLanding != nullptr ? QueueLanding->item_for(*ref) : std::nullopt;
+		return item ? item->Facts.SeenHead : std::string{ };
+	}
+
 	void workbench_window::open_agent_question()
 	{
 		show_agent(false);
@@ -1787,3 +2146,87 @@ namespace bpr::qt {
 		return std::pair{ aFirst, std::move(*lines) };
 	}
 }
+
+namespace bpr::qt {
+	void workbench_window::set_quick_ask(ask_menu_source aSource, ask_menu_dispatch aDispatch)
+	{
+		QuickAskSource = std::move(aSource);
+		// A row pressed in a tab's menu acts on that tab's file: the file is
+		// asked about where it is read, its tab first.
+		aDispatch.Ask = [this, pressed = std::move(aDispatch.Ask)](const ask_menu_request& aRequest, const core::quick_ask_row& aRow) {
+			activate_document_path(aRequest.File);
+			if (pressed) {
+				pressed(aRequest, aRow);
+			}
+		};
+		aDispatch.Custom = [this, asked = std::move(aDispatch.Custom)](const ask_menu_request& aRequest) {
+			activate_document_path(aRequest.File);
+			if (asked) {
+				asked(aRequest);
+			}
+		};
+		QuickAskDispatch = std::move(aDispatch);
+		if (ConversationPanel != nullptr) {
+			if (QuickAskSource) {
+				ConversationPanel->cards()->set_ask_menu_filler([this](QMenu& aMenu, const QString& aThread, const QString& aTitle) {
+					auto request        = ask_request(core::quick_ask_anchor::thread);
+					request.Thread      = aThread;
+					request.ThreadTitle = aTitle;
+					fill_quick_ask(aMenu, request);
+				});
+			} else {
+				ConversationPanel->cards()->set_ask_menu_filler({ });
+			}
+		}
+		refresh_ask_controls();
+	}
+
+	auto workbench_window::ask_request(const core::quick_ask_anchor aAnchor) const -> ask_menu_request
+	{
+		auto request = ask_menu_request{ .Anchor = aAnchor, .File = active_document_path() };
+		if (aAnchor != core::quick_ask_anchor::file && ConversationPanel != nullptr) {
+			const auto& open = ConversationPanel->cards()->open_identity();
+			if (!open.empty()) {
+				request.Thread      = QString::fromStdString(open);
+				request.ThreadTitle = ConversationPanel->cards()->thread_title(open);
+			}
+		}
+		return request;
+	}
+
+	void workbench_window::fill_quick_ask(QMenu& aMenu, const ask_menu_request& aRequest)
+	{
+		const auto rows = QuickAskSource ? QuickAskSource(aRequest) : std::nullopt;
+		fill_ask_menu(aMenu, rows.value_or(core::quick_ask_menu{ }), aRequest, QuickAskDispatch);
+	}
+
+	/// RFC-BPR-0128. The Ask controls show while the agent's features are
+	/// offered; the file's is enabled while a file is open.
+	void workbench_window::refresh_ask_controls()
+	{
+		const auto offered = static_cast<bool>(QuickAskSource);
+		if (FileAskButton != nullptr) {
+			FileAskButton->setEnabled(offered && !active_document_path().isEmpty());
+			DocumentTabs->offer_active_tab_control(offered && !LocalDraftShown);
+		}
+		if (ReviewAskButton != nullptr) {
+			ReviewAskButton->setVisible(offered && !LocalDraftShown);
+			if (auto* const action = ReviewBar != nullptr ? ReviewBar->findChild<QAction*>(QStringLiteral("reviewBarAskAction")) : nullptr; action != nullptr) {
+				action->setVisible(offered && !LocalDraftShown);
+			}
+		}
+	}
+
+	void workbench_window::activate_document_path(const QString& aPath)
+	{
+		if (DocumentTabs == nullptr || aPath.isEmpty() || active_document_path() == aPath || !DocumentTabDispatch) {
+			return;
+		}
+		for (const auto& tab : DocumentTabs->tabs()) {
+			if (tab.Path == aPath) {
+				DocumentTabDispatch(core::activate_tab_intent{ .Tab = tab.Id });
+				return;
+			}
+		}
+	}
+} // namespace bpr::qt

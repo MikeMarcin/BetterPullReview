@@ -5,8 +5,27 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
 # [[BPR-1090]] The review-feedback guidance, from the RFC-BPR-0051 pack fragment.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-feedback.md" WRITING_FEEDBACK)
+# [[BPR-2051]] The Enhance prompts of a tour stop and of every comment, reply and note.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-tour-stop.md" WRITING_ENHANCE_STOP)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/enhance-writing.md" WRITING_ENHANCE_WRITING)
+# [[BPR-2059]] How an agent writes the comments it suggests.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/suggested-comment.md" WRITING_SUGGESTED_COMMENT)
+# RFC-BPR-0110 ([[BPR-2026]]) The local-authoring prompts: description writing and whole-change discussion.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-description.md" WRITING_LOCAL_DESCRIPTION)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-discussion.md" WRITING_LOCAL_DISCUSSION)
+# RFC-BPR-0114 as amended 2026-11-12: the agent's commit message.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-commit-message.md" WRITING_LOCAL_COMMIT_MESSAGE)
 # An edited resource reconfigures, so the built defaults never lag their text.
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback)
+# RFC-BPR-0116: the returning questions' prompts.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-latest-upload.md" WRITING_REVIEW_LATEST_UPLOAD)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-proposed-fix.md" WRITING_REVIEW_PROPOSED_FIX)
+# RFC-BPR-0117: Explain this file's prompt.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-explain-file.md" WRITING_REVIEW_EXPLAIN_FILE)
+# RFC-BPR-0118: Suggest the change's prompt.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-suggest-change.md" WRITING_REVIEW_SUGGEST_CHANGE)
+# RFC-BPR-0128: the report shape the Agent tab's requests carry.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/report-templates.md" WRITING_REPORT_TEMPLATES)
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change report-templates)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
@@ -30,13 +49,17 @@ add_library(
         src/tour_agent_context.cpp
         src/tour_agent_conversation.cpp
         src/tour_writing_style.cpp
-        src/tour_chat_prompts.cpp
         src/skill_guidance.cpp
         src/skill_catalog.cpp
         src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/review_cycle_capture.cpp
         src/review_cycle_git_metadata.cpp
+        src/local_draft_discovery.cpp
+        src/local_draft_publishing.cpp
+        src/local_changes_host.cpp
+        src/local_draft_workbench.cpp
+        src/local_presentation.cpp
         src/review_cycle_comparison.cpp
         src/review_cycle_feedback.cpp
         src/review_cycle_round.cpp
@@ -88,6 +111,7 @@ add_library(
         src/host_operation_diagnostics.cpp
         src/diagnostic_settings.cpp
         src/view_filter_memory_host.cpp
+        src/discuss_preferences_host.cpp
         src/pull_request_activity_host.cpp
         src/release_profile_cleanup.cpp
         src/personal_discovery_host.cpp
@@ -184,10 +208,17 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/clone_link_host.cpp
             src/review_brief.cpp
             src/review_skill_host.cpp
+            src/agent_configuration_exchange.cpp
             src/agent_conversation_host.cpp
             src/agent_finding_card_host.cpp
+            src/prompt_turn_name_host.cpp
+            src/prompt_macro_host.cpp
+            src/agent_queue_host.cpp
+            src/agent_session_runner.cpp
+            src/review_agent_runtime.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
+            src/agent_scratch_folder.cpp
             src/agent_realignment.cpp
             src/mcp_context_helper_supervisor.cpp
             src/review_cycle_agent_sender.cpp

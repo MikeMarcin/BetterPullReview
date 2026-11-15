@@ -3,11 +3,21 @@
 #include "../../src/adapters/sqlite/src/private_review_database.hpp"
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/testing.hpp"
 namespace bpr::tests::sqlite_contract {
+	/// \brief RFC-BPR-0127. A current ledger as schema 11 left it: its Local
+	/// comments as note threads with their path and line rows. Every older
+	/// fixture is built from this one. Test data construction only.
+	inline void restore_v11_fixture(sqlite3* aDatabase)
+	{
+		expect(adapters::sqlite::detail::testing::restore_schema_11_notes(aDatabase), "build the schema 11 note shape");
+	}
+
 	/// \brief Builds the frozen v6 source shape from a synthetic current fixture.
 	/// This is test data construction, never an application downgrade path.
 	inline void restore_v6_fixture(sqlite3* aDatabase)
 	{
+		restore_v11_fixture(aDatabase);
 		using adapters::sqlite::detail::execute;
 		const std::string_view statements[]{
 			"CREATE TABLE local_note(scope_id INTEGER NOT NULL REFERENCES review_scope(scope_id) ON DELETE CASCADE,note_id INTEGER NOT NULL CHECK(note_id > 0),file_identity BLOB,comparison_id BLOB,note_text TEXT NOT NULL CHECK(length(CAST(note_text AS BLOB)) BETWEEN 1 AND 16384),revision INTEGER NOT NULL CHECK(revision > 0),CHECK((file_identity IS NULL AND comparison_id IS NULL) OR (length(file_identity) = 32 AND length(comparison_id) = 32)),PRIMARY KEY(scope_id, note_id)) STRICT",
@@ -26,6 +36,7 @@ namespace bpr::tests::sqlite_contract {
 	/// generated marks.
 	inline void restore_v10_fixture(sqlite3* aDatabase)
 	{
+		restore_v11_fixture(aDatabase);
 		using adapters::sqlite::detail::execute;
 		const std::string_view statements[]{ "DROP TABLE generated_mark", "UPDATE ledger_meta SET schema_format=10", "PRAGMA user_version=10" };
 		for (const auto statement : statements) {

@@ -210,15 +210,24 @@ and eight writing hooks (`tour.problem`, `tour.solution`, `tour.outline`,
 earlier counts in this section, six, then nine with three Enhance prompts,
 then ten, describe the list as it was at each step.
 
+RFC-BPR-0110 ([[BPR-2026]], 2026-11-12) added the two local-authoring prompts
+as writing hooks in the same list, store and revision (profile schema 28),
+under Built-in prompts › Local drafts. This version now recognizes eleven
+purposes: the nine above, `local.description` (Description writing,
+`local-description-v1`) and `local.discussion` (Change discussion,
+`local-discussion-v1`). Both export, shipped or edited, with their version,
+and an older importer reports them as a purpose it does not recognize. The
+example of an unrecognized purpose in this RFC's tests changed from
+`local.description` to `release.notes`.
+
 RFC-BPR-0114 as amended by the owner on 2026-11-12 ("make sure we can use the
-agent to fill in the commit (subject and message)") adds the purpose
+agent to fill in the commit (subject and message)") adds a twelfth purpose,
 `local.commit-message` (Commit message, `local-commit-message-v1`): how the
 agent writes a commit's subject and description from the staged change. It is
-a writing hook in the same list, store and revision, listed under Built-in
-prompts › Local drafts, and exported and imported like the others; it is
-built on lane `claude/v0-5-0-prerelease-targets-52265d` with the
-local-authoring prompts of RFC-BPR-0110. An older importer reports it as a
-purpose it does not recognize.
+a writing hook in the same list, store and revision (profile schema 29, and
+the agent setup store's hook checks widened to 0 to 10), listed under Built-in
+prompts › Local drafts, and exported and imported like the others. An older
+importer reports it as a purpose it does not recognize.
 
 ### Owner decision: export the shipped defaults too (2026-11-11)
 

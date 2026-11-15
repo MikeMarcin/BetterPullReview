@@ -401,6 +401,44 @@ namespace {
 
 	/// [[BPR-1718]]. The reviewer's standing verdict, its staleness and
 	/// its dismissal, from their submitted reviews oldest first.
+	/// [[BPR-2049]]. Approved, then commits: Seen while the approval stands,
+	/// Approve again once GitHub dismissed it, nothing on my own pull request.
+	/// Seen on the current head quiets the row; a later push is news again.
+	void test_seen_and_approve_again()
+	{
+		const auto reviewed     = core::queue_membership{ .Requested = true, .Reviewed = true };
+		auto       activity     = core::queue_activity_observation{ .ReviewedByMe = true, .HeadMovedSinceMyReview = true };
+		auto       item         = core::queue_item{ .Membership = reviewed, .Bucket = core::bucket_for(reviewed, activity) };
+		item.Facts.Waiting.Head = std::string(40, 'b');
+		item.Facts.MyReview     = { .Verdict = core::my_review_verdict::approved, .NewCommits = true };
+		expect(item.Bucket == core::attention_bucket::changed_since_my_review, "an approval with commits after it needs me");
+		expect(core::review_followup_for(item) == core::review_followup::seen, "an approval still standing offers Seen");
+
+		auto dismissed                   = item;
+		dismissed.Facts.MyReview.Verdict = core::my_review_verdict::dismissed;
+		expect(core::review_followup_for(dismissed) == core::review_followup::approve_again, "a dismissed approval offers Approve again");
+
+		auto changes                   = item;
+		changes.Facts.MyReview.Verdict = core::my_review_verdict::changes_requested;
+		expect(core::review_followup_for(changes) == core::review_followup::none, "a change request is not seen away");
+
+		auto mine                       = item;
+		mine.Membership.OwnsPullRequest = true;
+		expect(core::review_followup_for(mine) == core::review_followup::none, "never on a pull request of mine");
+
+		auto facts     = item.Facts;
+		facts.SeenHead = facts.Waiting.Head;
+		expect(core::head_seen(facts), "Seen on the current head is seen");
+		const auto quiet = core::seen_activity(activity, facts);
+		expect(!quiet.HeadMovedSinceMyReview && core::bucket_for(reviewed, quiet) != core::attention_bucket::changed_since_my_review,
+			   "seen commits leave Needs me");
+		facts.Waiting.Head = std::string(40, 'c');
+		expect(!core::head_seen(facts) && core::seen_activity(activity, facts).HeadMovedSinceMyReview, "a later push is news again");
+		facts.Waiting.Head     = facts.SeenHead;
+		facts.MyReview.Verdict = core::my_review_verdict::dismissed;
+		expect(!core::head_seen(facts), "a dismissed approval is never seen away");
+	}
+
 	void test_my_standing_review_verdict()
 	{
 		using verdict  = core::my_review_verdict;
@@ -525,6 +563,7 @@ auto main() -> int
 	test_ordering_is_repeatable();
 	test_the_reason_travels_with_the_item();
 	test_my_standing_review_verdict();
+	test_seen_and_approve_again();
 
 	std::cout << "review-queue-attention-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -47,6 +47,15 @@ namespace bpr::adapters::git {
 	[[nodiscard]] auto make_installed_git_admissions()
 		-> std::shared_ptr<installed_git_admissions>;
 
+	/// \brief [[BPR-2181]]. The agent workspaces installed Git made, kept for
+	/// as long as their profile's Git cache, not one cache session: two
+	/// windows on one repository take turns with its session, and a workspace
+	/// made in one session must still be found to clean up in the next, or
+	/// the run that made it never retires.
+	class installed_workspace_owners;
+	[[nodiscard]] auto make_installed_workspace_owners()
+		-> std::shared_ptr<installed_workspace_owners>;
+
 	/// \brief Describes the installed git process configuration record.
 	struct installed_git_process_configuration
 	{
@@ -59,6 +68,9 @@ namespace bpr::adapters::git {
 		/// [[BPR-1842]]. Admissions to reuse and record; none admits every
 		/// process from nothing.
 		std::shared_ptr<installed_git_admissions> Admissions;
+		/// [[BPR-2181]]. The workspaces the profile's processes made; none
+		/// keeps them for this process only.
+		std::shared_ptr<installed_workspace_owners> WorkspaceOwners;
 	};
 
 	/// \brief Creates the installed git process.

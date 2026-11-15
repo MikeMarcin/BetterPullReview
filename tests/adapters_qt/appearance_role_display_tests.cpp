@@ -98,17 +98,18 @@ namespace {
 
 		// The counts the accepted design prints beside each sticky header.
 		const auto accepted = std::array<std::size_t, qt::appearance_role_group_count>{
-			9U, 8U, 7U, 28U, 12U
+			10U, 8U, 7U, 28U, 12U, 6U
 		};
-		expect(counted == accepted, "the groups hold 9, 8, 7, 28 and 12 roles");
+		// RFC-BPR-0128: the sixth group, Reports.
+		expect(counted == accepted, "the groups hold 10, 8, 7, 28, 12 and 6 roles");
 
 		auto total = std::size_t{ 0U };
 		for (const auto count : counted) {
 			total += count;
 		}
 		expect(
-			total == core::appearance_role_count && total == 64U,
-			"and together they hold every one of the 64 roles, so no role can be "
+			total == core::appearance_role_count && total == 71U,
+			"and together they hold every one of the 71 roles, so no role can be "
 			"grouped out of the list");
 	}
 
@@ -141,8 +142,8 @@ namespace {
 			"exactly the two hunk-header roles are not offered");
 		expect(
 			offered
-				== std::array<std::size_t, qt::appearance_role_group_count>{ 9U, 6U, 7U, 28U, 12U },
-			"so the card's groups offer 9, 6, 7, 28 and 12 roles, 62 in all");
+				== std::array<std::size_t, qt::appearance_role_group_count>{ 10U, 6U, 7U, 28U, 12U, 6U },
+			"so the card's groups offer 10, 6, 7, 28, 12 and 6 roles, 69 in all");
 		expect(
 			qt::appearance_role_group_of(core::appearance_role::diff_hunk_header_text)
 					== qt::appearance_role_group::diff

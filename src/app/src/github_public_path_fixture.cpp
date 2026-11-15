@@ -71,6 +71,12 @@ namespace bpr::app::detail {
 					return QString::fromUtf8(row.Title.data(), static_cast<qsizetype>(row.Title.size()));
 				}
 			}
+			// [[RFC-BPR-0098]]. So do the next-move rows.
+			for (const auto& row : home_next_move_fixture_rows()) {
+				if (aNumber == QString::number(row.Number)) {
+					return QString::fromUtf8(row.Title.data(), static_cast<qsizetype>(row.Title.size()));
+				}
+			}
 			return aNumber == QStringLiteral("4002")
 				? QStringLiteral("Keep the review queue's discovery cache warm across restarts so one slow repository never holds back the rows of every other saved repository")
 				: QStringLiteral("Discovered pull request ") + aNumber;
@@ -472,8 +478,12 @@ namespace bpr::app::detail {
 			// fenced code and suggestions (`scripts/build_markdown_code_fixture.py`).
 			case github_public_path_fixture::conventional_comments_v1:
 			case github_public_path_fixture::markdown_code_v1:
+			// RFC-BPR-0116. The same pull request, read by a returning reviewer.
+			case github_public_path_fixture::returning_review_v1:
 				return {
-					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_code_v1 ? "markdown-code-v1" : "conventional-comments-v1",
+					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_code_v1 ? "markdown-code-v1"
+						: aFixture == github_public_path_fixture::returning_review_v1               ? "returning-review-v1"
+																									: "conventional-comments-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,
 					.AccountId           = core::github_account_id{ 1U },
@@ -725,6 +735,28 @@ namespace bpr::app::detail {
 				};
 			// [[BPR-1334]]. Constructed by `scripts/build_line_details_fixture.py`:
 			// four files whose changed lines are long, one head.
+			// [[BPR-1996]]. Constructed by `scripts/build_flag_move_fixture.py`:
+			// an existing loader moved unchanged behind a flag, one head.
+			case github_public_path_fixture::flag_move_v1:
+				return {
+					.ContractDirectory   = "flag-move-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 41U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "flag-move",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "9f5812311f7c6b00b87197a5ab81703624f870b3",
+					.HeadOneOid          = "07540b0c68876f9f8e35c967447c38b55d591a12",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "flag-move-v1/objects.pack" },
+				};
 			case github_public_path_fixture::line_details_v1:
 				return {
 					.ContractDirectory   = "line-details-v1",
@@ -1252,7 +1284,7 @@ namespace bpr::app::detail {
 		void overlay_published_tour(std::string& aBody, read_operation aOperation, review_submission_fixture_state& aState)
 		{
 			const std::scoped_lock lock{ aState.Mutex };
-			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !aState.CheckRuns && !aState.ReviewHistory && !aState.ConversationComments && !aState.AttendedCommentReview && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
+			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !aState.CheckRuns && !aState.ReviewHistory && !aState.ConversationComments && !aState.AttendedCommentReview && aState.AttendedThreadReviews.empty() && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
 				return;
 			}
 			if (aOperation == read_operation::list_issue_comments && aState.ConversationComments) {
@@ -1334,6 +1366,9 @@ namespace bpr::app::detail {
 						auto child = children[j].toObject();
 						if (aState.AttendedCommentReview && i < 2 && j == 0) {
 							child.insert("pullRequestReview", QJsonObject{ { "id", text(*aState.AttendedCommentReview) } });
+						}
+						if (const auto bundled = aState.AttendedThreadReviews.find(i); bundled != aState.AttendedThreadReviews.end() && j == 0) {
+							child.insert("pullRequestReview", QJsonObject{ { "id", text(bundled->second) } });
 						}
 						if (!child.contains("body")) {
 							child.insert("body", child["bodyText"]);
@@ -2338,6 +2373,17 @@ namespace bpr::app::detail {
 							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-14T16:20:00Z") },
 						});
 					}
+					if (!found->ViewerVerdictBefore.empty()) {
+						reviews.append(QJsonObject{
+							{ QStringLiteral("id"), 74000 + static_cast<qint64>(found->Number) },
+							{ QStringLiteral("node_id"), QStringLiteral("R_home_before_%1").arg(found->Number) },
+							{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QStringLiteral("octo-reviewer") }, { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") } } },
+							{ QStringLiteral("state"), QString::fromUtf8(found->ViewerVerdictBefore.data(), static_cast<qsizetype>(found->ViewerVerdictBefore.size())) },
+							{ QStringLiteral("commit_id"), QString{ 40, QLatin1Char('b') } },
+							{ QStringLiteral("body"), QString{ } },
+							{ QStringLiteral("submitted_at"), QStringLiteral("2026-11-02T10:00:00Z") },
+						});
+					}
 					if (const auto reply = found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
 						reviews.append(QJsonObject{
 							{ QStringLiteral("id"), 73000 + static_cast<qint64>(found->Number) },
@@ -2361,7 +2407,7 @@ namespace bpr::app::detail {
 					users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
 				}
 				auto teams = QJsonArray{ };
-				for (std::size_t team = 0U; team < (requestsPresent ? found->RequestedTeams : 0U); ++team) {
+				for (std::size_t team = 0U; team < (requestsPresent ? found->RequestedTeams + (found->OversizedRequests ? 120U : 0U) : 0U); ++team) {
 					teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) } });
 				}
 				const auto number = QString::number(found->Number);
@@ -2413,7 +2459,7 @@ namespace bpr::app::detail {
 					for (const auto& login : found->RequestedUsers) {
 						users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
 					}
-					for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+					for (std::size_t team = 0U; team < found->RequestedTeams + (found->OversizedRequests ? 120U : 0U); ++team) {
 						teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) }, { QStringLiteral("node_id"), QStringLiteral("T_%1").arg(team) } });
 					}
 				}
@@ -2491,6 +2537,9 @@ namespace bpr::app::detail {
 				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
 					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "submittedAt", "2026-10-14T16:20:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
 				}
+				if (known && !found->ViewerVerdictBefore.empty()) {
+					reviews.append(QJsonObject{ { "databaseId", 74000 + static_cast<qint64>(number) }, { "state", QString::fromUtf8(found->ViewerVerdictBefore.data(), static_cast<qsizetype>(found->ViewerVerdictBefore.size())) }, { "submittedAt", "2026-11-02T10:00:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", QString{ 40, QLatin1Char('b') } } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+				}
 				// [[BPR-1866]]. The viewer's own reply, a month old.
 				if (const auto reply = known && found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
 					reviews.append(QJsonObject{ { "databaseId", 73000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "submittedAt", "2026-10-04T15:12:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", reply == 1 ? head(waiting) : QString{ 40, QLatin1Char('b') } } } }, { "comments", QJsonObject{ { "totalCount", 1 } } } });
@@ -2512,7 +2561,7 @@ namespace bpr::app::detail {
 					for (const auto& user : found->RequestedUsers) {
 						requests.append(QJsonObject{ { "id", QStringLiteral("RR_") + QString::fromStdString(user) }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", QStringLiteral("U_") + QString::fromStdString(user) }, { "login", QString::fromStdString(user) } } } });
 					}
-					for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+					for (std::size_t team = 0U; team < found->RequestedTeams + (found->OversizedRequests ? 120U : 0U); ++team) {
 						requests.append(QJsonObject{ { "id", QStringLiteral("RR_team_%1").arg(team) }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("T_%1").arg(team) }, { "slug", QStringLiteral("team-%1").arg(team) }, { "name", QStringLiteral("team-%1").arg(team) }, { "organization", QJsonObject{ { "login", QString::fromUtf8(aState.Descriptor.Owner.data(), static_cast<qsizetype>(aState.Descriptor.Owner.size())) } } } } } });
 					}
 				}
@@ -2526,7 +2575,29 @@ namespace bpr::app::detail {
 					}
 					rollup = QJsonObject{ { "contexts", page(contexts, contexts.size()) } };
 				}
-				const auto pull = QJsonObject{
+				// [[RFC-BPR-0098]]. A row with next-move facts serves exactly
+				// those: its reviews, checks, decision and merge state.
+				const auto* const moved = known && found->NextMove ? &*found->NextMove : nullptr;
+				const auto        utf8  = [](const std::string_view aText) { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); };
+				if (moved != nullptr) {
+					reviews = QJsonArray{ };
+					for (std::size_t review = 0U; review < moved->Reviews.size(); ++review) {
+						const auto& [who, state] = moved->Reviews[review];
+						reviews.append(QJsonObject{ { "databaseId", 75000 + static_cast<qint64>(number) * 10 + static_cast<qint64>(review) }, { "state", utf8(state) }, { "submittedAt", "2026-11-09T10:00:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", utf8(who) }, { "id", QStringLiteral("U_") + utf8(who) } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+					}
+					auto contexts = QJsonArray{ };
+					for (std::uint32_t check = 0U; check < moved->PassedChecks; ++check) {
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", QStringLiteral("check-%1").arg(check) }, { "status", "COMPLETED" }, { "conclusion", "SUCCESS" } });
+					}
+					if (!moved->FailedCheck.empty()) {
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", utf8(moved->FailedCheck) }, { "status", "COMPLETED" }, { "conclusion", "FAILURE" } });
+					}
+					for (std::uint32_t check = 0U; check < moved->PendingChecks; ++check) {
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", QStringLiteral("running-%1").arg(check) }, { "status", "IN_PROGRESS" }, { "conclusion", QJsonValue::Null } });
+					}
+					rollup = QJsonObject{ { "contexts", page(contexts, contexts.size()) } };
+				}
+				auto pull = QJsonObject{
 					{ "id", QStringLiteral("PR_fixture_%1").arg(number) },
 					{ "number", static_cast<qint64>(number) },
 					{ "title", known ? discovered_title(QString::number(number)) : QStringLiteral("Served the REST way") },
@@ -2552,6 +2623,29 @@ namespace bpr::app::detail {
 					{ "autoMergeRequest", QJsonValue::Null },
 					{ "commits", QJsonObject{ { "nodes", QJsonArray{ QJsonObject{ { "commit", QJsonObject{ { "oid", head(waiting) }, { "statusCheckRollup", rollup } } } } } } } },
 				};
+				if (moved != nullptr) {
+					pull.insert("mergeStateStatus", utf8(moved->MergeState));
+					pull.insert("reviewDecision", moved->Decision.empty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ utf8(moved->Decision) });
+				}
+				// [[RFC-BPR-0098]]. An authored pull request's alias asks for
+				// its review threads too.
+				if (std::ranges::binary_search(semantic.AuthoredPullRequestNumbers, number)) {
+					auto       threads = QJsonArray{ };
+					const auto thread  = [&threads](const bool aResolved, const QString& aLogin, const QString& aId) {
+						const auto author = QJsonObject{ { "__typename", "User" }, { "login", aLogin }, { "id", aId } };
+						threads.append(QJsonObject{ { "isResolved", aResolved }, { "comments", QJsonObject{ { "nodes", QJsonArray{ QJsonObject{ { "author", author } } } } } } });
+					};
+					for (std::uint32_t count = 0U; moved != nullptr && count < moved->Awaiting; ++count) {
+						thread(false, QStringLiteral("alice"), QStringLiteral("U_alice"));
+					}
+					for (std::uint32_t count = 0U; moved != nullptr && count < moved->Answered; ++count) {
+						thread(false, QStringLiteral("octo-reviewer"), QStringLiteral("U_fixture_viewer"));
+					}
+					for (std::uint32_t count = 0U; moved != nullptr && count < moved->Resolved; ++count) {
+						thread(true, QStringLiteral("alice"), QStringLiteral("U_alice"));
+					}
+					pull.insert("reviewThreads", QJsonObject{ { "totalCount", threads.size() }, { "nodes", threads } });
+				}
 				repository.insert(QStringLiteral("p%1").arg(index), pull);
 			}
 			auto response = adapters::github::detail::wire_response{ .Status = 200, .Completeness = page_completeness::complete };
@@ -2572,7 +2666,7 @@ namespace bpr::app::detail {
 					for (const auto& login : found->RequestedUsers) {
 						nodes.append(QJsonObject{ { "id", "RR_" + QString::fromStdString(login) }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", login == "octo-reviewer" ? QStringLiteral("U_fixture_viewer") : "U_" + QString::fromStdString(login) }, { "login", QString::fromStdString(login) } } } });
 					}
-					for (std::size_t team = 0; team < found->RequestedTeams; ++team) {
+					for (std::size_t team = 0; team < found->RequestedTeams + (found->OversizedRequests ? 120U : 0U); ++team) {
 						nodes.append(QJsonObject{ { "id", QStringLiteral("RR_team_%1").arg(team) }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("T_%1").arg(team) } } } });
 					}
 				}
@@ -3679,6 +3773,10 @@ namespace bpr::app::detail {
 					}
 					object.insert(QStringLiteral("requested_reviewers"), QJsonArray{ });
 					object.insert(QStringLiteral("requested_teams"), QJsonArray{ });
+					// [[BPR-2048]]. More changed files than GitHub lists.
+					if (found != State->PersonalDiscovery->OpenPullRequests.end() && found->OversizedFiles) {
+						object.insert(QStringLiteral("changed_files"), 3001);
+					}
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (State->ViewerAuthors && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
@@ -5967,6 +6065,16 @@ namespace bpr::app::detail {
 				served.HeadOneBlob     = "";
 				served.Packs           = { .File = "tour-repairs-v1/objects.pack" };
 				served.TourRepairHunks = true;
+			}
+			if (aOptions.TourPushCourse) {
+				if (aFixture != github_public_path_fixture::profile_window_restoration_v1 || aOptions.TourDestinationRepairsCourse) {
+					throw std::runtime_error{ "The tour push course requires the reading fixture" };
+				}
+				served.BaseOid     = "174ae350caa04146cfe8d77b701cb7b3907d46db";
+				served.HeadOneOid  = "d590bd57b16bb78a2bd8b78beb7976a146d26ba4";
+				served.HeadTwoOid  = "c8a86ccf72f2c7f7f325d053ad9a2a3241c0c933";
+				served.HeadTwoBlob = "17236fd325114a264d311648e225e38a8bf8cec7";
+				served.Packs       = { .File = "tour-push-v1/initial.pack", .SecondFile = "tour-push-v1/replacement.pack" };
 			}
 			if (aOptions.ModifiedMissingEndpointCourse) {
 				if (aFixture != github_public_path_fixture::profile_window_restoration_v1

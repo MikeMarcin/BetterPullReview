@@ -229,6 +229,9 @@ namespace bpr::application {
 		auto operator<=>(const github_pull_request_record&) const = default;
 	};
 
+	/// \brief [[BPR-2141]]. The longest file patch a snapshot keeps.
+	inline constexpr std::size_t maximum_github_file_patch_bytes = 64U * 1024U;
+
 	/// \brief Describes the github file record record.
 	struct github_file_record
 	{
@@ -244,6 +247,10 @@ namespace bpr::application {
 		/// when GitHub sent no patch (a binary or very large file) or it could
 		/// not be read.
 		std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>> HeadHunks;
+		/// [[BPR-2141]]. The file's patch as GitHub sent it, so a fresh tour
+		/// draft carries the diff up front; absent with no patch or one
+		/// longer than `maximum_github_file_patch_bytes`.
+		std::optional<std::string> Patch;
 
 		auto operator<=>(const github_file_record&) const = default;
 	};

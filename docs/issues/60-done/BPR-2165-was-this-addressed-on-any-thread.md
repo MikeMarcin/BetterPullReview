@@ -30,7 +30,7 @@ Ends in an owner look (Accept or Reject).
 ## Progress (2026-11-14)
 
 Frontend-design was loaded first. Built; see the
-verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`).
+[verification record](../../verification/RFC-BPR-0128.md#milestone-addressed-anywhere-bpr-2165).
 
 - **AC05** passes on the composed application
   (`application_ask_addressed_public_path`, scoped writing stub): offered on

@@ -6,6 +6,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <utility>
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/application/workbench_preferences_host.hpp"
@@ -62,6 +63,28 @@ namespace bpr::app {
 			QueueHost->detach(*QueueConsumer);
 			QueueConsumer.reset();
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// RFC-BPR-0126 AC04 ([[BPR-2181]]): the window stops being shown its
+		// deltas, and the tour feedback it runs takes no new turn. A tour turn
+		// it runs is stopped by the close and stays the session's until its
+		// run has really retired (`begin_other_shutdown`), so no other window
+		// starts the next one meanwhile.
+		if (AgentHost) {
+			AgentHost->set_retired_observer({ });
+		}
+		if (TourSession) {
+			TourSession->set_retired_observer({ });
+		}
+		if (AgentQueue && AgentQueueSubscriber) {
+			AgentQueue->unsubscribe(*std::exchange(AgentQueueSubscriber, std::nullopt));
+		}
+		// [[BPR-2181]] AC09. The close detaches from the session's runtime and
+		// does not touch its running turn: the profile's runtime runs it on.
+		detach_agent_runtime();
+		if (AgentRuntime) {
+			AgentRunner.withdraw(*AgentRuntime);
+		}
+#endif
 		if (SharedDrafts) {
 			SharedDrafts->detach(DraftConsumer);
 		}
@@ -116,6 +139,18 @@ namespace bpr::app {
 			return;
 		}
 		OtherShutdownBegun = true;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// The window's tour runs have retired. Q10: closing a window neither
+		// pauses nor hands over a queue; a tour turn the close stopped returns
+		// its message to the front, queued, and the queue goes on from here.
+		// The Agent tab's sessions run on the profile's runtimes, which the
+		// close detached from without touching their turns.
+		if (const auto runtime = std::exchange(AgentRuntime, std::nullopt); runtime) {
+			for (const auto& session : AgentRunner.running_on(*runtime)) {
+				AgentRunner.returned(*runtime, session);
+			}
+		}
+#endif
 		TourSourceStop.request_stop();
 		PreparationStop.request_stop();
 		if (PrivateReview) {
@@ -133,6 +168,9 @@ namespace bpr::app {
 		if (CloneLinks) {
 			CloneLinks->shutdown();
 		}
+		if (AgentConfiguration) {
+			AgentConfiguration->shutdown();
+		}
 		if (ReviewSkill) {
 			ReviewSkill->shutdown();
 		}
@@ -142,12 +180,21 @@ namespace bpr::app {
 		if (AgentFindingCards) {
 			AgentFindingCards->shutdown();
 		}
+		if (PromptMacros) {
+			PromptMacros->shutdown();
+		}
+		if (PromptTurnNames) {
+			PromptTurnNames->shutdown();
+		}
 #endif
 		if (TourHost) {
 			TourHost->shutdown();
 		}
 		if (CycleDesktop) {
 			CycleDesktop->shutdown();
+		}
+		if (DraftDesktop) {
+			DraftDesktop->shutdown();
 		}
 		for (auto& retained : RetiredTourHosts) {
 			retained.Host->shutdown();
@@ -263,13 +310,15 @@ namespace bpr::app {
 			|| (ConversationReply && !ConversationReply->is_quiescent())
 			|| (TourHost && !TourHost->is_quiescent())
 			|| (CycleDesktop && !CycleDesktop->is_quiescent())
+			|| (DraftDesktop && !DraftDesktop->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)
 			|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
 			|| (AgentSetup && !AgentSetup->is_quiescent())
 			|| (CloneLinks && !CloneLinks->is_quiescent())
-			|| (ReviewSkill && !ReviewSkill->is_quiescent())
+			|| (ReviewSkill && !ReviewSkill->is_quiescent()) || (AgentConfiguration && !AgentConfiguration->is_quiescent())
 			|| (AgentConversation && !AgentConversation->is_quiescent())
 			|| (AgentFindingCards && !AgentFindingCards->is_quiescent())
+			|| (PromptTurnNames && !PromptTurnNames->is_quiescent()) || (PromptMacros && !PromptMacros->is_quiescent())
 #endif
 			|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 			|| (PrivateReview && !PrivateReview->is_quiescent())

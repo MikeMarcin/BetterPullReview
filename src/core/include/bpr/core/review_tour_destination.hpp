@@ -76,6 +76,10 @@ namespace bpr::core {
 		stop_not_owned,
 		stop_baseline_missing,
 		source_not_visible,
+		/// [[BPR-2014]]. The author has not accepted the stop as it is.
+		not_accepted,
+		/// [[BPR-2014]]. Its lines, a linked range or its destination changed since it was accepted.
+		changed_since_accepted,
 	};
 	/// \brief Confirmation, preparation and publication are separate facts; no path implies confirmation.
 	struct tour_stop_status

@@ -1,5 +1,6 @@
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <algorithm>
 #include <span>
 namespace bpr::core {
@@ -54,6 +55,62 @@ namespace bpr::core {
 			// Re-pinning requires the original bytes, including the terminator.
 			return std::ranges::equal(std::span{ from.Bytes }.subspan(first.Content.Begin, std::max(first.Content.End, first.Terminator.End) - first.Content.Begin),
 									  std::span{ to.Bytes }.subspan(second.Content.Begin, std::max(second.Content.End, second.Terminator.End) - second.Content.Begin));
+		}
+		/// [[BPR-2014]]. What the comparison says of one accepted range at
+		/// `aFrom`: byte-identical and contiguous at `aTo`, changed, or gone.
+		auto material_verdict(const diff_semantic_index& aIndex, const tour_code_destination& aFrom, const std::uint32_t aFirst, const std::uint32_t aLast) -> tour_material_verdict
+		{
+			const auto& diff = aIndex.diff();
+			if (diff.AlignmentApproximate) {
+				return tour_material_verdict::changed;
+			}
+			const auto& document = aFrom.Side == diff_side::left ? *diff.LeftDocument : *diff.RightDocument;
+			if (aLast < aFirst || aLast >= document.Lines.size()) {
+				return tour_material_verdict::missing;
+			}
+			std::optional<source_line_ref> last;
+			auto                           found = false;
+			for (auto line = aFirst; line <= aLast; ++line) {
+				const auto from   = source_line_ref{ diff.Alignment.Digest, aFrom.Side, line };
+				const auto mapped = counterpart(aIndex, from);
+				if (!mapped.Counterpart) {
+					continue;
+				}
+				found = true;
+				if ((last && (mapped.Counterpart->Side != last->Side || mapped.Counterpart->Line != last->Line + 1U)) || mapped.Kind != line_mapping_kind::exact_line || !identical_line_bytes(aIndex, from, *mapped.Counterpart)) {
+					return tour_material_verdict::changed;
+				}
+				last = mapped.Counterpart;
+			}
+			if (!found) {
+				return tour_material_verdict::missing;
+			}
+			// Some lines found and some gone: the range changed.
+			for (auto line = aFirst; line <= aLast; ++line) {
+				if (!counterpart(aIndex, { diff.Alignment.Digest, aFrom.Side, line }).Counterpart) {
+					return tour_material_verdict::changed;
+				}
+			}
+			return tour_material_verdict::unchanged;
+		}
+		void check_material(review_tour& aTour, const diff_semantic_index& aIndex, const tour_code_destination& aFrom, const tour_code_destination& aTo)
+		{
+			if (aTo.Commit != tour_current_head(aTour) || aFrom.Commit == aTo.Commit || !aFrom.Blob || !aTo.Blob || !aIndex.diff().LeftDocument || !aIndex.diff().RightDocument) {
+				return;
+			}
+			for (auto& stop : aTour.Stops) {
+				if (!stop.Acceptance) {
+					continue;
+				}
+				for (auto& material : stop.Acceptance->Material) {
+					const auto& range = material.Range;
+					if (range.Commit != aFrom.Commit || range.Path != aFrom.Path || (range.Blob && range.Blob != aFrom.Blob)) {
+						continue;
+					}
+					material.Verdict   = material_verdict(aIndex, aFrom, range.FirstLine, range.LastLine);
+					material.CheckedAt = aTo.Commit;
+				}
+			}
 		}
 	}
 	auto map_tour_revision(const review_tour& aTour, const diff_semantic_index& aIndex, const tour_code_destination& aLeft, const tour_code_destination& aRight) -> review_tour
@@ -127,6 +184,8 @@ namespace bpr::core {
 				stop.Preparation = tour_preparation::needs_attention;
 			}
 		}
+		check_material(result, aIndex, aLeft, aRight);
+		check_material(result, aIndex, aRight, aLeft);
 		return validate(result) == tour_refusal::none ? result : aTour;
 	}
 	auto observed_tour_changes(const review_tour& aBefore, const review_tour& aAfter) -> std::vector<tour_observed_change>

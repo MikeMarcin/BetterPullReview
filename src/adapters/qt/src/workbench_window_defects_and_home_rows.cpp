@@ -434,7 +434,8 @@ namespace bpr::qt {
 			HomeList->set_selection_shown(aList == home_selection_list::queue);
 		}
 		for (const auto& [list, view] : { std::pair{ home_selection_list::recent, static_cast<QAbstractItemView*>(HomeRecentList) },
-										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) } }) {
+										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) },
+										  std::pair{ home_selection_list::drafts, static_cast<QAbstractItemView*>(HomeDraftsList) } }) {
 			if (view == nullptr) {
 				continue;
 			}
@@ -446,6 +447,13 @@ namespace bpr::qt {
 		}
 		update_open_on_github_action();
 		update_home_review_actions();
+	}
+
+	void workbench_window::resume_home_draft(const int aRow)
+	{
+		if (aRow >= 0 && static_cast<std::size_t>(aRow) < DraftHome.InPreparation.size() && ResumeDraftDispatch) {
+			ResumeDraftDispatch(DraftHome.InPreparation[static_cast<std::size_t>(aRow)].Id);
+		}
 	}
 
 	void workbench_window::resume_home_cycle(const int aRow)
@@ -502,8 +510,10 @@ namespace bpr::qt {
 		if (ComposeReviewPage != nullptr && aWatched == ComposeReviewPage->viewport() && aEvent != nullptr && aEvent->type() == QEvent::Resize) {
 			centre_review_page();
 		}
-		// [[BPR-1590]]. The sheet keeps to the review area's right edge.
-		if (aWatched == CentralSplitter && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Move) && ReviewSheetOpen) {
+		// [[BPR-1590]]. The sheet keeps to the review area; [[BPR-2175]]: the
+		// lightbox re-fits the window as it is resized, zoomed or made full
+		// screen, and stays open.
+		if ((aWatched == CentralSplitter || (aWatched == centralWidget() && aWatched != nullptr)) && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Move) && ReviewSheetOpen) {
 			place_review_sheet();
 		}
 		if (aWatched == DifCornerSlot && aEvent != nullptr
@@ -530,6 +540,13 @@ namespace bpr::qt {
 		if (aWatched == ReviewBar && aEvent != nullptr
 			&& (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange)) {
 			apply_strip_width();
+		}
+		if (aWatched == HomeDraftsList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
+				resume_home_draft(HomeDraftsList->currentRow());
+				return true;
+			}
 		}
 		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
@@ -964,6 +981,7 @@ namespace bpr::qt {
 		choose_modality(review_modality::discuss);
 		ConversationPanel->clear_discuss_filters(aClear.OtherFile, aClear.OnlyNew, aClear.HideResolved, aClear.Listing);
 		auto* const cards = ConversationPanel->cards();
+		cards->reveal_folded(aThread);
 		if (std::ranges::none_of(cards->cards(), [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
 			return false;
 		}
@@ -1207,6 +1225,31 @@ namespace bpr::qt {
 		case core::pull_request_refusal_action::use_another_account:
 			open_sign_in(SessionPanel != nullptr ? SessionPanel->active_host_text() : std::string{ });
 			return;
+		case core::pull_request_refusal_action::open_on_github: {
+			// [[BPR-2048]]. The refused pull request's page, admitted as a Home
+			// row's is: under this account on this host.
+			if (!PullRequestRefusal || SessionPanel == nullptr) {
+				return;
+			}
+			const auto session = SessionPanel->session();
+			open_pull_request_page(core::pull_request_ref{
+				.Host       = SessionPanel->active_host_text(),
+				.Account    = session ? session->Login : std::string{ },
+				.Repository = PullRequestRefusal->Repository.Owner + "/" + PullRequestRefusal->Repository.Name,
+				.Number     = static_cast<std::int64_t>(PullRequestRefusal->Number.value()),
+			});
+			return;
+		}
+		case core::pull_request_refusal_action::retry:
+			// [[BPR-2048]]. The opening Home follows asks again, as its row's
+			// Retry does; one named in the bar is named again.
+			if (HomeOpen.has_value() && HomeOpen->State.has_value() && HomeOpen->State->Phase == core::home_open_phase::failed && HomeOpen->Retryable && HomeOpenDispatch) {
+				HomeOpenDispatch(application::retry_home_open{ HomeOpen->State->Request });
+			} else if (PullRequestRefusal && SetupDestinationDispatch) {
+				SetupDestinationDispatch(application::submit_setup_destination{ PullRequestRefusal->Repository.Owner + "/" + PullRequestRefusal->Repository.Name + "#"
+																				+ std::to_string(PullRequestRefusal->Number.value()) });
+			}
+			return;
 		}
 	}
 
@@ -1231,7 +1274,11 @@ namespace bpr::qt {
 		const auto refusal = home_refusal_text();
 		const auto passive = !HomeRestorationNotice.isEmpty() ? HomeRestorationNotice : refusal;
 		// [[BPR-1357]]. A failure a row already says is said there, not twice.
-		const auto rowSaysFailure = failed && HomeOpenOnRow && HomeRestorationNotice.isEmpty();
+		// [[BPR-2048]]. A pull request too large to open is said on its card
+		// whatever opened it: the row has no room for what was too large or
+		// for Open on GitHub.
+		const auto tooLarge       = failed && state->Reason == core::github_reason_code::response_too_large;
+		const auto rowSaysFailure = failed && HomeOpenOnRow && HomeRestorationNotice.isEmpty() && !tooLarge;
 		const auto spoken         = HomeSetupNotice.isEmpty() && !passive.isEmpty()
 			&& passive != DismissedHomeRefusal && !rowSaysFailure;
 		const auto refused = spoken && HomeRestorationNotice.isEmpty();
@@ -1436,6 +1483,9 @@ namespace bpr::qt {
 		if (EpochSelectors != nullptr && EpochSelectors->readiness_mark() != nullptr) {
 			EpochSelectors->readiness_mark()->set_full_motion(full);
 		}
+		if (PendingPanes.Status != nullptr) {
+			PendingPanes.Status->set_full_motion(full);
+		}
 	}
 
 	void workbench_window::build_pending_veils()
@@ -1445,23 +1495,27 @@ namespace bpr::qt {
 		PendingPanes.Content = new pending_veil{ *ReviewSurface, pending_shape::block, QStringLiteral("Review"), CentralSplitter };
 		PendingPanes.Content->setObjectName(QStringLiteral("reviewPendingVeil"));
 		PendingPanes.Content->set_announces(false);
-		const auto pane = [](QWidget* const aTarget, const QString& aName, const QString& aObject) -> pending_veil* {
+		const auto pane = [](QWidget* const aTarget, const QString& aName, const QString& aObject, const pending_shape aShape = pending_shape::rows) -> pending_veil* {
 			if (aTarget == nullptr) {
 				return nullptr;
 			}
-			auto* const veil = new pending_veil{ *aTarget, pending_shape::rows, aName };
+			auto* const veil = new pending_veil{ *aTarget, aShape, aName };
 			veil->setObjectName(aObject);
 			// How many rows are coming is not known yet: a short list says
 			// "a list" without promising a long one.
-			veil->set_placeholder_count(8);
+			veil->set_placeholder_count(aShape == pending_shape::cards ? 4 : 8);
 			// The Overview says when the pull request is ready; the drawers
 			// beside it do not say it again.
 			veil->set_announces(false);
 			return veil;
 		};
-		PendingPanes.Files         = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
-		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Comments"), QStringLiteral("commentsPendingVeil"));
-		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"));
+		PendingPanes.Files = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
+		// [[BPR-2180]]. The owner, 2026-11-14: "more graphics like the main
+		// pane loading for other parts that are loading in". Conversations
+		// (the drawer, and Discuss, which shows the same panel) and Threads
+		// wait as the thread cards they will show.
+		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Comments"), QStringLiteral("commentsPendingVeil"), pending_shape::cards);
+		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"), pending_shape::cards);
 		PendingPanes.Repositories  = pane(RepositoriesTree, QStringLiteral("Repositories"), QStringLiteral("repositoriesPendingVeil"));
 		PendingPanes.HomeList      = pane(HomeList, QStringLiteral("My pull requests"), QStringLiteral("homeListPendingVeil"));
 		if (PendingPanes.HomeList != nullptr) {
@@ -1535,7 +1589,16 @@ namespace bpr::qt {
 		} else {
 			apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
 		}
-		apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+		// [[BPR-2180]]. Once the Overview lists the files GitHub reported, the
+		// Files drawer lists them too: readable, with what is still coming said
+		// on the plate at its foot rather than over the rows.
+		if (first && LoadingReadiness.FirstRead && LoadingReadiness.Files && !ProvisionalFiles.empty()) {
+			const auto coming = ProvisionalOpen.isEmpty() ? QStringLiteral("Files open once the review has loaded…")
+														  : QStringLiteral("Opening %1 once the review has loaded…").arg(ProvisionalOpen.section(QLatin1Char('/'), -1));
+			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = coming });
+		} else {
+			apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+		}
 		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
 		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
 		// Only a composed queue restores: without one nothing is on its way.

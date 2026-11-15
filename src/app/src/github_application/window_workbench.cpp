@@ -5,6 +5,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/header_source_navigation.hpp"
 #include "bpr/core/hex.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -23,6 +24,7 @@
 
 #include <QByteArray>
 #include <QColor>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QGuiApplication>
 #include <QPalette>
@@ -1304,7 +1306,18 @@ namespace bpr::app {
 		// which is how `code_selection_background` becomes
 		// `QPalette::Highlight` - the selection colour BPR-0117 fitted for
 		// contrast and which, until now, nothing applied.
+		// [[BPR-2000]], RFC-BPR-0101. The Agent accent of the theme on
+		// screen, which every accented surface reads. A change of it alone
+		// changes no Qt palette, so the window's widgets are told as a
+		// palette change is told, and each accented surface restyles.
+		const auto accentChanged = qt::set_agent_accent(AppearanceProfile->color(core::appearance_role::agent_accent));
 		AppearanceProfile->apply_to(*Window);
+		if (accentChanged) {
+			auto changed = QEvent{ QEvent::PaletteChange };
+			for (auto* const widget : Window->findChildren<QWidget*>()) {
+				QCoreApplication::sendEvent(widget, &changed);
+			}
+		}
 		Window->set_go_to_line_colours(AppearanceProfile->color(core::appearance_role::diff_intraline_removed_background),
 									   AppearanceProfile->color(core::appearance_role::diff_intraline_added_background), AppearanceProfile->color(core::appearance_role::application_text));
 		if (Profile->Insights && Profile->InsightsOwner == DraftWindow) {
@@ -1340,10 +1353,25 @@ namespace bpr::app {
 		if (auto* const agent = Window->agent_tab(); agent != nullptr) {
 			agent->adopt_appearance(*AppearanceProfile);
 		}
+		// RFC-BPR-0128 (docs/design/report-templates-v2). A report's page in
+		// the theme's report colours.
+		if (auto* const report = Window->report_view(); report != nullptr) {
+			using role = core::appearance_role;
+			report->set_report_colours({ .Paper    = AppearanceProfile->color(role::report_paper),
+										 .Ink      = AppearanceProfile->color(role::report_ink),
+										 .Open     = AppearanceProfile->color(role::report_verdict_open),
+										 .Partial  = AppearanceProfile->color(role::report_verdict_partial),
+										 .Done     = AppearanceProfile->color(role::report_verdict_done),
+										 .CodeWash = AppearanceProfile->color(role::report_code_wash) });
+		}
 #endif
 		// [[BPR-1156]]. Suggest change paints its code in the panes' role colours.
 		if (CycleDesktop) {
 			CycleDesktop->adopt_appearance(*AppearanceProfile);
+		}
+		// The local draft's Edit view, in the panes' colours and code font.
+		if (DraftDesktop) {
+			DraftDesktop->adopt_appearance(*AppearanceProfile);
 		}
 		if (auto* const files = Window->files_tree(); files != nullptr) {
 			files->adopt_appearance(*AppearanceProfile);
@@ -1382,6 +1410,9 @@ namespace bpr::app {
 		if (auto* const finder = Window->finder(); finder != nullptr) {
 			finder->set_colours(AppearanceProfile->color(core::appearance_role::state_unread), QColor{ 0xD2, 0x99, 0x22 });
 			finder->set_code_font(AppearanceProfile->code_font());
+		}
+		if (DraftDesktop) {
+			DraftDesktop->set_code_font(AppearanceProfile->code_font());
 		}
 
 		// Read back off the window rather than off the profile. The claim

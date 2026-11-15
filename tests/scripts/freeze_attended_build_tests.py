@@ -31,6 +31,7 @@ for argument in "$@"; do
 done
 echo "ATTENDED_HEAD:$head"
 echo "ATTENDED_FILE_SHOWN:src/engine/renderer.cpp"
+if [ "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" = 1 ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent · Default model:report=1"; fi
 exec sleep 30
 """
 
@@ -69,12 +70,17 @@ exec sleep 30
 
 def frozen_root(directory: Path, name: str, *, required: list[str], next_push: bool, stand_in: str = STAND_IN,
                 extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN",
-                open_file: str | None = "src/engine/renderer.cpp") -> Path:
+                open_file: str | None = "src/engine/renderer.cpp", fixture_agent: bool = True) -> Path:
     root = directory / name
     executable = root / "src" / freeze.EXECUTABLE
     executable.parent.mkdir(parents=True)
-    executable.write_text(stand_in)
+    # [[BPR-2177]]. The build's fixture agent, which the executable names.
+    executable.write_text(stand_in + ("# names /fixture-agent\n" if fixture_agent else ""))
     executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+    agents = root / "src" / freeze.BUILD / "fixture-agent"
+    agents.mkdir(parents=True)
+    for name in ("claude", "codex"):
+        (agents / name).write_text("#!/bin/sh\nexit 0\n")
     (root / "src/tests/fixtures/github/contracts/v1/conventional-comments-v1").mkdir(parents=True)
     (root / "launch.py").write_text(freeze.render_launcher(
         root=root, title="test", commit="0" * 40, fixture="conventional-comments-v1",
@@ -82,8 +88,44 @@ def frozen_root(directory: Path, name: str, *, required: list[str], next_push: b
     return root
 
 
-def launch(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    environment = {key: value for key, value in os.environ.items() if key != "QT_QPA_PLATFORM"}
+# A tests-off application: its self-test says the CLI entry was offered;
+# otherwise it makes its data where the macOS standard paths put it (under
+# CFFIXED_USER_HOME when set) and records the HOME it was given. Like the
+# application, it keeps an update control folder beside its bundle where it
+# may write one, and refuses to start on one it can no longer write
+# (bpr-live-v001). Each start's home is appended to BPR_STAND_IN_HOMES.
+LIVE_STAND_IN = """#!/bin/sh
+bundle_folder="$(cd "$(dirname "$0")/../../.." && pwd)"
+control="$bundle_folder/.bpr-update-0"
+if [ -d "$control" ] && [ ! -w "$control" ]; then echo STARTUP_FAILED; exit 1; fi
+if [ -w "$bundle_folder" ]; then mkdir -p "$control"; fi
+for argument in "$@"; do
+  if [ "$argument" = --self-test ]; then echo CLI_ENTRY_OFFERED_OK; exit 0; fi
+done
+home="${CFFIXED_USER_HOME:-$HOME}"
+if [ -n "$BPR_STAND_IN_HOMES" ]; then echo "$home" >> "$BPR_STAND_IN_HOMES"; fi
+mkdir -p "$home/Library/Application Support/BetterPullReview"
+echo "$HOME" > "$home/home-was"
+exec sleep 30
+"""
+
+
+def live_root(directory: Path, name: str, stand_in: str = LIVE_STAND_IN, sealed: bool = True) -> Path:
+    root = directory / name
+    executable = root / "src" / freeze.LIVE_EXECUTABLE
+    executable.parent.mkdir(parents=True)
+    executable.write_text(stand_in)
+    executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+    (root / "launch.py").write_text(freeze.render_live_launcher(root=root, title="test", commit="0" * 40, wait=15))
+    if sealed:
+        freeze.set_writable(root / "src", False)
+    return root
+
+
+def launch(root: Path, *arguments: str, homes: Path | None = None) -> subprocess.CompletedProcess[str]:
+    environment = {key: value for key, value in os.environ.items() if key not in ("QT_QPA_PLATFORM", "BPR_STAND_IN_HOMES")}
+    if homes is not None:
+        environment["BPR_STAND_IN_HOMES"] = str(homes)
     return subprocess.run([sys.executable, str(root / "launch.py"), *arguments], capture_output=True, text=True,
                           check=False, timeout=120, env=environment)
 
@@ -103,10 +145,29 @@ def main() -> int:
         expect(checked.returncode == 1 and "FIXTURES_MISSING:" in checked.stdout,
                f"a launcher checking a missing fixture path fails its own check: {checked.stdout!r}")
 
+        # [[BPR-2177]]. A tests-on image that does not name the fixture agent,
+        # or one that starts a `claude` from PATH, fails its own check.
+        unnamed = frozen_root(directory, "unnamed", required=[], next_push=False, fixture_agent=False)
+        checked = launch(unnamed, "--check")
+        expect(checked.returncode == 1 and "FIXTURE_AGENT_UNNAMED" in checked.stdout, f"an image without the fixture agent fails its check: {checked.stdout!r}")
+        reaching = frozen_root(directory, "reaching", required=[], next_push=False, stand_in=STAND_IN.replace('echo "ATTENDED_HEAD', 'claude --version >/dev/null 2>&1\necho "ATTENDED_HEAD'))
+        checked = launch(reaching, "--check")
+        expect(checked.returncode == 1 and "REAL_AGENT_STARTED" in checked.stdout, f"an image that starts a real agent fails its check: {checked.stdout!r}")
+
+        # Look ask-v003. An image whose footer names another agent fails.
+        misnamed = frozen_root(directory, "misnamed", required=[], next_push=False, stand_in=STAND_IN.replace("footer=Fixture agent", "footer=Claude Code"))
+        checked = launch(misnamed, "--check")
+        expect(checked.returncode == 1 and "FIXTURE_AGENT_SILENT" in checked.stdout, f"an image whose footer names Claude Code fails its check: {checked.stdout!r}")
+        # Look ask-v002. An image whose look gets no fixture answer fails.
+        silent = frozen_root(directory, "silent", required=[], next_push=False, stand_in=STAND_IN.replace(":report=1", ":report=0"))
+        checked = launch(silent, "--check")
+        expect(checked.returncode == 1 and "FIXTURE_AGENT_SILENT" in checked.stdout, f"an image whose fixture agent gives no report fails its check: {checked.stdout!r}")
+
         plain = frozen_root(directory, "plain", required=["tests/fixtures/github/contracts/v1/conventional-comments-v1"], next_push=False)
         checked = launch(plain, "--check")
-        expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp" in checked.stdout,
-               f"a launcher whose fixture is present opens the file: {checked.stdout!r}")
+        expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp" in checked.stdout
+               and "CHECK_OK (fixture agent answers): ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent" in checked.stdout,
+               f"a launcher whose fixture is present opens the file and gets the fixture agent's answer: {checked.stdout!r}")
         expect(launch(plain, "--next-push").returncode == 2, "a launcher frozen without a push refuses --next-push")
 
         pushed = frozen_root(directory, "pushed", required=["tests/fixtures/github/contracts/v1/conventional-comments-v1"], next_push=True)
@@ -136,6 +197,113 @@ def main() -> int:
         expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED" in checked.stdout,
                f"a look on the pull request's Overview opens it with no file: {checked.stdout!r}")
         expect("on its Overview" in (overview / "launch.py").read_text(), "the Overview launcher says where it opens")
+
+    # The live freeze: tests off, its own home, the launcher's own check.
+    refused = subprocess.run([sys.executable, str(repository / "scripts/freeze_attended_build.py"), "freeze", "--live", "--name", "x",
+                              "--fixture", "conventional-comments-v1"], capture_output=True, text=True, check=False, timeout=60)
+    expect(refused.returncode == 1 and "FREEZE_FAILED:--live freezes no fixture" in refused.stdout,
+           f"a live freeze refuses a fixture before it exports anything: {refused.stdout!r}")
+    unopened = subprocess.run([sys.executable, str(repository / "scripts/freeze_attended_build.py"), "freeze", "--name", "x",
+                               "--fixture", "conventional-comments-v1"], capture_output=True, text=True, check=False, timeout=60)
+    expect(unopened.returncode == 1 and "FREEZE_FAILED:a fixture look needs" in unopened.stdout,
+           f"a fixture look still needs what it opens: {unopened.stdout!r}")
+    # bpr-live-v002 was frozen from a commit the lane had left behind. A freeze
+    # takes only this checkout's clean HEAD unless it says why, before it
+    # exports anything, and names the commit it froze.
+    script = str(repository / "scripts/freeze_attended_build.py")
+    head = freeze.git("rev-parse", "HEAD")
+    parent = freeze.git("rev-parse", "HEAD~1")
+    for live_flag in ([], ["--live"]):
+        look = [] if live_flag else ["--fixture", "conventional-comments-v1", "--open-file", "README.md"]
+        stale = subprocess.run([sys.executable, script, "freeze", *live_flag, "--name", "x", *look, "--commit", "HEAD~1"],
+                               capture_output=True, text=True, check=False, timeout=60)
+        expect(stale.returncode == 1 and f"FREEZE_FAILED:HEAD~1 is {parent[:12]}, not this checkout's HEAD {head[:12]}" in stale.stdout
+               and "--not-head-because" in stale.stdout and "FREEZING:" not in stale.stdout,
+               f"a freeze of a commit that is not HEAD is refused before any export ({live_flag}): {stale.stdout!r}")
+        blank = subprocess.run([sys.executable, script, "freeze", *live_flag, "--name", "x", *look, "--commit", "HEAD~1",
+                                "--not-head-because", "  "], capture_output=True, text=True, check=False, timeout=60)
+        expect(blank.returncode == 1 and "FREEZE_FAILED:--not-head-because needs the reason in words" in blank.stdout,
+               f"an empty reason is no reason ({live_flag}): {blank.stdout!r}")
+    commit, refusal = freeze.frozen_commit("HEAD~1", "the owner asked for the build before the redesign")
+    expect(commit == parent and refusal == "", f"a named reason lets an older commit freeze: {commit!r} {refusal!r}")
+    record = freeze.provenance(parent, "the owner asked for the build before the redesign")
+    line = freeze.session_line(record)
+    expect(record["commit"] == parent and record["head_at_freeze"] == head and record["subject"]
+           and record["not_head_because"] == "the owner asked for the build before the redesign",
+           f"the root records the commit, its subject, the HEAD at freeze and the reason: {record!r}")
+    expect(line.startswith(f"Frozen from {parent[:12]} ") and "NOT HEAD of" in line and "before the redesign" in line,
+           f"the session line says loudly that it is not HEAD: {line!r}")
+    at_head = freeze.session_line(freeze.provenance(head, None))
+    expect(at_head.startswith(f"Frozen from {head[:12]} ") and at_head.endswith("at freeze.") and "NOT HEAD" not in at_head,
+           f"a HEAD freeze's session line names its commit and branch: {at_head!r}")
+    rendered = freeze.render_launcher(root=Path("/r"), title="t", commit=at_head, fixture="f", open_file="a", required=[], next_push=False)
+    expect(f"FROZEN = {at_head!r}" in rendered and rendered.count("print(FROZEN)") == 2,
+           "the launcher prints the frozen commit when it checks and when it opens")
+    rendered = freeze.render_live_launcher(root=Path("/r"), title="t", commit=at_head)
+    expect(f"FROZEN = {at_head!r}" in rendered and rendered.count("print(FROZEN)") == 2,
+           "the live launcher prints the frozen commit when it checks and when it opens")
+    expect(freeze.LIVE_BUILD == "build/app-release" and "app-release-tests" not in freeze.LIVE_EXECUTABLE,
+           "a live freeze builds the tests-off app-release tree")
+    with contained_temporary_directory() as scratch:
+        directory = Path(scratch)
+        live = live_root(directory, "live")
+        homes = directory / "homes.log"
+        checked = launch(live, "--check", homes=homes)
+        expect(checked.returncode == 0 and "CHECK_OK (self-test): exit 0 with CLI_ENTRY_OFFERED_OK" in checked.stdout
+               and f"CHECK_OK (launch): up with its data under {live.resolve() / 'home'}, emptied again" in checked.stdout,
+               f"a tests-off build passes its self-test and comes up on the owner's home: {checked.stdout!r}")
+        started = homes.read_text().split() if homes.is_file() else []
+        expect(started == [str(live.resolve() / "home")], f"the check's launch is the owner's: the root's own home: {started!r}")
+        expect(not (live / "home").exists() and not list(live.glob("check.*")), "the check empties the owner's home and leaves no scratch")
+        again = launch(live, "--check")
+        expect(again.returncode == 0, f"a checked build checks again, as the owner's launch then starts: {again.stdout!r}")
+
+        # bpr-live-v001: checked before the seal, its launch left the update
+        # control folder in the build, and the seal made every start refuse.
+        unsealed = live_root(directory, "unsealed", sealed=False)
+        checked = launch(unsealed, "--check")
+        expect(checked.returncode == 1 and "BUILD_NOT_SEALED:" in checked.stdout and "is writable" in checked.stdout,
+               f"an unsealed build is refused: {checked.stdout!r}")
+        leftover = live_root(directory, "leftover", sealed=False)
+        (leftover / "src" / freeze.LIVE_EXECUTABLE).parents[3].joinpath(".bpr-update-0").mkdir()
+        freeze.set_writable(leftover / "src", False)
+        checked = launch(leftover, "--check")
+        expect(checked.returncode == 1 and "BUILD_NOT_SEALED:" in checked.stdout and ".bpr-update-0" in checked.stdout,
+               f"a build sealed over a launch's update folder is refused: {checked.stdout!r}")
+        source = (repository / "scripts/freeze_attended_build.py").read_text()
+        live_freeze = source[source.index("def freeze_live("):source.index("def remove(")]
+        expect(live_freeze.index("set_writable(source, False)") < live_freeze.index('"--check"'),
+               "a live freeze seals the build before its check, so the check starts what the owner will")
+        expect("CFFIXED_USER_HOME" in (live / "launch.py").read_text() and "--github-fixture" not in (live / "launch.py").read_text(),
+               "the live launcher gives the application its own home and passes no fixture")
+
+        tests_on = live_root(directory, "tests-on", stand_in=LIVE_STAND_IN.replace("exec sleep 30", "exec sleep 30 # --github-fixture"))
+        checked = launch(tests_on, "--check")
+        expect(checked.returncode == 1 and "TESTS_ON_BUILD:" in checked.stdout, f"a tests-on image is refused: {checked.stdout!r}")
+
+        silent = live_root(directory, "silent", stand_in=LIVE_STAND_IN.replace("echo CLI_ENTRY_OFFERED_OK; ", ""))
+        checked = launch(silent, "--check")
+        expect(checked.returncode == 1 and "CHECK_FAILED (self-test)" in checked.stdout and "CLI_ENTRY_OFFERED_OK" in checked.stdout,
+               f"a self-test that does not offer the CLI entry fails the check: {checked.stdout!r}")
+
+        shared = live_root(directory, "shared", stand_in=LIVE_STAND_IN.replace('home="${CFFIXED_USER_HOME:-$HOME}"', f'home="{directory}/elsewhere"'))
+        checked = launch(shared, "--check")
+        expect(checked.returncode == 1 and "CHECK_FAILED (launch): Not up with its data under" in checked.stdout,
+               f"an application that keeps its data outside the root's home fails the check: {checked.stdout!r}")
+
+        owner = launch(live)
+        expect(owner.returncode == 0 and "The window is yours" in owner.stdout and (live / "home/Library/Application Support/BetterPullReview").is_dir(),
+               f"the owner's launch opens on the root's own home: {owner.stdout!r}")
+        recorded = (live / "home/home-was").read_text().strip() if (live / "home/home-was").is_file() else ""
+        expect(recorded == os.environ.get("HOME", ""), f"HOME is kept, so gh finds the person's sign-in: {recorded!r}")
+        if "pid " in owner.stdout:
+            pid = int(owner.stdout.split("pid ", 1)[1].split(")", 1)[0])
+            os.killpg(pid, 15)
+        in_use = launch(live, "--check")
+        expect(in_use.returncode == 0 and "under a scratch home (the root's home holds a profile)" in in_use.stdout
+               and (live / "home/home-was").is_file(),
+               f"a check after the owner signed in leaves their home alone: {in_use.stdout!r}")
+        freeze.set_writable(directory, True)
 
     if FAILURES:
         for failure in FAILURES:

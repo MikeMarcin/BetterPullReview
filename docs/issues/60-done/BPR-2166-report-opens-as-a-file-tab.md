@@ -93,7 +93,7 @@ dressed page. It has verdict rules, a tally, numbered code, and suggestions
 as diffs with Add as draft comment. The shipped prompts ask for the
 convention, and the Fixture agent answers every report kind in it. The
 heading-level defect is fixed, and the ☰ menu works on the dressed page.
-Details and courses are in RFC-BPR-0128's verification (RFC-BPR-0128 verification on claude/v0-5-0-prerelease-targets-52265d).
+Details and courses are in [RFC-BPR-0128's verification](../../verification/RFC-BPR-0128.md).
 Asked in look report-templates-v003.
 
 - report-templates-v003: the report colours in Settings › Appearance

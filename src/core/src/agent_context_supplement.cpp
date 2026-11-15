@@ -181,7 +181,7 @@ namespace bpr::core {
 			}
 			const auto& prompt = *aRequest.TourPrompt;
 			return prompt.Session == aRequest.Session.Id && !prompt.Text.empty() && prompt.Text.size() <= maximum_tour_prompt_bytes && valid_writing_utf8(prompt.Text) && !aRequest.Message && !aRequest.Operation
-				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty();
+				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty() && !aRequest.Subject && !aRequest.LookingAt && !aRequest.Returning && !aRequest.Explain && !aRequest.SuggestChange;
 		}
 
 		/// \brief [[BPR-1091]]. Guidance rides only on a workshop request,
@@ -246,7 +246,14 @@ namespace bpr::core {
 			|| (aRequest.Conversation && !valid_conversation(*aRequest.Conversation))
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))
 			|| aRequest.Skills.size() > maximum_supplement_skills
-			|| !std::ranges::all_of(aRequest.Skills, valid_skill)) {
+			|| !std::ranges::all_of(aRequest.Skills, valid_skill)
+			|| (aRequest.Subject && !valid(*aRequest.Subject))
+			|| (aRequest.LookingAt && !valid(*aRequest.LookingAt))
+			|| (aRequest.Returning && !valid(*aRequest.Returning))
+			|| (aRequest.Explain && !valid(*aRequest.Explain))
+			// RFC-BPR-0118. Suggest the change's material rides only with its
+			// own operation.
+			|| (aRequest.SuggestChange && (aRequest.Operation != std::optional{ workshop_operation::suggest_change } || !valid(*aRequest.SuggestChange)))) {
 			return std::nullopt;
 		}
 		if (
@@ -285,6 +292,11 @@ namespace bpr::core {
 			.Conversation       = aRequest.Conversation,
 			.Skills             = aRequest.Skills,
 			.TourPrompt         = aRequest.TourPrompt ? aRequest.TourPrompt->Text : std::string{ },
+			.Subject            = aRequest.Subject,
+			.LookingAt          = aRequest.LookingAt,
+			.Returning          = aRequest.Returning,
+			.Explain            = aRequest.Explain,
+			.SuggestChange      = aRequest.SuggestChange,
 		};
 	}
 
@@ -354,6 +366,15 @@ namespace bpr::core {
 		[[nodiscard]] auto valid_skill(const brief_review_skill& aSkill) -> bool
 		{
 			return enumerator_at_most(aSkill.Source, review_skill_source::profile_copy) && inspect_review_skill(aSkill.Text).has_value();
+		}
+
+		/// [[BPR-2059]]. The suggested-comment format a brief carries: text
+		/// within the prompt's own ceiling and a named version.
+		[[nodiscard]] auto valid_comment_format(const supplement_feedback_guidance& aFormat) -> bool
+		{
+			return !aFormat.Text.empty() && aFormat.Text.size() <= maximum_writing_instruction_bytes && valid_writing_utf8(aFormat.Text) && !aFormat.Version.empty()
+				&& aFormat.Version.size() <= maximum_feedback_guidance_version_bytes && valid_writing_utf8(aFormat.Version)
+				&& enumerator_at_most(aFormat.Source, feedback_guidance_source::profile_override);
 		}
 	} // namespace
 
@@ -438,7 +459,8 @@ namespace bpr::core {
 
 	auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>
 	{
-		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))) {
+		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))
+			|| (aInput.CommentFormat && !valid_comment_format(*aInput.CommentFormat)) || (aInput.ReportFormat && !valid_comment_format(*aInput.ReportFormat))) {
 			return std::nullopt;
 		}
 		auto brief = supplement_brief{
@@ -447,6 +469,8 @@ namespace bpr::core {
 			.Workspace  = aInput.Workspace,
 			.Skill      = std::move(aInput.Skill),
 		};
+		brief.CommentFormat = std::move(aInput.CommentFormat);
+		brief.ReportFormat  = std::move(aInput.ReportFormat);
 		if (aInput.Description.size() <= maximum_brief_description_bytes) {
 			brief.Description = std::move(aInput.Description);
 		} else {
@@ -504,7 +528,8 @@ namespace bpr::core {
 	{
 		if (aBrief.Title.size() > maximum_brief_title_bytes || aBrief.Description.size() > maximum_brief_description_bytes
 			|| aBrief.BaseBranch.size() > maximum_brief_branch_bytes || aBrief.Files.size() > maximum_brief_files
-			|| !enumerator_at_most(aBrief.Workspace, brief_workspace::private_snapshot) || (aBrief.Skill && !valid_skill(*aBrief.Skill))) {
+			|| !enumerator_at_most(aBrief.Workspace, brief_workspace::private_snapshot) || (aBrief.Skill && !valid_skill(*aBrief.Skill))
+			|| (aBrief.CommentFormat && !valid_comment_format(*aBrief.CommentFormat)) || (aBrief.ReportFormat && !valid_comment_format(*aBrief.ReportFormat))) {
 			return false;
 		}
 		if (std::ranges::any_of(aBrief.Files, [](const brief_changed_file& aFile) {

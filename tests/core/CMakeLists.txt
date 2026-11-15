@@ -405,6 +405,25 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_overview_tour_core_tests
 )
 
+# [[BPR-1991]]. RFC-BPR-0099's head: where the tour stands and its action.
+bpr_add_executable(
+    test_better_pull_review_tour_publication_head_core_tests
+    tour_publication_head_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_tour_publication_head_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_tour_publication_head_core_tests)
+bpr_enable_warnings(test_better_pull_review_tour_publication_head_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_tour_publication_head
+    COMMAND test_better_pull_review_tour_publication_head_core_tests
+)
+
 # [[BPR-1784]]. The tour's three steps and where each stands.
 bpr_add_executable(
     test_better_pull_review_tour_steps_core_tests
@@ -629,6 +648,24 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_home_next_move_core_tests
+    home_next_move_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_home_next_move_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_home_next_move_core_tests)
+bpr_enable_warnings(test_better_pull_review_home_next_move_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_home_next_move
+    COMMAND test_better_pull_review_home_next_move_core_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_home_ignore_core_tests
     home_ignore_tests.cpp
 )
@@ -699,6 +736,47 @@ bpr_enable_hardening(test_better_pull_review_agent_turn_core_tests)
 bpr_enable_warnings(test_better_pull_review_agent_turn_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_turn COMMAND test_better_pull_review_agent_turn_core_tests)
 set_tests_properties(core_agent_turn PROPERTIES PASS_REGULAR_EXPRESSION "agent-turn-tests:pass")
+
+# [[BPR-1999]]. Agent cost per turn and per session.
+bpr_add_executable(test_better_pull_review_agent_cost_core_tests agent_cost_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_cost_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_cost_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_cost_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_cost COMMAND test_better_pull_review_agent_cost_core_tests)
+set_tests_properties(core_agent_cost PROPERTIES PASS_REGULAR_EXPRESSION "agent-cost-tests:pass")
+
+# [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103. A turn's activity, helpers and quiet.
+bpr_add_executable(test_better_pull_review_agent_activity_core_tests agent_activity_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_activity_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_activity_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_activity_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_activity COMMAND test_better_pull_review_agent_activity_core_tests)
+set_tests_properties(core_agent_activity PROPERTIES PASS_REGULAR_EXPRESSION "agent-activity-tests:pass")
+
+# [[BPR-1998]]. The code reference recogniser every agent reply shares.
+bpr_add_executable(test_better_pull_review_agent_reference_core_tests agent_reference_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_reference_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_reference_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_reference_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_reference COMMAND test_better_pull_review_agent_reference_core_tests)
+set_tests_properties(core_agent_reference PROPERTIES PASS_REGULAR_EXPRESSION "agent-reference-tests:pass")
+
+# [[BPR-1995]], [[BPR-1996]], RFC-BPR-0100. References in a tour's text and
+# Enhance on a selection.
+bpr_add_executable(test_better_pull_review_tour_references_core_tests tour_references_tests.cpp)
+target_link_libraries(test_better_pull_review_tour_references_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_tour_references_core_tests)
+bpr_enable_warnings(test_better_pull_review_tour_references_core_tests)
+bpr_add_network_isolated_test(NAME core_tour_references COMMAND test_better_pull_review_tour_references_core_tests)
+set_tests_properties(core_tour_references PROPERTIES PASS_REGULAR_EXPRESSION "tour-references-tests:pass")
+
+# [[BPR-2002]]. A question's subject, decided from what the reviewer did.
+bpr_add_executable(test_better_pull_review_agent_question_core_tests agent_question_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_question_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_question_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_question_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_question COMMAND test_better_pull_review_agent_question_core_tests)
+set_tests_properties(core_agent_question PROPERTIES PASS_REGULAR_EXPRESSION "agent-question-tests:pass")
 
 bpr_add_executable(
     test_better_pull_review_agent_session_core_tests
@@ -1038,6 +1116,14 @@ bpr_enable_hardening(test_review_tour_core)
 bpr_enable_warnings(test_review_tour_core)
 bpr_add_network_isolated_test(NAME core_review_tour COMMAND test_review_tour_core)
 
+# [[BPR-2014]], RFC-BPR-0106. A tour stop is accepted the way a file is.
+bpr_add_executable(test_tour_stop_acceptance tour_stop_acceptance_tests.cpp)
+target_link_libraries(test_tour_stop_acceptance PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_tour_stop_acceptance)
+bpr_enable_warnings(test_tour_stop_acceptance)
+bpr_add_network_isolated_test(NAME core_tour_stop_acceptance COMMAND test_tour_stop_acceptance)
+set_tests_properties(core_tour_stop_acceptance PROPERTIES PASS_REGULAR_EXPRESSION "tour-stop-acceptance:pass")
+
 bpr_add_executable(test_review_tour_markdown review_tour_markdown_tests.cpp)
 target_link_libraries(test_review_tour_markdown PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_tour_markdown)
@@ -1064,6 +1150,13 @@ target_link_libraries(test_agent_comment_suggestion PRIVATE BetterPullReview::Co
 bpr_enable_hardening(test_agent_comment_suggestion)
 bpr_enable_warnings(test_agent_comment_suggestion)
 bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
+
+# [[BPR-2061]]. Draft all: which suggested comments one reply drafts, and why the rest are passed over.
+bpr_add_executable(test_agent_draft_all agent_draft_all_tests.cpp)
+target_link_libraries(test_agent_draft_all PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_draft_all)
+bpr_enable_warnings(test_agent_draft_all)
+bpr_add_network_isolated_test(NAME core_agent_draft_all COMMAND test_agent_draft_all)
 
 # [[BPR-1861]]. An agent's answer split into prose and its bpr-findings block, a fenced suggestion included.
 bpr_add_executable(test_agent_answer_findings agent_answer_findings_tests.cpp)
@@ -1630,6 +1723,14 @@ bpr_enable_warnings(test_conversation_timeline)
 bpr_add_network_isolated_test(NAME core_conversation_timeline COMMAND test_conversation_timeline)
 set_tests_properties(core_conversation_timeline PROPERTIES PASS_REGULAR_EXPRESSION "CONVERSATION_TIMELINE_OK")
 
+# [[BPR-2171]]. Who Discuss treats as a bot, and its column's width.
+bpr_add_executable(test_discuss_preferences discuss_preferences_tests.cpp)
+target_link_libraries(test_discuss_preferences PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_discuss_preferences)
+bpr_enable_warnings(test_discuss_preferences)
+bpr_add_network_isolated_test(NAME core_discuss_preferences COMMAND test_discuss_preferences)
+set_tests_properties(core_discuss_preferences PROPERTIES PASS_REGULAR_EXPRESSION "DISCUSS_PREFERENCES_OK")
+
 # [[BPR-1844]]. Remembered Discuss, Threads and Review Comments filters.
 bpr_add_executable(
     test_better_pull_review_view_filter_memory_core_tests
@@ -1664,11 +1765,142 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_pull_request_activity_core_tests
 )
 
+bpr_add_executable(test_draft_roster draft_roster_tests.cpp)
+target_link_libraries(test_draft_roster PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_draft_roster)
+bpr_enable_warnings(test_draft_roster)
+bpr_add_network_isolated_test(NAME core_draft_roster COMMAND test_draft_roster)
+
+# [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The grant a turn launches with.
+bpr_add_executable(test_better_pull_review_agent_grant_core_tests agent_grant_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_grant_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_grant_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_grant_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_grant COMMAND test_better_pull_review_agent_grant_core_tests)
+set_tests_properties(core_agent_grant PROPERTIES PASS_REGULAR_EXPRESSION "agent-grant-tests:pass")
+
+# [[BPR-2016]], RFC-BPR-0107. The portable agent and prompt file.
+bpr_add_executable(test_better_pull_review_agent_configuration_core_tests agent_configuration_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_configuration_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_configuration_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_configuration_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_configuration COMMAND test_better_pull_review_agent_configuration_core_tests)
+set_tests_properties(core_agent_configuration PROPERTIES PASS_REGULAR_EXPRESSION "agent-configuration-tests:pass")
+
+bpr_add_executable(test_better_pull_review_local_draft_core_tests local_draft_tests.cpp)
+target_link_libraries(test_better_pull_review_local_draft_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_local_draft_core_tests)
+bpr_enable_warnings(test_better_pull_review_local_draft_core_tests)
+bpr_add_network_isolated_test(NAME core_local_draft COMMAND test_better_pull_review_local_draft_core_tests)
+
+bpr_add_executable(test_better_pull_review_local_draft_tour_core_tests local_draft_tour_tests.cpp)
+target_link_libraries(test_better_pull_review_local_draft_tour_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_local_draft_tour_core_tests)
+bpr_enable_warnings(test_better_pull_review_local_draft_tour_core_tests)
+bpr_add_network_isolated_test(NAME core_local_draft_tour COMMAND test_better_pull_review_local_draft_tour_core_tests)
+
+# RFC-BPR-0111 ([[BPR-2029]], [[BPR-2030]]).
+bpr_add_executable(test_better_pull_review_local_draft_publication_core_tests local_draft_publication_tests.cpp)
+target_link_libraries(test_better_pull_review_local_draft_publication_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_local_draft_publication_core_tests)
+bpr_enable_warnings(test_better_pull_review_local_draft_publication_core_tests)
+bpr_add_network_isolated_test(NAME core_local_draft_publication COMMAND test_better_pull_review_local_draft_publication_core_tests)
+
+# RFC-BPR-0113 and RFC-BPR-0114 as amended 2026-11-12 ([[BPR-2062]], [[BPR-2065]]).
+bpr_add_executable(test_better_pull_review_local_changes_core_tests local_changes_tests.cpp)
+target_link_libraries(test_better_pull_review_local_changes_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_local_changes_core_tests)
+bpr_enable_warnings(test_better_pull_review_local_changes_core_tests)
+bpr_add_network_isolated_test(NAME core_local_changes COMMAND test_better_pull_review_local_changes_core_tests)
+
+# RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning pull request's two questions.
+bpr_add_executable(test_better_pull_review_returning_review_core_tests returning_review_tests.cpp)
+target_link_libraries(test_better_pull_review_returning_review_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_returning_review_core_tests)
+bpr_enable_warnings(test_better_pull_review_returning_review_core_tests)
+bpr_add_network_isolated_test(NAME core_returning_review COMMAND test_better_pull_review_returning_review_core_tests)
+
+# RFC-BPR-0117 ([[BPR-2076]]). Explain this file.
+bpr_add_executable(test_better_pull_review_explain_file_core_tests explain_file_tests.cpp)
+target_link_libraries(test_better_pull_review_explain_file_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_explain_file_core_tests)
+bpr_enable_warnings(test_better_pull_review_explain_file_core_tests)
+bpr_add_network_isolated_test(NAME core_explain_file COMMAND test_better_pull_review_explain_file_core_tests)
 # RFC-BPR-0125 milestone 1. Suggested prompts as macros: the shipped set,
 # the template scan, conditions, order and the merge.
+# [[BPR-2179]]: surfaces and placements over the prompt library.
+bpr_add_executable(test_better_pull_review_prompt_surfaces_core_tests prompt_surfaces_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_surfaces_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_prompt_surfaces_core_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_surfaces_core_tests)
+bpr_add_network_isolated_test(NAME core_prompt_surfaces COMMAND test_better_pull_review_prompt_surfaces_core_tests)
+set_tests_properties(core_prompt_surfaces PROPERTIES PASS_REGULAR_EXPRESSION "prompt surfaces core tests passed")
 bpr_add_executable(test_better_pull_review_prompt_macro_core_tests prompt_macro_tests.cpp)
 target_link_libraries(test_better_pull_review_prompt_macro_core_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_prompt_macro_core_tests)
 bpr_enable_warnings(test_better_pull_review_prompt_macro_core_tests)
 bpr_add_network_isolated_test(NAME core_prompt_macro COMMAND test_better_pull_review_prompt_macro_core_tests)
 set_tests_properties(core_prompt_macro PROPERTIES PASS_REGULAR_EXPRESSION "prompt-macro-tests:pass")
+# [[BPR-2185]]. Settings › Prompts as a core reducer: the save protocol,
+# undo over every edit, the library's bound and the full differences.
+bpr_add_executable(test_better_pull_review_prompt_editor_core_tests prompt_editor_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_editor_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_prompt_editor_core_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_editor_core_tests)
+bpr_add_network_isolated_test(NAME core_prompt_editor COMMAND test_better_pull_review_prompt_editor_core_tests)
+set_tests_properties(core_prompt_editor PROPERTIES PASS_REGULAR_EXPRESSION "prompt-editor-tests:pass")
+# RFC-BPR-0107 and RFC-BPR-0125: agent_configuration.hpp and prompt_macro.hpp
+# compile together (prompt_kind and prompt_ask stay distinct).
+bpr_add_executable(test_better_pull_review_prompt_headers_together_tests prompt_headers_together_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_headers_together_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_prompt_headers_together_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_headers_together_tests)
+bpr_add_network_isolated_test(NAME core_prompt_headers_together COMMAND test_better_pull_review_prompt_headers_together_tests)
+set_tests_properties(core_prompt_headers_together PROPERTIES PASS_REGULAR_EXPRESSION "prompt-headers-together:pass")
+# RFC-BPR-0108 as amended (owner, 2026-11-13): a local comparison's identity
+# for the pull request window's own diff viewer and search.
+bpr_add_executable(test_better_pull_review_local_presentation_core_tests local_presentation_tests.cpp)
+target_link_libraries(test_better_pull_review_local_presentation_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_local_presentation_core_tests)
+bpr_enable_warnings(test_better_pull_review_local_presentation_core_tests)
+bpr_add_network_isolated_test(NAME core_local_presentation COMMAND test_better_pull_review_local_presentation_core_tests)
+set_tests_properties(core_local_presentation PROPERTIES PASS_REGULAR_EXPRESSION "local-presentation-tests:pass")
+
+# RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: its question rule, the
+# material, the structured reply and every check before it is shown.
+bpr_add_executable(test_better_pull_review_suggest_change_core_tests suggest_change_tests.cpp)
+target_link_libraries(test_better_pull_review_suggest_change_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_suggest_change_core_tests)
+bpr_enable_warnings(test_better_pull_review_suggest_change_core_tests)
+bpr_add_network_isolated_test(NAME core_suggest_change COMMAND test_better_pull_review_suggest_change_core_tests)
+
+# RFC-BPR-0127 ([[BPR-2157]]). Local, Draft and Published; Keep local and Make draft.
+bpr_add_executable(test_local_comment local_comment_tests.cpp)
+target_link_libraries(test_local_comment PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_local_comment)
+bpr_enable_warnings(test_local_comment)
+bpr_add_network_isolated_test(NAME core_local_comment COMMAND test_local_comment)
+set_tests_properties(core_local_comment PROPERTIES PASS_REGULAR_EXPRESSION "LOCAL_COMMENT_OK")
+# RFC-BPR-0128 ([[BPR-2163]]). Quick asks: Quick ask and scopes, their
+# legality, the built-in action rows, and each Ask menu's rows.
+bpr_add_executable(test_better_pull_review_quick_ask_core_tests quick_ask_tests.cpp)
+target_link_libraries(test_better_pull_review_quick_ask_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_quick_ask_core_tests)
+bpr_enable_warnings(test_better_pull_review_quick_ask_core_tests)
+bpr_add_network_isolated_test(NAME core_quick_ask COMMAND test_better_pull_review_quick_ask_core_tests)
+set_tests_properties(core_quick_ask PROPERTIES PASS_REGULAR_EXPRESSION "quick-ask-tests:pass")
+# RFC-BPR-0128 ([[BPR-2166]], [[BPR-2167]]). A report by its shape, its outline
+# and card; a commit listing folding a merge of the base branch to one line.
+bpr_add_executable(test_better_pull_review_agent_report_core_tests agent_report_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_report_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_report_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_report_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_report COMMAND test_better_pull_review_agent_report_core_tests)
+set_tests_properties(core_agent_report PROPERTIES PASS_REGULAR_EXPRESSION "agent-report-tests:pass")
+# RFC-BPR-0126 ([[BPR-2151]], core) for RFC-BPR-0128's Ask: one session's queue.
+bpr_add_executable(test_better_pull_review_agent_queue_core_tests agent_queue_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_queue_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_queue_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_queue_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_queue COMMAND test_better_pull_review_agent_queue_core_tests)
+set_tests_properties(core_agent_queue PROPERTIES PASS_REGULAR_EXPRESSION "agent-queue-tests:pass")

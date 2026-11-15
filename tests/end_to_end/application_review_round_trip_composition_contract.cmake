@@ -1,3 +1,18 @@
+# RFC-BPR-0099 AC08, RFC-BPR-0105 AC08 reseal: the agent-run live course.
+# github_application_config gains DesignatedLivePublication, read only by a
+# tests-enabled build without a fixture. There, and only for github.com
+# MikeMarcin/BPR-Test (designated_live_publication_target: name and
+# repository ID), window_review_drafts.cpp composes the shipped live review
+# submission provider over the window's mutation lease, and
+# window_construction.cpp's review and tour grant factories issue the same
+# one-use, five-minute grant the Submit or Publish gesture issues in a
+# shipped build. The tests-disabled branch is the same code moved into a
+# shared lambda; its provider, lease check, grant issuer and messages are
+# unchanged. window_tours.cpp reads a tour's repair and acceptance
+# comparisons between two heads as two pinned-source reads (each side's
+# identical-commit pair granted on the decision lane just before its read):
+# a sparse review had no grant to fetch either blob. The mutation-branch pin
+# is unchanged.
 # [[BPR-1943]] fixture-input reseal: the tests-only roundtrip waits for
 # current publication/display/private readiness before its unchanged off-hunk
 # gesture. One test-state bool keeps the existing Review choice once while
@@ -2911,10 +2926,14 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_construction.cpp"
         "src/github_application/window_defects.cpp"
         "src/github_application/window_device_authorization.cpp"
+        "src/github_application/window_explain_file.cpp"
         "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_quick_ask.cpp"
         "src/github_application/window_read_state.cpp"
+        "src/github_application/window_returning_review.cpp"
         "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
@@ -2923,6 +2942,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_shutdown.cpp"
         "src/github_application/window_sign_in.cpp"
         "src/github_application/window_skills.cpp"
+        "src/github_application/window_suggest_change.cpp"
         "src/github_application/window_tours.cpp"
         "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
@@ -3019,6 +3039,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/designated_live_macos_supervisor_launch.hpp"
         "src/diagnostic_controls.cpp"
         "src/diagnostic_export_directory.cpp"
+        "src/discuss_busy_fixture.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application/agent_composition.cpp"
@@ -3092,10 +3113,14 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_construction.cpp"
         "src/github_application/window_defects.cpp"
         "src/github_application/window_device_authorization.cpp"
+        "src/github_application/window_explain_file.cpp"
         "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
         "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_quick_ask.cpp"
         "src/github_application/window_read_state.cpp"
+        "src/github_application/window_returning_review.cpp"
         "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
@@ -3104,6 +3129,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_shutdown.cpp"
         "src/github_application/window_sign_in.cpp"
         "src/github_application/window_skills.cpp"
+        "src/github_application/window_suggest_change.cpp"
         "src/github_application/window_tours.cpp"
         "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
@@ -3118,6 +3144,14 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/installed_runtime.cpp"
         "src/installed_runtime.hpp"
         "src/large_review_fixture.hpp"
+        "src/local_draft_cli.cpp"
+        "src/local_draft_cli.hpp"
+        "src/local_draft_desktop.cpp"
+        "src/local_draft_desktop.hpp"
+        "src/local_draft_handoff.cpp"
+        "src/local_draft_handoff.hpp"
+        "src/local_draft_search.cpp"
+        "src/local_draft_search.hpp"
         "src/pane_find_controller.cpp"
         "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
@@ -3142,6 +3176,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
         "src/startup_diagnostic.hpp"
+        "src/syntax_text_sources.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
         "src/terminal_diagnostic_log.cpp"
@@ -3406,6 +3441,201 @@ function(bpr_verify_app_source_tree app_source_root)
 	# still revalidates independently. Ordered142/complete197 inventories,
 	# full-app and mutation pins are unchanged. This combined-main binding
 	# is deliberately separate from the frozen release-only44ec961f pin.
+	# [[RFC-BPR-0105]] reviewed dc5453afa..357df825d and its follow-up ([[BPR-2010]],
+	# [[BPR-2011]]): review_submission_workflow gives each whole-review host
+	# its own lane (window_construction supplies a worker_executor factory
+	# and the existing diagnostic port), waits only for a retired host of the
+	# same review identity, bounds the wait to start, abandons only work that
+	# has not begun, settles the shown submission's answer from a retired
+	# host and logs review_submit_* lines. window_github_reads, window_sign_in
+	# and window_navigation tell the window an open is starting, which resets
+	# its review surface then (begin_review_open); the fixture
+	# accessors gain test-only lane holds. No grant, actor/head, admission or
+	# no-blind-retry boundary is relaxed; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0101]], [[RFC-BPR-0102]] reviewed 86a50698b..HEAD
+	# ([[BPR-2002]], [[BPR-1998]], [[BPR-1999]], [[BPR-2000]]): window_agent_chat
+	# composes a chat question's subject and where the reviewer is looking into
+	# the observation (no selection or single file for a pull request subject),
+	# window_construction hands the turn's decided entry point and subject to
+	# the one launch path (no new call site), window_agent_setup gives the
+	# Agent tab the changed files for the core's reference recogniser, a
+	# range-revealing navigation and the native conversation's kept cost, and
+	# window_workbench sets the theme's Agent accent and tells the window's
+	# widgets when it alone changed. window_tours records a tour run's cost.
+	# No grant, actor/head, admission or publication boundary is relaxed;
+	# full-app and mutation pins unchanged.
+	# [[RFC-BPR-0099]] reviewed 60d427a08..HEAD ([[BPR-1991]], [[BPR-1992]],
+	# [[BPR-1993]]): tour_publication_plan tries one review, a mixed tour and
+	# compatibility comments in that order with the existing per-form planner
+	# and says the choice; review_submission_workflow keeps the host's
+	# per-write record, derives each step's state, and Resume previews the
+	# captured plan before it resumes; window_tours opens the published tour
+	# through the window's browser port and the sign-in controls. No grant,
+	# actor/head, admission, publication or no-blind-retry boundary is
+	# relaxed; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0098]] reviewed f1f6cd22c..HEAD ([[BPR-1989]]): main adds the
+	# test-only --attended-home-moves look beside --attended-home-rows (it
+	# requires --attended-home-look); the fixture accessors gain
+	# home_next_move_fixture_rows and per-row next-move facts, and the public
+	# path fixture serves them and an authored alias's review threads in
+	# Home's batched answer. No production read, grant, admission or
+	# publication boundary changes; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0103]] ([[BPR-2004]], [[BPR-2005]]): the tour session's
+	# projection relays each stream event (activity and heartbeats as well as
+	# text) to the tour chat's running block, and an ended run's activity is
+	# kept for its folded line; a run ended under its helpers says so. Main
+	# adds the test-only --attended-agent-helpers look (a scripted Claude in
+	# the fixture build). No read, grant, admission or publication boundary
+	# changes; full-app and mutation pins unchanged.
+	# [[RFC-BPR-0106]] ([[BPR-2013]], [[BPR-2014]]): the window fills an accept
+	# command's changed paths from the accepted snapshot, compares the code
+	# each stop was accepted on with a new head through the tour repair's
+	# realignment and materialization (read only), and drops the in-app
+	# Suggest an outline delivery (the outline hook and `bpr tour outline`
+	# are unchanged). Main's tour looks press Accept where they pressed Ready,
+	# next. No grant, admission or publication boundary is relaxed:
+	# publication now also requires every stop accepted. Full-app and
+	# mutation pins unchanged.
+	# [[BPR-2051]]: Enhance on a draft comment, a reply and a private note
+	# runs the tour writing operation (prompt contract, rewrite result and
+	# decoder) on the Agent tab's writing-only path with that surface's own
+	# prompt and answers the field as a suggestion; a stop's Enhance sends
+	# the stop's Enhance prompt. Nothing reaches GitHub; no grant, admission
+	# or publication boundary changes.
+	# RFC-BPR-0106 critical review: a walk's Ready and a forwarded Ready
+	# carry the pull request's changed paths (read locally, never on the
+	# owner channel) so a stop's references are recorded; a failed
+	# comparison of accepted code is asked again, bounded. No grant,
+	# admission or publication boundary is relaxed.
+	# [[BPR-2061]], [[BPR-2059]]: Draft all drafts a reply's suggested
+	# comments one after another through a card's own Add as draft comment
+	# path, and its Undo discards the drafts it made that are unchanged since;
+	# every Agent tab brief carries the suggested-comment format. All local;
+	# no grant, admission or publication boundary changes.
+	# RFC-BPR-0106 re-review: the changed paths come only from the window's
+	# read of the tour owner's own pull request; a comparison dropped by a
+	# switch, or read with no verdict, is asked again, bounded; `bpr tour
+	# status` reports each stop's acceptance. Local only; no grant,
+	# admission or publication boundary changes.
+	# Lane merge of main (e5bb712ab) after the owner-look round: main's
+	# finding-card memory beside the lane's Draft all, and one Enhance
+	# writing prompt for comments, replies and notes (window_tours names it
+	# and adds a writing-kind source). No grant, admission or publication
+	# boundary changes.
+	# [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104: this one changes a grant. An
+	# Agent tab turn of Claude Code or Codex may launch with the narrow
+	# allowance to write and run in its own scratch folder (on to begin with,
+	# per agent and pull request), and with builds in the disposable checkout
+	# once the reviewer allowed them for the pull request; the window asks the
+	# build question and keeps the choice and the answer. Tour runs, tool-free
+	# hooks, admission and publication are unchanged; no network grant.
+	# RFC-BPR-0104 post-review round: this one narrows a grant. The window
+	# passes no grant to a Codex whose own configuration has a permissions
+	# profile or asks before commands (it would replace them), states only
+	# what the launch carries, re-checks the pull request after the modal
+	# build question, takes Allow build and run tests as a per-pull-request
+	# toggle, carries the set scratch limit to the turn and removes unused
+	# scratch folders. Admission and publication unchanged; no network grant.
+	# [[BPR-2016]], [[BPR-2017]], RFC-BPR-0107: Settings imports and exports
+	# chosen agents and prompts as one local file. Reading, previewing and
+	# applying launch nothing, reach no network and read no credential; an
+	# imported agent is strict and builds stay off unless accepted for that
+	# entry, and nothing is checked until the reviewer asks. No grant,
+	# admission or publication boundary changes.
+	# RFC-BPR-0104 second post-review round (re-review N1, N3, N4): this one
+	# narrows a grant. The window reads Codex's configuration where the
+	# launched Codex does (the home's .codex, /etc/codex/config.toml, the
+	# managed file), passes Codex no grant in the reviewer's own checkout,
+	# keeps each kept scratch folder by pull request and agent (stored, read
+	# when a pull request opens) and keeps the open pull request's folders
+	# when clearing. Admission and publication unchanged; no network grant.
+	# [[BPR-1995]], [[BPR-1996]], RFC-BPR-0100: the tour's chats change the
+	# tour in the turn that asked, Enhance runs as the part's update turn in
+	# its own read-only tour session (no one-shot hook from those buttons),
+	# and a stop's code references are shown as links and snippets and
+	# published as commit-pinned permalinks to the pull request's own
+	# repository through the existing publication. The flag-move fixture is
+	# added. No grant, admission or publication boundary changes; no network
+	# grant.
+	# [[BPR-2116]], RFC-BPR-0100 AC06: a tour update writes an edited
+	# published stop's references as permalinks (tour_publication_plan
+	# rewrites that stop's text in the frozen update tour), and the window
+	# observes the pull request's files before previewing a published tour's
+	# update. No grant, admission or publication boundary changes.
+	# [[BPR-2021]], [[BPR-2023]], [[BPR-2024]], RFC-BPR-0108 and RFC-BPR-0109
+	# (reviewed 2026-11-11): local PR drafts. local_draft_desktop composes the
+	# draft page over the profile's local-drafts.sqlite3 and an isolated,
+	# credential-free installed-Git reader of the chosen worktree;
+	# local_draft_handoff and local_draft_cli are `bpr draft open`, which runs
+	# on the profile's store under its lease or forwards over the same-user
+	# command channel; an evidence import reads one chosen document and the
+	# artifacts beneath its folder through the read-only workspace source and
+	# runs nothing; a link artifact goes to system_browser_opener only as a
+	# validated web address. The attended look gains --attended-local-draft
+	# and --attended-local-draft-evidence. No grant, account, provider,
+	# admission, mutation or publication change; no network grant.
+	# [[BPR-2026]], [[BPR-2027]], RFC-BPR-0110 (reviewed 2026-11-12): a local
+	# draft's Description and Tour. local_draft_desktop dispatches the areas'
+	# edits to the draft's host and its questions to a composed runner;
+	# window_tours composes that runner as a tool-free writing launch with its
+	# own launcher (no tools, no session saved, an empty folder of its own),
+	# whose only input is the request the host made from the captured
+	# candidate, and gives a local draft's pull request tour the X19
+	# description default from Home's marks. The attended look gains
+	# --attended-local-draft-tour with a scripted agent. No grant, account,
+	# provider, admission, mutation or publication change; no network grant.
+	# [[BPR-2029]], [[BPR-2030]], RFC-BPR-0111 (reviewed 2026-11-12): a
+	# publication change. window_construction gives local_draft_desktop the
+	# accepted account's pull request catalog (accepted_pull_request_account:
+	# repository, branch and pull request reads and one POST pulls; a gh
+	# connection carries it, Git-data writes refused). In a tests-enabled
+	# build it is composed only with DesignatedLivePublication and no fixture,
+	# wrapped by designated_pull_request_account so every repository but
+	# MikeMarcin/BPR-Test is refused before a request. local_draft_desktop runs
+	# it on its own worker lane and copies the named push to the clipboard.
+	# No push, Git credential, review mutation or admission change.
+	# [[BPR-2023]], [[BPR-2024]], [[BPR-2025]], RFC-BPR-0109 deferred by the
+	# owner (reviewed 2026-11-12): a removal. local_draft_desktop no longer
+	# composes the Evidence area, its Import… chooser or the
+	# system_browser_opener link path; local_draft_handoff and local_draft_cli
+	# drop `--evidence` and its import (the option is refused as unknown);
+	# github_application drops import_local_draft_evidence and the attended
+	# look drops --attended-local-draft-evidence. Nothing is added: no grant,
+	# account, provider, admission, mutation or publication change.
+	# The owner's redesign of local drafts (reviewed 2026-11-12, mockup A,
+	# Home 1, author state, Local Changes variant a; RFC-BPR-0108, 0113, 0114
+	# as amended). local_draft_desktop composes local_changes_host over the
+	# author's own Git (`installed_author_git`, a second runner separate from
+	# the isolated reader: status, blob and diff reads, stage, unstage, one
+	# index entry, commit and a push that is never forced, on the author's
+	# press only; no network on opening) and the one worktree file Save
+	# writes; the one-time hooks question is kept per draft in
+	# `author-git-consent.txt` under the profile. The commit message is one
+	# fresh, tool-free run of the window's agent on its own worker lane with
+	# `local.commit-message`'s text. github_application gains a look-only
+	# association of the shown draft (attended look); tour_assist names the
+	# new prompt; the attended look reads BPR_ATTENDED_LOCAL_DRAFT_PATH and
+	# BPR_ATTENDED_LOCAL_DRAFT_PULL_REQUEST so one frozen root serves both its
+	# looks. No credential is read, stored or passed; no review
+	# mutation, admission or GitHub write is added.
+	# [[BPR-2138]], [[BPR-2140]], [[BPR-2141]] reseal (agent launch policy,
+	# second pass): the local draft's runner resumes the discussion's native
+	# session in an owner-private empty folder kept per draft and passes the
+	# purpose's instructions apart; Draft Tour, a field's draft and the
+	# outline carry the pull request's diff up front (tool-free) or name why
+	# they read the repository; tour prompts' instructions split off for the
+	# system prompt; Ask more arms the next turn's seed. No provider request,
+	# credential, grant, mutation or inventory change.
+	# RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]) reseal: window_returning_review.cpp
+	# (new) decides what the returning questions offer from the accepted read,
+	# reads the earlier revision's material and a thread's lines then and now
+	# from the review's own objects (no fetch), and sets a returning turn's
+	# launch fresh and tool-free with its own prompt; window_agent_chat.cpp
+	# composes the returning material, keeps one dispatch call site and seeds
+	# Ask more; window_read_state.cpp refreshes the offers after a read;
+	# window_agent_setup.cpp wires the controls; github_public_path_fixture.cpp
+	# serves returning-review-v1. No provider request, credential, grant,
+	# mutation or inventory change beyond the new source file.
 	# [[BPR-2087]] canonical-only review: accepted [[BPR-2055]] commit95393374f
 	# changes window_agent_setup/window_composition/window_construction/window_shutdown.
 	# Independent review305a4f54 covers their composition ownership; this is not
@@ -3437,8 +3667,79 @@ function(bpr_verify_app_source_tree app_source_root)
 	# source inventory loses credential_prompt and gains window_account_setup.
 	# No grant, provider, mutation branch or publication change; the mutation
 	# pin is unchanged.
+	# Lane merge of main (c5a0f0823, 2026-11-12): main's account setup in the
+	# window, in-PR link routing and record-check sentences meet the lane's
+	# composition; RFC-BPR-0117 ([[BPR-2076]]) adds window_explain_file.cpp.
+	# Owner (reviewed 2026-11-13): RFC-BPR-0108 as amended, the local draft in
+	# the pull request window. local_draft_desktop feeds the window's own Files
+	# tree, diff viewer, Overview and Search tab (local_draft_search.cpp: Find in
+	# files over the draft's own stored candidate, read-only) and classifies the
+	# draft's texts with the packaged definitions (syntax_text_sources.hpp, moved
+	# from review_cycle_desktop.cpp). window_construction routes the Search tab
+	# to the draft while it shows. No grant, credential, provider, mutation
+	# branch or publication change. main.cpp's attended author look copies its
+	# generated worktree where Git may write (a frozen root is read-only).
+	# No grant, credential, provider, mutation branch or publication change.
+	# RFC-BPR-0125 milestone 2 (merged): the Agent tab and tour chats show the
+	# core's prompt offers; window_agent_setup/window_construction pass the
+	# profile's macros and the turn names. RFC-BPR-0118: window_suggest_change.cpp
+	# asks Suggest the change as an Agent tab turn on assistance_first_answer
+	# (fresh, tool-free, review.suggest-change), window_agent_chat carries its
+	# material and the workshop operation, and the answer goes to the window,
+	# whose core decides. No grant, credential, provider, mutation branch or
+	# publication change: the draft stays a draft.
+	# Owner (reviewed 2026-11-13, "stick with the PR view and just augment
+	# it"): RFC-BPR-0110 and 0111 in the pull request window. While a local
+	# draft shows, window_construction routes the window's own Tour panel
+	# (commands, actions, side chat, Enhance, proposals) and Overview's
+	# description Save to local_draft_desktop, which edits the draft's own
+	# record; window_tours keeps the pull request's tour out of the panel
+	# meanwhile, restores it after, and offers an empty pull request tour
+	# draft its local draft's tour once (a restore of the private draft; no
+	# publication). A created draft pull request is opened by
+	# open_review_destination under the signed-in session, as Recently viewed
+	# opens one. The author's Git runs on a worker lane of its own; a fixture
+	# hold of that lane is tests-only. main.cpp's tour look drives the panel.
+	# No grant, credential, provider, mutation branch or publication change.
+	# Owner looks of 2026-11-13: the tour notices say apply, not accept, for
+	# parts that accept no stop, and a carry the pull request's tour draft
+	# refuses is shown in the Tour panel instead of dropped. No new effect.
+	# RFC-BPR-0127 (BPR-2157): the window's notes are Local comments
+	# (store_local_comment, LocalComments, Body); the same ledger calls on the
+	# same lane. No new effect, provider, grant or publication path.
+	# RFC-BPR-0127 (BPR-2158, second round): a Local comment edited in place
+	# persists through the same ledger call at its revision; Keep local frees
+	# its line through leave_deleted_draft, as Delete does; a tests-only seam
+	# stores a whole-file or pull request comment, which main.cpp's local
+	# comments look also uses. No new effect or path. Third round: the
+	# Notes panel's dispatch, presentation and attended notes look are
+	# removed; Ask agent on a Local comment reaches the existing note path.
+	# Owner look v002 rework: Make draft's refusal names the line's or the
+	# thread's draft. Words only. RFC-BPR-0127 (BPR-2159): Keep Local from a
+	# list keeps a draft whose comparison is not shown, taking its file from
+	# the roster's path; the same store move. No new effect or path.
+	# RFC-BPR-0127 (BPR-2160): an agent surface's one keep action is chosen
+	# by core::decide_keep; Keep local stores a Local comment on the file or
+	# the pull request through the same ledger call; Ask agent on my draft
+	# records it in Private history through the Local comment's one path
+	# (record_note_press). Words only elsewhere. No new effect or path.
+	# RFC-BPR-0127 (BPR-2162 rework): refusal words shortened to a tooltip's
+	# length; the agent look's --attended-agent-draft-first, a fixture-only
+	# course step. BPR-2161 and BPR-2171's composition (Discuss preferences
+	# host, the busy look) sealed here too. No new effect or path.
+	# RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]], [[BPR-2165]]): the Ask menus'
+	# composition (window_quick_ask.cpp), the suggested prompts' store and
+	# host, Was this addressed? on any thread with its claims. Presses go
+	# through the existing launch paths; no new effect or path.
+	# BPR-2177 (owner, 2026-11-14): a person's session on a tests-on build runs
+	# the fixture agent and the launch guard refuses a real one; RFC-BPR-0128's
+	# queued Ask (RFC-BPR-0126's queue host), the report tab and Explain this
+	# file in the Agent tab. No new effect or path.
+	# BPR-2172, BPR-2173 and BPR-2175: the local draft look's environment can
+	# choose the Local comments look or Finish your review on the same
+	# fixture file instead (tests-only attended launch). No new effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "3da807649aa392e0da85a024e125136bdae3c54a50a1d9ed8c0426d2b3aeff66"
+        "b8d1051321e049532ded673cd4f1dce006633f15c3c722589a6c498aea405b7b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

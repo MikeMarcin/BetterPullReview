@@ -31,6 +31,15 @@ implementation revision or passing result has been assigned. Follow the
 
 `PUBLISH-01` was answered on 2026-11-10: the author pushes and BPR creates the pull request from the verified remote head. See the [decision record](../../rfcs/assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices).
 
+## Implementation record (not claimed)
+
+Engineered on the lane while its dependencies wait (the owner rejected the
+RFC-BPR-0109 and 0110 looks on 2026-11-12); this card was not readied or
+claimed. Commits `387f7298d` (core), `4675974cf` and `62f740fc6` (gh pull
+request catalog), `6bc5217f5` and `433068905` (application), `36dcd7e21` (Qt
+area, composition), `75c035a49` (real-worktree course). Evidence, including
+the live BPR-Test drafts #178 and #179: [ledger](../../verification/RFC-BPR-0111.md).
+
 Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred and its closeout BPR-2025 is no longer a dependency; the evidence parts of this card are inactive (see the RFC's amendment).
 
 ## Owner verdicts (attended session 411e2c7497822b381ac2601afe7909f3, handed back 2026-11-13T08:47:51Z)
@@ -49,7 +58,7 @@ The publish steps look (RFC-BPR-0111 AC01, AC07 surfaces) was accepted with the 
 
 ## Readiness judgment (2026-11-13)
 
-BPR-2028 is Done, so this card's dependency is met. Its evidence, from the RFC-BPR-0111 ledger on the lane `claude/v0-5-0-prerelease-targets-52265d` (`docs/verification/RFC-BPR-0111.md`):
+BPR-2028 is Done, so this card's dependency is met. Its evidence, from the [ledger](../../verification/RFC-BPR-0111.md):
 - AC01 passes live: draft #184 at `1237dbefd`, with the push named, the author's own commit, and the carried tour stop anchored and Accepted.
 - AC02 passes (`core_local_draft_publication`, `local_draft_publication`).
 - AC07 passes on fixture, and the owner accepted the publish steps (session 411e2c74, aligned in a0cbb9dd), except one clause: "a review submission for another pull request completes while a creation is in flight". That clause has no course: `application_local_draft_publication_desktop_public_path` shows only the draft's own lane free during a held creation.
@@ -63,7 +72,7 @@ local-draft-authoring amendment record names this card as a card reference
 (`d3e7cb8a8`). AC07's submission clause has its course:
 `application_dependable_session_public_path` step 2c (`0f444ac0a`) holds
 Create Draft PR's lane in the composed desktop and #18's Approve still
-reaches GitHub (the RFC-BPR-0111 ledger on the lane).
+reaches GitHub ([ledger](../../verification/RFC-BPR-0111.md#ac07s-submission-clause-and-closeout-2026-11-13)).
 
 - AC01: Pass, live draft #184 at `1237dbefd` (and #178, #179); `local_draft_publication` re-run at `0f444ac0a`.
 - AC02: Pass, `core_local_draft_publication`, `local_draft_publication` re-run at `0f444ac0a`.

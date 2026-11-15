@@ -29,7 +29,7 @@ namespace {
 		for (const auto store : { "appearance-settings", "workbench-settings", "diagnostic-preferences", "agent-setup", "window-restoration" }) {
 			expect(profile_data_store_area(store) == area::settings, "settings stores are settings");
 		}
-		for (const auto store : { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" }) {
+		for (const auto store : { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery", "local-drafts" }) {
 			expect(profile_data_store_area(store) == area::review_data, "review stores are review data");
 		}
 		expect(profile_data_store_area("insights") == area::statistics, "Insights has its own lifetime statistics area");
@@ -42,6 +42,7 @@ namespace {
 			expect(profile_data_folder_area(folder) == area::caches, "cache folders are caches");
 		}
 		expect(profile_data_folder_area("publication-git-v1") == area::review_data, "the publication store is review data");
+		expect(profile_data_folder_area("local-draft-git-v1") == area::review_data, "RFC-BPR-0108: the local draft reader's store is review data");
 		for (const auto folder : { "logs", "state", "profiles", "updates", "agent-workspace-ownership-v1", "home", "templates", "hooks", "work" }) {
 			expect(profile_data_folder_area(folder) == area::kept, "logs, shared folders and Git isolation are kept");
 		}

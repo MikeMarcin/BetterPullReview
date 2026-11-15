@@ -58,6 +58,7 @@ namespace bpr::qt {
 			settings_page::appearance,
 			settings_page::notifications,
 			settings_page::agents_and_context,
+			settings_page::prompts,
 			settings_page::storage_and_privacy,
 		};
 		static_assert(page_order.size() == settings_page_count);
@@ -96,6 +97,8 @@ namespace bpr::qt {
 				return QStringLiteral("Local notification preferences will live here.");
 			case settings_page::agents_and_context:
 				return QStringLiteral("Agent profiles and context supplements will live here.");
+			case settings_page::prompts:
+				return QStringLiteral("Where prompts appear, and the prompts themselves, will be set here.");
 			case settings_page::storage_and_privacy:
 				return QStringLiteral(
 					"Storage location, cache limits and diagnostics privacy will live "
@@ -489,6 +492,8 @@ namespace bpr::qt {
 			return QStringLiteral("Notifications");
 		case settings_page::agents_and_context:
 			return QStringLiteral("Agents & context");
+		case settings_page::prompts:
+			return QStringLiteral("Prompts");
 		case settings_page::storage_and_privacy:
 			return QStringLiteral("Storage & privacy");
 		}

@@ -4,11 +4,13 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
@@ -150,6 +152,8 @@ namespace bpr::qt {
 		// (review of BPR-0775, finding 1).
 		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_dif_presentation(); });
 
+		build_local_draft_slots();
+		build_home_selection();
 		configure_tool_buttons();
 		refresh_toolbar_icons();
 		apply_focus_order();
@@ -596,6 +600,22 @@ namespace bpr::qt {
 		NextNewCommentAction->setEnabled(false);
 		addAction(NextNewCommentAction);
 		connect(NextNewCommentAction, &QAction::triggered, this, [this] { step_to_next_new_comment(); });
+		// Owner look v002 ([[BPR-2158]]): "I want a real next comment prev
+		// comment control in that top bar in the comment drawer controls.
+		// Instead of this \"next new comment\"". Every comment in turn, read
+		// or not, then into the next file's.
+		PreviousCommentAction = new QAction{ QStringLiteral("Previous comment"), this };
+		PreviousCommentAction->setObjectName(QStringLiteral("previousCommentAction"));
+		PreviousCommentAction->setShortcuts(shortcut_keys(shortcut_command::previous_comment));
+		PreviousCommentAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(PreviousCommentAction);
+		connect(PreviousCommentAction, &QAction::triggered, this, [this] { step_comment(false); });
+		NextCommentAction = new QAction{ QStringLiteral("Next comment"), this };
+		NextCommentAction->setObjectName(QStringLiteral("nextCommentAction"));
+		NextCommentAction->setShortcuts(shortcut_keys(shortcut_command::next_comment));
+		NextCommentAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(NextCommentAction);
+		connect(NextCommentAction, &QAction::triggered, this, [this] { step_comment(true); });
 
 		ToolbarSpacer = rowSpacer(
 			PrimaryToolbar,
@@ -736,10 +756,44 @@ namespace bpr::qt {
 		// header/source, icon buttons on no rail. They are the View menu's
 		// own actions, so the bar, the menu and the keys are one command
 		// each, and the core decides the layout.
-		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"));
-		ReviewBar->addAction(OnePaneAction);
+		// Owner, 2026-11-12: the view picker's own well marks the group, so
+		// the rule before it stands hidden and the bar keeps its width.
+		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"))->setVisible(false);
+		// Owner, 2026-11-12: the layout toggle becomes a pick of the views,
+		// two icons in a review and three in author state. One pane stays
+		// the View menu's action and key; the picker sends the same intent.
+		ReviewViewPicker = new view_picker{ ReviewBar };
+		ReviewViewPicker->setObjectName(QStringLiteral("workbenchViewPicker"));
+		rowWidget(ReviewBar, ReviewViewPicker, QStringLiteral("workbenchViewPickerAction"));
+		ReviewViewPicker->set_picked([this](const review_view aView) {
+			// Author state's Edit: the file shown opens in the editor.
+			if (LocalDraftShown && LocalDraft != nullptr) {
+				if (aView == review_view::edit) {
+					ReviewViewPicker->set_view(review_view::edit);
+					auto file = std::optional<std::string>{ };
+					if (FileSearchTabs != nullptr && FileSearchTabs->currentIndex() == local_changes_tab() && LocalDraft->local_projection().File) {
+						file = LocalDraft->local_projection().File->Path;
+					} else if (LocalDraft->projection().File) {
+						file = LocalDraft->projection().File->Path;
+					}
+					if (file) {
+						LocalDraft->open_file(*file, true);
+					}
+					apply_local_draft_surface();
+					return;
+				}
+				ReviewViewPicker->set_view(aView);
+			}
+			const auto enabled = OnePaneState.State == core::workbench_one_pane::enabled;
+			if ((aView == review_view::one_pane) != enabled) {
+				dispatch_one_pane_toggle();
+			}
+			// The layout shown is the one the core last decided.
+			apply_one_pane();
+			apply_local_draft_surface();
+		});
 		ReviewBar->addAction(HeaderSourceAction);
-		for (const auto& [action, name] : { std::pair{ OnePaneAction, QStringLiteral("workbenchOnePaneButton") }, std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {
+		for (const auto& [action, name] : { std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {
 			if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(action)); button != nullptr) {
 				button->setObjectName(name);
 				button->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -796,19 +850,10 @@ namespace bpr::qt {
 		addAction(FinishReviewAction);
 		connect(FinishReviewAction, &QAction::triggered, this, [this] { open_review_composition(false); });
 		ReviewBar->addAction(ComposeReviewAction);
-		ReviewBar->addAction(CommentAction);
-		// [[BPR-1133]]. Comment's arrow opens its menu, which names what
-		// Comment would start: "Comment on line 431…" or "Reply to tbutler's
-		// thread…". It offers that plain comment alone. Labels are chosen in
-		// the editor's chip, never here (owner, BPR-1083 comment-menu-v001).
-		CommentMenu = new QMenu{ this };
-		CommentMenu->setObjectName(QStringLiteral("commentMenu"));
-		CommentMenu->addAction(CommentAction);
-		connect(CommentMenu, &QMenu::aboutToShow, this, [this] { update_comment_target(); });
-		if (auto* const commentButton = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); commentButton != nullptr) {
-			commentButton->setMenu(CommentMenu);
-			commentButton->setPopupMode(QToolButton::MenuButtonPopup);
-		}
+		// [[BPR-2176]] (owner, 2026-11-14). Comment has no button of its own:
+		// Option-C, Return in the code, the gutter's + and Reply say it
+		// better. The Pull Request menu names what it would start.
+		connect(PullRequestMenu, &QMenu::aboutToShow, this, [this] { update_comment_target(); });
 		PullRequestMenu->addSeparator();
 		PullRequestMenu->addAction(ComposeReviewAction);
 		PullRequestMenu->addAction(CommentAction);
@@ -834,7 +879,36 @@ namespace bpr::qt {
 		AddCommentAction = new QAction{ tr("Add comment"), this };
 		AddCommentAction->setObjectName(QStringLiteral("addCommentAction"));
 		AddCommentAction->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-		connect(AddCommentAction, &QAction::triggered, this, [this] { static_cast<void>(comment_on_selected_lines(false)); });
+		connect(AddCommentAction, &QAction::triggered, this, [this] {
+			ComposeLocal = false;
+			static_cast<void>(comment_on_selected_lines(false));
+		});
+		// RFC-BPR-0127 ([[BPR-2158]]). N: the same composer, opened on Local,
+		// in Comments. Comment…, the gutter and Reply open it on Draft; the
+		// choice is not remembered between comments.
+		LocalCommentAction = new QAction{ tr("Local comment"), this };
+		LocalCommentAction->setObjectName(QStringLiteral("localCommentAction"));
+		LocalCommentAction->setIcon(conversation_icon(conversation_glyph::computer, palette()));
+		LocalCommentAction->setToolTip(tr("A comment only on this computer, on the selected lines (N)"));
+		LocalCommentAction->setShortcuts(shortcut_keys(shortcut_command::new_note));
+		LocalCommentAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(LocalCommentAction);
+		connect(LocalCommentAction, &QAction::triggered, this, [this] {
+			if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+				TrayTabs->setCurrentIndex(tray_comments_tab);
+			}
+			ComposeLocal = true;
+			if (!comment_on_selected_lines(false)) {
+				ComposeLocal = false;
+			} else if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && !ReviewEditor->shown_draft()->Body.empty()) {
+				// My draft already stands on the line and is what opened: it
+				// stays a draft until Local is chosen for it (Keep local), so
+				// N never moves it by accident.
+				ComposeLocal = false;
+				statusBar()->showMessage(tr("Your draft on this line is open. Choose Local to keep it only on this computer."), 8000);
+			}
+			refresh_cards();
+		});
 		SuggestChangeAction = new QAction{ tr("Suggest change"), this };
 		SuggestChangeAction->setObjectName(QStringLiteral("suggestChangeAction"));
 		SuggestChangeAction->setIcon(conversation_icon(conversation_glyph::suggest, palette()));

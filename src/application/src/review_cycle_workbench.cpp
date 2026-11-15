@@ -1850,6 +1850,7 @@ namespace bpr::application {
 				: core::continues_sessions(aProfile.Protocol) ? "Sending " + roundName + " to " + harness + " in a new session…"
 															  : "Sending " + roundName + " to " + harness + "…";
 			auto       assignment = cycle_send_assignment{ .Profile = aProfile, .Session = aSession, .Document = std::move(aOutput.Bytes), .WorkingDirectory = send_folder() };
+			assignment.McpServers = SendEnvironment.McpServersOf ? SendEnvironment.McpServersOf(aProfile.Id) : core::agent_mcp_servers::off;
 			SendRunning           = true;
 			SendProfile           = harness;
 			SendStop              = std::make_shared<std::stop_source>();

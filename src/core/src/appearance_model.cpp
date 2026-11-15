@@ -306,6 +306,20 @@ namespace bpr::core {
 			return "find_match_background";
 		case appearance_role::find_current_match_background:
 			return "find_current_match_background";
+		case appearance_role::agent_accent:
+			return "agent_accent";
+		case appearance_role::report_paper:
+			return "report_paper";
+		case appearance_role::report_ink:
+			return "report_ink";
+		case appearance_role::report_verdict_open:
+			return "report_verdict_open";
+		case appearance_role::report_verdict_partial:
+			return "report_verdict_partial";
+		case appearance_role::report_verdict_done:
+			return "report_verdict_done";
+		case appearance_role::report_code_wash:
+			return "report_code_wash";
 		case appearance_role::state_attention:
 			return "state_attention";
 		}

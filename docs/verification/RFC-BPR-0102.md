@@ -8,7 +8,7 @@ nongating; nothing below is a timing claim.
 ## What was built
 
 The core decides each question's subject and entry point
-(`decide_agent_question`, `src/core/include/bpr/core/agent_question.hpp`):
+(`decide_agent_question`, [agent_question.hpp](../../src/core/include/bpr/core/agent_question.hpp)):
 a conversation chip makes the conversation the subject; a suggestion names its
 own subject (Review this pull request: the pull request with `run_ai_review`;
 Review *file*: that file; Explain lines: the selected lines); a typed question

@@ -23,7 +23,7 @@ namespace bpr::qt {
 	/// width is `PM_MenuButtonIndicator`, which varies by style and by device
 	/// pixel ratio, and a constant added here would be right on the platform it
 	/// was measured on and wrong everywhere else.
-	class menu_tool_button final : public QToolButton
+	class menu_tool_button : public QToolButton
 	{
 	public:
 		using QToolButton::QToolButton;

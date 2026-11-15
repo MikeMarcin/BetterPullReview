@@ -13,7 +13,7 @@ transport and arguments, in a scratch folder of three small files, with the
 request "start three sub-agents in the background, one per file, say you
 started three reviewers and end your message without waiting; combine their
 results when they arrive". The frames, trimmed of account and machine details,
-are kept as `tests/fixtures/agent/traces` and replayed by the
+are kept as [traces](../../tests/fixtures/agent/traces/) and replayed by the
 tests below.
 
 | Agent and transport | How helpers are reported | BPR runs it |

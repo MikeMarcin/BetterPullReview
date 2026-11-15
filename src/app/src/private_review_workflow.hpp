@@ -67,6 +67,19 @@ namespace bpr::app {
 		/// it is carried. Answers on the decision lane whether it was deleted.
 		void discard_earlier_suggestion(core::review_draft_id, std::uint64_t aRevision, std::function<void(bool)>);
 		void settle_review_comments(std::string aKey, bool aPublished, std::optional<core::review_submission_proposal>);
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Keep local: the draft at its
+		/// revision becomes `aComment` in one store transaction; the draft's
+		/// end fans out to every window. Answers on the decision lane with
+		/// the stored comment, or the refusal. With `aReworded` (Save as
+		/// Local with changed words, [[BPR-2183]]) the comment keeps its own
+		/// words in that same transaction.
+		using local_completion = std::function<void(application::private_run_result<application::local_comment_record>)>;
+		void keep_local(core::review_draft_id, std::uint64_t aRevision, application::local_comment_record aComment, bool aReworded, local_completion);
+		/// \brief RFC-BPR-0127. Make draft: the Local comment at its revision
+		/// becomes a new draft at `aAnchor` (its range and reply target), not
+		/// in the review, in one store transaction; the draft fans out.
+		void make_draft(application::local_comment_id, application::local_comment_revision, std::string aBody, core::source_line_ref aAnchor, std::optional<std::uint32_t> aStartLine,
+						std::optional<std::string> aReplyToThread, draft_completion);
 		/// [[BPR-1245]]. Records the draft as it stands on this lane, after every draft change
 		/// already queued, as one reviewer revision that History then shows; answers on the decision lane.
 		void record_workshop_press(core::review_draft_id, press_completion);
@@ -84,19 +97,22 @@ namespace bpr::app {
 		struct context;
 		struct result;
 		using operation = std::function<result(context&)>;
-		void                                                        post(operation, draft_completion = { });
-		void                                                        refresh();
-		auto                                                        find(const core::private_review_scope&) -> std::shared_ptr<context>;
-		auto                                                        publication_context(const application::review_mutation_request&) -> std::shared_ptr<context>;
-		application::effect_executor&                               Effects;
-		application::decision_executor&                             Decisions;
-		private_review_recovery_registry&                           Recovery;
-		qt::private_review_panel&                                   Panel;
-		QPointer<qt::private_composition_editor>                    Editor;
-		draft_sink                                                  Drafts;
-		run_sink                                                    Launch;
-		std::mutex&                                                 Gate;
-		std::vector<std::shared_ptr<context>>                       Contexts;
+		void                                     post(operation, draft_completion = { });
+		void                                     refresh();
+		auto                                     find(const core::private_review_scope&) -> std::shared_ptr<context>;
+		auto                                     publication_context(const application::review_mutation_request&) -> std::shared_ptr<context>;
+		application::effect_executor&            Effects;
+		application::decision_executor&          Decisions;
+		private_review_recovery_registry&        Recovery;
+		qt::private_review_panel&                Panel;
+		QPointer<qt::private_composition_editor> Editor;
+		draft_sink                               Drafts;
+		run_sink                                 Launch;
+		std::mutex&                              Gate;
+		std::vector<std::shared_ptr<context>>    Contexts;
+		/// [[BPR-2181]]. The private-run port, free of the panel: this
+		/// workflow's opened scopes behind the Qt-free run boundary.
+		application::scoped_private_agent_runs                      Runs;
 		std::shared_ptr<context>                                    Current;
 		std::optional<core::private_review_binding>                 Binding;
 		std::vector<core::private_review_binding>                   KnownBindings;

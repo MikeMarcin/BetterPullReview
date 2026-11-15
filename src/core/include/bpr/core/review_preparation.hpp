@@ -13,12 +13,56 @@ namespace bpr::core {
 	/// `feedback` is the review-feedback guidance: it writes no tour field, so
 	/// no `writing_target` names it, and a comment workshop request carries it
 	/// only while the label helper is on.
+	///
+	/// [[BPR-2051]] The Enhance prompts came later: one for a tour stop and,
+	/// since the owner's look of 2026-11-10 ("Change it from \"Enhance a
+	/// note\" to \"Enhance writing\""), one, `enhance_writing`, for every
+	/// draft comment, reply and private note. `enhance_stop` is never a
+	/// target; it is the instructions a stop's Enhance sends
+	/// (`writing_instructions_for`). `enhance_writing` is both: its surfaces
+	/// are not tour fields.
+	///
+	/// [[BPR-2059]] `suggested_comment` came last: how an agent writes the
+	/// comments it suggests for the reviewer to post. It writes no field and
+	/// is never a target; every Agent tab request carries it in its brief.
+	///
+	/// RFC-BPR-0110 ([[BPR-2026]]) The two local-authoring prompts came
+	/// next: `local_description`, how an agent writes a local draft's full
+	/// description, and `local_discussion`, what a local draft's
+	/// conversations tell the agent. Neither is a tour field.
+	///
+	/// RFC-BPR-0114 as amended 2026-11-12: `local_commit_message`, how an
+	/// agent writes a commit's subject and description from the staged
+	/// change. It writes no tour field either.
+	///
+	/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]): `review_latest_upload`, what
+	/// the agent is told when the reviewer asks what changed since their
+	/// review, and `review_proposed_fix`, when they ask whether a thread was
+	/// addressed. One prompt per action (P02, owner 2026-11-12).
+	///
+	/// RFC-BPR-0117 ([[BPR-2076]]): `review_explain_file`, when they ask the
+	/// agent to explain the file open in Review.
+	///
+	/// RFC-BPR-0118 ([[BPR-2078]]): `review_suggest_change`, when they ask
+	/// the agent to write the change a draft comment's lines need.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
 											 comment,
-											 feedback };
-	inline constexpr std::size_t writing_hook_count = 5;
+											 feedback,
+											 enhance_stop,
+											 enhance_writing,
+											 suggested_comment,
+											 local_description,
+											 local_discussion,
+											 local_commit_message,
+											 review_latest_upload,
+											 review_proposed_fix,
+											 review_explain_file,
+											 review_suggest_change };
+	inline constexpr std::size_t writing_hook_count = 15;
+	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
+	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.
 	inline constexpr std::size_t review_preparation_hook_count     = 4;
 	inline constexpr std::size_t maximum_writing_instruction_bytes = 8192;
@@ -83,6 +127,15 @@ namespace bpr::core {
 		std::string     Replacement;
 		std::string     Text;
 	};
+	/// \brief [[BPR-2051]] Whose instructions a request on \p aTarget with
+	/// \p aScope sends. A tour stop with text (the whole comment or a
+	/// selection) is Enhance and sends the stop's Enhance prompt; an empty stop
+	/// is Generate comment and sends the stop-comment prompt. Every other
+	/// target sends its own.
+	[[nodiscard]] constexpr auto writing_instructions_for(const writing_hook aTarget, const writing_scope aScope) noexcept -> writing_hook
+	{
+		return aTarget == writing_hook::comment && aScope != writing_scope::empty_field ? writing_hook::enhance_stop : aTarget;
+	}
 	[[nodiscard]] auto writing_digest(std::string_view aText) noexcept -> std::array<std::uint8_t, 32>;
 	[[nodiscard]] auto writing_blank(std::string_view aText) noexcept -> bool;
 	[[nodiscard]] auto writing_boundary(std::string_view aText, std::size_t aOffset) noexcept -> bool;

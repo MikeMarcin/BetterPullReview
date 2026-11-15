@@ -62,7 +62,7 @@ namespace bpr::qt {
 
 	auto reason_for(const core::queue_item& aItem) -> QString
 	{
-		auto reason = core::review_waiting(aItem.Facts.Waiting) || core::merge_blocked(aItem.Facts.Waiting) ? home_why_sentence(aItem) : text(core::explanation(aItem.Bucket));
+		auto reason = aItem.Facts.TooLarge || core::next_move_for(aItem) || core::review_waiting(aItem.Facts.Waiting) || core::merge_blocked(aItem.Facts.Waiting) ? home_why_sentence(aItem) : text(core::explanation(aItem.Bucket));
 		// The rule is named only when it is why the item is here at all. Saying
 		// "you watch src/parser" about a review someone asked for would bury
 		// the fact that they were asked.
@@ -108,6 +108,55 @@ namespace bpr::qt {
 			break;
 		}
 		return QStringLiteral("Quiet");
+	}
+
+	auto home_move_word(const core::authored_next_move aMove) -> QString
+	{
+		switch (aMove) {
+		case core::authored_next_move::returned:   return QStringLiteral("Returned");
+		case core::authored_next_move::failing:    return QStringLiteral("Failing");
+		case core::authored_next_move::blocked:    return QStringLiteral("Blocked");
+		case core::authored_next_move::ready:      return QStringLiteral("Ready");
+		case core::authored_next_move::unread:     return QStringLiteral("Unread");
+		case core::authored_next_move::unassigned: return QStringLiteral("Unassigned");
+		case core::authored_next_move::draft:      return QStringLiteral("Draft");
+		case core::authored_next_move::waiting:    return QStringLiteral("Waiting");
+		case core::authored_next_move::checking:   return QStringLiteral("Checking");
+		case core::authored_next_move::unknown:    return QStringLiteral("Unknown");
+		case core::authored_next_move::quiet:      break;
+		}
+		return QStringLiteral("Quiet");
+	}
+
+	auto home_row_word(const core::queue_item& aItem) -> QString
+	{
+		if (const auto move = core::next_move_for(aItem); move) {
+			return home_move_word(*move);
+		}
+		return aItem.Bucket == core::attention_bucket::quiet && core::merge_blocked(aItem.Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(aItem.Bucket);
+	}
+
+	auto home_move_tone(const core::queue_item& aItem) -> std::optional<int>
+	{
+		const auto move = core::next_move_for(aItem);
+		if (!move) {
+			return std::nullopt;
+		}
+		auto tone = home_row_tone::my_pull_requests;
+		switch (*move) {
+		case core::authored_next_move::returned:   tone = home_row_tone::needs_me; break;
+		case core::authored_next_move::ready:      tone = home_row_tone::confirmed; break;
+		case core::authored_next_move::failing:
+		case core::authored_next_move::blocked:    tone = home_row_tone::error; break;
+		case core::authored_next_move::waiting:    tone = home_row_tone::waiting_on_others; break;
+		case core::authored_next_move::unread:
+		case core::authored_next_move::unassigned:
+		case core::authored_next_move::draft:
+		case core::authored_next_move::checking:
+		case core::authored_next_move::quiet:
+		case core::authored_next_move::unknown:    break;
+		}
+		return static_cast<int>(tone);
 	}
 
 	auto home_ignore_text() -> QString
@@ -174,13 +223,129 @@ namespace bpr::qt {
 		return clauses;
 	}
 
+	namespace {
+		/// The logins whose standing verdict is `aState`, in review order.
+		[[nodiscard]] auto reviewers_who(const core::queue_waiting_facts& aFacts, const core::my_review_verdict aState) -> std::vector<std::string>
+		{
+			auto names = std::vector<std::string>{ };
+			for (const auto& reviewer : aFacts.LatestReviews) {
+				if (reviewer.State == aState) {
+					names.push_back(reviewer.Login);
+				}
+			}
+			return names;
+		}
+
+		/// "3 conversations await my reply", "1 conversation awaits my
+		/// reply", "2 or more …" when there were more threads than were read;
+		/// empty when none await or none were read.
+		[[nodiscard]] auto awaiting_reply(const core::queue_waiting_facts& aFacts) -> QString
+		{
+			const auto count = aFacts.AwaitingReply.value_or(0U);
+			if (count == 0U) {
+				return { };
+			}
+			const auto more = aFacts.MoreConversations ? QStringLiteral(" or more") : QString{ };
+			return count == 1U && more.isEmpty() ? QStringLiteral("1 conversation awaits my reply")
+												 : QStringLiteral("%1%2 conversations await my reply").arg(QString::number(count), more);
+		}
+
+		/// [[RFC-BPR-0098]]. The sentence of a pull request of mine: who and
+		/// what, for its next move.
+		[[nodiscard]] auto move_sentence(const core::queue_item& aItem, const core::authored_next_move aMove) -> QString
+		{
+			const auto& facts     = aItem.Facts.Waiting;
+			const auto  unseen    = static_cast<std::uint64_t>(aItem.Facts.UnseenComments);
+			const auto  approvers = reviewers_who(facts, core::my_review_verdict::approved);
+			const auto  approval  = approvers.empty() ? QStringLiteral("Approved") : QStringLiteral("Approved by %1").arg(bounded_list(approvers, approvers.size()));
+			auto        clauses   = QStringList{ };
+			auto        coda      = QString{ };
+			switch (aMove) {
+			case core::authored_next_move::returned: {
+				const auto requesters = reviewers_who(facts, core::my_review_verdict::changes_requested);
+				if (!requesters.empty()) {
+					clauses.push_back(QStringLiteral("%1 requested changes").arg(bounded_list(requesters, requesters.size())));
+				} else if (core::changes_requested(facts)) {
+					clauses.push_back(QStringLiteral("Changes were requested"));
+				}
+				if (const auto replies = awaiting_reply(facts); !replies.isEmpty()) {
+					clauses.push_back(replies);
+				}
+				break;
+			}
+			case core::authored_next_move::failing:
+				clauses.push_back(QStringLiteral("%1 failed").arg(bounded_list(facts.FailedChecks, facts.FailedChecks.size())));
+				if (core::approved(facts)) {
+					clauses.push_back(approval);
+				}
+				break;
+			case core::authored_next_move::blocked:
+				clauses.push_back(facts.Merge == core::queue_merge_state::conflicts ? QStringLiteral("It conflicts with the base branch")
+									  : facts.Merge == core::queue_merge_state::behind
+									  ? QStringLiteral("The base branch must be merged in first")
+									  : QStringLiteral("Merge blocked"));
+				break;
+			case core::authored_next_move::ready:
+				clauses.push_back(approval);
+				clauses.push_back(QStringLiteral("checks passed"));
+				coda = QStringLiteral(" Ready to merge.");
+				break;
+			case core::authored_next_move::checking:
+				clauses.push_back(approval);
+				clauses.push_back(facts.PendingChecks == 1U ? QStringLiteral("1 check is running") : QStringLiteral("%1 checks are running").arg(facts.PendingChecks));
+				break;
+			case core::authored_next_move::unread:
+				clauses.push_back(unseen > 0U ? new_comments(unseen) + QStringLiteral(" I have not read") : QStringLiteral("Something here is unread"));
+				break;
+			case core::authored_next_move::unassigned:
+				clauses.push_back(QStringLiteral("No reviewer is requested"));
+				break;
+			case core::authored_next_move::draft:
+				clauses.push_back(QStringLiteral("Still a draft"));
+				break;
+			case core::authored_next_move::waiting:
+				clauses.append(home_waiting_clauses(aItem));
+				// The wait explains the block; the move says so already.
+				clauses.removeAll(QStringLiteral("last known"));
+				clauses.removeAll(QStringLiteral("Merge blocked"));
+				if (clauses.isEmpty()) {
+					clauses.push_back(QStringLiteral("Waiting on reviewers"));
+				}
+				break;
+			case core::authored_next_move::quiet:
+				clauses.push_back(QStringLiteral("Nothing here is waiting on anyone"));
+				break;
+			case core::authored_next_move::unknown:
+				clauses.push_back(aItem.Bucket == core::attention_bucket::detail_unknown ? QStringLiteral("Nothing about it has been read yet")
+																						 : QStringLiteral("Its reviews and checks have not been read yet"));
+				break;
+			}
+			if (aMove != core::authored_next_move::unread && unseen > 0U) {
+				clauses.push_back(new_comments(unseen));
+			}
+			// The existing staleness wording, for every fact a move is decided from.
+			if (aMove != core::authored_next_move::unknown
+				&& (facts.RequestsStale || facts.AssessmentStale || facts.ChecksStale || facts.ReviewsStale || facts.ConversationsStale)) {
+				clauses.push_back(QStringLiteral("last known"));
+			}
+			for (auto index = qsizetype{ 1 }; index < clauses.size(); ++index) {
+				if (!clauses[index].isEmpty() && clauses[index].startsWith(QStringLiteral("Approved"))) {
+					clauses[index][0] = clauses[index][0].toLower();
+				}
+			}
+			return clauses.join(QStringLiteral("; ")) + QLatin1Char{ '.' } + coda;
+		}
+	} // namespace
+
 	auto home_why_sentence(const core::queue_item& aItem) -> QString
 	{
+		// [[RFC-BPR-0098]]. A pull request of mine says its next move; the
+		// section says it is mine.
+		if (const auto move = core::next_move_for(aItem); move) {
+			return aItem.Facts.TooLarge ? move_sentence(aItem, *move) + QStringLiteral(" Too large to load here; open it on GitHub.") : move_sentence(aItem, *move);
+		}
 		const auto unseen  = static_cast<std::uint64_t>(aItem.Facts.UnseenComments);
 		auto       clauses = QStringList{ };
-		if (aItem.Membership.authored() && aItem.Bucket != core::attention_bucket::authored_awaiting_reviewer_action) {
-			clauses.push_back(QStringLiteral("My pull request"));
-		}
 		// [[BPR-1406]] [[BPR-1414]]. The author is not a clause here: every row
 		// names it in one place of its own, beside the number, whoever it is.
 		// A clause after a leading one continues its sentence.
@@ -219,6 +384,11 @@ namespace bpr::qt {
 		case core::attention_bucket::detail_unknown:
 			lead(QStringLiteral("Nothing about it has been read yet"));
 			break;
+		}
+		// [[BPR-2048]]. Its own read was too large: what the row says beyond
+		// this is what was last read, and GitHub has the rest.
+		if (aItem.Facts.TooLarge) {
+			lead(QStringLiteral("Too large to load here; open it on GitHub"));
 		}
 		// [[BPR-1405]]. Who or what is awaited, said once and bounded; the
 		// whole roster is in Overview.
@@ -268,13 +438,23 @@ namespace bpr::qt {
 			break;
 		}
 		case home_group::my_pull_requests: {
-			const auto actionable = std::ranges::count_if(aRows, [](const core::queue_item& aRow) { return core::home_section_for(core::queue_membership{ }, aRow.Bucket) == core::home_queue_section::needs_you; });
-			const auto unknown    = std::ranges::count(aRows, core::attention_bucket::detail_unknown, &core::queue_item::Bucket);
-			summary               = counted(static_cast<std::uint64_t>(actionable), QStringLiteral("needs action"), QStringLiteral("need action"));
-			if (unknown > 0) {
-				summary += QStringLiteral("; %1 unknown").arg(QString::number(unknown));
+			// [[RFC-BPR-0098]]. What came back and what can merge; the rows say
+			// the rest.
+			const auto moved = [&aRows](const core::authored_next_move aMove) {
+				return std::ranges::count_if(aRows, [aMove](const core::queue_item& aRow) { return core::next_move_for(aRow) == aMove; });
+			};
+			auto parts = QStringList{ };
+			if (const auto returned = moved(core::authored_next_move::returned); returned > 0) {
+				parts.push_back(QStringLiteral("%1 returned").arg(QString::number(returned)));
 			}
-			break;
+			if (const auto ready = moved(core::authored_next_move::ready); ready > 0) {
+				parts.push_back(QStringLiteral("%1 ready to merge").arg(QString::number(ready)));
+			}
+			const auto unknown = moved(core::authored_next_move::unknown);
+			if (unknown > 0) {
+				parts.push_back(QStringLiteral("%1 unknown").arg(QString::number(unknown)));
+			}
+			return parts.join(QStringLiteral(", "));
 		}
 		case home_group::waiting_on_others:
 			summary = QStringLiteral("%1 of mine").arg(QString::number(aRows.size()));
@@ -530,7 +710,7 @@ namespace bpr::qt {
 			return item->Facts.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(label) : label;
 		}
 		case Qt::AccessibleDescriptionRole: {
-			auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket));
+			auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), home_row_word(*item));
 			// [[BPR-1414]]. Every row says who opened it, as it is drawn.
 			if (!item->Facts.Author.empty()) {
 				why = QStringLiteral("Opened by %1. %2").arg(text(item->Facts.Author), why);
@@ -589,7 +769,13 @@ namespace bpr::qt {
 		case home_row_role::author:
 			return text(item->Facts.Author);
 		case home_row_role::reason_word:
-			return item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket);
+			return home_row_word(*item);
+		case home_row_role::tone:
+			// [[RFC-BPR-0098]]. Mine says its move; an ignored row says nothing.
+			if (const auto tone = home_move_tone(*item); tone && !item->Ignored) {
+				return *tone;
+			}
+			return { };
 		case home_row_role::state:
 			// [[BPR-1683]]. Colour means state; an ignored row has asked
 			// to be left alone, so it carries none and is drawn neutral.
@@ -627,7 +813,33 @@ namespace bpr::qt {
 			return home_verdict_sentence(item->Facts.MyReview);
 		case home_row_role::row_action:
 			// [[BPR-1683]]. An ignored row's own action, on hover and focus.
-			return item->Ignored ? home_unignore_text() : QString{ };
+			// [[BPR-2049]]. A reviewed row back for new commits: Seen while my
+			// approval stands, Approve again once GitHub dismissed it.
+			if (item->Ignored) {
+				return home_unignore_text();
+			}
+			switch (core::review_followup_for(*item)) {
+			case core::review_followup::seen:          return QStringLiteral("Seen");
+			case core::review_followup::approve_again: return QStringLiteral("Approve again");
+			case core::review_followup::none:          break;
+			}
+			return QString{ };
+		case home_row_role::row_action_tip:
+			if (item->Ignored) {
+				return QStringLiteral("Puts this pull request back in its section; nothing changes on GitHub");
+			}
+			switch (core::review_followup_for(*item)) {
+			case core::review_followup::seen:
+				return QStringLiteral("My approval still stands: marks the new commits seen here and moves it to Following. Nothing changes on GitHub.");
+			case core::review_followup::approve_again:
+				return QStringLiteral("GitHub dismissed my approval when commits were pushed: opens it to approve the current commits on GitHub.");
+			case core::review_followup::none: break;
+			}
+			return QString{ };
+		case home_row_role::followup: {
+			const auto followup = core::review_followup_for(*item);
+			return item->Ignored || followup == core::review_followup::none ? QVariant{ } : QVariant{ static_cast<int>(followup) };
+		}
 		case home_row_role::time:
 		case home_row_role::progress:
 			return QString{ };
@@ -991,12 +1203,11 @@ namespace bpr::qt {
 			&& item->Ref.Repository != Effective.Repository) {
 			return false;
 		}
-		if (Effective.Quiet == application::queue_quiet_filter::attention
-			&& item->Bucket == core::attention_bucket::quiet && !core::merge_blocked(item->Facts.Waiting)) {
+		// [[RFC-BPR-0098]]. Hide quiet hides only the rows that say Quiet.
+		if (Effective.Quiet == application::queue_quiet_filter::attention && core::home_row_quiet(*item)) {
 			return false;
 		}
-		if (Effective.Quiet == application::queue_quiet_filter::quiet
-			&& (item->Bucket != core::attention_bucket::quiet || core::merge_blocked(item->Facts.Waiting))) {
+		if (Effective.Quiet == application::queue_quiet_filter::quiet && !core::home_row_quiet(*item)) {
 			return false;
 		}
 		return true;

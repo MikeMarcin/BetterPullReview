@@ -6,11 +6,13 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractButton>
 #include <QColor>
 #include <QFont>
+#include <QMenu>
 #include <QString>
 #include <QWidget>
 
@@ -21,6 +23,7 @@
 #include <string>
 #include <vector>
 
+class QAction;
 class QBoxLayout;
 class QLabel;
 class QResizeEvent;
@@ -30,6 +33,7 @@ class QPlainTextEdit;
 class QToolButton;
 
 namespace bpr::qt {
+	class comment_state_toggle;
 	class feedback_label_controls;
 	class markdown_body_view;
 	class reaction_bar;
@@ -104,6 +108,15 @@ namespace bpr::qt {
 		bool CommentEditOffered = false;
 		/// [[BPR-1806]]. Open in tour is offered on a published tour stop.
 		bool TourOpenOffered = false;
+		/// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed? is offered here.
+		bool AddressedOffered = false;
+		/// RFC-BPR-0128 ([[BPR-2164]]). Fills the thread's Ask menu when it
+		/// opens; none shows no Ask.
+		std::function<void(QMenu&)> AskMenu;
+		/// RFC-BPR-0128 ([[BPR-2165]]). The agent's claim on this thread, and
+		/// where its Open the answer goes.
+		std::optional<thread_claim>      Claim;
+		std::function<void(std::size_t)> ClaimAnswer;
 		/// [[BPR-1802]]. The pull request's repository, whose permalinks show
 		/// as snippet boxes.
 		std::optional<core::markdown_repository> PermalinkRepository;
@@ -203,6 +216,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1757]]. The room the author's name is painted
 		/// in, before the post's tools.
 		[[nodiscard]] auto name_rect() const -> QRect;
+		/// \brief Owner look v002 ([[BPR-2158]]). Where the computer and
+		/// "Local reply" are painted, which its tooltip is anchored to;
+		/// empty on any other post.
+		[[nodiscard]] auto local_tag_rect() const noexcept -> QRect { return LocalTag; }
 		/// \brief [[BPR-1581]]. How strongly the post's arrival is marked,
 		/// from 1 to 0.
 		void               set_arrival(qreal aStrength);
@@ -258,6 +275,7 @@ namespace bpr::qt {
 		void               refresh_source_button();
 
 		card_post           Post;
+		QRect               LocalTag;
 		open_card_style     Style;
 		bool                RuleAbove    = false;
 		bool                Hovered      = false;
@@ -299,6 +317,10 @@ namespace bpr::qt {
 		void               set_joined(bool aJoined);
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+		/// \brief RFC-BPR-0127. A Reply field holding my draft reply shows
+		/// its words after a pencil; empty for none.
+		void               set_draft_words(const QString& aWords);
+		[[nodiscard]] auto draft_words() const noexcept -> const QString& { return DraftWords; }
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -307,6 +329,7 @@ namespace bpr::qt {
 		kind            Kind;
 		open_card_style Style;
 		bool            Joined = false;
+		QString         DraftWords;
 	};
 
 	/// \brief [[BPR-1290]]. The open thread, in place at its line: the header
@@ -327,6 +350,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1212]]. What the draft editor holds for my draft, on
 		/// the composer of a draft being written in the drawer.
 		void present_draft(const std::optional<draft_composer_presentation>& aDraft);
+		/// \brief RFC-BPR-0127. Local is chosen in the composer.
+		[[nodiscard]] auto local_chosen() const noexcept -> bool;
 		/// \brief [[BPR-1212]]. Whether this card is my draft's composer.
 		[[nodiscard]] auto writing() const noexcept -> bool;
 		/// \brief [[BPR-1345]]. What ⌘↩ does in the composer. v002 (owner,
@@ -344,6 +369,16 @@ namespace bpr::qt {
 		/// own [[BPR-1083]] controls on the reply's text. Null on a card that
 		/// takes no reply.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
+		/// \brief [[BPR-2051]]. Enhance on the draft or reply written here:
+		/// where a press goes, and its answer. None without a field.
+		void               bind_enhance(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		auto               present_enhancement(const enhance_outcome& aOutcome) -> bool;
+		[[nodiscard]] auto enhance_control() const noexcept -> enhance_button* { return EnhanceButton; }
+		[[nodiscard]] auto enhance_panel() const noexcept -> enhance_suggestion* { return EnhancePanel; }
+		/// \brief RFC-BPR-0118. Suggest the change on the drawer draft; null
+		/// on a card that writes no new comment.
+		[[nodiscard]] auto suggest_change_action() const noexcept -> QAction* { return SuggestAction; }
+		[[nodiscard]] auto suggest_change_view() const noexcept -> suggest_change_panel* { return SuggestPanel; }
 		/// \brief [[BPR-1084]]. Beside the reply's label chip: whether a
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
@@ -384,6 +419,10 @@ namespace bpr::qt {
 		std::function<void()> EditNewer;
 		/// \brief Updates durable read marks without replacing readers or their menus.
 		void present_read_state(const thread_card& aCard);
+		/// \brief RFC-BPR-0127, owner look v003. My draft reply in this
+		/// thread, shown in its Reply field with its words and the state
+		/// control; nothing when none stands. Updated in place.
+		void present_unsent_reply(const thread_card& aCard);
 		/// \brief Whether \p aWatched is a post's rendered or source text,
 		/// where the arrow keys move the reading caret.
 		[[nodiscard]] auto is_reading(const QObject* aWatched) const -> bool;
@@ -394,7 +433,10 @@ namespace bpr::qt {
 		void               set_notch(int aY);
 		[[nodiscard]] auto notch() const noexcept -> int;
 
-		std::function<void(card_action)>                        Action;
+		std::function<void(card_action)> Action;
+		/// RFC-BPR-0127. An action on one post of the card: my Local reply
+		/// inside a published thread (Make draft, Copy text, Delete).
+		std::function<void(card_action, const std::string&)>    PostAction;
 		std::function<void(const std::string&, const QString&)> Link;
 		/// RFC-BPR-0084. A published post's image references, by post identity.
 		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageRequest;
@@ -488,18 +530,49 @@ namespace bpr::qt {
 		/// [[RFC-BPR-0090]]. Convert, shown in the sending buttons' place
 		/// while GitHub cannot apply the suggestion; and whether the change
 		/// written in the code is content even when the field is empty.
-		note_button*       ConvertAction = nullptr;
-		QString            ConvertWords;
-		bool               CodeChange   = false;
-		QBoxLayout*        DraftActions = nullptr;
-		QWidget*           Privacy      = nullptr;
-		draft_review_state Review       = draft_review_state::none;
-		suggestion_mark*   Suggestion   = nullptr;
+		note_button* ConvertAction = nullptr;
+		QString      ConvertWords;
+		bool         CodeChange   = false;
+		QBoxLayout*  DraftActions = nullptr;
+		QWidget*     Privacy      = nullptr;
+		/// RFC-BPR-0127 ([[BPR-2158]]). The composer's state control (Local,
+		/// Draft), Save for Local and the sentence beside it.
+		comment_state_toggle* StateToggle = nullptr;
+		/// RFC-BPR-0127. My draft reply's state, beside the Reply field.
+		comment_state_toggle*                DraftReplyState = nullptr;
+		std::optional<core::review_draft_id> DraftReplyId;
+		QToolButton*                         StateLocal  = nullptr;
+		QToolButton*                         StateDraft  = nullptr;
+		note_button*                         SaveLocal   = nullptr;
+		QLabel*                              LocalWords  = nullptr;
+		bool                                 LocalChosen = false;
+		void                                 choose_local(bool aLocal, bool aDispatch);
+		draft_review_state                   Review     = draft_review_state::none;
+		suggestion_mark*                     Suggestion = nullptr;
+		/// [[BPR-2051]].
+		enhance_button*     EnhanceButton = nullptr;
+		enhance_suggestion* EnhancePanel  = nullptr;
+		enhance_binding*    Enhance       = nullptr;
+		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
+		/// RFC-BPR-0128 ([[BPR-2165]]). The claim's evidence over the code.
+		void show_claim_evidence(const QWidget& aChip);
+		/// RFC-BPR-0128 ([[BPR-2164]]). The thread's Ask, when the style has a
+		/// menu for it.
+		void add_ask(QBoxLayout& aRow, QWidget* aParent, const QString& aName);
+		/// RFC-BPR-0118. Suggest the change in the tool row, and its panel.
+		QAction*              SuggestAction = nullptr;
+		suggest_change_panel* SuggestPanel  = nullptr;
+		void                  present_agent_suggestion(const agent_suggestion_presentation& aSuggestion);
 		/// [[BPR-1212]]. The composer's line button, state and change view.
 		QToolButton* Where      = nullptr;
 		QWidget*     DraftState = nullptr;
 		QWidget*     Change     = nullptr;
 		QString      LastNotice;
+		/// [[BPR-2172]]. The composer's notice is a warning mark in its tool
+		/// row; pressing it discloses the sentence under the row.
+		QToolButton* NoticeMark  = nullptr;
+		bool         NoticeFolds = false;
+		void         present_notice_mark();
 		/// What a reply here is attached to on GitHub ([[BPR-1084]]).
 		core::suggestion_placement_observation Placement;
 		std::vector<thread_post_view*>         Posts;

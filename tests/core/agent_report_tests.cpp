@@ -1,0 +1,190 @@
+// RFC-BPR-0128 ([[BPR-2166]], [[BPR-2167]]). A report by its shape (Q7), its
+// outline and card, and a commit listing with a merge of the base branch as
+// one line and the rest grouped by area (AC07).
+#include "bpr/core/agent_report.hpp"
+
+#include <cstdlib>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace {
+	using namespace bpr::core;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	void test_shape_outline_and_card()
+	{
+		const auto report = std::string{ "# What changed since your review\n\n18 commits: the frame pool, and a merge of main.\nNothing else.\n\n## Rendering\n\nThe clear now waits.\n\n```cpp\n# not a heading\n```\n\n### Threads\n\n- line 6\n" };
+		expect(is_report_answer(report), "sections make a report");
+		expect(!is_report_answer("Partly. The resize clamps now, but the zero-width frame is still drawn."), "a short answer is a reply");
+		auto lines = std::string{ };
+		for (auto index = 0; index < 41; ++index) {
+			lines += "line\n";
+		}
+		expect(is_report_answer(lines), "a long answer is a report too");
+		const auto outline = report_outline(report);
+		expect(outline.size() == 3U && outline[0] == report_heading{ .Level = 1U, .Title = "What changed since your review", .Line = 0U } && outline[1].Title == "Rendering" && outline[1].Level == 2U
+				   && outline[2].Title == "Threads" && outline[2].Level == 3U,
+			   "the outline is the headings, fenced code left out");
+		// docs/design/report-card-v4 (owner, 2026-11-14): the card is the
+		// summary, rendered, and a row naming the report and its sections.
+		// Defects 2 and 3: sections are counted without the title, and the
+		// summary is what stands between the title and the first section.
+		const auto card = report_card_of(report);
+		expect(card.Title == "What changed since your review" && card.Sections == 1U && card.Summary == "18 commits: the frame pool, and a merge of main.\nNothing else.",
+			   "the card: title, one section, and the summary as written: " + card.Summary);
+		expect(card.Outline.size() == 2U && card.Outline[0].Title == "Rendering" && card.Outline[0].Depth == 0U && card.Outline[1].Title == "Threads" && card.Outline[1].Depth == 1U,
+			   "the outline the report's menu lists: the sections without the title, sub-sections one deeper");
+		const auto review = report_card_of("# Review of #21\n\n## Must fix\n\nThe `clamp` is wrong.\n\nMore.\n\n### A zero height\n\n## Worth a look\n\nx\n");
+		expect(review.Sections == 2U && review.Summary == "The `clamp` is wrong.", "no prose before the first section: the first paragraph after the title, wherever it stands: " + review.Summary);
+		expect(report_card_of("First line\nsecond").Title == "First line" && report_card_of("First line\nsecond").Summary == "second", "no heading: the first line is the title");
+		// Q4: an answer that is a report by what was asked keeps its first
+		// line in the summary and takes the question's title.
+		const auto asked = report_card_of("First line\nsecond\n\nlater", "Explain a.cpp");
+		expect(asked.Title == "Explain a.cpp" && asked.Summary == "First line\nsecond" && asked.Sections == 0U, "no heading, a title given: the title, and the summary from the start");
+	}
+
+	void test_merges_fold_and_areas_group()
+	{
+		const auto commits = std::vector<listed_commit>{
+			{ .Oid = "a1000000000000000000000000000000000000aa", .Headline = "Render retained frames", .Parents = { "base" }, .Paths = std::vector<std::string>{ "src/render/renderer.cpp", "src/render/frame_pool.cpp" } },
+			{ .Oid = "b2000000000000000000000000000000000000bb", .Headline = "Merge branch 'main' into retained-frames", .Parents = { "a1000000000000000000000000000000000000aa", "m9" }, .Paths = std::vector<std::string>{ "docs/guide.md", "src/render/renderer.cpp" } },
+			{ .Oid = "c3000000000000000000000000000000000000cc", .Headline = "Document the pool", .Parents = { "b2000000000000000000000000000000000000bb" }, .Paths = std::vector<std::string>{ "docs/pool.md" } },
+			{ .Oid = "d4000000000000000000000000000000000000dd", .Headline = "Clamp the resize", .Parents = { "c3000000000000000000000000000000000000cc" }, .Paths = std::vector<std::string>{ "src/render/renderer.cpp" } },
+			{ .Oid = "e5000000000000000000000000000000000000ee", .Headline = "Merge remote-tracking branch 'origin/main'", .Parents = { "d4000000000000000000000000000000000000dd", "m12" }, .Paths = std::vector<std::string>{ "tools/ci.yml" } },
+		};
+		const auto files = std::vector<std::string>{ "src/render/renderer.cpp", "src/render/frame_pool.cpp", "docs/pool.md" };
+		auto       all   = std::vector<std::string>{ };
+		for (const auto& commit : commits) {
+			all.push_back(commit.Oid);
+		}
+		const auto listing = fold_commit_listing(commits, all, "main", files, { { "b2000000000000000000000000000000000000bb", 24U } });
+		expect(listing.Merges.size() == 2U && listing.Merges[0].Brought == 24U && listing.Merges[0].ChangedPullRequestFiles == true && !listing.Merges[1].Brought && listing.Merges[1].ChangedPullRequestFiles == false,
+			   "each merge of main is one line, with its count where known and whether it changed this pull request's files");
+		expect(listing.Areas.size() == 2U && listing.Areas[0].Area == "src" && listing.Areas[0].Commits.size() == 2U && listing.Areas[1].Area == "docs" && listing.Areas[1].Commits.size() == 1U,
+			   "the other commits are grouped by area, in order");
+		const auto text = render_commit_listing(listing);
+		expect(text.find("- Merged main (24 commits), changed this pull request's files (b200000)") != std::string::npos && text.find("- Merged main, changed none of this pull request's files") != std::string::npos
+				   && text.find("src/\n- a100000 Render retained frames\n- d400000 Clamp the resize\n") != std::string::npos,
+			   "rendered: " + text);
+		expect(!merges_base(commits[0], "main", { }), "one parent is no merge");
+		const auto feature = listed_commit{ .Oid = "f", .Headline = "Merge pull request #7 from fork/topic", .Parents = { "a", "b" } };
+		expect(merges_base(feature, "main", { }) && !merges_base(feature, "main", { "a", "b" }), "a merge whose second parent is the pull request's own is not a merge of main");
+		expect(fold_commit_listing(commits, all, "main", files) == fold_commit_listing(commits, all, "main", files), "deterministic");
+		// [[BPR-2184]] (review N7). The slice since the review is not the whole
+		// pull request: a merge whose second parent is one of the pull
+		// request's own commits from before the review is not a merge of
+		// main, though that commit is outside the slice.
+		const auto topic = listed_commit{ .Oid = "f6000000000000000000000000000000000000ff", .Headline = "Merge topic into feature", .Parents = { "e5000000000000000000000000000000000000ee", "0older" } };
+		const auto slice = std::vector<listed_commit>{ topic };
+		auto       whole = all;
+		whole.insert(whole.begin(), "0older");
+		expect(fold_commit_listing(slice, whole, "main", files).Merges.empty(), "the pull request's own earlier commit makes it a merge within the branch");
+		expect(fold_commit_listing(slice, all, "main", files).Merges.size() == 1U, "without it in the whole set, it would read as a merge of main");
+		// [[BPR-2184]] (review N3): which merges are counted, decided here.
+		const auto counted = merges_to_count(commits, all, "main");
+		expect(counted.size() == 2U && counted[0].Merge == "e5000000000000000000000000000000000000ee" && counted[0].First == "d4000000000000000000000000000000000000dd" && counted[0].Second == "m12"
+				   && counted[1].Merge == "b2000000000000000000000000000000000000bb",
+			   "each merge of main in the slice, newest first, with its parents");
+		auto many = std::vector<listed_commit>{ };
+		for (auto index = 0; index < 12; ++index) {
+			many.push_back({ .Oid = "m" + std::to_string(index), .Headline = "Merge branch 'main' into topic", .Parents = { "p" + std::to_string(index), "q" + std::to_string(index) } });
+		}
+		expect(merges_to_count(many, { }, "main").size() == maximum_counted_merges, "at most eight a listing");
+	}
+
+	/// docs/design/report-templates-v1 and v2: the convention read for
+	/// dressing. A Was this addressed? report: its title, summary, sections
+	/// named for verdicts, each item's place, quote, code numbered from its
+	/// place and the tally; the claims block is not shown.
+	void test_dressed_was_addressed()
+	{
+		const auto answer = std::string_view{ "# Was this addressed?\n\nOf three threads, one is addressed.\n\n## Not addressed\n\n### Should this clamp to the maximum?\n\n`src/ui/widgets/slider.cpp:18`\n\n"
+											  "> Should this clamp? A value of 1.2 draws past the track.\n\nThe lines are as they were.\n\n```cpp\nValue = aValue;\nif (Value > Maximum) { notify(); }\n```\n\n"
+											  "## Partly\n\n### Clamp the size\n\n`src/engine/renderer.cpp:12`\n\nThe width is clamped.\n\n## Addressed\n\n### Name the magic number\n\n`src/ui/widgets/button.cpp:7`\n\n`7` is now `corner_radius`.\n\n"
+											  "```bpr-claims\nPRRT_1: Not addressed, unchanged\n```\n" };
+		const auto report = dress_report(answer);
+		expect(report.Title == "Was this addressed?" && report.Summary == "Of three threads, one is addressed.", "the title and the summary");
+		expect(report.Sections.size() == 3U && report.Sections[0].Name == "Not addressed" && report.Sections[0].Tone == report_tone::open && report.Sections[1].Tone == report_tone::partial
+				   && report.Sections[2].Tone == report_tone::done,
+			   "sections named for verdicts carry their colour");
+		const auto& item = report.Sections[0].Items.at(0U);
+		expect(item.Label == "Not addressed" && item.Tone == report_tone::open && item.Heading == "Should this clamp to the maximum?" && item.Place == "src/ui/widgets/slider.cpp:18",
+			   "an item carries its section's verdict, its heading and its place");
+		expect(item.Body.size() == 3U && item.Body[0].Kind == dressed_block_kind::quote && item.Body[1].Kind == dressed_block_kind::paragraph && item.Body[2].Kind == dressed_block_kind::code
+				   && item.Body[2].FirstLine == 18U && item.Body[2].Lines.size() == 2U && item.Body[2].Language == "cpp",
+			   "the quote, the reasons, and code numbered from the place");
+		expect(report.Sections[0].Outline == 1U && item.Outline == 2U && report.Sections[2].Items[0].Outline == 6U, "each heading's row in the menu");
+		expect(report.Tally.size() == 3U && report.Tally[0].Word == "not addressed" && report.Tally[0].Count == 1U && report.Tally[0].Tone == report_tone::open && report.Tally[2].Word == "addressed",
+			   "the tally by verdict, in order");
+		for (const auto& section : report.Sections) {
+			for (const auto& each : section.Items) {
+				for (const auto& block : each.Body) {
+					expect(block.Language != "bpr-claims" && block.Text.find("PRRT_1") == std::string::npos, "the claims block is not shown");
+				}
+			}
+		}
+		expect(dress_report(answer) == report, "deterministic");
+	}
+
+	/// A review: items headed with a Conventional Comments label, a
+	/// suggestion replacing the lines its item names, and rows.
+	void test_dressed_review_and_rows()
+	{
+		const auto  answer = std::string_view{ "# Review of #21\n\nOne thing must be fixed.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\nThe height is not clamped.\n\n"
+											   "```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n\n"
+											   "## Good\n\n### praise: The move keeps history\n\n`src/engine/renderer.cpp:1`\n\nBlame still reaches the originals.\n\n"
+											   "## Questions for the author\n\n- `src/engine/shaders/post/tonemap.frag:5` Is this pass a placeholder?\n\n"
+											   "## Your conversations\n\n- **Lines changed** `src/engine/renderer.cpp:12` Clamp the size.\n- **Unchanged** `src/ui/widgets/button.cpp:7` Name the magic number.\n" };
+		const auto  report = dress_report(answer);
+		const auto& issue  = report.Sections.at(0U).Items.at(0U);
+		expect(issue.Label == "issue (blocking)" && issue.Tone == report_tone::open && issue.Heading == "A zero height still asserts", "a Conventional Comments label leads its heading");
+		expect(issue.Body.size() == 3U && issue.Body[2].Kind == dressed_block_kind::suggestion && issue.Body[2].FirstLine == 12U && issue.Body[2].Replaced.size() == 2U
+				   && issue.Body[2].Replaced[1] == "Target.resize(extent{ width, aSize.Height });" && issue.Body[1].FirstLine == 12U,
+			   "a suggestion replaces the lines its item names, read from the code above it");
+		expect(report.Sections[1].Items[0].Label == "praise" && report.Sections[1].Items[0].Tone == report_tone::done, "praise is done");
+		const auto& rows = report.Sections.at(3U).Intro.at(0U).Rows;
+		expect(report.Sections[2].Intro.at(0U).Rows.at(0U).Place == "src/engine/shaders/post/tonemap.frag:5" && rows.size() == 2U && rows[0].Label == "Lines changed" && rows[0].Tone == report_tone::partial
+				   && rows[0].Place == "src/engine/renderer.cpp:12" && rows[0].Text == "Clamp the size." && rows[1].Tone == report_tone::neutral,
+			   "rows: the bold label, the place, the rest");
+		expect(report.Tally.size() == 2U && report.Tally[0].Word == "issue" && report.Tally[1].Word == "praise", "the tally by label");
+		const auto place = read_report_place("src/a.cpp:12-14");
+		expect(place && place->Path == "src/a.cpp" && place->First == 12U && place->Last == 14U && !read_report_place("src/a.cpp") && !read_report_place("a b:1"), "places");
+		expect(dress_report("Just an answer.\n\nNo headings.").Sections.empty(), "an answer without sections is not dressed");
+		const auto linked = dress_report("# R\n\nS.\n\n## Partly\n\n### One\n\n[`src/a.cpp:3`](src/a.cpp#L3)\n\nWhy.\n\n- [`src/b.cpp:4`](src/b.cpp#L4) A row.\n");
+		expect(linked.Sections.at(0U).Items.at(0U).Place == "src/a.cpp:3" && linked.Sections[0].Items[0].PlaceLink == "src/a.cpp#L3" && linked.Sections[0].Items[0].Body.at(1U).Rows.at(0U).PlaceLink == "src/b.cpp#L4"
+				   && linked.Sections[0].Items[0].Body[1].Rows[0].Text == "A row.",
+			   "a place the answer made a link keeps where it goes");
+	}
+
+	/// What changed: areas under Changed group rows, and the tally counts
+	/// them.
+	void test_dressed_areas()
+	{
+		const auto report = dress_report("# What changed since your review\n\nTwo commits.\n\n## Changed\n\n### Rendering\n\n- `src/engine/renderer.cpp:12` Clamped.\n- `src/engine/renderer.h:31` Commented.\n\n"
+										 "```cpp\nconst auto width = 1;\n```\n\n### Tests\n\n- `tests/engine/renderer_tests.cpp:6` Covered.\n\n## Merged main\n\n- Merged main (9 commits). None touched this pull request's files.\n");
+		expect(report.Tally.size() == 2U && report.Tally[0].Word == "rendering" && report.Tally[0].Count == 2U && report.Tally[1].Word == "tests", "areas tally their rows");
+		const auto& area = report.Sections.at(0U).Items.at(0U);
+		expect(area.Label.empty() && area.Place.empty() && area.Body.at(1U).FirstLine == 12U, "an area's code is numbered from its first row's place");
+		expect(report.Sections.at(1U).Intro.at(0U).Rows.at(0U).Place.empty(), "a row without a place");
+	}
+} // namespace
+
+auto main() -> int
+{
+	test_shape_outline_and_card();
+	test_merges_fold_and_areas_group();
+	test_dressed_was_addressed();
+	test_dressed_review_and_rows();
+	test_dressed_areas();
+	std::cout << "agent-report-tests:pass\n";
+	return EXIT_SUCCESS;
+}

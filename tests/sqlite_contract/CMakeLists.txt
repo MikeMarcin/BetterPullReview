@@ -137,6 +137,7 @@ target_link_libraries(
 target_compile_definitions(
     test_better_pull_review_sqlite_review_ledger_tests
     PRIVATE BPR_SQLITE_TESTING=1
+    "BPR_REVIEW_LEDGER_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/review-ledger\""
 )
 if(WIN32)
     # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
@@ -645,6 +646,7 @@ bpr_add_network_isolated_test(
 
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_private_review_storage private_review_storage_tests.cpp)
+target_compile_definitions(test_private_review_storage PRIVATE BPR_SQLITE_TESTING=1)
 target_link_libraries(test_private_review_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
 if(WIN32)
     target_link_libraries(test_private_review_storage PRIVATE advapi32 BetterPullReview::Platform)
@@ -772,6 +774,17 @@ bpr_enable_warnings(test_view_filter_memory_store)
 bpr_add_network_isolated_test(NAME sqlite_view_filter_memory_store WINDOWS_UNCONTAINED COMMAND test_view_filter_memory_store)
 set_tests_properties(sqlite_view_filter_memory_store PROPERTIES PASS_REGULAR_EXPRESSION "view-filter-memory-store:pass" TIMEOUT 120)
 
+# [[BPR-2171]].
+bpr_add_executable(test_discuss_preferences_store discuss_preferences_store_tests.cpp)
+target_link_libraries(test_discuss_preferences_store PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+bpr_enable_hardening(test_discuss_preferences_store)
+if(WIN32)
+    target_link_libraries(test_discuss_preferences_store PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_discuss_preferences_store)
+bpr_add_network_isolated_test(NAME sqlite_discuss_preferences_store WINDOWS_UNCONTAINED COMMAND test_discuss_preferences_store)
+set_tests_properties(sqlite_discuss_preferences_store PROPERTIES PASS_REGULAR_EXPRESSION "discuss-preferences-store:pass" TIMEOUT 120)
+
 # [[BPR-1850]]. Activity notifications' own store.
 bpr_add_executable(test_pull_request_activity_store pull_request_activity_store_tests.cpp)
 target_link_libraries(test_pull_request_activity_store PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
@@ -782,3 +795,17 @@ endif()
 bpr_enable_warnings(test_pull_request_activity_store)
 bpr_add_network_isolated_test(NAME sqlite_pull_request_activity_store WINDOWS_UNCONTAINED COMMAND test_pull_request_activity_store)
 set_tests_properties(sqlite_pull_request_activity_store PROPERTIES PASS_REGULAR_EXPRESSION "pull-request-activity-store:pass" TIMEOUT 120)
+
+# [[BPR-2016]], RFC-BPR-0107. Agents and prompts shared between two profiles
+# through the real stores.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_agent_configuration_storage agent_configuration_storage_tests.cpp)
+    target_link_libraries(test_agent_configuration_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::Application BetterPullReview::SQLite3)
+    bpr_enable_hardening(test_agent_configuration_storage)
+    if(WIN32)
+        target_link_libraries(test_agent_configuration_storage PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_agent_configuration_storage)
+    bpr_add_network_isolated_test(NAME sqlite_agent_configuration_storage WINDOWS_UNCONTAINED COMMAND test_agent_configuration_storage)
+    set_tests_properties(sqlite_agent_configuration_storage PROPERTIES PASS_REGULAR_EXPRESSION "agent-configuration-storage:pass" TIMEOUT 120)
+endif()

@@ -90,7 +90,10 @@ namespace bpr::app {
 		[[nodiscard]] auto connect(std::string aHostname, bool aGh, bool aInteractive) -> tour_cli_result<std::string>;
 		[[nodiscard]] auto open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh, std::string aRoot, bool aOffline) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto load(std::string_view aDraft, bool aMachine) -> tour_cli_result<tour_local_snapshot>;
-		[[nodiscard]] auto source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>;
+		/// `aFiles`, when given, receives the pull request's changed paths a
+		/// standalone read observed; a forwarded read leaves it empty (the
+		/// owner window supplies them to the commands it runs).
+		[[nodiscard]] auto source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh, std::vector<std::string>* aFiles = nullptr) -> tour_cli_result<tour_source_material>;
 		[[nodiscard]] auto mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>;
 		/// \brief Issues the draft's one live assist ticket. `aExtra` is source evidence this process read itself;
 		/// a running owner cannot yet read a provider for it, so a forwarded request must carry none.

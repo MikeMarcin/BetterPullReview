@@ -81,8 +81,10 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/diff_transition.hpp"
 #include "bpr/core/document_tabs.hpp"
+#include "bpr/core/draft_roster.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/explain_file.hpp"
 #include "bpr/core/filtered_comment.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/markdown_navigation.hpp"
@@ -90,6 +92,7 @@
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
+#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_publication_policy.hpp"
@@ -107,10 +110,10 @@
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/core/window_review_restoration.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -127,6 +130,7 @@
 #include "github_application/window_review_lanes.hpp"
 #include "github_application/workbench_composition.hpp"
 #include "github_host_profile.hpp"
+#include "local_draft_desktop.hpp"
 #include "pane_find_controller.hpp"
 #include "pr_search_controller.hpp"
 #include "private_review_workflow.hpp"
@@ -143,6 +147,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <deque>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -164,12 +169,14 @@
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/application/agent_chat_session_host.hpp"
 	#include "bpr/application/agent_comment_workshop_host.hpp"
+	#include "bpr/application/agent_configuration_exchange.hpp"
 	#include "bpr/application/agent_conversation.hpp"
 	#include "bpr/application/agent_conversation_host.hpp"
 	#include "bpr/application/agent_finding_card_host.hpp"
 	#include "bpr/application/agent_finding_host.hpp"
 	#include "bpr/application/agent_invocation_host.hpp"
 	#include "bpr/application/agent_program_resolution.hpp"
+	#include "bpr/application/agent_queue_host.hpp"
 	#include "bpr/application/agent_realignment.hpp"
 	#include "bpr/application/agent_run_diagnosis.hpp"
 	#include "bpr/application/agent_setup_host.hpp"
@@ -178,14 +185,21 @@
 	#include "bpr/application/claude_process_wrapper.hpp"
 	#include "bpr/application/clone_link_host.hpp"
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
+	#include "bpr/application/prompt_macro_host.hpp"
+	#include "bpr/application/prompt_turn_name_host.hpp"
 	#include "bpr/application/review_skill_host.hpp"
 	#include "bpr/application/tour_agent_context.hpp"
+	#include "bpr/application/tour_agent_drafting.hpp"
 	#include "bpr/core/agent_chat_scope.hpp"
 	#include "bpr/core/agent_finding.hpp"
+	#include "bpr/core/agent_grant.hpp"
 	#include "bpr/core/agent_setup.hpp"
+	#include "bpr/core/quick_ask.hpp"
 	#include "bpr/core/tour_agent_session.hpp"
+	#include "bpr/qt/agent_configuration_dialogs.hpp"
 	#include "bpr/qt/agent_launch_panel.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
+	#include "bpr/qt/ask_menu.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/side_chat_panel.hpp"
 #endif
@@ -527,8 +541,14 @@ namespace bpr::app {
 			-> std::expected<void, application::review_mutation_failure>;
 
 		std::unique_ptr<application::review_tour_host> TourHost;
+		/// RFC-BPR-0111's tour follow-up, private half: the owner whose empty
+		/// tour draft has been offered its local draft's tour.
+		std::optional<core::tour_owner> TourCarryAsked;
+		void                            carry_local_tour(const application::tour_presentation& aProjection);
 		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
-		std::unique_ptr<review_cycle_desktop>             CycleDesktop;
+		std::unique_ptr<review_cycle_desktop> CycleDesktop;
+		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
+		std::unique_ptr<local_draft_desktop>              DraftDesktop;
 		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		std::unique_ptr<conversation_reply_workflow>      ConversationReply;
@@ -550,14 +570,19 @@ namespace bpr::app {
 		std::optional<core::tour_code_destination>                       PendingTourSource;
 		/// [[BPR-1227]]. Source reads a forwarded `bpr tour` command has on the diff lane. Counted and
 		/// atomic because the worker ends its read; shutdown stops them and waits for none.
-		std::atomic_size_t                                       TourSourceReadsInFlight{ 0U };
-		std::stop_source                                         TourSourceStop;
-		auto                                                     selected_tour_source() const -> std::optional<core::tour_source_range>;
-		auto                                                     current_tour_attention() const -> core::tour_attention;
-		void                                                     observe_tour_visit();
-		void                                                     observe_tour_comparison();
-		void                                                     prepare_tour_repairs();
-		void                                                     read_next_tour_repair();
+		std::atomic_size_t TourSourceReadsInFlight{ 0U };
+		std::stop_source   TourSourceStop;
+		auto               selected_tour_source() const -> std::optional<core::tour_source_range>;
+		auto               current_tour_attention() const -> core::tour_attention;
+		void               observe_tour_visit();
+		void               observe_tour_comparison();
+		void               prepare_tour_repairs();
+		void               read_next_tour_repair();
+		/// RFC-BPR-0099 AC08. Reads both sides of one tour comparison between
+		/// two commits as pinned sources, each granted on the decision lane
+		/// just before its read, and answers there. A sparse review has no
+		/// grant to fetch a blob for a comparison between two heads.
+		void                                                     read_tour_comparison(application::workbench_selected_diff_request aComparison, std::function<void(std::optional<application::tour_source_comparison>)> aDone);
 		std::shared_ptr<const core::review_tour>                 TourRepairDraft;
 		std::deque<application::workbench_selected_diff_request> TourRepairRequests;
 		void                                                     dispatch_tour_repair(core::tour_stop_id, qt::tour_repair_action);
@@ -565,6 +590,21 @@ namespace bpr::app {
 		std::vector<application::tour_source_comparison>         TourRepairComparisons;
 		std::vector<core::tour_anchor_file>                      TourRepairFiles;
 		std::optional<core::tour_command>                        TourRepairCommand;
+		/// [[BPR-2014]]. Compares the code each stop was accepted on with the
+		/// pull request's current head, one file at a time, so a push turns
+		/// yellow only the stops whose material changed.
+		void                                                     check_tour_material();
+		void                                                     read_next_tour_material();
+		std::deque<application::workbench_selected_diff_request> TourMaterialRequests;
+		/// Critical review finding 7, re-review finding 3: which comparisons are
+		/// asked now, and a bounded retry of one that failed or was dropped.
+		application::tour_material_ledger TourMaterial;
+		[[nodiscard]] static auto         tour_material_key_of(const application::workbench_selected_diff_request& aRequest) -> application::tour_material_key;
+		/// [[BPR-2014]]. The tour owner's pull request's changed paths, when
+		/// the window's accepted read is that pull request's.
+		[[nodiscard]] auto tour_changed_files() const -> std::vector<std::string>;
+		std::uint64_t      TourMaterialGeneration = 0U;
+		bool               TourMaterialReading    = false;
 
 		void finish_tour_navigation();
 		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource);
@@ -574,6 +614,9 @@ namespace bpr::app {
 		{
 			application::review_tour_host* Host    = nullptr;
 			bool                           Current = false, Composing = false;
+			/// [[BPR-2014]]. The changed paths of the pull request the
+			/// current window shows, for a forwarded walk's Ready.
+			std::vector<std::string> Files{ };
 		};
 		auto live_tour(std::string_view aSelector) -> live_tour_view;
 		auto read_tour_source(std::string_view aSelector, const core::tour_code_destination& aSource, std::function<void(application::tour_channel_bytes)>& aRespond) -> bool;
@@ -598,15 +641,13 @@ namespace bpr::app {
 			/// [[BPR-1900]]. Run in the workspace with read-only tools; its
 			/// answer is the agent's last message.
 			bool ReadOnly = false;
+			/// [[BPR-2051]]. Enhance on a draft comment or a note: the press
+			/// it answers. Its answer is a suggestion for that field, never
+			/// an edit, and its prompt is the one built when it was pressed.
+			std::optional<std::uint64_t> Enhance;
 		};
-		struct tour_outline_proposal
-		{
-			core::writing_target                  Target;
-			std::vector<core::tour_outline_entry> Entries;
-		};
-		std::optional<tour_outline_proposal> OutlineProposal;
-		core::scoped_writing_state           WritingState;
-		std::optional<writing_operation>     PendingWriting;
+		core::scoped_writing_state       WritingState;
+		std::optional<writing_operation> PendingWriting;
 		/// [[BPR-1916]]. The skills a prompt can name: the person's own and
 		/// the reviewed repository's at the pull request's base.
 		std::unique_ptr<application::skill_catalog_loader> SkillCatalog;
@@ -621,6 +662,9 @@ namespace bpr::app {
 		[[nodiscard]] auto skill_run_for(core::writing_hook aHook) const -> skill_run;
 		[[nodiscard]] auto agent_idle() const -> bool;
 		[[nodiscard]] auto tour_session_idle() const -> bool;
+		/// [[BPR-1996]]. The commit-pinned permalink of lines of a pull
+		/// request file at the tour's pinned head (or base), for snippets.
+		[[nodiscard]] auto tour_permalink(const std::string& aPath, std::uint32_t aFirst, std::uint32_t aLast, bool aBefore) const -> std::optional<std::string>;
 		void               refresh_tour_host_idle();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto locate_claude() const -> application::claude_locator;
@@ -646,6 +690,40 @@ namespace bpr::app {
 		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone);
 
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { });
+		/// [[BPR-2061]]. Set by `act_on_agent_card` just before it refuses
+		/// because the finding's file or line is not in the pull request at
+		/// the current head; Draft all reads it with that refusal.
+		bool CardRefusalGone = false;
+		/// [[BPR-2061]]. Draft all: one reply's suggested comments drafted
+		/// one after another through the card's own path, then reported as
+		/// one outcome; the drafts each batch made, for its one Undo.
+		struct draft_all_made
+		{
+			std::uint64_t         Session = 0U;
+			std::size_t           Ordinal = 0U;
+			core::review_draft_id Draft;
+			std::uint64_t         Revision = 0U;
+		};
+		struct draft_all_run
+		{
+			std::uint64_t                               Batch = 0U;
+			std::vector<qt::agent_finding_card_request> Queue;
+			std::size_t                                 Next = 0U;
+			core::draft_all_outcome                     Outcome;
+			std::vector<draft_all_made>                 Made;
+			qt::agent_draft_all_done                    Done;
+			/// Names the card being drafted, so a late answer for one the
+			/// watchdog gave up on is not counted twice.
+			std::uint64_t Serial = 0U;
+		};
+		std::optional<draft_all_run>                         DraftAllRun;
+		std::map<std::uint64_t, std::vector<draft_all_made>> DraftAllBatches;
+		std::uint64_t                                        DraftAllSerial = 0U;
+		void                                                 draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone);
+		void                                                 next_draft_all_card();
+		void                                                 settle_draft_all_card(std::uint64_t aSerial, core::draft_all_result aResult);
+		void                                                 undo_draft_all(std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone);
+		[[nodiscard]] auto                                   agent_finding_placeable(const core::agent_finding& aFinding) const -> bool;
 		/// Owner report 2026-11-10, after BPR-2052. The cards a stored
 		/// answer's findings block makes, each as the reviewer left it.
 		[[nodiscard]] auto restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>;
@@ -660,6 +738,32 @@ namespace bpr::app {
 
 		[[nodiscard]] auto current_conversation_agent() const -> std::uint32_t;
 
+		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The pull request now
+		/// open, keyed for `aAgent`'s grant; none without one.
+		[[nodiscard]] auto grant_key(std::uint32_t aAgent) const -> std::optional<application::agent_conversation_key>;
+		/// The grant `aEntry` gets in this pull request.
+		[[nodiscard]] auto agent_grant_for(const core::agent_entry& aEntry, bool aOwnCheckout) const -> core::agent_grant;
+		/// The footer picker's scratch item, turned on or off here.
+		void toggle_agent_scratch(std::uint64_t aProfile, bool aOn);
+		/// Owner look e97c6a3d. Allow build and run tests, turned on or off here.
+		void toggle_agent_builds(std::uint64_t aProfile, bool aOn);
+		/// Review finding 1. Why `aEntry` is given no grant at all, or none.
+		[[nodiscard]] auto agent_grant_refusal_for(const core::agent_entry& aEntry) const -> std::optional<core::agent_grant_refusal>;
+		/// Owner look e97c6a3d. Settings' scratch line, measured now; and
+		/// the startup cleanup of folders unused past the kept days.
+		void present_scratch_usage(const QString& aSaid = { });
+		void clear_agent_scratch(std::optional<std::int64_t> aBeforeSeconds, bool aSay);
+		/// Open scratch folder.
+		void open_agent_scratch(std::uint64_t aProfile);
+		/// Sets an Agent tab turn's grant; asks the build question first when
+		/// it is due. False: the reviewer closed the question, nothing is sent.
+		[[nodiscard]] auto grant_agent_turn(application::agent_invocation_request& aInvocation) -> bool;
+		/// A turn ended: its scratch folder, kept with the session, can be opened.
+		void note_agent_scratch(core::agent_profile_id aProfile, const application::agent_run_result& aResult);
+		/// Re-review N3, N4. The open pull request's kept folders, read from
+		/// the store and measured on disk.
+		void derive_agent_scratch();
+
 		void observe_conversation_agent();
 
 		void observe_conversation();
@@ -668,9 +772,151 @@ namespace bpr::app {
 
 		void ask_agent_about_thread(const std::string& aIdentity);
 
-		void ask_agent_about_note(const application::local_note_record& aNote);
+		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning
+		/// questions: what each offers now, the material they carry up front,
+		/// and the two presses. Defined in `window_returning_review.cpp`.
+		void refresh_returning_review();
+		void read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead);
+		void retry_returning_material();
+		void finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges);
+		void read_addressed_lines(const std::string& aIdentity, bool aThen);
+		void ask_what_changed();
+		void ask_was_addressed(const std::string& aIdentity);
+		/// RFC-BPR-0128 as amended (look ask-v005): a file's or the pull
+		/// request's Was this addressed? is one ask carrying every thread.
+		void                     ask_were_addressed(const std::vector<std::string>& aIdentities);
+		std::vector<std::string> AddressedMany;
+		/// The material a returning turn carries, or a refusal said on the
+		/// panel; true when the turn may go on.
+		[[nodiscard]] auto compose_returning(application::agent_context_observation& aObservation, core::agent_entry_point aEntryPoint) -> bool;
+		/// Sets a returning turn's launch: fresh, tool-free where the agent
+		/// has the mode, with its own prompt as the system prompt.
+		void launch_returning(application::agent_invocation_request& aInvocation, core::agent_profile_id aProfile);
 
-		[[nodiscard]] auto asked_note() const -> const application::local_note_record*;
+		/// RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]]). The Ask menus: their
+		/// facts from what the window holds, a press, Custom question….
+		/// `window_quick_ask.cpp`.
+		void               bind_quick_ask();
+		[[nodiscard]] auto quick_ask_facts(const qt::ask_menu_request& aRequest) const -> core::quick_ask_facts;
+		[[nodiscard]] auto quick_ask_menu(const qt::ask_menu_request& aRequest) const -> std::optional<core::quick_ask_menu>;
+		void               press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void               ask_custom_question(const qt::ask_menu_request& aRequest);
+		/// RFC-BPR-0128 ([[BPR-2167]]). What changed's commit listing.
+		[[nodiscard]] auto returning_commit_listing() -> std::string;
+		/// RFC-BPR-0128 ([[BPR-2165]]). A wider scope's runs, one after
+		/// another, and each Was this addressed? claim on its thread.
+		/// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a
+		/// plain click queues it"). The session's queue: a quick ask is
+		/// queued, released when the agent is set up and free, and its turn
+		/// shown in the Agent tab.
+		[[nodiscard]] auto ask_session_key() const -> std::string;
+		void               queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void               draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void               observe_ask_queue(bool aSettled);
+		[[nodiscard]] auto release_queued(const core::queued_entry& aEntry) -> bool;
+		/// RFC-BPR-0126 AC04 ([[BPR-2181]]): the profile's session queue host.
+		/// This window subscribes to its deltas and sends it commands, and
+		/// offers its agent runtime to the profile's runner; it never decides
+		/// when a message goes.
+		decltype(github_profile_runtime::AgentQueueStore)& AgentQueueStore = Profile->AgentQueueStore;
+		decltype(github_profile_runtime::AgentQueue)&      AgentQueue      = Profile->AgentQueue;
+		decltype(github_profile_runtime::AgentRunner)&     AgentRunner     = Profile->AgentRunner;
+		std::optional<std::uint64_t>                       AgentQueueSubscriber;
+		std::optional<std::uint64_t>                       AgentRuntime;
+		/// The Agent tab's turn has retired (the host's retirement event):
+		/// settles the message the runner started here, then lets the queue
+		/// go on.
+		void agent_runtime_retired();
+		void tour_runtime_retired();
+		/// A tour-feedback turn released here has answered.
+		bool TourQueueAnswered = false;
+		/// The revision of the session's queue this window last showed: an
+		/// edit made from it is refused once another window changed it.
+		std::uint64_t AgentQueueSeen = 0U;
+		/// The session whose queue this window shows.
+		std::string AgentQueueShown;
+		void        attach_agent_queue();
+		/// [[BPR-2181]] slice 2, RFC-BPR-0126 AC01. The profile's runtime of
+		/// this window's Agent-tab session: the window lends it the review it
+		/// accepted, presents its turns and releases a queued message with its
+		/// whole context while attached; it never runs the session's turns
+		/// itself. Closing the window detaches, and a running turn goes on.
+		void               attach_agent_runtime(const core::agent_revision_binding& aBinding);
+		void               detach_agent_runtime();
+		[[nodiscard]] auto agent_runtime() const -> application::review_agent_runtime*;
+		[[nodiscard]] auto agent_stack_seed() const -> review_agent_stack_seed;
+		/// \brief The turns the runtime ran while no window showed the session
+		/// join its conversation once it has loaded: one transcript, each turn
+		/// shown once.
+		void adopt_unshown_turns();
+		/// \brief Sends an Agent-tab turn through the session's runtime (its
+		/// one transport); with no runtime, on this window's own host.
+		[[nodiscard]] auto send_agent_turn(application::agent_invocation_request aRequest) -> bool;
+		/// \brief No Agent-tab turn of this window's session runs anywhere.
+		[[nodiscard]] auto agent_turn_quiescent() const -> bool;
+		/// \brief The live stack of the runtime this window presents, if any.
+		[[nodiscard]] auto               presented_agent_stack() const -> review_agent_stack*;
+		std::optional<std::uint64_t>     AgentPresenter;
+		std::string                      AgentPresenterSession;
+		std::vector<core::agent_profile> ComposedAgentProfiles;
+		void                             present_ask_queue(const core::agent_queue& aQueue);
+		[[nodiscard]] auto               ask_queue_agent() const -> core::queue_agent;
+		/// RFC-BPR-0126 AC03, Q1 ([[BPR-2151]]). Whole-tour feedback typed
+		/// while Draft the tour runs is the whole-tour conversation's first
+		/// queued message, released on the draft's real completion with the
+		/// Ask more seed.
+		[[nodiscard]] auto tour_queue_key() const -> std::string;
+		[[nodiscard]] auto tour_queue_agent() const -> core::queue_agent;
+		[[nodiscard]] auto release_tour_feedback(const core::queued_entry& aEntry) -> bool;
+		void               drain_tour_queue();
+		/// Feedback that cannot go (the draft did not propose a tour, or the
+		/// app closed first) lands in the tour chat as not sent, as written.
+		void return_tour_feedback(const std::string& aWhy);
+		void present_tour_feedback();
+		bool TourQueueSending = false;
+		/// This window's draft has feedback waiting in the tour's queue.
+		bool                                    TourFeedbackQueued = false;
+		void                                    record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
+		std::map<std::string, qt::thread_claim> ThreadClaims;
+		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
+		/// prompts reach the window.
+		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
+		/// \brief [[BPR-2179]]. The open pull request's `owner/name`, whose
+		/// layer the chips and menus read; empty with none open.
+		[[nodiscard]] auto prompt_repository() const -> std::string;
+		/// \brief [[BPR-2179]]. Presents the prompts again for the pull
+		/// request now open.
+		void refresh_prompt_repository();
+
+		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file: the press, its
+		/// material up front, its card's three actions. Defined in
+		/// `window_explain_file.cpp`.
+		void               bind_explain_file();
+		void               ask_explain_file(const std::string& aPath);
+		void               refuse_explain_file(const std::string& aPath, const QString& aWords);
+		[[nodiscard]] auto compose_explain(application::agent_context_observation& aObservation) -> bool;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: the press on the
+		/// drawer draft, its material, and the answer handed to the window,
+		/// whose core decides. `window_suggest_change.cpp`.
+		void               bind_suggest_change();
+		void               ask_suggest_change(const qt::workbench_window::suggest_change_press& aPress);
+		[[nodiscard]] auto compose_suggest_change(application::agent_context_observation& aObservation) -> bool;
+		void               keep_explanation(const std::string& aPath, const std::string& aAnswer);
+		void               continue_explanation(std::size_t aTurn);
+
+		void ask_agent_about_note(const application::local_comment_record& aNote);
+
+		[[nodiscard]] auto asked_note() const -> const application::local_comment_record*;
+		/// RFC-BPR-0127. My own unsent comment asked about, Local or Draft,
+		/// as it stands now: one recording path for both.
+		struct asked_own_comment
+		{
+			std::string                                              Body;
+			std::string                                              Path;
+			std::optional<std::pair<core::diff_side, std::uint32_t>> Line;
+		};
+		[[nodiscard]] auto own_comment_asked() const -> std::optional<asked_own_comment>;
+		void               ask_agent_about_draft(const core::review_comment_draft& aDraft);
 
 		[[nodiscard]] auto decide_answer_draft() -> qt::agent_answer_draft_target;
 
@@ -734,7 +980,10 @@ namespace bpr::app {
 		auto writing_sources(core::writing_hook aHook, const core::writing_request& aRequest) const -> std::vector<application::writing_source>;
 		void request_writing(core::writing_hook aHook, qt::prose_capture aCapture);
 #if defined(BPR_AGENT_INTEGRATIONS)
-		void               compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
+		void compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
+		/// \brief RFC-BPR-0110. A local draft's conversations: tool-free runs
+		/// whose only input is the request the draft's host composed.
+		void               compose_local_draft_agent(const std::vector<core::agent_profile>& aProfiles);
 		[[nodiscard]] auto tour_reading_notice() const -> QString;
 		[[nodiscard]] auto reads_read_only(const core::agent_profile_id aProfile) const -> bool;
 		[[nodiscard]] auto dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor,
@@ -746,7 +995,7 @@ namespace bpr::app {
 		/// Agent tab's live line says them: its workspace made, then the first
 		/// output, which is when it writes.
 		void               tour_run_started(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace);
-		void               tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity);
+		void               tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent);
 		void               present_tour_live(std::optional<qt::agent_run_status> aStatus);
 		[[nodiscard]] auto tour_answer_words(const application::agent_run_result& aResult) const -> std::string;
 		void               request_tour_draft();
@@ -757,11 +1006,12 @@ namespace bpr::app {
 		void               finish_tour_draft(const std::optional<core::tour_agent_run_id> aRun, const application::agent_run_result& aResult, const QString& aWords);
 		void               decide_tour_proposal(const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText);
 		void               relocate_tour_proposal(const std::size_t aIndex);
-		void               present_tour_session();
-		void               cancel_tour_run();
-		/// [[BPR-1930]]. Sends the feedback kept while Draft the tour ran, as
-		/// the tour chat's next turn, once the session is idle.
-		void send_waiting_tour_feedback(int aTries = 0);
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh run's
+		/// answer: its thread's chat opens, and its next turn starts its
+		/// session with the answer.
+		void ask_more_from(core::tour_agent_run_id aRun);
+		void present_tour_session();
+		void cancel_tour_run();
 		/// [[BPR-1930]]. Clears the remembered focus (its chip's ×).
 		void clear_tour_focus();
 		/// [[BPR-1930]] follow-up. Undo on a turn's "Focus set to" line.
@@ -772,14 +1022,22 @@ namespace bpr::app {
 		void undo_tour_reset();
 		void present_tour_reset();
 #endif
-		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>;
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string;
 		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
-		auto current_outline_target() const -> std::optional<core::writing_target>;
-		void insert_tour_outline();
 		void test_writing_hook(core::writing_hook aHook);
+		/// [[BPR-2051]]. Enhance on a draft comment, a reply or a note: the
+		/// writing operation a tour stop's Enhance uses, with that surface's
+		/// own prompt, answered as a suggestion.
+		void               request_enhancement(qt::enhance_request aRequest);
+		void               cancel_enhancement(std::uint64_t aRequest);
+		void               answer_enhancement(std::uint64_t aRequest, std::optional<std::string> aReplacement, const QString& aNotice);
+		[[nodiscard]] auto enhancement_context_key() const -> std::array<std::uint8_t, 32>;
 
 		void dispatch_tour_action(qt::tour_editor_action aAction);
+		/// RFC-BPR-0110 as amended: the Tour panel shows a local draft's tour.
+		[[nodiscard]] auto local_tour_shown() const -> bool;
+		/// The pull request's tour back in the panel once the draft is left.
+		void restore_tour_panel();
 
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff);
 
@@ -844,6 +1102,16 @@ namespace bpr::app {
 		void discard_review_comments(const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead);
 
 		void delete_pending_comment(const core::review_draft_id aDraft, const std::uint64_t aRevision);
+		/// [[BPR-2092]]. Every unsent draft, as the core places and stands it,
+		/// to Threads, Overview and Finish your review.
+		void               present_draft_roster();
+		[[nodiscard]] auto draft_roster() const -> core::draft_roster;
+		/// [[BPR-2092]]. Where the shown draft is written, for an edit to record.
+		[[nodiscard]] auto shown_draft_place(const std::string& aBody) const -> std::optional<core::review_draft_place>;
+		/// [[BPR-2094]]. Add the chosen drafts to the review, or take them out
+		/// of it, in one durable write.
+		void add_drafts_to_review(const std::vector<core::review_draft_id>& aDrafts);
+		void leave_drafts_out_of_review(const std::vector<core::review_draft_id>& aDrafts);
 
 		void leave_deleted_draft();
 
@@ -1026,13 +1294,22 @@ namespace bpr::app {
 
 		std::shared_ptr<private_review_workflow>       PrivateReview;
 		std::optional<application::private_run_intent> ExplicitPrivateRun;
-		core::agent_setting_facts                      PrivateRequested;
-		bool                                           PrivateDraftsReady           = false;
-		bool                                           PrivateDraftSelectionPending = false;
-		bool                                           PrivateDraftCommandPending   = false;
-		void                                           observe_private_review();
-		void                                           adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen);
-		[[nodiscard]] auto                             insights_capture(const application::accepted_pull_request_handoff& aHandoff) const -> application::insights_review_capture;
+		/// [[BPR-2002]]. The subject of the chat question being dispatched,
+		/// set only around that one dispatch.
+		std::optional<core::agent_question> ChatQuestion;
+		/// RFC-BPR-0125 (AC09). While a chat turn launches: what its skill
+		/// references are read from, when not its message.
+		std::optional<std::string> ChatSkillText;
+		/// [[BPR-2002]]. Composes a chat question's subject and where the
+		/// reviewer is looking into `aObservation`.
+		void                      compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion);
+		core::agent_setting_facts PrivateRequested;
+		bool                      PrivateDraftsReady           = false;
+		bool                      PrivateDraftSelectionPending = false;
+		bool                      PrivateDraftCommandPending   = false;
+		void                      observe_private_review();
+		void                      adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen);
+		[[nodiscard]] auto        insights_capture(const application::accepted_pull_request_handoff& aHandoff) const -> application::insights_review_capture;
 
 		/// The owner, 2026-11-11. The draft owner this window has read the
 		/// saved drafts into. Until it is the current one, the pending
@@ -1478,8 +1755,8 @@ namespace bpr::app {
 		[[nodiscard]] auto current_agent_draft_observation() const
 			-> std::optional<application::agent_draft_observation>;
 
-		std::uint64_t                               PrivateNoteScope = 0U;
-		std::vector<application::local_note_record> AcceptedPrivateNotes;
+		std::uint64_t                                  PrivateNoteScope = 0U;
+		std::vector<application::local_comment_record> AcceptedPrivateNotes;
 		/// [[BPR-1592]]. Draft comment on a note at its line, waiting for that
 		/// line's draft to be the selected one.
 		struct pending_note_promotion
@@ -1489,18 +1766,11 @@ namespace bpr::app {
 			std::function<void()> Refused;
 			std::function<void()> Done;
 		};
-		std::optional<pending_note_promotion>                     PendingNotePromotion;
-		std::optional<std::map<core::file_identity, std::string>> NotePaths;
-
-		[[nodiscard]] auto private_note_file_label(const application::local_note_record& aNote) -> std::string;
+		std::optional<pending_note_promotion> PendingNotePromotion;
 
 		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { });
 
-		void promote_line_note(const application::local_note_record& aNote, std::function<void()> aRefused);
-
 		void resume_note_promotion();
-
-		void dispatch_private_note(const qt::private_note_intent& aIntent);
 
 		void refresh_agent_private_context_choices();
 
@@ -1516,7 +1786,7 @@ namespace bpr::app {
 
 		[[nodiscard]] auto dispatch_agent_invocation(
 			const core::agent_profile_id                          aProfile,
-			const std::vector<application::local_note_id>&        aIncludedNotes,
+			const std::vector<application::local_comment_id>&     aIncludedNotes,
 			const std::optional<application::agent_draft_choice>& aIncludedDraft,
 			const bool                                            aExistingCheckoutChosen,
 			const std::string_view                                aChatMessage,
@@ -1601,9 +1871,6 @@ namespace bpr::app {
 		void present_finding_outcome(
 			const application::agent_finding_outcome& aOutcome);
 
-		[[nodiscard]] auto next_private_note_id() const
-			-> application::local_note_id;
-
 #else
 		/// [[BPR-1179]]. What an agent-free review keeps of the authority
 		/// refresh: private history follows the review. There is no agent host
@@ -1614,7 +1881,22 @@ namespace bpr::app {
 		}
 #endif
 		[[nodiscard]] auto current_note_attachment() const
-			-> std::optional<application::local_note_attachment>;
+			-> std::optional<application::local_comment_attachment>;
+		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comments in Comments, and
+		/// their moves (window_local_comments.cpp).
+		[[nodiscard]] auto shown_drafts() const -> std::vector<core::review_comment_draft>;
+		/// [[BPR-2183]]. The shown comparison's alignment, from the diff
+		/// host's accepted publication, not the comparison widget; null
+		/// until that comparison's publication has arrived.
+		[[nodiscard]] auto shown_alignment() const -> const core::file_alignment*;
+		[[nodiscard]] auto make_draft_input_of(const application::local_comment_record& aComment) const -> core::make_draft_input;
+		void               present_local_comments();
+		void               reload_local_comments();
+		void               dispatch_comment_state(const qt::comment_state_gesture& aGesture);
+#if defined(BPR_BUILD_TESTING)
+		[[nodiscard]] auto seed_local_replies_for_look(const std::string& aThread, core::source_line_ref aLine) -> bool;
+		[[nodiscard]] auto seed_local_comment(const std::string& aBody, bool aWholeFile) -> bool;
+#endif
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto anchored_durable_defect(
@@ -1628,7 +1910,7 @@ namespace bpr::app {
 		void present_chat_outcome(const application::agent_chat_outcome& aOutcome);
 
 		[[nodiscard]] auto all_private_note_ids() const
-			-> std::vector<application::local_note_id>;
+			-> std::vector<application::local_comment_id>;
 
 		[[nodiscard]] auto current_agent_draft_choice() const
 			-> std::optional<application::agent_draft_choice>;
@@ -1774,6 +2056,8 @@ namespace bpr::app {
 		// [[BPR-0515]]. Whether this run composes its device wire against the
 		// closed loopback port rather than the discovered system proxy.
 		decltype(github_profile_runtime::NetworkDenied)& NetworkDenied = Profile->NetworkDenied;
+		// The agent-run live course's publication to BPR-Test only.
+		decltype(github_profile_runtime::DesignatedLivePublication)& DesignatedLivePublication = Profile->DesignatedLivePublication;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		// RFC-BPR-0017 courses. The first forces the shipped selection
@@ -1858,6 +2142,9 @@ namespace bpr::app {
 		std::string                                                 PublishedHostname;
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
+		/// [[BPR-2183]]. The diff host's last accepted publication, what
+		/// `shown_alignment` reads.
+		std::shared_ptr<const core::computed_file_diff> AcceptedDiff;
 
 		decltype(github_profile_runtime::Profiles)&                 Profiles                 = Profile->Profiles;
 		decltype(github_profile_runtime::ProfileOptions)&           ProfileOptions           = Profile->ProfileOptions;
@@ -1925,14 +2212,21 @@ namespace bpr::app {
 		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
 		decltype(github_profile_runtime::SparseAgentSetupLook)&                   SparseAgentSetupLook                   = Profile->SparseAgentSetupLook;
+		decltype(github_profile_runtime::PromptExamplesLook)&                     PromptExamplesLook                     = Profile->PromptExamplesLook;
+		bool                                                                      PromptExamplesSeeded                   = false;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
 		decltype(github_profile_runtime::CodexSearch)&                            CodexSearch                            = Profile->CodexSearch;
 		const bool&                                                               AttendedAgentSearch                    = Profile->AttendedAgentSearch;
-		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
-		bool                                                                      ReviewLedgerRoundTripPassed            = false;
-		bool                                                                      FixtureReviewMutationHostComposed      = false;
+		const bool&                                                               FixtureAgentSession                    = Profile->FixtureAgentSession;
+		/// [[BPR-2177]]. Which agent programs a fixture build may start.
+		[[nodiscard]] auto fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>;
+		/// [[BPR-2177]], look ask-v002. The fixture agent's Check ran once.
+		bool FixtureSetupChecked               = false;
+		bool ReviewLedgerWasPresentOnEntry     = false;
+		bool ReviewLedgerRoundTripPassed       = false;
+		bool FixtureReviewMutationHostComposed = false;
 #endif
 		decltype(github_profile_runtime::OwnedVault)&       OwnedVault       = Profile->OwnedVault;
 		decltype(github_profile_runtime::TransportFactory)& TransportFactory = Profile->TransportFactory;
@@ -2002,7 +2296,64 @@ namespace bpr::app {
 			std::optional<std::vector<std::string>> Changed;
 		};
 		std::optional<changed_since_review_state> ChangedSinceReview;
-		std::optional<core::file_receipt>         ReviewLedgerReceipt;
+		/// RFC-BPR-0116. What the returning questions know now.
+		struct returning_review_state final
+		{
+			/// Earlier and current head, joined: which material this is.
+			std::string                               Key;
+			std::optional<core::returning_point>      Earlier;
+			std::string                               CurrentHead;
+			core::latest_upload_offer                 Offer;
+			std::optional<core::supplement_returning> Material;
+			bool                                      Reading  = false;
+			bool                                      Readable = false;
+			/// Asks made before the cache served the head; bounded.
+			std::uint32_t Retries = 0U;
+			/// [[BPR-2184]] (review N3). What each merge since the review
+			/// brought in, asked when What changed's material is read, for the
+			/// head it was asked at.
+			std::map<std::string, std::uint64_t> MergeCounts;
+			std::string                          MergeCountsHead;
+			/// Review threads Was this addressed? is offered on, by identity:
+			/// the commit of my last comment there, and its lines then once read.
+			struct thread_offer
+			{
+				std::string Commit;
+				std::string Path;
+				/// One-based lines my comment was on then, and the thread's
+				/// lines at the head (none for a thread the head lost).
+				std::uint32_t ThenFirst = 0U, ThenLast = 0U, NowFirst = 0U, NowLast = 0U;
+				/// The lines, once read, and which sides are asked or settled.
+				std::optional<core::returning_lines> Then;
+				std::optional<core::returning_lines> Now;
+				bool                                 ThenSettled = false, NowSettled = false;
+				bool                                 ThenAsking = false, NowAsking = false;
+			};
+			std::map<std::string, thread_offer> Threads;
+		};
+		returning_review_state ReturningReview;
+		/// RFC-BPR-0117. The file Explain this file was last pressed on, which
+		/// material it read, the material, and the agent that answered.
+		struct explain_file_state final
+		{
+			std::string                             Path;
+			std::string                             Key;
+			std::optional<core::supplement_explain> Material;
+			QString                                 Agent;
+			/// The turn the Agent tab was opened at, plus one; 0 for none.
+			std::size_t Shown = 0U;
+		};
+		explain_file_state ExplainFile;
+		/// RFC-BPR-0118. The material of the press under way, sent with it.
+		std::optional<core::supplement_suggest_change> SuggestChangeMaterial;
+#if defined(BPR_BUILD_TESTING)
+		/// Testing only: the head my last review is taken to be on.
+		std::string ReturningReviewHeadForTesting;
+#endif
+		/// [[BPR-2138]]. Ask more on a returning answer: the question and the
+		/// answer the next Agent tab turn opens with.
+		std::optional<std::pair<std::string, std::string>> AskMoreSeed;
+		std::optional<core::file_receipt>                  ReviewLedgerReceipt;
 		/// [[BPR-0647]]. The update rows the epoch host published, for the overview.
 		application::epoch_row_ledger                   EpochRows;
 		bool                                            ReviewLedgerAvailable = false;
@@ -2177,6 +2528,12 @@ namespace bpr::app {
 		/// [[BPR-1752]]. The review skill: store, then host.
 		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
 		std::unique_ptr<application::review_skill_host>       ReviewSkill;
+		/// [[BPR-2016]], RFC-BPR-0107. Import and export of agents and prompts.
+		std::unique_ptr<application::agent_configuration_store_port> AgentConfigurationStore;
+		std::unique_ptr<application::agent_configuration_host>       AgentConfiguration;
+		void                                                         export_agent_configuration();
+		void                                                         import_agent_configuration();
+		void                                                         apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog);
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
 		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
@@ -2185,6 +2542,19 @@ namespace bpr::app {
 		/// finding card of a stored answer: store, then host.
 		std::unique_ptr<application::agent_finding_card_store_port> AgentFindingCardStore;
 		std::unique_ptr<application::agent_finding_card_host>       AgentFindingCards;
+		/// RFC-BPR-0125 (AC07). The names suggested prompts' turns were sent
+		/// under: store, then host.
+		std::unique_ptr<application::prompt_turn_name_store_port> PromptTurnNameStore;
+		/// RFC-BPR-0125 milestone 3, RFC-BPR-0128. The profile's suggested
+		/// prompts and the set the Ask menus are decided from.
+		std::unique_ptr<application::prompt_macro_store_port> PromptMacroStore;
+		std::unique_ptr<application::prompt_macro_host>       PromptMacros;
+		core::prompt_macro_set                                PromptMacroSet = core::merge_prompt_macros(core::shipped_prompt_macros(), { });
+		std::unique_ptr<application::prompt_turn_name_host>   PromptTurnNames;
+		/// RFC-BPR-0125 (AC07). Each turn shown takes the name it was sent
+		/// under; a thread shown before the names were read takes them then.
+		[[nodiscard]] auto named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>;
+		void               present_remembered_turn_names();
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
@@ -2194,8 +2564,13 @@ namespace bpr::app {
 		{
 			std::string   Identity;
 			std::uint64_t PullRequest = 0U;
-			/// A private note, which is sent as a Private history copy.
-			std::optional<application::local_note_id> Note;
+			/// My Local comment, which is sent as a Private history copy.
+			std::optional<application::local_comment_id> Note;
+			/// RFC-BPR-0127. My draft, asked about and recorded as a Local
+			/// comment is; its file and one-based line when asked.
+			std::optional<core::review_draft_id>                     Draft;
+			std::string                                              DraftPath;
+			std::optional<std::pair<core::diff_side, std::uint32_t>> DraftLine;
 			/// A review thread the viewer may reply to.
 			bool Replies = false;
 		};
@@ -2248,8 +2623,14 @@ namespace bpr::app {
 		std::unique_ptr<application::located_agent_process>   TourLocatedProcess;
 		std::unique_ptr<application::agent_entry_process>     TourEntryProcess;
 		std::unique_ptr<application::diagnosed_agent_process> TourDiagnosedProcess;
-		std::unique_ptr<tour_session_projection>              TourProjection;
-		std::unique_ptr<application::agent_invocation_host>   TourSession;
+		/// RFC-BPR-0110. A local draft's tool-free runs: their own launcher,
+		/// the same Claude wrapper, program and added-agent ports.
+		std::unique_ptr<adapters::agent::agent_process_launcher> LocalDraftProcess;
+		std::unique_ptr<application::wrapped_claude_process>     LocalDraftClaudeProcess;
+		std::unique_ptr<application::located_agent_process>      LocalDraftLocatedProcess;
+		std::unique_ptr<application::agent_entry_process>        LocalDraftEntryProcess;
+		std::unique_ptr<tour_session_projection>                 TourProjection;
+		std::unique_ptr<application::agent_invocation_host>      TourSession;
 		/// [[BPR-2040]]. An editor-context observation, destroyed before its
 		/// host. It observes retirement; it never changes run or effect policy.
 		std::unique_ptr<QTimer>                   TourIdleObservation;
@@ -2303,7 +2684,41 @@ namespace bpr::app {
 		/// [[BPR-1941]]. What the run in flight is doing now, as its live
 		/// line in the tour chat says it.
 		std::optional<qt::agent_run_status> TourLive;
-		std::optional<core::tour_proposal>  TourProposal;
+		/// [[BPR-2051]]. Where the tour lane's run started, for the window's
+		/// footer, its clock, and what each place's runs have cost in this
+		/// pull request.
+		std::optional<qt::agent_footer_place>                                     TourFooterPlace;
+		QElapsedTimer                                                             TourFooterStarted;
+		std::array<std::optional<core::agent_cost>, qt::agent_footer_place_count> TourFooterCosts;
+		[[nodiscard]] auto                                                        tour_footer_place() const -> qt::agent_footer_place;
+		void                                                                      finish_tour_footer(const application::agent_run_result& aResult);
+		std::optional<core::tour_proposal>                                        TourProposal;
+		/// [[BPR-2138]]. Draft Tour's first draft runs fresh; its answer
+		/// seeds the whole-tour conversation's next turn (Ask more).
+		std::string TourDraftSeed;
+		/// [[BPR-2140]]. The next tour run's built-in instructions.
+		std::string TourRunInstructions;
+		/// [[BPR-2141]]. The next tour run is one tool-free call with the
+		/// pull request's diff in its request.
+		bool TourRunUpFront = false;
+		/// [[BPR-2138]]. Ask more, pressed on a fresh answer: the next turn
+		/// of that thread starts its session with the answer as context.
+		struct tour_ask_more
+		{
+			core::tour_thread Thread;
+			std::string       Seed;
+		};
+		std::optional<tour_ask_more> TourAskMore;
+		/// [[BPR-2141]]. The snapshot's files as a tour request names them,
+		/// with their patches.
+		[[nodiscard]] auto tour_request_files() const -> std::vector<application::tour_draft_file>;
+		/// [[BPR-2141]]. Where a fresh drafting run's notice says it reads.
+		[[nodiscard]] auto tour_context_notice(core::tour_context_route aRoute, std::size_t aDiffBytes) const -> QString;
+		/// [[BPR-2138]]. The tour ask being made is an Enhance: fresh.
+		bool TourAskFresh = false;
+		/// RFC-BPR-0125 (AC09). While a tour question is asked: what its skill
+		/// references are read from, when not its words.
+		std::optional<std::string> TourAskSkillText;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while
@@ -2482,7 +2897,27 @@ namespace bpr::app {
 			/// [[BPR-1879]]. GitHub's repository `size`, in bytes, when it said.
 			std::optional<std::uint64_t> ApproximateBytes;
 		};
-		std::optional<agent_review_facts>                   AgentReview;
+		std::optional<agent_review_facts> AgentReview;
+		/// [[BPR-2007]]; re-review N3, N4 (2026-11-11). Each agent's kept
+		/// scratch folder in each pull request this window knows, by pull
+		/// request and agent: from a turn's result, or from the store when a
+		/// pull request opens. Clear scratch folders keeps the open pull
+		/// request's.
+		std::map<application::agent_conversation_key, std::string> AgentScratchFolders;
+		/// Review finding 4. The folder was full when last measured (a
+		/// turn's end, or opening the pull request), by pull request and
+		/// agent; a folder the last turn could not make (re-review N3); the
+		/// turn granted last, which its result belongs to; the root folders
+		/// are made under (empty: none can be named here, so no scratch
+		/// folder is granted).
+		std::map<application::agent_conversation_key, bool> AgentScratchFull;
+		std::set<application::agent_conversation_key>       AgentScratchUnmade;
+		std::optional<application::agent_conversation_key>  AgentScratchTurn;
+		std::filesystem::path                               AgentScratchRoot;
+		bool                                                ScratchSwept = false;
+		/// [[BPR-2008]]. Asks the build question: true allows, false
+		/// declines, none closed it. A course answers it itself.
+		std::function<std::optional<bool>()>                AskBuildQuestion;
 		decltype(github_profile_runtime::ExistingCheckout)& ExistingCheckout      = Profile->ExistingCheckout;
 		bool                                                Closing               = false;
 		bool                                                OtherShutdownBegun    = false;

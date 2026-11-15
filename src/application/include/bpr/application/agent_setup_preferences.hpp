@@ -2,15 +2,33 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_PREFERENCES_HPP
 
 #include "bpr/core/agent_entry.hpp"
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace bpr::application {
+	/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). One
+	/// added agent's last check, kept across restarts for the Agents roster's
+	/// ring: passed (with the version it read) or failed (with why). A check
+	/// never run, or still running, is no record.
+	struct agent_entry_check_record
+	{
+		std::uint32_t     Id = 0U;
+		core::setup_check Check;
+
+		auto operator<=>(const agent_entry_check_record&) const = default;
+	};
+
+	/// \brief The longest version a kept check may say.
+	inline constexpr std::size_t maximum_agent_check_version_bytes = 128U;
+
 	/// \brief [[BPR-1749]], RFC-BPR-0092. What setup keeps for one
 	/// application profile. Identities and paths only: there is no field a
 	/// credential, token or environment value could occupy.
@@ -47,6 +65,18 @@ namespace bpr::application {
 		/// Owner look v004: the Agent tab's suggested prompts were hidden
 		/// with its Suggestions toggle; they show by default.
 		bool SuggestionsHidden = false;
+		/// RFC-BPR-0126 Q4/Q5 as answered (owner, 2026-11-13: "Default is a
+		/// setting, queue initially with a shortcut to the secondary
+		/// action"): a follow-up typed while a turn runs steers it; off, the
+		/// default, it is queued. Cmd+Return does the other for one message.
+		bool FollowUpSteer = false;
+		/// [[BPR-2051]]. Each added agent's last check, by entry id.
+		std::vector<agent_entry_check_record> EntryChecks;
+		/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d). The
+		/// scratch folder limit in MiB, and the days an unused folder is kept
+		/// (0: kept until cleared).
+		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
+		std::uint32_t ScratchKeepDays = core::default_agent_scratch_keep_days;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};
@@ -63,7 +93,20 @@ namespace bpr::application {
 			&& core::storable_claude_model(aPreferences.CodexModel)
 			&& (aPreferences.CodexEffort.empty() || core::valid_agent_effort(core::agent_program::codex, aPreferences.CodexEffort))
 			&& !core::inspect_agent_entries(aPreferences.Agents) && aPreferences.PreferredAgent <= core::maximum_agent_entry_id
-			&& aPreferences.RunLimitMinutes <= maximum_run_limit_minutes;
+			&& aPreferences.RunLimitMinutes <= maximum_run_limit_minutes && aPreferences.EntryChecks.size() <= core::maximum_agent_entry_id
+			&& aPreferences.ScratchLimitMiB >= core::minimum_agent_scratch_limit_mib && aPreferences.ScratchLimitMiB <= core::maximum_agent_scratch_limit_mib
+			&& aPreferences.ScratchKeepDays <= core::maximum_agent_scratch_keep_days
+			&& std::ranges::all_of(aPreferences.EntryChecks, [](const agent_entry_check_record& aRecord) {
+				   return aRecord.Id >= 1U && aRecord.Id <= core::maximum_agent_entry_id && (aRecord.Check.State == core::setup_check_state::passed || aRecord.Check.State == core::setup_check_state::failed)
+					   && aRecord.Check.Version.size() <= maximum_agent_check_version_bytes && (aRecord.Check.State == core::setup_check_state::failed) == aRecord.Check.Failure.has_value();
+			   });
+	}
+
+	/// \brief [[BPR-2051]]. An added agent's last kept check, or none.
+	[[nodiscard]] inline auto entry_check(const agent_setup_preferences& aPreferences, const std::uint32_t aId) -> const core::setup_check*
+	{
+		const auto found = std::ranges::find(aPreferences.EntryChecks, aId, &agent_entry_check_record::Id);
+		return found == aPreferences.EntryChecks.end() ? nullptr : &found->Check;
 	}
 
 	/// \brief Where a profile's setup preferences live.

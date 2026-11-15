@@ -230,8 +230,12 @@ namespace bpr::qt {
 		auto* const scopeLayout = new QHBoxLayout{ scopeBox };
 		scopeLayout->setContentsMargins(0, 0, 0, 0);
 		scopeLayout->setSpacing(0);
+		// [[BPR-2171]]. The owner, 2026-11-13: the "Pull request | File"
+		// choice becomes one toggle, Only this file. The whole pull request
+		// is the toggle off; its button stays, unseen, as the choice's other
+		// half.
 		auto* const wholePr = new discuss_tool{ scopeBox };
-		wholePr->set_shape(discuss_tool_shape::segment_first);
+		wholePr->set_shape(discuss_tool_shape::chip);
 		wholePr->setToolButtonStyle(Qt::ToolButtonTextOnly);
 		ScopeWholePr = wholePr;
 		ScopeWholePr->setObjectName(QStringLiteral("conversationScopeWholePullRequest"));
@@ -241,27 +245,28 @@ namespace bpr::qt {
 			"Lists every thread of the pull request in file order"));
 		ScopeWholePr->setToolTip(QStringLiteral("Every thread in the pull request, in file order"));
 		ScopeWholePr->setCheckable(true);
-		ScopeWholePr->setAutoExclusive(true);
-		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
+		ScopeWholePr->setFocusPolicy(Qt::NoFocus);
+		ScopeWholePr->hide();
 		auto* const thisFile = new discuss_tool{ scopeBox };
-		thisFile->set_shape(discuss_tool_shape::segment_last);
-		thisFile->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		thisFile->set_shape(discuss_tool_shape::chip);
+		thisFile->set_glyph(conversation_glyph::file);
+		// New words, so they are read, not guessed from a glyph.
+		thisFile->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		ScopeThisFile = thisFile;
 		ScopeThisFile->setObjectName(QStringLiteral("conversationScopeThisFile"));
-		ScopeThisFile->setText(QStringLiteral("File"));
-		ScopeThisFile->setAccessibleName(QStringLiteral("File scope"));
+		ScopeThisFile->setText(QStringLiteral("Only this file"));
+		ScopeThisFile->setAccessibleName(QStringLiteral("Only this file"));
 		ScopeThisFile->setAccessibleDescription(QStringLiteral(
-			"Use the selected thread's file"));
-		ScopeThisFile->setToolTip(QStringLiteral("One file's threads. Pull request comments and review summaries are not on a file, so they are left out."));
+			"List only the selected thread's file; off lists the whole pull request"));
+		ScopeThisFile->setToolTip(QStringLiteral("Only one file's threads. Pull request comments and review summaries are not on a file, so they are left out."));
 		ScopeThisFile->setCheckable(true);
 		ScopeThisFile->setChecked(true);
-		ScopeThisFile->setAutoExclusive(true);
 		ScopeThisFile->setFocusPolicy(Qt::StrongFocus);
 		DiscussFileChoice = new QComboBox{ scopeBox };
 		DiscussFileChoice->setObjectName(QStringLiteral("conversationFileScope"));
 		DiscussFileChoice->setAccessibleName(QStringLiteral("Thread file scope"));
 		DiscussFileChoice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		DiscussFileChoice->setMinimumContentsLength(22);
+		DiscussFileChoice->setMinimumContentsLength(14);
 		DiscussFileChoice->setMaximumWidth(360);
 		DiscussFileChoice->setToolTip(QStringLiteral("The file whose threads are listed"));
 		scopeLayout->addWidget(ScopeWholePr);
@@ -316,6 +321,23 @@ namespace bpr::qt {
 		FilterUnresolved->setFocusPolicy(Qt::StrongFocus);
 		ReadToolsRow->addWidget(FilterUnread);
 		ReadToolsRow->addWidget(FilterUnresolved);
+		// [[BPR-2171]]. The owner, 2026-11-13: "treating bot comments
+		// differently should be a quick filter at the top not always true".
+		// Beside Hide resolved, in Discuss, off until chosen.
+		auto* const bots = new discuss_tool{ DiscussFilterBox };
+		bots->set_shape(discuss_tool_shape::chip);
+		bots->set_glyph(conversation_glyph::bot);
+		bots->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		FilterBots = bots;
+		FilterBots->setObjectName(QStringLiteral("conversationFoldBots"));
+		FilterBots->setText(QStringLiteral("Fold bots"));
+		FilterBots->setAccessibleName(QStringLiteral("Fold bots"));
+		FilterBots->setAccessibleDescription(QStringLiteral("Fold each run of bot comments to one row"));
+		FilterBots->setToolTip(QStringLiteral("Fold each run of bot comments to one row. A bot is a GitHub App, or an author you marked as one in this repository."));
+		FilterBots->setCheckable(true);
+		FilterBots->setFocusPolicy(Qt::StrongFocus);
+		FilterBots->hide();
+		DiscussFiltersRow->addWidget(FilterBots);
 		connect(ClearFilters, &QToolButton::clicked, this, [this] {
 			// [[BPR-1808]]. Overview's Comments has no scope: Review's stays.
 			if (Conversation) {
@@ -325,6 +347,7 @@ namespace bpr::qt {
 			ScopeWholePr->setChecked(true);
 			FilterUnread->setChecked(false);
 			FilterUnresolved->setChecked(false);
+			FilterBots->setChecked(false);
 			clear_listing();
 			tell_filter_choice();
 		});
@@ -512,6 +535,7 @@ namespace bpr::qt {
 			apply_filters();
 			filtersChanged();
 		});
+		connect(FilterBots, &QToolButton::toggled, this, [this](bool) { apply_filters(); });
 		// [[BPR-1844]]. `clicked` is a press or a key, never a `setChecked`:
 		// only the reviewer's own change is told, and so remembered.
 		connect(FilterUnread, &QToolButton::clicked, this, [this] { tell_filter_choice(); });
@@ -519,6 +543,7 @@ namespace bpr::qt {
 		// The notes laid out anew may hold my draft where the snapshot has
 		// nothing: the page follows them once the pull request is adopted.
 		Cards->set_layout_observer([this] {
+			align_band();
 			if (Adopted) {
 				show_loaded_page();
 			} else {
@@ -526,15 +551,20 @@ namespace bpr::qt {
 			}
 		});
 		connect(ScopeThisFile, &QToolButton::toggled, this, [this, filtersChanged](const bool aChecked) {
-			// The file is chosen inside the scope, while File is on.
+			// The file is chosen beside the toggle, while it is on.
 			DiscussFileChoice->setVisible(aChecked);
 			if (aChecked) {
+				ScopeWholePr->setChecked(false);
 				Cards->set_scope(cards_scope::this_file);
 				filtersChanged();
+			} else {
+				// [[BPR-2171]]. Off is the whole pull request.
+				ScopeWholePr->setChecked(true);
 			}
 		});
 		connect(ScopeWholePr, &QToolButton::toggled, this, [this](const bool aChecked) {
 			if (aChecked) {
+				ScopeThisFile->setChecked(false);
 				Cards->set_scope(cards_scope::whole_pull_request);
 			}
 		});
@@ -578,7 +608,7 @@ namespace bpr::qt {
 		// The band's order is its reading order: scope, file, filters, the
 		// drill-down's ×, Clear, then the conversations. Moving the filters
 		// between the band and the tab row keeps it.
-		const auto order = std::array<QWidget*, 9>{ ScopeWholePr, ScopeThisFile, DiscussFileChoice, FilterUnread, FilterUnresolved, ClearListing, ClearFilters, ConversationEmptyClear, Cards };
+		const auto order = std::array<QWidget*, 10>{ ScopeWholePr, ScopeThisFile, DiscussFileChoice, FilterUnread, FilterUnresolved, FilterBots, ClearListing, ClearFilters, ConversationEmptyClear, Cards };
 		for (auto index = std::size_t{ 1U }; index < order.size(); ++index) {
 			setTabOrder(order[index - 1U], order[index]);
 		}
@@ -641,6 +671,7 @@ namespace bpr::qt {
 		filters.UnreadOnly     = FilterUnread->isChecked();
 		filters.UnresolvedOnly = FilterUnresolved->isChecked();
 		filters.Listed         = Listing;
+		filters.FoldBots       = Discuss && FilterBots != nullptr && FilterBots->isChecked();
 		Cards->set_filters(std::move(filters));
 	}
 
@@ -739,6 +770,35 @@ namespace bpr::qt {
 		DiscussFiltersChanged = std::move(changed);
 	}
 
+	auto github_conversation_panel::fold_bots_button() const noexcept -> QToolButton* { return FilterBots; }
+
+	auto github_conversation_panel::only_this_file_button() const noexcept -> QToolButton* { return ScopeThisFile; }
+
+	void github_conversation_panel::align_band()
+	{
+		// [[BPR-2171]]. In Discuss the band's chips and counts share the
+		// list's column edges; elsewhere the band keeps its own margins.
+		if (DiscussFlow == nullptr || Cards == nullptr) {
+			return;
+		}
+		auto left  = 12;
+		auto right = 16;
+		// Only a column narrower than the list moves them: a list not yet
+		// laid out says nothing about where its column will be.
+		const auto [probeLeft, probeWidth] = Cards->column();
+		if (Discuss && !Conversation && Cards->isVisible() && probeWidth + 16 < Cards->viewport()->width()) {
+			const auto columnLeft  = probeLeft;
+			const auto columnWidth = probeWidth;
+			const auto offset      = Cards->viewport()->mapTo(this, QPoint{ 0, 0 }).x();
+			left                   = std::max(12, offset + columnLeft);
+			right                  = std::max(16, width() - (offset + columnLeft + columnWidth));
+		}
+		const auto margins = DiscussFlow->contentsMargins();
+		if (margins.left() != left || margins.right() != right) {
+			DiscussFlow->setContentsMargins(left, 9, right, 9);
+		}
+	}
+
 	void github_conversation_panel::set_discuss_filters_changed(std::function<void()> aChanged)
 	{
 		DiscussFiltersChanged = std::move(aChanged);
@@ -779,12 +839,14 @@ namespace bpr::qt {
 		if (Discuss || Conversation) {
 			DiscussFiltersRow->addWidget(FilterUnread);
 			DiscussFiltersRow->addWidget(FilterUnresolved);
+			DiscussFiltersRow->addWidget(FilterBots);
 		} else {
 			ReadToolsRow->addWidget(FilterUnread);
 			ReadToolsRow->addWidget(FilterUnresolved);
 		}
 		FilterUnread->show();
 		FilterUnresolved->show();
+		FilterBots->setVisible(Discuss && !Conversation);
 	}
 
 	void github_conversation_panel::synchronize_current()
@@ -1357,6 +1419,7 @@ namespace bpr::qt {
 				(DiscussScope == cards_scope::whole_pull_request ? ScopeWholePr : ScopeThisFile)->setChecked(true);
 				FilterUnread->setChecked(DiscussFilters.UnreadOnly);
 				FilterUnresolved->setChecked(DiscussFilters.UnresolvedOnly);
+				FilterBots->setChecked(DiscussFilters.FoldBots);
 			}
 			Cards->set_feed(true);
 		} else {

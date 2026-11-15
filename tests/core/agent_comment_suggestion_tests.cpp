@@ -168,6 +168,21 @@ namespace {
 				   && stable_name(agent_comment_reading::labelled) == "labelled" && stable_name(agent_comment_reading::kept_as_written) == "kept_as_written",
 			   "stable names");
 	}
+
+	/// [[BPR-2061]]. The draft keeps the suggestion's Markdown: code spans, a
+	/// fenced block and its line breaks pass from reply to draft unchanged,
+	/// with or without a label in front.
+	void test_markdown_survives_into_the_draft()
+	{
+		const auto plain = std::string_view{ "Guard `cache_.at(key)` with a lookup first:\n\n```cpp\nif (auto found = cache_.find(key); found != cache_.end()) {\n\treturn found->second;\n}\n```\nThen the miss path stays cheap.\n" };
+		const auto read  = read_agent_comment_suggestion(plain);
+		expect(read.Reading == agent_comment_reading::unlabelled && read.Body == plain, "an unlabelled suggestion with code drafts byte for byte");
+		const auto labelled  = std::string{ "suggestion: Guard `cache_.at(key)` with a lookup.\n\n```cpp\nauto found = cache_.find(key);\n```\n" };
+		const auto withLabel = read_agent_comment_suggestion(labelled);
+		expect(withLabel.Reading == agent_comment_reading::labelled, "the label is read");
+		expect(withLabel.Body.find("`cache_.at(key)`") != std::string::npos, "the code span keeps its backticks");
+		expect(withLabel.Body.find("\n\n```cpp\nauto found = cache_.find(key);\n```\n") != std::string::npos, "the fence and its line breaks are kept");
+	}
 } // namespace
 
 auto main() -> int
@@ -178,6 +193,7 @@ auto main() -> int
 	test_missing_or_unknown_label();
 	test_headers_kept_as_written();
 	test_canonical_text_is_a_fixed_point();
+	test_markdown_survives_into_the_draft();
 	std::cout << "agent-comment-suggestion-tests:pass\n";
 	return EXIT_SUCCESS;
 }

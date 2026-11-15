@@ -267,6 +267,11 @@ namespace {
 		if (!focus.empty()) {
 			reply += " I'll keep the tour focused on " + focus + ".";
 		}
+		// RFC-BPR-0126 Q1: feedback queued while the draft ran goes with the
+		// draft's answer as the Ask more seed.
+		if (aInput.find("Earlier, in a separate run, the agent answered this") != std::string::npos) {
+			reply += " I started from the draft's own answer.";
+		}
 		answer_with(R"({"schema":"bpr.tour-revise.v1","reply":")" + escape(reply) + R"(","problem":"","solution":"","stops":[)" + stops + R"(],"stop_texts":[],"remove_stops":[)" + removed + R"(],"merge_stops":[)" + merges + R"(],"split_stops":[],"order":[],"focus":")" + escape(focus)
 					+ R"(","replace_waiting_stops":)" + (replace ? "true" : "false") + "}");
 		return 0;
@@ -276,7 +281,7 @@ namespace {
 	/// does (tool uses and their results), and answers. Run as the `claude` in
 	/// `attended-drafting-claude` it takes a few seconds, so a look sees it
 	/// running in the background.
-	auto draft_in_workspace(const std::string& aModel, const bool aSlow, const bool aFailing, std::string& aInput) -> std::optional<int>
+	auto draft_in_workspace(const std::string& aModel, const bool aSlow, const bool aFailing, std::string& aInput, const std::string& aInstructions) -> std::optional<int>
 	{
 		if (!environment_present("CLAUDE_CODE_DISABLE_AUTO_MEMORY")) {
 			return 7;
@@ -287,6 +292,7 @@ namespace {
 			return 6;
 		}
 		aInput.assign(std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ });
+		aInput            = aInstructions + aInput;
 		const auto& input = aInput;
 		if (input.size() > 400000 || input.find("note.count\\t0") == std::string::npos) {
 			return 4;
@@ -427,16 +433,25 @@ int main(int argc, char** argv)
 		std::cout << "2.1.314 (Claude Code)\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-2140]]. A built-in prompt's instructions ride inline in the
+	// system prompt, before `-p`; they are read as the start of the request.
+	std::string instructions;
+	if (const auto system = std::ranges::find(actual, std::string{ "--append-system-prompt" }); system != actual.end() && system + 1 != actual.end()) {
+		instructions = *(system + 1);
+		actual.erase(system, system + 2);
+	}
+	// [[BPR-2142]]. The restrictions, whose options take several values,
+	// come before `-p`; the model follows `--verbose`.
 	std::string model;
-	if (actual.size() > 7U && actual[6] == "--model") {
-		model = actual[7];
+	if (const auto named = std::ranges::find(actual, std::string{ "--model" }); named != actual.end() && named + 1 != actual.end()) {
+		model = *(named + 1);
 		expected.insert(expected.end(), { "--model", model });
 	}
 	// [[BPR-1900]]. A read-only tour drafting run: the review's workspace,
 	// read, search and read-only git, nothing that writes.
-	auto readOnly = expected;
-	readOnly.insert(readOnly.end(), read_only_restrictions().begin(), read_only_restrictions().end());
-	expected.insert(expected.end(), restrictions.begin(), restrictions.end());
+	auto readOnly = std::vector<std::string>{ read_only_restrictions().begin(), read_only_restrictions().end() };
+	readOnly.insert(readOnly.end(), expected.begin(), expected.end());
+	expected.insert(expected.begin(), restrictions.begin(), restrictions.end());
 	// The effort the reviewer chose rides after the model.
 	auto withoutEffort = actual;
 	if (const auto effort = std::ranges::find(withoutEffort, std::string{ "--effort" }); effort != withoutEffort.end() && effort + 1 != withoutEffort.end()) {
@@ -447,10 +462,10 @@ int main(int argc, char** argv)
 	if (readOnlyRun) {
 		const auto folder  = argc > 0 ? std::filesystem::path{ argv[0] }.parent_path().filename() : std::filesystem::path{ };
 		const auto failing = folder == "attended-drafting-failing-claude";
-		if (const auto ended = draft_in_workspace(model, folder == "attended-drafting-claude" || failing, failing, input)) {
+		if (const auto ended = draft_in_workspace(model, folder == "attended-drafting-claude" || failing, failing, input, instructions)) {
 			return *ended;
 		}
-	} else if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
+	} else if (withoutEffort != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
 		return 3;
 	}
 	// [[BPR-1896]]. A writing launch turns auto-memory off in the
@@ -467,6 +482,7 @@ int main(int argc, char** argv)
 	}
 	if (!readOnlyRun) {
 		input.assign(std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ });
+		input = instructions + input;
 	}
 	if (input.size() > 400000 || input.find("PRIVATE_UNUSED_CANARY") != std::string::npos || input.find("note.count\\t0") == std::string::npos || input.find("draft.count\\t0") == std::string::npos) {
 		return 4;
@@ -533,8 +549,124 @@ int main(int argc, char** argv)
 	if (input.find("For this outline operation") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"Generated decision","anchor_ref":"selected-source","related_refs":[],"reason":"PRIVATE_OUTLINE_REASON","author_question":"What should the reader check?"},{"title":"Unresolved intent","anchor_ref":"pr-description","related_refs":[],"reason":"Explain the stated purpose","author_question":"Where is the supporting code?"}]})";
 	}
+	// [[BPR-2051]]. Enhance on a whole draft comment or note answers as a
+	// person would want it; an override naming TEAM_PROMPT_CANARY says it was
+	// the one sent.
+	if (input.find(R"(\"scope\":\"field\")") != std::string::npos || input.find(R"("scope":"field")") != std::string::npos) {
+		if (input.find("TEAM_PROMPT_CANARY") != std::string::npos) {
+			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Team voice applied.","notes":[]})";
+		} else if (input.find("# Enhance writing") != std::string::npos && input.find("A draft comment or reply") != std::string::npos) {
+			// One Enhance writing prompt; the `writing-kind` source says which.
+			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Nit: the loop does the same work twice. Could it run once?","notes":[]})";
+		} else if (input.find("# Enhance writing") != std::string::npos && (input.find("A local comment the reviewer keeps") != std::string::npos || input.find("A private note the reviewer keeps") != std::string::npos)) {
+			result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Check cache invalidation: the delete path may be missing.\nAsk about tests.","notes":[]})";
+		}
+	}
+	// [[BPR-2141]]. A fresh Draft Tour is one tool-free call with the pull
+	// request's diff in its request: it answers with a tour from the files
+	// it was given (as `draft_in_workspace` does from the workspace), and in
+	// `attended-drafting-claude` takes a few seconds, so a look sees it run.
+	if (!readOnlyRun && input.find("bpr.tour-draft.v1") != std::string::npos) {
+		if (argc > 0 && std::filesystem::path{ argv[0] }.parent_path().filename() == "attended-drafting-claude") {
+			std::this_thread::sleep_for(std::chrono::seconds{ 3 });
+		}
+		const auto renderer = input.find("src/engine/renderer.cpp") != std::string::npos && input.find("src/engine/renderer.h") != std::string::npos && input.find("src/main.cpp") != std::string::npos;
+		result              = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.","stops":[)"
+			+ (renderer ? renderer_stops() : std::string{ }) + "]}";
+	}
 	if (!model.empty()) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Model )" + model + R"(.","notes":[]})";
+	}
+	// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning question's
+	// fresh first answer: one tool-free call with its material in the
+	// request and its own prompt as the system prompt. It answers in prose
+	// and says what it was given, so a course can read it back.
+	if (const auto at = input.find("returning.operation"); at != std::string::npos) {
+		const auto has  = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
+		const auto echo = "RETURNING_ECHO system=" + std::to_string(has("The reviewer reviewed this pull request before") + 2 * has("The reviewer commented in a review thread")) + " changes="
+			+ std::to_string(has("+++ b/src/engine/renderer.cpp")) + " then=" + std::to_string(has("returning.then.present\\t1")) + " now=" + std::to_string(has("returning.now.present\\t1"))
+			+ " conversation=" + std::to_string(has("conversation.comment.count")) + " commits=" + std::to_string(has("returning.commits"));
+		if (input.find("addressed_threads", at) != std::string::npos && input.find("addressed_threads", at) < at + 40U) {
+			// RFC-BPR-0128 as amended: one ask about several threads; a claim
+			// a thread, in the bpr-claims block, the first Partly and the rest
+			// Addressed.
+			result     = "Most of these are addressed.\n\n```bpr-claims\n";
+			auto first = true;
+			for (auto found = input.find(".identity\\t"); found != std::string::npos; found = input.find(".identity\\t", found + 1U)) {
+				const auto start = found + 11U;
+				const auto end   = input.find_first_of("\\\n\"", start);
+				result += input.substr(start, end - start) + (first ? ": Partly, no test yet\n" : ": Addressed\n");
+				first = false;
+			}
+			result += "```\n\n" + echo;
+		} else if (input.find("proposed_fix", at) != std::string::npos && input.find("proposed_fix", at) < at + 40U) {
+			result = "**Partly**\n\nThe resize is now clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n" + echo;
+		} else {
+			// RFC-BPR-0128 ([[BPR-2166]]). Sections: a report, read in a tab.
+			result = "# What changed since your review\n\nThe new commits change one file. `src/engine/renderer.cpp:12` now clamps the width and height to at least one pixel before resizing.\n\n## Rendering\n\nThe resize is clamped before the next frame.\n\n## Your conversations\n\nYour conversation at `src/engine/renderer.cpp:12` is touched by this change.\n\n" + echo;
+		}
+	}
+	// RFC-BPR-0117 ([[BPR-2076]]). Explain this file's fresh first answer:
+	// one tool-free call with the file's change and text in the request and
+	// its own prompt as the system prompt. It says what it was given.
+	if (input.find("explain.path") != std::string::npos) {
+		const auto has  = [&input](const std::string_view aText) { return input.find(aText) != std::string::npos ? 1 : 0; };
+		const auto echo = "EXPLAIN_ECHO system=" + std::to_string(has("The reviewer is reading one file of this pull request in Review")) + " change=" + std::to_string(has("+++ b/src/engine/renderer.cpp"))
+			+ " content=" + std::to_string(has("explain.content.state\\twhole")) + " subject=" + std::to_string(has("subject.path\\tsrc/engine/renderer.cpp")) + " edited=" + std::to_string(has("EXPLAIN_EDITED_CANARY"));
+		result = "`src/engine/renderer.cpp` moves the renderer into `src/engine/` and keeps its interface. The resize at `src/engine/renderer.cpp:12` is the one behavioural change.\n\nIt fits the rest of the pull request: `src/engine/renderer.h` declares what it defines.\n\nLook closely at `src/engine/renderer.cpp:12`.\n\n" + echo;
+	}
+	// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change's fresh first answer:
+	// the structured reply, built from the lines the request carried. The
+	// draft's words choose the reply: STUB_APPLY a change that applies,
+	// STUB_WRONG_BYTE a stated current text one byte off, STUB_PROSE a
+	// sentence and no reply.
+	if (input.find("suggest.lines") != std::string::npos) {
+		// One supplement field, decoded from the stream's JSON and then from
+		// the supplement's own escapes.
+		const auto field = [&input](const std::string& aName) -> std::string {
+			const auto key   = aName + "\\t";
+			const auto start = input.find(key);
+			if (start == std::string::npos) {
+				return { };
+			}
+			auto json = std::string{ };
+			for (auto at = start + key.size(); at < input.size(); ++at) {
+				if (input[at] == '\\' && at + 1U < input.size()) {
+					const auto next = input[at + 1U];
+					if (next == 'n') {
+						break;
+					}
+					json += next == 't' ? '\t' : next == 'r' ? '\r'
+															 : next;
+					++at;
+					continue;
+				}
+				json += input[at];
+			}
+			auto text = std::string{ };
+			for (std::size_t at = 0U; at < json.size(); ++at) {
+				if (json[at] == '\\' && at + 1U < json.size()) {
+					const auto next = json[++at];
+					text += next == 'n' ? '\n' : next == 'r' ? '\r'
+						: next == 't'                        ? '\t'
+															 : next;
+					continue;
+				}
+				text += json[at];
+			}
+			return text;
+		};
+		const auto first   = field("suggest.first_line");
+		const auto last    = field("suggest.last_line");
+		const auto current = field("suggest.lines");
+		const auto system  = input.find("write the change the comment asks for") != std::string::npos ? "1" : "0";
+		if (input.find("STUB_PROSE") != std::string::npos) {
+			result = "These lines need no change for that comment. SUGGEST_ECHO system=" + std::string{ system };
+		} else {
+			const auto stated = input.find("STUB_WRONG_BYTE") != std::string::npos ? current + " " : current;
+			const auto lead   = current.substr(0U, current.find_first_not_of(" \t"));
+			result            = "{\"first_line\": " + first + ", \"last_line\": " + last + ", \"current\": \"" + escape(stated) + "\", \"replacement\": \"" + escape(lead + "// SUGGEST_ECHO system=" + system + "\n" + current) + "\"}";
+		}
 	}
 	if (input.find("OVERSIZE_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";

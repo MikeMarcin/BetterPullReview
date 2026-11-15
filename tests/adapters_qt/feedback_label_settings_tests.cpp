@@ -505,8 +505,9 @@ namespace {
 		settle();
 		auto* const hooks = f.Window.writing_hooks();
 		auto* const scope = hooks->findChild<QLabel*>(QStringLiteral("writingHookScope"));
-		expect(f.Window.settings()->current_page() == qt::settings_page::agents_and_context && hooks->selected_hook() == core::writing_hook::feedback,
-			   "Guidance text opens Agents & context on the Review feedback hook");
+		// [[BPR-2179]]: the system prompts are in Settings › Prompts.
+		expect(f.Window.settings()->current_page() == qt::settings_page::prompts && hooks->selected_hook() == core::writing_hook::feedback,
+			   "Guidance text opens Prompts on the Review feedback hook");
 		expect(scope->isVisibleTo(hooks) && scope->text() == QStringLiteral("On. Sent with each comment workshop request: Comments › Comment workshop."),
 			   "whose line says it is sent and where that is decided");
 		// [[BPR-1959]]. The separately adopted Review skill page keeps its

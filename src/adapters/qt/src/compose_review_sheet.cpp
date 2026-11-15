@@ -6,9 +6,10 @@
 #include <QColor>
 #include <QFont>
 #include <QLabel>
-#include <QLinearGradient>
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPalette>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -26,7 +27,7 @@ namespace bpr::qt {
 		setAccessibleName(QStringLiteral("Finish your review"));
 		setAttribute(Qt::WA_StyledBackground, false);
 		auto* const column = new QVBoxLayout{ this };
-		column->setContentsMargins(shadow_width, 0, 0, 0);
+		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(0);
 		auto* const header = new QWidget{ this };
 		Header             = header;
@@ -93,15 +94,40 @@ namespace bpr::qt {
 
 	void compose_review_sheet::place(const QRect& aArea)
 	{
-		// Leave the surface beneath at least 320 pixels, so the code stays
-		// beside the sheet; never narrower than 360.
-		// Large text can need more than 540: the sheet grows to its content's
-		// minimum rather than scrolling sideways.
-		const auto needed    = Scroll->widget()->minimumSizeHint().width() + Scroll->verticalScrollBar()->sizeHint().width();
-		const auto preferred = std::max(preferred_width, needed);
-		const auto width     = std::clamp(aArea.width() - 320, std::min(360, preferred), preferred) + shadow_width;
-		setGeometry(QRect{ aArea.right() + 1 - std::min(width, aArea.width()), aArea.top(), std::min(width, aArea.width()), aArea.height() });
+		// [[BPR-2175]]. The whole area, dimmed; the panel centred in it, as
+		// wide as the area allows up to its widest, never narrower than the
+		// composer's own minimum, and as tall as its content.
+		setGeometry(aArea);
+		const auto needed = Scroll->widget()->minimumSizeHint().width() + Scroll->verticalScrollBar()->sizeHint().width();
+		const auto room   = std::max(0, aArea.width() - (2 * margin));
+		const auto width  = std::min(room, std::max({ std::min(room, lightbox_width), minimum_width, needed }));
+		// The body's height at the panel's width: rows that wrap are as tall
+		// as their words there.
+		auto* const body    = Scroll->widget();
+		const auto  inner   = std::max(0, width - 2);
+		const auto  tall    = body->hasHeightForWidth() ? std::max(body->heightForWidth(inner), body->minimumSizeHint().height()) : body->sizeHint().height();
+		const auto  content = Header->sizeHint().height() + tall + 12;
+		const auto  height  = std::clamp(content, std::min(240, aArea.height() - (2 * margin)), std::max(0, aArea.height() - (2 * margin)));
+		Panel               = QRect{ (aArea.width() - width) / 2, (aArea.height() - height) / 2, width, height };
+		// The scroll stops short of the panel's rounded foot.
+		layout()->setContentsMargins(Panel.left() + 1, Panel.top() + 1, aArea.width() - Panel.right(), aArea.height() - Panel.bottom() + 9);
 		raise();
+		update();
+	}
+
+	auto compose_review_sheet::panel() const noexcept -> QRect
+	{
+		return Panel;
+	}
+
+	void compose_review_sheet::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		// [[BPR-2175]]. A press on the dimmed window closes the lightbox,
+		// its words kept; it goes no further.
+		if (!Panel.contains(aEvent->position().toPoint()) && OnClose) {
+			OnClose();
+		}
+		aEvent->accept();
 	}
 
 	auto compose_review_sheet::scroll() const noexcept -> QScrollArea*
@@ -134,23 +160,33 @@ namespace bpr::qt {
 		static_cast<void>(aEvent);
 		auto        painter = QPainter{ this };
 		const auto& colours = palette();
-		// The shadow: the window's text colour fading to nothing over the
-		// surface, so it reads in Light, Dark and both high-contrast themes.
-		auto dark = colours.color(QPalette::Active, QPalette::WindowText);
-		dark.setAlpha(46);
-		auto clear = dark;
-		clear.setAlpha(0);
-		auto shade = QLinearGradient{ QPointF{ static_cast<qreal>(shadow_width), 0.0 }, QPointF{ 0.0, 0.0 } };
-		shade.setColorAt(0.0, dark);
-		shade.setColorAt(1.0, clear);
-		painter.fillRect(QRect{ 0, 0, shadow_width, height() }, shade);
-		painter.fillRect(QRect{ shadow_width, 0, width() - shadow_width, height() }, colours.color(QPalette::Active, QPalette::Base));
-		painter.setPen(colours.color(QPalette::Active, QPalette::Mid));
-		painter.drawLine(shadow_width, 0, shadow_width, height());
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		// The scrim: the window's text colour over everything outside the
+		// panel, so it dims in Light, Dark and both high-contrast themes.
+		const auto light = colours.color(QPalette::Active, QPalette::Window).lightness() > 128;
+		auto       scrim = light ? colours.color(QPalette::Active, QPalette::WindowText) : QColor{ Qt::black };
+		scrim.setAlpha(light ? 74 : 132);
+		auto outside = QPainterPath{ };
+		outside.addRect(QRectF{ rect() });
+		auto inside = QPainterPath{ };
+		inside.addRoundedRect(QRectF{ Panel }, 12.0, 12.0);
+		painter.fillPath(outside.subtracted(inside), scrim);
+		// A soft shadow under the panel, then the panel on Base.
+		for (auto ring = 1; ring <= 6; ++ring) {
+			auto shade = QColor{ Qt::black };
+			shade.setAlpha(std::max(0, 22 - (ring * 3)));
+			painter.setPen(QPen{ shade, 2.0 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(QRectF{ Panel }.adjusted(-ring, -ring + 2.0, ring, ring + 2.0), 12.0 + ring, 12.0 + ring);
+		}
+		painter.setPen(QPen{ colours.color(QPalette::Active, QPalette::Mid), 1.0 });
+		painter.setBrush(colours.color(QPalette::Active, QPalette::Base));
+		painter.drawRoundedRect(QRectF{ Panel }.adjusted(0.5, 0.5, -0.5, -0.5), 12.0, 12.0);
 		// The header's rule.
 		if (Header != nullptr) {
 			const auto y = Header->geometry().bottom() + 1;
-			painter.drawLine(shadow_width, y, width(), y);
+			painter.setRenderHint(QPainter::Antialiasing, false);
+			painter.drawLine(Panel.left() + 1, y, Panel.right() - 1, y);
 		}
 	}
 } // namespace bpr::qt

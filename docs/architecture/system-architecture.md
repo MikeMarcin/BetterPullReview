@@ -135,6 +135,20 @@ identity survives that activation; retained workspace ownership belongs to the e
 drains all windows before profile services. The first window has no special
 ownership of shared services or projection delivery.
 
+The profile runtime owns the session queue host (`application::agent_queue_host`,
+RFC-BPR-0126, [[BPR-2181]]): every agent session's queue, stored with the
+profile and restored paused. It alone decides when a session's next message
+goes, and starts it through the profile's turn runner
+(`agent_turn_runner_port`) only on the previous run's own retirement event
+(`agent_invocation_host::set_retired_observer`), never a timer. Windows
+subscribe to its semantic deltas and send it commands (add, edit-hold,
+reorder, remove, pause and resume, Steer, Stop all); none decides when a
+message goes, and closing one neither pauses nor hands a queue over. Until
+the agent runtime is composed per profile, each window offers its own agent
+invocation host to the runner. The installed Git cache keeps the agent
+workspaces its sessions made for the profile's lifetime, so a run whose cache
+session another window replaced still cleans up and retires.
+
 Explicit transcript replay uses the same scoped catalog with its own generation
 and durable source link. It never acquires the source's opaque native handle. Its explicit turns use the
 shared PR file/Git workspace, with no native tool-memory import. Only that selected generation's answered prose enters a bounded core
@@ -257,6 +271,40 @@ whenever they change, and a Resume or startup restoration hands them to the
 commit filter when the review is adopted. A restored hidden commit the pull
 request no longer has is shown as after a force push. Versions one to six
 migrate transactionally with no filters.
+
+RFC-BPR-0108 keeps local PR drafts in `state/v1/local-drafts.sqlite3`: one
+versioned record per draft (compact JSON from `core/local_draft.hpp`), the
+exact bytes each candidate keeps (content-addressed objects, pinned per
+draft), written in one transaction with the record that names them. A write
+names the version it read and a competing one is refused; the store's 1 GiB
+and 64-draft bounds refuse a new draft or candidate with the amounts and evict
+nothing. It is review data: Reset review data and Reset everything remove it
+with `local-draft-git-v1`, the isolation root of the local-draft Git reader.
+That reader is the publication catalog's isolated store run read-only
+(`merge-base --all`, `ls-tree`, `cat-file`) with the worktree's objects and
+its remote chain's as alternates; refs, configuration, the index and working
+files are read as data through the read-only workspace port, never by Git.
+RFC-BPR-0109's evidence record is deferred out of 0.5.0 (owner, 2026-11-12)
+and is not in the product. The store's version 1 migration rewrites any draft
+written while it could hold evidence without it and deletes objects that only
+its artifacts pinned; core reads such a record (and a publication plan whose
+digest covered evidence, after checking that digest) and drops the evidence.
+
+BPR-2171 keeps the profile's Discuss preferences in its own
+`state/v1/discuss.sqlite3`: the width of Discuss's centred column and, per
+repository (`host/owner/name`, folded), the authors marked as a bot or as not
+one. `core/discuss_preferences.hpp` decides who is a bot (a mark in that
+repository, otherwise GitHub's App login, held as `<name>[bot]`), drops a mark
+that says what GitHub says, and reads the stored form (a damaged mark is left
+out; a newer build's store reads as nothing and is never overwritten). The
+application's `discuss_preferences_host` holds them for every window and
+writes them on the workbench effect lane as the filter memory does; Reset
+settings removes the file. `core/conversation_timeline.hpp` names each file
+once over its threads (`file` rows) and folds a file's resolved threads into
+its row and runs of bot comments into one `bots` row, after the filters; a
+fold's key stays while its first member does. A closed note's preview is
+presentation: Qt reads the body through the open card's GitHub-dialect import
+and keeps the first paragraph's words and one word per kind of block.
 
 BPR-1844 remembers the Only new and Hide resolved filters of Discuss, Threads
 and Review's Comments for the profile, in its own
@@ -1180,7 +1228,7 @@ catalog and is not published into the replacement identity.
 - Conversation detail selects its stable root and hides unrelated roots before native item layout measures rows. The complete incremental model remains available for navigation and later selections.
 - Compact conversation cards reuse identical label/action geometry within one layout, keyed by complete display text and action flags. Each card keeps its own identity, source and unread state; width, font and policy changes receive a fresh layout cache.
 - Unified source text and line geometry are populated only while the one-pane presentation is active. Switching presentation captures the exact semantic reading anchor before rebuilding or clearing that content; two-pane publication leaves the hidden source document empty.
-- Custom diff widgets paint visible rows only and retain layout caches; comments remain in the conversation drawer. A conversation selection may reuse the semantic line transition and paint a narrow margin marker only after the application proves the selected comparison contains that exact endpoint revision. Source-line gestures reverse-filter the retained thread forest by exact file, side, and line; reply selection resolves through its root. An interactive non-line gesture clears the selected conversation with its marker rather than leaving a selected root that no longer owns the diff selection.
+- Custom diff widgets paint visible rows only and retain layout caches; comments remain in the conversation drawer. RFC-BPR-0127: a comment is Local, Draft or Published. The right drawer's tabs are Comments, Tour and Agent (no Notes tab); a Local comment is a `private_local_comment` row in the review ledger (schema 12; the notes migrated once), shown in Comments with the computer glyph and never admitted by any send path. `core::decide_make_draft` and the store's one-transaction move carry Keep local and Make draft (Save as Local with changed words included, BPR-2183); a new Local comment takes its identity from the store in the transaction that writes it, and the composition builds a Local comment's line anchor from the diff host's accepted publication, not the comparison widget; `core::decide_keep` gives each agent surface one keep action (a draft where a thread or line takes one, else a Local comment on the file or the pull request). Agent private context admits Local comments and drafts under two independent session opt-ins (`core::admit_private_context`); Ask agent on my own unsent comment records it in Private history by one path. A conversation selection may reuse the semantic line transition and paint a narrow margin marker only after the application proves the selected comparison contains that exact endpoint revision. Source-line gestures reverse-filter the retained thread forest by exact file, side, and line; reply selection resolves through its root. An interactive non-line gesture clears the selected conversation with its marker rather than leaving a selected root that no longer owns the diff selection.
 - Dialogs, notifications, native menus, focus, accessibility, themes, layout, and high-DPI behavior belong to the Qt adapter.
 - RFC-BPR-0087's `button_surface` draws the palette-derived chip/focus treatment shared by Overview's Open/All and the opted-in `quiet_tool_button` and `quiet_push_button` choices and secondary actions. Each keeps its Qt base class, so input, dialog defaults, accessibility and command projection are unchanged; a default, menu or icon-only button falls back to native painting, and primary, destructive and other specialized controls remain explicit variants. A chip's content geometry is its own: `chip_content_size` sizes it and `paint_button_label` draws in exactly that room, so a style's label margin cannot clip it ([[BPR-1855]]). The [migration inventory](../ux/shared-action-buttons.md) records every button surface as migrated or retained with its reason.
 - Reusable widgets do not invoke application persistence, global service registries, or unrelated windows.
@@ -1246,8 +1294,8 @@ filtered order; changed material reopens the receipt and returns the file to
 that order. A failed ledger open disables only private-progress actions and
 leaves GitHub, epoch, and diff authorities live.
 
-Each profile observes successful ledger-store mutations, including private notes
-written by agent finding delivery, and coalesces receipt, conversation and private
+Each profile observes successful ledger-store mutations, including Local
+comments written by agent finding delivery, and coalesces receipt, conversation and private
 record invalidations onto its decision lane. Matching sibling windows reload
 accepted private state under their current host/account/repository/PR authority
 and authentication generation. The signal carries no candidate text or reading
@@ -1520,7 +1568,7 @@ comparison, and algorithm identity. The algorithm revision is 2 since linked
 xdiff replaced the first-party matcher (BPR-1497); a key or result at another
 revision is refused and recomputed. The persisted comparison digest and file
 material leave the revision out and keep the bytes revision 1 wrote, because
-receipts, defects, drafts, private notes and threads, tours and window
+receipts, defects, drafts, Local comments and private threads, tours and window
 restoration store them beside line coordinates that do not depend on the
 alignment. Qt-local state includes measured line
 boundaries, the measured alignment axis, the retained subpixel comparison

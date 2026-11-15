@@ -191,7 +191,9 @@ int main(int aArgc, char** aArgv)
 	// [[BPR-1509]]. Both drawer headers use compact native tabs; switching
 	// pages retains the file/filter and the independent Search session.
 	auto* const fileSearch = window.findChild<QTabWidget*>(QStringLiteral("fileSearchTabs"));
-	expect(fileSearch && fileSearch->count() == 2, "Files and Search share the existing drawer");
+	// A local draft's Local Changes tab waits, hidden, beside them (RFC-BPR-0108 as amended).
+	expect(fileSearch && fileSearch->count() == 3 && fileSearch->isTabVisible(0) && fileSearch->isTabVisible(1) && !fileSearch->isTabVisible(2),
+		   "Files and Search share the existing drawer");
 	auto* const tabs            = fileSearch->tabBar();
 	const auto  retainedFile    = surface->current_context()->Key;
 	const auto  retainedSearch  = panel->projection().Matches;
@@ -199,7 +201,7 @@ int main(int aArgc, char** aArgv)
 	const auto  retainedSummary = panel->summary_text();
 	const auto  retainedWidth   = window.files_drawer()->width();
 	expect(tabs->tabRect(1).right() < fileSearch->width() - 20, "native tab labels leave room across the header");
-	expect(std::abs(tabs->mapTo(&window, QPoint{ }).y() - window.tray_tabs()->mapTo(&window, QPoint{ }).y()) <= 2, "Files/Search and Comments/Notes start at the same drawer header edge");
+	expect(std::abs(tabs->mapTo(&window, QPoint{ }).y() - window.tray_tabs()->mapTo(&window, QPoint{ }).y()) <= 2, "Files/Search and Comments/Tour/Agent start at the same drawer header edge");
 	click_tab(*tabs, 0);
 	expect(!panel->isVisible() && filter->isVisible() && filter->text() == QStringLiteral("other"), "mouse Files switch restores its retained filter");
 	render(window, QStringLiteral("drawer-tabs-files"));

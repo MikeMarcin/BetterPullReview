@@ -27,6 +27,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QLabel>
 #include <QPushButton>
@@ -75,7 +76,7 @@ namespace {
 		settle();
 		aWindow.choose_modality(qt::review_modality::review);
 		settle();
-		aWindow.tray_tabs()->setCurrentIndex(3);
+		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
 		profile.DisplayName = "Claude Code";
@@ -195,8 +196,8 @@ namespace {
 	{
 		auto counted = card_count{ };
 		for (auto* const card : aTab.turn_cards(aTurn)) {
-			const auto* const draft   = card->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
-			const auto        offered = draft != nullptr && !draft->isHidden();
+			const auto* const draft   = card->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
+			const auto        offered = draft != nullptr && draft->isVisibleTo(card) && draft->isEnabled();
 			switch (state_of(card)) {
 			case qt::agent_finding_card_state::open:
 				++counted.Open;
@@ -270,7 +271,7 @@ namespace {
 			settle();
 			expect(agent->turn_count() == 1U && agent->turn_cards(0U).size() == 4U, "the review's four findings are four cards under its answer");
 
-			agent->turn_cards(0U)[1]->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+			agent->turn_cards(0U)[1]->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 			settle();
 			expect(asked.size() == 1U && asked.back().Ordinal == 1U, "Add as draft comment asks the host for the second finding");
 			agent->present_finding_card_state(asked.back().Session, asked.back().Ordinal, qt::agent_finding_card_state::drafted);
@@ -301,7 +302,7 @@ namespace {
 
 			// A restored open card drafts its own finding.
 			asked.clear();
-			agent->turn_cards(0U)[2]->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+			agent->turn_cards(0U)[2]->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 			settle();
 			expect(asked.size() == 1U && asked.back().Ordinal == 2U && core::is_restored_finding_session(asked.back().Session), "a restored card asks for its own place, under its restored delivery");
 			const auto& finding = asked.back().Finding;

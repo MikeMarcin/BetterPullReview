@@ -989,3 +989,23 @@ function(bpr_add_designated_live_mutation_test)
             "GITHUB_ENTERPRISE_TOKEN=unset:"
     )
 endfunction()
+
+# RFC-BPR-0104. An opt-in live course that starts the installed Codex and
+# Claude Code (dead model providers only). It cannot run under the network
+# runner, so it is registered here, by the one owner of raw registrations,
+# and only when the configuration asks for live agent courses.
+function(bpr_add_live_agent_course)
+    cmake_parse_arguments(PARSE_ARGV 0 bpr_live "" "NAME;PASS;TIMEOUT" "COMMAND")
+    if(bpr_live_UNPARSED_ARGUMENTS OR NOT bpr_live_NAME OR NOT bpr_live_COMMAND OR NOT bpr_live_PASS)
+        message(FATAL_ERROR "bpr_add_live_agent_course requires NAME, COMMAND and PASS")
+    endif()
+    if(NOT BPR_LIVE_AGENT_COURSES)
+        return()
+    endif()
+    if(NOT bpr_live_TIMEOUT)
+        set(bpr_live_TIMEOUT 900)
+    endif()
+    add_test(NAME ${bpr_live_NAME} COMMAND ${bpr_live_COMMAND})
+    set_tests_properties(${bpr_live_NAME} PROPERTIES
+        LABELS live-agent TIMEOUT ${bpr_live_TIMEOUT} PASS_REGULAR_EXPRESSION "${bpr_live_PASS}")
+endfunction()

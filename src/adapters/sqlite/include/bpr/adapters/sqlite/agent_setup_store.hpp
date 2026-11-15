@@ -1,11 +1,15 @@
 #ifndef BPR_SQLITE_AGENT_SETUP_STORE_HPP
 #define BPR_SQLITE_AGENT_SETUP_STORE_HPP
 
+#include "bpr/application/agent_configuration_exchange.hpp"
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_finding_card_host.hpp"
+#include "bpr/application/agent_queue_host.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/native_agent_session.hpp"
+#include "bpr/application/prompt_macro_host.hpp"
+#include "bpr/application/prompt_turn_name_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
 
 #include <filesystem>
@@ -52,6 +56,28 @@ namespace bpr::adapters::sqlite {
 	/// going first. An open card has no row. Settings resets remove it with
 	/// the file.
 	[[nodiscard]] auto make_agent_finding_card_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_finding_card_store_port>;
+	/// \brief RFC-BPR-0125 (AC07). The same file's turn names: the name each
+	/// suggested prompt's turn was sent under, by its question, at most
+	/// `core::maximum_prompt_turn_names`, the least recently sent going first.
+	/// A row that does not read back valid is left out. Settings resets remove
+	/// it with the file.
+	[[nodiscard]] auto make_prompt_turn_name_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_turn_name_store_port>;
+	/// \brief RFC-BPR-0125 milestone 3 ([[BPR-2146]]) and RFC-BPR-0128. The
+	/// same file's suggested prompts: changes to built-ins, the reviewer's own,
+	/// each place's order and the set's revision. A write from an older
+	/// revision changes nothing; a row a newer build wrote is kept. Settings
+	/// resets remove it with the file.
+	/// \brief RFC-BPR-0126 ([[BPR-2151]]). The same file's queues, one a
+	/// session, each written whole.
+	[[nodiscard]] auto make_agent_queue_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_queue_store_port>;
+	[[nodiscard]] auto make_prompt_macro_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::prompt_macro_store_port>;
+	/// \brief [[BPR-2016]], RFC-BPR-0107. What an agent and prompt import
+	/// changes: this file's agent list, edited review skill and each writing
+	/// hook's written-against version, and the hooks in the profile's
+	/// workbench settings. An import writes both files all or nothing: the
+	/// hooks it replaces are journalled here first, and `recover` undoes a
+	/// write a crash left half done. Settings resets remove it with the file.
+	[[nodiscard]] auto make_agent_configuration_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_configuration_store_port>;
 	/// \brief Native ownership in the same private profile catalog, with no environment or credential fields.
 	[[nodiscard]] auto make_native_agent_session_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::native_agent_session_store_port>;
 } // namespace bpr::adapters::sqlite

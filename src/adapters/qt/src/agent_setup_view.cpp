@@ -174,11 +174,15 @@ namespace bpr::qt {
 		return { };
 	}
 
-	auto setup_agent_name(const application::agent_setup_preferences& aPreferences, const core::setup_agent aAgent) -> QString
+	auto setup_agent_name(const application::agent_setup_projection& aSetup, const core::setup_agent aAgent) -> QString
 	{
-		const auto found = std::ranges::find(aPreferences.Agents, aPreferences.PreferredAgent, &core::agent_entry::Id);
-		if (aPreferences.PreferredAgent != 0U && found != aPreferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
+		const auto& preferences = aSetup.Preferences;
+		const auto  found       = std::ranges::find(preferences.Agents, preferences.PreferredAgent, &core::agent_entry::Id);
+		if (preferences.PreferredAgent != 0U && found != preferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
 			return text_of(found->Name);
+		}
+		if (const auto named = aSetup.Names.find(aAgent); named != aSetup.Names.end()) {
+			return text_of(named->second);
 		}
 		return plain(aAgent);
 	}
@@ -189,6 +193,9 @@ namespace bpr::qt {
 			: aSetup.ChecksWrapper  ? QObject::tr("Claude process wrapper reports signed in")
 									: QObject::tr("%1 is signed in").arg(aAgent);
 	}
+
+	auto setup_passed_colour(const QPalette& aPalette) -> QColor { return aPalette.color(QPalette::Window).lightness() < 128 ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 }; }
+	auto setup_failed_colour(const QPalette& aPalette) -> QColor { return aPalette.color(QPalette::Window).lightness() < 128 ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E }; }
 
 	auto setup_check_mark(const core::setup_check_state aState, const QPalette& aPalette) -> std::pair<QString, QColor>
 	{
@@ -306,7 +313,7 @@ namespace bpr::qt {
 
 	auto agent_setup_view::agent_name() const -> QString { return Setup.State.Chosen ? name_for(*Setup.State.Chosen) : tr("The agent"); }
 
-	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString { return setup_agent_name(Setup.Preferences, aAgent); }
+	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString { return setup_agent_name(Setup, aAgent); }
 
 	void agent_setup_view::set_entry_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
 

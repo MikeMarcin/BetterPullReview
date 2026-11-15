@@ -1445,6 +1445,32 @@ namespace bpr::qt {
 		}
 	}
 
+	auto diff_workbench::clear_line_selection() -> bool
+	{
+		auto hadText = false;
+		for (auto* const pane : { Left, Right, Unified }) {
+			if (pane != nullptr && pane->textCursor().hasSelection()) {
+				auto cursor = pane->textCursor();
+				cursor.clearSelection();
+				pane->setTextCursor(cursor);
+				hadText = true;
+			}
+		}
+		if (!Interaction.Selection) {
+			return hadText;
+		}
+		if (SemanticIndex) {
+			static_cast<void>(core::transition(Interaction, *SemanticIndex, core::clear_diff_selection_intent{ }));
+		} else {
+			Interaction.Selection.reset();
+		}
+		clear_conversation_anchor();
+		++Statistics.SelectionChanges;
+		apply_interaction(false, true);
+		emit_selection(true);
+		return true;
+	}
+
 	void diff_workbench::clear_projection(QString aStatus)
 	{
 		end_head_edit();

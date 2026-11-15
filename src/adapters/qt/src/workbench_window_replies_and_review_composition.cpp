@@ -7,9 +7,9 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -197,6 +197,84 @@ namespace bpr::qt {
 		go_to_conversation(next);
 	}
 
+	void workbench_window::update_comment_steps()
+	{
+		if (PreviousCommentAction == nullptr || NextCommentAction == nullptr || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto any = !ConversationPanel->cards()->cards().empty() || !ConversationPanel->cards()->threads_in_file_order().empty();
+		PreviousCommentAction->setEnabled(any);
+		NextCommentAction->setEnabled(any);
+		const auto keyed = [](QAction* const aAction, const QString& aWords) {
+			const auto key = aAction->shortcut().toString(QKeySequence::NativeText);
+			aAction->setToolTip(key.isEmpty() ? aWords : QStringLiteral("%1 (%2)").arg(aWords, key));
+		};
+		keyed(PreviousCommentAction, any ? QStringLiteral("Previous comment") : QStringLiteral("Previous comment: no comments"));
+		keyed(NextCommentAction, any ? QStringLiteral("Next comment") : QStringLiteral("Next comment: no comments"));
+	}
+
+	void workbench_window::step_comment(const bool aForward)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		auto* const cards = ConversationPanel->cards();
+		// The comments of the file shown, as Comments orders them: published
+		// threads, my Local comments and drafts at their lines, then the rest.
+		auto shown = std::vector<const thread_card*>{ };
+		for (const auto& card : cards->cards()) {
+			if (!card.Writing) {
+				shown.push_back(&card);
+			}
+		}
+		const auto open = [this, cards](const thread_card& aCard) {
+			if (!aCard.Draft && !aCard.Local) {
+				go_to_conversation(aCard.Id);
+				return;
+			}
+			if (cards->open_thread_id() != aCard.Id) {
+				cards->open_thread(aCard.Id);
+			}
+			if (aCard.Side.has_value() && aCard.Line.has_value() && *aCard.Line > 0U && ComparisonSurface != nullptr) {
+				static_cast<void>(ComparisonSurface->reveal_conversation_line(*aCard.Side, *aCard.Line - 1U));
+			}
+		};
+		// From the comment open; with none open, the first or the last.
+		const auto& current = cards->open_thread_id();
+		const auto  at      = std::ranges::find_if(shown, [&current](const thread_card* aCard) { return aCard->Id == current; });
+		if (at != shown.end()) {
+			const auto index = static_cast<std::ptrdiff_t>(std::distance(shown.begin(), at)) + (aForward ? 1 : -1);
+			if (index >= 0 && index < static_cast<std::ptrdiff_t>(shown.size())) {
+				open(*shown[static_cast<std::size_t>(index)]);
+				return;
+			}
+		} else if (!shown.empty()) {
+			open(aForward ? *shown.front() : *shown.back());
+			return;
+		}
+		// Past this file's comments: the next file's first, or the previous
+		// file's last, wrapping at the pull request's ends.
+		const auto threads = cards->threads_in_file_order();
+		if (threads.empty()) {
+			statusBar()->showMessage(tr("No other comments in this pull request."), 4000);
+			return;
+		}
+		auto file = QString{ };
+		for (const auto* card : shown) {
+			if (!card->Path.isEmpty()) {
+				file = card->Path;
+				break;
+			}
+		}
+		if (aForward) {
+			const auto later = std::ranges::find_if(threads, [&file](const auto& aThread) { return aThread.second > file; });
+			go_to_conversation(later != threads.end() ? later->first : threads.front().first);
+		} else {
+			const auto earlier = std::ranges::find_if(threads.rbegin(), threads.rend(), [&file](const auto& aThread) { return aThread.second < file; });
+			go_to_conversation(earlier != threads.rend() ? earlier->first : threads.back().first);
+		}
+	}
+
 	void workbench_window::go_to_conversation(const std::string& aIdentity)
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
@@ -229,14 +307,14 @@ namespace bpr::qt {
 
 	void workbench_window::lend_conversation_tabs(const bool aToOverview)
 	{
-		// [[BPR-1781]]. One conversation panel, one notes panel and one agent
-		// page: Overview's drawer holds them while Overview shows, and Review's
-		// tray holds them otherwise. Moving the same objects, as Discuss
-		// borrows the conversation panel and the Agent tab borrows its panels,
-		// keeps every draft, open card, note and agent turn as it was; each
-		// mode keeps its own place.
+		// [[BPR-1781]]. One conversation panel and one agent page: Overview's
+		// drawer holds them while Overview shows, and Review's tray holds them
+		// otherwise. Moving the same objects, as Discuss borrows the
+		// conversation panel and the Agent tab borrows its panels, keeps every
+		// draft, open card, Local comment and agent turn as it was; each mode
+		// keeps its own place.
 		auto* const drawer = OverviewPage != nullptr ? OverviewPage->status_drawer() : nullptr;
-		if (drawer == nullptr || ConversationPanel == nullptr || PrivateNotes == nullptr || AgentBody == nullptr || ConversationTabsLent == aToOverview) {
+		if (drawer == nullptr || ConversationPanel == nullptr || AgentBody == nullptr || ConversationTabsLent == aToOverview) {
 			return;
 		}
 		ConversationTabsLent = aToOverview;
@@ -254,8 +332,6 @@ namespace bpr::qt {
 				ConversationPanel->set_pull_request_conversation(true);
 			}
 			ConversationPanel->set_new_comment_offered(ConversationPanel->parentWidget() != DiscussPage);
-			move(PrivateNotes, drawer->holder(overview_drawer_tab::notes));
-			PrivateNotes->set_pull_request_only(true);
 			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
 		} else {
 			if (ConversationPanel->parentWidget() == drawer->holder(overview_drawer_tab::comments)) {
@@ -263,8 +339,6 @@ namespace bpr::qt {
 				move(ConversationPanel, ConversationHome);
 			}
 			ConversationPanel->set_new_comment_offered(false);
-			PrivateNotes->set_pull_request_only(false);
-			move(PrivateNotes, NotesHome);
 			move(AgentBody, AgentHome);
 		}
 		// What the agent's prompts may name follows: the pull request on
@@ -316,8 +390,8 @@ namespace bpr::qt {
 		const auto  author = OverviewPage->projection().has_value() && std::ranges::any_of(OverviewPage->projection()->Status.Roles.Roles, [](const core::review_role& aRole) { return aRole.Kind == core::review_role_kind::author; });
 		const auto  tour   = core::decide_overview_tour(shown.Draft.get(), shown.Offered.get(), author);
 		auto* const drawer = OverviewPage->status_drawer();
-		if (drawer->tour_summary()->shown() != tour) {
-			drawer->tour_summary()->present(tour);
+		if (drawer->tour_summary()->shown() != tour || drawer->tour_summary()->head() != TourEditor->head()) {
+			drawer->tour_summary()->present(tour, TourEditor->head());
 		}
 		drawer->set_tour_tab_shown(tour.Kind != core::overview_tour_kind::hidden);
 	}
@@ -482,8 +556,18 @@ namespace bpr::qt {
 		if (ToggleStatusDrawerAction != nullptr) {
 			ToggleStatusDrawerAction->setEnabled(page == OverviewPage);
 		}
+		// [[BPR-2171]]. Another window may have marked a bot or changed the
+		// column: Discuss shows the profile's preferences as they are now.
+		if (page == DiscussPage && CentreStack->currentWidget() != DiscussPage) {
+			apply_discuss_preferences();
+		}
 		const auto enteringOverview = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
 		const auto enteringThreads  = page == ThreadsPage && CentreStack->currentWidget() != ThreadsPage;
+		// Author state's Edit view covers Review's comparison.
+		if (LocalDraftShown && LocalEditHolder != nullptr && LocalDraft != nullptr && LocalDraft->author() && ReviewViewPicker != nullptr
+			&& ReviewViewPicker->view() == review_view::edit && page == ComparisonPage) {
+			page = LocalEditHolder;
+		}
 		CentreStack->setCurrentWidget(page);
 		apply_drawer_layout();
 		update_review_readiness();
@@ -673,12 +757,36 @@ namespace bpr::qt {
 		ReviewSubmissionEditor->set_reveal_hint(true);
 	}
 
+	auto workbench_window::review_sheet_top() const -> int
+	{
+		// [[BPR-2175]]. Just below the title row (the strip with the mode
+		// tabs, where the window is dragged), so the review bar under it is
+		// dimmed and a press there closes the lightbox, while the title row
+		// stays live. Without the row, the content area's top.
+		auto* const titleRow = Modality != nullptr ? Modality->parentWidget() : nullptr;
+		if (titleRow != nullptr && titleRow->isVisible()) {
+			return titleRow->mapTo(this, QPoint{ 0, titleRow->height() }).y();
+		}
+		return centralWidget() != nullptr ? centralWidget()->geometry().top() : 0;
+	}
+
 	void workbench_window::place_review_sheet()
 	{
 		if (ReviewSheet == nullptr || CentralSplitter == nullptr) {
 			return;
 		}
-		ReviewSheet->place(CentralSplitter->geometry());
+		// [[BPR-2175]]. The lightbox covers the window below its title row
+		// (the strip with the mode tabs and the window's own controls), down
+		// to the status line; the composer takes two columns when the panel
+		// is wide enough for them (the owner's option D).
+		const auto top  = review_sheet_top();
+		const auto area = QRect{ 0, top, width(), std::max(0, height() - top) };
+		if (ReviewSubmissionEditor != nullptr) {
+			const auto room = std::min(area.width() - (2 * compose_review_sheet::margin), compose_review_sheet::lightbox_width);
+			ReviewSubmissionEditor->set_two_columns(room >= compose_review_sheet::two_column_width);
+			ReviewSheet->content_layout()->activate();
+		}
+		ReviewSheet->place(area);
 	}
 
 	void workbench_window::move_review_composer(const bool aToSheet)
@@ -700,6 +808,8 @@ namespace bpr::qt {
 		} else {
 			ReviewSheet->content_layout()->removeWidget(ReviewSubmissionEditor);
 			pageColumn->addWidget(ReviewSubmissionEditor, 1);
+			// The expanded page keeps today's one column.
+			ReviewSubmissionEditor->set_two_columns(false);
 		}
 		ReviewSubmissionEditor->show();
 		// The sheet's header names the review; the page shows the editor's own title.
@@ -971,6 +1081,12 @@ namespace bpr::qt {
 				[this] {
 					if (PaneSuggestion.has_value()) {
 						PaneSuggestion->Open = false;
+						// RFC-BPR-0118. Leaving the edit with the agent's change
+						// unkept drops it; the draft never held it.
+						if (std::exchange(PaneSuggestion->Proposed, false) && AgentSuggestion.has_value() && AgentSuggestion->Phase == agent_suggestion_phase::proposed) {
+							AgentSuggestion.reset();
+							statusBar()->showMessage(tr("The agent's change was not kept. Your comment is unchanged."), 6000);
+						}
 					}
 					// The drawer shows the kept change once the edit has gone.
 					QTimer::singleShot(0, this, [this] { present_inline_draft(); });
@@ -1133,6 +1249,20 @@ namespace bpr::qt {
 
 	void workbench_window::compose_pane_suggestion()
 	{
+		// RFC-BPR-0118. While the agent's change waits to be kept, the draft
+		// keeps the lines it had: the edit shows the change, the body does not.
+		if (PaneSuggestion.has_value() && PaneSuggestion->Proposed) {
+			const auto  first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+			const auto  held  = core::plan_pull_request_suggestion(core::pull_request_suggestion_input{
+				.First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Edited = PaneSuggestion->Kept, .Prose = PaneSuggestion->Prose.toStdString() });
+			const auto& draft = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt;
+			if (draft.has_value() && draft->Anchor == PaneSuggestion->Anchor && !ReviewEditor->body_editor()->isReadOnly()
+				&& ReviewEditor->body_editor()->toPlainText() != QString::fromStdString(held.Body)) {
+				ReviewEditor->body_editor()->setPlainText(QString::fromStdString(held.Body));
+			}
+			present_inline_draft();
+			return;
+		}
 		const auto plan = pane_suggestion_plan();
 		if (!plan.has_value() || ReviewEditor == nullptr || ReviewEditor->body_editor()->isReadOnly()) {
 			return;
@@ -1295,6 +1425,16 @@ namespace bpr::qt {
 		return AddCommentAction;
 	}
 
+	auto workbench_window::local_comment_action() const noexcept -> QAction*
+	{
+		return LocalCommentAction;
+	}
+
+	auto workbench_window::composing_local() const noexcept -> bool
+	{
+		return ComposeLocal;
+	}
+
 	auto workbench_window::suggest_change_action() const noexcept -> QAction*
 	{
 		return SuggestChangeAction;
@@ -1314,6 +1454,9 @@ namespace bpr::qt {
 		menu->setObjectName(QStringLiteral("codeContextMenu"));
 		menu->setToolTipsVisible(true);
 		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
+		if (LocalDraftShown && !selection.has_value()) {
+			return menu;
+		}
 		if (selection.has_value()) {
 			// [[BPR-1212]] slice 1. "Lines a–b" when the selection covers several.
 			const auto range = ComparisonSurface->line_draft_range();
@@ -1334,6 +1477,12 @@ namespace bpr::qt {
 			// [[BPR-1335]]. The line's thread, reachable without its marker.
 			const auto side = selection->PreferredLine.Side;
 			const auto line = selection->PreferredLine.Line;
+			// A local draft's code has no threads or comments; in Local
+			// Changes a change of the shown file is staged or unstaged here.
+			if (LocalDraftShown) {
+				add_local_change_items(*menu, side, line);
+				return menu;
+			}
 			if (thread_on_line(side, line).has_value()) {
 				auto* const open = menu->addAction(tr("Open thread"));
 				open->setObjectName(QStringLiteral("codeContextMenuOpenThread"));
@@ -1495,6 +1644,7 @@ namespace bpr::qt {
 		}
 		const auto side = WritingAnchor.has_value() ? WritingAnchor->Side : core::diff_side::right;
 		WritingAnchor.reset();
+		ComposeLocal = false;
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->end_draft();
 		}

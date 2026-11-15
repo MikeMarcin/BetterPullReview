@@ -58,7 +58,6 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pending_veil.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -131,7 +130,6 @@
 #include <QStyleOption>
 #include <QTabBar>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>

@@ -195,6 +195,11 @@ namespace bpr::application {
 		/// \brief The catalog bound to this account, or nothing when its wire
 		/// cannot carry publication (a `gh` CLI connection, for example).
 		[[nodiscard]] virtual auto acquire_publication_session() noexcept -> std::shared_ptr<github_publication_port> = 0;
+		/// \brief RFC-BPR-0111. The catalog for a pull request created from a
+		/// branch the author already pushed: the repository, branch and pull
+		/// request reads and the one creation. A `gh` connection carries it
+		/// and refuses every object or reference write.
+		[[nodiscard]] virtual auto acquire_pull_request_session() noexcept -> std::shared_ptr<github_publication_port> { return acquire_publication_session(); }
 	};
 
 	/// \brief The account native publication acts as: its catalog, its

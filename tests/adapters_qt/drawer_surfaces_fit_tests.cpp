@@ -5,7 +5,7 @@
 /// \details The milestone courses each proved their own surface's behaviour,
 /// mostly in Light and Dark at one size. This course is the closeout's sweep:
 /// the Overview's Status drawer at 260 and 560 pixels; the Comments drawer
-/// with the pull request's comments open from their edge chip, Notes, the
+/// with the pull request's comments open from their edge chip, its Local comment chips, the
 /// Tour route and the Agent tab at 280 and 760 pixels; and the Compose review
 /// sheet, its expanded page and the tour page in the narrowest window the
 /// workbench allows and a wide one. Each runs in Light, Dark and both
@@ -37,7 +37,6 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -50,6 +49,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStackedWidget>
 #include <QTabBar>
 #include <QToolButton>
 
@@ -225,7 +225,7 @@ namespace {
 		delete label;
 		auto* const bar = new QTabBar{ &surface };
 		bar->setUsesScrollButtons(true);
-		for (const auto* name : { "Comments", "Notes", "Tour", "Agent" }) {
+		for (const auto* name : { "Comments", "Tour", "Agent", "Another tab" }) {
 			bar->addTab(QString::fromLatin1(name));
 		}
 		bar->setGeometry(10, 10, 80, 30);
@@ -368,20 +368,15 @@ namespace {
 		return { .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.example.test · synthetic-owner/synthetic-repository#17"), .Prepared = core::prepare_review_decision(draft, { }) };
 	}
 
-	[[nodiscard]] auto notes_projection() -> qt::private_notes_projection
+	/// \brief RFC-BPR-0127. My Local comments where Notes kept its notes:
+	/// one on the pull request, one on the whole file shown and one on
+	/// another file.
+	[[nodiscard]] auto local_comments() -> std::vector<qt::local_comment_card>
 	{
-		const auto file      = qt::private_note_target{ core::file_identity_of("src/engine/renderer.cpp"), core::file_comparison_digest{ } };
-		auto       elsewhere = qt::private_note_target{ core::file_identity_of("src/engine/renderer.h"), core::file_comparison_digest{ } };
 		return {
-			.Scope            = 7,
-			.Available        = true,
-			.CurrentFile      = file,
-			.CurrentFileLabel = "src/engine/renderer.cpp",
-			.Notes            = {
-				{ .Id = 3, .Revision = 1, .Attachment = std::nullopt, .Label = "Pull request", .Text = "Before approving: run the soak test with the retry budget at 1." },
-				{ .Id = 4, .Revision = 1, .Attachment = file, .Label = "src/engine/renderer.cpp", .Text = "The new clamp at 4.0 changes behaviour on 5K displays. Worth a test?" },
-				{ .Id = 5, .Revision = 1, .Attachment = elsewhere, .Label = "src/engine/renderer.h", .Text = "Should Renderer be non-copyable now?" },
-			},
+			{ .Id = 3, .Revision = 1, .Body = QStringLiteral("Before approving: run the soak test with the retry budget at 1."), .Place = qt::local_comment_place::pull_request },
+			{ .Id = 4, .Revision = 1, .Body = QStringLiteral("The new clamp at 4.0 changes behaviour on 5K displays. Worth a test?"), .Place = qt::local_comment_place::whole_file },
+			{ .Id = 5, .Revision = 1, .Body = QStringLiteral("Should Renderer be non-copyable now?"), .Place = qt::local_comment_place::other_file, .Path = QStringLiteral("src/engine/renderer.h"), .PathLine = 12U },
 		};
 	}
 
@@ -458,32 +453,81 @@ namespace {
 				save(window, QStringLiteral("comments-chip-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 				expect(!cards->pull_request_comments_shown(), "Review's Comments has no pull request mode" + at);
 
-				// Notes.
-				window.private_notes()->present(notes_projection());
-				window.tray_tabs()->setCurrentIndex(1);
+				// RFC-BPR-0127. Local comments, where Notes was: the chips for
+				// this whole file and other files beside the link.
+				window.present_local_comments(local_comments());
 				settle();
-				expect(window.private_notes()->isVisible(), "Notes shows" + at);
+				expect(cards->local_file_chip()->isVisible() && cards->local_elsewhere_chip()->isVisible(), "the Local comment chips show" + at);
+				require_whole(*drawer, "Comments with the Local comment chips" + at);
+				save(window, QStringLiteral("local-chips-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 				const auto principles = qt::drawer_principles{ };
-				require_whole(*drawer, "Notes" + at);
-				require_whole(*window.private_notes(), "the Notes panel" + at, &principles);
-				save(window, QStringLiteral("notes-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 
 				// The Tour route.
 				present_tour(window);
 				window.open_review_tour();
 				window.tour_editor()->show_stops();
 				settle();
-				expect(window.tray_tabs()->currentIndex() == 2 && window.tour_editor()->mode() == qt::tour_editor_mode::route, "the Tour tab shows the route" + at);
+				expect(window.tray_tabs()->currentIndex() == 1 && window.tour_editor()->mode() == qt::tour_editor_mode::route, "the Tour tab shows the route" + at);
 				require_whole(*drawer, "the Tour route" + at);
 				require_whole(*window.tour_editor(), "the Tour route's editor" + at, &principles);
 				save(window, QStringLiteral("tour-route-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 
 				// The Agent tab.
-				window.tray_tabs()->setCurrentIndex(3);
+				window.tray_tabs()->setCurrentIndex(2);
 				settle();
 				expect(window.agent_tab() != nullptr && window.agent_tab()->isVisible(), "the Agent tab shows" + at);
 				require_whole(*drawer, "the Agent tab" + at);
 				save(window, QStringLiteral("agent-%1-%2").arg(QString::fromLatin1(name)).arg(width));
+				// Look prompts-v002 (owner: "the drawer is back to having a
+				// horizontal panning/scrolling"): the pending list, with long
+				// messages, an edit in place and a long state, never makes the
+				// drawer wider than it is.
+				{
+					const auto words = QStringLiteral("Explain why the renderer clamps the resize before the next frame and whether the shaders under src/engine/shaders/post still compile");
+					auto       rows  = std::vector<qt::agent_tab_view::queue_row>{
+						{ .Id = 1U, .Label = words, .Sending = true },
+						{ .Id = 2U, .Label = words, .Text = words },
+						{ .Id = 3U, .Label = QStringLiteral("Explain this file") },
+					};
+					window.agent_tab()->present_queue_rows(rows, QStringLiteral("Paused: the queue waits for the agent's current answer and for you to resume it"), true);
+					settle();
+					// The window has no agent set up here, so the tab shows its
+					// setup; the conversation page, where the list lives, is put
+					// in front as a set-up agent's would be.
+					QStackedWidget* pages      = nullptr;
+					QWidget*        conversing = nullptr;
+					for (QWidget* w = window.agent_tab()->queue_list(); w != nullptr && w != window.agent_tab(); w = w->parentWidget()) {
+						if (auto* const stack = qobject_cast<QStackedWidget*>(w->parentWidget()); stack != nullptr) {
+							pages      = stack;
+							conversing = w;
+							break;
+						}
+					}
+					auto* const shown = pages != nullptr ? pages->currentWidget() : nullptr;
+					if (pages != nullptr) {
+						pages->setCurrentWidget(conversing);
+					}
+					settle();
+					expect(window.agent_tab()->queue_list()->isVisible(), "the pending list shows" + at);
+					require_whole(*drawer, "the Agent tab with its pending list" + at);
+					// Look prompts-v004: the card's controls are icons alone,
+					// each with a tooltip, so the message keeps the width.
+					for (const auto* const controlName : { "agentQueueEdit", "agentQueueSteer", "agentQueueRemove" }) {
+						auto* const control = window.agent_tab()->queue_list()->findChild<QAbstractButton*>(QString::fromLatin1(controlName));
+						expect(control != nullptr && control->text().isEmpty() && !control->toolTip().isEmpty() && control->width() <= 24, std::string{ controlName } + " is an icon with a tooltip" + at);
+					}
+					for (auto* const scroll : window.agent_tab()->findChildren<QScrollArea*>()) {
+						if (scroll->isVisible() && scroll->widget() != nullptr) {
+							expect(scroll->widget()->width() <= scroll->viewport()->width(), "the Agent tab never pans sideways" + at);
+						}
+					}
+					save(window, QStringLiteral("agent-queue-%1-%2").arg(QString::fromLatin1(name)).arg(width));
+					window.agent_tab()->present_queue_rows({ }, { }, false);
+					if (pages != nullptr && shown != nullptr) {
+						pages->setCurrentWidget(shown);
+					}
+					settle();
+				}
 				window.hide();
 			}
 		}
@@ -503,7 +547,7 @@ namespace {
 					qt::workbench_window window;
 					open_review(window, profile, 1'480, 400U);
 					window.conversation_panel()->adopt(pull_request_comments(), QString{ });
-					window.private_notes()->present(notes_projection());
+					window.present_local_comments(local_comments());
 					auto       projected = status_projection();
 					const auto author    = std::string_view{ tour } != "reader";
 					if (author) {
@@ -546,13 +590,12 @@ namespace {
 					expect(drawer->tour_tab_shown(), "the Tour tab shows for an author and for a published tour" + at);
 					const auto principles = qt::drawer_principles{ .NestedTabs = false };
 					const auto tabs       = std::string_view{ tour } == "draft"
-						? std::vector{ qt::overview_drawer_tab::comments, qt::overview_drawer_tab::notes, qt::overview_drawer_tab::tour, qt::overview_drawer_tab::agent }
+						? std::vector{ qt::overview_drawer_tab::comments, qt::overview_drawer_tab::tour, qt::overview_drawer_tab::agent }
 						: std::vector{ qt::overview_drawer_tab::tour };
 					for (const auto tab : tabs) {
 						drawer->show_tab(tab);
 						settle();
 						const auto which = tab == qt::overview_drawer_tab::comments ? QStringLiteral("comments")
-							: tab == qt::overview_drawer_tab::notes                 ? QStringLiteral("notes")
 							: tab == qt::overview_drawer_tab::tour                  ? QStringLiteral("tour-%1").arg(QString::fromLatin1(tour))
 																					: QStringLiteral("agent");
 						const auto where = "Overview's " + which.toStdString() + at;

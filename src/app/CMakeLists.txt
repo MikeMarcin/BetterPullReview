@@ -10,7 +10,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
 endif()
 
 if(BPR_BUILD_TOUR_CLI)
-    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp src/terminal_diagnostic_log.cpp)
+    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp src/terminal_diagnostic_log.cpp src/local_draft_handoff.cpp src/local_draft_cli.cpp)
     add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
     if(BUILD_TESTING)
         # [[BPR-1302]]. BPR_NATIVE_HTTPS_TESTING makes the GitHub adapter's
@@ -173,6 +173,7 @@ if(BPR_BUILD_QT)
             src/github_application/public_preview_wire_self_check.cpp
             src/github_application/public_preview_wire_transport.cpp
             src/github_application/queue_notifications.cpp
+            src/github_application/review_agent_stack.cpp
             src/github_application/review_mutation_selection.cpp
             src/github_application/session_settings.cpp
             src/github_application/skill_runs.cpp
@@ -187,9 +188,13 @@ if(BPR_BUILD_QT)
             src/github_application/window_construction.cpp
             src/github_application/window_defects.cpp
             src/github_application/window_device_authorization.cpp
+            src/github_application/window_explain_file.cpp
+            src/github_application/window_quick_ask.cpp
+            src/github_application/window_local_comments.cpp
             src/github_application/window_github_reads.cpp
             src/github_application/window_navigation.cpp
             src/github_application/window_read_state.cpp
+            src/github_application/window_returning_review.cpp
             src/github_application/window_review_drafts.cpp
             src/github_application/window_review_lanes.cpp
             src/github_application/window_review_ledger.cpp
@@ -197,6 +202,7 @@ if(BPR_BUILD_QT)
             src/github_application/window_shutdown.cpp
             src/github_application/window_sign_in.cpp
             src/github_application/window_skills.cpp
+            src/github_application/window_suggest_change.cpp
             src/github_application/window_tours.cpp
             src/github_application/window_workbench.cpp
             src/github_application/workbench_composition.cpp
@@ -216,6 +222,9 @@ if(BPR_BUILD_QT)
             src/tour_assist.cpp
             src/private_review_workflow.cpp
             src/review_cycle_desktop.cpp
+            src/local_draft_desktop.cpp
+            src/local_draft_search.cpp
+            src/local_draft_handoff.cpp
             src/profile_admission.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
@@ -353,6 +362,20 @@ if(BPR_BUILD_QT)
         target_link_libraries(better_pull_review_composition PRIVATE PkgConfig::BPR_XCB)
     endif()
     if(BUILD_TESTING)
+        # [[BPR-2177]] (owner, 2026-11-14). The fixture agent a tests-on build
+        # runs in place of a real one: one program, copied as `claude` and as
+        # `codex` into the build's `fixture-agent` folder, which the
+        # composition names. Looks never spend the owner's agent usage.
+        add_executable(bpr_fixture_agent "${PROJECT_SOURCE_DIR}/tests/support/fixture_agent_main.cpp")
+        target_compile_features(bpr_fixture_agent PRIVATE cxx_std_23)
+        add_custom_command(TARGET bpr_fixture_agent POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/fixture-agent"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:bpr_fixture_agent>" "${CMAKE_BINARY_DIR}/fixture-agent/claude$<$<PLATFORM_ID:Windows>:.exe>"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:bpr_fixture_agent>" "${CMAKE_BINARY_DIR}/fixture-agent/codex$<$<PLATFORM_ID:Windows>:.exe>"
+            VERBATIM)
+        add_dependencies(better_pull_review_composition bpr_fixture_agent)
+        target_compile_definitions(better_pull_review_composition PRIVATE
+            "BPR_FIXTURE_AGENT_DIRECTORY=\"${CMAKE_BINARY_DIR}/fixture-agent\"")
         # [[BPR-1515]]. The ledger course delivers the Accept key where the
         # platform hands it to Qt, including the macOS shortcut offer.
         if(APPLE)
@@ -578,6 +601,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/public_preview_wire_transport.hpp
 		src/app/src/github_application/queue_notifications.cpp
 		src/app/src/github_application/queue_notifications.hpp
+		src/app/src/github_application/review_agent_stack.cpp
+		src/app/src/github_application/review_agent_stack.hpp
 		src/app/src/github_application/review_mutation_selection.cpp
 		src/app/src/github_application/review_mutation_selection.hpp
 		src/app/src/github_application/session_settings.cpp
@@ -599,10 +624,14 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_construction.cpp
 		src/app/src/github_application/window_defects.cpp
 		src/app/src/github_application/window_device_authorization.cpp
+		src/app/src/github_application/window_explain_file.cpp
+		src/app/src/github_application/window_quick_ask.cpp
+		src/app/src/github_application/window_local_comments.cpp
 		src/app/src/github_application/window_github_reads.cpp
 		src/app/src/github_application/window_navigation.cpp
 		src/app/src/github_application/window_probe_states.hpp
 		src/app/src/github_application/window_read_state.cpp
+		src/app/src/github_application/window_returning_review.cpp
 		src/app/src/github_application/window_review_drafts.cpp
 		src/app/src/github_application/window_review_lanes.cpp
 		src/app/src/github_application/window_review_lanes.hpp
@@ -611,6 +640,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_shutdown.cpp
 		src/app/src/github_application/window_sign_in.cpp
 		src/app/src/github_application/window_skills.cpp
+		src/app/src/github_application/window_suggest_change.cpp
 		src/app/src/github_application/window_tours.cpp
 		src/app/src/github_application/window_workbench.cpp
 		src/app/src/github_application/workbench_composition.cpp

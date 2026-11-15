@@ -2,8 +2,8 @@
 // collapses by its number or its header's empty space (stops, Problem and
 // Solution alike) without moving the tour; it edits as the overview's
 // description does (the title wrapped and whole, no mode label, Cancel and
-// Save at the foot); Use selected lines lives only in the editor; Ready, next
-// is never a permanently disabled primary button; no file chip sits on the
+// Save at the foot); Use selected lines lives only in the editor; Accept
+// (RFC-BPR-0106, once Ready, next) is never a permanently disabled primary button; no file chip sits on the
 // rail and the open card has no empty band at its top; and every stop can be
 // removed, from its menu and from its card's trash. Pass a path prefix to save
 // renders.
@@ -162,9 +162,10 @@ auto main(int argc, char** argv) -> int
 		expect(scroll.grab().save(prefix + QStringLiteral("card-read.png")), "render saved");
 	}
 
-	// AC3. Ready, next shows only when it can act.
-	auto* const complete = editor->findChild<QPushButton*>(QStringLiteral("tourComplete"));
-	expect(complete->isVisible() && complete->isEnabled() && complete->isDefault(), "a stop with confirmed lines, not yet Ready, offers Ready, next");
+	// AC3, as RFC-BPR-0106 ([[BPR-2014]]) amends it: Accept shows only while
+	// the stop is yellow, and never as a permanently disabled button.
+	auto* const complete = editor->accept_button();
+	expect(complete->isVisible() && complete->isEnabled() && complete->isDefault(), "a stop not accepted yet offers Accept");
 	{
 		auto unconfirmed = draft;
 		unconfirmed.Stops[1].Original.reset();
@@ -174,8 +175,8 @@ auto main(int argc, char** argv) -> int
 		show();
 		settle();
 		auto* const source = editor->findChild<QLabel*>(QStringLiteral("tourStopSource"));
-		expect(!complete->isVisible() && editor->findChild<QPushButton*>(QStringLiteral("tourReturn"))->isDefault(), "unconfirmed lines: no disabled Ready, next; Show in code leads");
-		expect(source->text().contains(QStringLiteral("Lines not confirmed")), "the location says the lines are not confirmed: " + source->text().toStdString());
+		expect(complete->isVisible() && complete->isEnabled() && editor->findChild<QPushButton*>(QStringLiteral("tourReturn")) == nullptr, "an agent's stop offers Accept, which confirms the lines it shows; no Show in code");
+		expect(!source->text().contains(QStringLiteral("Lines not confirmed")) && source->text().contains(QStringLiteral("<a ")), "the location is the link to its lines: " + source->text().toStdString());
 		std::swap(draft, unconfirmed);
 		show();
 		settle();
@@ -212,7 +213,7 @@ auto main(int argc, char** argv) -> int
 		auto* const retarget = editor->findChild<QAction*>(QStringLiteral("tourRetarget"));
 		expect(retarget != nullptr && retarget->isVisible(), "and the menus offer it while written");
 	}
-	expect(!complete->isVisible(), "and no Ready, next while written");
+	expect(!complete->isVisible(), "and no Accept while written");
 	if (!prefix.isEmpty()) {
 		expect(scroll.grab().save(prefix + QStringLiteral("card-edit.png")), "render saved");
 	}
@@ -300,12 +301,10 @@ auto main(int argc, char** argv) -> int
 	refusal = core::tour_refusal::none;
 	show();
 	settle();
-	auto* const trash    = editor->stop_remove_button();
-	auto* const fields   = editor->findChild<QWidget*>(QStringLiteral("tourStopFields"));
-	auto* const showCode = editor->findChild<QPushButton*>(QStringLiteral("tourReturn"));
+	auto* const trash  = editor->stop_remove_button();
+	auto* const fields = editor->findChild<QWidget*>(QStringLiteral("tourStopFields"));
 	// v002, owner: the trash takes no room from the title.
 	expect(trash != nullptr && !trash->isVisible(), "a read stop's card has no trash by its title");
-	const auto showRead = showCode->mapTo(fields, QPoint{ 0, 0 }).x();
 	editor->begin_stop_edit();
 	settle();
 	{
@@ -315,13 +314,14 @@ auto main(int argc, char** argv) -> int
 		auto* const saveButton   = editor->findChild<QPushButton*>(QStringLiteral("tourStopSave"));
 		const auto  trashAt      = trash->mapTo(fields, QPoint{ 0, 0 });
 		const auto  cancelAt     = cancelButton->mapTo(fields, QPoint{ 0, 0 });
-		const auto  showAt       = showCode->mapTo(fields, QPoint{ 0, 0 });
 		expect(trash->isVisible() && trash->accessibleName() == QStringLiteral("Remove stop") && trash->toolTip() == QStringLiteral("Remove stop (Shift-click to skip confirmation)"), "written, the trash is named Remove stop and its tooltip tells of Shift");
-		expect(showAt.x() == showRead, "Show in code keeps its place between read and written (" + std::to_string(showRead) + " to " + std::to_string(showAt.x()) + ")");
-		expect(std::abs((trashAt.y() + trash->height() / 2) - (cancelAt.y() + cancelButton->height() / 2)) <= 4 && trashAt.x() > showAt.x() + showCode->width() && trashAt.x() + trash->width() < cancelAt.x() && cancelAt.x() < saveButton->mapTo(fields, QPoint{ 0, 0 }).x(),
-			   "the trash is right of Show in code and left of Cancel, then Save");
+		// [[BPR-2013]]. Show in code is gone; the trash keeps the foot's left.
+		expect(std::abs((trashAt.y() + trash->height() / 2) - (cancelAt.y() + cancelButton->height() / 2)) <= 4 && trashAt.x() + trash->width() < cancelAt.x() && cancelAt.x() < saveButton->mapTo(fields, QPoint{ 0, 0 }).x(),
+			   "the trash is left of Cancel, then Save");
 		const auto titleRight = editor->stop_title()->mapTo(fields, QPoint{ editor->stop_title()->width(), 0 }).x();
-		expect(titleRight >= fields->width() - 50, "the title has the row but for the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
+		// Owner on the live build, 2026-11-11: the pencil keeps its room while
+		// the stop is edited, so nothing in the row moves.
+		expect(titleRight >= fields->width() - 50 - editor->findChild<QToolButton*>(QStringLiteral("tourStopEdit"))->width() - 6, "the title has the row but for the pencil's room and the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
 		// Owner: red only while Shift is held, saying a click will not ask.
 		editor->stop_body()->setFocus(Qt::OtherFocusReason);
 		settle();
@@ -343,10 +343,11 @@ auto main(int argc, char** argv) -> int
 	}
 	auto*      confirm = editor->findChild<QWidget*>(QStringLiteral("tourStopRemoveConfirm"));
 	const auto count   = draft.Stops.size();
+	const auto trashX  = trash->mapTo(fields, QPoint{ 0, 0 }).x();
 	// A click asks, in place, and removes nothing.
 	click(trash, trash->rect().center());
 	expect(confirm->isVisible() && draft.Stops.size() == count, "a click on the trash asks first and removes nothing");
-	expect(std::abs(showCode->mapTo(fields, QPoint{ 0, 0 }).x() - showRead) == 0, "asking moves nothing on the foot's row");
+	expect(trash->mapTo(fields, QPoint{ 0, 0 }).x() == trashX, "asking moves nothing on the foot's row");
 	if (!prefix.isEmpty()) {
 		expect(card_of(*editor)->grab().save(prefix + QStringLiteral("card-edit-confirm.png")), "render saved");
 	}

@@ -63,7 +63,7 @@ namespace bpr::qt {
 	private:
 		void refresh_presentation();
 
-		static constexpr std::size_t action_count = 3U;
+		static constexpr std::size_t action_count = 5U;
 
 		QLabel*                                Icon        = nullptr;
 		QLabel*                                Heading     = nullptr;

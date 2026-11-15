@@ -640,17 +640,19 @@ namespace {
 	void test_authored_sections_in_every_home_arrangement(const QString& aRenderPath)
 	{
 		home_fixture home;
-		auto         mine           = item(1, bucket::new_comments_or_author_replies, 3U);
-		mine.Membership.Authored    = true;
-		auto waiting                = item(2, bucket::authored_awaiting_reviewer_action);
-		waiting.Membership.Role     = core::github_role::author;
-		auto quiet                  = item(3, bucket::quiet);
-		quiet.Membership.Role       = core::github_role::author;
-		auto unknown                = item(4, bucket::detail_unknown);
-		unknown.Membership.Authored = true;
-		auto other                  = item(1, bucket::new_comments_or_author_replies, 2U);
-		other.Ref.Account           = "another-account";
-		const auto queue            = core::ordered_queue(std::array{ mine, waiting, quiet, unknown, other });
+		auto         mine        = item(1, bucket::new_comments_or_author_replies, 3U);
+		mine.Membership.Authored = true;
+		auto waiting             = item(2, bucket::authored_awaiting_reviewer_action);
+		waiting.Membership.Role  = core::github_role::author;
+		auto quiet               = item(3, bucket::quiet);
+		quiet.Membership.Role    = core::github_role::author;
+		// [[RFC-BPR-0098]]. Quiet once its reviews were read and none waits.
+		quiet.Facts.Waiting.ReviewsKnown = true;
+		auto unknown                     = item(4, bucket::detail_unknown);
+		unknown.Membership.Authored      = true;
+		auto other                       = item(1, bucket::new_comments_or_author_replies, 2U);
+		other.Ref.Account                = "another-account";
+		const auto queue                 = core::ordered_queue(std::array{ mine, waiting, quiet, unknown, other });
 		home.Source.apply(queue);
 		home.List.set_queue_status(true, true);
 		home.List.show();
@@ -660,10 +662,14 @@ namespace {
 		expect(authored->isVisible() && authored->count() == 3 && authored->tone() == qt::builtin_attention_color(qt::appearance_profile{ }.variant(), qt::attention_tone::my_pull_requests),
 			   "mixed-state authored section has three rows and its own header and rail tone [[BPR-1528]]");
 		expect(home.List.state_panel(qt::home_group::needs_you)->count() == 1 && home.List.state_panel(qt::home_group::waiting_on_others)->count() == 1, "Needs me counts only the other account and waiting-only keeps its panel");
-		expect(authored->summary().contains(QStringLiteral("1 needs action")) && authored->summary().contains(QStringLiteral("3 new comments")) && authored->summary().contains(QStringLiteral("1 unknown")), "collapsed authored summary preserves actionable, unread and unknown facts");
+		// [[RFC-BPR-0098]]. The header counts what came back and what can
+		// merge; neither is here, so it says only what is unknown.
+		expect(authored->summary() == QStringLiteral("1 unknown"), "collapsed authored summary: " + authored->summary().toStdString());
 		const auto row = home.List.state_model(qt::home_group::my_pull_requests)->index(0, 0);
-		expect(row.data(qt::home_row_role::why).toString().contains(QStringLiteral("My pull request")) && row.data(qt::home_row_role::why).toString().contains(QStringLiteral("3 new comments")), "authored row identifies ownership and unread activity when headers are hidden");
-		expect(row.data(qt::home_row_role::state).toInt() == static_cast<int>(qt::home_group::needs_you), "authorship separation keeps the row's amber attention state");
+		expect(row.data(qt::home_row_role::reason_word).toString() == QStringLiteral("Unread") && row.data(qt::home_row_role::why).toString() == QStringLiteral("3 new comments I have not read."),
+			   "an authored row with unread comments leads with Unread and says how many");
+		expect(row.data(qt::home_row_role::state).toInt() == static_cast<int>(qt::home_group::needs_you) && row.data(qt::home_row_role::tone).toInt() == static_cast<int>(qt::home_row_tone::my_pull_requests),
+			   "its colour is My pull requests' tone, not Needs me's");
 		for (const auto grouping : { application::home_grouping::none, application::home_grouping::organization, application::home_grouping::repository, application::home_grouping::account }) {
 			for (const auto headers : { true, false }) {
 				home.List.set_grouping(grouping);

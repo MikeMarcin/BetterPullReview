@@ -14,6 +14,7 @@
 #include <functional>
 
 class QEvent;
+class QLabel;
 class QPaintEvent;
 class QPainter;
 class QPushButton;
@@ -36,6 +37,13 @@ namespace bpr::qt {
 		pairs,
 		/// No placeholders: the words alone.
 		block,
+		/// [[BPR-2180]]. Thread cards: a feedback rail, a face, a name and an
+		/// age, and two lines of what was said, card under card.
+		cards,
+		/// [[BPR-2180]]. People: faces in a row with a line beside them where
+		/// the place is one line high; a roster of face and name where it is
+		/// taller.
+		people,
 	};
 
 	/// \brief [[BPR-1576]]. What a waiting pane says, in its own words.
@@ -104,6 +112,9 @@ namespace bpr::qt {
 		void present(core::pending_activity aActivity, bool aHasContent, bool aPartial, const pending_words& aWords);
 		/// \brief Ready: the pane's own content, nothing over it.
 		void present_ready();
+		/// \brief [[BPR-2180]]. The veil named `aObjectName` lying over
+		/// `aTarget`, or null; for a pane that keeps no pointer to its own.
+		[[nodiscard]] static auto find(const QWidget& aTarget, const QString& aObjectName) -> pending_veil*;
 		/// \brief Starts the wait's clock again for a new read already loading.
 		void restart();
 		/// \brief What Retry does; without one, a failure offers none.
@@ -117,15 +128,21 @@ namespace bpr::qt {
 		/// \brief The row height the `rows` placeholders take; the font's line
 		/// and a half when unset.
 		void set_row_height(int aHeight);
-		/// \brief How many rows or pairs the placeholders stand for, when the
-		/// count is known ("2 files reported"); none fills the pane.
+		/// \brief How many rows, pairs or cards the placeholders stand for,
+		/// when the count is known ("2 files reported"); none fills the pane.
 		void set_placeholder_count(int aCount);
+		/// \brief [[BPR-2180]]. Whether a line beside the pane already says
+		/// its wait (a heading: "Loading pending comments…"). The placeholders
+		/// then take the words' place and the veil draws no words of its own;
+		/// assistive technology still hears them. A failure is still said.
+		void set_words_beside(bool aBeside);
 		/// \brief A monotonic clock in milliseconds, for courses.
 		void set_clock(std::function<std::int64_t()> aClock);
 		/// \brief Decides the look again now, as the wake does.
 		void advance();
 
 		[[nodiscard]] auto look() const noexcept -> core::pending_look;
+		[[nodiscard]] auto shape() const noexcept -> pending_shape;
 		[[nodiscard]] auto words() const noexcept -> const pending_words&;
 		/// \brief What the words line says now, or empty.
 		[[nodiscard]] auto shown_text() const -> QString;
@@ -162,6 +179,8 @@ namespace bpr::qt {
 		void               layout_controls();
 		void               announce(core::pending_look aBefore, core::pending_look aAfter);
 		void               paint_placeholders(QPainter& aPainter, const QRect& aArea);
+		void               paint_cards(QPainter& aPainter, const QRect& aArea, int aTop, const QColor& aTint);
+		void               paint_people(QPainter& aPainter, const QRect& aArea, int aTop, const QColor& aTint);
 		void               paint_words(QPainter& aPainter);
 		void               paint_rule(QPainter& aPainter);
 		void               paint_plate(QPainter& aPainter);
@@ -171,6 +190,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto failure() const -> QColor;
 		[[nodiscard]] auto line_height() const -> int;
 		[[nodiscard]] auto words_rect() const -> QRect;
+		[[nodiscard]] auto words_drawn() const -> bool;
 		[[nodiscard]] auto animated() const -> bool;
 
 		QPointer<QWidget>             Target;
@@ -194,6 +214,7 @@ namespace bpr::qt {
 		bool                          HighContrast = false;
 		bool                          Announces    = true;
 		bool                          RaiseQueued  = false;
+		bool                          WordsBeside  = false;
 		int                           RowHeight    = 0;
 		int                           Count        = 0;
 		int                           Frame        = 0;
@@ -213,8 +234,13 @@ namespace bpr::qt {
 	public:
 		explicit pending_mark(QWidget* aParent = nullptr);
 
-		void               set_turning(bool aTurning);
-		void               set_full_motion(bool aFull);
+		void set_turning(bool aTurning);
+		void set_full_motion(bool aFull);
+		/// \brief [[BPR-2180]]. Stands at the start of `aLabel`'s line, its
+		/// parent, and stays there as the label is resized. The label's words
+		/// are indented by the mark's width once, so they never move when it
+		/// turns.
+		void               lead(QLabel& aLabel);
 		[[nodiscard]] auto turning() const noexcept -> bool;
 		[[nodiscard]] auto frame() const noexcept -> int;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
@@ -222,14 +248,17 @@ namespace bpr::qt {
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
 		void follow();
+		void place();
 
-		QTimer* Frames     = nullptr;
-		bool    Turning    = false;
-		bool    FullMotion = false;
-		int     Frame      = 0;
+		QTimer*          Frames = nullptr;
+		QPointer<QLabel> Led;
+		bool             Turning    = false;
+		bool             FullMotion = false;
+		int              Frame      = 0;
 	};
 } // namespace bpr::qt
 

@@ -134,6 +134,24 @@ namespace bpr::app {
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
+		// [[BPR-2177]]. A fixture build never starts a real agent program.
+		if (Admit) {
+			const auto admitted = Admit(aRequest.Executable);
+			if (!admitted) {
+				Refusals.fetch_add(1U, std::memory_order_relaxed);
+				auto refused          = application::agent_run_result{ };
+				refused.Session       = aRequest.Session;
+				refused.Outcome       = application::agent_run_outcome::failed_to_start;
+				refused.RefusalReason = "A tests-on build runs only the fixture agent; this program was not started.";
+				return refused;
+			}
+			if (*admitted != aRequest.Executable) {
+				auto resolved       = aRequest;
+				resolved.Executable = *admitted;
+				Invocations.fetch_add(1U, std::memory_order_relaxed);
+				return Launcher.run(resolved, aTimeoutMilliseconds, aSink, aStop);
+			}
+		}
 		Invocations.fetch_add(1U, std::memory_order_relaxed);
 		return Launcher.run(aRequest, aTimeoutMilliseconds, aSink, aStop);
 	}
@@ -185,7 +203,7 @@ namespace bpr::app {
 		return binding.good() && alignment.good();
 	}
 #endif
-	tour_session_projection::tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, identity_sink aStream)
+	tour_session_projection::tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, stream_sink aStream)
 		: Admit{ std::move(aAdmit) }
 		, Start{ std::move(aStart) }
 		, Finish{ std::move(aFinish) }
@@ -202,10 +220,10 @@ namespace bpr::app {
 
 	void tour_session_projection::start(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace) { Start(aIdentity, aWorkspace); }
 
-	void tour_session_projection::stream(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event&)
+	void tour_session_projection::stream(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event& aEvent)
 	{
 		if (Stream) {
-			Stream(aIdentity);
+			Stream(aIdentity, aEvent);
 		}
 	}
 

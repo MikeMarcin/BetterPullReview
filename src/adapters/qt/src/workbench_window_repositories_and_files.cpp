@@ -1,3 +1,4 @@
+#include "bpr/core/local_presentation.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -10,6 +11,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -392,6 +394,22 @@ namespace bpr::qt {
 
 	void workbench_window::apply_file_delta(const application::workbench_files_delta& aDelta)
 	{
+		// The pull request's own order, kept whole while a local draft shows.
+		std::erase_if(PublishedFiles, [&aDelta](const application::workbench_file_projection& aFile) { return std::ranges::find(aDelta.Removed, aFile.File) != aDelta.Removed.end(); });
+		for (const auto& [position, file] : aDelta.Inserted) {
+			PublishedFiles.insert(PublishedFiles.begin() + static_cast<std::ptrdiff_t>(std::min(position, PublishedFiles.size())), file);
+		}
+		if (LocalDraftShown) {
+			return;
+		}
+		// [[BPR-2180]]. The rows on screen are a first read's reported files:
+		// the review's own replace them whole, once there are any.
+		if (!ProvisionalFiles.empty()) {
+			if (!PublishedFiles.empty()) {
+				apply_file_rows(std::vector{ PublishedFiles });
+			}
+			return;
+		}
 		// [[BPR-0972]]. The drawer list and the tree each take the few moved
 		// files; neither receives the order again.
 		auto inserted = std::vector<std::pair<std::size_t, workbench_drawer_row>>{ };
@@ -420,6 +438,21 @@ namespace bpr::qt {
 	void workbench_window::apply_file_rows(
 		const std::vector<application::workbench_file_projection>& aFiles)
 	{
+		// A local draft holds the tree; the pull request's rows wait behind it.
+		if (!ApplyingLocalRows) {
+			PublishedFiles = aFiles;
+			if (LocalDraftShown) {
+				return;
+			}
+			// [[BPR-2180]]. A first read's reported files stay until the review
+			// has rows of its own to replace them.
+			if (!ProvisionalFiles.empty()) {
+				if (aFiles.empty()) {
+					return;
+				}
+				ProvisionalFiles.clear();
+			}
+		}
 		OverviewFileFactsDirty = true;
 		auto rows              = std::vector<workbench_drawer_row>{ };
 		rows.reserve(aFiles.size());
@@ -439,6 +472,70 @@ namespace bpr::qt {
 		if (!PendingReviewPath.isEmpty()) {
 			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
 		}
+		// [[BPR-2180]]. A file clicked while it was only reported opens now that
+		// the review lists it.
+		if (ProvisionalFiles.empty() && !ProvisionalOpen.isEmpty() && !ApplyingLocalRows) {
+			open_provisional_file();
+		}
+	}
+
+	void workbench_window::open_provisional_file()
+	{
+		const auto path = std::exchange(ProvisionalOpen, QString{ });
+		if (path.isEmpty()) {
+			return;
+		}
+		if (const auto file = file_for_path(path); file.has_value() && Dispatch) {
+			++Statistics.FileSelections;
+			Dispatch(core::select_workbench_file_intent{ .File = *file });
+			return;
+		}
+		// The review does not list it: its wait is taken back.
+		if (ComparisonSurface != nullptr && ComparisonSurface->held_waiting() == path) {
+			ComparisonSurface->hold_waiting({ });
+			if (!ComparisonSurface->current_context().has_value()) {
+				ComparisonSurface->clear();
+			}
+		}
+	}
+
+	void workbench_window::present_provisional_files(const std::vector<application::github_provisional_file>& aFiles)
+	{
+		if (aFiles.empty()) {
+			// The read ended with no review: its reported files go, and with
+			// them any file asked for from them and the comparison's wait.
+			if (ComparisonSurface != nullptr && !ProvisionalOpen.isEmpty() && ComparisonSurface->held_waiting() == ProvisionalOpen) {
+				ComparisonSurface->hold_waiting({ });
+				if (!ComparisonSurface->current_context().has_value()) {
+					ComparisonSurface->clear();
+				}
+			}
+			ProvisionalOpen.clear();
+			if (!ProvisionalFiles.empty()) {
+				ProvisionalFiles.clear();
+				if (!LocalDraftShown) {
+					ApplyingLocalRows = true;
+					apply_file_rows(std::vector{ PublishedFiles });
+					ApplyingLocalRows = false;
+				}
+			}
+			update_pending_panes();
+			return;
+		}
+		// A local draft keeps the tree. The rows of a review shown before stay
+		// aside, and return if this read opens no review.
+		if (LocalDraftShown) {
+			return;
+		}
+		ProvisionalFiles.clear();
+		ProvisionalFiles.reserve(aFiles.size());
+		for (const auto& file : aFiles) {
+			ProvisionalFiles.push_back({ .File = file.File, .Path = file.Path });
+		}
+		ApplyingLocalRows = true;
+		apply_file_rows(std::vector{ ProvisionalFiles });
+		ApplyingLocalRows = false;
+		update_pending_panes();
 	}
 
 	auto workbench_window::conversation_anchor_file() const
@@ -462,6 +559,9 @@ namespace bpr::qt {
 
 	void workbench_window::apply_file_selection()
 	{
+		if (LocalDraftShown) {
+			return;
+		}
 		if (Drawers[0].Panel->contents() == nullptr
 			|| Drawers[0].Panel->contents_view() == nullptr) {
 			return;
@@ -479,11 +579,43 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_file_selection(const QModelIndex& aIndex)
 	{
-		if (ApplyingFileSelection || !Dispatch || Drawers[0].Panel->contents() == nullptr) {
+		if (ApplyingFileSelection || Drawers[0].Panel->contents() == nullptr) {
 			return;
 		}
 		const auto file = Drawers[0].Panel->contents()->file_at(aIndex);
 		if (!file.has_value()) {
+			return;
+		}
+		// A local draft's file opens through its own host, in the same viewer.
+		if (LocalDraftShown && LocalDraft != nullptr) {
+			const auto subject = LocalDraft->projection().Draft ? LocalDraft->projection().Draft->Id.Value : std::string{ };
+			const auto path    = std::ranges::find_if(LocalFiles, [&](const std::string& aPath) { return core::local_presentation_file(subject, aPath) == *file; });
+			if (path != LocalFiles.end()) {
+				if (FileSearchTabs != nullptr && FileSearchTabs->currentIndex() == local_changes_tab()) {
+					FileSearchTabs->setCurrentIndex(0);
+				}
+				LocalDraft->open_file(*path, ReviewViewPicker != nullptr && ReviewViewPicker->view() == review_view::edit);
+				apply_local_comparison();
+			}
+			return;
+		}
+		// [[BPR-2180]]. A file only reported so far has no comparison to open:
+		// it is remembered, said on the Files plate, and opened once the
+		// review lists it, as the Overview's own pending open is.
+		// Until the review's own rows replace them, a reported file is not yet
+		// one a comparison can be asked for.
+		if (const auto reported = std::ranges::find(ProvisionalFiles, *file, &application::workbench_file_projection::File); reported != ProvisionalFiles.end()) {
+			ProvisionalOpen = QString::fromStdString(reported->Path);
+			// The owner, rejecting v002 on 2026-11-14: "the main diff file
+			// pane, no longer shows the loading." The comparison says it is
+			// loading the file, in the shape of code, from the click on.
+			if (ComparisonSurface != nullptr) {
+				ComparisonSurface->hold_waiting(ProvisionalOpen);
+			}
+			update_pending_panes();
+			return;
+		}
+		if (!Dispatch) {
 			return;
 		}
 		++Statistics.FileSelections;
@@ -1193,6 +1325,69 @@ namespace bpr::qt {
 
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
+		// [[BPR-2175]]. The owner: "clicking off compose review into the diff
+		// or drawers or review bar or using the mode tabs should hide it".
+		// Choosing a mode closes the lightbox, its words kept.
+		if (aEntry == core::workbench_modality_entry::choose && ReviewSheetOpen) {
+			close_review_sheet();
+		}
+		// A local draft has Overview and Review; Discuss and Threads wait
+		// until a pull request exists.
+		if (LocalDraftShown && !showing_home()) {
+			if (Modality != nullptr) {
+				Modality->adopt(aModality == review_modality::overview ? review_modality::overview : review_modality::review);
+			}
+			apply_local_draft_surface();
+			return;
+		}
+		// [[BPR-2171]], owner (ac1-collapsed-preview): "Can switching to
+		// discuss from review with a comment open show that comment in
+		// disscuss?" Choosing Discuss while Review holds a published thread
+		// open brings it there, opened and in view, as Show Thread in
+		// Discuss does. Drafts and Local comments are not Discuss's.
+		// The strip shows its choice before it reports it (Command-3 and the
+		// segment), so where the window was is the modality last applied,
+		// not the strip's.
+		if (aModality == review_modality::discuss && aEntry == core::workbench_modality_entry::choose && Modality != nullptr && LastUsedModality == std::optional{ review_modality::review }
+			&& !showing_home() && CompositionPage == nullptr && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			const auto open = ConversationPanel->cards()->open_thread_id();
+			if (!open.empty() && !open.starts_with("draft") && !open.starts_with("local:")) {
+				const auto post = ConversationPanel->cards()->picked_post();
+				if (open_conversation_in_discuss(open, post, core::workbench_discuss_filters{ })) {
+					return;
+				}
+			}
+		}
+		// And back: choosing Review from Discuss keeps the thread open there,
+		// beside the code, when it is on the file Review shows (owner, v006:
+		// "its unselected when i go back to review (cmd+2)"). The card set
+		// is rebuilt by the switch, so it is opened once that set lists it.
+		if (aModality == review_modality::review && aEntry == core::workbench_modality_entry::choose && LastUsedModality == std::optional{ review_modality::discuss }
+			&& !showing_home() && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			if (auto shownThread = ConversationPanel->cards()->open_thread_id(); !shownThread.empty() && !shownThread.starts_with("draft") && !shownThread.starts_with("local:")) {
+				const auto tries  = std::make_shared<int>(0);
+				const auto reopen = std::make_shared<std::function<void()>>();
+				*reopen           = [this, open = std::move(shownThread), tries, weak = std::weak_ptr<std::function<void()>>{ reopen }] {
+					if (ConversationPanel == nullptr || Modality == nullptr || Modality->current() != review_modality::review) {
+						return;
+					}
+					auto* const cards = ConversationPanel->cards();
+					if (cards->open_thread_id() == open) {
+						return;
+					}
+					if (std::ranges::any_of(cards->cards(), [&open](const thread_card& aCard) { return aCard.Id == open; }) && !cards->feed()) {
+						cards->open_thread(open);
+						return;
+					}
+					if (++*tries < 20) {
+						if (const auto again = weak.lock(); again) {
+							QTimer::singleShot(25, this, [again] { (*again)(); });
+						}
+					}
+				};
+				QTimer::singleShot(0, this, [reopen] { (*reopen)(); });
+			}
+		}
 		if (ReviewNavigationDispatch) {
 			ReviewNavigationDispatch(std::nullopt);
 		}
@@ -1475,6 +1670,11 @@ namespace bpr::qt {
 		const application::pull_request_overview_projection& aProjection)
 	{
 		if (OverviewPage == nullptr) {
+			return;
+		}
+		// While a local draft shows, a pull request's overview waits behind it.
+		if (LocalDraftShown && !ApplyingLocalRows) {
+			OverviewBehindDraft = aProjection;
 			return;
 		}
 		const auto unchanged = PresentedOverview.has_value() && *PresentedOverview == aProjection;

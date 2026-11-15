@@ -213,6 +213,25 @@ namespace bpr::qt::detail {
 		refresh_wrap_names();
 	}
 
+	void markdown_code_block::set_first_line(const std::optional<std::uint32_t> aFirst)
+	{
+		if (FirstLine == aFirst) {
+			return;
+		}
+		FirstLine = aFirst;
+		arrange();
+		update();
+	}
+
+	auto markdown_code_block::gutter_width() const -> int
+	{
+		if (!FirstLine) {
+			return 0;
+		}
+		const auto last = *FirstLine + static_cast<std::uint32_t>(std::max(1, Editor->document()->blockCount())) - 1U;
+		return static_cast<int>(std::ceil(QFontMetricsF{ Editor->font() }.horizontalAdvance(QString::number(last)))) + 14;
+	}
+
 	auto markdown_code_block::header_font() const -> QFont
 	{
 		auto headerFont = font();
@@ -229,7 +248,7 @@ namespace bpr::qt::detail {
 
 	auto markdown_code_block::height_for(const int aWidth) const -> int
 	{
-		const auto inner    = std::max(1, aWidth - 2 * inset);
+		const auto inner    = std::max(1, aWidth - 2 * inset - gutter_width());
 		auto*      document = Editor->document();
 		auto       content  = 0.0;
 		auto       wide     = false;
@@ -281,7 +300,8 @@ namespace bpr::qt::detail {
 		const auto top    = (header - tool_side) / 2;
 		Copy->move(width() - 6 - tool_side, top);
 		Wrap->move(width() - 6 - 2 * tool_side - 2, top);
-		Editor->setGeometry(inset, header + code_top, std::max(1, width() - 2 * inset), std::max(1, height() - header - code_top - code_foot));
+		const auto gutter = gutter_width();
+		Editor->setGeometry(inset + gutter, header + code_top, std::max(1, width() - 2 * inset - gutter), std::max(1, height() - header - code_top - code_foot));
 	}
 
 	void markdown_code_block::resizeEvent(QResizeEvent* aEvent)
@@ -344,6 +364,21 @@ namespace bpr::qt::detail {
 		painter.setPen(muted);
 		const auto shown = QFontMetricsF{ headerFont }.elidedText(Language, Qt::ElideRight, std::max(0.0, textRight - textLeft));
 		painter.drawText(QRectF{ textLeft, 0.0, std::max(0.0, textRight - textLeft), header }, Qt::AlignLeft | Qt::AlignVCenter, shown);
+		// The gutter: each line's number at its line's top, right-aligned
+		// against the code, in the header's muted ink.
+		if (FirstLine) {
+			painter.setFont(Editor->font());
+			painter.setPen(muted);
+			auto*      layout = Editor->document()->documentLayout();
+			const auto right  = static_cast<qreal>(Editor->x()) - 10.0;
+			const auto origin = static_cast<qreal>(Editor->y() + Editor->viewport()->y());
+			const auto lines  = QFontMetricsF{ Editor->font() }.height();
+			auto       number = *FirstLine;
+			for (auto block = Editor->document()->begin(); block.isValid(); block = block.next(), ++number) {
+				const auto at = layout->blockBoundingRect(block).top() + origin;
+				painter.drawText(QRectF{ static_cast<qreal>(inset), at, std::max(0.0, right - inset), lines }, Qt::AlignRight | Qt::AlignTop, QString::number(number));
+			}
+		}
 	}
 
 	markdown_code_block_objects::markdown_code_block_objects(QTextEdit& aView)
@@ -385,6 +420,7 @@ namespace bpr::qt::detail {
 			box->hide();
 			box->set_code(markdown_code_store::language_label(entry), entry.Fence.text());
 			box->set_wrapped(Wrapped.contains(ordinal));
+			box->set_first_line(FirstLine);
 			box->WrapChanged = [this, ordinal](const bool aWrapped) {
 				if (aWrapped) {
 					Wrapped.insert(ordinal);

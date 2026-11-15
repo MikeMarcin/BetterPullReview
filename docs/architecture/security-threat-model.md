@@ -1660,6 +1660,25 @@ published. The page never uploads private notes, rounds, replies or
 decisions, and the local catalog's isolation root is the profile's own
 owner-private `publication-git-v1`.
 
+A local PR draft's Create draft PR (RFC-BPR-0111) uses a narrower slice of
+the same catalog: the repository, branch and pull request reads and the one
+`POST pulls`. It needs no Git object or reference write because the author
+pushed the branch with their own Git; BPR pushes nothing and names the push
+(`git -C WORKTREE push https://HOST/OWNER/NAME.git COMMIT:refs/heads/BRANCH`,
+never `origin`) when the hosted branch is not the candidate. The account
+transport offers this slice as `acquire_pull_request_session`; a `gh`
+connection carries it too: `gh_cli_transport` runs only those five operations
+through `gh api` in its write containment, under the lease's scoped operation
+(one named credential, the account observed before and after), and refuses
+every object, tree, commit and reference write before launch, so the cycle's
+`acquire_publication_session` stays native-only. The plan's digest binds
+candidate, destination, account, title, body, selected evidence and the tour
+follow-up; the draft's record journals the creation before it is sent, a lost
+answer is only read for, and an existing pull request from the branch is
+associated only on the author's press. A tests-enabled build composes the
+slice only with `DesignatedLivePublication`, wrapped so every repository but
+MikeMarcin/BPR-Test is refused before a request.
+
 Add Notes to Review Tour (BPR-1273) holds no GitHub authority at all. Its
 only effects are local tour edits sent to the profile's existing tour owner,
 the same finite load, request-status and edit operations `bpr tour` sends, and

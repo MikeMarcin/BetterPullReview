@@ -359,4 +359,57 @@ namespace bpr::application {
 			return page;
 		});
 	}
+
+	scoped_private_agent_runs::scoped_private_agent_runs(std::mutex& aGate, scope_lookup aLookup)
+		: Gate(aGate)
+		, Lookup(std::move(aLookup))
+	{ }
+
+	auto scoped_private_agent_runs::admit(const private_run_intent& aIntent, const core::agent_profile& aProfile, const core::agent_session& aSession, const agent_context_observation& aContext, const core::agent_setting_facts& aSettings) -> private_run_result<private_run_admission>
+	{
+		const auto lock   = std::scoped_lock{ Gate };
+		const auto access = Lookup(aIntent.Binding.Scope);
+		if (access.Store == nullptr) {
+			return std::unexpected(private_run_error{ .Store = private_store_failure::unavailable });
+		}
+		return private_review_application_host(*access.Store).admit(aIntent, aProfile, aSession, aContext, aSettings);
+	}
+
+	auto scoped_private_agent_runs::claim(const private_run_admission& aAdmission, std::stop_token aStop) -> private_run_result<std::shared_ptr<agent_input_claim>>
+	{
+		const auto lock   = std::scoped_lock{ Gate };
+		const auto access = Lookup(aAdmission.Delta.Scope);
+		if (access.Store == nullptr || !access.Open) {
+			return std::unexpected(private_run_error{ .Store = private_store_failure::unavailable });
+		}
+		auto store = access.Open(aStop);
+		if (!store) {
+			return std::unexpected(private_run_error{ .Store = store.error() });
+		}
+		auto inner = private_review_application_host(**store).claim(aAdmission, aStop);
+		if (!inner) {
+			return std::unexpected(inner.error());
+		}
+		struct isolated_claim final : agent_input_claim
+		{
+			std::unique_ptr<private_review_store_port> Store;
+			std::shared_ptr<agent_input_claim>         Inner;
+			auto                                       permitted() const noexcept -> bool override { return Inner->permitted(); }
+			void                                       release() noexcept override { Inner->release(); }
+		};
+		auto claim   = std::make_shared<isolated_claim>();
+		claim->Store = std::move(*store);
+		claim->Inner = std::move(*inner);
+		return claim;
+	}
+
+	auto scoped_private_agent_runs::finish(const private_run_admission& aAdmission, const agent_run_result& aResult, const core::agent_finding_snapshot& aSnapshot) -> private_run_result<private_review_delta>
+	{
+		const auto lock   = std::scoped_lock{ Gate };
+		const auto access = Lookup(aAdmission.Delta.Scope);
+		if (access.Store == nullptr) {
+			return std::unexpected(private_run_error{ .Store = private_store_failure::unavailable });
+		}
+		return private_review_application_host(*access.Store).finish(aAdmission, aResult, aSnapshot);
+	}
 }

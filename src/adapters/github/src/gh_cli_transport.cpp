@@ -2326,6 +2326,89 @@ namespace bpr::adapters::github::detail {
 												 .Status = response->Status, .Headers = std::move(response->Headers), .Body = std::move(response->Body) } };
 	}
 
+	auto gh_cli_transport::perform_publication(const github_publication_wire_call& aCall, const std::stop_token aStop) -> github_publication_wire_completion
+	{
+		if (!Credential) {
+			auto scope = acquire_operation(aStop);
+			if (!scope) {
+				return github_publication_wire_error{ };
+			}
+			return (*scope)->perform_publication(aCall, aStop);
+		}
+		using transmission = github_mutation_transmission;
+		if (aStop.stop_requested()) {
+			return github_publication_wire_cancelled{ };
+		}
+		// RFC-BPR-0111. Only the pull request's own catalog: the reads and
+		// the one creation. A Git-data or reference write never reaches gh.
+		const auto& authority = aCall.Context.Authority;
+		const auto& wire      = aCall.Wire;
+		const auto  exchange  = publication_exchange_for(wire.Operation);
+		if (!exchange || !pull_request_publication_operation(wire.Operation) || exchange->Method != wire.Method
+			|| Profile.authentication_transport() != application::github_authentication_transport::github_cli || !application::valid(aCall.Context)
+			|| authority.Profile != Profile.profile() || authority.ProfileRevision != Profile.revision() || authority.Host != Profile.host()
+			|| authority.Hostname != application::github_canonical_hostname{ Profile.hostname() } || authority.ServerContract != Profile.server_contract()
+			|| wire.Target.Server != Profile.server_contract() || wire.Target.Account != authority.Account || wire.Target.Host != Profile.hostname()
+			|| !validate_outbound_publication_request(wire) || wire.Body.size() > native_publication_body_limit || !configuration_unchanged()) {
+			return github_publication_wire_error{ };
+		}
+		const auto githubCom = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28;
+		const auto prefix    = githubCom ? std::string_view{ "/" } : std::string_view{ "/api/v3/" };
+		if (!wire.Path.starts_with(prefix)) {
+			return github_publication_wire_error{ };
+		}
+		auto endpoint = wire.Path.substr(prefix.size());
+		if (!wire.Query.empty()) {
+			endpoint += "?" + wire.Query;
+		}
+		if (!safe_relative_endpoint(endpoint)) {
+			return github_publication_wire_error{ };
+		}
+		const auto                 method        = wire.Method == http_method::post ? std::string{ "POST" } : std::string{ "GET" };
+		constexpr auto             responseLimit = std::size_t{ 8U * 1024U * 1024U };
+		github_cli_process_request invocation{
+			.Executable              = path_bytes(Configuration.Executable),
+			.Arguments               = { "api", endpoint, "--hostname", std::string{ Profile.hostname() }, "--include", "--method", method },
+			.Environment             = Configuration.Environment,
+			.WorkingDirectory        = path_bytes(Configuration.NeutralWorkingDirectory),
+			.StandardInput           = wire.Body,
+			.StandardInputLimit      = native_publication_body_limit,
+			.StandardOutputLimit     = responseLimit + 32U * 1024U,
+			.StandardErrorLimit      = maximum_standard_error_bytes,
+			.Timeout                 = process_timeout,
+			.ReapTimeout             = process_reap_timeout,
+			.PreserveCompletedOutput = true,
+		};
+		for (const auto& header : wire.Headers) {
+			invocation.Arguments.emplace_back("--header");
+			invocation.Arguments.emplace_back(header.Name + ": " + header.Value);
+		}
+		if (!wire.Body.empty()) {
+			invocation.Arguments.emplace_back("--input");
+			invocation.Arguments.emplace_back("-");
+		}
+		// A creation, once launched, may have reached GitHub whatever happens next.
+		const auto sent             = exchange->Write ? transmission::indeterminate : transmission::definitely_not_sent;
+		invocation.Insights         = insights_channel();
+		invocation.InsightsResource = core::insights_resource::core;
+		invocation.InsightsCategory = core::insights_category::publishing;
+		const auto result           = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
+		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
+			return github_publication_wire_cancelled{ .Transmission = sent };
+		}
+		if (!result || !configuration_unchanged()) {
+			return github_publication_wire_error{ .Transmission = sent };
+		}
+		auto response = parse_gh_cli_response(result->StandardOutput, true);
+		if (insights_channel()) {
+			insights_channel()->request(core::insights_resource::core, core::insights_category::publishing, response ? &*response : nullptr, 0);
+		}
+		if (!response || response->Body.size() > responseLimit || (result->ExitCode != 0 && response->Status < 300)) {
+			return github_publication_wire_error{ .Transmission = sent };
+		}
+		return github_publication_wire_success{ .Response = { .Status = response->Status, .Headers = std::move(response->Headers), .Body = std::move(response->Body) } };
+	}
+
 	auto gh_cli_transport::perform_capability_probe(
 		const github_capability_probe_wire_request& aRequest,
 		const std::stop_token                       aStop) -> github_capability_probe_wire_completion

@@ -69,6 +69,16 @@ themes, rendering mechanics, and event translation.
   entries.
 - Treat offscreen forced-style renders as deterministic layout evidence only;
   they do not verify system appearance integration.
+- A render shown to the owner is made the way main's `qt_button_faces_cocoa`
+  draws: Cocoa with `Qt::WA_DontShowOnScreen`. Any Qt test executable of
+  `tests/adapters_qt` does that for every window it shows when run with
+  `QT_QPA_PLATFORM=cocoa QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1
+  BPR_NATIVE_LOOK=1` (and `BPR_NATIVE_LOOK_SCHEME=dark` or `light`):
+  QMacStyle, the system palette and fonts, nothing on screen
+  (`native_look_startup.cpp`, `qt_native_look_*`). The owner's look of
+  2026-11-10 ("some kind of theme disparity ... between what I see and your
+  offscreen renders") came from offscreen renders: Fusion, always Light,
+  another font database.
 - Treat `assets/dif/source/` plus the manifest as the editable Dif authority;
   never hand-edit `assets/dif/generated/` or use a generative prompt as the
   regeneration source.

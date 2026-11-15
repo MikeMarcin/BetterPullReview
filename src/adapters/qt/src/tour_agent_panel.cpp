@@ -2,6 +2,7 @@
 
 #include "markdown_code.hpp"
 #include "markdown_code_block.hpp"
+#include "markdown_document.hpp"
 #include "markdown_github.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
@@ -12,6 +13,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QClipboard>
 #include <QFontDatabase>
@@ -28,7 +30,6 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextDocumentFragment>
@@ -42,11 +43,21 @@
 namespace bpr::qt {
 	namespace {
 		// A selection spans the whole transcript; code's layout objects
-		// contribute no text, while their hidden code lines still do.
-		class transcript_browser final : public QTextBrowser
+		// contribute no text, while their hidden code lines still do. Review
+		// of 2026-11-14: the transcript holds agent-written text, so it is a
+		// read-only reader over the Markdown readers' document, which denies
+		// every resource load.
+		class transcript_browser final : public QTextEdit
 		{
 		public:
-			using QTextBrowser::QTextBrowser;
+			explicit transcript_browser(QWidget* aParent)
+				: QTextEdit{ aParent }
+			{
+				setDocument(new detail::markdown_document{ this });
+				setReadOnly(true);
+				setAcceptRichText(false);
+				setProperty("bprReader", true);
+			}
 
 		protected:
 			QMimeData* createMimeDataFromSelection() const override
@@ -318,13 +329,58 @@ namespace bpr::qt {
 		}
 	}
 
+	auto tour_proposal_accepts_stop(const core::tour_proposal_part aPart) noexcept -> bool
+	{
+		// [[BPR-2014]]. Accept on a stop's own proposal accepts the stop.
+		return aPart == core::tour_proposal_part::stop_text;
+	}
+
+	auto tour_proposal_apply_words(const core::tour_proposal_part aPart) -> QString
+	{
+		// [[BPR-1930]]. The primary action says what it does. RFC-BPR-0106 as
+		// amended on 2026-11-13: Accept only where a stop is accepted.
+		switch (aPart) {
+		case core::tour_proposal_part::stop_text:   return QObject::tr("Accept");
+		case core::tour_proposal_part::stop:        return QObject::tr("Add to tour");
+		case core::tour_proposal_part::problem:
+		case core::tour_proposal_part::solution:    return QObject::tr("Use this text");
+		case core::tour_proposal_part::remove_stop: return QObject::tr("Remove");
+		case core::tour_proposal_part::merge_stops: return QObject::tr("Merge");
+		case core::tour_proposal_part::split_stop:  return QObject::tr("Split");
+		case core::tour_proposal_part::reorder:     return QObject::tr("Reorder");
+		}
+		return QObject::tr("Use this text");
+	}
+
+	void wear_stop_accept(QPushButton& aButton)
+	{
+		// One Accept, one look: the platform's default push button, as the
+		// stop's own Accept has been since RFC-BPR-0106. A quiet chip that is
+		// the default draws natively too, at the native size.
+		aButton.setDefault(true);
+		aButton.setAutoDefault(false);
+		aButton.setFlat(false);
+		aButton.setProperty("bprStopAccept", true);
+	}
+
+	auto make_tour_action(const QString& aText, QWidget* const aParent) -> QPushButton*
+	{
+		auto* const button = new QPushButton{ aText, aParent };
+		button->setFlat(false);
+		button->setAutoDefault(false);
+		button->setFocusPolicy(Qt::TabFocus);
+		button->setProperty("bprTourAction", true);
+		return button;
+	}
+
 	tour_agent_panel::tour_agent_panel(QWidget* aParent)
 		: QWidget{ aParent }
 	{
 		setObjectName(QStringLiteral("tourAgentSession"));
 		setAccessibleName(tr("Tour agent session"));
 		auto* const column = new QVBoxLayout{ this };
-		column->setContentsMargins(10, 8, 10, 0);
+		// Room under the row's buttons, so none is cut at the bottom.
+		column->setContentsMargins(10, 8, 10, 6);
 		column->setSpacing(6);
 
 		// [[BPR-1913]], owner 2026-11-06: "the button at the top looks like a
@@ -429,11 +485,10 @@ namespace bpr::qt {
 		auto* const confirmButtons = new QHBoxLayout{ };
 		confirmButtons->setSpacing(6);
 		confirmButtons->addStretch(1);
-		ResetNo = new quiet_push_button{ tr("Keep the tour"), ResetConfirm };
+		ResetNo = make_tour_action(tr("Keep the tour"), ResetConfirm);
 		ResetNo->setObjectName(QStringLiteral("tourResetCancel"));
-		ResetNo->setFlat(true);
 		ResetNo->setFocusPolicy(Qt::TabFocus);
-		ResetYes = new quiet_push_button{ tr("Reset tour"), ResetConfirm };
+		ResetYes = make_tour_action(tr("Reset tour"), ResetConfirm);
 		ResetYes->setObjectName(QStringLiteral("tourResetConfirmButton"));
 		ResetYes->setFocusPolicy(Qt::TabFocus);
 		confirmButtons->addWidget(ResetNo);
@@ -450,11 +505,11 @@ namespace bpr::qt {
 		auto* const doneWords = small(paragraph(tr("Tour reset. Undo reset brings it all back while you haven't changed the tour since."), ResetDone));
 		doneWords->setObjectName(QStringLiteral("tourResetDoneText"));
 		doneRow->addWidget(doneWords, 1);
-		UndoReset = new quiet_push_button{ tr("Undo reset"), ResetDone };
+		UndoReset = make_tour_action(tr("Undo reset"), ResetDone);
 		UndoReset->setObjectName(QStringLiteral("tourResetUndo"));
 		UndoReset->setFocusPolicy(Qt::TabFocus);
 		doneRow->addWidget(UndoReset, 0, Qt::AlignVCenter);
-		Accented.emplace_back(UndoReset);
+		// [[BPR-2000]]. Undo reset starts no run: ordinary roles.
 		ResetDone->installEventFilter(this);
 		ResetDone->hide();
 		column->addWidget(ResetDone);
@@ -508,16 +563,19 @@ namespace bpr::qt {
 		ProposalTitle->setWordWrap(true);
 		ProposalTitle->setTextFormat(Qt::RichText);
 		// [[BPR-1925]] v003. The proposal's parts wait in the tour itself; here
-		// one line says how many, with Accept all.
+		// one line says how many, with Apply all.
 		auto* const titleRow = new QHBoxLayout{ };
 		titleRow->setSpacing(8);
 		titleRow->addWidget(ProposalTitle, 1);
-		AcceptAll = new quiet_push_button{ tr("Accept all"), ProposalBox };
+		// RFC-BPR-0106 as amended on 2026-11-13: it accepts no stop, so it
+		// does not say Accept. A revision from the tour's chat has its own
+		// Apply all on its card there; this one is for the rest.
+		AcceptAll = make_tour_action(tr("Apply all"), ProposalBox);
 		AcceptAll->setObjectName(QStringLiteral("tourProposalAcceptAll"));
 		AcceptAll->setFocusPolicy(Qt::TabFocus);
-		AcceptAll->setToolTip(tr("Accepts every proposed part still waiting in the tour, as it reads now."));
+		AcceptAll->setToolTip(tr("Puts every proposed part still waiting in the tour into it, as it reads now. Each new or changed stop still asks for your Accept."));
 		titleRow->addWidget(AcceptAll, 0, Qt::AlignTop);
-		Accented.emplace_back(AcceptAll);
+		// [[BPR-2000]]. Apply all applies; it starts no run.
 		connect(AcceptAll, &QPushButton::clicked, this, [this] {
 			if (!Proposal || !DecideDispatch) {
 				return;
@@ -525,7 +583,7 @@ namespace bpr::qt {
 			// Each part's text first: deciding one lays the proposal out again.
 			auto decisions = std::vector<std::pair<std::size_t, QString>>{ };
 			for (std::size_t index = 0U; index < Proposal->Items.size(); ++index) {
-				if (Proposal->Items[index].Decision == core::tour_proposal_decision::pending && !core::proposed_in_thread(Session, Proposal->Items[index])) {
+				if (Proposal->Items[index].Decision == core::tour_proposal_decision::pending && batched(Proposal->Items[index])) {
 					const auto found = Editors.find(index);
 					decisions.emplace_back(index, found != Editors.end() && found->second != nullptr ? found->second->toPlainText() : QString::fromStdString(Proposal->Items[index].Text));
 				}
@@ -651,7 +709,6 @@ namespace bpr::qt {
 		TranscriptFrames = new detail::markdown_code_block_objects{ *RunView };
 		RunView->setObjectName(QStringLiteral("tourSessionRun"));
 		RunView->setAccessibleName(tr("Conversation"));
-		RunView->setOpenLinks(false);
 		RunView->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		RunView->document()->setDocumentMargin(14);
 		split->addWidget(RunList);
@@ -761,7 +818,12 @@ namespace bpr::qt {
 
 	void tour_agent_panel::restyle(const QPalette& aGround)
 	{
-		for (auto* const widget : { static_cast<QWidget*>(Draft), static_cast<QWidget*>(TranscriptToggle), static_cast<QWidget*>(Status), static_cast<QWidget*>(ProposalTitle) }) {
+		// [[BPR-2000]], RFC-BPR-0101. Draft the tour starts a run; opening the
+		// conversation window does not. The status and the proposal's title
+		// say where text came from, and keep the accent.
+		wear_agent_accent(*Draft, aGround);
+		wear_ordinary_roles(*TranscriptToggle);
+		for (auto* const widget : { static_cast<QWidget*>(Status), static_cast<QWidget*>(ProposalTitle) }) {
 			apply_agent_accent(*widget, aGround);
 		}
 		Draft->setIcon(drawer_icon(drawer_glyph::agent, Draft->palette()));
@@ -778,19 +840,25 @@ namespace bpr::qt {
 			show_run(ShownRun, std::nullopt);
 		}
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
-		apply_agent_accent(*ChatTour, aGround);
+		// [[BPR-2000]]. Opening the tour's chat starts no run.
+		wear_ordinary_roles(*ChatTour);
 		ChatTour->setIcon(side_chat_icon(ChatTour->palette()));
 		// [[BPR-1931]] v002. Reset tour's glyph in this appearance's ink.
 		Reset->setIcon(drawer_icon(drawer_glyph::clear, Reset->palette()));
 		// [[BPR-1930]]. The focus chip reads in the agent's accent.
 		apply_agent_accent(*FocusText, aGround);
-		apply_agent_accent(*FocusClear, aGround);
+		// [[BPR-2000]]. Clearing the focus starts no run.
+		wear_ordinary_roles(*FocusClear);
 		FocusChip->update();
 		ResetConfirm->update();
 		ResetDone->update();
 		for (const auto& widget : Accented) {
 			if (widget) {
-				apply_agent_accent(*widget, aGround);
+				if (qobject_cast<QAbstractButton*>(widget.data()) != nullptr) {
+					wear_agent_accent(*widget, aGround);
+				} else {
+					apply_agent_accent(*widget, aGround);
+				}
 			}
 		}
 		// The proposal's fields paint their own edge from the palette.
@@ -1189,7 +1257,19 @@ namespace bpr::qt {
 		for (qsizetype index = 1; index < parts.size(); ++index) {
 			joined += (index + 1 == parts.size() ? tr(" and ") : QStringLiteral(", ")) + parts[index];
 		}
-		return tr("Proposed %1. Accept, edit or discard it in the Tour tab.").arg(joined);
+		return tr("Proposed %1. Apply, edit or discard it in the Tour tab.").arg(joined);
+	}
+
+	auto tour_agent_panel::batched(const core::tour_proposal_item& aItem) const -> bool
+	{
+		// [[BPR-1914]] v002: a thread's part is decided in its thread.
+		// RFC-BPR-0100: a revision from the tour's chat has Apply all on its
+		// card there; the head's Apply all is for the parts with no card.
+		if (core::proposed_in_thread(Session, aItem)) {
+			return false;
+		}
+		const auto* const run = core::find_tour_run(Session, aItem.Run);
+		return run == nullptr || run->Request != core::tour_agent_request::ask || run->Thread.Kind != core::tour_thread_kind::tour;
 	}
 
 	auto tour_agent_panel::refused_words(const core::tour_refused_part& aPart) -> QString
@@ -1314,9 +1394,12 @@ namespace bpr::qt {
 		OutsideList->setVisible(outside > 0U);
 		// [[BPR-1925]] v003. No list: the parts wait in the tour, grey until
 		// accepted. One line says how many.
-		const auto waiting = pending == 1 ? tr("1 part waits in the tour, marked grey. Nothing changes until you accept it.") : tr("%1 parts wait in the tour, marked grey. Nothing changes until you accept them.").arg(pending);
+		const auto waiting = pending == 1 ? tr("1 part waits in the tour, marked grey. Nothing changes until you apply it.") : tr("%1 parts wait in the tour, marked grey. Nothing changes until you apply them.").arg(pending);
 		ProposalTitle->setText(tr("<b>Proposed</b>&nbsp;&nbsp;%1").arg(waiting.toHtmlEscaped()));
-		AcceptAll->setVisible(pending > 1);
+		// One batch action per set of parts: the tour chat's revision is
+		// applied from its card in the chat, so it is not offered twice.
+		const auto batch = std::ranges::count_if(Proposal->Items, [this](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending && batched(aItem); });
+		AcceptAll->setVisible(batch > 1);
 		auto        kept   = std::size_t{ 0U };
 		auto* const parent = ProposalItems->parentWidget();
 		const auto  code   = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -1383,7 +1466,7 @@ namespace bpr::qt {
 					itemColumn->addWidget(said);
 					Placements[index] = said;
 					if (off) {
-						auto* const move = new quiet_push_button{ tr("Move to nearest change"), box };
+						auto* const move = make_tour_action(tr("Move to nearest change"), box);
 						move->setObjectName(QStringLiteral("tourProposalRelocate"));
 						move->setFocusPolicy(Qt::TabFocus);
 						move->setToolTip(tr("Moves this stop onto the closest changed lines in this file. You can also add it as it is and choose its lines in the code."));
@@ -1394,14 +1477,13 @@ namespace bpr::qt {
 						});
 						itemColumn->addWidget(move, 0, Qt::AlignLeft);
 						Relocates[index] = move;
-						Accented.emplace_back(move);
 					}
 				}
 			}
 			const auto textual = core::takes_text(item.Part);
 			add_revision_lines(itemColumn, item, box);
 			if (item.ReplacesAuthorText) {
-				auto* const note = small(paragraph(textual ? tr("Accepting replaces what you wrote here.") : tr("What you wrote for this stop goes with it."), box));
+				auto* const note = small(paragraph(textual ? tr("Using it replaces what you wrote here.") : tr("What you wrote for this stop goes with it."), box));
 				note->setForegroundRole(QPalette::PlaceholderText);
 				itemColumn->addWidget(note);
 			}
@@ -1456,15 +1538,15 @@ namespace bpr::qt {
 			frame->setVisible(edit);
 			auto* const buttons = new QHBoxLayout{ };
 			buttons->setSpacing(6);
-			// [[BPR-1930]]. The primary action says what it does: Remove,
-			// Merge, Split, Reorder.
-			const auto  acceptWords = item.Part == core::tour_proposal_part::remove_stop ? tr("Remove")
-				: item.Part == core::tour_proposal_part::merge_stops                     ? tr("Merge")
-				: item.Part == core::tour_proposal_part::split_stop                      ? tr("Split")
-				: item.Part == core::tour_proposal_part::reorder                         ? tr("Reorder")
-																						 : tr("Accept");
-			auto* const accept      = new quiet_push_button{ acceptWords, box };
+			// [[BPR-1930]]. The primary action says what it does: Add to
+			// tour, Use this text, Remove, Merge, Split, Reorder; Accept only
+			// on a stop's own text, which accepts the stop (RFC-BPR-0106 as
+			// amended on 2026-11-13), in the stop's Accept look.
+			auto* const accept = make_tour_action(tour_proposal_apply_words(item.Part), box);
 			accept->setObjectName(QStringLiteral("tourProposalAccept"));
+			if (tour_proposal_accepts_stop(item.Part)) {
+				wear_stop_accept(*accept);
+			}
 			accept->setToolTip(item.Part == core::tour_proposal_part::stop              ? tr("Adds this stop at the end of the tour, with this explanation.")
 								   : item.Part == core::tour_proposal_part::stop_text   ? tr("Replaces this stop's explanation with this text.")
 								   : item.Part == core::tour_proposal_part::remove_stop ? tr("Takes this stop out of the tour. Undo arrangement brings it back.")
@@ -1472,18 +1554,16 @@ namespace bpr::qt {
 								   : item.Part == core::tour_proposal_part::split_stop  ? tr("Puts these stops in this stop's place. Undo arrangement takes it back.")
 								   : item.Part == core::tour_proposal_part::reorder     ? tr("Puts the stops in this order. Undo arrangement takes it back.")
 																						: tr("Puts this text in the tour's %1.").arg(heading));
-			auto* const discard = new quiet_push_button{ tr("Discard"), box };
+			auto* const discard = make_tour_action(tr("Discard"), box);
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
-			discard->setFlat(true);
 			// [[BPR-1900]] owner look v001: the first click acts. Neither
 			// button takes the keyboard on a press, so a field losing focus
 			// mid-click can't move the tab under the pointer; Tab still
 			// reaches both.
 			accept->setFocusPolicy(Qt::TabFocus);
 			discard->setFocusPolicy(Qt::TabFocus);
-			auto* const editText = new quiet_push_button{ edit ? tr("Show formatted") : tr("Edit text"), box };
+			auto* const editText = make_tour_action(edit ? tr("Show formatted") : tr("Edit text"), box);
 			editText->setObjectName(QStringLiteral("tourProposalEdit"));
-			editText->setFlat(true);
 			editText->setFocusPolicy(Qt::TabFocus);
 			editText->setToolTip(tr("Switches between this text as it will read and its Markdown source, which you can change before you accept it."));
 			editText->setVisible(textual);
@@ -1509,13 +1589,32 @@ namespace bpr::qt {
 			// primary action at the right, as Ready, next is on a stop.
 			buttons->addWidget(editText);
 			buttons->addWidget(discard);
+			// [[BPR-2138]], RFC-BPR-0101 AC12. Draft Tour's first draft is a
+			// fresh run; Ask more continues from it in the tour's chat, as
+			// quiet as Discard: it changes nothing here.
+			if (const auto* const made = core::find_tour_run(Session, item.Run); made != nullptr && made->Request == core::tour_agent_request::draft_tour && AskMoreDispatch) {
+				auto* const more = make_tour_action(tr("Ask more"), box);
+				more->setObjectName(QStringLiteral("tourProposalAskMore"));
+				more->setFocusPolicy(Qt::TabFocus);
+				more->setToolTip(tr("Ask about this draft in the tour's chat. The chat starts from what the draft said and keeps the conversation."));
+				connect(more, &QPushButton::clicked, this, [this, run = item.Run] {
+					if (AskMoreDispatch) {
+						AskMoreDispatch(run);
+					}
+				});
+				buttons->addWidget(more);
+			}
 			buttons->addStretch(1);
 			buttons->addWidget(accept);
 			itemColumn->addLayout(buttons);
 			Accepts[index] = accept;
-			connect(accept, &QPushButton::clicked, this, [this, index, editor] {
+			connect(accept, &QPushButton::clicked, this, [this, index, editor, stop = item.Part == core::tour_proposal_part::stop_text ? item.StopId : core::tour_stop_id{ }] {
 				if (DecideDispatch) {
 					DecideDispatch(index, core::tour_proposal_decision::accepted, editor->toPlainText());
+					// [[BPR-2014]]. Accept on a stop's own proposal accepts the stop.
+					if (OwnAcceptDispatch && stop.value() != 0U) {
+						OwnAcceptDispatch(stop, editor->toPlainText().toStdString());
+					}
 				}
 			});
 			connect(discard, &QPushButton::clicked, this, [this, index] {
@@ -1523,7 +1622,7 @@ namespace bpr::qt {
 					DecideDispatch(index, core::tour_proposal_decision::discarded, { });
 				}
 			});
-			Accented.emplace_back(accept);
+			// [[BPR-2000]]. Accept applies; it starts no run.
 			Boxes[index] = box;
 			if (Place && Place(index, item, box)) {
 				// [[BPR-1930]]. A wrapped line's minimum is its height at a narrow

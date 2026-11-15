@@ -3,8 +3,12 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/agent_configuration_dialogs.hpp"
+#include "bpr/qt/agent_entry_dialog.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -13,7 +17,8 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/line_details_pane.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/local_changes_panel.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -27,17 +32,23 @@
 #include "src/installed_resources.hpp"
 #include "src/installed_runtime.hpp"
 #include "src/terminal_diagnostics.hpp"
+#include <QTabBar>
 #if defined(__linux__)
 	#include "src/xcb_activation_host.hpp"
 #endif
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
+	#include "bpr/qt/agent_footer.hpp"
+	#include "bpr/qt/agent_report_view.hpp"
+	#include "bpr/qt/agent_setup_view.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
+	#include "bpr/qt/side_chat_panel.hpp"
 	#include "bpr/qt/workshop_candidate_line.hpp"
 	#include "bpr/qt/writing_hooks_panel.hpp"
 	#include "github_application_fixture_access.hpp"
+	#include "src/discuss_busy_fixture.hpp"
 	#include "src/private_review_fixture_course.hpp"
 	#include "src/review_submission_fixture.hpp"
 	#include "src/startup_diagnostic.hpp"
@@ -54,6 +65,7 @@
 	#include "designated_live_macos_provenance.hpp"
 #endif
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -63,13 +75,19 @@
 #include <QCryptographicHash>
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontInfo>
 #include <QIcon>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
 #include <QSize>
@@ -84,6 +102,9 @@
 #include <QWindow>
 
 #if defined(BPR_BUILD_TESTING)
+	#include "bpr/qt/appearance_settings_panel.hpp"
+	#include "bpr/qt/colour_role_list.hpp"
+	#include "bpr/qt/settings_window.hpp"
 	#include <QFont>
 	#include <QGuiApplication>
 	#include <QImage>
@@ -95,7 +116,9 @@
 	#include <QPalette>
 	#include <QPersistentModelIndex>
 	#include <QPlainTextEdit>
+	#include <QRegularExpression>
 	#include <QScrollArea>
+	#include <QScrollBar>
 	#include <QSplitter>
 	#include <QStyle>
 	#include <QStyleHints>
@@ -258,7 +281,12 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-preflight-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-unknown-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
-		bpr::app::command_line_option{ .Name = "attended-notes-look" },
+		bpr::app::command_line_option{ .Name = "attended-drafts-look" },
+		bpr::app::command_line_option{ .Name = "attended-local-comments-look" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-author" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-pull-request", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
@@ -270,16 +298,24 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-chat-status" },
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
+		bpr::app::command_line_option{ .Name = "attended-busy-discuss-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-agent-draft-first" },
+		bpr::app::command_line_option{ .Name = "attended-agent-draft-all-check" },
+		bpr::app::command_line_option{ .Name = "attended-agent-helpers", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-prompt-editor" },
+		bpr::app::command_line_option{ .Name = "attended-prompt-examples" },
+		bpr::app::command_line_option{ .Name = "attended-queue-windows" },
+		bpr::app::command_line_option{ .Name = "attended-share-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
 		bpr::app::command_line_option{ .Name = "attended-account-setup-look" },
 		bpr::app::command_line_option{ .Name = "attended-home-rows" },
+		bpr::app::command_line_option{ .Name = "attended-home-moves" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-refresh-delay-ms", .TakesValue = true },
@@ -5161,6 +5197,7 @@ namespace {
 				stream << "START_REVIEW_RESTORED_EVIDENCE:" << evidence.ReasonRestored << evidence.ReasonReplaced << '\n';
 				break;
 			case bpr::app::detail::start_review_course::showcase:
+			case bpr::app::detail::start_review_course::drafts_showcase:
 				break;
 			}
 			stream << "START_REVIEW_DIAGNOSTIC:" << QString::fromStdString(aRun.StartReviewDiagnostic) << '\n';
@@ -5598,12 +5635,27 @@ namespace {
 	void schedule_attended_workshop_look(bpr::app::github_application& aApplication);
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
-	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
-	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
-	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
-	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
+	void schedule_attended_local_comments_look(bpr::app::github_application& aApplication);
+	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication);
+	/// RFC-BPR-0108. The worktree `--attended-local-draft` opens.
+	std::string AttendedLocalDraftPath;
+	/// RFC-BPR-0110. The look prepares a description and a tour through the
+	/// page, and asks a scripted agent once.
+	bool AttendedLocalDraftTour = false;
+	/// The owner's redesign, 2026-11-12: author state, with GitHub checked
+	/// once as the author would, and optionally the draft associated with a
+	/// pull request so the window is a pull request opened by its author.
+	bool          AttendedLocalDraftAuthor      = false;
+	std::uint64_t AttendedLocalDraftPullRequest = 0U;
+	void          prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* aTimer);
+	void          schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
+	void          schedule_attended_share_look(bpr::app::github_application& aApplication);
+	void          schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
+	void          schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
+	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication);
+	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication);
 	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
 
@@ -5684,14 +5736,21 @@ namespace {
 					// the first head from a pushed one.
 					QTextStream{ stdout } << "ATTENDED_HEAD:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::accepted_head(aApplication)) << '\n';
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
+	#if defined(BPR_AGENT_INTEGRATIONS)
+					if (qEnvironmentVariable("BPR_ATTENDED_FIXTURE_AGENT_CHECK") == QStringLiteral("1")) {
+						schedule_attended_fixture_agent_check(aApplication);
+					}
+	#endif
 					if (look == "workshop") {
 						schedule_attended_workshop_look(aApplication);
 					} else if (look == "unknown-review") {
 						schedule_attended_unknown_review_look(aApplication);
 					} else if (look == "finish-review") {
 						schedule_attended_finish_review_look(aApplication);
-					} else if (look == "notes") {
-						schedule_attended_notes_look(aApplication);
+					} else if (look == "local-comments") {
+						schedule_attended_local_comments_look(aApplication);
+					} else if (look == "local-draft") {
+						schedule_attended_local_draft_look(aApplication);
 					} else if (look == "conversation") {
 						schedule_attended_conversation_look(aApplication);
 					} else if (look == "tour") {
@@ -5700,9 +5759,13 @@ namespace {
 						schedule_attended_tour_look(aApplication, true);
 					} else if (look == "prompt-editor") {
 						schedule_attended_prompt_editor_look(aApplication);
+					} else if (look == "share") {
+						schedule_attended_share_look(aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
+					} else if (look == "agent-helpers") {
+						schedule_attended_agent_helpers_look(aApplication);
 					} else if (look == "repository") {
 						schedule_attended_repository_look(aApplication);
 	#endif
@@ -5944,6 +6007,208 @@ namespace {
 		timer->start();
 	}
 
+	// [[BPR-2017]], RFC-BPR-0107. `--attended-share-look`: once the file
+	// shows, the profile is given what a person shares, through Settings' own
+	// surfaces: two custom agents added through Add agent… (one asking for
+	// relaxed checks, builds and its scratch folder off) and two prompts
+	// edited and saved. Settings then opens on Agents & context, where Import
+	// configuration… and Export configuration… are. Nothing is run or
+	// checked. A profile that already has them is left as it is.
+	void schedule_attended_share_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  started = automated_clock::now();
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, step = 0, alive = aApplication.liveness()]() mutable {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const hooks  = window.writing_hooks();
+			auto* const agents = window.agent_programs();
+			const auto  finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - started > std::chrono::seconds{ 30 }) {
+				finish(QStringLiteral("ATTENDED_SHARE_FAILED:timeout"));
+				return;
+			}
+			auto* const text = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
+			auto* const save = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
+			if (text == nullptr || save == nullptr || agents == nullptr || agents->import_button() == nullptr) {
+				finish(QStringLiteral("ATTENDED_SHARE_FAILED:surfaces"));
+				return;
+			}
+			// `BPR_ATTENDED_SHARE_CHECK=recipient`: a second, fresh profile
+			// imports that file, binding each custom agent to
+			// `BPR_ATTENDED_CONFIGURATION_PROGRAM` through Choose program….
+			const auto recipient = qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") == QStringLiteral("recipient");
+			if (recipient) {
+				const auto said  = agents->exchange_note()->text();
+				auto*      found = static_cast<QWidget*>(nullptr);
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					if (widget->objectName() == QStringLiteral("agentConfigurationImport") && widget->isVisible()) {
+						found = widget;
+					}
+				}
+				if (step == 0) {
+					window.settings_action()->trigger();
+					window.settings()->present(bpr::qt::settings_page::agents_and_context);
+					agents->import_button()->click();
+					step = 1;
+				} else if (step == 1 && found != nullptr) {
+					auto* const importing = static_cast<bpr::qt::agent_configuration_import_dialog*>(found);
+					for (std::size_t item = 0U; item < importing->preview().File.Agents.size(); ++item) {
+						importing->select_agent(item);
+						if (!importing->program_button()->isHidden()) {
+							importing->program_button()->click();
+						}
+					}
+					const auto choices = importing->agent_choices();
+					const auto strict  = std::ranges::all_of(choices, [](const bpr::core::agent_import_choice& aChoice) { return !aChoice.AcceptRelaxedChecks && !aChoice.AcceptBuilds; });
+					if (choices.size() != 2U || !strict) {
+						finish(QStringLiteral("ATTENDED_SHARE_FAILED:bind:%1").arg(importing->summary()->text()));
+						return;
+					}
+					importing->apply_button()->click();
+					step = 2;
+				} else if (step == 2 && said.startsWith(QStringLiteral("Imported"))) {
+					if (agents->agent_list()->count() != 2) {
+						return;
+					}
+					hooks->select_hook(bpr::core::writing_hook::feedback);
+					finish(QStringLiteral("ATTENDED_SHARE_RECEIVED:agents=%1:rows=%2|%3:feedback=%4:said=%5")
+							   .arg(agents->agent_list()->count())
+							   .arg(agents->roster_row_text(0).replace(QLatin1Char('\n'), QStringLiteral(" / ")), agents->roster_row_text(1).replace(QLatin1Char('\n'), QStringLiteral(" / ")))
+							   .arg(text->toPlainText().startsWith(QStringLiteral("Lead with the risk")) ? QStringLiteral("imported") : QStringLiteral("missing"))
+							   .arg(said));
+				} else if (step == 2 && !said.isEmpty() && !said.startsWith(QStringLiteral("Imported"))) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:recipient:%1").arg(said));
+				}
+				return;
+			}
+			if (step == 0) {
+				window.settings_action()->trigger();
+				window.settings()->present(bpr::qt::settings_page::agents_and_context);
+				if (agents->agent_list()->count() == 0) {
+					auto work            = bpr::core::agent_entry{ .Name = "Work Claude", .Protocol = bpr::core::agent_protocol::claude_stream_json, .Program = "/usr/local/bin/work-claude" };
+					work.Arguments       = { "--profile", "work" };
+					work.Model           = "opus";
+					work.Effort          = "high";
+					work.StrictRunChecks = false;
+					work.BuildsAndTests  = true;
+					work.ScratchStarts   = false;
+					auto lint            = bpr::core::agent_entry{ .Name = "Lint bot", .Protocol = bpr::core::agent_protocol::external_terminal, .Program = "/opt/tools/lint-bot" };
+					lint.Arguments       = { "--fast" };
+					for (const auto& entry : { work, lint }) {
+						agents->set_editor([entry](const bpr::core::agent_entry&, QWidget*) { return std::optional{ entry }; });
+						agents->add_agent(std::nullopt);
+					}
+					agents->set_editor(bpr::qt::default_agent_entry_editor());
+					hooks->select_hook(bpr::core::writing_hook::problem);
+					hooks->show_preview(false);
+					text->setPlainText(QStringLiteral("Say what is wrong today in two sentences: who meets it and what it costs them. Name the ticket if there is one."));
+					save->click();
+					hooks->select_hook(bpr::core::writing_hook::enhance_writing);
+					text->setPlainText(text->toPlainText() + QStringLiteral("\n\nKeep the reviewer's own voice. Never add praise they did not write."));
+					save->click();
+				}
+				step = 1;
+				return;
+			}
+			if (agents->agent_list()->count() < 2) {
+				return;
+			}
+			// `BPR_ATTENDED_SHARE_CHECK=1` with `BPR_ATTENDED_CONFIGURATION_FILE`:
+			// the round trip the owner makes, through the same buttons and
+			// dialogs. Every prompt is exported, the shipped Review feedback is
+			// improved in the file, imported back and becomes the edited prompt.
+			const auto file = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+			if (qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") != QStringLiteral("1") || file.isEmpty()) {
+				hooks->select_hook(bpr::core::writing_hook::problem);
+				window.settings()->present(bpr::qt::settings_page::agents_and_context);
+				agents->import_button()->setFocus();
+				finish(QStringLiteral("ATTENDED_SHARE_SHOWN:agents=%1").arg(agents->agent_list()->count()));
+				return;
+			}
+			const auto dialog = [](const QString& aName) -> QWidget* {
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					if (widget->objectName() == aName && widget->isVisible()) {
+						return widget;
+					}
+				}
+				return nullptr;
+			};
+			const auto said     = agents->exchange_note()->text();
+			const auto improved = QStringLiteral("Lead with the risk, then the fix. One point per comment.");
+			if (step == 1) {
+				agents->export_button()->click();
+				step = 2;
+			} else if (step == 2) {
+				if (auto* const exporting = dialog(QStringLiteral("agentConfigurationExport"))) {
+					exporting->findChild<QPushButton*>(QStringLiteral("agentConfigurationAllPrompts"))->click();
+					exporting->findChild<QPushButton*>(QStringLiteral("agentConfigurationExportButton"))->click();
+					step = 3;
+				}
+			} else if (step == 3 && said.startsWith(QStringLiteral("Exported"))) {
+				auto in = QFile{ file };
+				if (!in.open(QIODevice::ReadOnly)) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:unwritten"));
+					return;
+				}
+				const auto bytes = in.readAll();
+				in.close();
+				if (bytes.contains("/usr/local/bin") || bytes.contains("/opt/tools") || !bytes.contains("\"origin\": \"built-in\"")) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:export-content"));
+					return;
+				}
+				auto document = QJsonDocument::fromJson(bytes);
+				auto root     = document.object();
+				auto prompts  = root[QStringLiteral("prompts")].toArray();
+				for (qsizetype index = 0; index < prompts.size(); ++index) {
+					auto prompt = prompts[index].toObject();
+					if (prompt[QStringLiteral("purpose")].toString() == QStringLiteral("review.feedback")) {
+						prompt[QStringLiteral("origin")] = QStringLiteral("edited");
+						prompt[QStringLiteral("text")]   = improved;
+						prompts[index]                   = prompt;
+					}
+				}
+				root[QStringLiteral("prompts")] = prompts;
+				auto out                        = QFile{ file };
+				if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(QJsonDocument{ root }.toJson()) <= 0) {
+					finish(QStringLiteral("ATTENDED_SHARE_FAILED:improve"));
+					return;
+				}
+				out.close();
+				agents->import_button()->click();
+				step = 4;
+			} else if (step == 4) {
+				if (auto* const importing = dialog(QStringLiteral("agentConfigurationImport"))) {
+					auto* const summary = importing->findChild<QLabel*>(QStringLiteral("agentConfigurationSummary"));
+					if (summary == nullptr || !summary->text().contains(QStringLiteral("0 agents and 1 prompt."))) {
+						finish(QStringLiteral("ATTENDED_SHARE_FAILED:preview:%1").arg(summary != nullptr ? summary->text() : QString{ }));
+						return;
+					}
+					importing->findChild<QPushButton*>(QStringLiteral("agentConfigurationApply"))->click();
+					step = 5;
+				}
+			} else if (step == 5 && said.startsWith(QStringLiteral("Imported"))) {
+				hooks->select_hook(bpr::core::writing_hook::feedback);
+				auto* const badge = hooks->findChild<QLabel*>(QStringLiteral("writingHookBadge"));
+				if (text->toPlainText() != improved || badge == nullptr || badge->text() != QStringLiteral("Changed from built-in")) {
+					return;
+				}
+				finish(QStringLiteral("ATTENDED_SHARE_CHECKED:agents=%1:said=%2").arg(agents->agent_list()->count()).arg(said));
+			} else if (step == 5 && !said.startsWith(QStringLiteral("Exported"))) {
+				finish(QStringLiteral("ATTENDED_SHARE_FAILED:import:%1").arg(said));
+			}
+		});
+		timer->start();
+	}
+
 	// [[BPR-1541]]. `--attended-unknown-review-look`: on
 	// conventional-comments-v1, once the file is shown, the start-a-review
 	// course's `kept` path runs in the open window: a review with one comment
@@ -5987,7 +6252,10 @@ namespace {
 			if (alive.expired()) {
 				return;
 			}
-			const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(aApplication, bpr::app::detail::start_review_course::showcase);
+			// [[BPR-2092]]. `--attended-drafts-look`: three comments in the
+			// review and two drafts left out of it, with the threads the fixture has.
+			const auto drafts = QCoreApplication::arguments().contains(QStringLiteral("--attended-drafts-look"));
+			const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(aApplication, drafts ? bpr::app::detail::start_review_course::drafts_showcase : bpr::app::detail::start_review_course::showcase);
 			if (result == bpr::app::detail::start_review_probe_result::pending) {
 				return;
 			}
@@ -6010,6 +6278,36 @@ namespace {
 					QCoreApplication::processEvents();
 				}
 				QTextStream{ stdout } << "ATTENDED_FINISH_REVIEW_SHOWN\n";
+				// [[BPR-2092]] [[BPR-2093]] [[BPR-2094]]. Verification only:
+				// with BPR_ATTENDED_DRAFTS_CHECK, the three surfaces agree on
+				// the drafts, and Add all takes both left out into the review.
+				if (QCoreApplication::arguments().contains(QStringLiteral("--attended-drafts-look")) && !qEnvironmentVariable("BPR_ATTENDED_DRAFTS_CHECK").isEmpty()) {
+					auto&       window  = aApplication.window();
+					const auto& saved   = window.finder()->saved_drafts();
+					const auto  out     = static_cast<int>(std::ranges::count_if(saved, [](const bpr::qt::finder_saved_draft& aDraft) { return !aDraft.InReview; }));
+					const auto  model   = window.overview_page()->file_model();
+					const auto  counted = model->drafts_at(model->index_for_path(QStringLiteral("src/engine/renderer.cpp")));
+					auto* const editor  = window.review_submission_editor_view();
+					QTextStream{ stdout } << "ATTENDED_DRAFTS_THREADS:" << saved.size() << ',' << out << '\n'
+										  << "ATTENDED_DRAFTS_OVERVIEW:" << (counted ? counted->InReview : 0U) << ',' << (counted ? counted->NotInReview : 0U) << '\n'
+										  << "ATTENDED_DRAFTS_OUTSIDE:" << editor->outside_rows().size() << '\n';
+					editor->outside_add_all()->click();
+					auto* const poll = new QTimer{ &window };
+					poll->setInterval(50);
+					QObject::connect(poll, &QTimer::timeout, poll, [poll, editor, ticks = 0]() mutable {
+						if (editor->pending_rows().size() == 5 && editor->outside_rows().isEmpty()) {
+							QTextStream{ stdout } << "ATTENDED_DRAFTS_ADDED:5\n";
+						} else if (++ticks < 200) {
+							return;
+						} else {
+							QTextStream{ stdout } << "ATTENDED_DRAFTS_ADD_FAILED:" << editor->pending_rows().size() << ',' << editor->outside_rows().size() << '\n';
+						}
+						QTextStream{ stdout }.flush();
+						poll->stop();
+						poll->deleteLater();
+					});
+					poll->start();
+				}
 			} else {
 				QTextStream{ stdout } << "ATTENDED_FINISH_REVIEW_FAILED:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::start_review_diagnostic(aApplication)) << '\n';
 			}
@@ -6018,105 +6316,435 @@ namespace {
 		timer->start();
 	}
 
-	// [[BPR-1592]]. `--attended-notes-look`: on conventional-comments-v1, once
-	// the file shows, the Notes tab opens and three real-looking private notes
-	// are written through its own gestures: two on lines of renderer.cpp
-	// (select the line, N, write, Save) and one on the pull request. Notes is
-	// left showing them at their lines for the person. Nothing reaches GitHub.
-	void schedule_attended_notes_look(bpr::app::github_application& aApplication)
+	/// RFC-BPR-0108. After the pull request is shown, Home's Prepare Pull
+	/// Request… opens the named worktree, as a person choosing it would, and
+	/// says when its proposed diff is shown.
+	/// \brief The author look's worktree, copied where Git may write: a frozen
+	/// root is read-only, and staging, committing and pushing write the
+	/// worktree's index and its local "GitHub". The copy's configuration names
+	/// its own copy of that repository. Nothing outside the copy changes.
+	auto writable_author_look(const std::string& aWorktree) -> std::string
 	{
-		struct written
-		{
-			std::optional<std::uint32_t> Line;
-			QString                      Text;
+		const auto worktree = QFileInfo{ QString::fromStdString(aWorktree) };
+		const auto source   = worktree.absoluteDir().absolutePath();
+		const auto target   = QDir{ QDir::tempPath() }.filePath(QStringLiteral("bpr-local-draft-look-%1").arg(QCoreApplication::applicationPid()));
+		QDir{ target }.removeRecursively();
+		auto entries = QDirIterator{ source, QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot | QDir::System, QDirIterator::Subdirectories };
+		QDir{ }.mkpath(target);
+		while (entries.hasNext()) {
+			const auto path     = entries.next();
+			const auto info     = entries.fileInfo();
+			const auto relative = QDir{ source }.relativeFilePath(path);
+			const auto copy     = QDir{ target }.filePath(relative);
+			if (info.isDir() && !info.isSymLink()) {
+				QDir{ }.mkpath(copy);
+			} else if (info.isFile()) {
+				QDir{ }.mkpath(QFileInfo{ copy }.absolutePath());
+				QFile::copy(path, copy);
+				QFile::setPermissions(copy, QFile::permissions(copy) | QFileDevice::WriteOwner);
+			}
+		}
+		// The worktree's configuration names its local "GitHub" by path.
+		for (const auto& config : { QDir{ target }.filePath(worktree.fileName() + QStringLiteral("/.git/config")) }) {
+			auto file = QFile{ config };
+			if (file.open(QIODevice::ReadOnly)) {
+				auto text = QString::fromUtf8(file.readAll());
+				file.close();
+				text.replace(source, target);
+				if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+					file.write(text.toUtf8());
+				}
+			}
+		}
+		return QDir{ target }.filePath(worktree.fileName()).toStdString();
+	}
+
+	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication)
+	{
+		if (AttendedLocalDraftAuthor) {
+			AttendedLocalDraftPath = writable_author_look(AttendedLocalDraftPath);
+		}
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto finish = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (*ticks == 0) {
+				aApplication.open_local_draft(AttendedLocalDraftPath);
+			}
+			if (++*ticks > 1'200) {
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:timeout"));
+				return;
+			}
+			auto* const page = window.local_draft();
+			if (window.showing_local_draft() && page != nullptr && page->projection().Draft && page->projection().File
+				&& page->projection().File->Status == bpr::application::review_material_status::available) {
+				if (AttendedLocalDraftTour) {
+					timer->stop();
+					timer->deleteLater();
+					prepare_attended_local_draft_tour(aApplication, new QTimer{ &window });
+					return;
+				}
+				if (AttendedLocalDraftAuthor) {
+					// Once: associate if asked, then Check Again as the author would.
+					static auto stage = 0;
+					if (stage == 0 && AttendedLocalDraftPullRequest != 0U) {
+						stage = 1;
+						aApplication.associate_local_draft_for_look(AttendedLocalDraftPullRequest);
+						return;
+					}
+					if (stage < 2) {
+						// Check Again once the first read has settled, as the author would.
+						if (page->local_projection().Active && page->local_projection().Observed
+							&& page->local_projection().Running == bpr::application::local_changes_operation::none) {
+							stage = 2;
+							page->local_changes()->push_button()->click();
+						}
+						return;
+					}
+					const auto& local = page->local_projection();
+					if (*ticks % 40 == 0) {
+						QTextStream{ stdout } << "ATTENDED_LOCAL_DRAFT_PROGRESS:active=" << local.Active << " observed=" << local.Observed << " hosted=" << local.Hosted.Observed
+											  << " running=" << QString::fromUtf8(bpr::application::name(local.Running).data()) << " failure="
+											  << (local.Failure ? QString::fromStdString(local.Failure->Message).left(200) : QString{ }) << '\n';
+						QTextStream{ stdout }.flush();
+					}
+					if (local.Running != bpr::application::local_changes_operation::none || (!local.Hosted.Observed && !local.Failure)) {
+						return;
+					}
+					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_AUTHOR_SHOWN:%1:%2").arg(QString::fromStdString(AttendedLocalDraftPath), page->local_changes()->push_state()->text()));
+					return;
+				}
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
+			}
+		});
+		timer->start();
+	}
+
+	/// RFC-BPR-0110 as amended (owner: "stick with the PR view and just
+	/// augment it"). Through the pull request window's own surfaces, as an
+	/// author would: include the working README, refresh, write the
+	/// description in Overview and the tour's Problem and Solution in the Tour
+	/// panel, add a stop on src/search.cpp and accept it with Save, add one on
+	/// the README left to accept, and ask the scripted agent in the side chat.
+	void prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* const aTimer)
+	{
+		aTimer->setInterval(50);
+		const auto stage = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		aApplication.script_local_draft_agent_for_look();
+		QObject::connect(aTimer, &QTimer::timeout, aTimer, [&aApplication, aTimer, stage, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto finish = [aTimer](const QString& aLine) {
+				aTimer->stop();
+				aTimer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 2'400) {
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:tour-%1").arg(*stage));
+				return;
+			}
+			auto* const page = aApplication.window().local_draft();
+			if (page == nullptr || !page->projection().Draft || page->projection().Busy) {
+				return;
+			}
+			const auto& view  = page->projection();
+			const auto& prep  = view.Draft->Preparation;
+			const auto  shown = [&](const char* aPath) {
+				return view.File && view.File->Path == aPath && view.File->Status == bpr::application::review_material_status::available;
+			};
+			auto&       window = aApplication.window();
+			auto* const tour   = window.tour_editor();
+			const auto  open   = [&](const char* aPath) { static_cast<void>(window.open_local_file(QString::fromLatin1(aPath))); };
+			// The lines selected in the window's own comparison, as a person drags them.
+			const auto select = [&](const std::uint32_t aFirst, const std::uint32_t aLast) { page->reveal(view.File->Path, aFirst, aLast); };
+			switch (*stage) {
+			case 0:
+				for (int row = 0; row < page->working()->count(); ++row) {
+					if (page->working()->item(row)->text() == QStringLiteral("README.md")) {
+						page->working()->item(row)->setCheckState(Qt::Checked);
+					}
+				}
+				*stage = 1;
+				return;
+			case 1:
+				if (view.RefreshOffered) {
+					page->refresh_button()->click();
+				}
+				*stage = 2;
+				return;
+			case 2: {
+				if (view.Draft->Candidates.size() < 2U) {
+					return;
+				}
+				// The description, in Overview's own editor.
+				window.choose_modality(bpr::qt::review_modality::overview);
+				auto* const overview = window.overview_page();
+				if (!overview->description_editing() && !overview->begin_description_edit()) {
+					return;
+				}
+				overview->description_editor()->setPlainText(QStringLiteral(
+					"## Problem\n\nAn empty query made `search()` read the byte after the string.\n\n## Solution\n\n`search()` checks for the empty query first; `engine()` calls it.\n\n## Testing\n\n- [x] search_tests on macOS\n- [ ] Linux not run\n"));
+				overview->description_save_button()->click();
+				*stage = 3;
+				return;
+			}
+			case 3:
+				if (prep.Description.Body.empty()) {
+					return;
+				}
+				window.choose_modality(bpr::qt::review_modality::review);
+				window.tray_tabs()->setCurrentIndex(1);
+				tour->open_step(bpr::core::tour_step::problem);
+				tour->problem_editor()->setPlainText(QStringLiteral("An empty query made search() read the byte after the string."));
+				*stage = 4;
+				return;
+			case 4:
+				if (prep.Tour.Problem.empty()) {
+					return;
+				}
+				tour->open_step(bpr::core::tour_step::solution);
+				tour->solution_editor()->setPlainText(QStringLiteral("search() checks for the empty query first; engine() calls it."));
+				*stage = 5;
+				return;
+			case 5:
+				if (prep.Tour.Solution.empty()) {
+					return;
+				}
+				open("src/search.cpp");
+				if (shown("src/search.cpp")) {
+					select(1U, 4U);
+					tour->open_step(bpr::core::tour_step::stops);
+					tour->trigger(bpr::qt::tour_editor_action::add_stop);
+					*stage = 6;
+				}
+				return;
+			case 6:
+				if (prep.Tour.Stops.size() != 1U) {
+					return;
+				}
+				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[0].Id });
+				tour->begin_stop_edit();
+				tour->stop_title()->setPlainText(QStringLiteral("The empty query returns first"));
+				tour->stop_body()->setPlainText(QStringLiteral("An empty string returns 0 before anything reads `aText[0]`'s successor. This is the fix."));
+				*stage = 7;
+				return;
+			case 7:
+				if (prep.Tour.Stops[0].Text.empty()) {
+					return;
+				}
+				tour->save_stop_edit();
+				*stage = 8;
+				return;
+			case 8:
+				open("README.md");
+				if (shown("README.md")) {
+					select(3U, 3U);
+					tour->trigger(bpr::qt::tour_editor_action::add_stop);
+					*stage = 9;
+				}
+				return;
+			case 9:
+				if (prep.Tour.Stops.size() != 2U) {
+					return;
+				}
+				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[1].Id });
+				tour->begin_stop_edit();
+				tour->stop_title()->setPlainText(QStringLiteral("The README says so"));
+				tour->stop_body()->setPlainText(QStringLiteral("The README's search section now says an empty query finds nothing."));
+				*stage = 10;
+				return;
+			case 10:
+				if (prep.Tour.Stops[1].Text.empty()) {
+					return;
+				}
+				tour->finish_stop_edit();
+				// The look's agent is scripted; no agent is set up in its fresh home.
+				tour->set_agent_readiness(bpr::qt::agent_setup_readiness::ready);
+				tour->open_side_chat(bpr::core::tour_thread{ });
+				tour->side_chat()->composer()->setPlainText(QStringLiteral("Is the empty query the only case that reads past the string?"));
+				tour->side_chat()->send_button()->click();
+				*stage = 11;
+				return;
+			default:
+				if (prep.Conversations.empty() || prep.Conversations.back().Turns.size() < 2U) {
+					return;
+				}
+				window.tray_tabs()->setCurrentIndex(1);
+				tour->go_to_stop(bpr::core::tour_stop_id{ prep.Tour.Stops[1].Id });
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_TOUR_SHOWN:%1").arg(QString::fromStdString(AttendedLocalDraftPath)));
+				return;
+			}
+		});
+		aTimer->start();
+	}
+
+	// RFC-BPR-0127 ([[BPR-2158]]). `--attended-local-comments-look`: on the
+	// first line of the open file that has a published thread, N and Save
+	// write a Local comment through the drawer's composer; then two Local
+	// replies are seeded in that thread and the second is made a draft reply
+	// through Make draft. The thread is opened and the window left to the
+	// person: Published, Local and Draft on one line. Nothing reaches GitHub.
+	void schedule_attended_local_comments_look(bpr::app::github_application& aApplication)
+	{
+		enum class phase : std::uint8_t {
+			drawer,
+			thread,
+			compose,
+			saved,
+			replies,
+			shown,
 		};
-		static const auto notes = std::array{
-			written{ 5U, QStringLiteral("Does draw_scene() run before or after the clear on the second view? If after, the clear can race the draw. Ask before approving.") },
-			written{ 11U, QStringLiteral("Width and Height are read every frame; check whether a resize mid-frame can tear them.") },
-			written{ std::nullopt, QStringLiteral("Before approving: run the soak test with the retry budget at 1, and read the frame pacing thread.") },
+		struct look_state
+		{
+			phase                Phase = phase::drawer;
+			std::string          Thread;
+			bpr::core::diff_side Side              = bpr::core::diff_side::right;
+			std::uint32_t        Line              = 0U;
+			int                  Ticks             = 0;
+			bool                 SeededFile        = false;
+			bool                 SeededPullRequest = false;
 		};
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
-		const auto step    = std::make_shared<std::size_t>(0U);
-		const auto waiting = std::make_shared<bool>(false);
-		const auto ticks   = std::make_shared<int>(0);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, waiting, ticks, alive = aApplication.liveness()] {
+		const auto state = std::make_shared<look_state>();
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
 			auto&       window = aApplication.window();
-			auto* const panel  = window.private_notes();
-			const auto  fail   = [timer](const QString& aWhy) {
+			auto* const cards  = window.conversation_panel()->cards();
+			const auto  done   = [timer](const QString& aLine) {
 				timer->stop();
 				timer->deleteLater();
-				QTextStream{ stdout } << "ATTENDED_NOTES_FAILED:" << aWhy << '\n';
+				QTextStream{ stdout } << aLine << '\n';
 				QTextStream{ stdout }.flush();
 			};
-			if (++*ticks > 2'400) {
-				fail(QStringLiteral("timeout:step=%1").arg(*step));
+			if (++state->Ticks > 2'400) {
+				done(QStringLiteral("ATTENDED_LOCAL_COMMENTS_FAILED:timeout:%1:%2:local=%3:writing=%4").arg(static_cast<int>(state->Phase)).arg(window.statusBar()->currentMessage()).arg(window.composing_local()).arg(cards->writing_draft()));
 				return;
 			}
-			if (window.conversations_drawer()->state() != bpr::core::workbench_drawer_state::expanded) {
-				window.conversations_drawer_toggle_action()->trigger();
+			const auto& shown = cards->cards();
+			switch (state->Phase) {
+			case phase::drawer:
+				if (window.conversations_drawer()->state() != bpr::core::workbench_drawer_state::expanded) {
+					window.conversations_drawer_toggle_action()->trigger();
+					return;
+				}
+				if (window.tray_tabs()->currentIndex() != 0) {
+					window.tray_tabs()->setCurrentIndex(0);
+					return;
+				}
+				state->Phase = phase::thread;
+				return;
+			case phase::thread: {
+				const auto found = std::ranges::find_if(shown, [](const bpr::qt::thread_card& aCard) {
+					return aCard.Id.starts_with("review-thread:") && aCard.Line.has_value() && *aCard.Line > 0U && !aCard.Outdated && aCard.Side == bpr::core::diff_side::right && !aCard.Resolved;
+				});
+				if (found == shown.end()) {
+					return;
+				}
+				state->Thread = found->Id;
+				state->Side   = *found->Side;
+				state->Line   = *found->Line;
+				state->Phase  = phase::compose;
 				return;
 			}
-			if (window.tray_tabs()->currentIndex() != 1) {
-				window.tray_tabs()->setCurrentIndex(1);
+			case phase::compose: {
+				const auto& chosen = window.comparison_surface()->selection();
+				if (!chosen || chosen->PreferredLine.Line != state->Line - 1U || chosen->PreferredLine.Side != state->Side) {
+					static_cast<void>(window.comparison_surface()->select_conversation_line(state->Side, state->Line - 1U));
+					return;
+				}
+				if (!cards->writing_draft()) {
+					window.local_comment_action()->trigger();
+					return;
+				}
+				auto* const editor = cards->draft_editor();
+				if (editor == nullptr || !window.composing_local()) {
+					return;
+				}
+				editor->setPlainText(QStringLiteral("Height is not clamped here. Re-check once the swap chain change lands."));
+				QCoreApplication::processEvents();
+				auto* const save = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadSaveLocal")) : nullptr;
+				if (save == nullptr || !save->isVisible()) {
+					return;
+				}
+				save->click();
+				QTextStream{ stdout } << "ATTENDED_LOCAL_COMMENTS_SAVE_PRESSED:" << window.statusBar()->currentMessage() << '\n';
+				state->Phase = phase::saved;
 				return;
 			}
-			if (!panel->new_review_action()->isEnabled()) {
+			case phase::saved: {
+				const auto local = std::ranges::any_of(shown, [&](const bpr::qt::thread_card& aCard) { return aCard.Local && aCard.Line == std::optional{ state->Line }; });
+				if (!local) {
+					return;
+				}
+				const auto* const result = window.comparison_surface()->current_result().get();
+				if (result == nullptr) {
+					return;
+				}
+				const auto line = bpr::core::source_line_ref{ .Comparison = result->Alignment.Digest, .Side = state->Side, .Line = state->Line - 1U };
+				if (!bpr::app::detail::github_application_fixture_access::seed_local_replies_for_look(aApplication, state->Thread.substr(std::string_view{ "review-thread:" }.size()), line)) {
+					done(QStringLiteral("ATTENDED_LOCAL_COMMENTS_FAILED:seed"));
+					return;
+				}
+				state->Phase = phase::replies;
 				return;
 			}
-			if (*step < notes.size()) {
-				const auto& note = notes[*step];
-				if (*waiting) {
-					// Saved once the ledger has it.
-					if (panel->notes().size() == *step + 1U && !panel->writing()) {
-						*waiting = false;
-						++*step;
+			case phase::replies: {
+				const auto thread = std::ranges::find(shown, state->Thread, &bpr::qt::thread_card::Id);
+				if (thread == shown.end() || thread->LocalReplies < 1U || !thread->UnsentReply.has_value()) {
+					return;
+				}
+				// BPR-2158, second look: a Local comment on the whole file and
+				// one on the pull request, as a migrated note leaves them, so
+				// the This file chip and the pull request link's count show.
+				const auto& locals = cards->local_comments();
+				const auto  placed = [&locals](const bpr::qt::local_comment_place aPlace) { return std::ranges::any_of(locals, [aPlace](const bpr::qt::local_comment_card& aCard) { return aCard.Place == aPlace; }); };
+				if (!placed(bpr::qt::local_comment_place::whole_file)) {
+					if (!state->SeededFile) {
+						state->SeededFile = bpr::app::detail::github_application_fixture_access::seed_local_comment(aApplication, "Whole file: the frame pool's lifetime is not documented anywhere. Ask before approving.", true);
 					}
 					return;
 				}
-				if (note.Line) {
-					const auto& chosen = window.comparison_surface()->selection();
-					if (!chosen || chosen->PreferredLine.Line != *note.Line || chosen->PreferredLine.Side != bpr::core::diff_side::right) {
-						static_cast<void>(window.comparison_surface()->select_conversation_line(bpr::core::diff_side::right, *note.Line));
-						return;
+				if (!placed(bpr::qt::local_comment_place::pull_request)) {
+					if (!state->SeededPullRequest) {
+						state->SeededPullRequest = bpr::app::detail::github_application_fixture_access::seed_local_comment(aApplication, "Before approving: run the soak test with the retry budget at 1.", false);
 					}
-					panel->start_line_note();
-				} else {
-					panel->start_pull_request_note();
-				}
-				if (!panel->writing()) {
 					return;
 				}
-				panel->body_editor()->setPlainText(note.Text);
-				panel->save_action()->trigger();
-				*waiting = true;
+				cards->open_thread(state->Thread);
+				QCoreApplication::processEvents();
+				const auto marks = cards->line_marks(state->Side);
+				const auto mark  = std::ranges::find(marks, state->Line - 1U, &bpr::qt::thread_line_mark::Line);
+				QTextStream{ stdout } << "ATTENDED_LOCAL_COMMENTS_MARK:" << (mark != marks.end() ? mark->Description : QStringLiteral("none")) << '\n';
+				if (const auto root = qEnvironmentVariable("BPR_ATTENDED_LOCAL_RENDER"); !root.isEmpty()) {
+					if (qEnvironmentVariable("BPR_ATTENDED_LOCAL_THEME") == QStringLiteral("dark")) {
+						static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
+						QCoreApplication::processEvents();
+					}
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-local-comments.png"), "PNG"));
+				}
+				state->Phase = phase::shown;
+				done(QStringLiteral("ATTENDED_LOCAL_COMMENTS_SHOWN:%1").arg(state->Line));
 				return;
 			}
-			timer->stop();
-			timer->deleteLater();
-			panel->show_elsewhere(false);
-			QCoreApplication::processEvents();
-			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_NOTES_RENDER"); !root.isEmpty()) {
-				if (qEnvironmentVariable("BPR_ATTENDED_NOTES_THEME") == QStringLiteral("dark")) {
-					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
-				}
-				QCoreApplication::processEvents();
-				static_cast<void>(window.grab().save(root + QStringLiteral("/app-notes.png"), "PNG"));
-				panel->open_note(panel->notes().back().Id);
-				QCoreApplication::processEvents();
-				static_cast<void>(window.grab().save(root + QStringLiteral("/app-note-open.png"), "PNG"));
-				panel->close_note();
-				panel->show_elsewhere(true);
-				QCoreApplication::processEvents();
-				static_cast<void>(window.grab().save(root + QStringLiteral("/app-notes-elsewhere.png"), "PNG"));
-				panel->show_elsewhere(false);
-				QCoreApplication::processEvents();
+			case phase::shown:
+				return;
 			}
-			QTextStream{ stdout } << "ATTENDED_NOTES_SHOWN\n";
-			QTextStream{ stdout }.flush();
 		});
 		timer->start();
 	}
@@ -6288,9 +6916,11 @@ namespace {
 			}
 			auto&       window = aApplication.window();
 			auto* const editor = window.tour_editor();
-			const auto  root   = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
-			const auto  theme  = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
-			const auto  draw   = [&window, &root, &theme](const QString& aName) {
+			// [[BPR-2051]]. Setup is the window footer's state now.
+			const auto footer_asks_setup = [&window] { return window.agent_footer_widget() != nullptr && window.agent_footer_widget()->settings_button()->isVisibleTo(window.agent_footer_widget()) && !window.agent_footer_widget()->picker()->attention().isEmpty(); };
+			const auto root              = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
+			const auto theme             = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
+			const auto draw              = [&window, &root, &theme](const QString& aName) {
 				if (!root.isEmpty()) {
 					QCoreApplication::processEvents();
 					static_cast<void>(window.grab().save(root + QStringLiteral("/") + aName + theme + QStringLiteral(".png"), "PNG"));
@@ -6352,18 +6982,19 @@ namespace {
 					draw(QStringLiteral("app-tour-picker"));
 					auto* const splitter = window.central_splitter();
 					splitter->move_handle(3, splitter->width() - 380 - splitter->handleWidth());
-					window.tray_tabs()->setCurrentIndex(3);
+					window.tray_tabs()->setCurrentIndex(2);
 					QCoreApplication::processEvents();
 					draw(QStringLiteral("app-agent-picker"));
-					done(QStringLiteral("ATTENDED_AGENT_PICKER_SHOWN:wrapped=%1:drawer=%2").arg(window.agent_tab()->run_settings_wrapped() ? 1 : 0).arg(window.conversations_drawer()->width()));
+					// [[BPR-2051]]. One picker, in the window's footer.
+					done(QStringLiteral("ATTENDED_AGENT_PICKER_SHOWN:footer=%1:drawer=%2").arg(window.agent_footer_widget() != nullptr && window.agent_footer_widget()->picker()->isVisible() ? 1 : 0).arg(window.conversations_drawer()->width()));
 					return;
 				}
 				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
 					draw(QStringLiteral("app-tour-set-up"));
-					done(editor->agent_setup_call()->isVisible() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
+					done(footer_asks_setup() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
 					return;
 				}
-				if (!editor->agent_setup_call()->isVisible()) {
+				if (!footer_asks_setup()) {
 					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-setup-call"));
 					return;
 				}
@@ -6372,7 +7003,9 @@ namespace {
 					done(QStringLiteral("ATTENDED_TOUR_SETUP_CALL_SHOWN"));
 					return;
 				}
-				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+				// [[BPR-2051]]. The footer, not the Tour tab, asks for setup;
+				// the setup it leads to is the Agent tab's.
+				window.open_agent_setup();
 				*step = 1;
 				return;
 			}
@@ -6599,7 +7232,7 @@ namespace {
 				QCoreApplication::processEvents();
 				auto* const outline = editor->outline();
 				auto* const card    = outline->currentItem() != nullptr ? outline->itemWidget(outline->currentItem()) : nullptr;
-				auto* const ready   = editor->findChild<QPushButton*>(QStringLiteral("tourComplete"));
+				auto* const ready   = editor->findChild<QPushButton*>(QStringLiteral("tourAccept"));
 				const auto  read    = editor->stop_view().Mode == bpr::core::tour_stop_view_mode::read;
 				draw(QStringLiteral("app-tour-card-read"));
 				QTextStream{ stdout } << "ATTENDED_TOUR_CARDS:wrapped=" << (wrapped ? 1 : 0) << ":read=" << (read ? 1 : 0) << ":card=" << (card != nullptr ? 1 : 0) << ":disabled_ready=" << (ready != nullptr && ready->isVisible() && !ready->isEnabled() ? 1 : 0)
@@ -6821,6 +7454,13 @@ namespace {
 						return;
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_FOCUS_LINE:" << chat->focus_line()->text() << '\n';
+					// [[BPR-1995]], RFC-BPR-0100 AC04. The revision is a card in
+					// the chat too, with Apply all, Review each and Discard.
+					if (chat->revision_card() == nullptr || chat->revision_accept_all() == nullptr) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-revision-card"));
+						return;
+					}
+					QTextStream{ stdout } << "ATTENDED_TOUR_REVISION_CARD:" << chat->revision_operations()->text().replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
 					*step = 43;
 					return;
 				}
@@ -6995,11 +7635,10 @@ namespace {
 						return;
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_FOLLOW_UP:" << QString::fromStdString(panel->session().Runs.back().Reply).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
-					if (!chat->update_button()->isEnabled()) {
+					if (!chat->request_update()) {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-update"));
 						return;
 					}
-					chat->update_button()->click();
 					*step = 23;
 					return;
 				}
@@ -7236,9 +7875,9 @@ namespace {
 				if (!idle) {
 					return;
 				}
-				// The first stop is ready; the second is the one being written.
+				// The first stop is accepted; the second is the one being written.
 				editor->outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
-				if (auto* const ready = editor->findChild<QPushButton*>(QStringLiteral("tourComplete")); ready != nullptr) {
+				if (auto* const ready = editor->findChild<QPushButton*>(QStringLiteral("tourAccept")); ready != nullptr) {
 					ready->click();
 				}
 				++*step;
@@ -7270,6 +7909,429 @@ namespace {
 	}
 
 	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-2177]]. `BPR_ATTENDED_FIXTURE_AGENT_CHECK=1`: once the file shows,
+	// the build proves a look gets the fixture agent's answer to everything it
+	// offers. Look ask-v004 (owner, 2026-11-14: "still doesnt work") failed on
+	// What changed since my review, a tool-free run, while the check had asked
+	// only What could this change break?; so it asks everything, as a person
+	// would and before the Agent tab was ever opened: the line-6 chip set,
+	// What changed first (the look's path), then every quick ask the review
+	// bar, the file and a thread offer (more than five runs confirmed), a
+	// typed question with the line chip, a second one in the same
+	// conversation, and two asks queued at once. Every turn must be answered.
+	// `BPR_ATTENDED_FOOTER_SHOT=FILE` saves the window after What changed. A
+	// freeze's `--check` and `fixture_agent_every_ask` read the line.
+	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication)
+	{
+		using access = bpr::app::detail::github_application_fixture_access;
+		struct ask_step
+		{
+			QString Name;
+			/// Presses it; false while it is not offered yet.
+			std::function<bool()> Press;
+			/// Turns it must add at least.
+			std::size_t Turns = 1U;
+		};
+		struct check_state
+		{
+			std::vector<ask_step>       Steps;
+			std::size_t                 Next           = 0U;
+			bool                        Planned        = false;
+			bool                        Waiting        = false;
+			std::size_t                 TurnsBefore    = 0U;
+			std::uint64_t               LaunchesBefore = 0U;
+			int                         Calm           = 0;
+			automated_clock::time_point StepStarted;
+			automated_clock::time_point Tried;
+			QStringList                 Asked;
+			QStringList                 Skipped;
+			QStringList                 Menus;
+			bool                        Report = false;
+			QString                     Footer;
+		};
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  started = automated_clock::now();
+		auto        state   = std::make_shared<check_state>();
+		timer->setInterval(100);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, state, alive = aApplication.liveness()]() mutable {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const tab    = window.agent_tab();
+			auto* const picker = window.agent_panel()->profile_selector();
+			const auto  finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+				timer->stop();
+				timer->deleteLater();
+			};
+			const auto flat = [](QString aText) { return aText.left(240).replace(QLatin1Char('\n'), QLatin1Char(' ')); };
+			const auto step = state->Next < state->Steps.size() ? state->Steps[state->Next].Name : QStringLiteral("plan");
+			if (automated_clock::now() - started > std::chrono::seconds{ 300 } || (state->Waiting && automated_clock::now() - state->StepStarted > std::chrono::seconds{ 90 })) {
+				const auto* const setup = window.agent_setup();
+				const auto        last  = tab->turn_count() > 0U ? tab->turn_count() - 1U : 0U;
+				finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:timeout:step=%1:setup=%2:picker=%3:turns=%4:queue=%5:answer=%6")
+						   .arg(step, setup != nullptr ? QString::fromUtf8(bpr::core::stable_name(setup->projection().Step).data()) : QStringLiteral("none"), picker->currentText())
+						   .arg(tab->turn_count())
+						   .arg(flat(tab->queue_note()->text()), tab->turn_count() > 0U ? flat(tab->turn_answer(last)) : QString{ }));
+				return;
+			}
+			const auto path = std::string{ "src/engine/renderer.cpp" };
+			if (!state->Planned) {
+				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent")) || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
+					return;
+				}
+				// Look ask-v005 (owner: "I don't know why it says setup agent
+				// on launch if the agent is already set up"): at launch the
+				// footer shows the agent and offers no setup.
+				auto* const launchFooter = window.agent_footer_widget();
+				if (launchFooter == nullptr || launchFooter->picker()->isHidden() || launchFooter->settings_button()->isVisibleTo(launchFooter)) {
+					if (automated_clock::now() - started > std::chrono::seconds{ 20 }) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:setup-offered-at-launch:footer=%1").arg(launchFooter != nullptr ? launchFooter->settings_button()->text() : QString{ }));
+					}
+					return;
+				}
+				const auto press_row = [&window](bpr::qt::ask_menu_button* aButton, const QString& aRow) {
+					return [&window, aButton, aRow]() {
+						static_cast<void>(window);
+						aButton->refresh_menu();
+						auto* const row = aButton->menu() != nullptr ? aButton->menu()->findChild<QAction*>(aRow) : nullptr;
+						if (row == nullptr || !row->isEnabled()) {
+							return false;
+						}
+						row->trigger();
+						return true;
+					};
+				};
+				const auto rows_of = [](const QMenu& aMenu) {
+					auto rows = std::vector<std::pair<QString, std::size_t>>{ };
+					for (auto* const action : aMenu.actions()) {
+						if (action->objectName().startsWith(QStringLiteral("quickAsk_")) && action->isEnabled()) {
+							// One turn a press: Was this addressed? at a file or the
+							// pull request is one ask about all its threads.
+							rows.emplace_back(action->objectName(), 1U);
+						}
+					}
+					return rows;
+				};
+				auto* const review = window.review_ask_button();
+				auto* const file   = window.file_ask_button();
+				review->refresh_menu();
+				file->refresh_menu();
+				// The look's own path first.
+				const auto changed = QStringLiteral("quickAsk_agent-tab.what-changed_pull-request");
+				state->Steps.push_back({ .Name = QStringLiteral("review bar: What changed since my review"), .Press = press_row(review, changed) });
+				for (const auto& [row, each] : rows_of(*review->menu())) {
+					if (row != changed) {
+						state->Steps.push_back({ .Name = QStringLiteral("review bar: ") + row, .Press = press_row(review, row), .Turns = each });
+					}
+				}
+				for (const auto& [row, each] : rows_of(*file->menu())) {
+					state->Steps.push_back({ .Name = QStringLiteral("file: ") + row, .Press = press_row(file, row), .Turns = each });
+				}
+				auto thread   = window.ask_request(bpr::core::quick_ask_anchor::thread);
+				thread.Thread = QStringLiteral("review-thread:PRRT_cc_2");
+				QMenu threadMenu;
+				window.fill_quick_ask(threadMenu, thread);
+				for (const auto& [row, each] : rows_of(threadMenu)) {
+					state->Steps.push_back({ .Name = QStringLiteral("thread: ") + row, .Press = [&window, thread, row]() {
+												QMenu menu;
+												window.fill_quick_ask(menu, thread);
+												auto* const action = menu.findChild<QAction*>(row);
+												if (action == nullptr || !action->isEnabled()) {
+													return false;
+												}
+												action->trigger();
+												return true;
+											} });
+				}
+				const auto typed = [&aApplication, &window, path](const QString& aText) {
+					return [&aApplication, &window, path, aText]() {
+						window.open_agent_question();
+						auto* const chat = access::side_chat_panel(aApplication);
+						if (chat == nullptr || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
+							return false;
+						}
+						chat->composer()->setPlainText(aText);
+						QCoreApplication::processEvents();
+						if (!chat->send_action()->isEnabled()) {
+							return false;
+						}
+						chat->send_action()->trigger();
+						return true;
+					};
+				};
+				state->Steps.push_back({ .Name = QStringLiteral("typed with the line chip"), .Press = typed(QStringLiteral("What does this line do?")) });
+				state->Steps.push_back({ .Name = QStringLiteral("typed again in the same conversation"), .Press = typed(QStringLiteral("And why was it changed?")) });
+				state->Steps.push_back({ .Name = QStringLiteral("two queued at once"), .Press = [press_row, review, file]() {
+											return press_row(review, QStringLiteral("quickAsk_agent-tab.what-could-break_pull-request"))() && press_row(file, QStringLiteral("quickAsk_agent-tab.explain-file_file"))();
+										},
+										 .Turns = 2U });
+				state->Planned = true;
+				if (window.width() < 1440) {
+					window.resize(1440, 900);
+				}
+				if (const auto shots = qEnvironmentVariable("BPR_ATTENDED_SHOT_DIR"); !shots.isEmpty()) {
+					// The window lays itself out at its new size first.
+					for (auto pass = 0; pass < 5; ++pass) {
+						QCoreApplication::processEvents();
+					}
+					static_cast<void>(window.grab().save(shots + QStringLiteral("/launch.png")));
+				}
+				return;
+			}
+			const auto evidence = access::agent_invocation_evidence(aApplication);
+			if (!state->Waiting) {
+				if (state->Next == state->Steps.size()) {
+					// The look's picture of Settings > Appearance's report
+					// colours, the six roles filtered.
+					if (const auto shots = qEnvironmentVariable("BPR_ATTENDED_SHOT_DIR"); !shots.isEmpty()) {
+						window.open_settings(bpr::qt::settings_page::appearance);
+						QCoreApplication::processEvents();
+						if (auto* const appearance = window.appearance_settings(); appearance != nullptr && appearance->colours() != nullptr && window.settings() != nullptr) {
+							appearance->colours()->apply_filter(QStringLiteral("Report"));
+							window.settings()->resize(1180, 980);
+							for (auto pass = 0; pass < 5; ++pass) {
+								QCoreApplication::processEvents();
+							}
+							for (auto* parent = appearance->colours()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+								if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr) {
+									scroll->ensureWidgetVisible(appearance->colours(), 0, 0);
+									scroll->verticalScrollBar()->setValue(std::min(scroll->verticalScrollBar()->maximum(), scroll->verticalScrollBar()->value() + 420));
+									break;
+								}
+							}
+							for (auto pass = 0; pass < 5; ++pass) {
+								QCoreApplication::processEvents();
+							}
+							static_cast<void>(window.settings()->grab().save(shots + QStringLiteral("/appearance-report-colours.png")));
+							appearance->colours()->apply_filter({ });
+							window.settings()->hide();
+						}
+					}
+					auto* const footer = window.agent_footer_widget();
+					state->Footer      = footer != nullptr && footer->picker() != nullptr ? footer->picker()->property("agentRunSettingsText").toString() : QString{ };
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:asks=%3:skipped=%4:report=%5:menus=%6")
+							   .arg(picker->currentText(), state->Footer)
+							   .arg(state->Asked.size())
+							   .arg(state->Skipped.join(QLatin1Char(',')))
+							   .arg(state->Report ? 1 : 0)
+							   .arg(state->Menus.size()));
+					return;
+				}
+				auto& next = state->Steps[state->Next];
+				if (tab->state() == bpr::qt::agent_tab_state::working || !evidence.Quiescent) {
+					return;
+				}
+				state->TurnsBefore    = tab->turn_count();
+				state->LaunchesBefore = evidence.AgentProcessLauncherInvocations;
+				if (state->Tried == automated_clock::time_point{ }) {
+					state->Tried = automated_clock::now();
+				}
+				if (!next.Press()) {
+					// Not offered yet (What changed waits for the commits since
+					// the review): tried again for a while. The look's own
+					// path is never skipped.
+					if (automated_clock::now() - state->Tried < std::chrono::seconds{ 20 }) {
+						return;
+					}
+					if (state->Next == 0U) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-offered:step=%1").arg(next.Name));
+						return;
+					}
+					state->Skipped << next.Name;
+					state->Tried = { };
+					++state->Next;
+					return;
+				}
+				state->Tried       = { };
+				state->Waiting     = true;
+				state->Calm        = 0;
+				state->StepStarted = automated_clock::now();
+				return;
+			}
+			auto&      current = state->Steps[state->Next];
+			const auto settled = tab->state() != bpr::qt::agent_tab_state::working && evidence.Quiescent && tab->queue_note()->text().isEmpty()
+				&& tab->turn_count() >= state->TurnsBefore + current.Turns;
+			state->Calm = settled ? state->Calm + 1 : 0;
+			if (state->Calm < 10) {
+				return;
+			}
+			// Look ask-v007: an answer that is a report shows its attachment
+			// row (What changed, Explain this file, What could this change
+			// break?, and Was this addressed? about several threads).
+			// The first step, What changed, is named for the person.
+			const auto reported = state->Next == 0U || current.Name.contains(QStringLiteral("what-changed")) || current.Name.contains(QStringLiteral("explain-file"))
+				|| current.Name.contains(QStringLiteral("what-could-break")) || current.Name.contains(QStringLiteral("was-addressed_pull-request"))
+				|| current.Name.contains(QStringLiteral("was-addressed_file")) || current.Name.contains(QStringLiteral("review-pull-request"))
+				|| current.Name.contains(QStringLiteral("review-open-file"));
+			if (reported && tab->turn_count() > state->TurnsBefore) {
+				const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
+				if (card == nullptr || card->isHidden()) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:no-report:step=%1:answer=%2").arg(current.Name, flat(tab->turn_answer(tab->turn_count() - 1U))));
+					return;
+				}
+			}
+			for (auto turn = state->TurnsBefore; turn < tab->turn_count(); ++turn) {
+				if (!tab->turn_footer(turn).contains(QStringLiteral("answered"))) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:unanswered:step=%1:turn=%2:footer=%3:answer=%4").arg(current.Name).arg(turn).arg(flat(tab->turn_footer(turn)), flat(tab->turn_answer(turn))));
+					return;
+				}
+			}
+			// `BPR_ATTENDED_SHOT_DIR=DIR`: pictures of the window at the
+			// look's moments, for the look's candidates.
+			const auto shots = qEnvironmentVariable("BPR_ATTENDED_SHOT_DIR");
+			const auto shoot = [&window, &shots](const QString& aName) {
+				if (!shots.isEmpty()) {
+					static_cast<void>(window.grab().save(shots + QLatin1Char('/') + aName));
+				}
+			};
+			if (state->Next == 0U) {
+				auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
+				state->Report    = card != nullptr && !card->isHidden();
+				if (const auto shot = qEnvironmentVariable("BPR_ATTENDED_FOOTER_SHOT"); !shot.isEmpty()) {
+					static_cast<void>(window.grab().save(shot));
+				}
+				shoot(QStringLiteral("what-changed.png"));
+				// Look ask-v005: a report's tab has no file Ask; the file's
+				// tab has it again.
+				if (auto* const open = card != nullptr ? card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")) : nullptr; open != nullptr) {
+					open->click();
+					QCoreApplication::processEvents();
+					if (!window.report_shown() || window.file_ask_button()->isVisible()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-tab:shown=%1:file-ask=%2").arg(window.report_shown() ? 1 : 0).arg(window.file_ask_button()->isVisible() ? 1 : 0));
+						return;
+					}
+					shoot(QStringLiteral("report-tab.png"));
+					// The report's menu, open, for the look's pictures.
+					if (auto* const report = window.report_view(); report != nullptr && !shots.isEmpty()) {
+						report->open_menu();
+						QCoreApplication::processEvents();
+						auto picture = window.grab();
+						auto painter = QPainter{ &picture };
+						painter.drawPixmap(window.mapFromGlobal(report->popover()->mapToGlobal(QPoint{ 0, 0 })), report->popover()->grab());
+						painter.end();
+						static_cast<void>(picture.save(shots + QStringLiteral("/report-menu.png")));
+						report->popover()->close();
+						QCoreApplication::processEvents();
+					}
+					static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
+					QCoreApplication::processEvents();
+					if (window.report_shown() || !window.file_ask_button()->isVisible()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:file-tab:file-ask=%1").arg(window.file_ask_button()->isVisible() ? 1 : 0));
+						return;
+					}
+					shoot(QStringLiteral("file-tab.png"));
+				}
+			}
+			if (current.Name.contains(QStringLiteral("was-addressed_pull-request"))) {
+				shoot(QStringLiteral("addressed-pull-request.png"));
+			}
+			// Look ask-v008 ("the hamburger menu navigation doesn't work"):
+			// every report's menu, each section chosen with Return, brings
+			// that section's heading to the top of the pane.
+			if (reported && current.Turns == 1U) {
+				const auto* const card   = tab->turn_report_card(tab->turn_count() - 1U);
+				auto* const       open   = card != nullptr ? card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")) : nullptr;
+				auto* const       report = window.report_view();
+				if (open == nullptr || report == nullptr) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:no-report-row").arg(current.Name));
+					return;
+				}
+				open->click();
+				QCoreApplication::processEvents();
+				// docs/design/report-templates-v1 and v2: every report keeps to
+				// its template, so every one is dressed.
+				if (!report->dressed_shown() || report->dressed().Sections.empty()) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-dressed:step=%1").arg(current.Name));
+					return;
+				}
+				// Look report-templates-v003: every code block of the report is
+				// the Agent tab's own code box (its Copy and Wrap, its syntax
+				// colours), shown over its place, numbered unless a suggestion.
+				{
+					auto blocks = std::size_t{ 0U };
+					for (const auto& section : report->dressed().Sections) {
+						for (const auto& item : section.Items) {
+							blocks += static_cast<std::size_t>(std::ranges::count_if(item.Body, [](const bpr::core::dressed_block& aBlock) {
+								return aBlock.Kind == bpr::core::dressed_block_kind::code || aBlock.Kind == bpr::core::dressed_block_kind::suggestion;
+							}));
+						}
+					}
+					const auto& views = report->code_views();
+					// A box takes its width when its reader is laid out, a pass
+					// after the page; it is given the passes a person's eye is.
+					const auto boxed = [&views] {
+						return std::ranges::all_of(views, [](bpr::qt::markdown_body_view* aView) {
+							const auto boxes = aView->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+							return aView->isVisible() && aView->code_block_tools() && aView->height() > 20
+								&& std::ranges::all_of(boxes, [aView](const QWidget* aBox) { return aBox->width() >= aView->width() - 2; });
+						});
+					};
+					for (auto pass = 0; pass < 50 && !boxed(); ++pass) {
+						QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+					}
+					if (views.size() != blocks || !boxed()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-code:step=%1:blocks=%2:boxes=%3").arg(current.Name).arg(blocks).arg(views.size()));
+						return;
+					}
+				}
+				// The look's pictures: each report as it opens, its code's syntax
+				// colours given the moment they take to arrive.
+				if (!shots.isEmpty()) {
+					const auto until = automated_clock::now() + std::chrono::milliseconds{ 600 };
+					while (automated_clock::now() < until) {
+						QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+					}
+				}
+				{
+					auto slug = current.Name.section(QLatin1Char{ '.' }, -1);
+					slug.replace(QRegularExpression{ QStringLiteral("[^A-Za-z0-9_-]+") }, QStringLiteral("-"));
+					shoot(QStringLiteral("report-%1.png").arg(state->Next == 0U ? QStringLiteral("what-changed") : slug));
+				}
+				auto sections = 0;
+				while (sections < report->outline()->count() && !report->outline()->item(sections)->data(Qt::AccessibleTextRole).toString().isEmpty()) {
+					++sections;
+				}
+				// Summary, then a row a section.
+				for (auto section = sections - 1; section >= 0; --section) {
+					report->open_menu();
+					QCoreApplication::processEvents();
+					report->outline()->setCurrentRow(section);
+					QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+					QApplication::sendEvent(report->outline(), &press);
+					QCoreApplication::processEvents();
+					const auto top = report->section_top(section);
+					if (report->popover()->isVisible() || report->current_section() != section || (section > 0 && (top < 0 || top > 12))) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:section=%2:of=%3:top=%4:current=%5:open=%6")
+								   .arg(current.Name)
+								   .arg(section)
+								   .arg(sections - 1)
+								   .arg(top)
+								   .arg(report->current_section())
+								   .arg(report->popover()->isVisible() ? 1 : 0));
+						return;
+					}
+				}
+				if (sections < 2) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:no-sections").arg(current.Name));
+					return;
+				}
+				state->Menus << current.Name;
+				static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
+				QCoreApplication::processEvents();
+			}
+			state->Asked << current.Name;
+			state->Waiting = false;
+			++state->Next;
+		});
+		timer->start();
+	}
+
+	#endif
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
 	// [[BPR-1594]]. `--attended-agent-look PATH`: on conventional-comments-v1,
 	// once the file shows, ⌥⇧A opens the Agent tab and its review runs once
 	// with the fixture agent named here, so the person sees its finding cards.
@@ -7296,7 +8358,18 @@ namespace {
 				return;
 			}
 			auto* const tab = window.agent_tab();
+			// [[BPR-2061]]. An unfinished setup (the fixture `codex` found and
+			// chosen) is finished as a person would: Check it works.
 			if (*step == 0) {
+				auto* const setup = window.agent_setup();
+				window.open_agent_action()->trigger();
+				if (setup != nullptr && setup->needed()) {
+					auto* const check = setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"));
+					if (setup->projection().Step == bpr::core::setup_step::check && check != nullptr && check->isVisible() && check->isEnabled()) {
+						check->click();
+					}
+					return;
+				}
 				if (window.agent_panel()->profile_selector()->count() == 0) {
 					return;
 				}
@@ -7316,19 +8389,170 @@ namespace {
 				*step = 2;
 				return;
 			}
-			if (window.finding_queue()->finding_count() == 0U && tab->state() != bpr::qt::agent_tab_state::stopped) {
+			if (*step == 2 && window.finding_queue()->finding_count() == 0U && tab->state() != bpr::qt::agent_tab_state::stopped) {
 				return;
 			}
-			tab->refresh();
-			QCoreApplication::processEvents();
-			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); !root.isEmpty()) {
+			if (*step == 2) {
+				tab->refresh();
+				QCoreApplication::processEvents();
+			}
+			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); *step == 2 && !root.isEmpty()) {
 				if (qEnvironmentVariable("BPR_ATTENDED_AGENT_THEME") == QStringLiteral("dark")) {
 					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
 				}
 				QCoreApplication::processEvents();
 				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
 			}
-			done(QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count()));
+			// [[BPR-2061]]. `--attended-agent-draft-all-check`: once shown, a
+			// course presses the reply's Draft all, reports what it says and
+			// each card's state, then its Undo, as the person would. A look
+			// for the person leaves both to them.
+			if (*step == 2) {
+				const auto shown = QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count());
+				// RFC-BPR-0127, owner look v005 ("There's a lot of overlap on
+				// the UX here"). `--attended-agent-draft-first`: a course
+				// presses Draft on the first card, as the person did, and
+				// reports (and with the render root draws) the draft's
+				// composer in Comments.
+				if (QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-draft-first"))) {
+					QTextStream{ stdout } << shown << '\n';
+					QTextStream{ stdout }.flush();
+					*step  = 10;
+					*ticks = 0;
+					return;
+				}
+				if (!QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-draft-all-check"))) {
+					done(shown);
+					return;
+				}
+				QTextStream{ stdout } << shown << '\n';
+				QTextStream{ stdout }.flush();
+				*step  = 3;
+				*ticks = 0;
+				return;
+			}
+			if (*step == 10 || *step == 11) {
+				auto* const cards = window.conversation_panel()->cards();
+				if (*step == 10) {
+					const auto  found = tab->turn_cards(0U);
+					auto* const draft = found.empty() ? nullptr : found.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
+					if (draft == nullptr || !draft->isEnabled()) {
+						return;
+					}
+					draft->click();
+					*step = 11;
+					return;
+				}
+				if (!cards->writing_draft() || cards->draft_editor() == nullptr || cards->draft_editor()->toPlainText().isEmpty()) {
+					return;
+				}
+				QCoreApplication::processEvents();
+				if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); !root.isEmpty()) {
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent-draft.png"), "PNG"));
+					if (cards->open_card() != nullptr) {
+						static_cast<void>(cards->open_card()->grab().save(root + QStringLiteral("/app-agent-draft-card.png"), "PNG"));
+					}
+				}
+				done(QStringLiteral("ATTENDED_AGENT_DRAFT_OPEN:%1").arg(cards->draft_editor()->toPlainText().size()));
+				return;
+			}
+			const auto last  = tab->turn_count() == 0U ? 0U : tab->turn_count() - 1U;
+			auto*      press = tab->turn_draft_all_button(last);
+			auto*      said  = tab->turn_draft_all_state(last);
+			auto*      undo  = tab->turn_draft_all_undo(last);
+			const auto cards = [tab] {
+				auto states = QStringList{ };
+				for (std::size_t index = 0U; index < tab->finding_cards().size(); ++index) {
+					states << QString::number(static_cast<int>(tab->finding_card_state(index)));
+				}
+				return states.join(QLatin1Char{ ',' });
+			};
+			if (press == nullptr || said == nullptr || undo == nullptr) {
+				done(QStringLiteral("ATTENDED_DRAFT_ALL_FAILED:no-row"));
+				return;
+			}
+			if (*step == 3) {
+				QTextStream{ stdout } << "ATTENDED_DRAFT_ALL_OFFERED:" << press->text() << ":visible=" << press->isVisible() << '\n';
+				press->click();
+				*step = 4;
+				return;
+			}
+			if (*step == 4) {
+				if (undo->isHidden() && (said->isHidden() || said->text().startsWith(QStringLiteral("Drafting")))) {
+					return;
+				}
+				QTextStream{ stdout } << "ATTENDED_DRAFT_ALL_DONE:" << said->text() << ":cards=" << cards() << ":button=" << press->text() << ":agent_shown=" << tab->isVisible() << '\n';
+				QTextStream{ stdout }.flush();
+				if (undo->isHidden()) {
+					done(QStringLiteral("ATTENDED_DRAFT_ALL_FAILED:no-undo"));
+					return;
+				}
+				undo->click();
+				*step = 5;
+				return;
+			}
+			if (said->text().startsWith(QStringLiteral("Drafted")) || said->text().startsWith(QStringLiteral("Nothing drafted"))) {
+				return;
+			}
+			done(QStringLiteral("ATTENDED_DRAFT_ALL_UNDONE:%1:cards=%2:button=%3").arg(said->text(), cards(), press->text()));
+		});
+		timer->start();
+	}
+	#endif
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-2005]], RFC-BPR-0103 AC09. `--attended-agent-helpers PATH`: once the
+	// file shows, the Agent tab asks Review this pull request of the scripted
+	// Claude named here, which replays installed Claude's own frames for a turn
+	// with three background helpers, slowly, and goes quiet for over two
+	// minutes before its last part, so the person sees the running block, the
+	// quiet notice and the folded line. Nothing reaches GitHub.
+	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(100);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto done   = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 1'200) {
+				done(QStringLiteral("ATTENDED_AGENT_HELPERS_FAILED:timeout:step=%1").arg(*step));
+				return;
+			}
+			auto* const panel = window.agent_panel();
+			auto* const tab   = window.agent_tab();
+			if (*step == 0) {
+				const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(bpr::core::claude_stream_json_profile_id.value()));
+				if (claude < 0) {
+					return;
+				}
+				panel->profile_selector()->setCurrentIndex(claude);
+				window.open_agent_action()->trigger();
+				*step = 1;
+				return;
+			}
+			if (*step == 1) {
+				if (tab->state() == bpr::qt::agent_tab_state::working) {
+					return;
+				}
+				tab->send_prompt(QStringLiteral("Review this pull request"));
+				*step = 2;
+				return;
+			}
+			auto* const block = tab->turn_count() > 0U ? tab->turn_activity(tab->turn_count() - 1U) : nullptr;
+			if (block == nullptr || block->helper_rows() == 0) {
+				return;
+			}
+			done(QStringLiteral("ATTENDED_AGENT_HELPERS_SHOWN:rows=%1").arg(block->helper_rows()));
 		});
 		timer->start();
 	}
@@ -10954,6 +12178,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "flag-move-v1") {
+				// [[BPR-1996]], RFC-BPR-0100 AC08. A loader moved unchanged behind
+				// a flag; see `scripts/build_flag_move_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::flag_move_v1;
+				fixtureName            = "flag-move-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "flag-move",
+					.Number                   = 41,
+					.ExpectedTitle            = "Read settings as TOML behind --strict-toml",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "intraline-v1") {
 				// [[BPR-1537]]. Constructed everyday changed lines for judging
 				// intraline emphasis; see `scripts/build_intraline_fixture.py`.
@@ -10981,6 +12220,22 @@ auto main(int argc, char** argv) -> int
 					.Number                   = 21,
 					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
 					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 6,
+					.ExpectedThreadId         = std::nullopt,
+				};
+			} else if (*fixture == "returning-review-v1") {
+				// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). conventional-comments-v1
+				// read by a returning reviewer; see
+				// `scripts/build_returning_review_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::returning_review_v1;
+				fixtureName            = "returning-review-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
+					.ExpectedAccountText      = "jiayin (@jiayin)",
 					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
@@ -11434,8 +12689,14 @@ auto main(int argc, char** argv) -> int
 		// own opens reach their default browser. Never inside the automated
 		// test boundary: a CTest row that passes `--attended-launch` keeps the
 		// recorder.
-		fixtureOptions.AttendedWindowBrowser              = attendedLaunch && !bpr::app::inside_automated_test_boundary();
-		fixtureOptions.AttendedAgentSearch                = fixtureOptions.AttendedWindowBrowser;
+		fixtureOptions.AttendedWindowBrowser = attendedLaunch && !bpr::app::inside_automated_test_boundary();
+		// [[BPR-2177]] (owner, 2026-11-14: "why am I wasting a ton of money
+		// just seeing how buttons and UI flow works"). A person's session on a
+		// tests-on build (any `--attended…` launch) runs the fixture agent and
+		// never the person's own agents, which only a `freeze --live`
+		// (tests-off) build may run.
+		fixtureOptions.AttendedAgentSearch                = false;
+		fixtureOptions.FixtureAgentSession                = std::ranges::any_of(QCoreApplication::arguments(), [](const QString& aArgument) { return aArgument.startsWith(QStringLiteral("--attended")); });
 		const auto nativeNotificationProbe                = launch.has("--native-notification-probe");
 		const auto nativeNotificationAttended             = launch.has("--native-notification-attended");
 		const auto nativeNotificationRequestCut           = launch.has("--native-notification-cut-request-wire");
@@ -11618,9 +12879,10 @@ auto main(int argc, char** argv) -> int
 		const auto attendedPreflightLook = launch.value("--attended-preflight-look");
 		// [[BPR-1541]]. The held review that says why it is unknown.
 		const auto attendedUnknownReviewLook = launch.has("--attended-unknown-review-look");
-		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look");
+		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look") || launch.has("--attended-drafts-look");
 		// [[BPR-1592]]. Private notes written at their lines.
-		const auto attendedNotesLook = launch.has("--attended-notes-look");
+		// RFC-BPR-0108. A local draft of the named worktree, opened from Home.
+		const auto attendedLocalDraft = launch.value("--attended-local-draft");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
 		const auto attendedTourLook = launch.has("--attended-tour-look");
 		// [[BPR-1878]]. The new tour's first step, with the Claude stream-JSON
@@ -11652,6 +12914,13 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.ReviewSubmissionServer->ReviewHistory         = R"json([{"id":4001,"node_id":"pr-chip-review-one","state":"CHANGES_REQUESTED","submitted_at":"2026-10-16T01:00:00Z","body":"The clamp reads well. Two things before this lands: the retry budget needs a test that exhausts it, and begin_frame now returns early without recording timing.","commit_id":"2222222222222222222222222222222222222222","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}},{"id":4002,"node_id":"pr-chip-review-two","state":"APPROVED","submitted_at":"2026-10-18T02:00:00Z","body":"Looks good once the skipped-frame counter is in.","commit_id":"2222222222222222222222222222222222222222","user":{"node_id":"U_author_two","login":"author-two","type":"User"}}])json";
 			fixtureOptions.ReviewSubmissionServer->ConversationComments  = R"json([{"id":5001,"node_id":"pr-chip-author","created_at":"2026-10-17T01:00:00Z","body":"Added a test that runs the budget out. On the early return: I would rather not record a frame that never submitted. OK to leave Stats_ untouched there?","user":{"node_id":"U_jiayin","login":"jiayin","type":"User"}},{"id":5002,"node_id":"pr-chip-perf","created_at":"2026-10-17T02:00:00Z","body":"Perf run on the 5K panel: frame time unchanged within noise. Fine by me.","user":{"node_id":"U_tbutler","login":"tbutler","type":"User"}},{"id":5003,"node_id":"pr-chip-reply","created_at":"2026-10-18T01:00:00Z","body":"Agreed on not recording it. Please count the skipped frames instead, so the soak run shows how often the budget runs out.","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}}])json";
 		}
+		// [[BPR-2171]]. conversations-v1 as a busy pull request: reviews with
+		// Markdown summaries bundling its threads, bot reports in a row.
+		if (launch.has("--attended-busy-discuss-look")) {
+			fixtureOptions.ReviewSubmissionServer = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
+			fixtureOptions.RepeatReadSessions     = true;
+			bpr::app::detail::serve_busy_discuss(*fixtureOptions.ReviewSubmissionServer);
+		}
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook || attendedFinishReviewLook;
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state;
 		// [[BPR-1676]] on promo-v1 too.
@@ -11665,6 +12934,9 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1594]]. After the file, the Agent tab and one review by the
 		// fixture agent named here.
 		const auto attendedAgentLook = launch.value("--attended-agent-look");
+		// [[BPR-2005]]. After the file, the Agent tab and one turn of the
+		// scripted Claude named here, with its helpers.
+		const auto attendedAgentHelpers = launch.value("--attended-agent-helpers");
 		// [[BPR-1879]]. The Agent tab's Repository step, for a look at it.
 		const auto attendedRepositoryLook = launch.has("--attended-repository-look");
 		// [[BPR-1916]], [[BPR-1917]]. A fixture home of skills that stands in
@@ -11674,6 +12946,12 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.PersonalSkillHome = std::filesystem::path{ std::string{ *skills } };
 		}
 		const auto attendedPromptEditor = launch.has("--attended-prompt-editor");
+		// [[BPR-2179]] look prompts-v002: prompts with nested conditions.
+		fixtureOptions.PromptExamplesLook = launch.has("--attended-prompt-examples");
+		// RFC-BPR-0126 AC04 ([[BPR-2151]]): a second window reads the same
+		// pull request again, for the look at its one queue.
+		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || launch.has("--attended-queue-windows");
+		const auto attendedShareLook      = launch.has("--attended-share-look");
 		if (attendedRepositoryLook) {
 			// Every fixture review is read whole; the look shows the step as a
 			// review read through `gh` shows it, where the choice is.
@@ -11681,6 +12959,16 @@ auto main(int argc, char** argv) -> int
 		}
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
+			// [[BPR-2061]]. A fixture built as `codex` is the only agent the
+			// setup finds, never the person's own, and the look finishes the
+			// setup on it.
+			if (const auto agent = std::filesystem::path{ std::string{ *attendedAgentLook } }; agent.stem() == "codex") {
+				fixtureOptions.AttendedAgentSearch = false;
+				fixtureOptions.CodexSearch         = bpr::app::detail::claude_search_environment{ .PathVariable = agent.parent_path().string() };
+			}
+		}
+		if (attendedAgentHelpers.has_value()) {
+			fixtureOptions.ClaudeAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentHelpers } };
 		}
 		if (attendedWorkshopAgent.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedWorkshopAgent } };
@@ -11695,7 +12983,10 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1865]]. With the home look, sixteen more rows with titles and
 		// authors of their own, for judging Home's filter.
 		const auto attendedHomeRows = launch.has("--attended-home-rows");
-		const auto parseCount       = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
+		// [[RFC-BPR-0098]]. With the home look, ten pull requests of mine,
+		// one for each next move a fixture can show.
+		const auto attendedHomeMoves = launch.has("--attended-home-moves");
+		const auto parseCount        = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
 			if (!aText.has_value()) {
 				return std::nullopt;
 			}
@@ -11709,7 +13000,7 @@ auto main(int argc, char** argv) -> int
 		const auto readFailNumber   = parseCount(readFailText);
 		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
 		if ((readDelayText.has_value() && !readDelay.has_value()) || (readFailText.has_value() && !readFailNumber.has_value())
-			|| (attendedHomeRows && !attendedHomeLook)
+			|| (attendedHomeRows && !attendedHomeLook) || (attendedHomeMoves && !attendedHomeLook)
 			|| (attendedHomeLook && (!attendedLaunch || attendedOpenPullRequest || attendedOpenSettings || attendedPreflightLook.has_value() || attendedTourStop || attendedWorkshopAgent.has_value() || attendedReadState))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -11783,6 +13074,11 @@ auto main(int argc, char** argv) -> int
 					fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(std::move(row));
 				}
 			}
+			if (attendedHomeMoves) {
+				for (auto& row : bpr::app::detail::home_next_move_fixture_pull_requests("octo-reviewer")) {
+					fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(std::move(row));
+				}
+			}
 		}
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
@@ -11794,10 +13090,9 @@ auto main(int argc, char** argv) -> int
 			|| (attendedReadState && (!attendedOpenFile.has_value() || (fixtureName != "conversations-v1" && fixtureName != "promo-v1")))
 			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedFinishReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook))
-			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
-			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedNotesLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
-			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
-			|| (attendedTourAuthoring && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
+			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
+			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
+			|| (attendedTourAuthoring && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -12254,11 +13549,17 @@ auto main(int argc, char** argv) -> int
 					if (attendedAgentLook.has_value()) {
 						look = std::string{ "agent" };
 					}
+					if (attendedAgentHelpers.has_value()) {
+						look = std::string{ "agent-helpers" };
+					}
 					if (attendedRepositoryLook) {
 						look = std::string{ "repository" };
 					}
 					if (attendedPromptEditor) {
 						look = std::string{ "prompt-editor" };
+					}
+					if (attendedShareLook) {
+						look = std::string{ "share" };
 					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };
@@ -12266,8 +13567,36 @@ auto main(int argc, char** argv) -> int
 					if (attendedFinishReviewLook) {
 						look = std::string{ "finish-review" };
 					}
-					if (attendedNotesLook) {
-						look = std::string{ "notes" };
+					if (launch.has("--attended-local-comments-look")) {
+						look = std::string{ "local-comments" };
+					}
+					if (attendedLocalDraft.has_value() && !attendedLocalDraft->empty()) {
+						AttendedLocalDraftPath   = std::string{ *attendedLocalDraft };
+						AttendedLocalDraftTour   = launch.has("--attended-local-draft-tour");
+						AttendedLocalDraftAuthor = launch.has("--attended-local-draft-author");
+						if (const auto number = launch.value("--attended-local-draft-pull-request"); number.has_value()) {
+							AttendedLocalDraftPullRequest = std::strtoull(std::string{ *number }.c_str(), nullptr, 10);
+						}
+						// One frozen look serves two: its launcher passes the
+						// environment through, so the owner's command can name
+						// the second generated worktree and its pull request.
+						if (const auto other = qEnvironmentVariable("BPR_ATTENDED_LOCAL_DRAFT_PATH"); !other.isEmpty()) {
+							AttendedLocalDraftPath = other.toStdString();
+						}
+						if (const auto number = qEnvironmentVariable("BPR_ATTENDED_LOCAL_DRAFT_PULL_REQUEST"); !number.isEmpty()) {
+							AttendedLocalDraftPullRequest = number.toULongLong();
+						}
+						look = std::string{ "local-draft" };
+						// [[BPR-2172]], [[BPR-2173]], [[BPR-2175]]. And others:
+						// the owner's command can ask, by name, for the Local
+						// comments look or Finish your review on the same
+						// fixture file instead of the draft, so one frozen build
+						// serves a round's looks.
+						if (const auto instead = qEnvironmentVariable("BPR_ATTENDED_LOOK_INSTEAD");
+							instead == QStringLiteral("local-comments") || (instead == QStringLiteral("finish-review") && attendedFinishReviewLook)) {
+							AttendedLocalDraftPath.clear();
+							look = instead.toStdString();
+						}
 					}
 					if (attendedConversationLook) {
 						look = std::string{ "conversation" };

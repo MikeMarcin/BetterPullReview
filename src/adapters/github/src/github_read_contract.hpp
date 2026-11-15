@@ -234,6 +234,11 @@ namespace bpr::adapters::github::detail {
 		/// `Owner`/`Repository` one query reads, ascending, at most the core's
 		/// batch bound; empty for every other operation.
 		std::vector<std::uint32_t> PullRequestNumbers;
+		/// [[RFC-BPR-0098]]. `list_home_pull_requests` only: those of
+		/// `PullRequestNumbers` the viewer authored, ascending, whose last
+		/// `core::maximum_queue_review_threads` review threads are read too;
+		/// empty for none and for every other operation.
+		std::vector<std::uint32_t> AuthoredPullRequestNumbers;
 		/// [[BPR-1850]]. `list_notifications` only: the `Last-Modified` of the
 		/// previous answer, sent as `If-Modified-Since`; empty for none and for
 		/// every other operation.

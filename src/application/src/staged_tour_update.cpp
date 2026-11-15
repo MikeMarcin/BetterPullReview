@@ -43,7 +43,10 @@ namespace bpr::application {
 			}
 			created.push_back({ stop.Id, remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink), *body });
 		}
-		return core::plan_tour_update(*aRecord.Plan.Update, created);
+		// RFC-BPR-0106 critical review, finding 1. The frozen tour was
+		// authorized when the plan was made (assess_tour_update); a record
+		// saved under an earlier rule resumes as it was sent.
+		return core::render_tour_update(*aRecord.Plan.Update, created);
 	}
 	namespace {
 		// [[BPR-1787]]. A tour whose brief lives in the description can be
@@ -177,7 +180,8 @@ namespace bpr::application {
 					stop.Remote         = remote(aRecord.Comments[position], aRecord.Plan.Compatibility || !aRecord.Comments[position].Review.value(), staged_stop(aRecord.Plan, position).Representation == core::tour_representation::file_permalink);
 					stop.Destination    = created->Source;
 				}
-				stop.Baseline = core::tour_field_baseline{ .Raw = bodies->StopBodies[i], .RemoteEntity = stop.Remote->Entity };
+				// [[BPR-1996]]. The author's text this published body came from.
+				stop.Baseline = core::tour_field_baseline{ .Raw = bodies->StopBodies[i], .RemoteEntity = stop.Remote->Entity, .DraftText = stop.Body };
 			}
 			result.IndexBaseline = core::tour_field_baseline{ .Raw = bodies->Index, .RemoteEntity = result.Remote->Entity };
 			result.Retired.clear();
@@ -191,7 +195,7 @@ namespace bpr::application {
 				const auto ordinal                = staged_stop_order(aRecord.Plan)[i];
 				result.Stops[ordinal].Remote      = remote(aRecord.Comments[i], aRecord.Plan.Compatibility || !aRecord.Comments[i].Review.value(), staged_stop(aRecord.Plan, i).Representation == core::tour_representation::file_permalink);
 				result.Stops[ordinal].Destination = staged_stop(aRecord.Plan, i).Source;
-				result.Stops[ordinal].Baseline    = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId };
+				result.Stops[ordinal].Baseline    = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId, .DraftText = result.Stops[ordinal].Body };
 			}
 		}
 		if (aRecord.Plan.Description && aRecord.DescriptionDone) {

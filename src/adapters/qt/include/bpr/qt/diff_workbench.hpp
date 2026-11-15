@@ -252,6 +252,12 @@ namespace bpr::qt {
 		/// it, by name, in place of "No file open". `aHistory` says the pull
 		/// request's history is still being fetched, which the slow line names.
 		void set_waiting(QString aPath, bool aHistory);
+		/// \brief [[BPR-2180]]. Holds the wait for a file the reviewer asked for
+		/// before it can be asked of the comparison: until the comparison is
+		/// asked for (`set_loading`) or the hold is released with an empty
+		/// path, clearing the comparison keeps saying the file is loading.
+		void               hold_waiting(QString aPath);
+		[[nodiscard]] auto held_waiting() const noexcept -> const QString&;
 		/// \brief [[BPR-1871]]. The opened file cannot open: `aSentence` says
 		/// why, in place of the panes, in the failure ink.
 		void set_waiting_failed(QString aPath, QString aSentence);
@@ -509,6 +515,11 @@ namespace bpr::qt {
 		/// and scrolled back into view, so the gesture always shows that change.
 		/// Returns whether the selection changed.
 		[[nodiscard]] auto navigate_outermost_change(core::change_navigation_direction aDirection) -> bool;
+		/// \brief [[BPR-2002]], RFC-BPR-0102. Clears the line selection and
+		/// the panes' text selections, as Escape in a code pane does when no
+		/// find bar or editor in the diff has a use for it first. Returns
+		/// whether anything was selected.
+		auto               clear_line_selection() -> bool;
 		[[nodiscard]] auto shared_scrollbar() const noexcept -> QScrollBar*;
 		[[nodiscard]] auto comparison_splitter() const noexcept
 			-> diff_comparison_splitter*;
@@ -757,6 +768,7 @@ namespace bpr::qt {
 		/// [[BPR-1871]]. The opened file the wait names, whether the pull
 		/// request's history is what it waits on, and why it cannot open.
 		QString                   WaitingPath;
+		QString                   HeldWaitingPath;
 		bool                      WaitingHistory = false;
 		QString                   WaitingFailure;
 		std::array<bool, 2>       SyntaxAwaited{ };

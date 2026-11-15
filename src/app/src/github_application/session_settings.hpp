@@ -2,6 +2,7 @@
 #define BPR_APP_GITHUB_APPLICATION_SESSION_SETTINGS_HPP
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/discuss_preferences_host.hpp"
 #include "bpr/application/pull_request_activity_host.hpp"
 #include "bpr/application/view_filter_memory_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
@@ -28,6 +29,18 @@ namespace bpr::app {
 		explicit pull_request_activity_store(std::filesystem::path aRoot);
 		[[nodiscard]] auto load() const -> core::activity_memory_read;
 		[[nodiscard]] auto store(const core::activity_memory& aMemory) -> bool override;
+
+	private:
+		std::filesystem::path Root;
+	};
+
+	/// \brief [[BPR-2171]]. `discuss.sqlite3`: bot marks and the column.
+	class discuss_preferences_store final : public application::discuss_preferences_port
+	{
+	public:
+		explicit discuss_preferences_store(std::filesystem::path aRoot);
+		[[nodiscard]] auto load() const -> core::discuss_preferences_read;
+		[[nodiscard]] auto store(const core::discuss_preferences& aPreferences) -> bool override;
 
 	private:
 		std::filesystem::path Root;

@@ -1,8 +1,10 @@
+#include "../../src/adapters/sqlite/src/review_tour_codec.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/sha256.hpp"
 #include "cli_account_wrapper_support.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
@@ -27,6 +29,7 @@
 #include <iostream>
 #include <map>
 #include <random>
+#include <sqlite3.h>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1071,7 +1074,7 @@ namespace {
 				malformed.Mixed = false;
 				expect(!application::valid(malformed), "mixed destinations cannot hide inside a single-review plan");
 				const auto stages = application::staged_publication_stages(input);
-				expect(stages[1].contains("Stop 1") && stages[2].contains("Stop 3") && stages[3].contains("Stop 2") && stages[3].contains("conversation comment"), "progress stages follow actual pending-first publication order with original route numbers");
+				expect(stages.size() == 7U && stages[6] == "The description link" && stages[0].contains("Stops 1 and 3") && stages[1].contains("Stop 2") && stages[1].contains("conversation comment") && stages[2] == "Links for stop 1" && stages[3] == "Links for stop 3" && stages[4] == "Links for stop 2", "progress steps follow actual pending-first publication order with original route numbers");
 
 				std::stop_source stop;
 				if (lost) {
@@ -1377,6 +1380,115 @@ namespace {
 			}
 			const auto result = provider->publish_tour(update, { }, [](const auto&) { return true; });
 			expect(result.State == publication_state::conflict && remote.Writes == 5, "remote body/actor/head drift refuses maintenance before write");
+		}
+	}
+	/// The tour as `aVersion` of the tour payload writes it.
+	auto tour_bytes(core::review_tour aTour, const std::uint8_t aVersion) -> std::vector<std::uint8_t>
+	{
+		adapters::sqlite::detail::tour_codec codec;
+		codec.Version = aVersion;
+		codec.tour(aTour);
+		expect(codec.Good, "the tour encodes");
+		return std::move(codec.Bytes);
+	}
+	/// Rewrites every saved staged record's frozen update tour from `aFrom`
+	/// to `aTo`, with its digest, as a journal saved by an older build reads.
+	auto rewrite_frozen_tour(const std::filesystem::path& aRoot, const std::vector<std::uint8_t>& aFrom, const std::vector<std::uint8_t>& aTo) -> std::size_t
+	{
+		auto path = std::filesystem::path{ };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ aRoot }) {
+			if (entry.path().filename() == "review-mutation-recovery.sqlite3") {
+				path = entry.path();
+			}
+		}
+		expect(!path.empty(), "the staged journal exists");
+		sqlite3* database = nullptr;
+		expect(::sqlite3_open(path.string().c_str(), &database) == SQLITE_OK, "the staged journal opens");
+		auto          rows = std::vector<std::pair<std::int64_t, std::vector<std::uint8_t>>>{ };
+		sqlite3_stmt* read = nullptr;
+		expect(::sqlite3_prepare_v2(database, "SELECT rowid, record FROM staged_publication", -1, &read, nullptr) == SQLITE_OK, "the staged rows are read");
+		while (::sqlite3_step(read) == SQLITE_ROW) {
+			const auto* bytes = static_cast<const std::uint8_t*>(::sqlite3_column_blob(read, 1));
+			rows.emplace_back(::sqlite3_column_int64(read, 0), std::vector<std::uint8_t>(bytes, bytes + ::sqlite3_column_bytes(read, 1)));
+		}
+		::sqlite3_finalize(read);
+		auto rewritten = std::size_t{ 0 };
+		for (auto& [row, bytes] : rows) {
+			const auto found = std::ranges::search(bytes, aFrom);
+			if (found.empty()) {
+				continue;
+			}
+			const auto at = static_cast<std::size_t>(found.begin() - bytes.begin());
+			bytes.erase(bytes.begin() + static_cast<std::ptrdiff_t>(at), bytes.begin() + static_cast<std::ptrdiff_t>(at + aFrom.size()));
+			bytes.insert(bytes.begin() + static_cast<std::ptrdiff_t>(at), aTo.begin(), aTo.end());
+			const auto    digest = core::sha256(bytes);
+			sqlite3_stmt* write  = nullptr;
+			expect(::sqlite3_prepare_v2(database, "UPDATE staged_publication SET record=?1, record_digest=?2 WHERE rowid=?3", -1, &write, nullptr) == SQLITE_OK
+					   && ::sqlite3_bind_blob(write, 1, bytes.data(), static_cast<int>(bytes.size()), SQLITE_TRANSIENT) == SQLITE_OK
+					   && ::sqlite3_bind_blob(write, 2, digest.data(), static_cast<int>(digest.size()), SQLITE_TRANSIENT) == SQLITE_OK && ::sqlite3_bind_int64(write, 3, row) == SQLITE_OK
+					   && ::sqlite3_step(write) == SQLITE_DONE,
+				   "the staged row is rewritten");
+			::sqlite3_finalize(write);
+			++rewritten;
+		}
+		::sqlite3_close(database);
+		return rewritten;
+	}
+	/// RFC-BPR-0106 critical review, finding 1. A part-sent tour update
+	/// saved before stops were accepted (tour payload version 10, its stops
+	/// Ready by the old rule or not Ready at all) resumes as it was sent: the
+	/// frozen plan was authorized when it was made and is not judged again.
+	void test_update_saved_before_acceptance_resumes()
+	{
+		// Re-review finding 5: also with stops the author made Ready by the old
+		// rule, so the version 10 carry runs when the journal's record is read.
+		for (const bool ready : { false, true }) {
+			scratch          root;
+			server           remote;
+			auto             provider = session(remote, root.Path);
+			const auto       original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			auto             update   = maintenance_plan(*original.Record);
+			std::stop_source stop;
+			for (auto& item : update.Update->Stops) {
+				item.Acceptance.reset();
+				item.Preparation      = ready ? core::tour_preparation::ready : core::tour_preparation::editing;
+				item.CompletionOrigin = ready ? core::tour_completion_origin::observed : core::tour_completion_origin::unspecified;
+				// A published stop is Ready once its lines are reaffirmed at the head.
+				item.ReaffirmedHead = ready ? std::optional{ core::tour_current_head(*update.Update) } : std::nullopt;
+			}
+			remote.Maintenance = true;
+			remote.Stop        = &stop;
+			remote.StopAt      = 5;
+			const auto partial = provider->publish_tour(update, stop.get_token(), [](const auto&) { return true; });
+			expect(partial.State == publication_state::partial && partial.Record && remote.Writes == 6, "an update of stops not accepted by the new rule is part sent");
+			remote.Stop = nullptr;
+			provider.reset();
+			const auto current = adapters::sqlite::detail::tour_codec{ }.Version;
+			expect(rewrite_frozen_tour(root.Path, tour_bytes(*partial.Record->Plan.Update, current), tour_bytes(*partial.Record->Plan.Update, 10)) == 1U, "the frozen update tour is saved as version 10");
+			const auto pending = storage(root.Path)->pending_staged();
+			expect(pending && pending->size() == 1U, "a version 10 update record still loads");
+			if (ready) {
+				// The carry accepts the author's own Ready stops as the record is
+				// read; the frozen tour is otherwise exactly what was sent.
+				const auto& loaded = *pending->front().Plan.Update;
+				expect(std::ranges::all_of(loaded.Stops, [&](const auto& aStop) { return core::tour_stop_accepted(loaded, aStop); }), "the old rule's Ready stops come over Accepted");
+				auto unaccepted = loaded;
+				for (auto& item : unaccepted.Stops) {
+					item.Acceptance.reset();
+				}
+				auto expected        = *partial.Record;
+				expected.Plan.Update = unaccepted;
+				expect(expected == *partial.Record, "and the record is otherwise exactly the one sent");
+			} else {
+				expect(pending->front() == *partial.Record, "a version 10 update record loads exactly");
+			}
+			provider = session(remote, root.Path);
+			// The desktop resumes the plan it discovers in the journal.
+			const auto discovered = provider->pending_tours({ });
+			expect(discovered && discovered->size() == 1U && discovered->front() == pending->front().Plan, "the part-sent update is discovered as it was read");
+			const auto recovered = provider->reconcile_tour(discovered->front());
+			expect(recovered.State == publication_state::partial && recovered.Record == pending->front() && remote.Writes == 6, "it reconciles read-only as part sent");
+			expect(provider->publish_tour(discovered->front(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8, "Resume finishes it as it was sent");
 		}
 	}
 	// [[BPR-1787]]. A tour whose brief lives in the description is updated by
@@ -2071,6 +2183,7 @@ try {
 		test_recovery_read_refusals_keep_unknown_writes();
 		test_baseline_refusal_diagnoses();
 		test_compatibility_sessions();
+		test_update_saved_before_acceptance_resumes();
 		test_mixed_sessions();
 		test_conversation_overview_namespace();
 		test_saved_legacy_retarget_receipt();

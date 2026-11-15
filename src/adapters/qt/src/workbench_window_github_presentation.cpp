@@ -12,13 +12,14 @@
 #include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
+
+#include "bpr/qt/agent_report_view.hpp"
 #include "external_link_confirmation.hpp"
 #include "github_presentation_text.hpp"
 
@@ -71,6 +72,7 @@
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -297,6 +299,18 @@ namespace bpr::qt {
 		}
 		OverviewPage->body_view()->set_permalink_repository(repository);
 		ConversationPanel->set_permalink_repository(repository);
+		// [[BPR-1996]], RFC-BPR-0100 AC06. A stop's references open their lines
+		// in Review; one alone on its line is a snippet at the tour's pinned
+		// head; other links are admitted as the conversation's are.
+		if (TourEditor != nullptr) {
+			TourEditor->set_permalink_repository(repository);
+			TourEditor->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
+											[this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); },
+											[this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) -> std::optional<std::string> {
+												return TourPermalinkSource ? TourPermalinkSource(aPath, aFirst, aLast, aBefore) : std::nullopt;
+											},
+											[dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
+		}
 		OverviewPage->set_check_link_dispatch(dispatch);
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
@@ -308,6 +322,11 @@ namespace bpr::qt {
 			ConversationPanel->cards()->set_pull_request_author(
 				QString::fromStdString(aPullRequest.AuthorLogin));
 		}
+		// [[BPR-2171]]. Bots are marked per repository.
+		if (const auto key = core::repository_mark_key(aPullRequest.Hostname, aPullRequest.Owner, aPullRequest.RepositoryName); key != DiscussRepository) {
+			DiscussRepository = key;
+			apply_discuss_preferences();
+		}
 		// [[BPR-1157]]. Another pull request arriving takes the review surface
 		// back from a local cycle; the same one refreshed behind it does not.
 		const auto arriving = IdentityOwner != QString::fromStdString(aPullRequest.Owner)
@@ -315,6 +334,7 @@ namespace bpr::qt {
 			|| IdentityNumber != QString::number(aPullRequest.Number.value());
 		if (arriving && LocalCycleShown) {
 			LocalCycleShown = false;
+			LocalDraftShown = false;
 			LocalCycleTitle.clear();
 		}
 		// [[BPR-1575]]. What a refresh compares. Another pull request starts
@@ -389,6 +409,9 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		HasCachedOverview    = false;
 		update_pull_request_queue_actions();
+		if (PendingApproveAgain) {
+			QTimer::singleShot(0, this, [this] { take_pending_approve_again(); });
+		}
 		if (!PendingReviewPath.isEmpty()) {
 			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
 		}
@@ -563,6 +586,9 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_permalink_dispatch(relay);
 		}
+		if (TourEditor != nullptr) {
+			TourEditor->set_permalink_dispatch(relay);
+		}
 	}
 
 	void workbench_window::apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
@@ -573,6 +599,9 @@ namespace bpr::qt {
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->apply_markdown_permalink_snippet(aSnippet);
+		}
+		if (TourEditor != nullptr) {
+			TourEditor->apply_permalink_snippet(aSnippet);
 		}
 	}
 
@@ -597,6 +626,11 @@ namespace bpr::qt {
 		}
 		if (AgentTab != nullptr) {
 			AgentTab->apply_code_syntax(aSpans);
+		}
+		// Look report-templates-v003: a report's code is coloured as the Agent
+		// tab's is.
+		if (ReportView != nullptr) {
+			ReportView->apply_code_syntax(aSpans);
 		}
 		if (TourEditor != nullptr) {
 			TourEditor->apply_code_syntax(aSpans);
@@ -786,6 +820,57 @@ namespace bpr::qt {
 		});
 	}
 
+	void workbench_window::dispatch_home_followup(const core::queue_item& aItem)
+	{
+		const auto name = QStringLiteral("%1#%2").arg(QString::fromStdString(aItem.Ref.Repository)).arg(aItem.Ref.Number);
+		switch (core::review_followup_for(aItem)) {
+		case core::review_followup::seen:
+			if (HomeSeenDispatch) {
+				HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
+				statusBar()->showMessage(QStringLiteral("Marked the new commits on %1 seen; it moves to Following. Nothing changed on GitHub.").arg(name), 8000);
+			}
+			return;
+		case core::review_followup::approve_again:
+			// The approval is submitted from the pull request's own review, so
+			// what it holds (a summary, saved comments) is seen before it goes.
+			PendingApproveAgain = aItem.Ref;
+			open_pull_request_item(aItem);
+			return;
+		case core::review_followup::none:
+			return;
+		}
+	}
+
+	void workbench_window::take_pending_approve_again()
+	{
+		if (!PendingApproveAgain || !HasGithubPullRequest || ReviewSubmissionEditor == nullptr) {
+			return;
+		}
+		const auto ref = std::exchange(PendingApproveAgain, std::nullopt);
+		if (QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) != QString::fromStdString(ref->Repository) || IdentityNumber != QString::number(ref->Number)) {
+			return;
+		}
+		open_review_sheet(true);
+		// The review's controls show once its draft is read; Approve takes the
+		// keyboard then, so Return submits it and nothing else.
+		const auto focusApprove = std::make_shared<std::function<void(int)>>();
+		*focusApprove           = [this, editor = QPointer{ ReviewSubmissionEditor }, weak = std::weak_ptr{ focusApprove }](const int aTries) {
+			auto* const approve = editor ? editor->disposition_button(core::review_disposition::approve) : nullptr;
+			if (approve != nullptr && approve->isVisible()) {
+				approve->setFocus(Qt::OtherFocusReason);
+			} else if (const auto again = weak.lock(); again && aTries > 0) {
+				QTimer::singleShot(100, this, [again, aTries] { (*again)(aTries - 1); });
+			}
+		};
+		(*focusApprove)(50);
+		statusBar()->showMessage(QStringLiteral("GitHub dismissed your approval when commits were pushed. Approve submits a new one for the current commits."), 10000);
+	}
+
+	void workbench_window::set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch)
+	{
+		HomeSeenDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch)
 	{
 		HomeIgnoreDispatch = std::move(aDispatch);
@@ -814,6 +899,16 @@ namespace bpr::qt {
 		// [[BPR-1683]]. Ignore is a queue row's; a Recently viewed row is
 		// not ignored from there.
 		HomeIgnoreAction->setVisible(!recent);
+		if (HomeOpenPreparationAction != nullptr) {
+			auto prepared = false;
+			if (target && std::holds_alternative<core::queue_item>(*target)) {
+				const auto& ref = std::get<core::queue_item>(*target).Ref;
+				prepared        = std::ranges::any_of(DraftHome.Marks, [&ref](const application::local_draft_mark& aMark) {
+					return aMark.Owner + "/" + aMark.Name == ref.Repository && static_cast<std::int64_t>(aMark.Number) == ref.Number;
+				});
+			}
+			HomeOpenPreparationAction->setVisible(prepared);
+		}
 		HomeRowMenu->popup(aGlobal);
 	}
 
@@ -881,6 +976,9 @@ namespace bpr::qt {
 		ConversationPanel->set_link_dispatch({ });
 		OverviewPage->body_view()->set_permalink_repository(std::nullopt);
 		ConversationPanel->set_permalink_repository(std::nullopt);
+		if (TourEditor != nullptr) {
+			TourEditor->set_permalink_repository(std::nullopt);
+		}
 		RefreshConversationAnchor.reset();
 		RefreshConversationContext.reset();
 		LastWorkbenchContext.reset();
@@ -1699,6 +1797,14 @@ namespace bpr::qt {
 			: QStringLiteral("Open a pull request signed in to follow it.");
 		FollowPullRequest->setToolTip(followTip);
 		FollowPullRequest->setStatusTip(followTip);
+		if (SeenPullRequest != nullptr) {
+			const auto seen = item && core::review_followup_for(*item) == core::review_followup::seen && static_cast<bool>(HomeSeenDispatch);
+			SeenPullRequest->setEnabled(seen);
+			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen and moves it to Following on Home. Nothing changes on GitHub.")
+									  : QStringLiteral("Offered when commits follow my standing approval.");
+			SeenPullRequest->setToolTip(seenTip);
+			SeenPullRequest->setStatusTip(seenTip);
+		}
 		const auto saved = ref.has_value() && std::ranges::any_of(QueueProjection.SavedRepositories, [&ref](const application::saved_repository& aSaved) {
 							   return aSaved.Host == ref->Host && aSaved.Account == ref->Account && aSaved.Repository == ref->Repository;
 						   });
@@ -1726,7 +1832,17 @@ namespace bpr::qt {
 		return AgentPanel;
 	}
 
-	auto workbench_window::private_notes() const noexcept -> private_notes_panel* { return PrivateNotes; }
+	void workbench_window::set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_enhance_dispatch(std::move(aDispatch), std::move(aCancel));
+		}
+	}
+
+	auto workbench_window::present_enhancement(const enhance_outcome& aOutcome) -> bool
+	{
+		return ConversationPanel != nullptr && ConversationPanel->cards() != nullptr && ConversationPanel->cards()->present_enhancement(aOutcome);
+	}
 
 	void workbench_window::withdraw_agent_surfaces()
 	{
@@ -1749,7 +1865,7 @@ namespace bpr::qt {
 		}
 		if (ReviewEditor != nullptr) {
 			actions.insert(actions.end(), { ReviewEditor->accept_revision_action(), ReviewEditor->reject_revision_action() });
-			for (auto index = std::size_t{ 0U }; index < core::workshop_operation_count; ++index) {
+			for (auto index = std::size_t{ 0U }; index < core::prose_workshop_operation_count; ++index) {
 				actions.push_back(ReviewEditor->workshop_action(static_cast<core::workshop_operation>(index)));
 			}
 		}
@@ -1760,7 +1876,8 @@ namespace bpr::qt {
 		}
 		for (const auto* name : { "reviewWorkshopOriginal", "reviewWorkshopProposal", "reviewWorkshopOperation", "reviewWorkshopCandidate",
 								  "tourProblemMagic", "tourSolutionMagic", "tourStopMagic", "tourSuggestOutline", "tourSuggestedOutline", "tourInsertOutline",
-								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk" }) {
+								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk",
+								  "noteEnhance", "noteEnhanceSuggestion" }) {
 			for (auto* const widget : findChildren<QWidget*>(QString::fromLatin1(name))) {
 				widget->hide();
 			}
@@ -1780,15 +1897,16 @@ namespace bpr::qt {
 			}
 		}
 		if (auto* const tabs = findChild<QTabWidget*>(QStringLiteral("privateConversationTabs")); tabs != nullptr && ConversationScroll != nullptr) {
-			tabs->setTabText(tabs->indexOf(ConversationScroll), tr("Private notes"));
-			tabs->setAccessibleName(tr("Private history and notes"));
+			tabs->setTabText(tabs->indexOf(ConversationScroll), tr("Private history"));
+			tabs->setAccessibleName(tr("Private history"));
 		}
 		if (auto* const purpose = findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose")); purpose != nullptr) {
-			purpose->setText(tr("Private to you and never published. Write a note about this pull request, then promote what you want to say to a draft in Comments."));
+			purpose->setText(tr("Private to you and never published. Ask an agent about this pull request, then make a draft in Comments of what you want to say."));
 			purpose->setAccessibleDescription(purpose->text());
 		}
 		if (SettingsWindow != nullptr) {
 			SettingsWindow->withdraw_page(settings_page::agents_and_context);
+			SettingsWindow->withdraw_page(settings_page::prompts);
 		}
 	}
 

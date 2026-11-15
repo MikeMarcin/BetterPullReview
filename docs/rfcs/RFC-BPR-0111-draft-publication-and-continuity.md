@@ -204,3 +204,41 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
 and [closeout](../issues/60-done/BPR-2031-close-rfc-0111.md) form the fifth [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json).
 The [decision record](assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices) holds the owner's
 answer on native branch behavior.
+
+## Implementation record
+
+Milestone `publish-prepared-draft`, lane `claude/v0-5-0-prerelease-targets-52265d`
+(2026-11-12). Built under PUBLISH-01 as settled: the author pushes, BPR names
+the push and creates the draft pull request from the verified hosted head.
+The reopening above is reconciled by the commit-and-push milestone.
+
+- Core `local_draft_publication`: the hosted-branch decision, the named push,
+  the plan and its digest (since the 2026-11-12 amendment it binds no
+  evidence; a stored plan that named evidence is migrated forward), the journal and follow-ups, stored in the draft's
+  record.
+- The pull request slice of the GitHub publication catalog
+  (`acquire_pull_request_session`): reads and `POST pulls`, carried by the
+  native connection and by `gh` (`gh_cli_transport::perform_publication`,
+  under the lease's scoped operation); Git-data writes are refused on `gh`.
+- Application steps check, create, recover and associate, on the draft
+  desktop's own lane; each journal step re-reads and re-applies on a competing
+  write.
+- A minimal Pull request area on the draft page from existing controls.
+
+Fork heads and GHES are not supported. Results and live evidence:
+[ledger](../verification/RFC-BPR-0111.md).
+
+In the pull request window (2026-11-13, the accepted design): Create Draft
+PR… stands where Submit review does and opens Overview's Status tab, which
+carries the publish steps in RFC-BPR-0099's step list (Push the branch,
+Create the draft pull request, Publish the tour with how many stops are still
+to accept), the named push with Copy and Check Again, Create Draft PR once the
+pushed branch is the candidate, the error-role banner, and What is sent (from,
+into, as, version, title, unresolved stops, what stays here). When the draft
+pull request is created (or an open one linked) the window opens it. The tour
+follow-up's private half is built: the draft's tour is carried onto the pull
+request's empty tour draft at its head (RFC-BPR-0110 "In the pull request
+window"); publishing that tour stays the pull request's Tour (RFC-BPR-0099),
+which X20 governs. The Publish-the-tour checkbox is gone: a draft with stops
+always carries its tour.
+

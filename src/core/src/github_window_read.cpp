@@ -199,6 +199,13 @@ namespace bpr::core {
 	{
 		return Session.has_value() && State.PendingPullRequest.has_value() && OverviewObserved;
 	}
+	auto github_window_read::loading_readiness() const noexcept -> github_loading_readiness
+	{
+		if (!Session.has_value() || !State.PendingPullRequest.has_value() || State.PendingPullRequest->ExpectedPullRequest.has_value()) {
+			return { };
+		}
+		return { .FirstRead = true, .Metadata = OverviewObserved, .Files = FilesObserved, .Checks = ChecksObserved, .People = PeopleObserved, .Merge = MergeObserved };
+	}
 	auto github_window_read::state() const noexcept -> const github_state& { return State; }
 	auto github_window_read::window() const noexcept -> bpr_window_context { return Window; }
 }

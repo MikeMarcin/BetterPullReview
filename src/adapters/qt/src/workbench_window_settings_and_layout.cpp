@@ -10,12 +10,15 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "conversation_glyphs.hpp"
 #include "workbench_window_support.hpp"
@@ -445,6 +448,11 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_one_pane_toggle()
 	{
+		if (LocalDraftShown) {
+			OnePaneState.State = OnePaneState.State == core::workbench_one_pane::enabled ? core::workbench_one_pane::disabled : core::workbench_one_pane::enabled;
+			apply_one_pane();
+			return;
+		}
 		apply_one_pane();
 		if (Dispatch) {
 			Dispatch(core::toggle_workbench_one_pane_intent{ });
@@ -478,10 +486,22 @@ namespace bpr::qt {
 			OnePaneAction->setProperty("bprOnePane", enabled);
 			OnePaneAction->setIcon(strip_icon(enabled ? strip_glyph::one_pane : strip_glyph::two_panes, palette()));
 		}
-		if (auto* const button = ReviewBar != nullptr ? qobject_cast<QToolButton*>(ReviewBar->widgetForAction(OnePaneAction)) : nullptr;
-			button != nullptr) {
-			button->setAccessibleName(QStringLiteral("One pane"));
-			button->setAccessibleDescription(OnePaneAction->toolTip());
+		if (ReviewViewPicker != nullptr) {
+			// Author state's Edit stays picked until another view is.
+			if (!(LocalDraftShown && ReviewViewPicker->view() == review_view::edit)) {
+				ReviewViewPicker->set_view(enabled ? review_view::one_pane : review_view::two_panes);
+			}
+			const auto key    = presented_key(OnePaneAction);
+			const auto reason = offered ? QString{ }
+										: drawer_reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::no_active_workbench);
+			const auto named  = [&key](const QString& aName) { return key.isEmpty() ? aName : QStringLiteral("%1 (%2)").arg(aName, key); };
+			for (const auto& [view, name, said] : { std::tuple{ review_view::two_panes, QStringLiteral("Two panes"), QStringLiteral("Show the comparison in two source panes.") },
+													std::tuple{ review_view::one_pane, QStringLiteral("One pane"), QStringLiteral("Show both sides in one document.") } }) {
+				auto* const segment = ReviewViewPicker->segment(view);
+				segment->setEnabled(offered);
+				segment->setToolTip(QStringLiteral("%1\n%2").arg(named(name), offered ? said : reason));
+				segment->setAccessibleDescription(segment->toolTip());
+			}
 		}
 		if (ComparisonSurface != nullptr) {
 			ComparisonSurface->set_one_pane_enabled(enabled);
@@ -640,6 +660,14 @@ namespace bpr::qt {
 		// drawer state, so the last decided state is re-asserted immediately and
 		// only the gesture leaves; the window never shows a state it decided.
 		update_action_state();
+		// A local draft's drawers open and close here; nothing reaches the core.
+		if (LocalDraftShown && aIndex < 2U) {
+			auto& state = aIndex == 0U ? DrawerStates.Files : DrawerStates.Conversations;
+			state       = state == core::workbench_drawer_state::expanded ? core::workbench_drawer_state::collapsed : core::workbench_drawer_state::expanded;
+			apply_drawer_layout();
+			update_action_state();
+			return;
+		}
 		if (!Dispatch) {
 			return;
 		}
@@ -733,7 +761,11 @@ namespace bpr::qt {
 		Drawers[2].Panel->adopt(presented_repositories_state());
 		// These full-content pages borrow the center width without changing the
 		// retained drawer choices. Returning restores the same code arrangement.
-		const auto fullPage = CompositionPage != nullptr || TourPageOpen
+		// The owner, rejecting the local draft's Overview on 2026-11-13: "the
+		// other mode's drawers aren't being closed when going to overview." A
+		// pull request's Overview has the core close them; a local draft's
+		// Overview, which the core does not see, leaves them as Discuss does.
+		const auto fullPage = CompositionPage != nullptr || TourPageOpen || local_overview()
 			|| (Modality != nullptr
 				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads));
 		for (auto& entry : Drawers) {
@@ -856,9 +888,14 @@ namespace bpr::qt {
 		return DrawerStates.Files;
 	}
 
+	auto workbench_window::local_overview() const -> bool
+	{
+		return LocalDraftShown && !showing_home() && Modality != nullptr && Modality->current() == review_modality::overview;
+	}
+
 	auto workbench_window::central_sizes() const -> QList<int>
 	{
-		if (CompositionPage != nullptr
+		if (CompositionPage != nullptr || local_overview()
 			|| (Modality != nullptr
 				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads))) {
 			return { 0, 0, CentralSplitter->width(), 0 };
@@ -1050,6 +1087,10 @@ namespace bpr::qt {
 		// [[BPR-1290]]. Next new reply's icon on the Comments tab row.
 		if (NextNewCommentAction != nullptr) {
 			NextNewCommentAction->setIcon(conversation_icon(conversation_glyph::next_new, ink));
+		}
+		if (PreviousCommentAction != nullptr && NextCommentAction != nullptr) {
+			PreviousCommentAction->setIcon(conversation_icon(conversation_glyph::up, ink));
+			NextCommentAction->setIcon(conversation_icon(conversation_glyph::down, ink));
 		}
 		Drawers[0].Toggle->setIcon(strip_icon(strip_glyph::files_drawer, ink));
 		Drawers[2].Toggle->setIcon(strip_icon(strip_glyph::repositories_drawer, ink));
@@ -1577,7 +1618,7 @@ namespace bpr::qt {
 	void workbench_window::update_status_text()
 	{
 		update_review_readiness();
-		StatusLabel->setText(status_line());
+		present_status_line();
 		update_home_status();
 		update_strip_positions();
 		update_rail_summaries();
@@ -1628,16 +1669,51 @@ namespace bpr::qt {
 		if (OverviewPage != nullptr) {
 			OverviewPage->set_read_waiting(read_stage_words());
 		}
+		// The line says what it waits for as the wait changes, not only when a
+		// workbench projection lands.
+		present_status_line();
 	}
 
-	auto workbench_window::status_line() const -> QString
+	void workbench_window::present_status_line()
+	{
+		if (StatusLabel == nullptr) {
+			return;
+		}
+		// [[BPR-2180]]. The line turns the loading pattern's mark the Updates
+		// line does while it says a load, as `status_line` decides with its
+		// words. The words keep the mark's place whether it turns or not, so
+		// they never move when a wait starts or ends. The line is made after
+		// the window's panes, so its mark is made here.
+		if (PendingPanes.Status == nullptr) {
+			PendingPanes.Status = new pending_mark{ StatusLabel };
+			PendingPanes.Status->setObjectName(QStringLiteral("workbenchStatusPendingMark"));
+			PendingPanes.Status->setForegroundRole(QPalette::WindowText);
+			PendingPanes.Status->lead(*StatusLabel);
+			PendingPanes.Status->set_full_motion(pending_full_motion());
+		}
+		const auto line = status_line();
+		if (StatusLabel->text() != line.Text) {
+			StatusLabel->setText(line.Text);
+		}
+		PendingPanes.Status->set_turning(line.Waits && !line.Text.isEmpty());
+	}
+
+	auto workbench_window::status_line() const -> status_line_words
 	{
 		// [[BPR-1157]]. A local cycle is not waiting for a pull request; the
 		// cycle page says what it is doing itself.
 		if (showing_local_cycle()) {
 			return { };
 		}
+		// Mockup A: a local draft's line is the window's status bar, as a
+		// pull request's is: where you are, and what GitHub lacks.
+		if (showing_local_draft() && LocalDraft != nullptr) {
+			return { .Text = local_draft_status() };
+		}
 		auto status = QString{ };
+		// [[BPR-2180]]. Whether the line leads with a load, decided by the
+		// same branch that chooses its words.
+		auto waits = false;
 		// [[BPR-0775]]. On Home the line is the session's, and never that no
 		// pull request is open: Home is what the window shows when none is. A
 		// host's own failure is still said after it.
@@ -1648,6 +1724,7 @@ namespace bpr::qt {
 		// the owner the product was broken and gave them nothing to do.
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
 			status = EpochSelectors->readiness_text();
+			waits  = true;
 		} else if (!home && HasCachedOverview) {
 			status = QStringLiteral("Cached review data; freshness unknown. Current review state is unavailable offline.");
 		} else if (!home && HasGithubPullRequest && SessionPanel->status() == core::github_status::pull_request_failed) {
@@ -1667,6 +1744,7 @@ namespace bpr::qt {
 					|| EpochSelectors->status() == core::epoch_status::committing
 					|| EpochSelectors->status() == core::epoch_status::resolving
 					|| EpochSelectors->status() == core::epoch_status::maintaining);
+			waits  = working;
 			status = working
 				? QStringLiteral(
 					  "This pull request is open. Its comparison is being prepared.")
@@ -1713,7 +1791,7 @@ namespace bpr::qt {
 			status.append(QStringLiteral(" %1").arg(agent_workspaces_problem_text()));
 		}
 		if (home) {
-			return status;
+			return { .Text = status, .Waits = waits };
 		}
 		if (LedgerUnavailable) {
 			status.append(QStringLiteral(" Private review progress is unavailable."));
@@ -1744,7 +1822,7 @@ namespace bpr::qt {
 				status.append(QStringLiteral(" %1").arg(epochs));
 			}
 		}
-		return status;
+		return { .Text = status, .Waits = waits };
 	}
 
 	void workbench_window::announce_update()
@@ -1763,6 +1841,15 @@ namespace bpr::qt {
 	auto workbench_window::command(const core::workbench_command_id aId) const
 		-> std::optional<core::workbench_command_projection>
 	{
+		// A local draft has no core workbench: its arrows, drawers and layout
+		// are the window's own while it shows.
+		if (LocalDraftShown) {
+			using id         = core::workbench_command_id;
+			const auto local = aId == id::previous_file || aId == id::next_file || aId == id::previous_change || aId == id::next_change || aId == id::toggle_files_drawer
+				|| aId == id::toggle_conversations_drawer || aId == id::toggle_one_pane || aId == id::toggle_line_numbers
+				|| ((aId == id::first_change || aId == id::last_change) && ComparisonSurface != nullptr && ComparisonSurface->current_result());
+			return core::workbench_command_projection{ .Id = aId, .Enabled = local, .DisabledReason = local ? core::workbench_reason_code::none : core::workbench_reason_code::no_active_workbench };
+		}
 		if (!HasCommands) {
 			return std::nullopt;
 		}

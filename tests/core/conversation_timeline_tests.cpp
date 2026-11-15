@@ -5,6 +5,7 @@
 // act on and what the counts count.
 #include "bpr/core/conversation_timeline.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -198,6 +199,80 @@ namespace {
 		expect(summarize_conversation_timeline(items, { .UnreadOnly = true }) == summarize_conversation_timeline(items, { .UnreadOnly = true }), "equal inputs give equal summaries");
 	}
 
+	/// [[BPR-2171]]. Each file once over its threads; resolved threads and
+	/// bot runs fold.
+	[[nodiscard]] auto rows_of(const conversation_timeline& aTimeline) -> std::vector<std::string>
+	{
+		auto result = std::vector<std::string>{ };
+		for (const auto& row : aTimeline.Rows) {
+			switch (row.Kind) {
+			case timeline_row_kind::bundle:  result.push_back("bundle:" + row.Id); break;
+			case timeline_row_kind::verdict: result.push_back("verdict:" + row.Id); break;
+			case timeline_row_kind::file:    result.push_back("file:" + row.Path + (row.Members.empty() ? "" : "+" + std::to_string(row.Members.size())) + (row.Open ? "(open)" : "")); break;
+			case timeline_row_kind::bots:    result.push_back("bots:" + std::to_string(row.Members.size()) + (row.Open ? "(open)" : "")); break;
+			case timeline_row_kind::comment: result.push_back(row.Id); break;
+			}
+		}
+		return result;
+	}
+
+	void files_and_folds()
+	{
+		Scenario   = "files and folds";
+		auto items = std::vector<timeline_item>{
+			comment("c-1", "2026-10-20T00:00:00Z"),
+			review("r-j", "jiayin", "2026-10-21T00:00:00Z", timeline_verdict::changes_requested, true),
+			thread("t-a1", "r-j", "2026-10-21T00:00:00Z", "a.cpp", 1U),
+			thread("t-a5", "r-j", "2026-10-21T00:00:00Z", "a.cpp", 5U),
+			thread("t-b2", "r-j", "2026-10-21T00:00:00Z", "b.cpp", 2U),
+			thread("t-lone-c3", "", "2026-10-22T00:00:00Z", "c.cpp", 3U),
+			thread("t-lone-c9", "", "2026-10-22T01:00:00Z", "c.cpp", 9U),
+			comment("c-ci", "2026-10-23T00:00:00Z"),
+			comment("c-cov", "2026-10-23T01:00:00Z"),
+			comment("c-2", "2026-10-24T00:00:00Z"),
+		};
+		items[0].Author   = "fixture-author";
+		items[7].Author   = "github-actions[bot]";
+		items[7].Bot      = true;
+		items[8].Author   = "codecov[bot]";
+		items[8].Bot      = true;
+		items[3].Resolved = true;
+		items[4].Resolved = true;
+		const auto plain  = arrange_conversation_timeline(items);
+		expect(std::ranges::none_of(plain.Rows, [](const timeline_row& aRow) { return aRow.Kind == timeline_row_kind::file || aRow.Kind == timeline_row_kind::bots; }),
+			   "without Files nothing new is listed");
+		const auto files = arrange_conversation_timeline(items, { .Files = true });
+		expect(rows_of(files) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "file:a.cpp", "t-a1", "t-a5", "file:b.cpp", "t-b2", "file:c.cpp", "t-lone-c3", "t-lone-c9", "c-ci", "c-cov", "c-2" },
+			   "a file is named once over the threads that follow one another on it, in a bundle and as lone threads in a row");
+		expect(files.Comments == plain.Comments && files.Folded == 0U, "naming files lists every comment still");
+		const auto folded = arrange_conversation_timeline(items, { .Files = true, .FoldResolved = true });
+		expect(rows_of(folded) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "file:a.cpp+1", "t-a1", "file:b.cpp+1", "file:c.cpp", "t-lone-c3", "t-lone-c9", "c-ci", "c-cov", "c-2" },
+			   "a file's resolved threads fold into its row's count; a file whose every thread folded keeps its row");
+		expect(folded.Folded == 2U && folded.Comments == plain.Comments - 2U, "folded comments are counted apart");
+		const auto& aRow = folded.Rows[3];
+		expect(aRow.Fold == "file:t-a1" && aRow.Members == std::vector<std::string>{ "t-a5" } && !aRow.Open, "the fold is keyed by its file's first thread and names what it holds");
+		const auto opened = arrange_conversation_timeline(items, { .Files = true, .FoldResolved = true, .Unfolded = { "file:t-a1" } });
+		expect(rows_of(opened)[3] == "file:a.cpp+1(open)" && rows_of(opened)[5] == "t-a5" && opened.Folded == 1U, "an opened fold lists its threads after its row");
+		auto unread      = items;
+		unread[4].Unread = true;
+		expect(rows_of(arrange_conversation_timeline(unread, { .Files = true, .FoldResolved = true }))[6] == "t-b2", "a resolved thread with a post I have not read never folds");
+		const auto bots = arrange_conversation_timeline(items, { .Files = true, .FoldBots = true });
+		expect(rows_of(bots) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "file:a.cpp", "t-a1", "t-a5", "file:b.cpp", "t-b2", "file:c.cpp", "t-lone-c3", "t-lone-c9", "bots:2", "c-2" },
+			   "a run of bot comments folds to one row");
+		const auto botRow = std::ranges::find(bots.Rows, timeline_row_kind::bots, &timeline_row::Kind);
+		expect(botRow->Authors == std::vector<std::string>{ "github-actions[bot]", "codecov[bot]" } && botRow->Fold == "bots:c-ci" && bots.Folded == 2U, "the bots row names whose comments it holds");
+		const auto botsOpen = arrange_conversation_timeline(items, { .FoldBots = true, .Unfolded = { "bots:c-ci" } });
+		expect(rows_of(botsOpen) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "t-a1", "t-a5", "t-b2", "t-lone-c3", "t-lone-c9", "bots:2(open)", "c-ci", "c-cov", "c-2" }, "an opened bots row lists its comments");
+		auto kept    = items;
+		kept[8].Kept = true;
+		expect(rows_of(arrange_conversation_timeline(kept, { .FoldBots = true })) == std::vector<std::string>{ "c-1", "bundle:r-j", "r-j", "t-a1", "t-a5", "t-b2", "t-lone-c3", "t-lone-c9", "bots:1", "c-cov", "c-2" },
+			   "a kept bot comment never folds and ends the run");
+		const auto onlyNew = arrange_conversation_timeline(items, { .UnreadOnly = true, .Files = true, .FoldResolved = true, .FoldBots = true });
+		expect(onlyNew.Rows.empty(), "folding acts after the filters");
+		expect(arrange_conversation_timeline(items, { .Files = true, .FoldResolved = true, .FoldBots = true }) == arrange_conversation_timeline(items, { .Files = true, .FoldResolved = true, .FoldBots = true }),
+			   "equal items and filters arrange equally");
+	}
+
 	/// A review's body is a comment only with a visible character; one that
 	/// is not is never unread content.
 	void body_is_comment()
@@ -217,6 +292,7 @@ auto main() -> int
 	filters();
 	filter_summary();
 	body_is_comment();
+	files_and_folds();
 	if (Failures != 0) {
 		std::cerr << Failures << " expectation(s) failed\n";
 		return EXIT_FAILURE;

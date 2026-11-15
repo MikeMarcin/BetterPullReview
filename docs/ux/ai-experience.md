@@ -6,27 +6,75 @@ The functional core decides whether an explicit AI action is legal, what local c
 
 ## Entry points
 
+- **Ask** (RFC-BPR-0128): one Ask control at three anchors, the review bar,
+  the open file's tab and the open thread's foot beside Reply, and one Ask
+  item in a thread's and a file tab's right-click menus. Each menu lists the
+  quick asks of its scope (a suggested prompt with Quick ask ticked and a
+  Thread, File or Pull request scope), decided when it opens: a quick ask
+  whose subject is absent is not listed, and one that cannot run yet is
+  greyed with its reason. Custom question… opens the Agent tab on the
+  subject and sends nothing; Edit Quick Asks… opens Settings at the prompts.
+  The agent controls these replace (Ask agent and Was this addressed? in a
+  thread's header, Explain this file in the file's header) are gone.
+- Reports (RFC-BPR-0128): an answer that is a report (What changed since my
+  review, Explain this file and Was this addressed? about several threads
+  always; any other by its shape) is a card where it was asked, its summary
+  and an attachment row, and opens as a tab in the files' tab strip. The
+  tab draws a report that keeps to its template (docs/design/report-templates-v1)
+  as a page: verdict rules, a tally, places that open the code, the Agent
+  tab's code boxes and Suggested change with Add as draft comment, in the
+  theme's report colours (Settings › Appearance › Reports). A floating menu
+  lists its sections; View source and Copy source keep the Markdown.
 - Ask about selection
-- Analyze current file
-- Analyze latest upload
-- Evaluate proposed fix
+- Analyze current file: **Explain this file** (RFC-BPR-0117, [[BPR-2076]]).
+  Its subject is the file open in Review, never a selection: the control at
+  the right of the comparison's header and Explain This File in a tab's
+  menu. The question carries the file's change in the pull request and its
+  text at the head; the rest of the change is context. The answer shows in a
+  card under the file's header, its references links, with Keep local (a
+  Local comment on the file whose first line names the agent), Continue in
+  Agent tab and Dismiss, and is a turn in the Agent tab's history either way.
+  RFC-BPR-0128 amends both: Explain this file is a quick ask in the file's
+  Ask and the file tab's menu, and its answer is a report card and report.
+- Analyze latest upload: **What changed since my review**
+  (RFC-BPR-0116, [[BPR-2073]]). Offered when the pull request has commits
+  newer than the reviewer's last submitted review or Seen, in the Pull
+  Request menu beside Seen and among the Agent tab's suggestions. Its
+  question names both revisions and carries the change between them; when
+  the earlier revision cannot be read the control is unavailable and says
+  so, and nothing else is sent in its place.
+- Evaluate proposed fix: **Was this addressed?** (RFC-BPR-0116,
+  [[BPR-2074]]). Its subject is a review thread the reviewer commented in,
+  never a selection; it is offered once the pull request has commits newer
+  than the reviewer's last comment there, on the thread and among its
+  conversation's prompts. The answer leads with Addressed, Partly, Not
+  addressed or Cannot tell and is shown as the agent's claim: it resolves,
+  verifies and posts nothing. RFC-BPR-0128 amends it: it is offered on any
+  review thread once the head is past the commit the thread started on, and
+  on a file and the pull request as one ask carrying every thread, answered
+  as a report with a claim a thread; each claim is a chip in its thread's
+  header. A merge of the base branch in What changed is one line with its
+  commit count.
 - Workshop comment
 - Run AI review
 - Open full agent session
 - Ask about a conversation ([[BPR-1773]]): **Ask agent** on a review
-  thread (its header and its menu) or on a saved private note opens the
+  thread (its header and its menu) or on my own unsent comment, Local or
+  Draft (RFC-BPR-0127, recorded in Private history by one path), opens the
   Agent tab with the conversation as a chip in the question field. The chip
   stays for follow-ups until its close button removes it, the prompts are
   about the conversation while it is there, and each turn's asked line names
   the conversation above the question ("About src/cache.cpp line 42, 2
   comments", then the question). Nothing is sent until the reviewer asks.
-- Draft comment on any answer ([[BPR-1773]], owner look 2026-10-27): every
-  answer's footer has Copy, **Save as note** and **Draft comment**, in one
-  quiet style. Draft comment writes the answer, or the part selected, as a
-  private draft: the reply of the review thread the question was about, a
-  comment on the lines selected when it was asked, or otherwise a new pull
-  request comment on Overview. It then reads **Go to draft**, as Save as note
-  then reads Go to note. Nothing is published until the reviewer publishes.
+- One keep action on any answer ([[BPR-1773]], owner look 2026-10-27;
+  RFC-BPR-0127): every answer's footer has Copy and one keep action, in one
+  quiet style, chosen by `core::decide_keep`. **Draft comment** writes the
+  answer, or the part selected, as a private draft: the reply of the review
+  thread the question was about, or a comment on the lines selected when it
+  was asked. Where neither was, **Keep local** keeps it as a Local comment on
+  the pull request. They then read **Go to draft** and **Go to comment**.
+  Finding cards, the finding queue and Explain this file follow the same
+  rule. Nothing is published until the reviewer publishes.
 
 No opening, navigation, refresh, comment arrival, or revision update automatically invokes an agent.
 
@@ -40,6 +88,8 @@ Expanding from selected lines to an entire file, PR, or repository requires an e
 
 Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533 those six are a typed set in the tree, offered as controls on the proposed-revision surface: pressing one starts one agent turn through the single `workshop_comment` entry point, and the proposal names the operation it answered. The controls close with a tooltip while the turn runs. Since BPR-0538 they reopen when it ends, including a turn that returns no revision; that outcome explains why no revision appeared. Results stay in the local editor until the user publishes through normal GitHub review controls.
 
+Since RFC-BPR-0118 a seventh operation, `suggest_change`, is not a prose rewrite and is not one of the six controls: **Suggest the change**, in the Agent accent in a draft comment's tool row, asks for replacement text for exactly the draft's head lines. Its first answer is one fresh, tool-free call briefed by `review.suggest-change`, an ordinary Agent tab turn with Ask more. The core accepts the reply only when its range is the draft's, its stated current text equals the head's lines byte for byte, and the replacement is a different, bounded change GitHub can take as a suggestion; an accepted reply opens as RFC-BPR-0090's in-pane edit, unsaved, until the reviewer keeps it. A refused reply is never shown as a suggestion: the field says which check failed and the reply can be read as text.
+
 Since BPR-1091 a workshop press also sends the profile's Review feedback guidance (Agents & context › AI assistance › Review feedback), but only while Settings › Comments › Comment workshop › Feedback guidance (the stored label helper; a Comment labels row until [[BPR-1597]]) is on. The shipped default is sent under its version name; a customized hook is sent as written. With the helper off the request is exactly what it was before. Under the before and after, one line says what the proposed revision changes besides wording, read the way Publish reads it, in marks: the label as its mark (a change shows the mark before an arrow and the mark after, the empty Plain mark where there is none, and an unreadable header as written under a wavy line), whether it asks a question (a speech bubble with a `?`), and the suggested change (its ring). What stays the same is faint and wordless; what changes carries one word: added, removed or changed. Each part's tooltip says it in a sentence. A plain comment reworded says "Wording only". Accepting is still one local edit; publishing, the review decision and resolving stay separate actions.
 
 Since BPR-1245 a press runs as an RFC-BPR-0023 private run. It first saves the draft's current text in Private history as a reviewer revision that cannot change, on a thread about the draft's line, and History selects it. It then asks the agent with that revision as the only selected source; the draft itself is not sent. Each press adds one such revision. If the revision cannot be saved, nothing is asked and the controls reopen with the reason.
@@ -52,9 +102,9 @@ Finding actions:
 
 - Open evidence
 - Ask follow-up
-- Convert to local draft comment
+- Draft comment, or Keep local where no line takes a draft (RFC-BPR-0127:
+  one of the two, `core::decide_keep`'s choice)
 - Convert to local draft defect
-- Add to private notes
 - Dismiss
 
 ## Full agent mode

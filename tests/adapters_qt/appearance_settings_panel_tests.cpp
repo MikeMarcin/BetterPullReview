@@ -875,8 +875,9 @@ namespace {
 			"and it follows the theme on screen when that changes");
 
 		expect(
-			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 62U,
-			"the card lists its 62 offered roles, including namespaces, "
+			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 69U
+				&& std::ranges::contains(panel.colours()->listed_roles(), core::appearance_role::agent_accent),
+			"the card lists its 69 offered roles, Agent accent (BPR-2000) among them, and including namespaces, "
 			"enum members (RFC-BPR-0072) and Find's washes (BPR-1503)");
 	}
 

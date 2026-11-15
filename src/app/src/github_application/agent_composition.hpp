@@ -83,11 +83,19 @@ namespace bpr::app {
 
 		[[nodiscard]] auto invocations() const noexcept -> std::size_t;
 
+		/// \brief [[BPR-2177]]. Which programs a fixture build may start; a
+		/// program it refuses is never run, and the run says why.
+		/// A bare `claude` or `codex` is started from the folder the run named.
+		void               set_admission(std::function<std::optional<std::string>(const std::string&)> aAdmit) { Admit = std::move(aAdmit); }
+		[[nodiscard]] auto refusals() const noexcept -> std::size_t { return Refusals.load(); }
+
 		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Launcher.native_connections_quiescent(); }
 
 	private:
-		adapters::agent::agent_process_launcher& Launcher;
-		std::atomic_size_t                       Invocations = 0U;
+		adapters::agent::agent_process_launcher&                      Launcher;
+		std::atomic_size_t                                            Invocations = 0U;
+		std::function<std::optional<std::string>(const std::string&)> Admit;
+		std::atomic_size_t                                            Refusals = 0U;
 	};
 #endif
 	/// \brief Names one core promotion refusal for a reviewer to read.
@@ -142,7 +150,7 @@ namespace bpr::app {
 			return application::agent_finding_action::convert_to_draft_comment;
 		case qt::finding_queue_action::convert_to_draft_defect:
 			return application::agent_finding_action::convert_to_draft_defect;
-		case qt::finding_queue_action::add_to_private_notes:
+		case qt::finding_queue_action::keep_local:
 			return application::agent_finding_action::add_to_private_notes;
 		case qt::finding_queue_action::dismiss:
 			return application::agent_finding_action::dismiss;
@@ -172,6 +180,13 @@ namespace bpr::app {
 		std::vector<std::string> Measure;
 		/// [[BPR-1916]]. The skills the run's prompt names, inline.
 		skill_run Skills;
+		/// [[BPR-2138]]. The launch path, whose session mode the run keeps.
+		core::agent_run_path Path = core::agent_run_path::tour_side_chat;
+		/// [[BPR-2140]]. A built-in prompt's instructions, kept apart.
+		std::string SystemInstructions;
+		/// [[BPR-2141]]. A tool-free run whose context (the diff) is in its
+		/// prompt up front: the prompt travels in the tour prompt's carrier.
+		bool UpFront = false;
 	};
 
 	/// \brief [[BPR-1900]]. The tour session's projection: its own, so a tour
@@ -199,10 +214,12 @@ namespace bpr::app {
 		using start_sink    = std::function<void(const application::agent_invocation_projection_identity&, const application::prepared_workspace&)>;
 		using run_sink      = std::function<void(const application::agent_invocation_projection_identity&, const application::agent_run_result&)>;
 		using refuse_sink   = std::function<void(std::string_view)>;
+		using stream_sink   = std::function<void(const application::agent_invocation_projection_identity&, const application::agent_stream_event&)>;
 
-		/// \brief [[BPR-1941]]. `aStream` hears each output event of the run
-		/// in flight, for the tour chat's live line; none ignores them.
-		tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, identity_sink aStream = { });
+		/// \brief [[BPR-1941]]. `aStream` hears each event of the run in
+		/// flight, for the tour chat's live line and ([[BPR-2005]]) its
+		/// running block; none ignores them.
+		tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, stream_sink aStream = { });
 		void offer(std::span<const core::agent_profile>) override;
 		void refuse(const std::string_view aReason) override;
 		void admit(const application::agent_invocation_projection_identity& aIdentity) override;
@@ -216,7 +233,7 @@ namespace bpr::app {
 		start_sink    Start;
 		run_sink      Finish;
 		refuse_sink   Refuse;
-		identity_sink Stream;
+		stream_sink   Stream;
 	};
 
 	/// \brief Carries every invocation projection onward, findings included.

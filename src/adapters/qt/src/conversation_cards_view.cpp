@@ -7,6 +7,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -19,12 +20,14 @@
 #include "conversation_file_identities.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
+#include "conversation_preview.hpp"
 
 #include <QAbstractButton>
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDateTime>
+#include <QFileInfo>
 #include <QFocusEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -54,6 +57,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -109,9 +113,33 @@ namespace bpr::qt {
 			bool         Face = true;
 			/// [[BPR-1781]]. A quiet link: no pill until hovered or focused.
 			bool Link = false;
-			auto sizeHint() const -> QSize override
+			/// RFC-BPR-0127. My Local comments it leads to, counted beside
+			/// the computer.
+			std::size_t Locals = 0U;
+			/// RFC-BPR-0127. In a narrow drawer the chip keeps its glyph and
+			/// counts; its words stay its accessible name and tooltip.
+			bool Compact = false;
+			/// RFC-BPR-0127. What a compact Local chip leads with, so This file
+			/// (one page) and Other files (two pages) stay told apart.
+			std::optional<drawer_glyph> Lead;
+			[[nodiscard]] auto          locals_width() const -> int
 			{
-				return { QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0), chip_height };
+				// Compact, the pill draws its computer and count tighter.
+				const auto digits = QFontMetrics{ font() }.horizontalAdvance(QString::number(Locals));
+				return Locals == 0U ? 0 : Compact ? 4 + 11 + 2 + digits + 5
+												  : 6 + 12 + 3 + digits + 6;
+			}
+			[[nodiscard]] auto full_width() const -> int
+			{
+				return QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0) + locals_width();
+			}
+			[[nodiscard]] auto shows_words() const -> bool { return !Compact || (!Face && Locals == 0U); }
+			auto               sizeHint() const -> QSize override
+			{
+				if (shows_words()) {
+					return { full_width(), chip_height };
+				}
+				return { (Face ? 22 : (Lead ? 19 : 4)) + (New > 0U ? 24 : 0) + locals_width() + 2, chip_height };
 			}
 
 		protected:
@@ -130,7 +158,27 @@ namespace bpr::qt {
 				}
 				const auto left = Face ? 24 : 9;
 				painter.setPen(Colours.Ink2);
-				painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				if (shows_words()) {
+					painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0) - locals_width(), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				} else if (Lead && !Face) {
+					drawer_icon(*Lead, palette()).paint(&painter, QRect{ 4, (height() - 14) / 2, 14, 14 });
+				}
+				// RFC-BPR-0127. The computer and how many Local comments,
+				// in a small outlined pill of their own.
+				if (Locals > 0U) {
+					const auto gap   = Compact ? 1 : 6;
+					const auto right = width() - (New > 0U ? 24 : 0) - (Compact ? 2 : 4);
+					const auto pill  = QRectF{ static_cast<qreal>(right - locals_width() + gap), 3.5, static_cast<qreal>(locals_width() - gap), height() - 7.0 };
+					painter.setPen(QPen{ Colours.Rule2, 1.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+					const auto glyph = Compact ? 11.0 : 12.0;
+					const auto inset = Compact ? 3.0 : 4.0;
+					const auto text  = inset + glyph + (Compact ? 2.0 : 3.0);
+					paint_conversation_glyph(painter, QRectF{ pill.left() + inset, (height() - glyph) / 2.0, glyph, glyph }, conversation_glyph::computer, Colours.Ink2);
+					painter.setPen(Colours.Ink2);
+					painter.drawText(QRectF{ pill.left() + text, 0.0, pill.width() - text, static_cast<qreal>(height()) }, Qt::AlignLeft | Qt::AlignVCenter, QString::number(Locals));
+				}
 				if (New > 0U) {
 					const auto badge = QRectF{ static_cast<qreal>(width() - 22), 3.0, 18.0, 16.0 };
 					painter.setPen(Qt::NoPen);
@@ -284,20 +332,18 @@ namespace bpr::qt {
 			return aPost.TourStop.has_value() ? QString::fromStdString(aPost.TourStop->Title) + QChar::LineSeparator + narrative_of(aPost) : narrative_of(aPost);
 		}
 
-		/// \brief A closed note's body: one flowing paragraph, the header in
-		/// semibold and inline code in the code font, backticks dropped as the
-		/// prototype sets them.
+		/// \brief A closed note's body: [[BPR-2171]] its preview's words on
+		/// one flowing line, the header in semibold and inline code in the
+		/// code font.
 		struct display_text
 		{
 			QString                         Text;
 			QList<QTextLayout::FormatRange> Formats;
 		};
 
-		[[nodiscard]] auto display_of(const card_post& aPost, const QFont& aFont, const QFont& aCodeFont, const QColor& aCodeFill) -> display_text
+		[[nodiscard]] auto display_of(const card_post& aPost, const detail::note_preview& aPreview, const QFont& aFont, const QFont& aCodeFont, const QColor& aCodeFill) -> display_text
 		{
 			auto result = display_text{ };
-			auto body   = narrative_of(aPost);
-			body.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
 			// [[BPR-1806]]. A tour stop's note leads with its title, in
 			// semibold, on a line of its own.
 			if (aPost.TourStop.has_value()) {
@@ -307,23 +353,14 @@ namespace bpr::qt {
 				format.setFontWeight(QFont::DemiBold);
 				result.Formats.push_back(QTextLayout::FormatRange{ .start = 0, .length = static_cast<int>(title.size()), .format = format });
 			}
-			const auto lead   = result.Text.size();
-			const auto header = std::clamp<qsizetype>(aPost.HeaderLength, 0, body.size());
-			result.Text += body.left(header);
-			if (header > 0) {
+			const auto lead = static_cast<int>(result.Text.size());
+			result.Text += aPreview.Text;
+			for (const auto& [start, length] : aPreview.Strong) {
 				auto format = QTextCharFormat{ };
 				format.setFontWeight(QFont::DemiBold);
-				result.Formats.push_back(QTextLayout::FormatRange{ .start = static_cast<int>(lead), .length = static_cast<int>(header), .format = format });
+				result.Formats.push_back(QTextLayout::FormatRange{ .start = lead + start, .length = length, .format = format });
 			}
-			auto at = header;
-			while (at < body.size()) {
-				const auto open  = body.indexOf(QLatin1Char{ '`' }, at);
-				const auto close = open < 0 ? -1 : body.indexOf(QLatin1Char{ '`' }, open + 1);
-				if (open < 0 || close < 0 || close == open + 1) {
-					result.Text += body.mid(at);
-					break;
-				}
-				result.Text += body.mid(at, open - at);
+			for (const auto& [start, length] : aPreview.Code) {
 				auto code = QTextCharFormat{ };
 				code.setFontFamilies(aCodeFont.families());
 				code.setFontFixedPitch(true);
@@ -331,42 +368,131 @@ namespace bpr::qt {
 					code.setFontPointSize(aFont.pointSizeF() * 0.9);
 				}
 				code.setBackground(aCodeFill);
-				result.Formats.push_back(QTextLayout::FormatRange{ .start = static_cast<int>(result.Text.size()), .length = static_cast<int>(close - open - 1), .format = code });
-				result.Text += body.mid(open + 1, close - open - 1);
-				at = close + 1;
+				result.Formats.push_back(QTextLayout::FormatRange{ .start = lead + start, .length = length, .format = code });
 			}
 			return result;
 		}
 
-		/// \brief Lays \p aDisplay out at \p aWidth, at most \p aLines lines,
-		/// eliding the last when the text goes on.
-		[[nodiscard]] auto clamp_lines(display_text aDisplay, const QFont& aFont, const int aWidth, const int aLines) -> display_text
+		/// \brief [[BPR-2171]]. When, beside an author: "28 Oct", with the year
+		/// when it is not this one; empty when GitHub gave no time.
+		[[nodiscard]] auto when_of(const std::string& aAt) -> QString
 		{
-			auto layout = QTextLayout{ aDisplay.Text, aFont };
-			layout.setFormats(aDisplay.Formats);
-			auto option = QTextOption{ };
-			option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-			layout.setTextOption(option);
-			layout.beginLayout();
-			auto starts = std::vector<int>{ };
-			for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
-				line.setLineWidth(aWidth);
-				starts.push_back(line.textStart());
-				if (static_cast<int>(starts.size()) > aLines) {
-					break;
-				}
+			const auto time = QDateTime::fromString(QString::fromStdString(aAt), Qt::ISODate);
+			if (!time.isValid()) {
+				return { };
 			}
-			layout.endLayout();
-			if (static_cast<int>(starts.size()) <= aLines) {
+			const auto local = time.toLocalTime();
+			return QLocale{ }.toString(local, local.date().year() == QDate::currentDate().year() ? QStringLiteral("d MMM") : QStringLiteral("d MMM yyyy"));
+		}
+
+		/// \brief [[BPR-2171]]. A fold's chevron: right when closed, down
+		/// when open, centred on \p aCentre.
+		void paint_fold_chevron(QPainter& aPainter, const QPointF aCentre, const bool aOpen, const QColor& aInk)
+		{
+			auto path = QPainterPath{ };
+			if (aOpen) {
+				path.moveTo(aCentre + QPointF{ -3.5, -1.75 });
+				path.lineTo(aCentre + QPointF{ 0.0, 1.75 });
+				path.lineTo(aCentre + QPointF{ 3.5, -1.75 });
+			} else {
+				path.moveTo(aCentre + QPointF{ -1.75, -3.5 });
+				path.lineTo(aCentre + QPointF{ 1.75, 0.0 });
+				path.lineTo(aCentre + QPointF{ -1.75, 3.5 });
+			}
+			aPainter.save();
+			aPainter.setRenderHint(QPainter::Antialiasing, true);
+			aPainter.setPen(QPen{ aInk, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawPath(path);
+			aPainter.restore();
+		}
+
+		/// \brief [[BPR-2171]]. The quiet words naming a note's blocks.
+		[[nodiscard]] auto token_font(const QFont& aFont) -> QFont
+		{
+			return scaled(aFont, 0.8);
+		}
+		constexpr int token_pad    = 5;
+		constexpr int token_gap    = 4;
+		constexpr int token_height = 15;
+		constexpr int token_lead   = 6;
+
+		[[nodiscard]] auto tokens_width(const QStringList& aTokens, const QFont& aFont) -> int
+		{
+			if (aTokens.isEmpty()) {
+				return 0;
+			}
+			const auto metrics = QFontMetrics{ token_font(aFont) };
+			auto       width   = token_lead;
+			for (const auto& token : aTokens) {
+				width += metrics.horizontalAdvance(token) + 2 * token_pad + token_gap;
+			}
+			return width - token_gap;
+		}
+
+		/// \brief Lays \p aDisplay out at \p aWidth, at most \p aLines lines,
+		/// the last narrowed by \p aReserve for the tokens. [[BPR-2171]]. It
+		/// ends with an ellipsis only when words were left out, cut at a word
+		/// boundary and never inside inline code; tokens are never cut, the
+		/// words give way to them.
+		[[nodiscard]] auto clamp_lines(display_text aDisplay, const bool aOmitted, const QFont& aFont, const int aWidth, const int aLines, const int aReserve) -> display_text
+		{
+			const auto ellipsis = QString{ QChar{ 0x2026 } };
+			const auto lastWide = std::max(40, aWidth - aReserve);
+			const auto lay      = [&aDisplay, &aFont, aWidth, aLines](const int aLast) {
+				auto layout = QTextLayout{ aDisplay.Text, aFont };
+				layout.setFormats(aDisplay.Formats);
+				auto option = QTextOption{ };
+				option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+				layout.setTextOption(option);
+				layout.beginLayout();
+				auto lines = std::vector<std::pair<int, int>>{ };
+				for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+					line.setLineWidth(static_cast<int>(lines.size()) == aLines - 1 ? aLast : aWidth);
+					lines.emplace_back(line.textStart(), line.textLength());
+					if (static_cast<int>(lines.size()) > aLines) {
+						break;
+					}
+				}
+				layout.endLayout();
+				return lines;
+			};
+			const auto lines = lay(lastWide);
+			if (static_cast<int>(lines.size()) <= aLines && !aOmitted) {
 				return aDisplay;
 			}
-			const auto last = starts[static_cast<std::size_t>(aLines - 1)];
-			const auto rest = aDisplay.Text.mid(last);
-			// Room for the semibold header when it is on this line too.
-			const auto elided = QFontMetrics{ aFont }.elidedText(rest, Qt::ElideRight, std::max(1, aWidth - 6));
-			aDisplay.Text     = aDisplay.Text.left(last) + elided;
+			// Room for the ellipsis on the last line shown.
+			const auto room  = std::max(20, lastWide - QFontMetrics{ aFont }.horizontalAdvance(ellipsis) - 2);
+			const auto again = lay(room);
+			auto       cut   = static_cast<int>(aDisplay.Text.size());
+			if (static_cast<int>(again.size()) >= aLines) {
+				const auto& last = again[static_cast<std::size_t>(aLines - 1)];
+				cut              = last.first + last.second;
+			}
+			cut = std::min(cut, static_cast<int>(aDisplay.Text.size()));
+			if (cut < aDisplay.Text.size()) {
+				// Back to a word boundary, never inside inline code.
+				auto boundary = cut;
+				while (boundary > 0 && !aDisplay.Text.at(boundary - 1).isSpace() && !aDisplay.Text.at(boundary).isSpace()) {
+					--boundary;
+				}
+				const auto lineStart = static_cast<int>(again.size()) >= aLines ? again[static_cast<std::size_t>(aLines - 1)].first : 0;
+				if (boundary > lineStart) {
+					cut = boundary;
+				}
+				for (const auto& format : aDisplay.Formats) {
+					if (format.format.fontFixedPitch() && cut > format.start && cut < format.start + format.length && format.start > lineStart) {
+						cut = format.start;
+					}
+				}
+			}
+			// The ellipsis takes the place of a sentence's last stop.
+			while (cut > 0 && (aDisplay.Text.at(cut - 1).isSpace() || QStringView{ u".,;:" }.contains(aDisplay.Text.at(cut - 1)))) {
+				--cut;
+			}
+			aDisplay.Text = aDisplay.Text.left(cut) + ellipsis;
 			for (auto& format : aDisplay.Formats) {
-				format.length = std::max(0, std::min(format.start + format.length, static_cast<int>(aDisplay.Text.size())) - format.start);
+				format.length = std::max(0, std::min(format.start + format.length, cut) - format.start);
 			}
 			return aDisplay;
 		}
@@ -581,6 +707,31 @@ namespace bpr::qt {
 			}
 		});
 		PullRequestChip->hide();
+		// RFC-BPR-0127 ("Where a Local comment can be"). My Local comments
+		// on this whole file and on other files have no line here: each set
+		// is a quiet chip beside the pull request link, its count beside the
+		// computer. This file's opens its first; Other files lists them.
+		const auto localChip = [this](const QString& aName, const QString& aText) {
+			auto* const chip = new pull_request_chip{ viewport() };
+			chip->setObjectName(aName);
+			chip->Face = false;
+			chip->Link = true;
+			chip->setText(aText);
+			chip->setAttribute(Qt::WA_Hover);
+			chip->hide();
+			return chip;
+		};
+		LocalFileChip                                             = localChip(QStringLiteral("localFileCommentsChip"), tr("This file"));
+		LocalElsewhereChip                                        = localChip(QStringLiteral("localElsewhereCommentsChip"), tr("Other files"));
+		static_cast<pull_request_chip*>(LocalFileChip)->Lead      = drawer_glyph::page;
+		static_cast<pull_request_chip*>(LocalElsewhereChip)->Lead = drawer_glyph::copy;
+		connect(LocalFileChip, &QAbstractButton::clicked, this, [this] {
+			const auto first = std::ranges::find(LocalComments, local_comment_place::whole_file, &local_comment_card::Place);
+			if (first != LocalComments.end()) {
+				open_thread(local_comment_identity(first->Id));
+			}
+		});
+		connect(LocalElsewhereChip, &QAbstractButton::clicked, this, [this] { open_local_elsewhere_menu(); });
 		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {
 			place_open_card();
 			sync_edges();
@@ -635,6 +786,18 @@ namespace bpr::qt {
 			connect(threads, &QAction::triggered, menu, [this, identity = at->Id] {
 				if (ActionDispatch) {
 					ActionDispatch(card_action::show_in_threads, identity);
+				}
+			});
+			// RFC-BPR-0127. Ask agent on my own unsent comment, Local or
+			// Draft (the Notes tab's, once only a note's).
+			auto* const ask = menu->addAction(at->Local ? QStringLiteral("Ask agent about this local comment") : QStringLiteral("Ask agent about this draft"));
+			ask->setObjectName(at->Local ? QStringLiteral("localAskAgentAction") : QStringLiteral("draftAskAgentAction"));
+			ask->setEnabled(static_cast<bool>(ActionDispatch));
+			ask->setToolTip(at->Local ? QStringLiteral("Open the Agent tab with this local comment attached to your next question")
+									  : QStringLiteral("Open the Agent tab with this draft attached to your next question"));
+			connect(ask, &QAction::triggered, menu, [this, identity = at->Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::ask_agent, identity);
 				}
 			});
 			return menu;
@@ -708,11 +871,16 @@ namespace bpr::qt {
 			threads->setToolTip(QStringLiteral("Show this thread's row in Threads"));
 			connect(threads, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_threads, post); } });
 		}
-		// [[BPR-1773]]. Ask the agent about a review thread on a file.
-		if (card.Kind == QStringLiteral("Inline thread") && !card.Path.isEmpty() && !card.Posts.empty()) {
-			add(card_action::ask_agent, QStringLiteral("Ask agent about this conversation"), true, { });
-			menu->actions().back()->setObjectName(QStringLiteral("threadAskAgentAction"));
-			menu->actions().back()->setToolTip(QStringLiteral("Open the Agent tab with this conversation and its lines attached to your next question"));
+		// RFC-BPR-0128 ([[BPR-2164]]). One Ask item, its quick asks under it,
+		// in the place of Ask agent about this conversation and Was This
+		// Addressed?. Custom question… attaches the conversation as Ask agent
+		// did.
+		if (AskMenuFiller && !card.Posts.empty()) {
+			auto* const ask = menu->addMenu(QStringLiteral("Ask"));
+			ask->setObjectName(QStringLiteral("threadAskMenu"));
+			ask->menuAction()->setObjectName(QStringLiteral("threadAskMenuAction"));
+			ask->menuAction()->setToolTip(QStringLiteral("Ask the agent a quick question about this thread"));
+			AskMenuFiller(*ask, QString::fromStdString(card.Id), thread_title(card.Id));
 		}
 		if (!card.Posts.empty()) {
 			auto* copy = menu->addAction(QStringLiteral("Copy first post"));
@@ -736,6 +904,23 @@ namespace bpr::qt {
 				const auto dispatch = AuthorReadDispatch;
 				if (dispatch) {
 					dispatch(chosen);
+				}
+			});
+		}
+		// [[BPR-2171]]. Whether this repository treats the author as a bot:
+		// GitHub decides until a mark here says otherwise.
+		if (Feed && !card.Posts.empty() && !card.Posts.front().Mine && !card.Posts.front().Author.isEmpty() && !card.Draft) {
+			const auto login = card.Posts.front().Author.toStdString();
+			const auto bot   = core::author_is_bot(login, BotMarks);
+			auto*      mark  = menu->addAction(bot ? QStringLiteral("Mark %1 as Not a Bot").arg(card.Posts.front().Author) : QStringLiteral("Mark %1 as a Bot").arg(card.Posts.front().Author));
+			mark->setObjectName(QStringLiteral("threadAuthorBotAction"));
+			mark->setEnabled(static_cast<bool>(AuthorBotDispatch));
+			mark->setToolTip(bot ? QStringLiteral("Show this author's comments as anyone's in this repository; Fold bots leaves them listed")
+								 : QStringLiteral("Treat this author as a bot in this repository: Fold bots folds their comments"));
+			connect(mark, &QAction::triggered, menu, [this, login, bot] {
+				const auto dispatch = AuthorBotDispatch;
+				if (dispatch) {
+					dispatch(login, !bot);
 				}
 			});
 		}
@@ -805,6 +990,8 @@ namespace bpr::qt {
 		PullRequestComments = false;
 		NewConversationBoundary.clear();
 		clear_measurements();
+		Previews.clear();
+		Unfolded.clear();
 		Retained.clear();
 		AnnotatedBodies.clear();
 		RetainedMarks.clear();
@@ -1061,6 +1248,67 @@ namespace bpr::qt {
 		relayout();
 	}
 
+	void conversation_cards_view::set_local_comments(std::vector<local_comment_card> aComments)
+	{
+		if (LocalComments == aComments) {
+			return;
+		}
+		forget_measurements_if([](const std::string& aId) { return aId.starts_with("local:"); });
+		// A thread holding a Local reply is measured again with it.
+		for (const auto& comment : aComments) {
+			if (comment.ReplyToThread) {
+				forget_measurements_if([thread = "review-thread:" + *comment.ReplyToThread](const std::string& aId) { return aId == thread; });
+			}
+		}
+		for (const auto& comment : LocalComments) {
+			if (comment.ReplyToThread) {
+				forget_measurements_if([thread = "review-thread:" + *comment.ReplyToThread](const std::string& aId) { return aId == thread; });
+			}
+		}
+		LocalComments = std::move(aComments);
+		// RFC-BPR-0127. A Local comment saved, changed elsewhere or gone ends
+		// its edit in place.
+		if (CommentEdit.has_value()) {
+			if (const auto local = local_comment_of(CommentEdit->Post); local.has_value()) {
+				const auto comment = std::ranges::find(LocalComments, *local, &local_comment_card::Id);
+				if (comment == LocalComments.end() || comment->Body.toStdString() != CommentEdit->Original) {
+					CommentEdit.reset();
+				}
+			}
+		}
+		relayout();
+	}
+
+	auto conversation_cards_view::local_comments() const noexcept -> const std::vector<local_comment_card>&
+	{
+		return LocalComments;
+	}
+
+	auto conversation_cards_view::local_comment_identity(const std::uint64_t aId) -> std::string
+	{
+		return "local:" + std::to_string(aId);
+	}
+
+	auto conversation_cards_view::local_comment_of(const std::string& aIdentity) -> std::optional<std::uint64_t>
+	{
+		if (!aIdentity.starts_with("local:")) {
+			return std::nullopt;
+		}
+		auto              value = std::uint64_t{ 0U };
+		const auto* const first = aIdentity.data() + 6;
+		const auto* const last  = aIdentity.data() + aIdentity.size();
+		const auto [end, error] = std::from_chars(first, last, value);
+		return error == std::errc{ } && end == last && value != 0U ? std::optional{ value } : std::nullopt;
+	}
+
+	auto comment_state_words(const bool aLocal, const bool aDraft, const bool aInReview) -> QString
+	{
+		return aLocal   ? QStringLiteral("Local comment, only on this computer")
+			: !aDraft   ? QStringLiteral("Published")
+			: aInReview ? QStringLiteral("Draft, in your review")
+						: QStringLiteral("Draft, not in your review");
+	}
+
 	auto conversation_cards_view::moved_suggestion_identity(const core::review_draft_id aDraft) -> std::string
 	{
 		return std::string{ draft_card_id } + ":moved:" + std::to_string(aDraft.value());
@@ -1207,6 +1455,54 @@ namespace bpr::qt {
 		rebuild_open_card();
 	}
 
+	auto thread_claim_words(const core::addressed_claim aClaim) -> QString
+	{
+		switch (aClaim) {
+		case core::addressed_claim::addressed:     return QStringLiteral("Addressed");
+		case core::addressed_claim::partly:        return QStringLiteral("Partly");
+		case core::addressed_claim::not_addressed: return QStringLiteral("Not addressed");
+		case core::addressed_claim::cannot_tell:   return QStringLiteral("Unclear");
+		}
+		return { };
+	}
+
+	void conversation_cards_view::set_thread_claims(std::map<std::string, thread_claim> aClaims)
+	{
+		if (Claims == aClaims) {
+			return;
+		}
+		Claims = std::move(aClaims);
+		rebuild_open_card();
+		viewport()->update();
+	}
+
+	void conversation_cards_view::set_ask_menu_filler(ask_menu_filler aFiller)
+	{
+		AskMenuFiller = std::move(aFiller);
+		rebuild_open_card();
+	}
+
+	auto conversation_cards_view::thread_title(const std::string& aThread) const -> QString
+	{
+		const auto at = std::ranges::find(Cards, aThread, &thread_card::Id);
+		if (at == Cards.end()) {
+			return QStringLiteral("Thread");
+		}
+		if (at->Path.isEmpty()) {
+			return QStringLiteral("Conversation");
+		}
+		return at->Line ? QStringLiteral("Thread on line %1").arg(*at->Line) : QStringLiteral("Thread on %1").arg(QFileInfo{ at->Path }.fileName());
+	}
+
+	void conversation_cards_view::set_addressed_threads(std::set<std::string> aThreads)
+	{
+		if (AddressedThreads == aThreads) {
+			return;
+		}
+		AddressedThreads = std::move(aThreads);
+		rebuild_open_card();
+	}
+
 	auto conversation_cards_view::tour_open_offered() const noexcept -> bool
 	{
 		return TourOpenOffered;
@@ -1273,6 +1569,10 @@ namespace bpr::qt {
 
 	auto conversation_cards_view::comment_editable(const std::string_view aPost) const -> bool
 	{
+		// RFC-BPR-0127. My Local comment is always mine to edit, here.
+		if (const auto local = local_comment_of(std::string{ aPost }); local.has_value()) {
+			return std::ranges::contains(LocalComments, *local, &local_comment_card::Id);
+		}
 		if (!CommentEditOffered) {
 			return false;
 		}
@@ -1302,15 +1602,21 @@ namespace bpr::qt {
 			return false;
 		}
 		const auto holder = std::ranges::find_if(Cards, [&aPost](const thread_card& aCard) {
-			return !aCard.Draft && std::ranges::any_of(aCard.Posts, [&aPost](const card_post& aCardPost) { return aCardPost.Id == aPost; });
+			return (!aCard.Draft || aCard.Local) && std::ranges::any_of(aCard.Posts, [&aPost](const card_post& aCardPost) { return aCardPost.Id == aPost; });
 		});
 		if (holder == Cards.end()) {
 			return false;
 		}
-		// [[BPR-1775]]. GitHub's exact body as the read gave it, never the
-		// prose the card shows: a save is compared with what GitHub has.
-		const auto node = std::ranges::find_if(Retained, [&aPost](const auto& aNode) { return aNode.Id == aPost; });
-		CommentEdit     = comment_edit_session{ .Post = aPost, .Original = node->Body, .Text = node->Body };
+		if (const auto local = local_comment_of(aPost); local.has_value()) {
+			const auto comment = std::ranges::find(LocalComments, *local, &local_comment_card::Id);
+			const auto body    = comment->Body.toStdString();
+			CommentEdit        = comment_edit_session{ .Post = aPost, .Original = body, .Text = body };
+		} else {
+			// [[BPR-1775]]. GitHub's exact body as the read gave it, never the
+			// prose the card shows: a save is compared with what GitHub has.
+			const auto node = std::ranges::find_if(Retained, [&aPost](const auto& aNode) { return aNode.Id == aPost; });
+			CommentEdit     = comment_edit_session{ .Post = aPost, .Original = node->Body, .Text = node->Body };
+		}
 		if (Open != holder->Id) {
 			open_thread(holder->Id);
 		}
@@ -1400,12 +1706,30 @@ namespace bpr::qt {
 			.Status = CommentEdit->Status,
 			.Saving = CommentEdit->Saving,
 			.Newer  = CommentEdit->Newer.has_value(),
+			.Local  = local_comment_of(CommentEdit->Post).has_value(),
 		});
 	}
 
 	void conversation_cards_view::save_comment_edit()
 	{
 		if (!CommentEdit.has_value() || CommentEdit->Saving) {
+			return;
+		}
+		// RFC-BPR-0127. My Local comment is saved only on this computer, at
+		// the revision editing began from; the window's answer ends the edit.
+		if (const auto local = local_comment_of(CommentEdit->Post); local.has_value()) {
+			const auto comment = std::ranges::find(LocalComments, *local, &local_comment_card::Id);
+			if (comment == LocalComments.end() || !LocalEditDispatch) {
+				return;
+			}
+			if (CommentEdit->Text == CommentEdit->Original) {
+				close_comment_edit();
+				return;
+			}
+			CommentEdit->Saving = true;
+			present_comment_edit();
+			const auto dispatch = LocalEditDispatch;
+			dispatch(comment->Id, comment->Revision, CommentEdit->Text);
 			return;
 		}
 		const auto dispatch = CommentEditDispatch;
@@ -1598,14 +1922,15 @@ namespace bpr::qt {
 
 	auto conversation_cards_view::thread_count() const noexcept -> std::size_t
 	{
-		return static_cast<std::size_t>(std::ranges::count_if(Cards, [](const thread_card& aCard) { return !aCard.Draft; }));
+		// [[BPR-2171]]. What a closed fold holds is still counted.
+		return FoldedComments + static_cast<std::size_t>(std::ranges::count_if(Cards, [](const thread_card& aCard) { return !aCard.Draft; }));
 	}
 
 	auto conversation_cards_view::unresolved_count() const noexcept -> std::size_t
 	{
-		return static_cast<std::size_t>(std::ranges::count_if(Cards, [](const thread_card& aCard) {
-			return !aCard.Draft && !aCard.Resolved && aCard.Kind == QStringLiteral("Inline thread");
-		}));
+		return FoldedUnresolved + static_cast<std::size_t>(std::ranges::count_if(Cards, [](const thread_card& aCard) {
+				   return !aCard.Draft && !aCard.Resolved && aCard.Kind == QStringLiteral("Inline thread");
+			   }));
 	}
 
 	auto conversation_cards_view::unread_thread_count() const noexcept -> std::size_t
@@ -1762,6 +2087,25 @@ namespace bpr::qt {
 		return *UnreadThreads;
 	}
 
+	auto conversation_cards_view::threads_in_file_order() const -> std::vector<std::pair<std::string, QString>>
+	{
+		auto threads = std::vector<const application::github_conversation_projection*>{ };
+		for (const auto& node : Retained) {
+			if (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value() && !node.Deleted && !node.Path.empty()) {
+				threads.push_back(&node);
+			}
+		}
+		std::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {
+			return std::pair{ aLeft->Path, aLeft->Line.value_or(0U) } < std::pair{ aRight->Path, aRight->Line.value_or(0U) };
+		});
+		auto ids = std::vector<std::pair<std::string, QString>>{ };
+		ids.reserve(threads.size());
+		for (const auto* thread : threads) {
+			ids.emplace_back(thread->Id, QString::fromStdString(thread->Path));
+		}
+		return ids;
+	}
+
 	auto conversation_cards_view::unread_conversations_in_navigation_order() const -> const std::vector<std::string>&
 	{
 		if (UnreadConversations.has_value()) {
@@ -1836,11 +2180,30 @@ namespace bpr::qt {
 	auto conversation_cards_view::line_marks(const core::diff_side aSide) const -> std::vector<thread_line_mark>
 	{
 		auto marks = std::map<std::uint32_t, thread_line_mark>{ };
+		// RFC-BPR-0127 ([[BPR-2158]]). One mark a line: what is on it, by kind.
+		struct on_line
+		{
+			std::size_t Threads = 0U, Drafts = 0U, DraftReplies = 0U, Locals = 0U;
+			QString     Lines;
+		};
+		auto counted = std::map<std::uint32_t, on_line>{ };
 		for (const auto& card : Cards) {
 			if (card.Side != aSide || !card.Line.has_value() || *card.Line == 0U || card.Outdated || card.AnchorUnavailable) {
 				continue;
 			}
-			const auto line           = *card.Line - 1U;
+			const auto line  = *card.Line - 1U;
+			auto&      count = counted[line];
+			if (card.Local) {
+				++count.Locals;
+			} else if (card.Draft && card.UnsentReply.has_value()) {
+				++count.DraftReplies;
+			} else if (card.Draft) {
+				++count.Drafts;
+			} else {
+				++count.Threads;
+				count.Locals += card.LocalReplies;
+				count.DraftReplies += card.UnsentReply.has_value() ? 1U : 0U;
+			}
 			const auto [found, fresh] = marks.try_emplace(line);
 			auto& mark                = found->second;
 			if (fresh) {
@@ -1861,7 +2224,9 @@ namespace bpr::qt {
 				if (first.has_value() && *first > 0U) {
 					mark.FirstLine = *first - 1U;
 				}
-				mark.Description = card.Writing                  ? QStringLiteral("%1: your draft, being written").arg(lines)
+				count.Lines      = lines;
+				mark.Description = card.Local                    ? QStringLiteral("%1: your local comment, only on this computer").arg(lines)
+					: card.Writing                               ? QStringLiteral("%1: your draft, being written").arg(lines)
 					: card.Draft && card.UnsentReply.has_value() ? QStringLiteral("%1: your reply, not sent").arg(lines)
 					: card.Draft && card.MovedSuggestion         ? QStringLiteral("%1: your suggestion from an earlier head").arg(lines)
 					: card.Draft                                 ? QStringLiteral("%1: your draft").arg(lines)
@@ -1884,6 +2249,22 @@ namespace bpr::qt {
 		auto result = std::vector<thread_line_mark>{ };
 		result.reserve(marks.size());
 		for (auto& [line, mark] : marks) {
+			// Several kinds on one line: "Line 22: 1 thread, 1 local comment,
+			// 1 draft reply", so the one mark names everything on it.
+			const auto& count = counted[line];
+			if (count.Threads + count.Drafts + count.DraftReplies + count.Locals > 1U) {
+				auto       parts = QStringList{ };
+				const auto part  = [&parts](const std::size_t aCount, const QString& aOne, const QString& aMany) {
+					if (aCount > 0U) {
+						parts << QStringLiteral("%1 %2").arg(aCount).arg(aCount == 1U ? aOne : aMany);
+					}
+				};
+				part(count.Threads, QStringLiteral("thread"), QStringLiteral("threads"));
+				part(count.Locals, QStringLiteral("local comment"), QStringLiteral("local comments"));
+				part(count.Drafts, QStringLiteral("draft"), QStringLiteral("drafts"));
+				part(count.DraftReplies, QStringLiteral("draft reply"), QStringLiteral("draft replies"));
+				mark.Description = QStringLiteral("%1: %2").arg(count.Lines, parts.join(QStringLiteral(", ")));
+			}
 			result.push_back(std::move(mark));
 		}
 		return result;
@@ -1891,6 +2272,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::set_current_thread(const std::string& aId)
 	{
+		unfold_for(aId);
 		// A reply's identity names its thread: the selection may be on a reply.
 		auto current = aId;
 		for (const auto& card : Cards) {
@@ -2109,8 +2491,107 @@ namespace bpr::qt {
 	auto conversation_cards_view::pull_request_comments_shown() const noexcept -> bool { return PullRequestComments; }
 	auto conversation_cards_view::timeline_summary() const noexcept -> const core::timeline_filter_summary& { return TimelineSummary; }
 	auto conversation_cards_view::pull_request_comments_chip() const noexcept -> QAbstractButton* { return PullRequestChip; }
+	auto conversation_cards_view::edge_chips_saving() const -> int
+	{
+		auto saving = 0;
+		for (auto* const button : { PullRequestChip, LocalFileChip, LocalElsewhereChip }) {
+			if (const auto* const chip = static_cast<const pull_request_chip*>(button); chip != nullptr && !chip->isHidden()) {
+				saving += chip->full_width() - chip->sizeHint().width();
+			}
+		}
+		return saving;
+	}
+
+	void conversation_cards_view::set_edge_chips_compact(const bool aCompact)
+	{
+		for (auto* const button : { PullRequestChip, LocalFileChip, LocalElsewhereChip }) {
+			if (auto* const chip = static_cast<pull_request_chip*>(button); chip != nullptr && chip->Compact != aCompact) {
+				chip->Compact = aCompact;
+				chip->updateGeometry();
+				chip->update();
+			}
+		}
+	}
+
+	auto conversation_cards_view::local_file_chip() const noexcept -> QAbstractButton* { return LocalFileChip; }
+	auto conversation_cards_view::local_elsewhere_chip() const noexcept -> QAbstractButton* { return LocalElsewhereChip; }
+	auto conversation_cards_view::local_elsewhere_menu() const noexcept -> QMenu* { return LocalElsewhereMenu.data(); }
+
+	void conversation_cards_view::set_local_edit_dispatch(std::function<void(std::uint64_t, std::uint64_t, const std::string&)> aDispatch)
+	{
+		LocalEditDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::sync_local_chips()
+	{
+		if (LocalFileChip == nullptr || LocalElsewhereChip == nullptr) {
+			return;
+		}
+		const auto colours = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
+		const auto count   = [this](const local_comment_place aPlace) {
+			return static_cast<std::size_t>(std::ranges::count(LocalComments, aPlace, &local_comment_card::Place));
+		};
+		const auto plural = [](const std::size_t aCount) { return aCount == 1U ? tr("1 local comment") : tr("%1 local comments").arg(aCount); };
+		const auto shown  = isVisible() && !Feed && !PullRequestComments && Scope == cards_scope::this_file;
+		const auto sync   = [&](QAbstractButton* const aButton, const std::size_t aCount, const QString& aName, const QString& aTip) {
+			auto* const chip   = static_cast<pull_request_chip*>(aButton);
+			chip->Colours      = colours;
+			const auto changed = chip->Locals != aCount;
+			chip->Locals       = aCount;
+			const auto name    = QStringLiteral("%1: %2, only on this computer").arg(aName, plural(aCount));
+			if (chip->accessibleName() != name) {
+				chip->setAccessibleName(name);
+			}
+			chip->setToolTip(aTip);
+			chip->setAccessibleDescription(aTip);
+			if (changed) {
+				chip->updateGeometry();
+			}
+			if (chip->parentWidget() == viewport()) {
+				chip->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, chip->sizeHint().width()), chip_height);
+			}
+			chip->setVisible(shown && aCount > 0U);
+			chip->update();
+		};
+		sync(LocalFileChip, count(local_comment_place::whole_file), tr("This file"), tr("Your local comments on this whole file, not on a line"));
+		sync(LocalElsewhereChip, count(local_comment_place::other_file), tr("Other files"), tr("Your local comments on other files. Choose one to go to its file and line"));
+	}
+
+	void conversation_cards_view::open_local_elsewhere_menu()
+	{
+		if (LocalElsewhereChip == nullptr) {
+			return;
+		}
+		if (LocalElsewhereMenu != nullptr) {
+			LocalElsewhereMenu->close();
+		}
+		auto* const menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("localElsewhereMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->setAccessibleName(tr("Your local comments on other files"));
+		for (const auto& comment : LocalComments) {
+			if (comment.Place != local_comment_place::other_file) {
+				continue;
+			}
+			auto words = comment.Body.simplified();
+			words.replace(QLatin1Char{ '`' }, QString{ });
+			const auto  where = comment.PathLine ? QStringLiteral("%1:%2").arg(comment.Path).arg(*comment.PathLine) : comment.Path;
+			auto* const entry = menu->addAction(QStringLiteral("%1  %2").arg(where, words.size() > 48 ? words.left(48) + QChar{ 0x2026 } : words));
+			entry->setIcon(conversation_icon(conversation_glyph::computer, palette()));
+			entry->setToolTip(tr("Go to %1").arg(where));
+			connect(entry, &QAction::triggered, this, [this, id = comment.Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::open_local_elsewhere, local_comment_identity(id));
+				}
+			});
+		}
+		LocalElsewhereMenu = menu;
+		menu->popup(LocalElsewhereChip->mapToGlobal(QPoint{ 0, LocalElsewhereChip->height() }));
+	}
+
 	void conversation_cards_view::sync_pull_request_edge()
 	{
+		sync_local_chips();
 		// [[BPR-1779]]. The chip counts the conversation's comments, as the
 		// Pull request view lists them: every comment, review body and thread
 		// a review carried, and no review.
@@ -2138,8 +2619,17 @@ namespace bpr::qt {
 		// [[BPR-1781]]. One quiet link to Overview's Comments tab, offered
 		// whether or not the conversation has comments yet (a new one is
 		// written there); its new comments are counted on it.
+		// RFC-BPR-0127. My Local comments on the pull request are counted
+		// beside the computer; they are on Overview's Comments tab.
+		const auto locals = static_cast<std::size_t>(std::ranges::count(LocalComments, local_comment_place::pull_request, &local_comment_card::Place));
+		if (chip->Locals != locals) {
+			chip->Locals = locals;
+			chip->updateGeometry();
+		}
+		const auto localWords = locals == 0U ? QString{ } : locals == 1U ? tr(", 1 local comment")
+																		 : tr(", %1 local comments").arg(locals);
 		chip->setText(tr("Pull request conversation"));
-		chip->setAccessibleName(unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count));
+		chip->setAccessibleName((unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count)) + localWords);
 		chip->setAccessibleDescription(tr("Opens the pull request's comments and reviews on Overview's Comments tab"));
 		chip->setToolTip(tr("The pull request's comments and reviews, on Overview"));
 		// [[BPR-1887]]. The composed window places this link in its toolbar.
@@ -2165,6 +2655,8 @@ namespace bpr::qt {
 		using state      = application::github_review_state_projection;
 		const auto& node = Retained[aIndex];
 		auto        item = core::timeline_item{ .Id = node.Id, .Author = node.AuthorLogin, .CreatedAt = node.CreatedAt, .Path = node.Path, .Line = node.Line, .Resolved = node.Resolved };
+		// [[BPR-2171]]. GitHub's App accounts, and this repository's marks.
+		item.Bot = core::author_is_bot(node.AuthorLogin, BotMarks);
 		if (const auto found = ReadStateByThread.find(node.Id); found != ReadStateByThread.end()) {
 			item.Unread = !ReadState[found->second].UnreadPosts.empty();
 		}
@@ -2216,10 +2708,44 @@ namespace bpr::qt {
 		}
 		// The filters act on the comments. [[BPR-1808]]. Overview's Comments
 		// takes Only new and Hide resolved too; a drill-down is Discuss's.
-		const auto filters = core::timeline_filters{ .UnreadOnly = Filters.UnreadOnly, .UnresolvedOnly = Filters.UnresolvedOnly, .Listed = PullRequestComments ? std::nullopt : Filters.Listed };
+		// [[BPR-2171]]. Each file once over its threads. In Discuss a file's
+		// resolved threads fold into its row, and bots fold when asked.
+		const auto discuss = Feed && !PullRequestComments;
+		const auto filters = core::timeline_filters{ .UnreadOnly     = Filters.UnreadOnly,
+													 .UnresolvedOnly = Filters.UnresolvedOnly,
+													 .Listed         = PullRequestComments ? std::nullopt : Filters.Listed,
+													 .Files          = true,
+													 .FoldResolved   = discuss,
+													 .FoldBots       = discuss && Filters.FoldBots,
+													 .Unfolded       = Unfolded };
 		TimelineSummary    = core::summarize_conversation_timeline(items, filters);
 		auto arranged      = core::arrange_conversation_timeline(items, filters);
-		auto byId          = std::unordered_map<std::string, std::size_t>{ };
+		FoldedComments     = 0U;
+		FoldedThreads      = 0U;
+		FoldedUnresolved   = 0U;
+		{
+			auto byCard = std::unordered_map<std::string_view, const thread_card*>{ };
+			for (const auto& card : Cards) {
+				byCard.emplace(card.Id, &card);
+			}
+			for (const auto& row : arranged.Rows) {
+				if ((row.Kind != core::timeline_row_kind::file && row.Kind != core::timeline_row_kind::bots) || row.Open) {
+					continue;
+				}
+				for (const auto& member : row.Members) {
+					const auto found = byCard.find(member);
+					if (found == byCard.end()) {
+						continue;
+					}
+					++FoldedComments;
+					if (found->second->Kind == QStringLiteral("Inline thread")) {
+						++FoldedThreads;
+						FoldedUnresolved += found->second->Resolved ? 0U : 1U;
+					}
+				}
+			}
+		}
+		auto byId = std::unordered_map<std::string, std::size_t>{ };
 		for (std::size_t index = 0U; index < Cards.size(); ++index) {
 			byId.emplace(Cards[index].Id, index);
 		}
@@ -2232,10 +2758,25 @@ namespace bpr::qt {
 		}
 		auto ordered = std::vector<thread_card>{ };
 		ordered.reserve(order.size());
+		const auto verdictOf = [this](const std::string& aReview) -> QString {
+			const auto found = RetainedById.find(aReview);
+			if (found == RetainedById.end()) {
+				return { };
+			}
+			using state       = application::github_review_state_projection;
+			const auto review = Retained[found->second].ReviewState;
+			return review == state::approved ? tr("Approved") : review == state::changes_requested ? tr("Changes requested")
+																								   : QString{ };
+		};
 		for (const auto& [index, row] : order) {
 			auto& card         = Cards[index];
 			card.Bundle        = row->Review;
 			card.TimelineOrder = ordered.size();
+			// [[BPR-2171]]. Every row has a date or a line: a comment outside
+			// a review, and a review's own comment, say when beside the author.
+			const auto own   = !row->Review.empty() && row->Review == row->Id;
+			card.When        = row->Review.empty() || own ? when_of(card.CreatedAt) : QString{ };
+			card.HeadVerdict = own ? verdictOf(row->Id) : QString{ };
 			ordered.push_back(std::move(card));
 		}
 		Cards        = std::move(ordered);
@@ -2245,46 +2786,107 @@ namespace bpr::qt {
 	void conversation_cards_view::place_timeline()
 	{
 		// [[BPR-1779]]. A review's comments hang under its quiet line, each
-		// thread under its path and line; units of the conversation stand a
-		// little apart.
+		// thread under its file; units of the conversation stand a little
+		// apart. [[BPR-2171]]. In Discuss's centred column, each file named
+		// once, with folds for resolved threads and bot runs.
 		constexpr auto unitGap = note_gap + 8;
 		TimelineLines.clear();
-		const auto width   = std::max(120, viewport()->width()) - 2 * note_margin;
-		const auto verdict = [](const core::timeline_verdict aVerdict) {
+		const auto [columnLeft, width] = column();
+		const auto verdict             = [](const core::timeline_verdict aVerdict) {
 			return aVerdict == core::timeline_verdict::approved ? tr("Approved") : aVerdict == core::timeline_verdict::changes_requested ? tr("Changes requested")
 																																		 : QString{ };
 		};
-		const auto when = [](const std::string& aAt) {
-			const auto time = QDateTime::fromString(QString::fromStdString(aAt), Qt::ISODate);
-			return time.isValid() ? QLocale{ }.toString(time.toLocalTime(), QStringLiteral("d MMM yyyy")) : QString{ };
-		};
-		auto bottom    = PullRequestComments ? edge_band : 4;
-		auto first     = true;
-		auto afterHead = false;
-		auto bundle    = std::optional<std::size_t>{ };
-		auto previous  = std::string{ };
-		auto cursor    = std::size_t{ 0U };
+		auto       bottom    = PullRequestComments ? edge_band : 4;
+		auto       first     = true;
+		auto       afterHead = false;
+		auto       bundle    = std::optional<std::size_t>{ };
+		auto       previous  = std::string{ };
+		auto       cursor    = std::size_t{ 0U };
+		auto       filePath  = QString{ };
+		const auto row_rect  = [&columnLeft, &width](const int aTop) { return QRect{ columnLeft, aTop, width, path_row_height }; };
 		for (std::size_t at = 0U; at < TimelineRows.size(); ++at) {
 			const auto& row = TimelineRows[at];
+			if (row.Kind == core::timeline_row_kind::file) {
+				// A file row sits in its unit, just above its threads.
+				auto top = bottom + (first ? 0 : afterHead                               ? 2
+										 : !row.Review.empty() && row.Review == previous ? note_gap
+																						 : unitGap);
+				// The New rule stands over the file whose first thread is the
+				// first not yet read.
+				if (PullRequestComments && at + 1U < TimelineRows.size() && TimelineRows[at + 1U].Id == NewConversationBoundary) {
+					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
+					top += path_row_height;
+				}
+				TimelineLines.push_back(timeline_line{
+					.Kind   = timeline_line::kind::path,
+					.Id     = row.Id,
+					.Path   = text(row.Path),
+					.Folded = row.Members.size(),
+					.Fold   = row.Fold,
+					.Open   = row.Open,
+					.Rect   = row_rect(top),
+				});
+				bottom = top + path_row_height;
+				if (!row.Review.empty() && row.Review == previous && bundle.has_value()) {
+					TimelineLines[*bundle].Reach = bottom;
+				} else if (row.Review != previous) {
+					bundle.reset();
+				}
+				previous  = row.Review;
+				afterHead = true;
+				first     = false;
+				filePath  = text(row.Path);
+				continue;
+			}
+			if (row.Kind == core::timeline_row_kind::bots) {
+				const auto top = bottom + (first ? 0 : unitGap);
+				auto       who = QStringList{ };
+				for (const auto& author : row.Authors) {
+					who.push_back(text(author));
+				}
+				TimelineLines.push_back(timeline_line{
+					.Kind   = timeline_line::kind::bots,
+					.Id     = row.Id,
+					.Author = who.join(QStringLiteral(", ")),
+					.Folded = row.Members.size(),
+					.Fold   = row.Fold,
+					.Open   = row.Open,
+					.Rect   = row_rect(top),
+				});
+				bottom = top + path_row_height;
+				bundle.reset();
+				previous  = { };
+				afterHead = row.Open;
+				first     = false;
+				filePath.clear();
+				continue;
+			}
 			if (row.Kind != core::timeline_row_kind::comment) {
 				auto top = bottom + (first ? 0 : unitGap);
 				if (PullRequestComments && row.Kind == core::timeline_row_kind::bundle && at + 1U < TimelineRows.size() && TimelineRows[at + 1U].Id == NewConversationBoundary) {
-					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = QRect{ note_margin, top, width, path_row_height } });
+					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
 					top += path_row_height;
 				}
+				// [[BPR-2171]]. When the review's own comment comes first, it
+				// says who, the verdict and when: the line is not drawn, and
+				// only its rail stays.
+				const auto merged = row.Kind == core::timeline_row_kind::bundle && at + 1U < TimelineRows.size() && TimelineRows[at + 1U].Kind == core::timeline_row_kind::comment
+					&& TimelineRows[at + 1U].Id == row.Id;
 				TimelineLines.push_back(timeline_line{
 					.Kind    = row.Kind == core::timeline_row_kind::bundle ? timeline_line::kind::bundle : timeline_line::kind::verdict,
 					.Id      = row.Id,
 					.Author  = text(row.Author),
 					.Verdict = verdict(row.Verdict),
-					.When    = when(row.CreatedAt),
-					.Rect    = QRect{ note_margin, top, width, path_row_height },
+					.When    = when_of(row.CreatedAt),
+					.Merged  = merged,
+					.Rect    = merged ? QRect{ columnLeft, top, width, 0 } : row_rect(top),
 				});
-				bottom    = top + path_row_height;
+				bottom    = merged ? top - note_gap : top + path_row_height;
 				bundle    = row.Kind == core::timeline_row_kind::bundle ? std::optional{ TimelineLines.size() - 1U } : std::nullopt;
 				previous  = row.Review;
-				afterHead = row.Kind == core::timeline_row_kind::bundle;
+				afterHead = row.Kind == core::timeline_row_kind::bundle && !merged;
 				first     = false;
+				filePath.clear();
 				continue;
 			}
 			while (cursor < Cards.size() && Cards[cursor].Id != row.Id) {
@@ -2294,24 +2896,19 @@ namespace bpr::qt {
 				break;
 			}
 			auto&      card     = Cards[cursor++];
-			const auto sameUnit = !row.Review.empty() && row.Review == previous;
-			if (!sameUnit) {
+			const auto onFile   = !filePath.isEmpty() && card.Path == filePath && row.Item == core::timeline_item_kind::thread;
+			const auto sameUnit = (!row.Review.empty() && row.Review == previous) || onFile;
+			if (!onFile) {
+				filePath.clear();
+			}
+			if (!row.Review.empty() ? row.Review != previous : !onFile) {
 				bundle.reset();
 			}
 			auto top = bottom + (first ? 0 : afterHead ? 2
 									 : sameUnit        ? note_gap
 													   : unitGap);
 			if (PullRequestComments && card.Id == NewConversationBoundary && !afterHead) {
-				TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = QRect{ note_margin, top, width, path_row_height } });
-				top += path_row_height;
-			}
-			if (!card.Path.isEmpty()) {
-				TimelineLines.push_back(timeline_line{
-					.Kind = timeline_line::kind::path,
-					.Id   = card.Id,
-					.Path = card.Line.has_value() ? QStringLiteral("%1:%2").arg(card.Path).arg(*card.Line) : card.Path,
-					.Rect = QRect{ note_margin, top, width, path_row_height },
-				});
+				TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
 				top += path_row_height;
 			}
 			card.Rect.moveTop(top);
@@ -2323,8 +2920,95 @@ namespace bpr::qt {
 			afterHead = false;
 			first     = false;
 		}
+		// RFC-BPR-0127. My Local comments on the pull request follow the
+		// conversation, a unit apart: they are not in its time order.
+		for (auto& card : Cards) {
+			if (!card.Local) {
+				continue;
+			}
+			const auto top = bottom + (first ? 0 : unitGap);
+			card.Rect.moveTop(top);
+			bottom = card.Rect.bottom();
+			first  = false;
+		}
 		ContentHeight = bottom + note_margin;
 		set_scroll_range();
+	}
+
+	auto conversation_cards_view::column() const -> std::pair<int, int>
+	{
+		const auto whole = std::max(120, viewport()->width()) - 2 * note_margin;
+		// [[BPR-2171]]. Discuss's list is a centred column, the whole pull
+		// request's and Only this file's alike (owner, ac5-only-this-file:
+		// "\"Only this file\" breaks the column formatting"); beside the
+		// code and on Overview the notes keep the whole width.
+		if (!Feed || PullRequestComments || !ColumnLimit.has_value() || *ColumnLimit >= whole) {
+			return { note_margin, whole };
+		}
+		// Centred on the whole list, scrollbar or not: a list short enough
+		// to lose its scrollbar (Only this file) keeps the column where it
+		// was, and the band above with it.
+		const auto width = std::max(120, *ColumnLimit);
+		const auto area  = std::max(120, this->width() - 2 * frameWidth()) - 2 * note_margin;
+		const auto left  = std::min(note_margin + (area - width) / 2, note_margin + whole - width);
+		return { std::max(note_margin, left), width };
+	}
+
+	auto conversation_cards_view::card_width_for(const thread_card& aCard) const -> std::pair<int, int>
+	{
+		const auto [left, width] = column();
+		// [[BPR-2171]]. An open card holding code or a suggested change may
+		// grow wider than the column, still centred on it.
+		if (aCard.Id != Open || width >= std::max(120, viewport()->width()) - 2 * note_margin) {
+			return { left, width };
+		}
+		const auto code = std::ranges::any_of(aCard.Posts, [](const card_post& aPost) { return aPost.Body.contains(QStringLiteral("```")) || aPost.Body.contains(QStringLiteral("~~~")); });
+		if (!code) {
+			return { left, width };
+		}
+		const auto whole = std::max(120, viewport()->width()) - 2 * note_margin;
+		const auto wider = std::min(whole, width + std::max(160, width / 3));
+		return { note_margin + (whole - wider) / 2, wider };
+	}
+
+	void conversation_cards_view::set_column_width(const std::optional<int> aWidth)
+	{
+		if (ColumnLimit == aWidth) {
+			return;
+		}
+		ColumnLimit = aWidth;
+		relayout();
+	}
+
+	auto conversation_cards_view::column_width() const noexcept -> std::optional<int> { return ColumnLimit; }
+
+	void conversation_cards_view::toggle_fold(const std::string& aFold)
+	{
+		if (aFold.empty()) {
+			return;
+		}
+		if (!Unfolded.erase(aFold)) {
+			Unfolded.insert(aFold);
+		}
+		relayout();
+	}
+
+	auto conversation_cards_view::unfolded() const noexcept -> const std::set<std::string>& { return Unfolded; }
+
+	auto conversation_cards_view::folded_count() const noexcept -> std::size_t { return FoldedComments; }
+
+	void conversation_cards_view::set_author_bots(core::author_bot_marks aMarks)
+	{
+		if (BotMarks == aMarks) {
+			return;
+		}
+		BotMarks = std::move(aMarks);
+		relayout();
+	}
+
+	void conversation_cards_view::set_author_bot_dispatch(std::function<void(const std::string&, bool)> aDispatch)
+	{
+		AuthorBotDispatch = std::move(aDispatch);
 	}
 
 	auto conversation_cards_view::timeline_path_at(const QPoint aViewportPoint) const -> const timeline_line*
@@ -2333,7 +3017,7 @@ namespace bpr::qt {
 			return nullptr;
 		}
 		const auto point = to_content(aViewportPoint);
-		const auto found = std::ranges::find_if(TimelineLines, [&point](const timeline_line& aLine) { return aLine.Kind == timeline_line::kind::path && aLine.Rect.contains(point); });
+		const auto found = std::ranges::find_if(TimelineLines, [&point](const timeline_line& aLine) { return (aLine.Kind == timeline_line::kind::path || aLine.Kind == timeline_line::kind::bots) && aLine.Rect.contains(point); });
 		return found == TimelineLines.end() ? nullptr : &*found;
 	}
 
@@ -2349,7 +3033,8 @@ namespace bpr::qt {
 				const auto foot = to_viewport(QRect{ line.Rect.left(), line.Reach, 1, 1 }).top();
 				if (foot >= 0 && rect.bottom() <= aClip.bottom()) {
 					aPainter.setPen(QPen{ colours.Rule, 2.0, Qt::SolidLine, Qt::RoundCap });
-					aPainter.drawLine(QPointF{ note_margin / 2.0, rect.bottom() + 3.0 }, QPointF{ note_margin / 2.0, static_cast<qreal>(foot) });
+					const auto railX = rect.left() - note_margin / 2.0;
+					aPainter.drawLine(QPointF{ railX, rect.bottom() + 3.0 }, QPointF{ railX, static_cast<qreal>(foot) });
 				}
 			}
 			if (rect.bottom() < aClip.top() || rect.top() > aClip.bottom()) {
@@ -2363,14 +3048,69 @@ namespace bpr::qt {
 				aPainter.drawLine(rect.left(), rect.center().y(), viewport()->width() - 50, rect.center().y());
 				break;
 			case timeline_line::kind::path: {
-				aPainter.setFont(semibold(small));
-				aPainter.setPen(!HoveredPath.empty() && line.Id == HoveredPath ? colours.Ink : colours.Faint);
-				const auto box = rect.adjusted(4, 0, -4, 0);
-				aPainter.drawText(box, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ aPainter.font() }.elidedText(line.Path, Qt::ElideMiddle, box.width()));
+				// [[BPR-2171]]. The file's name, then its folder, quiet; at the
+				// right, the resolved threads it folds.
+				const auto hovered = !HoveredPath.empty() && line.Id == HoveredPath;
+				auto       box     = rect.adjusted(4, 0, -4, 0);
+				if (line.Folded > 0U) {
+					const auto count = QString::number(line.Folded);
+					const auto words = tr("resolved");
+					const auto wCnt  = QFontMetrics{ semibold(small) }.horizontalAdvance(count);
+					const auto wWord = QFontMetrics{ small }.horizontalAdvance(words);
+					auto       x     = box.right() - wWord;
+					aPainter.setFont(small);
+					aPainter.setPen(colours.Faint);
+					aPainter.drawText(QRect{ x, rect.top(), wWord + 1, rect.height() }, Qt::AlignLeft | Qt::AlignVCenter, words);
+					x -= 4 + wCnt;
+					aPainter.setFont(semibold(small));
+					aPainter.setPen(colours.Ink2);
+					aPainter.drawText(QRect{ x, rect.top(), wCnt + 1, rect.height() }, Qt::AlignLeft | Qt::AlignVCenter, count);
+					x -= 14;
+					paint_fold_chevron(aPainter, QPointF{ x + 4.0, rect.center().y() + 0.5 }, line.Open, colours.Faint);
+					box.setRight(x - 12);
+				}
+				const auto slash  = line.Path.lastIndexOf(QLatin1Char{ '/' });
+				const auto name   = slash < 0 ? line.Path : line.Path.mid(slash + 1);
+				const auto folder = slash < 0 ? QString{ } : line.Path.left(slash + 1);
+				const auto bold   = semibold(small);
+				const auto shown  = QFontMetrics{ bold }.elidedText(name, Qt::ElideMiddle, box.width());
+				aPainter.setFont(bold);
+				aPainter.setPen(hovered ? colours.Ink : colours.Ink2);
+				aPainter.drawText(box, Qt::AlignLeft | Qt::AlignVCenter, shown);
+				const auto after = QFontMetrics{ bold }.horizontalAdvance(shown) + 8;
+				if (!folder.isEmpty() && after + 24 < box.width()) {
+					aPainter.setFont(small);
+					aPainter.setPen(colours.Faint);
+					aPainter.drawText(box.adjusted(after, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ small }.elidedText(folder, Qt::ElideMiddle, box.width() - after));
+				}
+				break;
+			}
+			case timeline_line::kind::bots: {
+				// [[BPR-2171]]. A run of bot comments, folded: how many, whose.
+				const auto hovered = !HoveredPath.empty() && line.Id == HoveredPath;
+				auto       x       = rect.left() + 4;
+				paint_fold_chevron(aPainter, QPointF{ x + 4.0, rect.center().y() + 0.5 }, line.Open, colours.Faint);
+				x += 16;
+				const auto count = QString::number(line.Folded);
+				const auto words = line.Folded == 1U ? tr("bot comment") : tr("bot comments");
+				const auto bold  = semibold(small);
+				aPainter.setFont(bold);
+				aPainter.setPen(hovered ? colours.Ink : colours.Ink2);
+				aPainter.drawText(QRect{ x, rect.top(), rect.right() - x, rect.height() }, Qt::AlignLeft | Qt::AlignVCenter, count);
+				x += QFontMetrics{ bold }.horizontalAdvance(count) + 4;
+				aPainter.setFont(small);
+				aPainter.drawText(QRect{ x, rect.top(), rect.right() - x, rect.height() }, Qt::AlignLeft | Qt::AlignVCenter, words);
+				x += QFontMetrics{ small }.horizontalAdvance(words) + 12;
+				aPainter.setPen(colours.Faint);
+				aPainter.drawText(QRect{ x, rect.top(), std::max(0, rect.right() - x), rect.height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								  QFontMetrics{ small }.elidedText(line.Author, Qt::ElideRight, std::max(0, rect.right() - x)));
 				break;
 			}
 			case timeline_line::kind::bundle:
 			case timeline_line::kind::verdict: {
+				if (line.Merged) {
+					break;
+				}
 				// Who, the verdict when it matters, and when: quiet, so the
 				// comments under it are what is read.
 				auto       x    = rect.left() + 2;
@@ -2426,6 +3166,21 @@ namespace bpr::qt {
 		return found == Measurements.Notes.end() ? nullptr : &found->second;
 	}
 
+	auto conversation_cards_view::preview_for(const thread_card& aCard) const -> const detail::note_preview&
+	{
+		static const auto none = detail::note_preview{ };
+		if (aCard.Posts.empty()) {
+			return none;
+		}
+		const auto& root  = aCard.Posts.front();
+		const auto  body  = narrative_of(root);
+		auto&       entry = Previews[aCard.Id];
+		if (entry.Preview == nullptr || entry.Body != body || entry.Header != root.HeaderLength) {
+			entry = preview_entry{ .Body = body, .Header = root.HeaderLength, .Preview = std::make_shared<const detail::note_preview>(detail::preview_of(body, root.HeaderLength)) };
+		}
+		return *entry.Preview;
+	}
+
 	void conversation_cards_view::measure_closed(thread_card& aCard, const int aWidth)
 	{
 		if (MeasurementFont != font()) {
@@ -2455,16 +3210,20 @@ namespace bpr::qt {
 		const auto lines   = aCard.Resolved ? 1 : 2;
 		const auto width   = std::max(40, aWidth - text_left - note_right);
 		auto       count   = 0;
-		if (!aCard.Posts.empty() && !body.isEmpty()) {
-			// One line when the whole body fits the width, otherwise as many as
-			// the note shows. Measured by advance, not laid out: a large review
-			// measures a thousand notes when its pull request arrives, and the
-			// paint lays out only the few on screen.
-			auto flowing = body;
-			flowing.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
-			const auto header  = std::clamp<qsizetype>(aCard.Posts.front().HeaderLength, 0, flowing.size());
-			const auto advance = QFontMetrics{ semibold(font()) }.horizontalAdvance(flowing.left(header))
-				+ QFontMetrics{ font() }.horizontalAdvance(flowing.mid(header));
+		if (!aCard.Posts.empty() && !body.trimmed().isEmpty()) {
+			// One line when the whole preview fits the width, otherwise as
+			// many as the note shows. Measured by advance, not laid out: a
+			// large review measures a thousand notes when its pull request
+			// arrives, and the paint lays out only the few on screen.
+			// [[BPR-2171]]. The preview's words, an ellipsis when words were
+			// left out, and its tokens.
+			const auto& preview = preview_for(aCard);
+			auto        strong  = 0;
+			for (const auto& [start, length] : preview.Strong) {
+				strong += QFontMetrics{ semibold(font()) }.horizontalAdvance(preview.Text.mid(start, length)) - QFontMetrics{ font() }.horizontalAdvance(preview.Text.mid(start, length));
+			}
+			const auto advance = QFontMetrics{ font() }.horizontalAdvance(preview.Text) + strong + (preview.Omitted ? QFontMetrics{ font() }.horizontalAdvance(QChar{ 0x2026 }) : 0)
+				+ tokens_width(preview.Tokens, font());
 			// [[BPR-1806]]. A tour stop's title has its own line.
 			count = aCard.Posts.front().TourStop.has_value() ? lines : advance <= width ? 1
 																						: lines;
@@ -2712,6 +3471,10 @@ namespace bpr::qt {
 				if (thread != Cards.end()) {
 					thread->UnsentReply = reply.Standing;
 					thread->Notice      = unsent_reply_notice(reply.Standing);
+					if (const auto saved = std::ranges::find(SavedDrafts, reply.Draft, &core::review_comment_draft::Id); saved != SavedDrafts.end()) {
+						thread->UnsentReplyDraft = saved->Id;
+						thread->UnsentReplyBody  = QString::fromStdString(saved->Body);
+					}
 				}
 				continue;
 			}
@@ -2739,6 +3502,73 @@ namespace bpr::qt {
 				.Name         = feedback_post_name(QStringLiteral("Your reply, not sent"), mark),
 				.HeaderLength = mark.Label.has_value() ? header_length_of(saved->Body) : 0,
 			});
+			Cards.push_back(std::move(card));
+		}
+		// RFC-BPR-0127 ([[BPR-2158]]). My Local comments: a Local reply inside
+		// its thread's card after the published posts; one on a line as its
+		// own card in the line's group, after the published threads and
+		// before my draft; one this comparison does not place after the
+		// placed cards, saying why. Never at a line it was not written on.
+		for (const auto& local : LocalComments) {
+			// On Overview's Comments tab, only those on the pull request;
+			// beside the code, never those (their chip counts them) nor those
+			// on other files (theirs does).
+			if (PullRequestComments != (local.Place == local_comment_place::pull_request) || (!PullRequestComments && local.Place == local_comment_place::other_file)) {
+				continue;
+			}
+			const auto mark = feedback_body_mark_of(local.Body.toStdString());
+			auto       post = card_post{
+				.Id           = local_comment_identity(local.Id),
+				.Author       = Viewer,
+				.Body         = local.Body,
+				.Mine         = true,
+				.Local        = true,
+				.Label        = mark.Label,
+				.Emphasis     = mark.Emphasis,
+				.Name         = feedback_post_name(local.ReplyToThread ? QStringLiteral("Your local reply") : QStringLiteral("Your local comment"), mark),
+				.HeaderLength = mark.Label.has_value() ? header_length_of(local.Body.toStdString()) : 0,
+			};
+			post.LocalMakeDraft    = local.MakeDraft;
+			post.LocalMakeDraftWhy = local.MakeDraftWhy;
+			if (local.ReplyToThread) {
+				const auto thread = std::ranges::find(Cards, "review-thread:" + *local.ReplyToThread, &thread_card::Id);
+				if (thread != Cards.end()) {
+					post.Depth = 1U;
+					thread->Posts.push_back(std::move(post));
+					++thread->LocalReplies;
+					continue;
+				}
+			}
+			const auto placed    = local.Place == local_comment_place::line && Scope == cards_scope::this_file && CurrentComparison.has_value() && local.Comparison == CurrentComparison && local.Line.has_value();
+			const auto wholeFile = local.Place == local_comment_place::whole_file;
+			if (!placed && !PullRequestComments && (wholeFile ? Scope != cards_scope::this_file : local.Notice.isEmpty())) {
+				continue;
+			}
+			auto card         = thread_card{ };
+			card.Id           = local_comment_identity(local.Id);
+			card.Kind         = QStringLiteral("Local");
+			card.Draft        = true;
+			card.Local        = true;
+			card.LocalComment = local;
+			card.Notice       = local.Notice;
+			card.Side         = local.Side;
+			if (placed) {
+				card.Line = local.Line;
+				if (local.FirstLine && local.Line && *local.FirstLine < *local.Line) {
+					card.FirstLine = local.FirstLine;
+				}
+			} else if (PullRequestComments) {
+				// In time order, after the conversation: mine, never sent.
+				card.Notice        = tr("On the pull request. Only on this computer.");
+				card.TimelineOrder = std::numeric_limits<std::size_t>::max();
+			} else {
+				// After the placed cards: outdated, or on the whole file.
+				card.Outdated = true;
+				if (wholeFile) {
+					card.Notice = tr("On this whole file, not on a line.");
+				}
+			}
+			card.Posts.push_back(std::move(post));
 			Cards.push_back(std::move(card));
 		}
 		// My unpublished notes, each at its line while it is on this
@@ -2856,10 +3686,10 @@ namespace bpr::qt {
 
 	void conversation_cards_view::measure_cards()
 	{
-		GeometryPending  = false;
-		const auto width = std::max(120, viewport()->width()) - 2 * note_margin;
+		GeometryPending = false;
 		for (auto& card : Cards) {
-			card.Rect = QRect{ note_margin, 0, width, 0 };
+			const auto [left, width] = card_width_for(card);
+			card.Rect                = QRect{ left, 0, width, 0 };
 			measure_closed(card, width);
 		}
 		rebuild_open_card();
@@ -2904,18 +3734,30 @@ namespace bpr::qt {
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment)) + QString::number(static_cast<int>(CommentEditOffered))
-			+ QString::number(static_cast<int>(TourOpenOffered && static_cast<bool>(TourOpenDispatch)));
+			+ QString::number(static_cast<int>(TourOpenOffered && static_cast<bool>(TourOpenDispatch))) + QString::number(static_cast<int>(AddressedThreads.contains(card.Id)))
+			+ QString::number(static_cast<int>(static_cast<bool>(AskMenuFiller)));
+		if (const auto claim = Claims.find(card.Id); claim != Claims.end()) {
+			key += QChar{ 0x1f } + thread_claim_words(claim->second.Claim) + QString::number(claim->second.Turn) + QString::number(static_cast<int>(claim->second.Then.has_value()))
+				+ QString::number(static_cast<int>(claim->second.Now.has_value()));
+		}
 		for (const auto& post : card.Posts) {
 			// [[BPR-1775]]. Who wrote it decides Edit, so it is drawn too.
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QChar{ 0x1f } + post.Author + QString::number(static_cast<int>(post.Mine));
+			// RFC-BPR-0127. What Make draft is offered as follows the drafts
+			// standing, so a changed offer is drawn again.
+			key += QChar{ 0x1f } + post.LocalMakeDraft + QChar{ 0x1f } + post.LocalMakeDraftWhy;
 			// [[BPR-1810]]. A neighbouring stop arriving or going changes the
 			// plate's chevrons.
 			for (const auto& reached : { post.TourPrevious, post.TourNext }) {
 				key += QChar{ 0x1f } + (reached.has_value() ? QString::fromStdString(reached->Thread + '\x1f' + reached->Title) : QString{ });
 			}
 		}
+		if (card.Local) {
+			key += QChar{ 0x1d } + card.LocalComment.MakeDraft + QChar{ 0x1f } + card.LocalComment.MakeDraftWhy;
+		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
+			OpenCard->present_unsent_reply(card);
 			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 			present_comment_edit();
 			return;
@@ -2943,8 +3785,16 @@ namespace bpr::qt {
 			.OnFile            = !card.Path.isEmpty(),
 			.Picked            = Picked,
 		};
-		style.CommentEditOffered     = CommentEditOffered;
-		style.TourOpenOffered        = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
+		style.CommentEditOffered = CommentEditOffered;
+		style.TourOpenOffered    = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
+		style.AddressedOffered   = AddressedThreads.contains(card.Id);
+		if (const auto claim = Claims.find(card.Id); claim != Claims.end()) {
+			style.Claim       = claim->second;
+			style.ClaimAnswer = ClaimAnswerDispatch;
+		}
+		if (AskMenuFiller && !card.Posts.empty()) {
+			style.AskMenu = [filler = AskMenuFiller, thread = QString::fromStdString(card.Id), title = thread_title(card.Id)](QMenu& aMenu) { filler(aMenu, thread, title); };
+		}
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
 		style.CodeTheme              = CodeTheme;
@@ -3006,6 +3856,20 @@ namespace bpr::qt {
 				}
 				setFocus(Qt::OtherFocusReason);
 				return;
+			case card_action::save_local:
+				// RFC-BPR-0127. A Local reply saved from the thread's reply
+				// field leaves the field as Send does.
+				if (ActionDispatch) {
+					ActionDispatch(card_action::save_local, id);
+				}
+				if (id != draft_card_id && !Replying.empty()) {
+					Replying.clear();
+					if (OpenCard != nullptr) {
+						OpenCard->set_replying(false);
+					}
+					setFocus(Qt::OtherFocusReason);
+				}
+				return;
 			case card_action::publish_reply:
 				if (ActionDispatch) {
 					ActionDispatch(card_action::publish_reply, id);
@@ -3026,6 +3890,11 @@ namespace bpr::qt {
 					ActionDispatch(aAction, id);
 				}
 				return;
+			}
+		};
+		OpenCard->PostAction = [this](const card_action aAction, const std::string& aPost) {
+			if (ActionDispatch) {
+				ActionDispatch(aAction, aPost);
 			}
 		};
 		OpenCard->Link = [this](const std::string& aPost, const QString& aDestination) {
@@ -3098,6 +3967,7 @@ namespace bpr::qt {
 				ReplyTextDispatch(id, aText);
 			}
 		};
+		OpenCard->bind_enhance(EnhanceDispatch, EnhanceCancel);
 		OpenCard->DraftText = [this](const QString& aText) {
 			if (DraftTextDispatch) {
 				DraftTextDispatch(aText);
@@ -3265,9 +4135,9 @@ namespace bpr::qt {
 			return std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }
 			< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };
 		});
-		const auto width = std::max(120, viewport()->width()) - 2 * note_margin;
 		for (auto& card : Cards) {
-			card.Rect.setLeft(note_margin);
+			const auto [left, width] = card_width_for(card);
+			card.Rect.moveLeft(left);
 			card.Rect.setWidth(width);
 			if (OpenCard != nullptr && card.Id == Open) {
 				card.Rect.setHeight(OpenCard->heightForWidth(width));
@@ -3294,6 +4164,15 @@ namespace bpr::qt {
 			} else {
 				const auto at = static_cast<std::size_t>(std::distance(Cards.begin(), open));
 				tops[at]      = target(at);
+				// Owner look v002 ([[BPR-2158]]): "if I scroll until just 5 is
+				// visible at the top and then add a comment on line 5 then
+				// full pull comment composer isn't shown". A line at the
+				// code's top is above the drawer's own top, which starts
+				// under its tab and tools rows; the composer being written
+				// stays whole in view, its notch still pointing at its line.
+				if (Cards[at].Writing) {
+					tops[at] = std::max(tops[at], verticalScrollBar()->value() + note_margin);
+				}
 				for (auto index = at; index-- > 0U;) {
 					tops[index] = std::min(target(index), tops[index + 1U] - note_gap - Cards[index].Rect.height());
 				}
@@ -3611,7 +4490,8 @@ namespace bpr::qt {
 			// In a narrow drawer, "Pending", so the name keeps its room.
 			const auto whole = QStringLiteral("Pending in your review");
 			// [[BPR-1374]]. My kept reply was never sent, and says so.
-			const auto words = aCard.UnsentReply.has_value()                      ? QStringLiteral("Not sent")
+			const auto words = aCard.Local                                        ? QStringLiteral("Local")
+				: aCard.UnsentReply.has_value()                                   ? QStringLiteral("Not sent")
 				: aCard.MovedSuggestion                                           ? QStringLiteral("Earlier head")
 				: !aCard.Pending                                                  ? QStringLiteral("Draft")
 				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
@@ -3620,7 +4500,9 @@ namespace bpr::qt {
 			const auto w     = smallMetrics.horizontalAdvance(words);
 			aPainter.setPen(ink);
 			aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
-			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::lock, ink);
+			// RFC-BPR-0127 (owner, Q1): the computer is Local and nothing
+			// else; a draft wears its pencil, and no state wears a lock.
+			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, aCard.Local ? conversation_glyph::computer : conversation_glyph::edit, ink);
 			right -= w + 20;
 		} else {
 			// [[BPR-1471]], [[BPR-1473]]. The resolved check's slot is kept on
@@ -3650,7 +4532,21 @@ namespace bpr::qt {
 				aPainter.drawText(meta.NewCount, Qt::AlignCenter, QString::number(aCard.UnreadCount));
 				aPainter.setFont(small);
 			}
-			right              = meta.Replies;
+			right = meta.Replies;
+			// RFC-BPR-0128 ([[BPR-2165]]). The agent's claim, in the meta's
+			// ordinary ink with the agent glyph in the accent: no height.
+			if (const auto claim = Claims.find(aCard.Id); claim != Claims.end()) {
+				const auto words = thread_claim_words(claim->second.Claim);
+				const auto w     = smallMetrics.horizontalAdvance(words);
+				aPainter.save();
+				aPainter.setOpacity(1.0);
+				aPainter.setPen(colours.Ink);
+				aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
+				const auto glyph = QRect{ right - w - 15, top + (nameH - 12) / 2, 12, 12 };
+				aPainter.drawPixmap(glyph, agent_glyph(palette()).pixmap(glyph.size()));
+				aPainter.restore();
+				right -= w + 15 + 8;
+			}
 			const auto replies = aCard.Posts.size() > 1U ? aCard.Posts.size() - 1U : 0U;
 			if (replies > 0U) {
 				const auto count = QString::number(replies);
@@ -3687,11 +4583,33 @@ namespace bpr::qt {
 		const auto who      = shown_author(root.Author);
 		const auto shownWho = QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left));
 		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter, shownWho);
+		// Owner look v002 ([[BPR-2158]]): "other comments that are not
+		// focused need to show their line numbers". Its line beside its
+		// author, as the open card's header names it: the target and the
+		// number, in the code's face.
+		auto afterName = left + QFontMetrics{ bold }.horizontalAdvance(shownWho) + 8;
+		if (aCard.Line.has_value() && *aCard.Line > 0U) {
+			const auto words = aCard.FirstLine.has_value() && *aCard.FirstLine < *aCard.Line ? QStringLiteral("%1–%2").arg(*aCard.FirstLine).arg(*aCard.Line)
+																							 : QString::number(*aCard.Line);
+			auto       mono  = CodeFont;
+			mono.setPointSizeF(small.pointSizeF());
+			const auto x    = afterName;
+			const auto need = 15 + QFontMetrics{ mono }.horizontalAdvance(words);
+			if (x + need <= right) {
+				aPainter.save();
+				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(x), top + (nameH - 11) / 2.0, 11.0, 11.0 }, conversation_glyph::target, colours.Faint);
+				aPainter.setFont(mono);
+				aPainter.setPen(colours.Ink2);
+				aPainter.drawText(QRect{ x + 14, top, need, nameH }, Qt::AlignLeft | Qt::AlignVCenter, words);
+				aPainter.restore();
+				afterName += need + 8;
+			}
+		}
 		// [[BPR-1806]]. A published tour stop says so beside its author: the
 		// tour's route marker, then "Stop 6 of 9".
 		if (!aCard.Draft && root.TourStop.has_value()) {
 			const auto badge = tour_stop_badge(*root.TourStop, root.TourStopCount);
-			const auto x     = left + QFontMetrics{ bold }.horizontalAdvance(shownWho) + 8;
+			const auto x     = afterName;
 			const auto room  = right - x - 12;
 			if (room > 24) {
 				aPainter.save();
@@ -3703,6 +4621,24 @@ namespace bpr::qt {
 				aPainter.drawText(QRect{ x + 12, top, room, nameH }, Qt::AlignLeft | Qt::AlignVCenter, smallMetrics.elidedText(badge, Qt::ElideRight, room));
 				aPainter.restore();
 			}
+		}
+		// [[BPR-2171]]. In time order, a review's own comment carries its
+		// verdict, and a comment outside a review says when.
+		if (!aCard.HeadVerdict.isEmpty() && afterName < right) {
+			aPainter.save();
+			aPainter.setFont(bold);
+			aPainter.setPen(aCard.HeadVerdict == tr("Approved") ? colours.Ok : MarkTheme.Tints[static_cast<std::size_t>(core::feedback_label::issue)]);
+			const auto shown = QFontMetrics{ bold }.elidedText(aCard.HeadVerdict, Qt::ElideRight, right - afterName);
+			aPainter.drawText(QRect{ afterName, top, right - afterName, nameH }, Qt::AlignLeft | Qt::AlignVCenter, shown);
+			afterName += QFontMetrics{ bold }.horizontalAdvance(shown) + 8;
+			aPainter.restore();
+		}
+		if (!aCard.When.isEmpty() && afterName + smallMetrics.horizontalAdvance(aCard.When) <= right) {
+			aPainter.save();
+			aPainter.setFont(small);
+			aPainter.setPen(colours.Faint);
+			aPainter.drawText(QRect{ afterName, top, right - afterName, nameH }, Qt::AlignLeft | Qt::AlignVCenter, aCard.When);
+			aPainter.restore();
 		}
 		// [[BPR-1374]]. What became of the thread a reply answers, whole,
 		// under the name and above the words.
@@ -3725,25 +4661,54 @@ namespace bpr::qt {
 			bodyTop += noticeHeight;
 		}
 		if (measure != nullptr && measure->Lines > 0) {
-			const auto display = clamp_lines(display_of(root, font(), CodeFont, colours.Hover), font(), std::max(40, rect.width() - text_left - note_right), measure->Lines);
-			auto       layout  = QTextLayout{ display.Text, font() };
+			const auto& preview = preview_for(aCard);
+			const auto  wide    = std::max(40, rect.width() - text_left - note_right);
+			const auto  reserve = tokens_width(preview.Tokens, font());
+			const auto  display = clamp_lines(display_of(root, preview, font(), CodeFont, colours.Hover), preview.Omitted, font(), wide, measure->Lines, reserve);
+			auto        layout  = QTextLayout{ display.Text, font() };
 			layout.setFormats(display.Formats);
 			auto option = QTextOption{ };
 			option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 			layout.setTextOption(option);
 			layout.beginLayout();
-			auto y     = 0.0;
-			auto lines = 0;
+			auto y       = 0.0;
+			auto lines   = 0;
+			auto lastEnd = 0.0;
+			auto lastTop = 0.0;
 			for (auto line = layout.createLine(); line.isValid() && lines < measure->Lines; line = layout.createLine()) {
-				line.setLineWidth(std::max(40, rect.width() - text_left - note_right));
+				line.setLineWidth(lines == measure->Lines - 1 ? std::max(40, wide - reserve) : wide);
 				line.setPosition(QPointF{ 0.0, y + (body_line_height(font()) - line.height()) / 2.0 });
+				lastEnd = line.naturalTextWidth();
+				lastTop = y;
 				y += body_line_height(font());
 				++lines;
 			}
 			layout.endLayout();
+			aPainter.save();
 			aPainter.setPen(colours.Ink);
-			aPainter.setClipRect(QRect{ left, bodyTop, rect.width() - text_left - note_right + 2, lines * body_line_height(font()) + 2 }, Qt::IntersectClip);
+			aPainter.setClipRect(QRect{ left, bodyTop, rect.width() - text_left - note_right + 2, std::max(1, lines) * body_line_height(font()) + 2 }, Qt::IntersectClip);
 			layout.draw(&aPainter, QPointF{ static_cast<qreal>(left), static_cast<qreal>(bodyTop) });
+			aPainter.restore();
+			// [[BPR-2171]]. One quiet word for each kind of block that is not
+			// words, after them on the last line.
+			if (!preview.Tokens.isEmpty()) {
+				const auto tokenFont = token_font(font());
+				const auto metrics   = QFontMetrics{ tokenFont };
+				auto       x         = left + static_cast<int>(std::ceil(lastEnd)) + (display.Text.isEmpty() ? 0 : token_lead);
+				const auto tokenTop  = bodyTop + static_cast<int>(lastTop) + (body_line_height(font()) - token_height) / 2;
+				aPainter.save();
+				aPainter.setFont(tokenFont);
+				for (const auto& token : preview.Tokens) {
+					const auto chip = QRectF{ static_cast<qreal>(x) + 0.5, static_cast<qreal>(tokenTop) + 0.5, static_cast<qreal>(metrics.horizontalAdvance(token) + 2 * token_pad) - 1.0, static_cast<qreal>(token_height) - 1.0 };
+					aPainter.setPen(QPen{ colours.Rule, 1.0 });
+					aPainter.setBrush(Qt::NoBrush);
+					aPainter.drawRoundedRect(chip, 3.0, 3.0);
+					aPainter.setPen(colours.Faint);
+					aPainter.drawText(chip, Qt::AlignCenter, token);
+					x += metrics.horizontalAdvance(token) + 2 * token_pad + token_gap;
+				}
+				aPainter.restore();
+			}
 		}
 		aPainter.restore();
 	}
@@ -3766,8 +4731,11 @@ namespace bpr::qt {
 				lastPath = card.Path;
 				painter.setFont(semibold(small));
 				painter.setPen(colours.Faint);
-				painter.drawText(QRect{ note_margin + 4, rect.top() - path_row_height - (first ? 0 : note_gap) + 2, width() - 2 * note_margin, path_row_height },
-								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ painter.font() }.elidedText(card.Path.isEmpty() ? QStringLiteral("Pull request") : card.Path, Qt::ElideMiddle, width() - 2 * note_margin));
+				// [[BPR-2171]] ac5: the file's name is on the column's edge,
+				// as its threads are (Only this file in Discuss).
+				const auto [columnLeft, columnWidth] = column();
+				painter.drawText(QRect{ columnLeft + 4, rect.top() - path_row_height - (first ? 0 : note_gap) + 2, columnWidth, path_row_height },
+								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ painter.font() }.elidedText(card.Path.isEmpty() ? QStringLiteral("Pull request") : card.Path, Qt::ElideMiddle, columnWidth));
 			}
 			first = false;
 			if (rect.bottom() < 0 || rect.top() > viewport()->height()) {
@@ -3848,7 +4816,11 @@ namespace bpr::qt {
 		if (aCard.UnreadCount > 0U) {
 			const auto w  = std::max(16, QFontMetrics{ new_count_font(font()) }.horizontalAdvance(QString::number(aCard.UnreadCount)) + 10);
 			meta.NewCount = QRectF{ static_cast<qreal>(right - w), top + ((nameH - 16) / 2.0), static_cast<qreal>(w), 16.0 };
-			right -= w + 6;
+			right -= std::max(w, timeline() ? 22 : 0) + 6;
+		} else if (timeline()) {
+			// [[BPR-2171]]. In time order the new count keeps its slot, so the
+			// replies stand at one place down the column.
+			right -= 22 + 6;
 		}
 		if (aCard.UnsentReply.has_value()) {
 			const auto w     = QFontMetrics{ scaled(font(), 0.92) }.horizontalAdvance(QStringLiteral("Draft reply"));
@@ -3940,7 +4912,8 @@ namespace bpr::qt {
 		// [[BPR-1374]]. My kept reply opens in place, like a thread, where its
 		// words and what can be done with them are; it is not the editor's.
 		// [[BPR-1733]]. So does my suggestion from an earlier head.
-		if (Cards[aCard].Draft && (Cards[aCard].UnsentReply.has_value() || Cards[aCard].MovedSuggestion)) {
+		// RFC-BPR-0127. So does my Local comment, with Make draft beside it.
+		if (Cards[aCard].Draft && (Cards[aCard].UnsentReply.has_value() || Cards[aCard].MovedSuggestion || Cards[aCard].Local)) {
 			const auto chosen = Cards[aCard].Id;
 			Current           = chosen;
 			if (aOpen && Open != chosen) {
@@ -3948,6 +4921,7 @@ namespace bpr::qt {
 				Picked.clear();
 				Replying.clear();
 				relayout();
+				reveal_opened(chosen);
 			}
 			viewport()->update();
 			return;
@@ -3976,6 +4950,9 @@ namespace bpr::qt {
 				Replying.clear();
 			}
 			relayout();
+			if (Picked.empty()) {
+				reveal_opened(chosen);
+			}
 		}
 		if (!aligned()) {
 			if (const auto index = card_index(chosen); index.has_value()) {
@@ -4006,13 +4983,39 @@ namespace bpr::qt {
 			}
 			return;
 		}
+		unfold_for(aId);
 		if (const auto index = card_index(aId); index.has_value()) {
 			choose(*index, true);
 		}
 	}
 
+	void conversation_cards_view::unfold_for(const std::string& aId)
+	{
+		// [[BPR-2171]]. A thread asked for by name (a link, Threads, a key)
+		// is never left inside a closed fold: its fold opens.
+		if (aId.empty() || card_index(aId).has_value()) {
+			return;
+		}
+		// A post names its thread.
+		auto root = aId;
+		if (const auto found = RetainedById.find(aId); found != RetainedById.end() && found->second < RetainedRoot.size() && RetainedRoot[found->second] < Retained.size()) {
+			root = Retained[RetainedRoot[found->second]].Id;
+		}
+		if (card_index(root).has_value()) {
+			return;
+		}
+		for (const auto& row : TimelineRows) {
+			if (!row.Fold.empty() && !row.Open && std::ranges::find(row.Members, root) != row.Members.end()) {
+				Unfolded.insert(row.Fold);
+				relayout();
+				return;
+			}
+		}
+	}
+
 	void conversation_cards_view::open_thread_at(const std::string& aId, const std::string& aPost)
 	{
+		unfold_for(aId);
 		const auto index = card_index(aId);
 		if (!index.has_value()) {
 			return;
@@ -4214,6 +5217,45 @@ namespace bpr::qt {
 		}
 	}
 
+	void conversation_cards_view::reveal_opened(const std::string& aId)
+	{
+		// [[BPR-2173]]. The owner, on look v007 of RFC-BPR-0127: with a tall
+		// thread open and the drawer scrolled down to the card under it,
+		// opening that card closed the tall thread and kept the scroll, so
+		// the opened card was cut at the top with empty drawer under it.
+		// Beside the code the notes' own scroll moves (never the code's) so
+		// the opened card's top is clear of the edge chips, and its foot is
+		// in view when the drawer can hold it whole. A card whose line is
+		// above the code's top keeps hanging there: the scroll stops at 0.
+		const auto index = card_index(aId);
+		if (!aligned() || !index.has_value()) {
+			return;
+		}
+		// A card whose line is off the code's view is reached by the code
+		// moving to the line (a chip, Next new), not by the notes.
+		if (const auto& card = Cards[*index]; card.Placed && (card.TargetY < 0 || card.TargetY >= viewport()->height())) {
+			return;
+		}
+		auto* const bar = verticalScrollBar();
+		// First no further than the notes' end needs: the scroll past it
+		// ([[BPR-1740]]) is the reader's to take, not what an opening leaves.
+		const auto overrun = std::max(0, ContentHeight - viewport()->height());
+		const auto from    = std::min(bar->value(), overrun);
+		const auto rect    = Cards[*index].Rect.translated(0, -from);
+		const auto clear   = edge_reach + note_gap;
+		auto       move    = 0;
+		if (rect.bottom() > viewport()->height() - note_margin) {
+			move = rect.bottom() - (viewport()->height() - note_margin);
+		}
+		if (rect.top() - move < clear) {
+			move = rect.top() - clear;
+		}
+		const auto value = std::clamp(from + move, bar->minimum(), bar->maximum());
+		if (value != bar->value()) {
+			bar->setValue(value);
+		}
+	}
+
 	void conversation_cards_view::reveal_reading(const QRect& aViewportRect)
 	{
 		const auto room    = fontMetrics().lineSpacing();
@@ -4320,7 +5362,16 @@ namespace bpr::qt {
 		// [[BPR-1779]]. A thread's path and line, in time order, opens it in
 		// Review, as its Open in Review does.
 		if (const auto* const path = timeline_path_at(aEvent->position().toPoint()); path != nullptr) {
-			if (ActionDispatch) {
+			// [[BPR-2171]]. A bots row, and a file row's resolved count, open
+			// and close their fold; the file's name opens it in Review.
+			const auto rect = to_viewport(path->Rect);
+			if (!path->Fold.empty() && (path->Kind == timeline_line::kind::bots || aEvent->position().x() >= rect.right() - 120)) {
+				const auto fold = path->Fold;
+				toggle_fold(fold);
+				aEvent->accept();
+				return;
+			}
+			if (path->Kind == timeline_line::kind::path && ActionDispatch) {
 				const auto id = path->Id;
 				ActionDispatch(card_action::open_in_code, id);
 			}
@@ -4528,7 +5579,8 @@ namespace bpr::qt {
 						OpenCard->Action(finish ? card_action::finish_review : single ? card_action::publish_draft
 																					  : OpenCard->primary_action());
 					} else if (OpenCard->Action && !single && !finish) {
-						OpenCard->Action(card_action::publish_reply);
+						// RFC-BPR-0127. With Local chosen, ⌘↩ saves it.
+						OpenCard->Action(OpenCard->local_chosen() ? card_action::save_local : card_action::publish_reply);
 					}
 					return true;
 				}
@@ -4590,4 +5642,17 @@ namespace bpr::qt {
 		}
 		return QAbstractScrollArea::eventFilter(aWatched, aEvent);
 	}
+
+	void conversation_cards_view::set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		EnhanceDispatch = std::move(aDispatch);
+		EnhanceCancel   = std::move(aCancel);
+		if (OpenCard != nullptr) {
+			OpenCard->bind_enhance(EnhanceDispatch, EnhanceCancel);
+		}
+	}
+
+	auto conversation_cards_view::present_enhancement(const enhance_outcome& aOutcome) -> bool { return OpenCard != nullptr && OpenCard->present_enhancement(aOutcome); }
+	auto conversation_cards_view::enhance_control() const -> enhance_button* { return OpenCard != nullptr ? OpenCard->enhance_control() : nullptr; }
+	auto conversation_cards_view::enhance_panel() const -> enhance_suggestion* { return OpenCard != nullptr ? OpenCard->enhance_panel() : nullptr; }
 } // namespace bpr::qt

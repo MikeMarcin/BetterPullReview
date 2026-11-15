@@ -1,7 +1,9 @@
 #include "bpr/core/prompt_macro.hpp"
 
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
+#include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 
 #include <algorithm>
@@ -12,7 +14,7 @@ namespace bpr::core {
 	static_assert(maximum_prompt_expansion_bytes == maximum_chat_message_bytes, "an expansion is bounded as a chat message is");
 	static_assert(maximum_prompt_expansion_bytes == maximum_tour_question_bytes, "an expansion is bounded as a tour question is");
 	static_assert(static_cast<std::size_t>(prompt_place::tour_whole) + 1U == prompt_place_count, "prompt_place_count covers every place");
-	static_assert(static_cast<std::size_t>(prompt_fact::empty_chat) + 1U == prompt_fact_count, "prompt_fact_count covers every fact");
+	static_assert(static_cast<std::size_t>(prompt_fact::replies_since_mine) + 1U == prompt_fact_count, "prompt_fact_count covers every fact");
 	static_assert(static_cast<std::size_t>(prompt_variable::cursor) + 1U == prompt_variable_count, "prompt_variable_count covers every variable");
 
 	namespace {
@@ -317,8 +319,14 @@ namespace bpr::core {
 				case prompt_fact::author_is_me:
 				case prompt_fact::checks_failing:
 				case prompt_fact::takes_replies:
-				case prompt_fact::empty_chat:     keep(Flags[static_cast<std::size_t>(aCondition.Fact)], aCondition.Negated ? no : yes); break;
-				case prompt_fact::repository:     break;
+				case prompt_fact::empty_chat:
+				case prompt_fact::pushes_since_review:
+				case prompt_fact::file_unresolved_threads:
+				case prompt_fact::file_unreviewed:
+				case prompt_fact::thread_unresolved:
+				case prompt_fact::replies_since_mine:      keep(Flags[static_cast<std::size_t>(aCondition.Fact)], aCondition.Negated ? no : yes); break;
+				case prompt_fact::repository:
+				case prompt_fact::thread_activity:         break;
 				}
 				return possible();
 			}
@@ -409,6 +417,10 @@ namespace bpr::core {
 		/// unreachable, if any.
 		auto contradiction(const prompt_macro& aMacro, const std::vector<prompt_unmet>& aNeeds) -> std::optional<std::size_t>
 		{
+			// Any of these: one holding is enough, so none contradicts.
+			if (aMacro.Body.Match != prompt_match::all || !aMacro.Body.Groups.empty()) {
+				return std::nullopt;
+			}
 			auto states = reachable_states{ };
 			for (const auto need : aNeeds) {
 				states.narrow(need);
@@ -461,13 +473,77 @@ namespace bpr::core {
 		return "unknown";
 	}
 
-	auto stable_name(const prompt_kind aKind) noexcept -> std::string_view
+	auto stable_name(const prompt_ask aKind) noexcept -> std::string_view
 	{
 		switch (aKind) {
-		case prompt_kind::question: return "question";
-		case prompt_kind::review:   return "review";
+		case prompt_ask::question: return "question";
+		case prompt_ask::review:   return "review";
 		}
 		return "unknown";
+	}
+
+	auto stable_name(const prompt_scope aScope) noexcept -> std::string_view
+	{
+		switch (aScope) {
+		case prompt_scope::thread:       return "thread";
+		case prompt_scope::file:         return "file";
+		case prompt_scope::pull_request: return "pull-request";
+		}
+		return "unknown";
+	}
+
+	auto prompt_scopes::has(const prompt_scope aScope) const noexcept -> bool
+	{
+		switch (aScope) {
+		case prompt_scope::thread:       return Thread;
+		case prompt_scope::file:         return File;
+		case prompt_scope::pull_request: return PullRequest;
+		}
+		return false;
+	}
+
+	void prompt_scopes::set(const prompt_scope aScope, const bool aOn) noexcept
+	{
+		switch (aScope) {
+		case prompt_scope::thread:       Thread = aOn; break;
+		case prompt_scope::file:         File = aOn; break;
+		case prompt_scope::pull_request: PullRequest = aOn; break;
+		}
+	}
+
+	auto stable_name(const prompt_action aAction) noexcept -> std::string_view
+	{
+		switch (aAction) {
+		case prompt_action::none:          return "none";
+		case prompt_action::what_changed:  return "what-changed";
+		case prompt_action::was_addressed: return "was-addressed";
+		case prompt_action::explain_file:  return "explain-file";
+		}
+		return "unknown";
+	}
+
+	auto subject_scope(const prompt_subject aSubject) noexcept -> std::optional<prompt_scope>
+	{
+		switch (aSubject) {
+		case prompt_subject::conversation:   return prompt_scope::thread;
+		case prompt_subject::open_file:      return prompt_scope::file;
+		case prompt_subject::pull_request:   return prompt_scope::pull_request;
+		case prompt_subject::selected_lines:
+		case prompt_subject::stop:
+		case prompt_subject::part:
+		case prompt_subject::selected_text:
+		case prompt_subject::tour:           return std::nullopt;
+		}
+		return std::nullopt;
+	}
+
+	auto prompt_scope_allowed(const prompt_place aPlace, const prompt_subject aSubject, const prompt_scope aScope) noexcept -> bool
+	{
+		if ((aPlace != prompt_place::agent_tab && aPlace != prompt_place::conversation) || !prompt_subject_allowed(aPlace, aSubject)) {
+			return false;
+		}
+		const auto own = subject_scope(aSubject);
+		return own && static_cast<std::uint8_t>(aScope) >= static_cast<std::uint8_t>(*own);
 	}
 
 	auto prompt_subject_allowed(const prompt_place aPlace, const prompt_subject aSubject) noexcept -> bool
@@ -482,44 +558,85 @@ namespace bpr::core {
 		return false;
 	}
 
-	auto prompt_kind_allowed(const prompt_place aPlace, const prompt_subject aSubject, const prompt_kind aKind) noexcept -> bool
+	auto prompt_ask_allowed(const prompt_place aPlace, const prompt_subject aSubject, const prompt_ask aKind) noexcept -> bool
 	{
 		if (!prompt_subject_allowed(aPlace, aSubject)) {
 			return false;
 		}
-		return aKind == prompt_kind::question || (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file));
+		return aKind == prompt_ask::question || (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file));
 	}
 
 	auto stable_name(const prompt_fact aFact) noexcept -> std::string_view
 	{
 		switch (aFact) {
-		case prompt_fact::file_open:      return "file-open";
-		case prompt_fact::selected_lines: return "selected-lines";
-		case prompt_fact::path:           return "path";
-		case prompt_fact::draft:          return "draft";
-		case prompt_fact::author_is_me:   return "author-is-me";
-		case prompt_fact::checks_failing: return "checks-failing";
-		case prompt_fact::repository:     return "repository";
-		case prompt_fact::takes_replies:  return "takes-replies";
-		case prompt_fact::empty_chat:     return "empty-chat";
+		case prompt_fact::file_open:               return "file-open";
+		case prompt_fact::selected_lines:          return "selected-lines";
+		case prompt_fact::path:                    return "path";
+		case prompt_fact::draft:                   return "draft";
+		case prompt_fact::author_is_me:            return "author-is-me";
+		case prompt_fact::checks_failing:          return "checks-failing";
+		case prompt_fact::repository:              return "repository";
+		case prompt_fact::takes_replies:           return "takes-replies";
+		case prompt_fact::empty_chat:              return "empty-chat";
+		case prompt_fact::pushes_since_review:     return "pushes-since-review";
+		case prompt_fact::file_unresolved_threads: return "file-unresolved-threads";
+		case prompt_fact::file_unreviewed:         return "file-unreviewed";
+		case prompt_fact::thread_unresolved:       return "thread-unresolved";
+		case prompt_fact::thread_activity:         return "thread-activity";
+		case prompt_fact::replies_since_mine:      return "replies-since-mine";
 		}
 		return "unknown";
 	}
 
-	auto prompt_fact_allowed(const prompt_place aPlace, const prompt_fact aFact) noexcept -> bool
+	auto prompt_fact_kind(const prompt_fact aFact) noexcept -> prompt_condition_kind
 	{
 		switch (aFact) {
 		case prompt_fact::file_open:
 		case prompt_fact::selected_lines:
-		case prompt_fact::path:           return aPlace == prompt_place::agent_tab;
+		case prompt_fact::path:
+		case prompt_fact::repository:
+		case prompt_fact::takes_replies:
+		case prompt_fact::empty_chat:     return prompt_condition_kind::hides;
+		default:                          return prompt_condition_kind::greys;
+		}
+	}
+
+	auto stable_name(const prompt_match aMatch) noexcept -> std::string_view
+	{
+		switch (aMatch) {
+		case prompt_match::all:  return "all";
+		case prompt_match::any:  return "any";
+		case prompt_match::none: return "none";
+		}
+		return "all";
+	}
+
+	auto prompt_condition_group::operator<=>(const prompt_condition_group& aOther) const -> std::strong_ordering
+	{
+		if (const auto match = Match <=> aOther.Match; match != 0) {
+			return match;
+		}
+		if (const auto conditions = Conditions <=> aOther.Conditions; conditions != 0) {
+			return conditions;
+		}
+		return std::lexicographical_compare_three_way(Groups.begin(), Groups.end(), aOther.Groups.begin(), aOther.Groups.end());
+	}
+
+	auto prompt_condition_group::operator==(const prompt_condition_group& aOther) const -> bool { return (*this <=> aOther) == 0; }
+
+	auto prompt_fact_allowed(const prompt_place aPlace, const prompt_fact aFact) noexcept -> bool
+	{
+		switch (aFact) {
+		// [[BPR-2179]]. Placement decides scope, so the review's facts are
+		// known on its every surface; one the window does not hold there is
+		// untrue. The tour chats hold the pull request's and their own.
 		case prompt_fact::draft:
 		case prompt_fact::author_is_me:
 		case prompt_fact::checks_failing:
-		case prompt_fact::repository:     return true;
-		case prompt_fact::takes_replies:  return aPlace == prompt_place::conversation;
-		case prompt_fact::empty_chat:     return aPlace == prompt_place::agent_tab || is_tour(aPlace);
+		case prompt_fact::repository:
+		case prompt_fact::empty_chat:     return true;
+		default:                          return !is_tour(aPlace);
 		}
-		return false;
 	}
 
 	auto stable_name(const prompt_variable aVariable) noexcept -> std::string_view
@@ -645,9 +762,93 @@ namespace bpr::core {
 			if (!value) {
 				return std::nullopt;
 			}
+			const auto begin = expansion.Text.size();
 			append_one_line(expansion.Text, *value);
+			expansion.Values.push_back({ .Begin = begin, .End = expansion.Text.size() });
 		}
 		return expansion;
+	}
+
+	auto prompt_skill_text(const prompt_expansion& aExpansion) -> std::string
+	{
+		// A value touches a reference when it overlaps it, or ends where it
+		// starts or starts where it ends: then the slash starts a word, or
+		// the name ends, only because of the value. An empty value counts,
+		// since its absence may join a reference.
+		const auto touchesValue = [&aExpansion](const skill_reference& aReference) {
+			return std::ranges::any_of(aExpansion.Values, [&aReference](const prompt_value_span& aValue) { return aValue.Begin <= aReference.End && aReference.Begin <= aValue.End; });
+		};
+		auto text = std::string{ };
+		for (const auto& reference : find_skill_references(aExpansion.Text)) {
+			if (touchesValue(reference)) {
+				continue;
+			}
+			if (!text.empty()) {
+				text.push_back(' ');
+			}
+			text.append(aExpansion.Text, reference.Begin, reference.End - reference.Begin);
+		}
+		return text;
+	}
+
+	auto suggested_subject_of(const prompt_subject aSubject) noexcept -> std::optional<agent_suggested_subject>
+	{
+		switch (aSubject) {
+		case prompt_subject::pull_request:   return agent_suggested_subject::pull_request;
+		case prompt_subject::open_file:      return agent_suggested_subject::open_file;
+		case prompt_subject::selected_lines: return agent_suggested_subject::selected_lines;
+		case prompt_subject::conversation:
+		case prompt_subject::stop:
+		case prompt_subject::part:
+		case prompt_subject::selected_text:
+		case prompt_subject::tour:           break;
+		}
+		return std::nullopt;
+	}
+
+	auto valid(const prompt_turn_name& aName) noexcept -> bool
+	{
+		return !aName.Asked.empty() && !aName.Name.empty() && aName.Asked.size() <= maximum_prompt_expansion_bytes && aName.Name.size() <= maximum_prompt_turn_name_bytes && aName.Asked != aName.Name;
+	}
+
+	auto prompt_turn_names::remember(prompt_turn_name aName) -> bool
+	{
+		if (!valid(aName)) {
+			return false;
+		}
+		if (!Names.empty() && Names.back() == aName) {
+			return false;
+		}
+		std::erase_if(Names, [&aName](const prompt_turn_name& aKept) { return aKept.Asked == aName.Asked; });
+		Names.push_back(std::move(aName));
+		if (Names.size() > maximum_prompt_turn_names) {
+			Names.erase(Names.begin(), Names.begin() + static_cast<std::ptrdiff_t>(Names.size() - maximum_prompt_turn_names));
+		}
+		return true;
+	}
+
+	void prompt_turn_names::adopt(const std::vector<prompt_turn_name>& aNames)
+	{
+		auto adopted = std::vector<prompt_turn_name>{ };
+		for (const auto& name : aNames) {
+			const auto newer = std::ranges::any_of(Names, [&name](const prompt_turn_name& aKept) { return aKept.Asked == name.Asked; });
+			if (!valid(name) || newer) {
+				continue;
+			}
+			std::erase_if(adopted, [&name](const prompt_turn_name& aKept) { return aKept.Asked == name.Asked; });
+			adopted.push_back(name);
+		}
+		adopted.insert(adopted.end(), std::make_move_iterator(Names.begin()), std::make_move_iterator(Names.end()));
+		Names = std::move(adopted);
+		if (Names.size() > maximum_prompt_turn_names) {
+			Names.erase(Names.begin(), Names.begin() + static_cast<std::ptrdiff_t>(Names.size() - maximum_prompt_turn_names));
+		}
+	}
+
+	auto prompt_turn_names::recall(const std::string_view aAsked) const -> std::optional<std::string>
+	{
+		const auto found = std::ranges::find(Names, aAsked, &prompt_turn_name::Asked);
+		return found != Names.end() ? std::optional{ found->Name } : std::nullopt;
 	}
 
 	auto stable_name(const prompt_unmet aUnmet) noexcept -> std::string_view
@@ -672,17 +873,172 @@ namespace bpr::core {
 	auto prompt_condition_holds(const prompt_condition& aCondition, const prompt_facts& aFacts) -> bool
 	{
 		switch (aCondition.Fact) {
-		case prompt_fact::file_open:      return aFacts.OpenFile.has_value() != aCondition.Negated;
-		case prompt_fact::selected_lines: return lines_match(aCondition.Lines, aFacts.Lines) != aCondition.Negated;
-		case prompt_fact::path:           return aFacts.OpenFile && any_pattern_matches(aCondition.Patterns, *aFacts.OpenFile, false) != aCondition.Negated;
-		case prompt_fact::repository:     return aFacts.Repository && any_pattern_matches(aCondition.Patterns, *aFacts.Repository, true) != aCondition.Negated;
-		case prompt_fact::draft:          return known_is(aFacts.Draft, aCondition.Negated);
-		case prompt_fact::author_is_me:   return known_is(aFacts.AuthorIsMe, aCondition.Negated);
-		case prompt_fact::checks_failing: return known_is(aFacts.ChecksFailing, aCondition.Negated);
-		case prompt_fact::takes_replies:  return known_is(aFacts.TakesReplies, aCondition.Negated);
-		case prompt_fact::empty_chat:     return known_is(aFacts.ChatEmpty, aCondition.Negated);
+		case prompt_fact::file_open:               return aFacts.OpenFile.has_value() != aCondition.Negated;
+		case prompt_fact::selected_lines:          return lines_match(aCondition.Lines, aFacts.Lines) != aCondition.Negated;
+		case prompt_fact::path:                    return aFacts.OpenFile && any_pattern_matches(aCondition.Patterns, *aFacts.OpenFile, false) != aCondition.Negated;
+		case prompt_fact::repository:              return aFacts.Repository && any_pattern_matches(aCondition.Patterns, *aFacts.Repository, true) != aCondition.Negated;
+		case prompt_fact::draft:                   return known_is(aFacts.Draft, aCondition.Negated);
+		case prompt_fact::author_is_me:            return known_is(aFacts.AuthorIsMe, aCondition.Negated);
+		case prompt_fact::checks_failing:          return known_is(aFacts.ChecksFailing, aCondition.Negated);
+		case prompt_fact::takes_replies:           return known_is(aFacts.TakesReplies, aCondition.Negated);
+		case prompt_fact::empty_chat:              return known_is(aFacts.ChatEmpty, aCondition.Negated);
+		case prompt_fact::pushes_since_review:     return known_is(aFacts.PushesSinceReview, aCondition.Negated);
+		case prompt_fact::file_unresolved_threads: return known_is(aFacts.FileUnresolvedThreads, aCondition.Negated);
+		case prompt_fact::file_unreviewed:         return known_is(aFacts.FileUnreviewed, aCondition.Negated);
+		case prompt_fact::thread_unresolved:       return known_is(aFacts.ThreadUnresolved, aCondition.Negated);
+		case prompt_fact::replies_since_mine:      return known_is(aFacts.RepliesSinceMine, aCondition.Negated);
+		case prompt_fact::thread_activity:         {
+			const auto replies = aCondition.Activity != prompt_activity_value::pushes ? aFacts.ThreadReplies : std::optional{ false };
+			const auto pushes  = aCondition.Activity != prompt_activity_value::replies ? aFacts.ThreadPushes : std::optional{ false };
+			if (replies.value_or(false) || pushes.value_or(false)) {
+				return !aCondition.Negated;
+			}
+			return replies.has_value() && pushes.has_value() && aCondition.Negated;
+		}
 		}
 		return false;
+	}
+
+	namespace {
+		/// One child of a group, decided: true, false or unknown (a fact the
+		/// window does not hold yet), and the leaf a disabled row names while
+		/// it is unmet (or, under None, met), with that leaf's place in the
+		/// tree.
+		struct child_outcome
+		{
+			std::optional<bool>             Value        = true;
+			std::optional<prompt_condition> ReasonUntrue = std::nullopt;
+			std::size_t                     UntrueLeaf   = 0U;
+			std::optional<prompt_condition> ReasonTrue   = std::nullopt;
+			std::size_t                     TrueLeaf     = 0U;
+		};
+
+		[[nodiscard]] auto turned(prompt_condition aCondition) -> prompt_condition
+		{
+			aCondition.Negated = !aCondition.Negated;
+			return aCondition;
+		}
+
+		/// [[BPR-2179]] review N5. A leaf is true when it holds, false when
+		/// its turned polarity holds, and unknown when neither does.
+		[[nodiscard]] auto leaf_value(const prompt_condition& aCondition, const prompt_facts& aFacts) -> std::optional<bool>
+		{
+			if (prompt_condition_holds(aCondition, aFacts)) {
+				return true;
+			}
+			if (prompt_condition_holds(turned(aCondition), aFacts)) {
+				return false;
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto decide_group(prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts,
+										std::size_t& aNext) -> child_outcome;
+
+		/// The children in leaf order: the group's conditions, then each
+		/// nested group depth first, as `validate_prompt_macro` numbers them.
+		[[nodiscard]] auto children_of(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts, std::size_t& aNext)
+			-> std::vector<child_outcome>
+		{
+			auto children = std::vector<child_outcome>{ };
+			for (const auto& condition : aConditions) {
+				const auto leaf = aNext++;
+				children.push_back({ .Value = leaf_value(condition, aFacts), .ReasonUntrue = condition, .UntrueLeaf = leaf, .ReasonTrue = turned(condition), .TrueLeaf = leaf });
+			}
+			for (const auto& group : aGroups) {
+				children.push_back(decide_group(group.Match, group.Conditions, group.Groups, aFacts, aNext));
+			}
+			return children;
+		}
+
+		auto decide_group(const prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts,
+						  std::size_t& aNext) -> child_outcome
+		{
+			const auto children = children_of(aConditions, aGroups, aFacts, aNext);
+			auto       outcome  = child_outcome{ };
+			const auto count    = [&children](const std::optional<bool> aValue) { return static_cast<std::size_t>(std::ranges::count(children, aValue, &child_outcome::Value)); };
+			const auto trues    = count(true);
+			const auto falses   = count(false);
+			/// The first child `aPick` accepts gives its untrue (or true) reason.
+			const auto untrue = [&children, &outcome](const auto aPick) {
+				const auto found = std::ranges::find_if(children, aPick);
+				if (found != children.end()) {
+					outcome.ReasonUntrue = found->ReasonUntrue;
+					outcome.UntrueLeaf   = found->UntrueLeaf;
+				}
+			};
+			// Three-valued: unknown satisfies neither polarity, so a group
+			// with an unknown child and nothing to settle it is unknown too.
+			switch (aMatch) {
+			case prompt_match::all:
+				outcome.Value = falses > 0U ? std::optional{ false } : trues == children.size() ? std::optional{ true }
+																								: std::nullopt;
+				untrue([](const child_outcome& aChild) { return aChild.Value != true; });
+				break;
+			case prompt_match::any:
+				outcome.Value = children.empty() || trues > 0U ? std::optional{ true } : falses == children.size() ? std::optional{ false }
+																												   : std::nullopt;
+				untrue([](const child_outcome&) { return true; });
+				break;
+			case prompt_match::none: {
+				outcome.Value = trues > 0U ? std::optional{ false } : falses == children.size() ? std::optional{ true }
+																								: std::nullopt;
+				// The first child not known untrue, its polarity turned.
+				const auto found = std::ranges::find_if(children, [](const child_outcome& aChild) { return aChild.Value != false; });
+				if (found != children.end()) {
+					outcome.ReasonUntrue = found->ReasonTrue;
+					outcome.UntrueLeaf   = found->TrueLeaf;
+				}
+				break;
+			}
+			}
+			if (!children.empty()) {
+				outcome.ReasonTrue = children.front().ReasonTrue;
+				outcome.TrueLeaf   = children.front().TrueLeaf;
+			}
+			return outcome;
+		}
+
+		void lean(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, bool& aHides)
+		{
+			for (const auto& condition : aConditions) {
+				aHides = aHides || prompt_fact_kind(condition.Fact) == prompt_condition_kind::hides;
+			}
+			for (const auto& group : aGroups) {
+				lean(group.Conditions, group.Groups, aHides);
+			}
+		}
+	} // namespace
+
+	auto stable_name(const prompt_when_unmet aWhen) noexcept -> std::string_view { return aWhen == prompt_when_unmet::hide ? "hide" : "disable"; }
+
+	auto migrated_when_unmet(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups) -> prompt_when_unmet
+	{
+		auto hides = false;
+		lean(aConditions, aGroups, hides);
+		return hides ? prompt_when_unmet::hide : prompt_when_unmet::disable;
+	}
+
+	auto decide_prompt_conditions(const prompt_macro_body& aBody, const prompt_facts& aFacts) -> prompt_conditions_outcome
+	{
+		if (aBody.Conditions.empty() && aBody.Groups.empty()) {
+			return { };
+		}
+		auto       next    = std::size_t{ 0 };
+		const auto decided = decide_group(aBody.Match, aBody.Conditions, aBody.Groups, aFacts, next);
+		if (decided.Value == true) {
+			return { };
+		}
+		// [[BPR-2179]] look prompts-v003: the prompt says what its row does.
+		const auto hides = aBody.WhenUnmet == prompt_when_unmet::hide;
+		return { .Holds = false, .Hides = hides, .Reason = hides ? std::nullopt : decided.ReasonUntrue, .Leaf = decided.UntrueLeaf };
+	}
+
+	auto prompt_has_conditions(const prompt_macro_body& aBody) noexcept -> bool { return !aBody.Conditions.empty() || !aBody.Groups.empty(); }
+
+	auto prompt_unmet_reading_of(const prompt_condition& aCondition) noexcept -> prompt_unmet_reading
+	{
+		return { .Fact = aCondition.Fact, .Present = aCondition.Negated, .Activity = aCondition.Activity };
 	}
 
 	auto evaluate_prompt_macro(const prompt_macro& aMacro, const prompt_facts& aFacts) -> prompt_evaluation
@@ -700,10 +1056,10 @@ namespace bpr::core {
 				return { .Unmet = need };
 			}
 		}
-		for (auto index = std::size_t{ 0 }; index < aMacro.Body.Conditions.size(); ++index) {
-			if (!prompt_condition_holds(aMacro.Body.Conditions[index], aFacts)) {
-				return { .Unmet = prompt_unmet::condition, .Condition = index };
-			}
+		// Review N5: the failing leaf's index is its place in the tree,
+		// whatever the prompt does while unmet.
+		if (const auto decided = decide_prompt_conditions(aMacro.Body, aFacts); !decided.Holds) {
+			return { .Unmet = prompt_unmet::condition, .Condition = decided.Leaf };
 		}
 		auto label     = expand_prompt_template(name, aFacts);
 		auto expansion = expand_prompt_template(body, aFacts);
@@ -719,8 +1075,10 @@ namespace bpr::core {
 
 	auto decide_prompt_offers(const std::span<const prompt_macro> aOrdered, const prompt_facts& aFacts) -> prompt_offers
 	{
-		auto       offers   = prompt_offers{ };
-		auto       shown    = std::vector<prompt_offer>{ };
+		auto offers = prompt_offers{ };
+		// [[BPR-2179]]. Each chip surface has its own five; a library entry
+		// (no surface) counts against the place's.
+		auto       shown    = std::vector<std::pair<std::optional<prompt_surface>, prompt_offer>>{ };
 		const auto consider = [&](const prompt_macro& aMacro, const prompt_facts& aAgainst, const bool aElsewhere) {
 			auto evaluation = evaluate_prompt_macro(aMacro, aAgainst);
 			if (!evaluation.Offer) {
@@ -730,7 +1088,12 @@ namespace bpr::core {
 			if (aElsewhere) {
 				evaluation.Offer->Label += " in " + aAgainst.Thread->Part;
 			}
-			shown.push_back(std::move(*evaluation.Offer));
+			shown.emplace_back(aMacro.Surface, std::move(*evaluation.Offer));
+		};
+		// A copy placed on an Ask menu is never a chip.
+		const auto chip = [](const prompt_macro& aMacro) {
+			return !aMacro.Surface
+				|| !(*aMacro.Surface == prompt_surface::pull_request_menu || *aMacro.Surface == prompt_surface::file_menu || *aMacro.Surface == prompt_surface::thread_menu);
 		};
 		// Text selected in a tour part: that part's place's macros about it
 		// lead, with that part's names.
@@ -740,44 +1103,52 @@ namespace bpr::core {
 			against.Thread       = aFacts.Selection;
 			const auto elsewhere = aFacts.Selection != aFacts.Thread;
 			for (const auto& macro : aOrdered) {
-				if (macro.Place == *selectionPlace && macro.Body.Subject == prompt_subject::selected_text) {
+				if (macro.Place == *selectionPlace && macro.Body.Subject == prompt_subject::selected_text && chip(macro)) {
 					consider(macro, against, elsewhere);
 				}
 			}
 		}
 		for (const auto& macro : aOrdered) {
 			const auto takenAbove = macro.Body.Subject == prompt_subject::selected_text && selectionPlace == macro.Place;
-			if (macro.Place == aFacts.Place && !takenAbove) {
+			// RFC-BPR-0128. An action row is asked from the Ask menus; the
+			// Agent tab keeps its own returning suggestions.
+			if (macro.Place == aFacts.Place && !takenAbove && macro.Action == prompt_action::none && chip(macro)) {
 				consider(macro, aFacts, false);
 			}
 		}
-		const auto chips = std::min(shown.size(), maximum_prompt_chips);
-		offers.Chips.assign(std::make_move_iterator(shown.begin()), std::make_move_iterator(shown.begin() + static_cast<std::ptrdiff_t>(chips)));
-		offers.More.assign(std::make_move_iterator(shown.begin() + static_cast<std::ptrdiff_t>(chips)), std::make_move_iterator(shown.end()));
+		auto counted = std::array<std::size_t, prompt_surface_count + 1U>{ };
+		for (auto& [surface, offer] : shown) {
+			auto& count = counted.at(surface ? static_cast<std::size_t>(*surface) : prompt_surface_count);
+			(count < maximum_prompt_chips ? offers.Chips : offers.More).push_back(std::move(offer));
+			++count;
+		}
 		return offers;
 	}
 
 	auto stable_name(const prompt_problem aProblem) noexcept -> std::string_view
 	{
 		switch (aProblem) {
-		case prompt_problem::no_name:               return "no-name";
-		case prompt_problem::name_too_long:         return "name-too-long";
-		case prompt_problem::name_not_one_line:     return "name-not-one-line";
-		case prompt_problem::no_template:           return "no-template";
-		case prompt_problem::template_too_long:     return "template-too-long";
-		case prompt_problem::unknown_variable:      return "unknown-variable";
-		case prompt_problem::other_place_variable:  return "other-place-variable";
-		case prompt_problem::subject_not_for_place: return "subject-not-for-place";
-		case prompt_problem::kind_not_for_subject:  return "kind-not-for-subject";
-		case prompt_problem::too_many_conditions:   return "too-many-conditions";
-		case prompt_problem::fact_not_for_place:    return "fact-not-for-place";
-		case prompt_problem::no_patterns:           return "no-patterns";
-		case prompt_problem::too_many_patterns:     return "too-many-patterns";
-		case prompt_problem::pattern_too_long:      return "pattern-too-long";
-		case prompt_problem::bad_pattern:           return "bad-pattern";
-		case prompt_problem::conditions_contradict: return "conditions-contradict";
-		case prompt_problem::duplicate_name:        return "duplicate-name";
-		case prompt_problem::credential_prefix:     return "credential-prefix";
+		case prompt_problem::no_name:                     return "no-name";
+		case prompt_problem::name_too_long:               return "name-too-long";
+		case prompt_problem::name_not_one_line:           return "name-not-one-line";
+		case prompt_problem::no_template:                 return "no-template";
+		case prompt_problem::template_too_long:           return "template-too-long";
+		case prompt_problem::unknown_variable:            return "unknown-variable";
+		case prompt_problem::other_place_variable:        return "other-place-variable";
+		case prompt_problem::subject_not_for_place:       return "subject-not-for-place";
+		case prompt_problem::kind_not_for_subject:        return "kind-not-for-subject";
+		case prompt_problem::too_many_conditions:         return "too-many-conditions";
+		case prompt_problem::fact_not_for_place:          return "fact-not-for-place";
+		case prompt_problem::no_patterns:                 return "no-patterns";
+		case prompt_problem::too_many_patterns:           return "too-many-patterns";
+		case prompt_problem::pattern_too_long:            return "pattern-too-long";
+		case prompt_problem::bad_pattern:                 return "bad-pattern";
+		case prompt_problem::conditions_contradict:       return "conditions-contradict";
+		case prompt_problem::duplicate_name:              return "duplicate-name";
+		case prompt_problem::credential_prefix:           return "credential-prefix";
+		case prompt_problem::quick_ask_not_for_subject:   return "quick-ask-not-for-subject";
+		case prompt_problem::quick_ask_without_scope:     return "quick-ask-without-scope";
+		case prompt_problem::scope_narrower_than_subject: return "scope-narrower-than-subject";
 		}
 		return "unknown";
 	}
@@ -811,7 +1182,7 @@ namespace bpr::core {
 		append_refusals(problems, text, false);
 		if (!prompt_subject_allowed(aMacro.Place, body.Subject)) {
 			problems.push_back(problem(prompt_problem::subject_not_for_place));
-		} else if (!prompt_kind_allowed(aMacro.Place, body.Subject, body.Kind)) {
+		} else if (!prompt_ask_allowed(aMacro.Place, body.Subject, body.Kind)) {
 			problems.push_back(problem(prompt_problem::kind_not_for_subject));
 		}
 		if (body.Conditions.size() > maximum_prompt_conditions) {
@@ -819,6 +1190,48 @@ namespace bpr::core {
 		}
 		for (auto index = std::size_t{ 0 }; index < body.Conditions.size(); ++index) {
 			validate_condition(problems, aMacro.Place, body.Conditions[index], index);
+		}
+		// [[BPR-2179]], look prompts-v001. Nested groups: each holds at most
+		// four conditions, two levels below the list, twelve in all; their
+		// conditions are checked as the list's are, numbered after it.
+		{
+			auto       leaves = body.Conditions.size();
+			auto       deep   = false;
+			auto       wide   = false;
+			const auto walk   = [&](const auto& aSelf, const std::vector<prompt_condition_group>& aGroups, const std::size_t aDepth) -> void {
+				for (const auto& group : aGroups) {
+					deep = deep || aDepth >= maximum_prompt_condition_depth;
+					// Review N5: each level holds four groups as well as
+					// four conditions.
+					wide = wide || group.Conditions.size() > maximum_prompt_conditions || group.Groups.size() > maximum_prompt_conditions;
+					for (const auto& condition : group.Conditions) {
+						validate_condition(problems, aMacro.Place, condition, leaves++);
+					}
+					aSelf(aSelf, group.Groups, aDepth + 1U);
+				}
+			};
+			walk(walk, body.Groups, 1U);
+			if (deep || wide || leaves > maximum_prompt_condition_leaves || body.Groups.size() > maximum_prompt_conditions) {
+				problems.push_back({ .Problem = prompt_problem::too_many_conditions, .Excess = leaves > maximum_prompt_condition_leaves ? leaves - maximum_prompt_condition_leaves : 0U });
+			}
+		}
+		// RFC-BPR-0128. A quick ask is on at least one scope, none narrower
+		// than what it is about.
+		if (body.QuickAsk) {
+			const auto own = (aMacro.Place == prompt_place::agent_tab || aMacro.Place == prompt_place::conversation) ? subject_scope(body.Subject) : std::nullopt;
+			if (!own) {
+				problems.push_back(problem(prompt_problem::quick_ask_not_for_subject));
+			} else if (!body.Scopes.any()) {
+				problems.push_back(problem(prompt_problem::quick_ask_without_scope));
+			}
+		}
+		if (subject_scope(body.Subject)) {
+			for (const auto scope : { prompt_scope::thread, prompt_scope::file, prompt_scope::pull_request }) {
+				if (body.Scopes.has(scope) && !prompt_scope_allowed(aMacro.Place, body.Subject, scope) && prompt_subject_allowed(aMacro.Place, body.Subject)
+					&& (aMacro.Place == prompt_place::agent_tab || aMacro.Place == prompt_place::conversation)) {
+					problems.push_back({ .Problem = prompt_problem::scope_narrower_than_subject, .Detail = std::string{ stable_name(scope) } });
+				}
+			}
 		}
 		if (const auto index = contradiction(aMacro, implied_needs(aMacro, name, text))) {
 			problems.push_back({ .Problem = prompt_problem::conditions_contradict, .Condition = *index });
@@ -940,7 +1353,7 @@ namespace bpr::core {
 			}
 		}
 		for (const auto& own : aStored.Own) {
-			if (own.BuiltIn || own.Id.empty() || known(own.Id) || entries.size() >= maximum_prompt_macros) {
+			if (own.BuiltIn || own.Id.empty() || own.Action != prompt_action::none || known(own.Id) || entries.size() >= maximum_prompt_macros) {
 				set.Dropped.push_back(own.Id);
 				continue;
 			}
@@ -960,6 +1373,8 @@ namespace bpr::core {
 				set.Entries.push_back(std::move(entry));
 			}
 		}
+		set.Surfaces     = merge_prompt_surfaces(set.macros(), aStored.Surfaces);
+		set.Repositories = aStored.Repositories;
 		return set;
 	}
 } // namespace bpr::core

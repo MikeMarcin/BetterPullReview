@@ -77,6 +77,18 @@
 #endif
 
 namespace bpr::adapters::git {
+	class installed_workspace_owners
+	{
+	public:
+		std::mutex                                                                                                                 Mutex;
+		std::map<std::string, std::pair<application::owned_agent_workspace, std::unique_ptr<installed_agent_workspace_ownership>>> Owners;
+	};
+
+	auto make_installed_workspace_owners() -> std::shared_ptr<installed_workspace_owners>
+	{
+		return std::make_shared<installed_workspace_owners>();
+	}
+
 	namespace {
 		using application::git_ancestry;
 		using application::git_commit_id;
@@ -4529,10 +4541,11 @@ namespace bpr::adapters::git {
 		{
 		public:
 			installed_git_process(
-				application::git_installation        aInstallation,
-				std::filesystem::path                aIsolationRoot,
-				std::unique_ptr<process_worker>      aWorker,
-				std::optional<std::filesystem::path> aWorkspaceRegistry)
+				application::git_installation               aInstallation,
+				std::filesystem::path                       aIsolationRoot,
+				std::unique_ptr<process_worker>             aWorker,
+				std::optional<std::filesystem::path>        aWorkspaceRegistry,
+				std::shared_ptr<installed_workspace_owners> aWorkspaceOwners)
 				: Installation{ std::move(aInstallation) }
 				, IsolationRoot{ std::move(aIsolationRoot) }
 				, RepositoriesRoot{ IsolationRoot / "repositories" / "v1" }
@@ -4541,6 +4554,7 @@ namespace bpr::adapters::git {
 				, HooksRoot{ IsolationRoot / "hooks" }
 				, Worker{ std::move(aWorker) }
 				, WorkspaceRegistry{ std::move(aWorkspaceRegistry) }
+				, WorkspaceOwners{ aWorkspaceOwners ? std::move(aWorkspaceOwners) : make_installed_workspace_owners() }
 			{
 			}
 
@@ -5368,7 +5382,8 @@ namespace bpr::adapters::git {
 					owned.RequiredBase = materialization.Session.Binding.BaseOid;
 				}
 				if (workspaceOwner) {
-					WorkspaceOwners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
+					const auto lock = std::scoped_lock{ WorkspaceOwners->Mutex };
+					WorkspaceOwners->Owners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
 				}
 				return owned;
 			}
@@ -5476,14 +5491,17 @@ namespace bpr::adapters::git {
 					if (!aWorkspace.LifetimeGuard) {
 						return std::unexpected{ git_process_failure::invalid_request };
 					}
-					const auto found = WorkspaceOwners.find(aWorkspace.LifetimeGuard->Path);
-					if (found == WorkspaceOwners.end() || found->second.first != aWorkspace) {
+					// [[BPR-2181]]. Found whichever of the profile's cache
+					// sessions made it.
+					const auto lock  = std::scoped_lock{ WorkspaceOwners->Mutex };
+					const auto found = WorkspaceOwners->Owners.find(aWorkspace.LifetimeGuard->Path);
+					if (found == WorkspaceOwners->Owners.end() || found->second.first != aWorkspace) {
 						return std::unexpected{ git_process_failure::invalid_request };
 					}
 					if (!found->second.second->cleanup()) {
 						return std::unexpected{ git_process_failure::invalid_repository };
 					}
-					WorkspaceOwners.erase(found);
+					WorkspaceOwners->Owners.erase(found);
 					return { };
 				}
 				if (aWorkspace.LifetimeGuard) {
@@ -6303,15 +6321,15 @@ namespace bpr::adapters::git {
 					aMutations.front());
 			}
 
-			application::git_installation                                                                                              Installation;
-			std::filesystem::path                                                                                                      IsolationRoot;
-			std::filesystem::path                                                                                                      RepositoriesRoot;
-			std::filesystem::path                                                                                                      IncomingRoot;
-			std::filesystem::path                                                                                                      TemplatesRoot;
-			std::filesystem::path                                                                                                      HooksRoot;
-			std::unique_ptr<process_worker>                                                                                            Worker;
-			std::optional<std::filesystem::path>                                                                                       WorkspaceRegistry;
-			std::map<std::string, std::pair<application::owned_agent_workspace, std::unique_ptr<installed_agent_workspace_ownership>>> WorkspaceOwners;
+			application::git_installation               Installation;
+			std::filesystem::path                       IsolationRoot;
+			std::filesystem::path                       RepositoriesRoot;
+			std::filesystem::path                       IncomingRoot;
+			std::filesystem::path                       TemplatesRoot;
+			std::filesystem::path                       HooksRoot;
+			std::unique_ptr<process_worker>             Worker;
+			std::optional<std::filesystem::path>        WorkspaceRegistry;
+			std::shared_ptr<installed_workspace_owners> WorkspaceOwners;
 		};
 
 		inline constexpr std::array<std::uint8_t, 230U> probe_pack{
@@ -7427,7 +7445,8 @@ namespace bpr::adapters::git {
 		/// checkout either.
 		class installed_git_publication final
 			: public application::publication_candidate_port,
-			  public application::repository_skill_port
+			  public application::repository_skill_port,
+			  public application::local_draft_git_port
 		{
 		public:
 			installed_git_publication(
@@ -7454,36 +7473,127 @@ namespace bpr::adapters::git {
 				if (!context) {
 					return std::unexpected{ context.error() };
 				}
-				const auto commit = std::string{ core::canonical_hex(aCommit).view() };
-				auto       type   = run(*context, { "cat-file", "-t", commit }, standard_output_limit, aStop);
+				return list_commit_in(*context, aCommit, aStop);
+			}
+
+			/// RFC-BPR-0108. Merge bases of a local draft's head and target
+			/// tip, in the private store with the worktree's and the chain's
+			/// objects as alternates. Nothing is fetched.
+			[[nodiscard]] auto merge_bases(
+				const application::local_draft_repository& aRepository,
+				const core::git_commit_oid&                aLeft,
+				const core::git_commit_oid&                aRight,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<std::vector<core::git_commit_oid>> override
+			{
+				if (!aLeft.valid() || !aRight.valid() || aLeft.algorithm() != aRepository.Algorithm || aRight.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				const auto left  = std::string{ core::canonical_hex(aLeft).view() };
+				const auto right = std::string{ core::canonical_hex(aRight).view() };
+				for (const auto& commit : { left, right }) {
+					auto type = run(*context, { "cat-file", "-t", commit }, standard_output_limit, aStop);
+					if (!type) {
+						return failure(type.error().Failure == application::publication_git_failure::cancelled ? application::publication_git_failure::cancelled
+																											   : application::publication_git_failure::object_unavailable,
+									   type.error().Detail);
+					}
+					if (*type != "commit\n") {
+						return failure(application::publication_git_failure::object_unavailable);
+					}
+				}
+				// `merge-base --all` exits 1 with no output when the commits
+				// share no history; that is an answer, not a failure.
+				auto output = run(*context, { "merge-base", "--all", left, right }, standard_output_limit, aStop);
+				if (!output) {
+					if (output.error().Failure == application::publication_git_failure::unavailable && output.error().Detail.empty()) {
+						return std::vector<core::git_commit_oid>{ };
+					}
+					return std::unexpected{ missing_or(output.error()) };
+				}
+				auto bases = std::vector<core::git_commit_oid>{ };
+				auto rest  = std::string_view{ *output };
+				while (!rest.empty()) {
+					const auto end = rest.find('\n');
+					if (end == std::string_view::npos) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					const auto base = core::parse_git_commit_oid(rest.substr(0U, end));
+					if (!base || base->algorithm() != aRepository.Algorithm) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					if (bases.size() >= application::maximum_local_draft_merge_bases) {
+						return failure(application::publication_git_failure::bounds);
+					}
+					bases.push_back(*base);
+					rest.remove_prefix(end + 1U);
+				}
+				return bases;
+			}
+
+			[[nodiscard]] auto list_tree_of(
+				const application::local_draft_repository& aRepository,
+				const core::git_commit_oid&                aCommit,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<application::publication_commit_listing> override
+			{
+				if (!aCommit.valid() || aCommit.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				return list_commit_in(*context, aCommit, aStop);
+			}
+
+			[[nodiscard]] auto read_blob(
+				const application::local_draft_repository& aRepository,
+				const core::git_entry_oid&                 aBlob,
+				const std::uint64_t                        aMaximumBytes,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<std::vector<std::uint8_t>> override
+			{
+				if (!aBlob.valid() || aBlob.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				const auto blob = std::string{ core::canonical_hex(aBlob).view() };
+				auto       type = run(*context, { "cat-file", "-t", blob }, standard_output_limit, aStop);
 				if (!type) {
 					return std::unexpected{ missing_or(type.error()) };
 				}
-				if (*type != "commit\n") {
+				if (*type != "blob\n") {
 					return failure(application::publication_git_failure::object_unavailable);
 				}
-				auto object = run(*context, { "cat-file", "commit", commit }, maximum_commit_object_bytes, aStop);
-				if (!object) {
-					return std::unexpected{ missing_or(object.error()) };
+				auto size = run(*context, { "cat-file", "-s", blob }, standard_output_limit, aStop);
+				if (!size) {
+					return std::unexpected{ missing_or(size.error()) };
 				}
-				const auto text   = std::string_view{ *object };
-				const auto length = aCommit.byte_count() * 2U;
-				if (!text.starts_with("tree ") || text.size() < 6U + length || text[5U + length] != '\n') {
+				auto        bytes = std::uint64_t{ 0U };
+				const auto* first = size->data();
+				const auto* last  = size->data() + size->size() - (size->ends_with('\n') ? 1U : 0U);
+				if (const auto parsed = std::from_chars(first, last, bytes); parsed.ec != std::errc{ } || parsed.ptr != last) {
 					return failure(application::publication_git_failure::malformed);
 				}
-				const auto tree = core::parse_git_tree_oid(text.substr(5U, length));
-				if (!tree || tree->algorithm() != aCommit.algorithm()) {
+				if (bytes > aMaximumBytes) {
+					return failure(application::publication_git_failure::bounds);
+				}
+				auto content = run(*context, { "cat-file", "blob", blob }, static_cast<std::size_t>(bytes) + 1U, aStop);
+				if (!content) {
+					return std::unexpected{ missing_or(content.error()) };
+				}
+				if (content->size() != bytes) {
 					return failure(application::publication_git_failure::malformed);
 				}
-				auto entries = list_tree(*context, *tree, aStop);
-				if (!entries) {
-					return std::unexpected{ entries.error() };
-				}
-				return application::publication_commit_listing{
-					.CommitObject = std::vector<std::uint8_t>(object->begin(), object->end()),
-					.Tree         = *tree,
-					.Entries      = std::move(*entries),
-				};
+				return std::vector<std::uint8_t>(content->begin(), content->end());
 			}
 
 			/// [[BPR-1916]]. The commit's skills, read in the private store
@@ -7763,6 +7873,41 @@ namespace bpr::adapters::git {
 				std::vector<std::pair<std::string, std::string>> Signatures;
 			};
 
+			[[nodiscard]] auto list_commit_in(const command_context& aContext, const core::git_commit_oid& aCommit, const std::stop_token aStop)
+				-> application::publication_git_result<application::publication_commit_listing>
+			{
+				const auto commit = std::string{ core::canonical_hex(aCommit).view() };
+				auto       type   = run(aContext, { "cat-file", "-t", commit }, standard_output_limit, aStop);
+				if (!type) {
+					return std::unexpected{ missing_or(type.error()) };
+				}
+				if (*type != "commit\n") {
+					return failure(application::publication_git_failure::object_unavailable);
+				}
+				auto object = run(aContext, { "cat-file", "commit", commit }, maximum_commit_object_bytes, aStop);
+				if (!object) {
+					return std::unexpected{ missing_or(object.error()) };
+				}
+				const auto text   = std::string_view{ *object };
+				const auto length = aCommit.byte_count() * 2U;
+				if (!text.starts_with("tree ") || text.size() < 6U + length || text[5U + length] != '\n') {
+					return failure(application::publication_git_failure::malformed);
+				}
+				const auto tree = core::parse_git_tree_oid(text.substr(5U, length));
+				if (!tree || tree->algorithm() != aCommit.algorithm()) {
+					return failure(application::publication_git_failure::malformed);
+				}
+				auto entries = list_tree(aContext, *tree, aStop);
+				if (!entries) {
+					return std::unexpected{ entries.error() };
+				}
+				return application::publication_commit_listing{
+					.CommitObject = std::vector<std::uint8_t>(object->begin(), object->end()),
+					.Tree         = *tree,
+					.Entries      = std::move(*entries),
+				};
+			}
+
 			[[nodiscard]] static auto octal(const std::uint32_t aMode) -> std::string
 			{
 				auto text  = std::string{ };
@@ -7906,6 +8051,33 @@ namespace bpr::adapters::git {
 					}
 				}
 				return command_context{ .Store = store, .SourceObjects = path_text(*objects) };
+			}
+
+			/// RFC-BPR-0108. The worktree's objects and each borrowed clone's,
+			/// in order, as one alternates list.
+			[[nodiscard]] auto prepare(
+				const application::local_draft_repository& aRepository,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<command_context>
+			{
+				auto context = prepare(application::publication_repository{ .Checkout = aRepository.Checkout, .Algorithm = aRepository.Algorithm }, aStop);
+				if (!context) {
+					return context;
+				}
+#if defined(Q_OS_WIN)
+				constexpr auto separator = ';';
+#else
+				constexpr auto separator = ':';
+#endif
+				for (const auto& clone : aRepository.Borrowed) {
+					const auto objects = checkout_objects(clone);
+					if (!objects) {
+						return failure(application::publication_git_failure::invalid_repository);
+					}
+					context->SourceObjects += separator;
+					context->SourceObjects += path_text(*objects);
+				}
+				return context;
 			}
 
 			[[nodiscard]] auto valid_store(const std::filesystem::path& aStore, const git_hash_algorithm aAlgorithm) const -> bool
@@ -8476,7 +8648,7 @@ namespace bpr::adapters::git {
 					configuration.Insights = aConfiguration.Insights;
 					return std::unique_ptr<application::git_process_port>{
 						std::make_unique<installed_git_process>(admitted->Installation, admitted->Isolation,
-																std::make_unique<process_worker>(std::move(configuration)), aConfiguration.WorkspaceOwnershipRegistry)
+																std::make_unique<process_worker>(std::move(configuration)), aConfiguration.WorkspaceOwnershipRegistry, aConfiguration.WorkspaceOwners)
 					};
 				}
 			}
@@ -8491,7 +8663,7 @@ namespace bpr::adapters::git {
 			auto implementation = std::make_unique<installed_git_process>(
 				bootstrapped->Installation,
 				bootstrapped->Isolation,
-				std::move(bootstrapped->Worker), aConfiguration.WorkspaceOwnershipRegistry);
+				std::move(bootstrapped->Worker), aConfiguration.WorkspaceOwnershipRegistry, aConfiguration.WorkspaceOwners);
 			const auto probe = implementation->capability_probe(aStop);
 			if (!probe.has_value()) {
 				if (
@@ -8522,6 +8694,23 @@ namespace bpr::adapters::git {
 			return std::unexpected{
 				application::git_process_failure::invalid_configuration
 			};
+		}
+	}
+
+	auto make_installed_git_local_draft_reader(const installed_git_publication_configuration& aConfiguration, const std::stop_token aStop)
+		-> std::expected<std::unique_ptr<application::local_draft_git_port>, application::git_process_error>
+	{
+		try {
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_process_failure::cancelled };
+			}
+			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop);
+			if (!bootstrapped) {
+				return std::unexpected{ std::move(bootstrapped.error()) };
+			}
+			return std::unique_ptr<application::local_draft_git_port>{ std::make_unique<installed_git_publication>(bootstrapped->Isolation, std::move(bootstrapped->Worker)) };
+		} catch (...) {
+			return std::unexpected{ application::git_process_failure::invalid_configuration };
 		}
 	}
 

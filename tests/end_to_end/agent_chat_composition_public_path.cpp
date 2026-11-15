@@ -46,7 +46,9 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -55,14 +57,20 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -73,12 +81,15 @@
 #include <QTabBar>
 #include <QTemporaryDir>
 
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -248,6 +259,431 @@ namespace {
 } // namespace
 
 namespace {
+	/// \brief The opt-in installed-Claude course; see `main`.
+	[[nodiscard]] auto live_claude_course(const char* const aClaude) -> int
+	{
+		auto       data = QTemporaryDir{ };
+		const auto root = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		// Claude added in the agent setup, as a reviewer adds it, so the Agent
+		// tab's turns continue one native session.
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = app::detail::github_application_fixture_access::start(
+			app::detail::github_public_path_fixture::nested_folders_v1,
+			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			[&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		const auto minutes = [](const int aMinutes) { return std::chrono::milliseconds{ aMinutes * 60'000 }; };
+		if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, minutes(1)) || !application) {
+			std::cerr << "live-claude: startup\n";
+			return EXIT_FAILURE;
+		}
+		application->show();
+		auto& window = application->window();
+		window.resize(1'280, 860);
+		window.github_connect_action()->trigger();
+		if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, minutes(1))) {
+			return fail(*application, "live-connect");
+		}
+		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+		window.home_open_action()->trigger();
+		auto* const panel = window.agent_panel();
+		if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, minutes(1))) {
+			return fail(*application, "live-open");
+		}
+		const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value()));
+		if (claude < 0) {
+			return fail(*application, "live-claude-offered");
+		}
+		panel->profile_selector()->setCurrentIndex(claude);
+		auto* const tab = window.agent_tab();
+		// The cheapest model the installed Claude offers, so the course costs
+		// cents; the rules under test do not depend on the model.
+		static_cast<void>(tab->run_slash_command(QStringLiteral("/model haiku")));
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		window.choose_modality(qt::review_modality::review);
+		auto* const surface = window.comparison_surface();
+		if (!e2e::wait_until_plain([&] { return surface->current_result() != nullptr && !window.showing_overview(); }, minutes(1))) {
+			return fail(*application, "live-file-open");
+		}
+		const auto open = window.files_drawer()->contents_view()->model()->index(0, 0).data().toString();
+		window.tray_tabs()->setCurrentIndex(2);
+		QApplication::processEvents();
+		auto       costs  = std::vector<std::optional<core::agent_cost>>{ };
+		const auto answer = [&](const std::function<void()>& aSend, const std::string_view aStep) -> bool {
+			// The previous run has finished cleaning up before the next send.
+			static_cast<void>(e2e::wait_until_plain([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; }, minutes(2)));
+			const auto before = tab->turn_count();
+			aSend();
+			if (!e2e::wait_until_plain([&] { return tab->turn_count() == before + 1U || tab->send_refusal() != core::agent_send_refusal::none; }, minutes(1))
+				|| tab->send_refusal() != core::agent_send_refusal::none) {
+				std::cout << "live-claude " << aStep << ": not started refusal=\"" << tab->send_refusal_text().toStdString() << "\" panel=\"" << panel->status_text().toStdString() << "\" state=" << static_cast<int>(tab->state()) << std::endl;
+				return false;
+			}
+			const auto done = e2e::wait_until_plain(
+				[&] {
+					return tab->turn_count() == before + 1U && tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value();
+				},
+				minutes(10));
+			costs.push_back(panel->last_turn_cost());
+			std::cout << "live-claude " << aStep << ": outcome=" << (tab->turn_outcome(before) ? core::stable_name(*tab->turn_outcome(before)) : std::string_view{ "none" }) << " footer=\"" << tab->turn_footer(before).toStdString()
+					  << "\" reported=" << panel->last_reported_cost().toStdString() << " session=\"" << tab->session_cost_line()->text().toStdString() << "\"" << std::endl;
+			return done && tab->turn_outcome(before) == core::agent_turn_outcome::answered;
+		};
+		if (!answer([&] { tab->send_prompt(QStringLiteral("Review this pull request")); }, "review")) {
+			return fail(*application, "live-review", tab->turn_answer(0U).left(400).toStdString());
+		}
+		// AC03: the answer discusses more than the open file.
+		auto named = QStringList{ };
+		for (int row = 0; row < files->model()->rowCount(); ++row) {
+			const auto path = files->model()->index(row, 0).data().toString();
+			const auto name = path.section(QLatin1Char{ '/' }, -1);
+			if (path != open && (tab->turn_answer(0U).contains(path) || tab->turn_answer(0U).contains(name))) {
+				named << path;
+			}
+		}
+		std::cout << "live-claude open=" << open.toStdString() << " other-files-discussed=" << named.size() << " (" << named.join(QStringLiteral(", ")).toStdString() << ")\n";
+		std::cout << "live-claude answer-head: " << tab->turn_answer(0U).left(600).toStdString() << "\n";
+		auto* const composer = window.side_chat()->composer();
+		const auto  typed    = [&](const QString& aWords) {
+			return [&, aWords] {
+				composer->setPlainText(aWords);
+				auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r") };
+				QApplication::sendEvent(composer, &press);
+			};
+		};
+		if (!answer(typed(QStringLiteral("In one sentence: which changed file carries the most risk?")), "second") || !answer(typed(QStringLiteral("Reply with the single word: done")), "third")) {
+			return fail(*application, "live-followups");
+		}
+		auto sum   = core::agent_cost{ 0U };
+		auto every = true;
+		for (const auto& cost : costs) {
+			every = every && cost.has_value();
+			sum += cost.value_or(0U);
+		}
+		const auto native = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+		std::cout << "live-claude native: process-starts=" << native.Statistics.ProcessStarts << " workspace-starts=" << native.Statistics.WorkspaceStarts << '\n';
+		std::cout << "live-claude turn-costs=";
+		for (const auto& cost : costs) {
+			std::cout << (cost ? std::to_string(*cost) : std::string{ "none" }) << ' ';
+		}
+		std::cout << "sum=" << sum << " session-total=" << (tab->session_cost() ? std::to_string(*tab->session_cost()) : std::string{ "none" }) << " session-line=\"" << tab->session_cost_line()->text().toStdString() << "\"\n";
+		const auto passed = every && tab->session_cost() == sum && named.size() >= 2;
+		if (!shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << (passed ? "agent-chat-live-claude:pass\n" : "agent-chat-live-claude:fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+
+	/// \brief [[BPR-1995]], RFC-BPR-0100 AC03. The opt-in installed-agent
+	/// course for the whole tour's chat: Draft the tour on a fixture pull
+	/// request, accept it, then five fixed change requests, each sent once in
+	/// the tour's chat. Each must come back in its first answer as a revision:
+	/// a card in the chat with parts waiting. Each revision is discarded from
+	/// its card, so every request meets the same tour.
+	[[nodiscard]] auto live_tour_requests_course(const char* const aClaude, const std::string& aModel, const bool aFlagMove) -> int
+	{
+		auto       data = QTemporaryDir{ };
+		const auto root = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Model             = aModel;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = app::detail::github_application_fixture_access::start(
+			aFlagMove ? app::detail::github_public_path_fixture::flag_move_v1 : app::detail::github_public_path_fixture::nested_folders_v1,
+			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			[&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		const auto minutes = [](const int aMinutes) { return std::chrono::milliseconds{ aMinutes * 60'000 }; };
+		if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, minutes(1)) || !application) {
+			std::cerr << "live-tour-requests: startup\n";
+			return EXIT_FAILURE;
+		}
+		application->show();
+		auto& window = application->window();
+		window.resize(1'440, 900);
+		window.github_connect_action()->trigger();
+		if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, minutes(1))) {
+			return fail(*application, "live-tour-connect");
+		}
+		window.home_open_bar()->setText(aFlagMove ? QStringLiteral("bpr-fixtures/flag-move#41") : QStringLiteral("bpr-fixtures/nested-folders#21"));
+		window.home_open_action()->trigger();
+		auto* const panel = window.agent_panel();
+		if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, minutes(1))) {
+			return fail(*application, "live-tour-open");
+		}
+		window.open_review_tour();
+		auto* const editor = window.tour_editor();
+		auto* const chat   = editor->side_chat();
+		auto* const tour   = editor->tour_agent();
+		if (!e2e::wait_until_plain([&] { return editor->shown().Draft && !editor->shown().Loading && tour->draft_button()->isEnabled(); }, minutes(2))) {
+			return fail(*application, "live-tour-ready");
+		}
+		const auto idle = [&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; };
+		// The fixture tour: drafted by the installed agent, accepted whole.
+		tour->draft_button()->click();
+		if (!e2e::wait_until_plain([&] { const auto& runs = tour->session().Runs; return !runs.empty() && runs.back().Request == core::tour_agent_request::draft_tour && runs.back().State != core::tour_agent_run_state::running; }, minutes(15))
+			|| tour->session().Runs.back().State != core::tour_agent_run_state::answered) {
+			return fail(*application, "live-tour-draft", tour->transcript_text().toStdString());
+		}
+		static_cast<void>(e2e::wait_until_plain(idle, minutes(2)));
+		if (tour->accept_all_button()->isVisible()) {
+			tour->accept_all_button()->click();
+		}
+		if (!e2e::wait_until_plain([&] { return editor->shown().Draft && editor->shown().Draft->Stops.size() >= 3U && !editor->shown().Saving; }, minutes(1))) {
+			return fail(*application, "live-tour-accepted", std::to_string(editor->shown().Draft ? editor->shown().Draft->Stops.size() : 0U));
+		}
+		std::cout << "live-tour-requests fixture: stops=" << editor->shown().Draft->Stops.size() << " model=" << aModel << std::endl;
+		// [[BPR-1996]], RFC-BPR-0100 AC08. The drafted tour of the flag-move
+		// pull request, written out whole for the owner to judge.
+		if (aFlagMove) {
+			const auto& drafted = *editor->shown().Draft;
+			auto        text    = "# Drafted tour of bpr-fixtures/flag-move#41 (" + aModel + ")\n\n## Problem\n\n" + drafted.Problem + "\n\n## Solution\n\n" + drafted.Solution + "\n";
+			for (std::size_t index = 0U; index < drafted.Stops.size(); ++index) {
+				const auto& stop   = drafted.Stops[index];
+				const auto& source = stop.Mapped ? stop.Mapped : stop.Original;
+				text += "\n## Stop " + std::to_string(index + 1U) + ": " + stop.Title;
+				if (source) {
+					text += " (" + source->Path + ", lines " + std::to_string(source->First.Line + 1U) + " to " + std::to_string(source->Last.Line + 1U) + ")";
+				} else if (stop.Destination) {
+					text += " (" + stop.Destination->Path + ", lines " + std::to_string(stop.Destination->FirstLine + 1U) + " to " + std::to_string(stop.Destination->LastLine + 1U) + ")";
+				}
+				text += "\n\n" + stop.Body + "\n";
+			}
+			std::cout << text << std::endl;
+			if (qEnvironmentVariableIsSet("BPR_LIVE_TOUR_DRAFT_OUT")) {
+				auto out = std::ofstream{ qEnvironmentVariable("BPR_LIVE_TOUR_DRAFT_OUT").toStdString() };
+				out << text;
+			}
+			if (!shutdown(*application)) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-chat-live-tour-draft-flag-move:done\n";
+			return EXIT_SUCCESS;
+		}
+		editor->open_side_chat(core::tour_thread{ });
+		const auto requests = std::array{
+			QStringLiteral("Remove the last stop."),
+			QStringLiteral("Reverse the order of the stops."),
+			QStringLiteral("Rewrite the Problem in one sentence."),
+			QStringLiteral("Make the first stop's explanation half as long."),
+			QStringLiteral("Add a stop on the test that covers this change."),
+		};
+		auto carded = 0;
+		for (const auto& request : requests) {
+			static_cast<void>(e2e::wait_until_plain(idle, minutes(2)));
+			const auto before = tour->session().Runs.size();
+			chat->composer()->setPlainText(request);
+			chat->send_button()->click();
+			const auto ended = e2e::wait_until_plain(
+				[&] {
+					const auto& runs = tour->session().Runs;
+					return runs.size() > before && runs.back().Request == core::tour_agent_request::ask && runs.back().State != core::tour_agent_run_state::running;
+				},
+				minutes(15));
+			QApplication::processEvents();
+			const auto* const run  = ended ? &tour->session().Runs.back() : nullptr;
+			const auto        card = run != nullptr && chat->revision_card() != nullptr && chat->revision_discard() != nullptr;
+			std::cout << "live-tour-requests \"" << request.toStdString() << "\": state=" << (run ? static_cast<int>(run->State) : -1) << " card=" << card
+					  << " parts=\"" << (chat->revision_operations() ? chat->revision_operations()->text().replace(QLatin1Char('\n'), QStringLiteral(" | ")).toStdString() : std::string{ }) << "\""
+					  << " refused=" << (run ? run->Proposed.Refused.size() : 0U) << " link=" << (chat->unchanged_line() != nullptr) << " reply=\"" << (run ? QString::fromStdString(run->Reply).left(200).replace(QLatin1Char('\n'), QLatin1Char(' ')).toStdString() : std::string{ }) << "\"" << std::endl;
+			if (card) {
+				++carded;
+				chat->revision_discard()->click();
+				QApplication::processEvents();
+			}
+		}
+		if (!shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "live-tour-requests carded=" << carded << "/" << requests.size() << '\n';
+		const auto passed = carded == static_cast<int>(requests.size());
+		std::cout << (passed ? "agent-chat-live-tour-requests:pass\n" : "agent-chat-live-tour-requests:fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+
+	/// [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103 AC02, AC03, AC05, AC06. The
+	/// Agent tab's turn on a scripted Claude replaying the installed runtime's
+	/// own frames: three background helpers, a message's result while they
+	/// run, then the parts of the turn that answer them. `aUnfinished`: the
+	/// runtime ends after that first result, with two helpers out.
+	[[nodiscard]] auto helpers_course(const char* const aClaude, const bool aUnfinished) -> int
+	{
+		const auto marker = std::string{ aUnfinished ? "agent-chat-helpers-unfinished" : "agent-chat-helpers" };
+		auto       data   = QTemporaryDir{ };
+		const auto root   = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = app::detail::github_application_fixture_access::start(
+			app::detail::github_public_path_fixture::nested_folders_v1,
+			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			[&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		const auto seconds = [](const int aSeconds) { return std::chrono::milliseconds{ aSeconds * 1'000 }; };
+		if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, seconds(60)) || !application) {
+			return EXIT_FAILURE;
+		}
+		application->show();
+		auto& window = application->window();
+		window.resize(1'280, 860);
+		window.github_connect_action()->trigger();
+		if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, seconds(60))) {
+			return fail(*application, "helpers-connect");
+		}
+		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+		window.home_open_action()->trigger();
+		auto* const panel = window.agent_panel();
+		if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, seconds(60))) {
+			return fail(*application, "helpers-open");
+		}
+		const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value()));
+		if (claude < 0) {
+			return fail(*application, "helpers-offered");
+		}
+		panel->profile_selector()->setCurrentIndex(claude);
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		window.choose_modality(qt::review_modality::review);
+		window.tray_tabs()->setCurrentIndex(2);
+		auto* const tab = window.agent_tab();
+		// The saved conversation loads first; a send before it is refused.
+		static_cast<void>(e2e::wait_until_plain([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent; }, seconds(60)));
+		if (!e2e::wait_until_plain(
+				[&] {
+					if (tab->turn_count() == 0U && tab->state() != qt::agent_tab_state::working) {
+						tab->send_prompt(QStringLiteral("Review this pull request"));
+					}
+					return tab->turn_count() == 1U;
+				},
+				seconds(30))) {
+			return fail(*application, "helpers-sent", tab->send_refusal_text().toStdString());
+		}
+		// While it runs: the rows, and the line naming what it does.
+		auto       most       = 0;
+		auto       waiting    = false;
+		auto       reading    = false;
+		auto       lastActive = false;
+		auto       midRows    = QStringList{ };
+		const auto done       = e2e::wait_until_plain(
+			[&] {
+				if (auto* const block = tab->turn_activity(0U); block != nullptr && block->live()) {
+					if (block->helper_rows() > most) {
+						most = block->helper_rows();
+						// For a look at the running block: BPR_HELPERS_RENDER names a folder.
+						if (const auto folder = qEnvironmentVariable("BPR_HELPERS_RENDER"); !folder.isEmpty() && most == 3) {
+							static_cast<void>(window.grab().save(folder + QStringLiteral("/agent-helpers-running.png")));
+						}
+						midRows.clear();
+						for (int row = 0; row < block->helper_rows(); ++row) {
+							midRows << block->helper_row_text(row);
+						}
+					}
+					const auto line = tab->turn_footer(0U);
+					waiting         = waiting || line.contains(QStringLiteral("is waiting on 2 helpers"));
+					reading         = reading || line.contains(QStringLiteral("is reading a.txt"));
+					lastActive      = lastActive || line.contains(QStringLiteral("last activity"));
+				}
+				return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(0U).has_value();
+			},
+			seconds(90));
+		auto* const block  = tab->turn_activity(0U);
+		const auto  answer = tab->turn_answer(0U);
+		if (const auto folder = qEnvironmentVariable("BPR_HELPERS_RENDER"); !folder.isEmpty() && block != nullptr) {
+			block->summary_button()->click();
+			QApplication::processEvents();
+			static_cast<void>(window.grab().save(folder + (aUnfinished ? QStringLiteral("/agent-helpers-unfinished.png") : QStringLiteral("/agent-helpers-ended.png"))));
+		}
+		const auto outcome = tab->turn_outcome(0U);
+		std::cout << marker << ": turns=" << tab->turn_count() << " outcome=" << (outcome ? core::stable_name(*outcome) : std::string_view{ "none" }) << " most-rows=" << most << " waiting-line=" << waiting
+				  << " last-activity=" << lastActive << " footer=\"" << tab->turn_footer(0U).toStdString() << "\" summary=\"" << (block != nullptr ? block->summary_text().toStdString() : std::string{ }) << "\"\n";
+		for (const auto& row : midRows) {
+			std::cout << marker << " row: " << row.toStdString() << '\n';
+		}
+		std::cout << marker << " answer: " << answer.left(1200).toStdString() << "\n";
+		auto passed = done && tab->turn_count() == 1U && most == 3 && lastActive;
+		if (aUnfinished) {
+			// AC03. An error that names the unfinished helpers and keeps what arrived.
+			passed = passed && outcome && *outcome != core::agent_turn_outcome::answered && answer.contains(QStringLiteral("I started three reviewers")) && answer.contains(QStringLiteral("stopped before its 2 remaining helpers finished"))
+				&& answer.contains(QStringLiteral("Count lines in b.txt")) && answer.contains(QStringLiteral("Count lines in c.txt")) && answer.contains(QStringLiteral("What arrived is kept"));
+		} else {
+			// AC02. One turn, the closing message in it, one duration and one cost.
+			passed = passed && outcome == core::agent_turn_outcome::answered && waiting && answer.contains(QStringLiteral("I started three reviewers")) && answer.contains(QStringLiteral("a.txt: 25 lines | b.txt: 23 lines | c.txt: 31 lines"))
+				&& panel->last_reported_cost() == QStringLiteral("0.016330895") && block != nullptr && block->summary_text().contains(QStringLiteral("3 helpers")) && tab->turn_footer(0U).count(QStringLiteral("answered in")) == 1;
+		}
+		if (!shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << marker << (passed ? ":pass\n" : ":fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+
 	/// \brief The setup-list course, from a window whose Settings already added
 	/// "Fixture agent": the setup's Agent step follows Settings' list.
 	[[nodiscard]] auto setup_list_course(app::github_application& aApplication, qt::workbench_window& aWindow) -> int
@@ -354,10 +790,33 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto course = std::string_view{ argv[1] };
+	// [[BPR-2002]] AC03, [[BPR-1999]] AC05. Opt-in, never registered with
+	// ctest: an installed Claude Code (argv[2]) answers three turns in one
+	// native session about a fixture pull request of 17 changed files, with
+	// one file open. It spends the owner's Claude account, so only an
+	// explicit run of `live-claude` reaches it.
+	if (course == "live-claude") {
+		return live_claude_course(argv[2]);
+	}
+	// [[BPR-1995]], RFC-BPR-0100 AC03. Opt-in, never registered with ctest;
+	// spends the owner's Claude account. BPR_LIVE_TOUR_MODEL names the model
+	// (sonnet when unset).
+	if (course == "live-tour-requests") {
+		return live_tour_requests_course(argv[2], qEnvironmentVariableIsSet("BPR_LIVE_TOUR_MODEL") ? qEnvironmentVariable("BPR_LIVE_TOUR_MODEL").toStdString() : std::string{ "sonnet" }, false);
+	}
+	// [[BPR-1996]], RFC-BPR-0100 AC08. Opt-in: the installed agent drafts a
+	// tour of the flag-move fixture; BPR_LIVE_TOUR_DRAFT_OUT names a file
+	// the drafted tour is written to, for the owner's judgement.
+	if (course == "live-tour-draft-flag-move") {
+		return live_tour_requests_course(argv[2], qEnvironmentVariableIsSet("BPR_LIVE_TOUR_MODEL") ? qEnvironmentVariable("BPR_LIVE_TOUR_MODEL").toStdString() : std::string{ "sonnet" }, true);
+	}
+	if (course == "helpers" || course == "helpers-unfinished") {
+		return helpers_course(argv[2], course == "helpers-unfinished");
+	}
 	if (
 		course != "positive" && course != "stale" && course != "continued"
 		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"
-		&& course != "custom-agent" && course != "setup-list") {
+		&& course != "custom-agent" && course != "custom-agent-refused" && course != "subject" && course != "setup-list") {
 		return EXIT_FAILURE;
 	}
 	// The two courses that take `continue_against_old_revision` to a further
@@ -366,11 +825,23 @@ auto main(int argc, char** argv) -> int
 		= course == "continued" || course == "anchored-continuation";
 	const auto anchored = course == "anchored-continuation";
 	// [[BPR-1817]]. The course whose only agent is one the reviewer added.
-	const auto setupList = course == "setup-list";
-	const auto custom    = course == "custom-agent" || setupList;
-	auto       data      = QTemporaryDir{ };
-	if (!data.isValid()) {
+	// Re-review N2 (2026-11-11): its Codex configuration is the one under a
+	// home of the course's own, which composes with BetterPullReview's grant
+	// (custom-agent) or has a permissions profile of its own, which refuses
+	// it (custom-agent-refused). The launch's arguments say which.
+	const auto setupList    = course == "setup-list";
+	const auto custom       = course == "custom-agent" || course == "custom-agent-refused" || setupList;
+	const auto grantRefused = course == "custom-agent-refused";
+	auto       data         = QTemporaryDir{ };
+	auto       home         = QTemporaryDir{ };
+	if (!data.isValid() || !home.isValid()) {
 		return EXIT_FAILURE;
+	}
+	if (custom) {
+		const auto codex = std::filesystem::path{ home.path().toStdString() } / ".codex";
+		std::filesystem::create_directories(codex);
+		std::ofstream{ codex / "config.toml" } << (grantRefused ? "default_permissions = \"mine\"\n[permissions.mine]\nfilesystem = { \":root\" = \"read\" }\n" : "model = \"fixture\"\n");
+		qputenv("HOME", home.path().toUtf8());
 	}
 	// [[BPR-0812]], [[BPR-1050]]. The stores refuse a root that is not
 	// owner-private, and the agent workspace neighbourhood beside the root
@@ -459,6 +930,171 @@ auto main(int argc, char** argv) -> int
 	};
 	if (!custom && !chooseJsonl()) {
 		return fail(*application, "agent-offerings-jsonl");
+	}
+
+	// [[BPR-2002]], RFC-BPR-0102. A question says what it points at, and a
+	// suggestion always sends: Review this pull request from Overview with
+	// nothing selected, and again with lines selected; the lines chip, its
+	// close, and Escape in the diff (after the find bar when it is open). The
+	// fixture agent reports the subject fields its frame carried.
+	if (course == "subject") {
+		auto* const tab  = window.agent_tab();
+		auto* const chat = app::detail::github_application_fixture_access::side_chat_panel(*application);
+		if (chat == nullptr || tab == nullptr) {
+			return fail(*application, "subject-panels");
+		}
+		auto ready = wait_terms{ };
+		if (!wait_until_reporting(ready, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				return aTerms.require("overview", window.showing_overview()) && aTerms.require("send-enabled", chat->send_action()->isEnabled());
+			})) {
+			return fail(*application, "subject-overview", ready.render());
+		}
+		window.open_overview_tab(qt::overview_drawer_tab::agent);
+		QApplication::processEvents();
+		// AC06: no scope list anywhere in the Agent tab.
+		if (tab->isAncestorOf(window.side_chat()->scope_selector()) || window.side_chat()->scope_selector()->isVisible()) {
+			return fail(*application, "subject-scope-list-shown");
+		}
+		// One send and its delivered reply, read back as the fixture agent
+		// reported what it received.
+		auto       asked = std::size_t{ 0U };
+		const auto send  = [&](const std::function<void()>& aGesture, const std::string_view aStep) -> std::optional<std::string> {
+			const auto before = app::detail::github_application_fixture_access::agent_chat_evidence(*application).Statistics.Replies;
+			aGesture();
+			QApplication::processEvents();
+			auto terms = wait_terms{ };
+			if (!wait_until_reporting(terms, [&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+					const auto run      = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					aTerms.note_identifier("panel", evidence.AgentPanelStatusText);
+					aTerms.note_identifier("refusal", tab->send_refusal_text().toStdString());
+					return aTerms.require("reply", evidence.Statistics.Replies == before + 1U) && aTerms.require("quiescent", run.Quiescent); }, extended_agent_budget)) {
+				std::cerr << "agent-chat-subject-step:" << aStep << ' ' << terms.render() << '\n';
+				return std::nullopt;
+			}
+			++asked;
+			const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+			const auto text     = evidence.Projection && !evidence.Projection->Replies.empty() ? evidence.Projection->Replies.back().Text : std::string{ };
+			const auto at       = text.find("BPR_SUBJECT_2002");
+			const auto subject  = at == std::string::npos ? std::string{ "absent" } : text.substr(at, text.find(" end", at) - at);
+			std::cout << "agent-chat-subject " << aStep << ": " << subject << " entry=" << (evidence.LastTurn && evidence.LastTurn->Question ? core::stable_name(evidence.LastTurn->Question->EntryPoint) : std::string_view{ "none" }) << '\n';
+			return subject;
+		};
+		const auto suggestion = [&](const QString& aWords) {
+			return [&, aWords] {
+				for (auto* const button : tab->suggestion_buttons()) {
+					if (button->text() == aWords && button->isVisible() && button->isEnabled()) {
+						button->click();
+						return;
+					}
+				}
+				// Not on screen (the toggle hid them): the press they make.
+				tab->send_prompt(aWords);
+			};
+		};
+		const auto typed = [&](const QString& aWords) {
+			return [&, aWords] {
+				chat->composer()->setPlainText(aWords);
+				tab->ask_button()->click();
+			};
+		};
+		const auto has   = [](const std::optional<std::string>& aSubject, const std::string_view aPart) { return aSubject && aSubject->find(aPart) != std::string::npos; };
+		const auto entry = [&] {
+			const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+			return evidence.LastTurn && evidence.LastTurn->Question ? evidence.LastTurn->Question->EntryPoint : core::agent_entry_point::ask_about_selection;
+		};
+		// AC01. From Overview with nothing selected.
+		const auto overview = send(suggestion(QStringLiteral("Review this pull request")), "overview-review");
+		if (!has(overview, "subject=pull_request") || has(overview, "in_scope=0 ") || has(overview, "in_scope=absent") || !has(overview, "selection=0") || !has(overview, "files=0")
+			|| !has(overview, "looking=absent") || entry() != core::agent_entry_point::run_ai_review) {
+			return fail(*application, "subject-overview-review", overview.value_or("not sent"));
+		}
+		// AC02. With lines selected, the same request.
+		auto* const files = window.files_drawer()->contents_view();
+		files->selectionModel()->setCurrentIndex(QModelIndex{ }, QItemSelectionModel::Clear);
+		QApplication::processEvents();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		window.choose_modality(qt::review_modality::review);
+		auto* const surface = window.comparison_surface();
+		auto        shown   = wait_terms{ };
+		if (!wait_until_reporting(shown, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				return aTerms.require("comparison", surface->current_result() != nullptr && !window.showing_overview()); }, extended_agent_budget) || !surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop) || !e2e::select_right_side_of_change(*surface)) {
+			return fail(*application, "subject-selection", shown.render());
+		}
+		window.tray_tabs()->setCurrentIndex(2);
+		tab->refresh_suggestions();
+		QApplication::processEvents();
+		if (tab->lines_chip()->isHidden() || tab->lines_chip_text().isEmpty()) {
+			return fail(*application, "subject-chip-shown", "attached=" + std::to_string(tab->lines_attached()) + " text=" + tab->lines_chip_text().toStdString() + " suggestions=" + tab->suggestions().join(QStringLiteral("|")).toStdString());
+		}
+		const auto selected = send(suggestion(QStringLiteral("Review this pull request")), "selected-review");
+		if (!has(selected, "subject=pull_request") || has(selected, "in_scope=0 ") || !has(selected, "selection=0") || !has(selected, "files=0") || has(selected, "looking=absent")
+			|| entry() != core::agent_entry_point::run_ai_review || !surface->selection().has_value()) {
+			return fail(*application, "subject-selected-review", selected.value_or("not sent"));
+		}
+		// AC04. A typed question carries the attached lines; the chip's close
+		// sends the next with the pull request and leaves the selection.
+		const auto lines = send(typed(QStringLiteral("BPR_SUBJECT_TYPED what do these lines do?")), "typed-attached");
+		if (!has(lines, "subject=lines") || has(lines, "lines=absent") || !has(lines, "selection=1") || entry() != core::agent_entry_point::ask_about_selection) {
+			return fail(*application, "subject-typed-lines", lines.value_or("not sent"));
+		}
+		tab->lines_chip_close()->click();
+		QApplication::processEvents();
+		if (!tab->lines_chip()->isHidden() || !surface->selection().has_value()) {
+			return fail(*application, "subject-chip-detached");
+		}
+		const auto detached = send(typed(QStringLiteral("BPR_SUBJECT_TYPED and after detaching?")), "typed-detached");
+		if (!has(detached, "subject=pull_request") || !has(detached, "selection=0") || !surface->selection().has_value()) {
+			return fail(*application, "subject-typed-detached", detached.value_or("not sent"));
+		}
+		// AC05. With the find bar open, Escape closes it and the selection
+		// stays; then Escape clears the selection and the chip.
+		tab->attach_lines();
+		auto* const pane = surface->right_pane();
+		pane->setFocus(Qt::OtherFocusReason);
+		surface->open_source_find();
+		QApplication::processEvents();
+		const auto escape = [pane] {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QApplication::sendEvent(pane, &press);
+			QApplication::processEvents();
+		};
+		if (surface->source_find() == nullptr || surface->source_find()->isHidden()) {
+			return fail(*application, "subject-find-open");
+		}
+		escape();
+		if (!surface->source_find()->isHidden() || !surface->selection().has_value()) {
+			return fail(*application, "subject-escape-find", "find-hidden=" + std::to_string(surface->source_find()->isHidden()) + " selection=" + std::to_string(surface->selection().has_value()));
+		}
+		escape();
+		tab->refresh_suggestions();
+		QApplication::processEvents();
+		if (surface->selection().has_value() || !tab->lines_chip()->isHidden()) {
+			return fail(*application, "subject-escape-clears");
+		}
+		// AC07. A typed question with nothing selected is sent and answered.
+		const auto none = send(typed(QStringLiteral("BPR_SUBJECT_TYPED with nothing selected?")), "typed-nothing");
+		if (!has(none, "subject=pull_request") || !has(none, "selection=0")) {
+			return fail(*application, "subject-typed-nothing", none.value_or("not sent"));
+		}
+		// AC06. No suggestion or enabled control ends in the old refusal.
+		for (auto* const button : tab->findChildren<QAbstractButton*>()) {
+			if (button->isEnabled() && button->text().contains(QStringLiteral("Select the lines to ask about"))) {
+				return fail(*application, "subject-refusing-control", button->text().toStdString());
+			}
+		}
+		if (tab->send_refusal() != core::agent_send_refusal::none || app::detail::github_application_fixture_access::agent_chat_evidence(*application).Statistics.Refusals != 0U) {
+			return fail(*application, "subject-refused", tab->send_refusal_text().toStdString());
+		}
+		const auto mutation = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		if (asked != 5U || mutation.Submissions != 0U || mutation.StoredComments != 0U || !shutdown(*application)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-subject:pass\n";
+		return EXIT_SUCCESS;
 	}
 
 	auto* const files = window.files_drawer()->contents_view();
@@ -594,10 +1230,11 @@ auto main(int argc, char** argv) -> int
 		if (thread.empty()) {
 			return fail(*application, "conversation-thread");
 		}
-		// The thread's own menu, which the window dispatches as it does the
-		// open card's header button.
-		auto* const menu = cards->thread_menu(thread);
-		auto* const ask  = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) : nullptr;
+		// The thread's own menu: RFC-BPR-0128's Ask item, whose Custom
+		// question… attaches the thread as Ask agent did.
+		auto* const menu    = cards->thread_menu(thread);
+		auto* const askMenu = menu != nullptr ? menu->findChild<QMenu*>(QStringLiteral("threadAskMenu")) : nullptr;
+		auto* const ask     = askMenu != nullptr ? askMenu->findChild<QAction*>(QStringLiteral("quickAskCustomQuestion")) : nullptr;
 		if (ask == nullptr || !ask->isEnabled()) {
 			return fail(*application, "conversation-ask-agent");
 		}
@@ -747,7 +1384,10 @@ auto main(int argc, char** argv) -> int
 		// which is what `AgentHost->dispatch(` being pinned at one above
 		// already says, and what this count guards from the other side: a
 		// gesture that grew its own launch would not appear here at all.
-		&& occurrences(source, "dispatch_agent_invocation(") == 7U
+		// [[BPR-2051]] (821307015) added the seventh call site: Enhance on a
+		// comment, a reply or a note runs the same writing-only path as the
+		// tour writing hook, through this one launch.
+		&& occurrences(source, "dispatch_agent_invocation(") == 8U
 		&& source.find("ChatHost->deliver(") != std::string::npos;
 
 	const auto positive = afterSend.ChatHostComposed
@@ -801,7 +1441,7 @@ auto main(int argc, char** argv) -> int
 		// chosen in the label control and the header in the editor's own
 		// spelling, followed by the agent's words.
 		const auto labelledAnswer = answerText.startsWith(QStringLiteral("**Suggestion (Non-Blocking):** "));
-		if (labelledAnswer && draftButton != nullptr && !draftButton->isHidden() && draftButton->text() == QStringLiteral("Draft comment")) {
+		if (labelledAnswer && draftButton != nullptr && !draftButton->isHidden() && draftButton->isEnabled() && draftButton->text() == QStringLiteral("Draft")) {
 			draftButton->click();
 			auto terms = wait_terms{ };
 			drafted    = wait_until_reporting(terms, [&](wait_terms& aTerms) {
@@ -835,8 +1475,13 @@ auto main(int argc, char** argv) -> int
 	if (custom) {
 		// The added agent was the one asked: the turn ran under its slot, its
 		// program answered with the typed message, and no refusal is shown.
-		auto* const tab    = window.agent_tab();
-		const auto  passed = afterSend.ChatHostComposed && afterSend.Statistics.Turns == 1U && afterSend.Statistics.Replies == 1U
+		auto* const tab = window.agent_tab();
+		// Re-review N2: the refusal read from the configuration reached the
+		// launch through the turn's grant: no permissions profile among the
+		// arguments and no scratch folder in the frame.
+		const auto grantWords = std::string{ grantRefused ? "BPR_GRANT_2007 permissions=no scratch=no end" : "BPR_GRANT_2007 permissions=yes scratch=yes end" };
+		const auto grantSeen  = finding.QueuedClaim.find(grantWords) != std::string::npos;
+		const auto passed     = grantSeen && afterSend.ChatHostComposed && afterSend.Statistics.Turns == 1U && afterSend.Statistics.Replies == 1U
 			&& afterSend.Statistics.Refusals == 0U && afterSend.LastTurn.has_value() && afterSend.LastTurn->Session.Profile == customSlot
 			&& afterSend.Session.has_value() && afterSend.Session->Profile == customSlot && invocation.Statistics.ProcessStarts == 1U
 			&& finding.QueuedClaim.find(exactly_once_echo(chat_message)) != std::string::npos && tab->send_refusal() == core::agent_send_refusal::none
@@ -845,12 +1490,12 @@ auto main(int argc, char** argv) -> int
 			std::cerr << "agent-chat-custom-agent-evidence:" << afterSend.Statistics.Turns << ':' << afterSend.Statistics.Replies << ':'
 					  << afterSend.Statistics.Refusals << ':' << (afterSend.LastTurn ? afterSend.LastTurn->Session.Profile.value() : 0U) << ':'
 					  << invocation.Statistics.ProcessStarts << "\nrefusal:" << tab->send_refusal_text().toStdString()
-					  << "\npanel-status:" << afterSend.AgentPanelStatusText << '\n';
+					  << "\npanel-status:" << afterSend.AgentPanelStatusText << "\ngrant-seen:" << grantSeen << " claim:" << finding.QueuedClaim << '\n';
 		}
 		if (!shutdown(*application) || !passed) {
 			return EXIT_FAILURE;
 		}
-		std::cout << "agent-chat-custom-agent:pass\n";
+		std::cout << "agent-chat-" << course << ":pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (course == "positive") {

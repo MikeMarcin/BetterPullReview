@@ -644,7 +644,13 @@ namespace {
 									[&saved](const std::uint32_t aMinutes) {
 										saved.push_back("limit:" + std::to_string(aMinutes));
 										return true;
-									} });
+									},
+								.SetScratchPolicy =
+									[&saved](const std::uint32_t aLimit, const std::uint32_t aDays) {
+										saved.push_back("scratch:" + std::to_string(aLimit) + ":" + std::to_string(aDays));
+										return true;
+									},
+								.ClearScratch = [&saved] { saved.emplace_back("clear-scratch"); } });
 		auto preferences   = application::agent_setup_preferences{ };
 		preferences.Agents = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
 		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
@@ -686,6 +692,20 @@ namespace {
 		limited.RunLimitMinutes = 30U;
 		programs.present(limited);
 		expect(programs.run_limit_toggle()->isChecked() && programs.run_limit_minutes()->value() == 30, "a saved limit shows");
+		// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d): the
+		// scratch folder limit, how long an unused folder is kept, what they
+		// hold, and Clear now.
+		expect(programs.scratch_limit()->value() == 256 && programs.scratch_keep_toggle()->isChecked() && programs.scratch_keep_days()->value() == 30, "the scratch policy starts at 256 MiB and 30 days");
+		programs.scratch_limit()->setValue(1024);
+		emit programs.scratch_limit()->editingFinished();
+		programs.scratch_keep_toggle()->setChecked(false);
+		expect(saved.size() >= 2U && saved[saved.size() - 2U] == "scratch:1024:30" && saved.back() == "scratch:1024:0", "a limit and keeping folders until cleared are sent");
+		programs.present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 3U * 1024U * 1024U, 2U });
+		expect(programs.scratch_usage()->text().contains(QStringLiteral("2 folders")) && programs.scratch_clear_button()->isEnabled(), "what the folders hold");
+		programs.scratch_clear_button()->click();
+		expect(saved.back() == "clear-scratch", "Clear scratch folders is an intent");
+		programs.present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, QStringLiteral("Cleared 3 MB from 2 folders."));
+		expect(programs.scratch_usage()->text().startsWith(QStringLiteral("No scratch folders.")) && !programs.scratch_clear_button()->isEnabled(), "nothing left to clear");
 		// The dialog: OK waits for an entry that may be kept, and the
 		// arguments are taken one per line, as written.
 		auto dialog = qt::agent_entry_dialog{ core::agent_entry{ } };
@@ -711,6 +731,15 @@ namespace {
 		expect(!dialog.entry().StrictRunChecks && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned off, the entry keeps it off and may be kept");
 		auto popular = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }) };
 		expect(popular.strict_checks() == nullptr && popular.entry().StrictRunChecks, "a popular agent shows no switch and keeps strict checks");
+		// [[BPR-2007]], [[BPR-2008]]. Scratch folder starts On and Build and
+		// run tests off, beside the model and effort, and both are kept.
+		expect(popular.scratch_starts()->currentText() == QStringLiteral("On") && !popular.builds()->isChecked() && popular.entry().ScratchStarts && !popular.entry().BuildsAndTests,
+			   "a new agent's scratch folder starts on; builds are off");
+		popular.scratch_starts()->setCurrentIndex(1);
+		popular.builds()->setChecked(true);
+		expect(!popular.entry().ScratchStarts && popular.entry().BuildsAndTests, "both settings are the agent's own");
+		const auto* const buildsMeaning = popular.findChild<QLabel*>(QStringLiteral("agentEntryBuildsMeaning"));
+		expect(buildsMeaning != nullptr && buildsMeaning->text().contains(QStringLiteral("never in your own checkout")) && buildsMeaning->text().contains(QStringLiteral("asks before the first build")), "what turning builds on means");
 
 		auto folders = qt::clone_folders_panel{ };
 		auto asked   = std::vector<std::string>{ };
@@ -808,7 +837,8 @@ namespace {
 		setup.State.Rows   = { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude", .Verdict = { .Permitted = true } } };
 		check.Decision     = { .Offer = core::agent_check_offer::available, .ChecksWorkspace = false };
 		programs.present_check(check);
-		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check agent"), "a chosen agent can be checked");
+		// [[BPR-2051]]: the roster's Check all, which checks each agent.
+		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check all"), "a chosen agent can be checked");
 		expect(programs.check_note()->text() == QStringLiteral("Runs claude auth status, which sends no question and no code. Open a pull request to check its workspace too."),
 			   "the line says what runs, and that the workspace needs an open pull request");
 		expect(programs.check_result_text().isEmpty(), "no rows before a check has run");
@@ -844,7 +874,7 @@ namespace {
 		expect(failed.contains(QStringLiteral("\u2715 Claude Code is signed in")) && failed.contains(QStringLiteral("\u2713 The open pull request's workspace can be made"))
 				   && failed.contains(QStringLiteral("Claude Code isn't signed in. Sign in from a terminal, then check again.")) && failed.contains(QStringLiteral("claude auth login")),
 			   "a failure says what failed, what to do and the command: " + failed.toStdString());
-		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check again"), "it can be run again");
+		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check all"), "it can be run again");
 		auto* const details = programs.findChild<QToolButton*>(QStringLiteral("settingsAgentCheckDetails"));
 		auto* const text    = programs.findChild<QPlainTextEdit*>(QStringLiteral("settingsAgentCheckDetailsText"));
 		expect(shown(details) && !shown(text), "its details wait behind Show details");

@@ -1,5 +1,6 @@
 #include "agent_protocol_loop.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -35,6 +36,7 @@ namespace bpr::adapters::agent::detail {
 			{
 				Decoder.expect_native_handle(Request.NativeHandle);
 				Decoder.expect_response(Request.NativeTurn);
+				Decoder.report_activity(Request.ReportActivity);
 				if (Request.NativeConnected) {
 					Decoder.continue_native(Request.NativeHandle, Request.NativeTurn);
 					AppServerPhase = IsAppServer ? 2U : 0U;
@@ -268,9 +270,41 @@ namespace bpr::adapters::agent::detail {
 				}
 			}
 
+			/// [[BPR-2004]]. An activity or a heartbeat goes to the sink only:
+			/// it is never part of the turn's answer.
+			[[nodiscard]] auto signal(const application::agent_stream_kind aKind, std::optional<core::agent_activity_update> aActivity = std::nullopt) -> bool
+			{
+				Signalled = true;
+				if (!Sink) {
+					return true;
+				}
+				auto event     = application::agent_stream_event{ };
+				event.Session  = Request.Session;
+				event.Sequence = Sequence++;
+				event.Run      = Request.Run;
+				event.Kind     = aKind;
+				event.Activity = std::move(aActivity);
+				try {
+					Sink(event);
+				} catch (...) {
+					return false;
+				}
+				return true;
+			}
+
+			/// [[BPR-2004]]. Bytes arrived: the silence before them is measured.
+			void note_frame()
+			{
+				const auto now = std::chrono::steady_clock::now();
+				Result.LongestSilenceMs
+					= std::max<std::uint64_t>(Result.LongestSilenceMs, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now - LastFrame).count()));
+				LastFrame = now;
+			}
+
 			[[nodiscard]] auto publish(
 				const application::agent_protocol_event& aMessage) -> bool
 			{
+				Signalled  = true;
 				auto event = application::agent_stream_event{
 					.Session  = Request.Session,
 					.Sequence = Sequence++,
@@ -396,6 +430,12 @@ namespace bpr::adapters::agent::detail {
 								++Result.RelaxedCounts[check];
 							}
 						}
+					} else if (message.Kind == application::agent_protocol_event_kind::activity) {
+						// [[BPR-2004]]. For the running block.
+						if (!signal(application::agent_stream_kind::activity, message.Activity)) {
+							record_protocol_failure(application::agent_protocol_failure::malformed_frame);
+							return;
+						}
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;
@@ -435,6 +475,7 @@ namespace bpr::adapters::agent::detail {
 					case agent_protocol_pipe_read_status::data:
 						break;
 					}
+					note_frame();
 					const auto decoded = Decoder.push(
 						std::string_view{ Buffer.data(), read.Count });
 					if (!decoded) {
@@ -459,8 +500,15 @@ namespace bpr::adapters::agent::detail {
 						std::make_move_iterator(decoded->end()));
 					batchPending = !read.BatchComplete;
 					if (read.BatchComplete) {
+						Signalled = false;
 						process_messages(batchMessages);
 						batchMessages.clear();
+						// [[BPR-2004]]. A frame that showed nothing still
+						// says the runtime is alive.
+						if (!has_cause() && !Signalled && Request.ReportActivity && !signal(application::agent_stream_kind::heartbeat)) {
+							record_protocol_failure(application::agent_protocol_failure::malformed_frame);
+							return;
+						}
 					}
 				}
 			}
@@ -520,11 +568,30 @@ namespace bpr::adapters::agent::detail {
 					Result.ProvenanceConflicts = *conflicts;
 				}
 
+				// [[BPR-2004]], RFC-BPR-0103. The helpers, and how the turn
+				// left those still out.
+				const auto& helpers = Decoder.helpers();
+				Result.Helpers      = helpers.Tally;
+				Result.Helpers.Abandoned += static_cast<std::uint32_t>(helpers.Running.size());
+				for (const auto& [identity, description] : helpers.Running) {
+					static_cast<void>(identity);
+					if (Result.UnfinishedHelpers.size() < 8U) {
+						Result.UnfinishedHelpers.push_back(description);
+					}
+				}
+				for (const auto& type : helpers.ReadPast) {
+					Result.ReadPast += (Result.ReadPast.empty() ? "" : ",") + type;
+				}
 				if (ForcedOutcome) {
 					Result.Outcome = *ForcedOutcome;
 				} else if (ProtocolFailure) {
 					Result.Outcome         = application::agent_run_outcome::protocol_failure;
 					Result.ProtocolFailure = ProtocolFailure;
+					// [[BPR-2142]], RFC-BPR-0103. A failed sign-in is said as
+					// one, never as an answer in a form the app can't read.
+					if (*ProtocolFailure == application::agent_protocol_failure::not_signed_in && Result.RefusalReason.empty()) {
+						Result.RefusalReason = std::string{ application::agent_sign_in_failure_words };
+					}
 				} else {
 					Result.Outcome = ClassifiedOutcome.value_or(
 						application::agent_run_outcome::protocol_failure);
@@ -533,7 +600,10 @@ namespace bpr::adapters::agent::detail {
 							= application::agent_protocol_failure::malformed_frame;
 					}
 				}
-				if (Result.Outcome != application::agent_run_outcome::success) {
+				// [[BPR-2004]]. A turn the runtime left under its helpers keeps
+				// what arrived: it is said as an error, never lost.
+				const auto keptUnfinished = Result.ProtocolFailure == application::agent_protocol_failure::helpers_unfinished;
+				if (Result.Outcome != application::agent_run_outcome::success && !keptUnfinished) {
 					Result.Events.clear();
 					// A run that failed did not complete a turn, so whatever it
 					// wrote is not a turn's answer. Staleness is the one reason
@@ -555,6 +625,8 @@ namespace bpr::adapters::agent::detail {
 			std::size_t                                        InputBytes     = 0;
 			std::uint64_t                                      Sequence       = 0U;
 			std::uint8_t                                       AppServerPhase = 0U;
+			bool                                               Signalled      = false;
+			std::chrono::steady_clock::time_point              LastFrame      = std::chrono::steady_clock::now();
 			bool                                               IsAppServer    = false;
 			std::optional<application::agent_protocol_failure> ProtocolFailure;
 			std::optional<application::agent_run_outcome>      ForcedOutcome;

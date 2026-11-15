@@ -45,6 +45,7 @@ namespace {
 			offHunk.Original->First.Line = 18U;
 			offHunk.Original->Last.Line  = 18U;
 			Files                        = { { "docs/guide.md", true, 40U, std::vector<tour_line_span>{ { 1U, 12U } } }, { "src/item.cpp", true, 100U, std::vector<tour_line_span>{ { 20U, 26U }, { 40U, 46U } } } };
+			Tour                         = bpr::tests::accept_tour_fixture(std::move(Tour));
 		}
 		auto observation(const tour_stop& aStop) const -> tour_destination_observation
 		{
@@ -93,6 +94,14 @@ namespace {
 		expect(second.Refusal == tour_refusal::none && second.Accepted.Revision == before.Revision + 2U, "each repair is one revision");
 		fixture.Tour = second.Accepted;
 		expect(tour_destination_repairs(fixture.Tour, fixture.observations(), fixture.Files).empty(), "both blockers disappear after repairs");
+		// [[BPR-2014]]. A repair moves a stop to other lines: it is Changed
+		// since accepted until the author accepts it there.
+		expect(assess_tour_publication(fixture.Tour, fixture.destinations(), false) == tour_publication_readiness::incomplete, "repaired stops wait to be accepted at their new lines");
+		for (const auto index : { 0U, 8U }) {
+			const auto accepted = apply(fixture.Tour, { .Draft = fixture.Tour.Id, .Owner = fixture.Tour.Owner, .ExpectedRevision = fixture.Tour.Revision, .Kind = tour_command_kind::accept, .Stop = fixture.Tour.Stops[index].Id });
+			expect(accepted.Refusal == tour_refusal::none, "a repaired stop is accepted");
+			fixture.Tour = accepted.Accepted;
+		}
 		expect(assess_tour_publication(fixture.Tour, fixture.destinations(), false) == tour_publication_readiness::single_review, "ten repaired stops assess as one review");
 		for (std::size_t index = 0U; index < before.Stops.size(); ++index) {
 			expect(fixture.Tour.Stops[index].Id == before.Stops[index].Id && fixture.Tour.Stops[index].Body == before.Stops[index].Body && fixture.Tour.Stops[index].Preparation == tour_preparation::ready, "ordinary prose, stable IDs and readiness survive");

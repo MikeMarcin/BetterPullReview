@@ -15,6 +15,7 @@
 #include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/github_model.hpp"
@@ -33,10 +34,12 @@
 #include "github_application/profile_runtime.hpp"
 #include "github_application/tour_owner_replies.hpp"
 #include "github_application/window_composition.hpp"
+#include "local_draft_handoff.hpp"
 #include "review_cycle_desktop.hpp"
 #include "tour_assist.hpp"
 #include "tour_cli_types.hpp"
 #include "tour_owner_service.hpp"
+#include <QJsonDocument>
 
 #include <QPlainTextEdit>
 #include <QString>
@@ -155,6 +158,10 @@ namespace bpr::app {
 			desktop_cycle_owner_route(std::move(aRequest), request->Cycle, std::move(aRespond));
 			return;
 		}
+		if (request->Operation == application::tour_owner_operation::local_draft) {
+			desktop_local_draft_owner_route(request->LocalDraft, std::move(aRespond));
+			return;
+		}
 		// The draft is read or written where its author is: an open window's host is the one committed
 		// history, so a forwarded command never runs beside it on a second copy read from the store.
 		const auto found = [&]() -> implementation::live_tour_view {
@@ -218,6 +225,12 @@ namespace bpr::app {
 			}
 			edit.Command.Owner = draft->Owner;
 			edit.Command.Draft = draft->Id;
+			// [[BPR-2014]]. A walk's Ready accepts with the code at the
+			// references its stop's text makes; the window showing the pull
+			// request supplies the changed paths they resolve against.
+			if (edit.Command.Kind == core::tour_command_kind::complete && found.Current) {
+				edit.Command.Files = found.Files;
+			}
 			if (assisting) {
 				// The receiver's own clock and hook revision; the caller supplied neither.
 				if (!preferences) {
@@ -327,6 +340,101 @@ namespace bpr::app {
 		// nothing reaches here; a forwarded request is still answered, never served.
 		static_cast<void>(aRequest);
 		static_cast<void>(aCycle);
+		aRespond(tour_owner_error("owner_unavailable"));
+#endif
+	}
+
+	void github_application::script_local_draft_agent_for_look()
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (session->Closing || !session->DraftDesktop) {
+				continue;
+			}
+			auto runner = [](const application::local_draft_agent_run&, std::stop_token) {
+				return application::local_draft_agent_answer{
+					.Answered   = true,
+					.Text       = "An empty query returns 0 before it reads the first byte, so search(\"\") is safe; src/search.cpp:3 is the check. "
+								  "engine() still calls search with a literal, so nothing else reaches the empty case yet.\n\n"
+								  "```bpr-proposals\n[{\"target\":\"check\",\"method\":\"test\",\"title\":\"search_empty_query\",\"text\":\"ctest -R search_empty\"},"
+								  "{\"target\":\"new_stop\",\"path\":\"src/engine.cpp\",\"first\":3,\"last\":6,\"title\":\"The engine calls search\",\"text\":\"engine() now goes through search(); its result is still 1 for any non-empty text.\"},"
+								  "{\"target\":\"solution\",\"text\":\"search() returns 0 for an empty query before reading past the string, and engine() goes through it.\"}]\n```",
+					.CostMicros = 12000U,
+				};
+			};
+			session->DraftDesktop->set_agent(std::move(runner), &session->TourAgentEffects, [] {
+				return std::optional{ local_draft_desktop::agent_choice{
+					.Identity           = "attended-look-agent",
+					.Name               = "Claude (scripted)",
+					.Profile            = 0U,
+					.Description        = std::string{ application::default_writing_hook(core::writing_hook::local_description) },
+					.DescriptionVersion = std::string{ application::writing_hook_version_of(core::writing_hook::local_description) },
+					.Discussion         = std::string{ application::default_writing_hook(core::writing_hook::local_discussion) },
+					.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
+					.CommitMessage      = std::string{ application::default_writing_hook(core::writing_hook::local_commit_message) },
+				} };
+			});
+			return;
+		}
+	}
+
+	void github_application::open_local_draft(const std::string& aLocation)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->open_location(aLocation);
+				return;
+			}
+		}
+	}
+
+	void github_application::associate_local_draft_for_look(const std::uint64_t aNumber)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->associate_for_look(aNumber);
+				return;
+			}
+		}
+	}
+
+	void github_application::desktop_local_draft_owner_route(application::local_draft_owner_request aRequest, std::function<void(application::tour_channel_bytes)> aRespond)
+	{
+#if defined(BPR_LOCAL_AUTOMATION)
+		auto& profile = *Profile;
+		if (Profile->Closing) {
+			aRespond(tour_owner_error("owner_unavailable"));
+			return;
+		}
+		// RFC-BPR-0108 AC05. The same open as Prepare Pull Request…, on the
+		// owner's store; then the window shows the draft it opened.
+		const auto liveness  = std::weak_ptr<const int>{ Liveness };
+		auto&      decisions = profile.DecisionLane;
+		profile.CycleOwnerEffects.post([root = profile.ApplicationDataRoot, git = profile.InstalledGit, request = std::move(aRequest), respond = std::move(aRespond), this, liveness, &decisions] {
+			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context);
+			opened.Result.insert("schema", QStringLiteral("bpr.draft.cli-result.v1"));
+			auto answer = application::tour_owner_response{ };
+			answer.Json = QJsonDocument{ opened.Result }.toJson(QJsonDocument::Compact).toStdString();
+			respond(adapters::sqlite::encode_tour_response(std::move(answer)));
+			if (opened.Draft) {
+				decisions.post([this, liveness, draft = *opened.Draft] {
+					if (liveness.expired()) {
+						return;
+					}
+					for (const auto& [context, session] : Sessions) {
+						static_cast<void>(context);
+						if (!session->Closing && session->DraftDesktop) {
+							session->DraftDesktop->show_draft(draft);
+							return;
+						}
+					}
+				});
+			}
+		});
+#else
+		static_cast<void>(aRequest);
 		aRespond(tour_owner_error("owner_unavailable"));
 #endif
 	}

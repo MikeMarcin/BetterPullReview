@@ -9,8 +9,9 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
-#include "bpr/application/tour_chat_prompts.hpp"
+#include "bpr/core/prompt_macro.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -23,6 +24,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -229,8 +231,9 @@ auto main(int argc, char** argv) -> int
 	settle();
 	auto* const chat = editor.side_chat();
 	chat->resize(380, 900);
-	// [[BPR-1934]]. The window gives the chat the application's prompt list.
-	chat->set_prompt_source(&application::tour_chat_prompts);
+	// [[BPR-1934]], RFC-BPR-0125 AC05. The window gives the chat the shipped
+	// suggested prompts; every list and text below is today's.
+	chat->set_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros());
 	const auto offered = [chat] {
 		auto* const list = chat->suggestions();
 		return list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();
@@ -256,7 +259,9 @@ auto main(int argc, char** argv) -> int
 	// the Solution's header row, and says what it does.
 	auto* const solutionRow = editor.findChild<QWidget*>(QStringLiteral("tourSolutionRow"));
 	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->parentWidget() == solutionRow && glyph->isCheckable() && !glyph->isChecked(), "the Solution's chat toggle is in its header");
-	expect(glyph->geometry().right() >= solutionRow->width() - 2 - (solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange")) != nullptr && solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange"))->isVisible() ? solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange"))->width() + 8 : 0), "at the header's right");
+	// Owner on the live build, 2026-11-11: the toggle keeps one place, the
+	// stops' toggles' right edge, whether or not Change shows beside it.
+	expect(glyph->geometry().right() >= solutionRow->width() - 14, "at the header's right, whatever the step's state");
 	expect(glyph->accessibleName() == QStringLiteral("Open the chat about the Solution") && glyph->focusPolicy() == Qt::StrongFocus, "it says it opens the Solution's chat and takes the keyboard");
 	expect(!editor.isAncestorOf(chat) && chat->isWindow() && chat->findChild<QTabBar*>() == nullptr, "the chat is its own column, for the window to place beside the tour, with no tabs");
 	expect(!chat->isVisible() && shown.empty(), "no chat is open until asked for");
@@ -275,7 +280,8 @@ auto main(int argc, char** argv) -> int
 	// beside the tour.
 	expect(glyph->isChecked(), "the Solution's glyph is pressed while its chat shows");
 	expect(chat->passage() && chat->passage()->Text == "between begin and present" && chat->passage_line()->isVisibleTo(chat), "the selected passage is quoted above the composer");
-	expect(!chat->update_button()->isEnabled(), "Update waits until there is a chat to update from");
+	expect(!chat->can_update() && chat->unchanged_line() == nullptr, "no update is offered until there is a chat to update from");
+	expect(chat->passage_line()->parentWidget()->parentWidget() == chat->composer_box() && chat->composer()->parentWidget() == chat->composer_box(), "[[BPR-1995]] AC01 the passage is a chip inside the composer's field");
 	// [[BPR-1934]] AC1, AC2. The empty Solution chat offers its prompts, in
 	// the Agent tab's own suggestion component and the agent's accent.
 	// [[BPR-1934]] v002: with text selected in the Solution, Explain the
@@ -313,7 +319,7 @@ auto main(int argc, char** argv) -> int
 	chat->send_button()->click();
 	expect(stops == 1U && asked.size() == 1U, "a non-idle host preserves the existing Stop gesture and sends no question");
 	editor.set_tour_host_idle(true);
-	expect(chat->send_button()->text() == QStringLiteral("Stop") && chat->send_button()->isEnabled() && !chat->new_session_button()->isEnabled(),
+	expect(chat->send_button()->text() == QStringLiteral("Stop") && chat->send_button()->isEnabled() && !chat->new_session_action()->isEnabled(),
 		   "an idle observation cannot turn a newer running request into New session or hide Stop");
 	editor.set_tour_host_idle(false);
 	auto revisionChoice     = core::agent_continuation_offer{ };
@@ -357,6 +363,39 @@ auto main(int argc, char** argv) -> int
 		settle();
 		expect(chat->status_line(0)->text() == QStringLiteral("● Claude Code is writing, 0:01."), "the chat drawn again keeps its time");
 		render(*chat, prefix, "side-chat-running");
+		// [[BPR-2005]] AC08. The Agent tab's running block: what it does,
+		// its helpers, the quiet notice, on a clock the test holds.
+		auto now = qint64{ 5'000'000 };
+		qt::set_agent_activity_clock([&now] { return now; });
+		auto activity          = core::agent_turn_activity{ };
+		auto reading           = core::agent_activity_update{ };
+		reading.Kind           = core::agent_activity_kind::doing;
+		reading.Doing          = core::agent_doing::reading;
+		reading.Subject        = "src/item.cpp";
+		activity               = core::apply_agent_activity(activity, reading, 1'000U);
+		auto helper            = core::agent_activity_update{ };
+		helper.Kind            = core::agent_activity_kind::helper_started;
+		helper.Helper          = "h1";
+		helper.Subject         = "Callers of present";
+		activity               = core::apply_agent_activity(activity, helper, 2'000U);
+		live.Activity          = activity;
+		live.ActivityStartedMs = now - 3'000;
+		editor.present_run_status(live);
+		settle();
+		auto* const block = chat->activity_view(0);
+		expect(block != nullptr && block->live() && block->helper_rows() == 1 && block->helper_row_text(0).startsWith(QStringLiteral("Callers of present\trunning")), "AC08 the side chat shows the helper's row");
+		expect(chat->status_line(0)->text().contains(QStringLiteral("is reading item.cpp")) && chat->status_line(0)->text().contains(QStringLiteral("last activity 1 s ago")), "AC08 and what it is doing: " + chat->status_line(0)->text().toStdString());
+		now += 121'000;
+		block->tick();
+		expect(block->quiet_shown(), "AC08 and the quiet notice");
+		render(*chat, prefix, "side-chat-quiet");
+		block->keep_waiting_button()->click();
+		expect(!block->quiet_shown(), "Keep waiting puts it away");
+		static_cast<void>(session);
+		chat->record_run_activity(*first, core::end_agent_activity(activity, 130'000U), 130);
+		qt::set_agent_activity_clock({ });
+		live.Activity.reset();
+		editor.present_run_status(live);
 	}
 	static_cast<void>(core::record_tour_activity(session, *first, { { core::tour_transcript_kind::read, "src/item.cpp" }, { core::tour_transcript_kind::searched, "rg -n lock src" } }));
 	static_cast<void>(core::answer_tour_ask(session, *first, "It is the frame window:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n\n```nosuchlanguage\nauto lock = plain_text{ };\n```\n", { }));
@@ -368,7 +407,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-2040]]. A final reply is not a promise that cleanup retired.
 	const auto retainedReply = chat->reply(0)->original_body();
 	chat->composer()->setPlainText(QStringLiteral("Follow up after retirement"));
-	expect(!chat->send_button()->isEnabled() && !chat->new_session_button()->isEnabled() && !chat->update_button()->isEnabled()
+	expect(!chat->send_button()->isEnabled() && !chat->new_session_action()->isEnabled() && !chat->can_update() && chat->unchanged_line() != nullptr && !chat->unchanged_line()->text().contains(QStringLiteral("<a "))
 			   && !chat->status_line(0)->live(),
 		   "a final reply does not offer another request before host retirement");
 	QApplication::sendEvent(chat->composer(), &enter);
@@ -381,7 +420,7 @@ auto main(int argc, char** argv) -> int
 	expect(continueOld->isEnabled(), "the idle host permits the existing revision choice");
 	chat->present_revision_continuation(std::nullopt, { }, false);
 	editor.set_tour_host_idle(true);
-	expect(chat->send_button()->isEnabled() && chat->new_session_button()->isEnabled() && chat->update_button()->isEnabled(),
+	expect(chat->send_button()->isEnabled() && chat->new_session_action()->isEnabled() && chat->can_update() && chat->unchanged_line()->text().contains(QStringLiteral("<a ")),
 		   "the observed idle host enables the existing request capabilities");
 	chat->composer()->clear();
 	// [[BPR-1925]]. Its glyph counts its turns.
@@ -394,6 +433,7 @@ auto main(int argc, char** argv) -> int
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
 	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude Code answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, as the Agent tab's does: " + chat->status_line(0)->text().toStdString());
 	expect(chat->status_line(0)->geometry().top() >= chat->reply(0)->geometry().bottom(), "under the reply");
+	expect(chat->activity_view(0) != nullptr && chat->activity_view(0)->summary_text() == QStringLiteral("Worked for 2 min: 1 helper, 1 file read"), "AC08 the block folds under the ended turn: " + (chat->activity_view(0) != nullptr ? chat->activity_view(0)->summary_text().toStdString() : std::string{ }));
 	expect(chat->resend_button(0) == nullptr && chat->delete_button(0) == nullptr, "an answer offers no Resend or Delete");
 	auto* const clipboard = QGuiApplication::clipboard();
 	chat->copy_reply_button(0)->click();
@@ -403,8 +443,11 @@ auto main(int argc, char** argv) -> int
 
 	// (3) Update this section from our chat: an Update turn, and its proposal
 	// for the Solution decided in the chat, not in the draft's box.
-	expect(chat->update_button()->isEnabled() && chat->update_button()->text() == QStringLiteral("Update the Solution from this chat"), "Update names the part");
-	chat->update_button()->click();
+	// [[BPR-1995]], RFC-BPR-0100 AC02: the only way the update is offered is
+	// the link under the answer that changed nothing, naming the part.
+	expect(chat->unchanged_line() != nullptr && chat->unchanged_line()->text() == QStringLiteral("Nothing in the Solution changed. <a href=\"#update\">Update the Solution from this chat</a>"), "the link names the part: " + chat->unchanged_line()->text().toStdString());
+	expect(chat->findChild<QPushButton*>(QStringLiteral("tourSideChatUpdate")) == nullptr, "no other control offers the update");
+	emit chat->unchanged_line()->linkActivated(QStringLiteral("#update"));
 	expect(asked.size() == 2U && asked[1].Update && asked[1].Thread.Kind == core::tour_thread_kind::solution && asked[1].Question == QStringLiteral("Update the Solution from our chat."), "Update asks for the part rewritten from the chat");
 	const auto update  = core::begin_tour_ask(session, asked[1].Thread, std::nullopt, asked[1].Question.toStdString(), true);
 	const auto answer  = core::tour_ask_answer{ .Reply = "Rewritten.", .Changes = { .Solution = std::string{ "Both views share one frame:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n" } } };
@@ -474,6 +517,32 @@ auto main(int argc, char** argv) -> int
 		expect(text != nullptr && text->horizontalScrollBar()->maximum() > 0, "AC7 a 400-character line scrolls inside the tour reply's code block");
 		expect(pane != nullptr && pane->horizontalScrollBar()->maximum() == 0 && view->rendered_view()->horizontalScrollBar()->maximum() == 0, "AC7 neither tour pane nor message has a horizontal scroll range");
 		expect(box != nullptr && box->width() == view->rendered_view()->viewport()->width() && view->width() <= pane->viewport()->width(), "AC7 the tour reply stays inside the column");
+		editor.present_tour_session(session, changes);
+		settle();
+		syntax.deliver(editor);
+	}
+	// [[BPR-1998]], RFC-BPR-0101 AC01. The reply's references are links by
+	// the Agent tab's recogniser: prose, emphasis and a whole code span, not
+	// fenced code; a file the pull request does not change is plain; Copy
+	// keeps the reply as written.
+	{
+		auto went = std::vector<std::pair<QString, std::uint32_t>>{ };
+		chat->set_reference_links([] { return core::agent_reference_files{ .Changed = { "src/frame.cpp" } }; },
+								  [&went](const QString& aPath, const std::uint32_t aFirst, std::uint32_t, bool) { went.emplace_back(aPath, aFirst); });
+		auto       linked = session;
+		const auto run    = core::begin_tour_ask(linked, asked[0].Thread, std::nullopt, "Where?");
+		expect(run.has_value(), "start the references turn");
+		static_cast<void>(core::answer_tour_ask(linked, *run, "See src/frame.cpp:3-5, **frame.cpp line 7**, `frame.cpp:9` and other.cpp:2.\n\n```\nframe.cpp:11\n```\n", { }));
+		editor.present_tour_session(linked, changes);
+		settle();
+		auto* const view = chat->reply(chat->turn_count() - 1U);
+		const auto  body = view == nullptr ? QString{ } : QString::fromStdString(view->original_body());
+		expect(body.contains(QStringLiteral("[src/frame.cpp:3-5](src/frame.cpp#L3-L5)")) && body.contains(QStringLiteral("[frame.cpp line 7](src/frame.cpp#L7)"))
+				   && body.contains(QStringLiteral("[`frame.cpp:9`](src/frame.cpp#L9)")) && !body.contains(QStringLiteral("other.cpp#")) && body.contains(QStringLiteral("```\nframe.cpp:11\n```")),
+			   "AC01 the tour side chat's reply links each form, and not in fenced code: " + body.toStdString());
+		chat->copy_reply_button(chat->turn_count() - 1U)->click();
+		expect(QGuiApplication::clipboard()->text().startsWith(QStringLiteral("See src/frame.cpp:3-5, **frame.cpp line 7**")), "Copy keeps the reply as written");
+		chat->set_reference_links({ }, { });
 		editor.present_tour_session(session, changes);
 		settle();
 		syntax.deliver(editor);
@@ -558,6 +627,7 @@ auto main(int argc, char** argv) -> int
 	chat->composer()->clear();
 	expect(choose(QStringLiteral("Too many stops?")) && asked.size() == askedBefore + 1U && asked.back().Thread == core::tour_thread{ } && asked.back().Question == QStringLiteral("Too many stops?") && !asked.back().Update,
 		   "AC1 one click sends the prompt in the tour's chat");
+	expect(asked.back().SkillText == std::optional<std::string>{ "" }, "RFC-BPR-0125 AC09 a suggested prompt sent as offered reads skills only from its own text");
 	const auto tourTurn = core::begin_tour_ask(session, asked.back().Thread, std::nullopt, "Too many stops?");
 	static_cast<void>(core::answer_tour_ask(session, *tourTurn, "Four stops is about right.", { }));
 	editor.present_tour_session(session, std::nullopt);
@@ -676,6 +746,163 @@ auto main(int argc, char** argv) -> int
 		editor.set_tour_host_idle(true);
 		settle();
 		expect(chat->draft_status_line() == nullptr && !editor.draft_status_line()->isVisibleTo(&editor), "both go when it ends");
+	}
+
+	// (8) [[BPR-1995]], RFC-BPR-0100 AC01, AC02, AC05. Under the transcript,
+	// with a native session and an unmoved head: the composer and the session
+	// line only; a replay or a moved head adds exactly its one notice. The
+	// update link in a stop's thread; Enhance as an update turn in the part's
+	// session, a selection with its passage.
+	{
+		auto       footSession = core::tour_agent_session{ };
+		auto       stopThread  = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = draft.Stops.front().Id };
+		const auto said        = core::begin_tour_ask(footSession, stopThread, std::nullopt, "Why clear first?");
+		static_cast<void>(core::answer_tour_ask(footSession, *said, "Because the frame is kept.", { }));
+		static_cast<void>(core::cost_tour_run(footSession, *said, core::agent_cost{ 40000000U }, core::agent_cost{ 40000000U }));
+		editor.present_tour_session(footSession, std::nullopt);
+		chat->open(stopThread);
+		auto view     = application::native_agent_history_projection{ };
+		view.Entries  = { application::native_agent_history_entry{ .Id = "newest" }, application::native_agent_history_entry{ .Id = "older" } };
+		view.Selected = "older";
+		chat->present_native_history(view);
+		chat->present_revision_continuation(std::nullopt, { }, false);
+		settle();
+		const auto under = [chat] {
+			auto visible = QStringList{ };
+			for (auto* const child : chat->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+				if (child->isVisibleTo(chat) && child->objectName() != QStringLiteral("tourSideChatScroll") && child->y() > chat->findChild<QWidget*>(QStringLiteral("tourSideChatScroll"))->geometry().bottom()) {
+					visible << child->objectName();
+				}
+			}
+			visible.sort();
+			return visible;
+		};
+		expect(under() == QStringList{ QStringLiteral("tourChatSession"), QStringLiteral("tourSideChatField"), QStringLiteral("tourSideChatSend"), QStringLiteral("tourSideChatSessionCost") },
+			   "AC01 under the transcript only the composer and the session line: " + under().join(QLatin1Char(',')).toStdString());
+		expect(chat->session_button()->text() == QStringLiteral("Session 1") && chat->session_cost_line()->text() == QStringLiteral("$0.04 this session"), "the session line: its ordinal on the left, its cost on the right: " + chat->session_button()->text().toStdString());
+		expect(chat->session_button()->menu()->actions().contains(chat->new_session_action()) && chat->new_session_action()->text() == QStringLiteral("New session"), "New session is an item of the Session menu");
+		expect(chat->session_button()->geometry().top() > chat->composer_box()->geometry().bottom(), "the session line is under the composer");
+		render(*chat, prefix, "side-chat-foot");
+		view.Selected = { };
+		chat->present_native_history(view);
+		expect(chat->session_button()->text() == QStringLiteral("Session 3"), "a chat with no session selected starts the next one");
+		view.Replay = true;
+		chat->present_native_history(view);
+		settle();
+		expect(chat->notice()->isVisibleTo(chat) && chat->findChild<QLabel*>(QStringLiteral("tourContinuationMode"))->isVisibleTo(chat) && !chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat),
+			   "AC01 a replay adds its one notice");
+		expect(chat->notice()->geometry().bottom() <= chat->composer_box()->geometry().top(), "above the composer");
+		render(*chat, prefix, "side-chat-foot-replay");
+		view.Replay = false;
+		chat->present_native_history(view);
+		auto moved     = core::agent_continuation_offer{ };
+		moved.Required = true;
+		chat->present_revision_continuation(moved, { }, false);
+		settle();
+		expect(chat->notice()->isVisibleTo(chat) && !chat->findChild<QLabel*>(QStringLiteral("tourContinuationMode"))->isVisibleTo(chat) && chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat)
+				   && chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"))->isVisibleTo(chat),
+			   "AC01 a moved head adds its one notice, with Continue old revision");
+		chat->present_revision_continuation(std::nullopt, { }, false);
+		settle();
+		expect(!chat->notice()->isVisibleTo(chat), "and it goes with the cause");
+		// AC02 in a stop's thread.
+		expect(chat->unchanged_line() != nullptr && chat->unchanged_line()->text() == QStringLiteral("Nothing in this stop changed. <a href=\"#update\">Update this stop from this chat</a>"), "AC02 the stop's thread names the stop: " + (chat->unchanged_line() ? chat->unchanged_line()->text().toStdString() : std::string{ }));
+		const auto before = asked.size();
+		emit       chat->unchanged_line()->linkActivated(QStringLiteral("#update"));
+		expect(asked.size() == before + 1U && asked.back().Update && asked.back().Thread == stopThread && asked.back().Question == QStringLiteral("Update this stop's explanation from our chat.") && !asked.back().Passage, "following it sends the stop's update turn");
+		// AC05. Enhance from the Problem's own button, and on a selection.
+		// [[BPR-2138]], RFC-BPR-0101 AC11 (owner, 2026-11-12): a fresh run
+		// whose result is a proposal on the part; the side chat is neither
+		// opened nor sent a turn.
+		auto* const problemEnhance = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+		expect(problemEnhance != nullptr && problemEnhance->property("enhanceOnly").toBool(), "the Problem has words, so its button is Enhance");
+		const auto shownBefore = chat->current();
+		problemEnhance->click();
+		expect(asked.size() == before + 2U && asked.back().Update && asked.back().Fresh && asked.back().Thread.Kind == core::tour_thread_kind::problem && !asked.back().Passage
+				   && asked.back().Question == QStringLiteral("Enhance the writing of the Problem.") && chat->current() == shownBefore,
+			   "AC11 Enhance asks for a fresh rewrite of the Problem and leaves its side chat as it was");
+		const auto passage = core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "crash" };
+		expect(chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, passage) && asked.back().Passage == std::optional{ passage } && asked.back().Update && asked.back().Fresh && asked.back().Question == QStringLiteral("Enhance the selected text of the Problem."),
+			   "AC05 Enhance on a selection sends the selection as the update's passage");
+		editor.set_tour_host_idle(false);
+		expect(!chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, std::nullopt), "Enhance waits while the agent is busy");
+		editor.set_tour_host_idle(true);
+		// [[BPR-2138]], RFC-BPR-0101 AC12. The fresh Enhance's suggestion
+		// offers Ask more, flat beside Discard; it names the fresh run.
+		{
+			auto       freshSession  = core::tour_agent_session{ };
+			const auto problemThread = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
+			const auto enhanced      = core::begin_tour_ask(freshSession, problemThread, std::nullopt, "Enhance the writing of the Problem.", true);
+			expect(enhanced.has_value(), "a fresh Enhance run begins");
+			for (auto& made : freshSession.Runs) {
+				if (made.Id == *enhanced) {
+					made.Fresh = true;
+				}
+			}
+			auto suggested            = core::tour_ask_answer{ };
+			suggested.Reply           = "Tightened the Problem.";
+			suggested.Changes.Problem = "Two views drew into one frame.";
+			const auto suggestion     = core::propose_tour_changes(*enhanced, suggested, { }, draft);
+			static_cast<void>(core::answer_tour_ask(freshSession, *enhanced, suggested.Reply, core::tally_of(suggestion)));
+			auto askedMore = std::vector<core::tour_agent_run_id>{ };
+			editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
+			editor.present_tour_session(freshSession, suggestion);
+			chat->open(problemThread);
+			settle();
+			auto* const more = chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAskMore"));
+			expect(more != nullptr && more->text() == QStringLiteral("Ask more") && !more->isFlat() && more->property("bprTourAction").toBool(), "AC12 the fresh suggestion offers Ask more, in the one Tour action style (owner, 2026-11-13)");
+			more->click();
+			expect(askedMore.size() == 1U && askedMore[0] == *enhanced, "AC12 Ask more names the fresh run whose answer the chat continues from");
+			render(*chat, prefix, "side-chat-ask-more");
+		}
+	}
+	// (9) [[BPR-1995]], RFC-BPR-0100 AC03, AC04. A change request in the
+	// whole tour's chat, answered in its turn with a revision: the card.
+	{
+		auto       wholeSession  = core::tour_agent_session{ };
+		const auto turn          = core::begin_tour_ask(wholeSession, core::tour_thread{ }, std::nullopt, "Drop the first stop and tighten the Problem.");
+		auto       revised       = core::tour_ask_answer{ };
+		revised.Reply            = "Dropped stop 1 and tightened the Problem.";
+		revised.Changes.Problem  = "Reads crash when two views share a frame.";
+		revised.Revision         = core::tour_revision{ };
+		revised.Revision->Remove = { 1U };
+		const auto revision      = core::propose_tour_changes(*turn, revised, { }, draft);
+		static_cast<void>(core::answer_tour_ask(wholeSession, *turn, revised.Reply, core::tally_of(revision)));
+		editor.present_tour_session(wholeSession, revision);
+		chat->open(core::tour_thread{ });
+		settle();
+		expect(chat->revision_card() != nullptr && chat->revision_operations()->text() == QStringLiteral("Rewrite the Problem\nRemove stop 1") && chat->unchanged_line() == nullptr,
+			   "a request answered with its revision shows the card, and no update link: " + (chat->revision_operations() ? chat->revision_operations()->text().toStdString() : std::string{ }));
+		render(*chat, prefix, "side-chat-revision-card");
+	}
+
+	// (10) [[BPR-1996]], RFC-BPR-0100 AC06. A stop's references: a link that
+	// opens its lines in Review; alone on its line, the permalink of at most
+	// 12 of its lines (a snippet) and Show in Review; one that names no file
+	// of the pull request stays as written.
+	{
+		auto opened = std::vector<std::tuple<QString, std::uint32_t, std::uint32_t>>{ };
+		editor.set_reference_links([] { return core::agent_reference_files{ .Changed = { "src/item.cpp" } }; },
+								   [&opened](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, bool) { opened.emplace_back(aPath, aFirst, aLast); },
+								   [](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) -> std::optional<std::string> {
+									   return "https://github.com/o/r/blob/" + std::string(aBefore ? "base" : "head") + "/" + aPath + "#L" + std::to_string(aFirst) + "-L" + std::to_string(aLast);
+								   },
+								   [](const std::string&) { });
+		auto cited               = draft;
+		cited.Stops.front().Body = "Clears first (`item.cpp:4-6`), unlike missing.cpp:3.\n\nsrc/item.cpp:4-30\n";
+		editor.present({ .Draft = std::make_shared<const core::review_tour>(cited) });
+		editor.show_stops();
+		editor.go_to_stop(cited.Stops.front().Id);
+		settle();
+		auto* const reader = static_cast<qt::markdown_body_view*>(editor.findChild<QWidget*>(QStringLiteral("tourStopReader")));
+		const auto  body   = reader->original_body();
+		expect(body == "Clears first ([`item.cpp:4-6`](src/item.cpp#L4-L6)), unlike missing.cpp:3.\n\nhttps://github.com/o/r/blob/head/src/item.cpp#L4-L15\n\n[Show in Review](src/item.cpp#L4-L30)\n",
+			   "AC06 an inline reference is a link, one alone a snippet of 12 lines with Show in Review, one naming no file stays as written: " + body);
+		expect(qt::follow_agent_reference(reader, QStringLiteral("src/item.cpp#L4-L30"), [&opened](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, bool) { opened.emplace_back(aPath, aFirst, aLast); }) && opened.size() == 1U
+				   && opened[0] == std::tuple{ QStringLiteral("src/item.cpp"), 4U, 30U },
+			   "Show in Review opens those lines");
+		editor.present({ .Draft = shared });
+		settle();
 	}
 
 	std::cout << "tour-side-chat:pass\n";

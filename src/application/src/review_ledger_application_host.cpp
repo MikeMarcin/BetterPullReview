@@ -111,23 +111,31 @@ namespace bpr::application {
 		return aReceipt.Conversation.value() != 0U;
 	}
 
-	auto valid(const local_note_record& aNote) noexcept -> bool
+	auto valid(const local_comment_record& aComment) noexcept -> bool
 	{
-		if (!durable_integer(aNote.Id.value())
-			|| (aNote.Revision.value() != 0U && !durable_integer(aNote.Revision.value())) || aNote.Note.Text.empty()
-			|| aNote.Note.Text.size() > core::maximum_note_bytes) {
+		if (!durable_integer(aComment.Id.value())
+			|| (aComment.Revision.value() != 0U && !durable_integer(aComment.Revision.value())) || aComment.Body.empty()
+			|| aComment.Body.size() > core::maximum_comment_body_bytes) {
 			return false;
 		}
-		if (aNote.FilePath
-			&& (!aNote.Attachment || aNote.FilePath->empty() || aNote.FilePath->size() > maximum_note_path_bytes
-				|| aNote.FilePath->find('\0') != std::string::npos)) {
+		if (aComment.FilePath
+			&& (!aComment.Attachment || aComment.FilePath->empty() || aComment.FilePath->size() > maximum_note_path_bytes
+				|| aComment.FilePath->find('\0') != std::string::npos)) {
 			return false;
 		}
-		return !aNote.Attachment
-			|| (aNote.Attachment->File.valid()
-				&& aNote.Attachment->Comparison.valid()
-				// [[BPR-1591]]. A kept blob is a real one.
-				&& (!aNote.Attachment->Line || !aNote.Attachment->Line->Blob || aNote.Attachment->Line->Blob->valid()));
+		// RFC-BPR-0127. The core decides what a place may be: a line only
+		// with its file, a range only on a line, a reply's thread bounded.
+		return core::valid(local_comment_place_of(aComment));
+	}
+
+	auto valid_new(const local_comment_record& aNote) noexcept -> bool
+	{
+		if (aNote.Id.value() != 0U) {
+			return valid(aNote);
+		}
+		auto named = aNote;
+		named.Id   = local_comment_id{ 1U };
+		return valid(named);
 	}
 
 	auto valid(const durable_defect_record& aDefect) noexcept -> bool
@@ -260,7 +268,7 @@ namespace bpr::application {
 		std::optional<ledger_store_failure>                    PrivateFailure;
 		std::vector<ledger_completion<void>>                   PrivateWaiters;
 		bool                                                   PrivateLoadQueued = false;
-		std::optional<rejected_local_note_mutation>            RejectedNote;
+		std::optional<rejected_local_comment_mutation>         RejectedNote;
 		review_ledger_host_statistics                          Statistics;
 
 		// ---- queue mechanics ----------------------------------------------
@@ -477,8 +485,8 @@ namespace bpr::application {
 		template <typename Error>
 		[[nodiscard]] static auto failure_as(const ledger_store_failure aFailure) -> Error
 		{
-			if constexpr (std::is_same_v<Error, local_note_failure>) {
-				return local_note_failure{ .Reason = aFailure };
+			if constexpr (std::is_same_v<Error, local_comment_failure>) {
+				return local_comment_failure{ .Reason = aFailure };
 			} else {
 				return aFailure;
 			}
@@ -602,14 +610,14 @@ namespace bpr::application {
 
 		// ---- private records -----------------------------------------------
 
-		void adopt_note(const local_note_record& aNote)
+		void adopt_note(const local_comment_record& aNote)
 		{
 			if (!Private) {
 				return;
 			}
-			const auto found = std::ranges::find(Private->Notes, aNote.Id, &local_note_record::Id);
-			if (found == Private->Notes.end()) {
-				Private->Notes.push_back(aNote);
+			const auto found = std::ranges::find(Private->LocalComments, aNote.Id, &local_comment_record::Id);
+			if (found == Private->LocalComments.end()) {
+				Private->LocalComments.push_back(aNote);
 			} else {
 				*found = aNote;
 			}
@@ -1311,42 +1319,43 @@ namespace bpr::application {
 	}
 
 	void review_ledger_application_host::persist(
-		const local_note_record&                 aNote,
-		const std::optional<local_note_revision> aExpectedRevision,
-		local_note_completion<local_note_record> aDone)
+		const local_comment_record&                    aNote,
+		const std::optional<local_comment_revision>    aExpectedRevision,
+		local_comment_completion<local_comment_record> aDone)
 	{
 		using impl       = implementation;
 		auto* const self = Implementation.get();
 		auto        fail = [done = aDone](const ledger_store_failure aFailure) {
-			impl::answer(done, std::expected<local_note_record, local_note_failure>{ std::unexpected(local_note_failure{ .Reason = aFailure }) });
+			impl::answer(done, std::expected<local_comment_record, local_comment_failure>{ std::unexpected(local_comment_failure{ .Reason = aFailure }) });
 		};
 		self->enqueue(impl::operation{
 			.Begin = [self, aNote, aExpectedRevision, done = std::move(aDone)](impl::outcome& aOutcome) mutable {
-				if (!valid(aNote) || (aExpectedRevision && !durable_integer(aExpectedRevision->value()))) {
+				// A new note may leave its identity to the store ([[BPR-2183]]).
+				if (!(aExpectedRevision ? valid(aNote) : valid_new(aNote)) || (aExpectedRevision && !durable_integer(aExpectedRevision->value()))) {
 					++self->Statistics.PrivateFailures;
 					aOutcome.Terminal = [done] {
-						impl::answer(done, std::expected<local_note_record, local_note_failure>{ std::unexpected(local_note_failure{ .Reason = ledger_store_failure::invalid_record }) });
+						impl::answer(done, std::expected<local_comment_record, local_comment_failure>{ std::unexpected(local_comment_failure{ .Reason = ledger_store_failure::invalid_record }) });
 					};
 					return;
 				}
 				++self->Statistics.PrivateWrites;
-				aOutcome.Next = impl::storage<std::expected<local_note_record, local_note_failure>>(
+				aOutcome.Next = impl::storage<std::expected<local_comment_record, local_comment_failure>>(
 					[aNote, aExpectedRevision, insights = self->Insights](review_ledger_store_port& aStore) {
-						auto result = aStore.store_note(aNote, aExpectedRevision);
+						auto result = aStore.store_local_comment(aNote, aExpectedRevision);
 						if (result && !aExpectedRevision) {
 							insights.record_new(core::insights_review_kind::note);
 						}
 						return result;
 					},
-					[self, aNote, aExpectedRevision, done](std::expected<local_note_record, local_note_failure> aStored, impl::outcome& aNext) mutable {
+					[self, aNote, aExpectedRevision, done](std::expected<local_comment_record, local_comment_failure> aStored, impl::outcome& aNext) mutable {
 						if (!aStored) {
 							++self->Statistics.PrivateFailures;
 							const auto& current = aStored.error().Current;
 							if (current && (current->Id != aNote.Id || !valid(*current) || !durable_integer(current->Revision.value()))) {
-								aStored = std::unexpected(local_note_failure{ .Reason = ledger_store_failure::integrity_failure });
+								aStored = std::unexpected(local_comment_failure{ .Reason = ledger_store_failure::integrity_failure });
 							}
 							if (!self->RejectedNote) {
-								self->RejectedNote = rejected_local_note_mutation{ .Id = aNote.Id, .Candidate = aNote, .ExpectedRevision = aExpectedRevision, .Failure = aStored.error() };
+								self->RejectedNote = rejected_local_comment_mutation{ .Id = aNote.Id, .Candidate = aNote, .ExpectedRevision = aExpectedRevision, .Failure = aStored.error() };
 							}
 						} else {
 							self->adopt_note(*aStored);
@@ -1358,37 +1367,37 @@ namespace bpr::application {
 		});
 	}
 
-	void review_ledger_application_host::erase(const local_note_id aNote, const local_note_revision aExpectedRevision, local_note_completion<void> aDone)
+	void review_ledger_application_host::erase(const local_comment_id aNote, const local_comment_revision aExpectedRevision, local_comment_completion<void> aDone)
 	{
 		using impl       = implementation;
 		auto* const self = Implementation.get();
 		auto        fail = [done = aDone](const ledger_store_failure aFailure) {
-			impl::answer(done, std::expected<void, local_note_failure>{ std::unexpected(local_note_failure{ .Reason = aFailure }) });
+			impl::answer(done, std::expected<void, local_comment_failure>{ std::unexpected(local_comment_failure{ .Reason = aFailure }) });
 		};
 		self->enqueue(impl::operation{
 			.Begin = [self, aNote, aExpectedRevision, done = std::move(aDone)](impl::outcome& aOutcome) mutable {
 				if (!durable_integer(aNote.value()) || !durable_integer(aExpectedRevision.value())) {
 					++self->Statistics.PrivateFailures;
 					aOutcome.Terminal = [done] {
-						impl::answer(done, std::expected<void, local_note_failure>{ std::unexpected(local_note_failure{ .Reason = ledger_store_failure::invalid_record }) });
+						impl::answer(done, std::expected<void, local_comment_failure>{ std::unexpected(local_comment_failure{ .Reason = ledger_store_failure::invalid_record }) });
 					};
 					return;
 				}
 				++self->Statistics.PrivateDeletes;
-				aOutcome.Next = impl::storage<std::expected<void, local_note_failure>>(
-					[aNote, aExpectedRevision](review_ledger_store_port& aStore) { return aStore.erase_note(aNote, aExpectedRevision); },
-					[self, aNote, aExpectedRevision, done](std::expected<void, local_note_failure> aErased, impl::outcome& aNext) mutable {
+				aOutcome.Next = impl::storage<std::expected<void, local_comment_failure>>(
+					[aNote, aExpectedRevision](review_ledger_store_port& aStore) { return aStore.erase_local_comment(aNote, aExpectedRevision); },
+					[self, aNote, aExpectedRevision, done](std::expected<void, local_comment_failure> aErased, impl::outcome& aNext) mutable {
 						if (!aErased) {
 							++self->Statistics.PrivateFailures;
 							const auto& current = aErased.error().Current;
 							if (current && (current->Id != aNote || !valid(*current) || !durable_integer(current->Revision.value()))) {
-								aErased = std::unexpected(local_note_failure{ .Reason = ledger_store_failure::integrity_failure });
+								aErased = std::unexpected(local_comment_failure{ .Reason = ledger_store_failure::integrity_failure });
 							}
 							if (!self->RejectedNote) {
-								self->RejectedNote = rejected_local_note_mutation{ .Id = aNote, .ExpectedRevision = aExpectedRevision, .Failure = aErased.error() };
+								self->RejectedNote = rejected_local_comment_mutation{ .Id = aNote, .ExpectedRevision = aExpectedRevision, .Failure = aErased.error() };
 							}
 						} else if (self->Private) {
-							std::erase_if(self->Private->Notes, [aNote](const local_note_record& aRecord) { return aRecord.Id == aNote; });
+							std::erase_if(self->Private->LocalComments, [aNote](const local_comment_record& aRecord) { return aRecord.Id == aNote; });
 						}
 						aNext.Terminal = [erased = std::move(aErased), done] { impl::answer(done, erased); };
 					});
@@ -1398,7 +1407,7 @@ namespace bpr::application {
 	}
 
 	auto review_ledger_application_host::rejected_note() const
-		-> std::optional<rejected_local_note_mutation>
+		-> std::optional<rejected_local_comment_mutation>
 	{
 		return Implementation->RejectedNote;
 	}

@@ -1,4 +1,5 @@
 #include "bpr/qt/review_cycle_share_sheet.hpp"
+#include "bpr/qt/agent_feature.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
 
@@ -1261,6 +1262,10 @@ namespace bpr::qt {
 		SendIt = new QPushButton{ QStringLiteral("Send"), SendBox };
 		SendIt->setObjectName(QStringLiteral("cycleSendIt"));
 		SendIt->setAutoDefault(false);
+		// [[BPR-2000]], RFC-BPR-0101. Send hands the round to the agent, which
+		// starts its run: the agent accent. Stop and the route that only opens
+		// this step keep the ordinary roles.
+		wear_agent_accent(*SendIt, palette());
 		StopSend = new quiet_push_button{ QStringLiteral("Stop"), SendBox };
 		StopSend->setObjectName(QStringLiteral("cycleSendStop"));
 		StopSend->setAutoDefault(false);
@@ -1800,6 +1805,9 @@ namespace bpr::qt {
 	{
 		QDialog::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange || aEvent->type() == QEvent::FontChange) {
+			if (SendIt != nullptr) {
+				wear_agent_accent(*SendIt, palette());
+			}
 			refresh_marks();
 			Deliveries->viewport()->update();
 		}

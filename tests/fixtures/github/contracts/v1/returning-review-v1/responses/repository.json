@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/nested-folders",
+	"id": 2,
+	"name": "nested-folders",
+	"node_id": "R_nested-folders",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

@@ -1218,6 +1218,26 @@ namespace bpr::qt {
 			&& handle_line_key(static_cast<QPlainTextEdit*>(aWatched), aEvent)) {
 			return true;
 		}
+		// [[BPR-2002]], RFC-BPR-0102. Escape in a code pane clears the line
+		// selection, unless something in the diff has a use for it first: an
+		// open find bar closes and the selection stays; an editor keeps it.
+		if ((aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::ShortcutOverride)
+			&& (aWatched == Left || aWatched == Right || aWatched == Unified)
+			&& static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_Escape
+			&& static_cast<QKeyEvent*>(aEvent)->modifiers() == Qt::NoModifier && !HeadEdit) {
+			const auto findOpen = Find && !Find->Bar->isHidden();
+			if (findOpen || Interaction.Selection.has_value() || static_cast<QPlainTextEdit*>(aWatched)->textCursor().hasSelection()) {
+				aEvent->accept();
+				if (aEvent->type() == QEvent::KeyPress) {
+					if (findOpen) {
+						close_source_find();
+					} else {
+						static_cast<void>(clear_line_selection());
+					}
+				}
+				return true;
+			}
+		}
 		if (OnePaneEnabled && aWatched == UnifiedMap && aEvent->type() == QEvent::Wheel) {
 			QApplication::sendEvent(Unified->viewport(), aEvent);
 			return true;

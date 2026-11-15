@@ -9,7 +9,10 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
+#include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -35,7 +38,6 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -44,6 +46,8 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -64,12 +68,14 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFontInfo>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QGuiApplication>
 #include <QHelpEvent>
 #include <QIcon>
 #include <QImage>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -139,6 +145,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -240,42 +247,23 @@ namespace {
 		};
 		panel->offer_profiles(profiles);
 		panel->disclose_scope(QStringLiteral("Current review metadata"));
-		const auto notes = std::array{ application::local_note_id{ 7U }, application::local_note_id{ 9U } };
+		const auto notes = std::array{ application::local_comment_id{ 7U }, application::local_comment_id{ 9U } };
 		const auto draft = application::agent_draft_choice{ .Id = core::review_draft_id{ 11U }, .Revision = 3U };
 		panel->offer_private_context(notes, draft);
-		auto* page     = window.settings()->page_widget(qt::settings_page::agents_and_context);
-		auto* selector = page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile"));
-		auto* noteList = page->findChild<QListView*>(QStringLiteral("settingsAgentNotes"));
-		auto* draftBox = page->findChild<QCheckBox*>(QStringLiteral("settingsAgentDraft"));
-		expect(selector != nullptr && noteList != nullptr && draftBox != nullptr,
-			   "Settings mounts the agent choices");
-		expect(selector->model() == panel->profile_selector()->model()
-				   && noteList->model() == panel->note_selector()->model()
-				   && !draftBox->isChecked() && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
-			   "Settings shares only host-offered identities with private context unchecked");
-		selector->setCurrentIndex(1);
-		noteList->model()->setData(noteList->model()->index(1, 0), Qt::Checked, Qt::CheckStateRole);
-		draftBox->click();
-		expect(intents.empty(), "editing Settings never starts an agent");
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): Settings
+		// no longer mirrors the next request's choices; the window's footer
+		// picks the agent and the Agent tab what a question includes.
+		auto* page = window.settings()->page_widget(qt::settings_page::agents_and_context);
+		expect(page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile")) == nullptr && page->findChild<QListView*>(QStringLiteral("settingsAgentNotes")) == nullptr
+				   && page->findChild<QCheckBox*>(QStringLiteral("settingsAgentDraft")) == nullptr,
+			   "Settings mounts no next-request choices");
+		auto* const footer = window.agent_footer_widget();
+		expect(footer != nullptr && footer->picker()->source() == window.agent_tab()->run_settings_source(), "the footer's picker is the Agent tab's choice");
+		panel->offer_profiles(std::span{ profiles });
+		panel->profile_selector()->setCurrentIndex(1);
 		panel->start_action()->trigger();
-		expect(intents.size() == 1U, "the existing explicit start emits one intent");
-		const auto& start = std::get<qt::start_agent_intent>(intents.front());
-		expect(start.Profile == profiles[1].Id
-				   && start.IncludedNotes == std::vector{ notes[1] } && start.IncludedDraft == draft,
-			   "the request carries exactly the profile and private identities selected in Settings");
-		const auto secondName = selector->itemText(1);
-		panel->offer_profiles(std::span{ profiles }.first(1));
-		panel->offer_private_context(std::span{ notes }.first(1), std::nullopt);
-		// [[BPR-1823]], owner ruling 2026-10-29: the chosen Second, no longer
-		// offered, stays chosen as unavailable rather than becoming First.
-		expect(panel->offered_count() == 1U && selector->count() == 2 && selector->itemData(0) == QVariant::fromValue<qulonglong>(1U)
-				   && !panel->selected_profile().has_value() && panel->unavailable_agent_name() == secondName
-				   && noteList->model()->rowCount() == 1
-				   && !draftBox->isChecked() && !draftBox->isEnabled()
-				   && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
-			   "a changed offer removes old choices, keeps the removed choice as unavailable, and clears private opt-ins");
-		panel->set_running(true);
-		expect(!noteList->isEnabled(), "private context is disabled during a request");
+		expect(intents.size() == 1U && std::get<qt::start_agent_intent>(intents.front()).Profile == profiles[1].Id && std::get<qt::start_agent_intent>(intents.front()).IncludedNotes.empty(),
+			   "the request carries the chosen profile and no private context nobody opted into");
 		window.set_storage_location(QStringLiteral("/fixture/local-data"));
 		auto* storage  = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
 		auto* location = storage->findChild<QLineEdit*>(QStringLiteral("settingsStorageLocation"));
@@ -968,10 +956,25 @@ namespace {
 		// change pair and its position, a gap, the progress track (Seen, Read,
 		// Accept and the private-progress menu, [[BPR-1578]]), a spacer,
 		// Compose review and Comment.
-		const auto barActions         = bar->actions();
+		// A local draft's candidate and publish slots (RFC-BPR-0108 as amended,
+		// 2026-11-13) are hidden in a review; the review's order is the rest.
+		auto barActions = bar->actions();
+		// RFC-BPR-0128 ([[BPR-2164]]). The review bar's Ask stands right after
+		// the comparison (option 1C); it shows only where the agent's
+		// features are composed, so the order below is checked without it.
+		{
+			const auto all     = bar->actions();
+			const auto compare = std::ranges::find_if(all, [](const QAction* aAction) { return aAction->objectName() == QLatin1String{ "reviewBarComparingAction" }; });
+			expect(compare != all.end() && std::next(compare) != all.end() && (*std::next(compare))->objectName() == QLatin1String{ "reviewBarAskAction" },
+				   "the review bar's Ask follows the comparison");
+		}
+		barActions.removeIf([](const QAction* aAction) {
+			return aAction->objectName() == QLatin1String{ "reviewBarLocalDraftAction" } || aAction->objectName() == QLatin1String{ "reviewBarLocalPublishAction" }
+			|| aAction->objectName() == QLatin1String{ "reviewBarAskAction" };
+		});
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 19
+			return ordered.size() == 18
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -984,17 +987,18 @@ namespace {
 				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "reviewBarProgressGapAction")
 				&& named(ordered, 11, "workbenchProgressTrackAction")
-				// [[BPR-1815]]. A rule, the layout toggle and Go to
-				// header/source: the View menu's own actions.
+				// [[BPR-1815]]. A rule, the view picker (owner, 2026-11-12:
+				// the layout toggle as a segmented pick) and Go to
+				// header/source.
 				&& named(ordered, 12, "reviewBarViewDividerAction")
-				&& ordered[13] == window.one_pane_action()
+				&& named(ordered, 13, "workbenchViewPickerAction")
 				&& ordered[14] == window.header_source_action()
 				&& named(ordered, 15, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
 				&& ordered[16] == window.review_chip_action()
-				&& ordered[17] == window.compose_review_action()
-				&& ordered[18] == window.comment_action();
+				// [[BPR-2176]]: Compose review is last; Comment has no button.
+				&& ordered[17] == window.compose_review_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -1048,6 +1052,19 @@ namespace {
 		barActions[10]->setVisible(true);
 		QApplication::processEvents();
 		expect(progressRun(bar->grab().toImage()) && railGap() >= 12, "the restored bar keeps the progress group's own rail");
+		// [[BPR-2156]]. The owner, on the Edit view: "Something weird with
+		// the underrail here". A local draft hides the progress track; its
+		// rail went on being drawn where the track had been, under nothing.
+		// A group with a hidden end draws no rail.
+		const auto trackWas = bar->actionGeometry(barActions[11]);
+		barActions[11]->setVisible(false);
+		QApplication::processEvents();
+		const auto hiddenTrack = bar->grab().toImage();
+		expect(strip->group_rail(2).isEmpty() && !railAt(hiddenTrack, trackWas.center().x()) && !railAt(hiddenTrack, trackWas.left() + 3),
+			   "a hidden progress track leaves no rail where it was (rail " + std::to_string(strip->group_rail(2).left()) + ".." + std::to_string(strip->group_rail(2).right()) + ")");
+		barActions[11]->setVisible(true);
+		QApplication::processEvents();
+		expect(progressRun(bar->grab().toImage()), "shown again, it has its rail again");
 
 		auto oldOrder = barActions;
 		std::rotate(oldOrder.begin() + 4, oldOrder.begin() + 7, oldOrder.begin() + 10);
@@ -1076,7 +1093,6 @@ namespace {
 			std::pair{ navigation[3], bar },
 			std::pair{ conversations, toolbar },
 			std::pair{ window.compose_review_action(), bar },
-			std::pair{ window.comment_action(), bar },
 		};
 		for (const auto& [action, row] : required) {
 			auto* const button = qobject_cast<QToolButton*>(row->widgetForAction(action));
@@ -1117,12 +1133,11 @@ namespace {
 			   "the modality sits at the title row's right, beside refresh and the comments toggle");
 		auto* const barSpacer = bar->findChild<QWidget*>(QStringLiteral("reviewBarSpacer"));
 		auto* const compose   = bar->widgetForAction(window.compose_review_action());
-		auto* const comment   = bar->widgetForAction(window.comment_action());
 		expect(barSpacer != nullptr && barSpacer->width() > 0
 				   && barSpacer->x() > window.review_controls_button()->x()
-				   && compose->x() > barSpacer->x() && comment->x() > compose->x()
-				   && comment->geometry().right() > bar->width() - 12,
-			   "Compose review and Comment sit at the review bar's right, after its spacer");
+				   && compose->x() > barSpacer->x()
+				   && compose->geometry().right() > bar->width() - 12,
+			   "Compose review sits at the review bar's right, after its spacer");
 
 		auto* const reviewButton = window.review_controls_button();
 		auto* const reviewMenu   = window.review_controls_menu();
@@ -1145,7 +1160,6 @@ namespace {
 			window.review_details_toggle_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
 			reviewButton->icon().pixmap(QSize{ 24, 24 }).toImage(),
 			window.compose_review_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
-			window.comment_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
 		};
 		for (std::size_t first = 0U; first < secondaryIcons.size(); ++first) {
 			for (std::size_t second = first + 1U; second < secondaryIcons.size(); ++second) {
@@ -1569,36 +1583,35 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 
-		auto* const bar      = window.review_bar();
-		auto* const layout   = window.findChild<QToolButton*>(QStringLiteral("workbenchOnePaneButton"));
+		auto* const bar = window.review_bar();
+		// Owner, 2026-11-12: the layout toggle is a segmented pick, two icons in
+		// a review (the third, Edit, only in author state).
+		auto* const picker   = window.review_view_picker();
+		auto* const twoPanes = picker != nullptr ? picker->segment(qt::review_view::two_panes) : nullptr;
+		auto* const layout   = picker != nullptr ? picker->segment(qt::review_view::one_pane) : nullptr;
 		auto* const header   = window.findChild<QToolButton*>(QStringLiteral("workbenchHeaderSourceButton"));
 		auto* const progress = window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack"));
-		expect(layout != nullptr && header != nullptr && progress != nullptr
-				   && bar->widgetForAction(window.one_pane_action()) == layout
-				   && bar->widgetForAction(window.header_source_action()) == header
-				   && layout->toolButtonStyle() == Qt::ToolButtonIconOnly && header->toolButtonStyle() == Qt::ToolButtonIconOnly
-				   && layout->focusPolicy() == Qt::StrongFocus && header->focusPolicy() == Qt::StrongFocus,
-			   "the review bar presents the View menu's One pane and Go to header/source as icon buttons");
-		expect(layout->geometry().left() > progress->geometry().right() && header->geometry().left() > layout->geometry().right()
-				   && layout->geometry().top() == header->geometry().top()
-				   && qAbs(layout->geometry().center().y() - progress->geometry().center().y()) <= 1,
-			   "the layout toggle and Go to header/source sit right of Seen, Read and Accept, on their row");
-		const auto order = window.focus_order();
-		expect(order.indexOf(window.review_controls_button()) >= 0
-				   && order.indexOf(layout) == order.indexOf(window.review_controls_button()) + 1
-				   && order.indexOf(header) == order.indexOf(layout) + 1,
-			   "the keyboard reaches them after private progress, as they sit");
+		expect(picker != nullptr && header != nullptr && progress != nullptr && bar->isAncestorOf(picker) && !picker->author()
+				   && twoPanes->isVisible() && layout->isVisible() && !picker->segment(qt::review_view::edit)->isVisible()
+				   && bar->widgetForAction(window.header_source_action()) == header && header->toolButtonStyle() == Qt::ToolButtonIconOnly,
+			   "the review bar presents the view picker, two icons, and Go to header/source");
+		const auto inBar    = [bar](const QWidget* aWidget) { return QRect{ aWidget->mapTo(bar, QPoint{ }), aWidget->size() }; };
+		const auto pickerAt = inBar(picker);
+		expect(pickerAt.left() > inBar(progress).right() && inBar(header).left() > pickerAt.right() && qAbs(pickerAt.center().y() - inBar(progress).center().y()) <= 3,
+			   "the picker and Go to header/source sit right of Seen, Read and Accept, on their row");
+		expect(picker->width() == picker->sizeHint().width() && picker->width() < 3 * twoPanes->width(), "in a review the picker is two segments wide");
 
 		const auto image = [](const QIcon& aIcon) {
 			return aIcon.pixmap(QSize{ 16, 16 }, 2.0).toImage().convertToFormat(QImage::Format_ARGB32);
 		};
-		const auto key     = QKeySequence{ QStringLiteral("Alt+Shift+P") }.toString(QKeySequence::NativeText);
+		const auto key = QKeySequence{ QStringLiteral("Alt+Shift+P") }.toString(QKeySequence::NativeText);
+		static_cast<void>(image);
 		const auto showing = [&](const qt::strip_glyph aGlyph) {
-			return image(layout->icon()) == image(qt::strip_icon(aGlyph, window.palette()));
+			return aGlyph == qt::strip_glyph::one_pane ? layout->isChecked() : twoPanes->isChecked();
 		};
 		expect(layout->isEnabled() && !layout->isChecked() && showing(qt::strip_glyph::two_panes) && !showing(qt::strip_glyph::one_pane)
 				   && layout->toolTip().startsWith(QStringLiteral("One pane (%1)\n").arg(key)),
-			   "two panes showing: the toggle shows two panes and names One pane with its key");
+			   "two panes showing: Two panes is picked and One pane names its key");
 		expect(header->isEnabled() && image(header->icon()) == image(qt::strip_icon(qt::strip_glyph::header_source, window.palette()))
 				   && header->toolTip().startsWith(QStringLiteral("Go to header/source (%1)\n").arg(window.header_source_action()->shortcut().toString(QKeySequence::NativeText)))
 				   && header->accessibleName() == QStringLiteral("Go to header/source"),
@@ -1625,7 +1638,7 @@ namespace {
 		process_events();
 		expect(toggles() == 1 && std::get_if<core::toggle_workbench_one_pane_intent>(&log.Workbench.back()) != nullptr
 				   && !layout->isChecked() && showing(qt::strip_glyph::two_panes),
-			   "a press sends one toggle intent and the toggle keeps the layout the core last decided");
+			   "a press sends one toggle intent and the picker keeps the layout the core last decided");
 		// The key from a control that takes no typed text, so no text field
 		// has lifted it.
 		window.activateWindow();
@@ -1652,9 +1665,9 @@ namespace {
 			window.publish(projection);
 			process_events();
 			expect(layout->isChecked() && showing(qt::strip_glyph::one_pane) && !showing(qt::strip_glyph::two_panes)
-					   && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key))
+					   && twoPanes->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key))
 					   && window.comparison_surface()->one_pane_enabled(),
-				   "one pane showing: the toggle is checked, shows one pane and names Two panes with its key");
+				   "one pane showing: One pane is picked and Two panes names its key");
 			save(QStringLiteral("one-pane-%1").arg(name));
 		}
 
@@ -1663,8 +1676,8 @@ namespace {
 			= refused(core::workbench_command_id::toggle_one_pane, core::workbench_reason_code::no_active_workbench);
 		window.publish(refusedProjection);
 		process_events();
-		expect(!layout->isEnabled() && !header->isEnabled() && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key)),
-			   "refused commands disable both buttons, and the toggle still names its key and says why");
+		expect(!layout->isEnabled() && !twoPanes->isEnabled() && !header->isEnabled() && twoPanes->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key)),
+			   "refused commands disable the picker and Go to header/source, and the picker still names its key and says why");
 		window.hide();
 	}
 
@@ -1688,6 +1701,23 @@ namespace {
 			QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
 			QThread::msleep(5);
 		}
+	}
+
+	/// \brief RFC-BPR-0127. Notes is gone: an editable multi-line field in
+	/// the Comments tab stands for whatever is being written in the drawer.
+	auto drawer_text_field(qt::workbench_window& aWindow) -> QPlainTextEdit*
+	{
+		aWindow.tray_tabs()->setCurrentIndex(0);
+		auto* const page  = aWindow.comments_tab_scroll()->viewport();
+		auto*       field = page->findChild<QPlainTextEdit*>(QStringLiteral("testDrawerTextField"));
+		if (field == nullptr) {
+			field = new QPlainTextEdit{ page };
+			field->setObjectName(QStringLiteral("testDrawerTextField"));
+			field->setGeometry(4, 4, std::max(120, page->width() - 8), 80);
+		}
+		field->show();
+		field->raise();
+		return field;
 	}
 
 	/// \brief [[BPR-1212]]. My draft is open and being written in the drawer.
@@ -3107,7 +3137,7 @@ namespace {
 		// and hold every control inside the drawer; the two pages are the
 		// Agent tab's.
 		auto* const notesPages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		if (aWindow.tray_tabs()->currentIndex() == 1 || aWindow.tray_tabs()->currentIndex() == 3) {
+		if (aWindow.tray_tabs()->currentIndex() == 2) {
 			for (auto* const child : drawer->findChildren<QWidget*>()) {
 				if (!child->isVisible() || child->width() == 0) {
 					continue;
@@ -3196,11 +3226,7 @@ namespace {
 			   "the host hears the dragged conversations width");
 		expect(every_control_is_reachable(window),
 			   "no Comments tab control is clipped at 280 pixels; the column scrolls");
-		window.tray_tabs()->setCurrentIndex(1);
-		process_events();
-		expect(every_control_is_reachable(window),
-			   "no Notes tab control is clipped at 280 pixels");
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		process_events();
 		// [[BPR-1594]]. The Agent tab is the agent's one layout; its private
 		// history is in History.
@@ -6616,7 +6642,7 @@ namespace {
 				  .Path        = "src/file.cpp" } },
 			QStringLiteral("two conversations"));
 		// Before any comparison there is no line, and no thread chosen.
-		emit window.comment_menu()->aboutToShow();
+		emit window.pull_request_menu()->aboutToShow();
 		expect(!window.comment_action()->isEnabled()
 				   && window.comment_action()->text().contains(QStringLiteral("Select a current-head"))
 				   && window.comment_action()->toolTip().contains(QStringLiteral("Select a current-head")),
@@ -6626,13 +6652,11 @@ namespace {
 		process_events();
 
 		auto* const comment = window.comment_action();
-		auto* const menu    = window.comment_menu();
-		auto* const button  = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(comment));
 		auto* const stack   = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
 		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
-		expect(button != nullptr && button->popupMode() == QToolButton::MenuButtonPopup && button->menu() == menu
-				   && menu != nullptr && menu->actions() == QList<QAction*>{ comment } && stack != nullptr && page != nullptr,
-			   "Comment's arrow opens a menu that offers the plain comment alone, and no label");
+		// [[BPR-2176]]: Comment has no button; it is the window's command.
+		expect(window.review_bar()->widgetForAction(comment) == nullptr && stack != nullptr && page != nullptr,
+			   "Comment is the window's command, with no button of its own");
 		const auto usable = [&] {
 			return comment->isEnabled() && window.review_editor()->shown_draft()
 				&& window.review_editor()->publish_action()->isEnabled();
@@ -6651,8 +6675,9 @@ namespace {
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 12U), "select the current-head side of the first change");
 		admit(window.comparison_surface()->selection());
 		expect(usable(), "the host's exact editable draft makes Comment available");
-		const auto key       = comment->shortcut().toString(QKeySequence::NativeText);
-		const auto showsMenu = [menu] { emit menu->aboutToShow(); };
+		const auto key = comment->shortcut().toString(QKeySequence::NativeText);
+		// [[BPR-2176]]: the Pull Request menu names Comment's target now.
+		const auto showsMenu = [&window] { emit window.pull_request_menu()->aboutToShow(); };
 		const auto back      = [&window] {
 			QKeyEvent press{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
 			QApplication::sendEvent(window.focusWidget() != nullptr ? window.focusWidget() : &window, &press);
@@ -6731,17 +6756,6 @@ namespace {
 		expect(window.conversation_panel()->cards()->isVisible() && !window.conversation_panel()->cards()->feed() && card != cards.end(),
 			   "both threads' cards sit beside the code");
 		save_render(window, QStringLiteral("comment-reply-cards"));
-		menu->popup(button->mapToGlobal(QPoint{ 0, button->height() }));
-		process_events();
-		const auto menuRender = menu->grab();
-		expect(!menuRender.isNull() && menu->isVisible(), "Comment's menu opens from its arrow");
-		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
-			const QFileInfo file{ path };
-			expect(menuRender.save(QStringLiteral("%1/%2-comment-menu.png").arg(file.path(), file.completeBaseName()), "PNG"),
-				   "the menu render is saved for inspection");
-		}
-		menu->hide();
-		process_events();
 		// [[BPR-1290]]. The thread opens in place; its Reply is written there.
 		auto* const notes = window.conversation_panel()->cards();
 		notes->open_thread("review-thread:t22");
@@ -8028,11 +8042,11 @@ namespace {
 			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep")),
 			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
-			// [[BPR-1815]]. The layout toggle and Go to header/source.
-			barStop(window.one_pane_action()),
+			// [[BPR-1815]]. The view picker's two segments and Go to header/source.
+			window.review_view_picker()->segment(qt::review_view::two_panes),
+			window.review_view_picker()->segment(qt::review_view::one_pane),
 			barStop(window.header_source_action()),
 			barStop(window.compose_review_action()),
-			barStop(window.comment_action()),
 		};
 		const auto barFirst = expanded.indexOf(barOrder.front());
 		expect(barFirst > expanded.indexOf(window.primary_toolbar()->widgetForAction(window.settings_action()))
@@ -8638,7 +8652,7 @@ namespace {
 			process_events();
 			expect(QApplication::focusWidget() == editor && menuOptionKeys() == 0 && compose->shortcut().isEmpty(),
 				   "while a text widget has the keyboard the native menu bar carries no Option+character key");
-			QMetaObject::invokeMethod(window.findChild<QMenu*>(QStringLiteral("commentMenu")), "aboutToShow");
+			QMetaObject::invokeMethod(window.pull_request_menu(), "aboutToShow");
 			expect(window.findChild<QAction*>(QStringLiteral("composeInlineDraftAction"))->toolTip().contains(QStringLiteral("(⌥C)")),
 				   "a tooltip refreshed while typing still names the lifted key");
 			for (const auto& entry : bindings) {
@@ -10383,6 +10397,9 @@ namespace {
 		expect(fired.size() == 1U && stack->currentWidget() == start, "Option-Shift-U on a collapsed stop retargets nothing and opens no page");
 		window_key(window, Qt::Key_Space, Qt::NoModifier);
 		expect(!editor->stop_collapsed(), "Space on the outline reopens the stop");
+		// [[BPR-2013]]. Reopening the current stop shows its code, like any arrival.
+		expect(fired.size() == 2U && fired.back() == qt::tour_editor_action::navigate_stop, "reopening the stop shows its code");
+		fired.pop_back();
 		editSelected();
 		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
 		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop, qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start, "editing the reopened stop re-enables exactly one retarget per key press");
@@ -10543,7 +10560,7 @@ namespace {
 		process_events();
 		expect(button->isVisible() && button->toolButtonStyle() == Qt::ToolButtonIconOnly && lead()
 				   && button->accessibleName() == QStringLiteral("Compose review: approve or comment") && !folded()
-				   && bar->widgetForAction(window.comment_action())->geometry().right() <= bar->width(),
+				   && button->geometry().right() <= bar->width(),
 			   "at the window's floor the words yield to the icon, its name and edge stay, and nothing folds away");
 		const auto floor = window.minimumWidth();
 		// From wide to the floor the words shorten to "Approve…" and then go,
@@ -10565,7 +10582,7 @@ namespace {
 				process_events();
 				const auto now = form();
 				steady         = steady && now <= 2 && now >= last && !folded() && button->isVisible()
-					&& bar->widgetForAction(window.comment_action())->geometry().right() <= bar->width();
+					&& button->geometry().right() <= bar->width();
 				if (now <= 2) {
 					seen.at(static_cast<std::size_t>(now)) = true;
 				}
@@ -10647,6 +10664,109 @@ namespace {
 		process_events();
 		expect(!page->isVisible() && !window.review_sheet_open() && !action->isChecked() && body->toPlainText() == words,
 			   "Compose review on the expanded page closes it, without restoring the sheet, the words kept");
+		window.hide();
+	}
+
+	/// \brief [[BPR-2175]]. The owner: "clicking off compose review into the
+	/// diff or drawers or review bar or using the mode tabs should hide it",
+	/// and "make sure we can still do basic window controls while lightbox
+	/// stays open like drag window or resize it". A press on the dimmed
+	/// window (the diff, a drawer, the review bar under it), Esc and a mode
+	/// tab each close the lightbox with its words kept; a press inside it or
+	/// on the title row does not. Resizing, minimising and restoring, zooming
+	/// and full screen keep it open and fitted to the new size.
+	void test_compose_review_lightbox_gestures_and_window_controls()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		window.publish(both_files_enabled());
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const sheet = window.review_sheet();
+		auto* const body  = window.review_submission_editor_view()->body_editor();
+		const auto  words = QStringLiteral("Kept across every way out.");
+		const auto  open  = [&] {
+			if (!window.review_sheet_open()) {
+				window.compose_review_action()->trigger();
+			}
+			process_events();
+			return window.review_sheet_open() && sheet->isVisible();
+		};
+		const auto press = [&](QWidget* aWidget, const QPoint aAt) {
+			auto down = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(aWidget, &down);
+			auto up = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(aWidget, &up);
+			process_events();
+		};
+		const auto fitted = [&] {
+			const auto top   = window.review_sheet_top();
+			const auto area  = QRect{ 0, top, window.width(), window.height() - top };
+			const auto panel = sheet->panel().translated(sheet->pos());
+			return sheet->geometry() == area && area.contains(panel) && std::abs(panel.center().x() - area.center().x()) <= 1;
+		};
+		expect(open(), "Compose review opens the lightbox");
+		body->setPlainText(words);
+		process_events();
+		expect(sheet->geometry().top() <= window.review_bar()->mapTo(&window, QPoint{ }).y()
+				   && sheet->geometry().top() == window.modality()->parentWidget()->mapTo(&window, QPoint{ 0, window.modality()->parentWidget()->height() }).y() && fitted(),
+			   "it dims the window below the title row, the review bar too, its panel centred");
+
+		// A press inside the panel keeps it; one on the title row does too.
+		press(sheet, sheet->panel().center());
+		expect(window.review_sheet_open(), "a press inside the lightbox keeps it open");
+		auto* const titleRow = window.modality()->parentWidget();
+		press(titleRow, QPoint{ titleRow->width() / 2, titleRow->height() - 2 });
+		expect(window.review_sheet_open(), "a press on the title row (where the window is dragged) keeps it open");
+
+		// A press on the dimmed window: the diff's place, a drawer's, the review bar's.
+		const auto bar = sheet->mapFrom(&window, window.review_bar()->mapTo(&window, window.review_bar()->rect().center()));
+		for (const auto at : { QPoint{ sheet->width() / 2, sheet->height() - 4 }, QPoint{ 4, sheet->height() / 2 }, bar }) {
+			expect(open(), "the lightbox opens again");
+			press(sheet, at);
+			expect(!window.review_sheet_open() && !sheet->isVisible() && body->toPlainText() == words,
+				   "a press on the dimmed window outside the lightbox closes it, its words kept (at " + std::to_string(at.x()) + "," + std::to_string(at.y()) + ")");
+		}
+
+		// Esc.
+		expect(open(), "it opens again");
+		body->setFocus(Qt::OtherFocusReason);
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		expect(!window.review_sheet_open() && body->toPlainText() == words, "Esc closes it, its words kept");
+
+		// A mode tab.
+		expect(open(), "it opens again");
+		window.modality()->button(qt::review_modality::discuss)->click();
+		process_events();
+		expect(!window.review_sheet_open() && window.current_modality() == qt::review_modality::discuss && body->toPlainText() == words,
+			   "choosing another mode tab closes it and shows that mode, its words kept");
+		window.modality()->button(qt::review_modality::review)->click();
+		process_events();
+		expect(open() && body->toPlainText() == words, "opening it again shows it as it was");
+
+		// The window's own controls keep it open and fitted.
+		window.resize(1'000, 700);
+		process_events();
+		expect(window.review_sheet_open() && fitted() && sheet->scroll()->horizontalScrollBar()->maximum() == 0, "resized smaller, it stays open and re-fits");
+		window.resize(1'700, 1'000);
+		process_events();
+		expect(window.review_sheet_open() && fitted(), "resized larger, it stays open and re-fits");
+		window.showMinimized();
+		process_events();
+		window.showNormal();
+		process_events();
+		expect(window.review_sheet_open() && sheet->isVisible() && fitted(), "minimised and restored, it is still open and fitted");
+		window.showMaximized();
+		process_events();
+		expect(window.review_sheet_open() && fitted(), "zoomed, it stays open and fitted");
+		window.showFullScreen();
+		process_events();
+		expect(window.review_sheet_open() && fitted(), "full screen, it stays open and fitted");
+		window.showNormal();
+		process_events();
+		expect(window.review_sheet_open() && fitted() && body->toPlainText() == words, "back to normal, still open, its words kept");
+		window.close_review_sheet();
 		window.hide();
 	}
 
@@ -10843,9 +10963,21 @@ namespace {
 			expect(window.review_sheet_open() && sheet->isVisible() && window.current_modality() == qt::review_modality::review && sheet->title()->text() == QStringLiteral("Finish your review")
 					   && !whole->title_label()->isVisible(),
 				   name + ": Finish review opens the sheet over Review, named once in its header");
-			const auto area = sheet->parentWidget()->rect();
-			expect(sheet->width() - qt::compose_review_sheet::shadow_width >= 540 && sheet->x() >= 320 && sheet->geometry().right() == area.right(),
-				   name + ": 540 pixels at the right edge, with the code visible beside it");
+			// [[BPR-2175]] (the owner's option D). A lightbox over the window
+			// below its title row: the panel centred, the comments on the
+			// left and the summary with its verdicts on the right.
+			const auto panel = sheet->panel().translated(sheet->pos());
+			expect(sheet->parentWidget() == &window && sheet->geometry().top() == window.review_sheet_top() && sheet->width() == window.width()
+					   && sheet->geometry().bottom() == window.rect().bottom() && std::abs(panel.center().x() - window.rect().center().x()) <= 1
+					   && panel.width() >= qt::compose_review_sheet::two_column_width && whole->two_columns(),
+				   name + ": a lightbox below the title row, its panel centred and in two columns");
+			{
+				auto* const summary = whole->body_editor();
+				auto* const list    = whole->pending_list();
+				expect(summary->mapTo(&window, QPoint{ }).x() > list->mapTo(&window, QPoint{ }).x() + list->width() - 4
+						   && whole->findChild<QAbstractButton*>(QStringLiteral("wholeReviewComment"))->mapTo(&window, QPoint{ }).x() > list->mapTo(&window, QPoint{ }).x() + list->width() - 4,
+					   name + ": the summary and the verdicts stand to the right of the comments");
+			}
 			const auto violations = qt::drawer_principle_violations(*sheet);
 			expect(violations.isEmpty(), name + ": the sheet keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
 			if (!root.isEmpty()) {
@@ -10897,19 +11029,25 @@ namespace {
 			expect(window.current_modality() == qt::review_modality::discuss && window.review_sheet_open() && sheet->isVisible() && rows.front()->hasFocus(),
 				   name + ": a single click selects a pending row and opens nothing");
 			{
-				// One line each, whatever the comment's length.
-				auto heights = std::set<int>{ };
+				// [[BPR-2175]] (option D). In the lightbox each comment's words
+				// show in full up to four lines, the very long one cut at the
+				// fourth; the suggestion shows its lines under its words.
+				const auto line    = rows.front()->fontMetrics().lineSpacing();
+				auto       tallest = 0;
+				auto       least   = std::numeric_limits<int>::max();
 				for (const auto* row : rows) {
-					heights.insert(row->height());
+					tallest = std::max(tallest, row->height());
+					least   = std::min(least, row->height());
 				}
-				expect(heights.size() == 1U && *heights.begin() < 2 * rows.front()->fontMetrics().height() + 14, name + ": every pending row is one line, the very long comment's too");
+				expect(least >= (2 * line) && tallest <= (8 * line) + 40 && tallest > least,
+					   name + ": in the lightbox the comments show their words, up to four lines (" + std::to_string(least) + ".." + std::to_string(tallest) + ")");
 			}
 
 			// Narrow: the sheet gives way to keep the code visible.
 			window.resize(900, 700);
 			process_events();
-			expect(sheet->x() >= 300 && sheet->width() - qt::compose_review_sheet::shadow_width >= 360 && sheet->scroll()->horizontalScrollBar()->maximum() == 0,
-				   name + ": at a narrow window the sheet narrows, the code stays visible, and nothing scrolls sideways");
+			expect(sheet->panel().width() >= qt::compose_review_sheet::minimum_width && sheet->panel().width() <= window.width() && sheet->scroll()->horizontalScrollBar()->maximum() == 0,
+				   name + ": at a narrow window the lightbox narrows and nothing scrolls sideways");
 			window.close_review_sheet();
 			expect(!sheet->isVisible() && window.current_modality() == qt::review_modality::discuss, name + ": Close changes nothing else");
 		}
@@ -12833,6 +12971,99 @@ namespace {
 		course.settle();
 	}
 
+	/// \brief [[BPR-2172]]. The owner, on look v007 of RFC-BPR-0127: "Can we
+	/// make this warning take less space, maybe it's just a warning sign on
+	/// the row above and expands a disclosure on click". Through the window,
+	/// each note about where a comment goes that still lets you publish is
+	/// the composer's warning mark, its sentence shown on a press; a note
+	/// that stops Publish keeps its lines. With `BPR_NOTICE_RENDER_ROOT` set,
+	/// each composer is rendered, mark closed and open, for the owner's look.
+	void test_placement_notices_fold_into_the_composer_mark()
+	{
+		auto       course = line_gesture_course{ false };
+		auto&      window = course.Window;
+		auto*      cards  = window.conversation_panel()->cards();
+		const auto root   = qEnvironmentVariable("BPR_NOTICE_RENDER_ROOT");
+		struct notice_case final
+		{
+			const char*                                       Name;
+			core::filtered_comment_placement                  Placement;
+			core::filtered_comment_refusal                    Refusal;
+			core::diff_side                                   Side;
+			std::uint32_t                                     Line;
+			std::optional<core::off_hunk_creation_capability> Learned;
+			bool                                              Folds;
+			const char*                                       Starts;
+		};
+		const auto cases = std::array{
+			notice_case{ "may-not-place", core::filtered_comment_placement::file_comment, core::filtered_comment_refusal::outside_github_diff, core::diff_side::right, 6U, core::off_hunk_creation_capability::unknown, true, "GitHub may not place a comment on this line." },
+			notice_case{ "cannot-place", core::filtered_comment_placement::file_comment, core::filtered_comment_refusal::outside_github_diff, core::diff_side::right, 6U, core::off_hunk_creation_capability::unsupported, true, "GitHub can't place a comment on this line." },
+			notice_case{ "file-comment", core::filtered_comment_placement::file_comment, core::filtered_comment_refusal::outside_github_diff, core::diff_side::right, 6U, std::nullopt, true, "GitHub shows no change near this line at the head" },
+			notice_case{ "head-line", core::filtered_comment_placement::head, core::filtered_comment_refusal::none, core::diff_side::right, 9U, std::nullopt, true, "Goes on the head at line 10" },
+			notice_case{ "base-line", core::filtered_comment_placement::head, core::filtered_comment_refusal::none, core::diff_side::left, 9U, std::nullopt, true, "Goes on base line 10" },
+			notice_case{ "earlier-commit", core::filtered_comment_placement::earlier_commit, core::filtered_comment_refusal::none, core::diff_side::right, 6U, std::nullopt, true, "Goes on commit 61e8dbc" },
+			notice_case{ "working-out", core::filtered_comment_placement::refused, core::filtered_comment_refusal::lines_pending, core::diff_side::right, 6U, std::nullopt, false, "Working out where GitHub puts a comment" },
+		};
+		for (const auto& shown : cases) {
+			const auto name = std::string{ shown.Name };
+			course.reset();
+			course.click(course.right(6U));
+			// As the off-hunk course selects its line.
+			wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 6U; }, 2000);
+			expect(course.Accepted.has_value(), name + ": a line is selected");
+			const auto anchor = course.Accepted->Draft.Anchor;
+			window.present_whole_diff_comment(qt::filtered_comment_presentation{
+				.Selection = anchor,
+				.Target    = { .Placement = shown.Placement, .Refusal = shown.Refusal, .Side = shown.Side, .Line = shown.Line },
+				.Commit    = QStringLiteral("61e8dbc"),
+				.Learned   = shown.Learned,
+			});
+			window.comment_action()->trigger();
+			wait_for([cards] { return cards->writing_draft() && cards->draft_editor() != nullptr; }, 2000);
+			expect(cards->draft_editor() != nullptr, name + ": Comment opens the line's composer in the drawer");
+			cards->draft_editor()->setPlainText(QStringLiteral("issue: the retry budget resets every frame."));
+			course.settle();
+			auto* const card   = cards->open_card();
+			auto* const mark   = card != nullptr ? card->findChild<QToolButton*>(QStringLiteral("threadDraftNoticeMark")) : nullptr;
+			auto* const status = card != nullptr ? card->findChild<QLabel*>(QStringLiteral("threadDraftStatus")) : nullptr;
+			expect(mark != nullptr && status != nullptr, name + ": the composer has its mark and its status line");
+			const auto words = window.filtered_comment_notice().first;
+			expect(words.startsWith(QString::fromLatin1(shown.Starts)), name + ": the window's note is the expected one: " + words.toStdString());
+			const auto save = [&](const char* aState) {
+				if (!root.isEmpty()) {
+					// The open card and a margin round it, drawn at twice the
+					// pixels so the owner reads it as on a Retina screen.
+					auto* const drawer = window.conversation_panel();
+					auto* const opened = cards->open_card();
+					const auto  area   = QRect{ opened->mapTo(drawer, QPoint{ }), opened->size() }.adjusted(-12, -12, 12, 12).intersected(drawer->rect());
+					auto        image  = QImage{ area.size() * 2, QImage::Format_ARGB32_Premultiplied };
+					image.setDevicePixelRatio(2.0);
+					image.fill(drawer->palette().color(QPalette::Window));
+					drawer->render(&image, QPoint{ }, QRegion{ area });
+					expect(image.save(QStringLiteral("%1/notice-%2-%3.png").arg(root, QString::fromStdString(name), QString::fromLatin1(aState)), "PNG"), name + ": the render is saved");
+				}
+			};
+			if (shown.Folds) {
+				expect(mark->isVisibleTo(card) && !status->isVisibleTo(card) && mark->accessibleDescription() == words, name + ": the note folds into the mark beside the label chip");
+				save("closed");
+				mark->click();
+				course.settle();
+				expect(status->isVisibleTo(card) && status->text() == words, name + ": pressing the mark shows the sentence under the row");
+				save("open");
+				mark->click();
+				course.settle();
+				expect(!status->isVisibleTo(card), name + ": pressing it again hides it");
+			} else {
+				expect(!mark->isVisibleTo(card) && status->isVisibleTo(card) && status->text() == words, name + ": a note that stops Publish keeps its lines, and there is no mark");
+				save("kept");
+			}
+			cards->draft_editor()->clear();
+			course.settle();
+			window.present_whole_diff_comment(std::nullopt);
+		}
+		course.reset();
+	}
+
 	/// \brief [[RFC-BPR-0090]] M3. A suggestion GitHub cannot apply where it
 	/// goes is held, marked and converted on the comment (owner, Q3), and
 	/// Finish your review holds it too; a kept suggestion opens in the code
@@ -13368,22 +13599,13 @@ namespace {
 		auto* const cards = window.conversation_panel()->cards();
 		expect(drawer_writing(window), "Return opens the drawer draft");
 
-		// The privacy note: whole words, or the lock alone with the sentence.
-		auto* const privacy = cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftPrivacy"));
-		expect(privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish")
-				   && privacy->toolTip() == QStringLiteral("Only you see this draft until you publish it.")
-				   && privacy->accessibleDescription() == privacy->toolTip(),
-			   "the draft's privacy note is short, and its tooltip and description carry the sentence");
-		const auto drawn = [privacy](const int aWidth) {
-			privacy->setFixedWidth(aWidth);
-			privacy->repaint();
-			return privacy->property("wordsShown");
-		};
-		const auto words = QFontMetrics{ privacy->font() }.horizontalAdvance(privacy->accessibleName()) + 18;
-		expect(drawn(words).toBool() && !drawn(words - 1).toBool() && !drawn(40).toBool() && drawn(words + 60).toBool(),
-			   "the words are painted only when they fit whole; narrower, the lock shows alone");
-		privacy->setMinimumWidth(0);
-		privacy->setMaximumWidth(QWIDGETSIZE_MAX);
+		// RFC-BPR-0127 ([[BPR-2158]]). The state control, Local and Draft,
+		// stands where the privacy note stood; Draft is chosen for a comment.
+		auto* const stateLocal = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadStateLocal"));
+		auto* const stateDraft = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadStateDraft"));
+		expect(stateLocal != nullptr && stateDraft != nullptr && stateDraft->isChecked() && !stateLocal->isChecked() && stateLocal->toolTip() == QStringLiteral("Only on this computer")
+				   && stateLocal->accessibleName() == QStringLiteral("Local comment, only on this computer") && stateLocal->focusPolicy() == Qt::StrongFocus,
+			   "the composer's state control: Draft chosen, Local named for assistive technology and reachable by keyboard");
 		process_events();
 		save_render(window, QStringLiteral("publish-text-v002-drawer"));
 
@@ -13701,13 +13923,9 @@ namespace {
 		process_events();
 
 		// In a note being written they stay the editor's.
-		// [[BPR-1592]]. Notes is the tray's second tab.
-		window.tray_tabs()->setCurrentIndex(1);
+		// RFC-BPR-0127. Notes is gone; a field written in the drawer.
+		auto* const note = drawer_text_field(window);
 		process_events();
-		window.private_notes()->present({ .Scope = 1U, .Available = true });
-		window.private_notes()->new_review_action()->trigger();
-		process_events();
-		auto* const note = window.private_notes()->body_editor();
 		note->setFocus(Qt::OtherFocusReason);
 		process_events();
 		const auto body = QStringLiteral("first line\nsecond line\n\nthird paragraph\nlast line");
@@ -13765,6 +13983,7 @@ namespace {
 		expect(log.Change.size() == gestures.first + 1U && log.Change.back().Direction == core::change_navigation_direction::next,
 			   "a read-only view lets Option-Down through to Next change");
 		note->setReadOnly(false);
+		note->hide();
 		window.tray_tabs()->setCurrentIndex(0);
 		process_events();
 
@@ -13961,13 +14180,9 @@ namespace {
 		filter->setReadOnly(false);
 
 		// A note being written keeps them for its own selection.
-		// [[BPR-1592]]. Notes is the tray's second tab.
-		window.tray_tabs()->setCurrentIndex(1);
+		// RFC-BPR-0127. Notes is gone; a field written in the drawer.
+		auto* const note = drawer_text_field(window);
 		process_events();
-		window.private_notes()->present({ .Scope = 1U, .Available = true });
-		window.private_notes()->new_review_action()->trigger();
-		process_events();
-		auto* const note = window.private_notes()->body_editor();
 		note->setFocus(Qt::OtherFocusReason);
 		note->setPlainText(QStringLiteral("first line\nsecond line\n\nthird paragraph"));
 		process_events();
@@ -13975,6 +14190,7 @@ namespace {
 		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
 		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
 		expect(std::pair{ log.Change.size(), log.Workbench.size() } == gestures && note->hasFocus(), "in a note the keys take no gesture");
+		note->hide();
 		window.tray_tabs()->setCurrentIndex(0);
 		process_events();
 
@@ -14045,6 +14261,41 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-2176]] (owner, 2026-11-14: "both of this speech bubble
+	/// boxes for add comment and add tour stop are both useless duplicate
+	/// ways"). The review bar has no Comment button and the Tour tab's header
+	/// no Add stop tool; Option-C comments and Option-Shift-T adds a stop, as
+	/// the window's own commands, and the Pull Request menu keeps both.
+	void test_the_duplicate_comment_and_add_stop_buttons_are_gone()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const bar = window.findChild<QToolBar*>(QStringLiteral("workbenchReviewBar"));
+		expect(bar != nullptr && !bar->actions().contains(window.comment_action()) && bar->widgetForAction(window.comment_action()) == nullptr,
+			   "the review bar has no Comment button");
+		expect(window.findChild<QMenu*>(QStringLiteral("commentMenu")) == nullptr, "nor the menu that only repeated it");
+		auto* const comment = window.comment_action();
+		expect(comment != nullptr && window.actions().contains(comment) && comment->shortcut() == QKeySequence{ QStringLiteral("Alt+C") } && comment->shortcutContext() == Qt::WindowShortcut
+				   && window.pull_request_menu()->actions().contains(comment),
+			   "Option-C is still the window's Comment, and the Pull Request menu keeps it");
+		auto* const stop = window.add_tour_stop_action();
+		expect(stop != nullptr && window.actions().contains(stop) && stop->shortcut() == QKeySequence{ QStringLiteral("Alt+Shift+T") } && window.pull_request_menu()->actions().contains(stop),
+			   "Option-Shift-T is still the window's Add tour stop, in the Pull Request menu");
+		window.open_review_tour();
+		process_events();
+		auto* const tools = window.findChild<QWidget*>(QStringLiteral("workbenchTourTools"));
+		expect(tools != nullptr && window.findChild<QToolButton*>(QStringLiteral("workbenchAddTourStopTool")) == nullptr
+				   && tools->findChild<QToolButton*>(QStringLiteral("workbenchExpandTourTool")) != nullptr,
+			   "the Tour tab's header has Expand and no Add stop");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1593]]. RFC-BPR-0085 D4 and AC06: the Tour tab is the
 	/// route, the brief one card, the current stop written in place on it;
 	/// Expand opens the tour page in the main pane with no drawers, its
@@ -14085,7 +14336,7 @@ namespace {
 		expect(editor->stop_view().Mode == core::tour_stop_view_mode::read && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()) && outline->itemWidget(outline->item(1)) != nullptr,
 			   "the current stop opens in place on the route");
 		expect(!editor->findChild<QTabWidget*>(QStringLiteral("tourRoadmap"))->isVisible() && tools != nullptr && tools->isVisible(),
-			   "the route shows no section tabs, and the tab row has Add stop and Expand");
+			   "the route shows no section tabs, and the tab row has Expand ([[BPR-2176]]: no Add stop)");
 		editor->show_problem();
 		process_events();
 		expect(editor->problem_editor()->isVisible() && editor->brief_open() == 0, "the brief opens in place to its field");
@@ -14099,11 +14350,18 @@ namespace {
 		// [[BPR-1776]], the owner's photograph of 2026-10-26 ("don't even
 		// appear to be buttons"): every stop action is the raised shared
 		// chip, and More is one sign that still opens its menu.
-		for (const auto* const name : { "tourStopMagic", "tourAddRelated", "tourRemoveRelated", "tourReturn", "tourSuggestOutline" }) {
+		// [[BPR-2013]]. Show in code and Suggest an outline left the
+		// application; More and its actions are offered while a stop is edited.
+		// Owner on the live build, 2026-11-11 ("buttons packed in like a
+		// clown car"): Link selected lines is a quiet link like Use selected
+		// lines; Enhance and Unlink stay chips.
+		for (const auto* const name : { "tourStopMagic", "tourRemoveRelated" }) {
 			const auto* const action = editor->findChild<QPushButton*>(QString::fromLatin1(name));
 			expect(action != nullptr && dynamic_cast<const qt::quiet_push_button*>(action) != nullptr && !action->isFlat(), std::string{ name } + " is a raised chip, not bare text");
 		}
 		{
+			editor->begin_stop_edit();
+			process_events();
 			auto* const more = editor->findChild<QToolButton*>(QStringLiteral("tourStopMore"));
 			expect(more != nullptr && more->menu() == nullptr && more->popupMode() != QToolButton::InstantPopup && !more->icon().isNull() && more->text().isEmpty(),
 				   "More is one glyph, with no menu arrow of Qt's beside it");
@@ -14114,6 +14372,8 @@ namespace {
 			if (menu != nullptr) {
 				menu->hide();
 			}
+			editor->cancel_stop_edit();
+			process_events();
 		}
 
 		window.findChild<QToolButton*>(QStringLiteral("workbenchExpandTourTool"))->click();
@@ -14132,7 +14392,7 @@ namespace {
 		process_events();
 		static_cast<void>(escape);
 		expect(!window.tour_page_open() && editor->mode() == qt::tour_editor_mode::route && window.conversations_drawer()->isVisible() && window.files_drawer()->isVisible()
-				   && window.tray_tabs()->currentIndex() == 2 && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()),
+				   && window.tray_tabs()->currentIndex() == 1 && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()),
 			   "Back to the code returns to the route, the drawers as they were");
 		window.hide();
 	}
@@ -14146,6 +14406,225 @@ namespace {
 	/// typed, a turn still running), when the host refuses it, and when the
 	/// launch path refuses it after the gesture. A run that fails after it
 	/// started is an error entry in the thread with what the agent wrote.
+	/// [[BPR-1999]], RFC-BPR-0101 AC03, AC04. In the Agent tab, Return sends
+	/// and Shift+Return starts a line; an input method's composition and an
+	/// empty field send nothing. Each turn's footer gives its cost in dollars
+	/// and cents, and the line under the composer the session's.
+	void test_the_agent_chat_sends_on_return_and_says_its_cost()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+		profile.Protocol    = core::agent_protocol::claude_stream_json;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		auto* const chat    = window.side_chat();
+		const auto  binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto  session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto        sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		agent->refresh();
+		auto* const composer = chat->composer();
+		const auto  key      = [composer](const Qt::KeyboardModifiers aModifiers, const QString& aText = QStringLiteral("\r")) {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, aModifiers, aText };
+			QApplication::sendEvent(composer, &press);
+			process_events();
+		};
+		expect(agent->ask_button()->toolTip().contains(QStringLiteral("(Return)")) && agent->ask_button()->toolTip().contains(QStringLiteral("Shift+Return starts a new line")),
+			   "Send's tooltip says Return sends and Shift+Return starts a line");
+
+		// Empty: Return sends nothing and refuses nothing.
+		composer->clear();
+		key(Qt::NoModifier);
+		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::none, "Return in an empty field sends nothing");
+		// Shift+Return: a new line, not a send.
+		composer->setPlainText(QStringLiteral("first line"));
+		auto cursor = composer->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		composer->setTextCursor(cursor);
+		key(Qt::ShiftModifier);
+		expect(sends.empty() && composer->toPlainText().contains(QLatin1Char{ '\n' }), "Shift+Return starts a new line");
+		// An input method composing: Return is the input method's.
+		{
+			auto preedit = QInputMethodEvent{ QStringLiteral("\u304B"), { } };
+			QApplication::sendEvent(composer, &preedit);
+			key(Qt::NoModifier);
+			expect(sends.empty(), "Return while an input method composes does not send");
+			auto commit = QInputMethodEvent{ };
+			commit.setCommitString(QStringLiteral("\u304B"));
+			QApplication::sendEvent(composer, &commit);
+			process_events();
+		}
+		// Return sends; Ctrl or Cmd with Return also does.
+		key(Qt::NoModifier);
+		expect(sends.size() == 1U && sends.back().Text.starts_with("first line"), "Return sends");
+		composer->setPlainText(QStringLiteral("again"));
+		key(Qt::ControlModifier);
+		expect(sends.size() == 2U && sends.back().Text == "again", "Ctrl or Cmd with Return also sends");
+
+		// Cost: a turn's footer says it after the duration; the session line
+		// adds the turns up, or says the conversation's own total.
+		const auto turn = [&window, &composer, &key](const std::uint64_t aId, std::optional<core::agent_cost> aTurn, std::optional<core::agent_cost> aSession) {
+			composer->setPlainText(QStringLiteral("cost %1").arg(aId));
+			key(Qt::NoModifier);
+			auto identity                 = application::agent_invocation_projection_identity{ };
+			identity.ApplicationSession   = core::application_session_id{ 1U };
+			identity.Session.Id           = core::agent_session_id{ aId };
+			identity.InvocationGeneration = aId;
+			window.agent_panel()->admit(identity);
+			process_events();
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success, .TurnCost = aTurn, .SessionCost = aSession });
+			process_events();
+		};
+		expect(!agent->session_cost_line()->isVisible(), "no cost line before any turn reported one");
+		turn(21U, core::parse_agent_cost("0.4123567"), core::parse_agent_cost("0.4123567"));
+		const auto last = [agent] { return agent->turn_footer(agent->turn_count() - 1U); };
+		expect(last().contains(QStringLiteral(" answered in ")) && last().endsWith(QStringLiteral(" · $0.41")), "a turn's footer gives its cost after its duration: " + last().toStdString());
+		expect(agent->session_cost_line()->isVisible() && agent->session_cost_line()->text() == QStringLiteral("$0.41 this session"), "and the session line the conversation's total");
+		turn(22U, core::parse_agent_cost("0.004"), std::nullopt);
+		expect(last().endsWith(QStringLiteral(" · < $0.01")) && agent->session_cost_line()->text() == QStringLiteral("$0.42 this session"),
+			   "a turn under half a cent says so; the session adds it up: " + agent->session_cost_line()->text().toStdString());
+		// [[BPR-2038]], owner look on RFC-BPR-0101 AC08: "one line for both
+		// turn and session status lines at this default width".
+		{
+			const auto  footers = agent->conversation_thread()->findChildren<QLabel*>(QStringLiteral("agentTurnFooter"));
+			auto* const footer  = footers.isEmpty() ? nullptr : footers.back();
+			const auto  oneLine = [](const QLabel* aLabel) { return aLabel != nullptr && aLabel->fontMetrics().horizontalAdvance(aLabel->text()) <= aLabel->contentsRect().width() && aLabel->height() < 2 * aLabel->fontMetrics().lineSpacing(); };
+			expect(oneLine(footer) && oneLine(agent->session_cost_line()) && agent->findChild<QLabel*>(QStringLiteral("agentReadsLine")) == nullptr,
+				   "the turn's footer and the session line each take one line, with no line beside the session's: " + (footer != nullptr ? footer->text().toStdString() + " in " + std::to_string(footer->contentsRect().width()) : std::string{ "no footer" }));
+			expect(footer != nullptr && footer->toolTip().startsWith(QStringLiteral("Fixture agent answered in ")) && footer->toolTip().contains(QStringLiteral(" · < $0.01.")), "the tooltip keeps the whole sentence: " + (footer != nullptr ? footer->toolTip().toStdString() : std::string{ }));
+			expect(qt::agent_short_name(QStringLiteral("Claude Code")) == QStringLiteral("Claude") && qt::agent_short_name(QStringLiteral("Codex")) == QStringLiteral("Codex") && qt::agent_short_name(QStringLiteral(" Code")) == QStringLiteral(" Code"),
+				   "a turn names Claude Code as Claude and every other agent as it is called");
+			if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
+				expect(window.grab().save(QStringLiteral("%1/agent-footers-window.png").arg(root), "PNG") && agent->grab().save(QStringLiteral("%1/agent-footers-tab.png").arg(root), "PNG"), "the footers render is saved");
+			}
+		}
+		turn(23U, core::parse_agent_cost("12"), core::parse_agent_cost("12.5"));
+		expect(last().endsWith(QStringLiteral(" · $12.00")) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"), "the conversation's own total is said when known");
+		turn(24U, std::nullopt, std::nullopt);
+		expect(!last().contains(QLatin1Char{ '$' }) && last().endsWith(QLatin1Char{ '.' }) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"),
+			   "a run with no reported cost shows none, and $0.00 is not invented");
+		agent->present_thread({ });
+		process_events();
+		expect(!agent->session_cost_line()->isVisible() && !agent->session_cost().has_value(), "a new session restarts without a total");
+		window.hide();
+	}
+
+	/// [[BPR-2000]], RFC-BPR-0101 AC07, AC09. The agent accent is a palette
+	/// role with the shipped Light and Dark values; every control that starts
+	/// a run wears it and says so, every other control wears the ordinary
+	/// roles, and a changed accent reaches every accented surface.
+	void test_the_agent_accent_is_on_exactly_the_run_controls()
+	{
+		using core::appearance_role;
+		using core::appearance_variant;
+		const auto builtin = [](const appearance_variant aVariant) { return qt::to_presentation_color(qt::builtin_appearance_palette(aVariant)[core::index_of(appearance_role::agent_accent)]); };
+		expect(builtin(appearance_variant::light) == QColor{ 0x4A, 0x3F, 0xD6 } && builtin(appearance_variant::dark) == QColor{ 0xA3, 0xA0, 0xFF },
+			   "Agent accent's built-in Light and Dark values are the ones shipped");
+		for (const auto variant : { appearance_variant::light, appearance_variant::dark, appearance_variant::high_contrast_light, appearance_variant::high_contrast_dark }) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+			expect(core::failing_contrast(palette, variant).empty(), "every built-in theme holds the accent to its text floor");
+		}
+
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+		profile.Protocol    = core::agent_protocol::claude_stream_json;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->set_suggestion_context([] { return qt::agent_suggestion_context{ .OpenFile = QStringLiteral("src/a.cpp"), .Lines = std::pair{ 3U, 4U } }; });
+		process_events();
+		agent->refresh();
+		process_events();
+
+		// The inventory: every button of the window, the Agent tab and the
+		// tour among them. A run control wears the accent; no other does.
+		const auto inventory = [&window](const QColor& aAccent, const std::string_view aWhen) {
+			auto runs  = QStringList{ };
+			auto wrong = QStringList{ };
+			for (auto* const button : window.findChildren<QAbstractButton*>()) {
+				const auto words = button->palette().color(QPalette::Active, QPalette::ButtonText);
+				const auto name  = button->objectName().isEmpty() ? button->text() : button->objectName();
+				if (qt::agent_run_control(*button)) {
+					runs << name;
+					if (words != aAccent) {
+						wrong << QStringLiteral("run without accent: ") + name;
+					}
+				} else if (words == aAccent) {
+					wrong << QStringLiteral("accent without run: ") + name;
+				}
+			}
+			expect(wrong.isEmpty(), "the run controls and the accented controls are one set " + std::string{ aWhen } + ": " + wrong.join(QStringLiteral(", ")).toStdString());
+			return runs;
+		};
+		const auto shipped = qt::agent_accent(window.palette());
+		const auto runs    = inventory(shipped, "with the shipped accent");
+		std::cout << "agent-accent-inventory: " << runs.join(QStringLiteral(", ")).toStdString() << '\n';
+		expect(runs.contains(QStringLiteral("agentAsk")) && runs.contains(QStringLiteral("agentSuggestion")) && runs.contains(QStringLiteral("tourProblemMagic"))
+				   && runs.contains(QStringLiteral("tourSolutionMagic")),
+			   "Send, the suggestions and Enhance are run controls");
+		for (const char* const ordinary : { "tourResetUndo", "tourProposalAcceptAll", "agentHistory", "agentSuggestionsToggle", "agentAddContext", "agentLinesChipClose" }) {
+			if (auto* const button = window.findChild<QAbstractButton*>(QString::fromLatin1(ordinary)); button != nullptr) {
+				expect(!qt::agent_run_control(*button), std::string{ "a control that starts no run is not marked: " } + ordinary);
+			}
+		}
+
+		// A changed accent, as Appearance › Colours gives it, reaches every
+		// accented surface; none returns to the shipped value.
+		const auto custom = QColor{ 0x0B, 0x6E, 0x4F };
+		expect(qt::set_agent_accent(custom), "the theme's accent is set");
+		auto changed = QEvent{ QEvent::PaletteChange };
+		for (auto* const widget : window.findChildren<QWidget*>()) {
+			QCoreApplication::sendEvent(widget, &changed);
+		}
+		process_events();
+		static_cast<void>(inventory(custom, "with a changed accent"));
+		expect(qt::agent_accent(window.palette()) == custom, "every surface reads the changed role");
+		expect(qt::set_agent_accent(std::nullopt), "Reset gives the built-in value back");
+		for (auto* const widget : window.findChildren<QWidget*>()) {
+			QCoreApplication::sendEvent(widget, &changed);
+		}
+		process_events();
+		static_cast<void>(inventory(shipped, "after Reset"));
+		window.hide();
+	}
+
 	void test_a_refused_send_says_why_beside_the_composer()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -14316,7 +14795,7 @@ namespace {
 	/// Also doesn't make sense to show suggested prompts before the wizard
 	/// completes." An error turn, live or read back from the kept thread, is
 	/// drawn as an error, keeps Copy and offers its one way back instead of
-	/// Save as note and Draft comment; the suggestions wait for the setup.
+	/// the keep action; the suggestions wait for the setup.
 	void test_an_agent_error_is_an_error_and_suggestions_wait_for_setup()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -14356,7 +14835,7 @@ namespace {
 		const auto shown = [agent](const QWidget* aWidget) { return aWidget != nullptr && aWidget->isVisibleTo(agent); };
 
 		// A live run whose answer cannot be read: an error, with Copy and
-		// Agent settings…, never Save as note or Draft comment.
+		// Agent settings…, never the keep action.
 		auto identity                 = application::agent_invocation_projection_identity{ };
 		identity.ApplicationSession   = core::application_session_id{ 1U };
 		identity.Session.Id           = core::agent_session_id{ 9U };
@@ -14368,7 +14847,7 @@ namespace {
 		expect(agent->turn_count() == 1U && agent->turn_outcome(0U) == std::optional{ core::agent_turn_outcome::unreadable }
 				   && agent->turn_answer(0U).startsWith(QStringLiteral("my-agent answered in a form this app can't read.")),
 			   "an unreadable answer is a turn that ended as one: " + agent->turn_answer(0U).toStdString());
-		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)), "an error turn offers neither Save as note nor Draft comment");
+		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)), "an error turn offers no keep action");
 		expect(shown(agent->turn_copy_button(0U)) && agent->turn_copy_button(0U)->toolTip() == QStringLiteral("Copy the error and what the agent wrote"), "it keeps Copy, which copies the error's words");
 		expect(agent->turn_reply(0U) != nullptr && agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error"), "and is drawn and named as an error");
 		expect(shown(agent->turn_recovery_button(0U)) && agent->turn_recovery_button(0U)->text() == QStringLiteral("Agent settings…"), "its way back is the agent's settings");
@@ -14387,8 +14866,10 @@ namespace {
 		process_events();
 		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)) && shown(agent->turn_copy_button(0U)) && !shown(agent->turn_recovery_button(0U)),
 			   "a kept error offers Copy alone; the way back is the latest turn's");
-		expect(shown(agent->turn_note_button(1U)) && shown(agent->turn_draft_button(1U)) && shown(agent->turn_copy_button(1U)) && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
-			   "a kept answer keeps Save as note and Draft comment");
+		expect(shown(agent->turn_draft_button(1U)) && !agent->turn_draft_button(1U)->isEnabled() && agent->turn_draft_button(1U)->property("draftRefused").toBool()
+				   && agent->turn_draft_button(1U)->text() == QStringLiteral("Draft") && !shown(agent->turn_note_button(1U)) && shown(agent->turn_copy_button(1U))
+				   && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
+			   "a kept answer keeps its one keep action, Draft, struck where no thread or line was decided (RFC-BPR-0127, look v006)");
 		expect(!shown(agent->turn_note_button(2U)) && !shown(agent->turn_draft_button(2U)) && shown(agent->turn_recovery_button(2U))
 				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Resend"),
 			   "the latest, an old stopped turn, offers Resend");
@@ -14427,9 +14908,9 @@ namespace {
 		auto* const suggestions = agent->suggestions_widget();
 		expect(shown(suggestions) && !shown(agent->setup_prompt()), "with nothing to wait on, the suggestions show");
 		// [[BPR-1881]]. The Tour tab follows the Agent tab's own verdict.
-		auto* const tour     = window.tour_editor();
-		auto* const tourCall = tour->agent_setup_call();
-		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden(), "with nothing to wait on, the Tour tab's agent features are ready and it asks for no setup");
+		auto* const tour   = window.tour_editor();
+		auto* const footer = window.agent_footer_widget();
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && footer->picker()->attention().isEmpty(), "with nothing to wait on, the Tour tab's agent features are ready and the footer asks for no setup");
 		agent->adopt_setup(*window.agent_setup());
 		auto setup                       = application::agent_setup_projection{ };
 		setup.Detected                   = true;
@@ -14452,16 +14933,15 @@ namespace {
 		}
 		// [[BPR-1881]]. The same verdict: the Tour tab says to set the agent
 		// up and its agent features wait, and neither opens the setup.
-		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !tourCall->isHidden() && agent->state() != qt::agent_tab_state::setting_up,
-			   "an unfinished setup puts the call to action on the Tour tab, and the setup does not open by itself");
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !footer->picker()->attention().isEmpty() && agent->state() != qt::agent_tab_state::setting_up,
+			   "[[BPR-2051]] an unfinished setup is the footer's state, and the setup does not open by itself");
 		auto* const tourDraft = tour->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 		expect(tourDraft != nullptr && !tourDraft->isEnabled() && tourDraft->toolTip().contains(QStringLiteral("not set up")), "the Tour tab's drafting waits for the setup, saying why");
-		// Its Set up the agent opens the Agent tab's setup where Finish setup
-		// does: its first unfinished step.
-		tourCall->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+		// The setup opens at its first unfinished step.
+		window.open_agent_setup();
 		process_events();
 		expect(agent->state() == qt::agent_tab_state::setting_up && window.agent_setup()->open_step() == core::setup_step::check && !shown(suggestions),
-			   "the Tour tab's Set up the agent, like Finish setup, opens the setup at Check it works, with no suggestions");
+			   "Finish setup opens the setup at Check it works, with no suggestions");
 		// The check passes: the setup finishes on its Ready line.
 		// [[BPR-1877]], owner 2026-11-05: the suggestions do not wait for that
 		// line to be closed; they show and can be pressed beside it.
@@ -14474,8 +14954,8 @@ namespace {
 		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && shown(suggestions) && shown(agent->suggestions_toggle())
 				   && !shown(agent->setup_prompt()),
 			   "with the setup's Ready line up, the suggestions show beside it");
-		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden() && tourDraft->isEnabled() && !tourDraft->toolTip().contains(QStringLiteral("not set up")),
-			   "once set up, the Tour tab's call to action goes and its drafting can be pressed");
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && footer->picker()->attention().isEmpty() && tourDraft->isEnabled() && !tourDraft->toolTip().contains(QStringLiteral("not set up")),
+			   "once set up, the footer asks for nothing and the Tour tab's drafting can be pressed");
 		const auto beside = agent->suggestion_buttons();
 		expect(!beside.empty() && std::ranges::all_of(beside, [&shown](const QPushButton* aButton) { return shown(aButton) && aButton->isEnabled(); }),
 			   "every suggestion beside the Ready line can be pressed");
@@ -14636,7 +15116,7 @@ namespace {
 			   "it keeps Resend and is named fixed since");
 		expect(shown(fixedNote(0U)) && !fixedNote(0U)->text().contains(QStringLiteral("Resend")) && !shown(agent->turn_recovery_button(0U)), "an earlier failure is fixed since too, with no way back of its own");
 		expect(!shown(agent->banner()), "the stopped banner no longer says it stopped");
-		expect(!shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)), "fixed, it is still an error: no Save as note or Draft comment");
+		expect(!shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)), "fixed, it is still an error: no keep action");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-fixed-light.png"), "PNG"), "render saved");
 			const auto light = QApplication::palette();
@@ -14835,7 +15315,7 @@ namespace {
 		agent->refresh();
 		process_events();
 		expect(!panel->selected_profile().has_value() && panel->unavailable_agent_name() == QStringLiteral("Fixture agent"), "the removed agent is not replaced by the other");
-		expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
+		expect(!agent->run_settings_button()->isHidden() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
 			   "the pill says the chosen agent isn't available: " + agent->run_settings_text().toStdString());
 		auto* const menu    = agent->run_settings_button()->menu();
 		const auto  actions = menu->actions();
@@ -14880,6 +15360,186 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-2061]], [[BPR-2059]], owner 2026-11-10. A reply with several
+	/// suggested comments offers Draft all, counting only those it would draft;
+	/// it drafts through the host, says what it drafted and skipped and why, and
+	/// one Undo removes the batch. The cards read as Markdown in three spaced
+	/// blocks, the suggestion upright in its inset, and a narrow card keeps its
+	/// severity and kind whole while its file name shortens.
+	void test_a_reply_drafts_all_its_suggested_comments()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		const auto made = [](std::string aPath, std::string aClaim, std::optional<std::string> aComment) {
+			auto finding             = core::agent_finding{ };
+			finding.Provider         = core::agent_profile_id{ 1U };
+			finding.Severity         = core::defect_severity::major;
+			finding.Confidence       = core::agent_finding_confidence::medium;
+			finding.Category         = core::defect_category::maintainability;
+			finding.Path             = std::move(aPath);
+			finding.Lines            = { .Begin = 10U, .End = 12U };
+			finding.Claim            = std::move(aClaim);
+			finding.Evidence         = "`Cache::get` calls `at` before it checks the map.";
+			finding.SuggestedComment = std::move(aComment);
+			return application::agent_delivered_finding{ .Finding = std::move(finding), .Verdict = { } };
+		};
+		auto delivery     = application::agent_finding_delivery{ };
+		delivery.Session  = core::agent_session_id{ 9U };
+		delivery.Findings = {
+			made("src/a_rather_long_directory_name/cache_with_a_long_file_name.cpp", "`Cache::get` throws on a miss.", "Use `find` instead of `at`:\n\n```cpp\nauto found = map_.find(key);\n```"),
+			made("src/b.cpp", "The lock is held across the callback.", "suggestion (non-blocking): Release `mutex_` before calling `on_done`."),
+			made("src/c.cpp", "A third.", "Rename `tmp` to `pending`."),
+			made("src/gone.cpp", "Gone at the head.", "Drop this."),
+			made("src/d.cpp", "No suggestion on this one.", std::nullopt),
+		};
+		agent->set_finding_placeability([](const core::agent_finding& aFinding) { return aFinding.Path != "src/gone.cpp"; });
+		auto requests = std::vector<qt::agent_draft_all_request>{ };
+		auto finish   = qt::agent_draft_all_done{ };
+		auto undone   = std::vector<std::uint64_t>{ };
+		auto undoDone = qt::agent_draft_all_undo_done{ };
+		agent->set_draft_all_dispatch(
+			[&requests, &finish](qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone) {
+				requests.push_back(std::move(aRequest));
+				finish = std::move(aDone);
+			},
+			[&undone, &undoDone](const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone) {
+				undone.push_back(aBatch);
+				undoDone = std::move(aDone);
+			});
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = 1U;
+		window.agent_panel()->admit(identity);
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Four findings, three with a comment to post." });
+		window.finding_queue()->present(delivery);
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+		process_events();
+		auto* const button = agent->turn_draft_all_button(0U);
+		auto* const said   = agent->turn_draft_all_state(0U);
+		auto* const undo   = agent->turn_draft_all_undo(0U);
+		expect(agent->turn_cards(0U).size() == 5U && button != nullptr && button->isVisible() && button->isEnabled() && button->text() == QStringLiteral("Draft all (3)"),
+			   "a reply with several suggested comments offers Draft all, counting the placeable ones it would draft");
+
+		// The card reads as the comment would: Markdown, spaced, upright.
+		auto* const first   = agent->turn_cards(0U).front();
+		auto* const comment = dynamic_cast<qt::markdown_body_view*>(first->findChild<QWidget*>(QStringLiteral("agentFindingComment")));
+		auto* const claim   = dynamic_cast<qt::markdown_body_view*>(first->findChild<QWidget*>(QStringLiteral("agentFindingClaim")));
+		auto* const inset   = first->findChild<QWidget*>(QStringLiteral("agentFindingSuggestion"));
+		expect(comment != nullptr && claim != nullptr && dynamic_cast<qt::markdown_body_view*>(first->findChild<QWidget*>(QStringLiteral("agentFindingEvidence"))) != nullptr && inset != nullptr && inset->isAncestorOf(comment),
+			   "the claim, the evidence and the suggested comment are each Markdown, the suggestion in its inset");
+		const auto rendered = [](const qt::markdown_body_view* aView) {
+			auto text = QString{ };
+			for (const auto* const edit : aView->findChildren<QTextEdit*>()) {
+				if (edit->isVisible()) {
+					text += edit->toPlainText();
+				}
+			}
+			return text;
+		};
+		expect(!comment->font().italic() && rendered(comment).contains(QStringLiteral("find")) && !rendered(comment).contains(QLatin1Char{ '`' }) && !rendered(claim).contains(QLatin1Char{ '`' }),
+			   "code spans render as code, not raw backticks, and the suggestion is not italic");
+		expect(comment->original_body() == "Use `find` instead of `at`:\n\n```cpp\nauto found = map_.find(key);\n```", "the suggestion's Markdown is kept as the agent wrote it");
+		// Owner look, 2026-11-10 (BPR-2059 rejected): "You first screenshot shows
+		// ```cpp which doesnt look like it's rendering the markdown correctly."
+		// A fence with a language is a code block: no fence or language
+		// shown, its line set in the code font as a block of its own.
+		{
+			auto codeBlock = false;
+			auto codeFixed = false;
+			for (const auto* const edit : comment->findChildren<QTextEdit*>()) {
+				for (auto block = edit->document()->begin(); block.isValid(); block = block.next()) {
+					if (block.text().contains(QStringLiteral("auto found = map_.find(key);"))) {
+						codeBlock = block.text().trimmed() == QStringLiteral("auto found = map_.find(key);");
+						auto font = block.charFormat().font();
+						if (block.begin() != block.end()) {
+							font = block.begin().fragment().charFormat().font();
+						}
+						codeFixed = QFontInfo{ font }.fixedPitch() || font.fixedPitch() || font.styleHint() == QFont::Monospace || font.styleHint() == QFont::TypeWriter;
+					}
+				}
+			}
+			expect(!rendered(comment).contains(QStringLiteral("```")) && !rendered(comment).split(QLatin1Char{ '\n' }).contains(QStringLiteral("cpp")) && codeBlock && codeFixed,
+				   "a ```cpp fence renders as a code block in the code font, with no fence or language shown");
+		}
+		expect(inset->geometry().top() > claim->geometry().bottom() && comment->height() > 4 && claim->height() > 4, "the suggestion sits below the claim with room of its own");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-draft-all-offered.png"), "PNG"), "render saved");
+		}
+		// Narrow, the chips keep their words and the file name shortens.
+		window.resize(900, 900);
+		process_events();
+		{
+			auto* const kind   = first->findChild<QLabel*>(QStringLiteral("agentFindingKind"));
+			auto* const anchor = first->findChild<QLabel*>(QStringLiteral("agentFindingAnchor"));
+			expect(kind != nullptr && anchor != nullptr && kind->width() >= kind->sizeHint().width() && anchor->text().endsWith(QStringLiteral(":11–12"))
+					   && anchor->width() < anchor->fontMetrics().horizontalAdvance(anchor->text()),
+				   "narrow, the kind keeps its whole width and the anchor gives way");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-draft-all-narrow.png"), "PNG"), "render saved");
+			}
+		}
+		window.resize(1'440, 900);
+		process_events();
+
+		// One already drafted by its own card: the count follows.
+		agent->present_finding_card_state(9U, 2U, qt::agent_finding_card_state::drafted);
+		process_events();
+		expect(button->text() == QStringLiteral("Draft all (2)"), "a suggestion already drafted is not counted");
+		button->click();
+		process_events();
+		expect(requests.size() == 1U && requests.back().Cards.size() == 2U && requests.back().Cards[0].Ordinal == 0U && requests.back().Cards[1].Ordinal == 1U
+				   && requests.back().Planned.AlreadyDrafted == 1U && requests.back().Planned.NotInDiff == 1U && !button->isEnabled() && said->text() == QStringLiteral("Drafting 2 suggested comments…"),
+			   "Draft all asks the host for the undrafted, placeable ones, in order, and waits");
+		agent->present_finding_card_state(9U, 0U, qt::agent_finding_card_state::drafted);
+		agent->present_finding_card_state(9U, 1U, qt::agent_finding_card_state::refused, QStringLiteral("Line 11 is not in src/b.cpp at the current head, so nothing was made."));
+		auto outcome = requests.back().Planned;
+		outcome      = core::settle_draft_all(outcome, core::draft_all_result::drafted);
+		outcome      = core::settle_draft_all(outcome, core::draft_all_result::not_in_diff);
+		finish(outcome, true);
+		process_events();
+		expect(said->isVisible() && said->text() == QStringLiteral("Drafted 1 private draft. Skipped 3: 1 already drafted, 2 no longer in the diff.") && undo->isVisible()
+				   && button->text() == QStringLiteral("Draft all (1)"),
+			   "the reply says how many were drafted and skipped, and why, and offers one Undo");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-draft-all-done.png"), "PNG"), "render saved");
+		}
+		undo->click();
+		process_events();
+		expect(undone == std::vector<std::uint64_t>{ requests.back().Batch } && !undo->isVisible(), "Undo asks the host to remove that batch");
+		agent->mark_finding_gone(9U, 1U);
+		agent->present_finding_card_state(9U, 0U, qt::agent_finding_card_state::open);
+		undoDone(1U, 0U);
+		process_events();
+		expect(said->text() == QStringLiteral("Removed 1 draft.") && agent->finding_card_state(0U) == qt::agent_finding_card_state::open && button->text() == QStringLiteral("Draft all (1)"),
+			   "the batch's draft is gone and its card is open again");
+		agent->set_finding_placeability([](const core::agent_finding&) { return true; });
+		expect(button->text() == QStringLiteral("Draft all (1)"), "a suggestion found not in the diff is not offered again when the screen changes");
+		expect(qt::agent_tab_view::draft_all_undo_words(2U, 1U) == QStringLiteral("Removed 2 drafts. Kept 1 draft you changed since.")
+				   && qt::agent_tab_view::draft_all_words({ .Drafted = 0U, .Dismissed = 1U }) == QStringLiteral("Nothing drafted. Skipped 1: 1 dismissed."),
+			   "every outcome is said in words");
+		// [[BPR-2059]]. The continuation line carries no replay counts.
+		expect(!agent->findChild<QLabel*>(QStringLiteral("agentContinuationMode"))->text().contains(QStringLiteral("Replay omits")), "no internal status line is shown");
+	}
+
 	void test_the_agent_is_a_drawer_tab()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -14897,7 +15557,7 @@ namespace {
 			   "⌥⇧A opens the Agent tab and ⌘I asks about the selected lines");
 		window.open_agent_action()->trigger();
 		process_events();
-		expect(window.tray_tabs()->currentIndex() == 3 && agent->isVisible() && agent->state() == qt::agent_tab_state::not_set_up && agent->empty_state()->isVisible(),
+		expect(window.tray_tabs()->currentIndex() == 2 && agent->isVisible() && agent->state() == qt::agent_tab_state::not_set_up && agent->empty_state()->isVisible(),
 			   "⌥⇧A opens the drawer on the Agent tab, which says how to set an agent up");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-not-set-up.png"), "PNG"), "render saved");
@@ -14933,17 +15593,21 @@ namespace {
 		process_events();
 		const auto cards = agent->finding_cards();
 		expect(cards.size() == 1U, "a finding is a card");
-		auto* const draft = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		auto* const draft = cards.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"));
 		// Owner decision 2026-10-23 ("Yep build it like that"): three actions.
-		expect(draft != nullptr && draft->text() == QStringLiteral("Add as draft comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote")) != nullptr
+		// RFC-BPR-0127: one keep action, Draft comment where its line takes a
+		// draft (Keep local otherwise, hidden here).
+		// Owner look v006: Draft alone, labelled, beside Dismiss.
+		expect(draft != nullptr && draft->text() == QStringLiteral("Draft") && draft->isEnabled() && draft->isVisibleTo(cards.front())
+				   && cards.front()->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal")) == nullptr
 				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")) != nullptr,
-			   "its card offers Add as draft comment, Save as note and Dismiss");
+			   "its card offers Draft and Dismiss");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-findings.png"), "PNG"), "render saved");
 		}
 		draft->click();
 		process_events();
-		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Add as draft comment asks the queue's own promotion, nothing more");
+		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Draft comment asks the queue's own promotion, nothing more");
 
 		// Working: what it reads, and Stop.
 		window.agent_panel()->set_running(true);
@@ -14972,7 +15636,7 @@ namespace {
 		// Owner look v004 ("in an hour I wont remember which file line 34 was
 		// in"): the lines' prompt names their file.
 		expect(agent->suggestions()
-					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/engine/renderer.cpp"), QStringLiteral("What could this change break?"),
+					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("What could this change break?"), QStringLiteral("Review src/engine/renderer.cpp"),
 									   QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)") }
 				   && agent->suggestion_buttons().size() == 4U,
 			   "an open file and selected lines add their own suggestions; a selected block says so, naming its file and lines (owner look v005)");
@@ -14981,6 +15645,29 @@ namespace {
 		expect(agent->suggestions().back() == QStringLiteral("Explain src/engine/renderer.cpp line 36"), "one selected line is named as the line of its file");
 		suggestionContext.Lines = std::pair{ 440U, 447U };
 		agent->refresh_suggestions();
+		process_events();
+		// [[BPR-2002]], RFC-BPR-0102. No scope list; the selected lines are a
+		// chip, and its close detaches them until a new selection.
+		{
+			auto* const field = agent->findChild<QWidget*>(QStringLiteral("agentQuestion"));
+			expect(field != nullptr && !field->isAncestorOf(window.side_chat()->scope_selector()) && agent->findChild<QLabel*>(QStringLiteral("agentReadsLine")) == nullptr
+					   && agent->question_field()->toolTip() == QStringLiteral("The agent can read the whole pull request; attached lines only tell it where you are looking."),
+				   "no scope list is shown, and the field's tooltip says what the agent can read (BPR-2038: no line under it)");
+			expect(agent->lines_chip()->isVisible() && agent->lines_chip_text() == QStringLiteral("renderer.cpp 440–447") && agent->lines_attached(), "selected lines show as an attached chip");
+			agent->lines_chip_close()->click();
+			process_events();
+			expect(!agent->lines_chip()->isVisible() && !agent->lines_attached() && agent->suggestions().size() == 4U, "its close detaches them; Explain still offers the selected lines");
+			agent->refresh_suggestions();
+			expect(!agent->lines_attached(), "the same selection stays detached");
+			suggestionContext.Lines = std::pair{ 441U, 447U };
+			agent->refresh_suggestions();
+			expect(agent->lines_attached() && agent->lines_chip_text() == QStringLiteral("renderer.cpp 441–447"), "a new selection attaches again");
+			suggestionContext.Lines = std::pair{ 440U, 447U };
+			agent->refresh_suggestions();
+			for (const auto& prompt : agent->suggestions()) {
+				expect(!prompt.startsWith(QStringLiteral("Not sent")), "no suggestion is a refusal");
+			}
+		}
 		// Owner look v005: the suggestions are in the conversation's scrolled
 		// thread, not docked to the question field.
 		expect(agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->widget()->isAncestorOf(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions")))
@@ -15002,12 +15689,10 @@ namespace {
 				   "the host's kept choice shows them again, and is not said back");
 			agent->set_suggestions_observer({ });
 		}
-		// Owner decision (c) 2026-10-23 ("A chip in the message box like VS
-		// Code"): the model and effort are in the question field, not the
-		// context row.
-		expect(agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->run_settings_button())
-				   && !agent->findChild<QWidget*>(QStringLiteral("agentContextRow"))->isAncestorOf(agent->run_settings_button()),
-			   "the model and effort chip is inside the question field");
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the agent,
+		// model and effort picker is the window footer's, not the drawer's.
+		expect(window.agent_footer_widget()->isAncestorOf(agent->run_settings_button()) && !agent->isAncestorOf(agent->run_settings_button()),
+			   "the model and effort picker is in the window's footer, not the Agent tab");
 		auto observedThread = std::vector<qt::agent_thread_turn>{ };
 		agent->set_thread_observer([&observedThread](std::vector<qt::agent_thread_turn> aTurns) { observedThread = std::move(aTurns); });
 
@@ -15048,7 +15733,7 @@ namespace {
 			window.finding_queue()->present(delivery);
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
-			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding, above")),
+			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).endsWith(QStringLiteral(" · 1 finding")),
 				   "finished, the turn says what came of it rather than going quiet");
 			static_cast<void>(title);
 
@@ -15096,20 +15781,29 @@ namespace {
 			auto cardAsks = std::vector<qt::agent_finding_card_request>{ };
 			agent->set_finding_card_dispatch([&cardAsks](const qt::agent_finding_card_request& aRequest) { cardAsks.push_back(aRequest); });
 			auto* const turnCard = agent->turn_cards(0U).front();
-			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+			turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 			process_events();
 			expect(cardAsks.size() == 1U && cardAsks.back().Action == qt::agent_finding_card_action::draft_comment && cardAsks.back().Finding.Claim == finding.Claim
 					   && agent->finding_card_state(0U) == qt::agent_finding_card_state::working,
-				   "Add as draft comment asks the host, and the card waits");
+				   "Draft comment asks the host, and the card waits");
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::drafted);
 			process_events();
 			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::drafted && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted"))
-					   && turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
+					   && !turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(turnCard),
 				   "drafted, the card says so and offers nothing more");
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::refused, QStringLiteral("Open src/engine/renderer.cpp, then try again."));
 			process_events();
-			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote"))->isHidden(),
+			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(turnCard),
 				   "refused, it says why and stays open");
+			// RFC-BPR-0127, owner look v006. A card whose line is known not to
+			// take a draft offers Draft disabled, the pencil struck; no Local.
+			agent->set_finding_placeability([](const core::agent_finding&) { return false; });
+			process_events();
+			expect(!turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isEnabled() && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->property("draftRefused").toBool() && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(turnCard) && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->toolTip() == QStringLiteral("No line here takes a draft")
+					   && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingKeepLocal")) == nullptr,
+				   "no line takes a draft: Draft is struck and disabled, and nothing offers Local");
+			agent->set_finding_placeability({ });
+			process_events();
 			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss"))->click();
 			process_events();
 			expect(cardAsks.back().Action == qt::agent_finding_card_action::dismiss && agent->finding_card_state(0U) == qt::agent_finding_card_state::dismissed
@@ -15117,7 +15811,7 @@ namespace {
 				   "Dismiss says Dismissed, with Undo");
 			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"))->click();
 			process_events();
-			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::open && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
+			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::open && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(turnCard) && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isEnabled(),
 				   "Undo opens the card again");
 			agent->set_finding_card_dispatch({ });
 			// Owner decision 2026-10-23: a finding on another file opens it in Review
@@ -15128,33 +15822,21 @@ namespace {
 			expect(!window.review_file_named(QStringLiteral("not/in/this/pull/request.cpp")) && !window.go_to_file_line(QStringLiteral("not/in/this/pull/request.cpp"), 3U, false)
 					   && window.statusBar()->currentMessage().contains(QStringLiteral("is not in this pull request")),
 				   "a link to a file the pull request does not have opens nothing, and the status line says so");
-			// A plain reply offers Save as note for the whole of it.
-			auto savedNote = QString{ };
-			agent->set_answer_note_dispatch([&savedNote](const QString& aText, qt::agent_answer_note_done aDone) {
-				savedNote = aText;
-				aDone(true, { }, 77U);
-			});
+			// Owner look v006: an answer offers no Keep local; a finding kept
+			// local before (a restored card) still goes to its comment.
 			auto wentToNote = std::vector<std::uint64_t>{ };
 			agent->set_note_navigation([&wentToNote](const std::uint64_t aNote) { wentToNote.push_back(aNote); });
-			auto* const saveNote = agent->turn_note_button(1U);
-			expect(saveNote != nullptr && !saveNote->isHidden(), "a reply offers Save as note");
-			saveNote->click();
-			process_events();
-			// Owner look v004 ("After save as note it should turn into Go to note").
-			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Go to note") && saveNote->isEnabled() && wentToNote.empty(),
-				   "Save as note keeps the reply as a note, and becomes Go to note");
-			saveNote->click();
-			process_events();
-			expect(wentToNote == std::vector<std::uint64_t>{ 77U } && savedNote == QStringLiteral("Yes. The retry budget is reset once per frame."), "Go to note opens the note it made, and saves nothing more");
-			// A finding saved as a note offers the same.
+			expect(agent->turn_note_button(1U) == nullptr || agent->turn_note_button(1U)->isHidden(), "an answer offers no Keep local");
+			// A finding kept local offers the same.
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::noted, { }, 78U);
 			process_events();
-			auto* const cardGo = turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote"));
-			expect(cardGo != nullptr && !cardGo->isHidden(), "a finding saved as a note offers Go to note");
+			auto* const cardGo = turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment"));
+			expect(cardGo != nullptr && !cardGo->isHidden() && cardGo->text() == QStringLiteral("Go to comment") && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text() == QStringLiteral("Kept local."),
+				   "a finding kept local says so and offers Go to comment");
 			if (cardGo != nullptr) {
 				cardGo->click();
 			}
-			expect(wentToNote.size() == 2U && wentToNote.back() == 78U, "and it opens that note");
+			expect(wentToNote.size() == 1U && wentToNote.back() == 78U, "and it opens that comment");
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::open);
 			agent->set_answer_note_dispatch({ });
 			agent->set_note_navigation({ });
@@ -15213,7 +15895,7 @@ namespace {
 				return true;
 			});
 			process_events();
-			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
+			expect(!agent->run_settings_button()->isHidden() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
 					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
 				   "the row names the model and effort, and its tooltip the program that runs");
 			auto* const composer = window.side_chat()->composer();
@@ -15371,10 +16053,13 @@ namespace {
 				});
 				agent->set_draft_navigation([&wentTo](const std::string& aKey) { wentTo.push_back(aKey); });
 				expect(agent->findChildren<QPushButton*>(QStringLiteral("agentTurnUseAsReply")).empty(), "no answer has a Use as reply button");
-				expect(agent->turn_draft_button(2U) != nullptr && !agent->turn_draft_button(2U)->isHidden() && agent->turn_draft_button(2U)->text() == QStringLiteral("Draft comment")
-						   && agent->turn_note_button(2U) != nullptr && !agent->turn_note_button(2U)->isHidden() && agent->turn_note_button(2U)->text() == QStringLiteral("Save as note")
-						   && agent->turn_draft_button(2U)->parentWidget() == agent->turn_note_button(2U)->parentWidget() && agent->turn_draft_button(2U)->isFlat() == agent->turn_note_button(2U)->isFlat(),
-					   "an answer about the pull request offers Draft comment beside Save as note, in its style");
+				// RFC-BPR-0127: one keep action in one place; an answer about the
+				// pull request, which no thread or line takes, offers Keep local.
+				// Owner look v006: Draft alone; the pull request takes no draft
+				// here, so it is disabled with the pencil struck through.
+				expect(!agent->turn_draft_button(2U)->isHidden() && !agent->turn_draft_button(2U)->isEnabled() && agent->turn_draft_button(2U)->property("draftRefused").toBool()
+						   && agent->turn_draft_button(2U)->toolTip() == QStringLiteral("No line or thread here takes a draft") && agent->turn_note_button(2U)->isHidden(),
+					   "an answer about the pull request offers Draft, struck and disabled, and no Keep local");
 				agent->set_conversation_chip(qt::agent_conversation_chip{
 					.Key     = "review-thread:T1",
 					.Text    = QStringLiteral("src/engine/renderer.cpp line 34, 2 comments"),
@@ -15409,10 +16094,9 @@ namespace {
 					   "the asked line reads \"About <conversation>: <question>\", the conversation named plainly in the question's colour, not greyed");
 				auto* const conversationDraft = agent->turn_draft_button(3U);
 				auto* const ordinaryDraft     = agent->turn_draft_button(2U);
-				expect(conversationDraft != nullptr && !conversationDraft->isHidden() && conversationDraft->text() == QStringLiteral("Draft comment")
-						   && conversationDraft->toolTip() == QStringLiteral("Draft this reply as your reply to the conversation it is about.") && agent->turn_note_button(3U) != nullptr
-						   && !agent->turn_note_button(3U)->isHidden() && agent->turn_note_button(3U)->text() == QStringLiteral("Save as note"),
-					   "an answer about a conversation offers the same Draft comment, which says it drafts the conversation's reply, and Save as note is unchanged");
+				expect(conversationDraft != nullptr && !conversationDraft->isHidden() && conversationDraft->isEnabled() && conversationDraft->text() == QStringLiteral("Draft") && !conversationDraft->isFlat()
+						   && !conversationDraft->property("draftRefused").toBool() && agent->turn_note_button(3U)->isHidden(),
+					   "an answer about a conversation offers Draft, a raised labelled button, which drafts the conversation's reply");
 				if (!root.isEmpty()) {
 					expect(window.grab().save(root + QStringLiteral("/agent-conversation.png"), "PNG"), "render saved");
 				}
@@ -15447,32 +16131,32 @@ namespace {
 				process_events();
 				expect(drafted.size() == 1U && drafted.front().first == "answer-draft:thread" && drafted.front().second == QStringLiteral("The lock covers it: `evict` holds `Mutex` for the whole call."),
 					   "Draft comment on it gives the host the turn's place and the answer's words, nothing more");
-				expect(conversationDraft->text() == QStringLiteral("Go to draft") && conversationDraft->isEnabled() && wentTo.empty(), "and becomes Go to draft, as Save as note becomes Go to note");
+				expect(conversationDraft->text() == QStringLiteral("Go to draft") && conversationDraft->isEnabled() && wentTo.empty(), "and becomes Go to draft, as Keep local becomes Go to comment");
 				conversationDraft->click();
 				process_events();
 				expect(wentTo == std::vector<std::string>{ "answer-draft:thread" } && drafted.size() == 1U, "Go to draft opens that draft, and drafts nothing more");
-				ordinaryDraft->click();
-				process_events();
-				expect(drafted.size() == 2U && drafted.back().first.empty() && drafted.back().second == agent->turn_answer(2U) && ordinaryDraft->text() == QStringLiteral("Go to draft"),
-					   "an ordinary answer is drafted too: a turn whose place was not decided names none, and the host drafts it on the pull request");
+				expect(!ordinaryDraft->isEnabled() && ordinaryDraft->property("draftRefused").toBool() && drafted.size() == 1U, "an ordinary answer, whose place was not decided, offers Draft disabled");
 				renderTurns(QStringLiteral("go-to-draft"));
 				// A refusal says why and the action stays.
 				agent->set_answer_draft_dispatch([](const std::string&, const QString&, qt::agent_answer_draft_done aDone) { aDone(false, QStringLiteral("resolve the draft open at that line first")); });
-				auto* const noteDraft = agent->turn_draft_button(1U);
-				expect(noteDraft != nullptr && !noteDraft->isHidden(), "every answer offers Draft comment");
+				agent->release_answer_draft("answer-draft:thread");
+				process_events();
+				auto* const noteDraft = conversationDraft;
+				expect(noteDraft != nullptr && !noteDraft->isHidden() && noteDraft->text() == QStringLiteral("Draft") && noteDraft->isEnabled(), "its draft gone, the answer offers Draft again");
 				noteDraft->click();
 				process_events();
-				expect(noteDraft->text() == QStringLiteral("Not drafted: resolve the draft open at that line first") && noteDraft->isEnabled(), "a refusal says why, and Draft comment can be pressed again");
+				expect(noteDraft->text() == QStringLiteral("Not drafted: resolve the draft open at that line first") && noteDraft->isEnabled() && !noteDraft->isHidden(),
+					   "a refusal says why, and Draft can be pressed again");
 				expect(agent->conversation_chip()->isVisible(), "the chip stays for a follow-up");
 				agent->conversation_chip_close()->click();
 				expect(dismissed == 1, "its close asks the host to remove it");
 				agent->set_conversation_chip(std::nullopt);
 				process_events();
 				expect(!agent->conversation_chip()->isVisible() && agent->suggestions().front() == QStringLiteral("Review this pull request")
-						   && composer->placeholderText() == QStringLiteral("Ask about this pull request…"),
-					   "removed, the field and the prompts are about the pull request again");
-				agent->set_conversation_chip(qt::agent_conversation_chip{ .Key = "note:7", .Text = QStringLiteral("Your note on src/engine/renderer.cpp line 34"), .Replies = false });
-				expect(agent->suggestions().back() == QStringLiteral("Explain the code this note is on"), "a note's prompts offer no reply, which a note cannot take");
+						   && composer->placeholderText() == QStringLiteral("Ask about these lines…") && agent->lines_chip()->isVisible(),
+					   "removed, the prompts are about the pull request again, and the selected lines are attached once more");
+				agent->set_conversation_chip(qt::agent_conversation_chip{ .Key = "note:7", .Text = QStringLiteral("Your local comment on src/engine/renderer.cpp line 34"), .Replies = false });
+				expect(agent->suggestions().back() == QStringLiteral("Explain the code this comment is on"), "my own comment's prompts offer no reply, which it cannot take");
 				agent->set_conversation_chip(std::nullopt);
 				agent->set_conversation_dismiss({ });
 				agent->set_answer_draft_target({ });
@@ -15609,14 +16293,13 @@ namespace {
 			// that opens it in Review.
 			{
 				auto went = std::vector<std::tuple<QString, std::uint32_t, bool>>{ };
-				agent->set_line_links(
-					[](const QString& aPath) -> std::optional<QString> {
-						if (aPath == QStringLiteral("src/engine/renderer.cpp") || aPath == QStringLiteral("renderer.cpp")) {
-							return QStringLiteral("src/engine/renderer.cpp");
-						}
-						return std::nullopt;
-					},
-					[&went](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { went.emplace_back(aPath, aLine, aBefore); });
+				auto last = std::uint32_t{ 0U };
+				// [[BPR-1998]]. The changed files the core's recogniser resolves to.
+				agent->set_line_links([] { return core::agent_reference_files{ .Changed = { "src/engine/renderer.cpp", "src/a/util.hpp", "src/b/util.hpp" } }; },
+									  [&went, &last](const QString& aPath, const std::uint32_t aLine, const std::uint32_t aLast, const bool aBefore) {
+										  went.emplace_back(aPath, aLine, aBefore);
+										  last = aLast;
+									  });
 				agent->present_thread({ { .Question = QStringLiteral("Explain src/engine/renderer.cpp line 34"),
 										  .Answer   = QStringLiteral("Line 34 returns early; see `renderer.cpp:36` and src/engine/other.cpp:5.\n\n```cpp\n// renderer.cpp:40 stays code\n```"),
 										  .Footer   = QStringLiteral("answered") } });
@@ -15629,16 +16312,53 @@ namespace {
 				}
 				expect(went.size() == 1U && went.back() == std::tuple{ QStringLiteral("src/engine/renderer.cpp"), 34U, false }, "clicking it opens the file at that line");
 				{
-					const auto block = qt::agent_line_references(QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)"),
-																 [](const QString& aPath) -> std::optional<QString> { return aPath == QStringLiteral("src/engine/renderer.cpp") ? std::optional{ aPath } : std::nullopt; });
-					expect(block.size() == 1U && block.front().First == 440U && block.front().Last == 447U && block.front().Path == QStringLiteral("src/engine/renderer.cpp"),
+					const auto block = core::find_agent_references("Explain the selected block (src/engine/renderer.cpp lines 440\xE2\x80\x93"
+																   "447)",
+																   false);
+					expect(block.size() == 1U && block.front().First == 440U && block.front().Last == 447U && block.front().Path == "src/engine/renderer.cpp",
 						   "the selected block's prompt names its file and lines as one link");
 				}
 				const auto shown = agent->turn_answer_view(0U) != nullptr ? QString::fromStdString(agent->turn_answer_view(0U)->original_body()) : QString{ };
 				expect(shown.contains(QStringLiteral("[Line 34](src/engine/renderer.cpp#L34)")) && shown.contains(QStringLiteral("[`renderer.cpp:36`](src/engine/renderer.cpp#L36)"))
 						   && shown.contains(QStringLiteral("src/engine/other.cpp:5.")) && !shown.contains(QStringLiteral("other.cpp#")) && shown.contains(QStringLiteral("// renderer.cpp:40 stays code")),
 					   "in the answer, the question's bare line, a code span naming a file's line and only the pull request's files are links; fenced code is not");
-				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Save as note keep the answer as written");
+				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Keep local keep the answer as written");
+				// [[BPR-1998]], RFC-BPR-0101 AC01, AC02. A range opens revealed
+				// whole; a name two files share offers both; nothing else links.
+				{
+					auto offered = QStringList{ };
+					agent->set_reference_chooser([&offered](const QStringList& aPaths) -> std::optional<QString> {
+						offered = aPaths;
+						return aPaths.back();
+					});
+					agent->present_thread({ { .Question = QStringLiteral("What about these?"),
+											  .Answer   = QStringLiteral("See src/engine/renderer.cpp#L12-L34, **util.hpp:7** and missing.cpp:3."),
+											  .Footer   = QStringLiteral("answered") } });
+					process_events();
+					const auto body = QString::fromStdString(agent->turn_answer_view(0U)->original_body());
+					expect(body.contains(QStringLiteral("[src/engine/renderer.cpp#L12-L34](src/engine/renderer.cpp#L12-L34)")) && body.contains(QStringLiteral("[util.hpp:7](src/a/util.hpp|src/b/util.hpp#L7)"))
+							   && !body.contains(QStringLiteral("missing.cpp#")),
+						   "a range, a shared name and a missing file each read as the core decides");
+					went.clear();
+					agent->turn_answer_view(0U)->set_link_dispatch({ });
+					qt::follow_agent_reference(agent, QStringLiteral("src/engine/renderer.cpp#L12-L34"), [&went, &last](const QString& aPath, std::uint32_t aLine, std::uint32_t aLast, bool aBefore) {
+						went.emplace_back(aPath, aLine, aBefore);
+						last = aLast;
+					});
+					expect(went.size() == 1U && std::get<1>(went.back()) == 12U && last == 34U, "a range opens at its first line with its last");
+					went.clear();
+					qt::follow_agent_reference(
+						agent, QStringLiteral("src/a/util.hpp|src/b/util.hpp#L7"), [&went, &last](const QString& aPath, std::uint32_t aLine, std::uint32_t aLast, bool aBefore) {
+							went.emplace_back(aPath, aLine, aBefore);
+							last = aLast; },
+						[&offered](const QStringList& aPaths) -> std::optional<QString> {
+							offered = aPaths;
+							return aPaths.back();
+						});
+					expect(offered == QStringList{ QStringLiteral("src/a/util.hpp"), QStringLiteral("src/b/util.hpp") } && went.size() == 1U && std::get<0>(went.back()) == QStringLiteral("src/b/util.hpp"),
+						   "a shared name offers both files and opens the one chosen");
+				}
+				agent->set_reference_chooser({ });
 				agent->set_line_links({ }, { });
 			}
 			// Owner look v004: the answer's last line was cut off; the answer is
@@ -15693,14 +16413,14 @@ namespace {
 					window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 					process_events();
 				};
-				const auto at_end = [field] { return field->textCursor().position() == static_cast<int>(field->toPlainText().size()); };
+				const auto atEnd = [field] { return field->textCursor().position() == static_cast<int>(field->toPlainText().size()); };
 				window.side_chat()->send_action()->setEnabled(true);
 				field->clear();
 				auto* button = chosen();
 				expect(button != nullptr && button->isEnabled(), "a suggested prompt can be pressed");
 				const auto prompt = button->property("agentPrompt").toString();
 				expect(button->toolTip() == prompt + QStringLiteral("\nClick to send. Shift-click to edit before sending.") && button->accessibleName() == prompt
-						   && button->accessibleDescription().startsWith(QStringLiteral("Sends this prompt to the agent. Shift-click or "))
+						   && button->accessibleDescription().startsWith(prompt + QStringLiteral("\nClick to send. Shift-click or "))
 						   && button->accessibleDescription().endsWith(QStringLiteral(" puts it in the question field to edit before sending.")),
 					   "the prompt says a click sends and Shift-click edits, to the pointer and to a screen reader");
 
@@ -15724,7 +16444,7 @@ namespace {
 				field->clear();
 				button = chosen();
 				mouse(*button, Qt::ShiftModifier);
-				expect(field->toPlainText() == prompt && field->hasFocus() && at_end() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
+				expect(field->toPlainText() == prompt && field->hasFocus() && atEnd() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
 					   "Shift-click puts the prompt in the question field to edit, focused and at its end, and sends nothing");
 
 				// Words already typed are kept: a click sends the prompt alone
@@ -15741,7 +16461,7 @@ namespace {
 				// Shift-Return adds it after the words, on its own line.
 				button = chosen();
 				keys(*button, Qt::Key_Return, Qt::ShiftModifier);
-				expect(field->toPlainText() == typed + QStringLiteral("\n") + prompt && field->hasFocus() && at_end() && agent->turn_count() == before + 2U,
+				expect(field->toPlainText() == typed + QStringLiteral("\n") + prompt && field->hasFocus() && atEnd() && agent->turn_count() == before + 2U,
 					   "Shift-Return adds the prompt after the words in the field, never replacing them, and sends nothing");
 
 				// Return and Space send, as a click does; Shift-Space edits.
@@ -15806,7 +16526,7 @@ namespace {
 		process_events();
 		window.ask_agent_action()->trigger();
 		process_events();
-		expect(window.tray_tabs()->currentIndex() == 3 && window.side_chat()->composer()->hasFocus(), "⌘I opens the Agent tab with the keyboard in the question");
+		expect(window.tray_tabs()->currentIndex() == 2 && window.side_chat()->composer()->hasFocus(), "⌘I opens the Agent tab with the keyboard in the question");
 		// The conversation, its context row and its question keep the
 		// principles; the private history behind History is RFC-BPR-0023's
 		// own page, unchanged.
@@ -16180,31 +16900,37 @@ namespace {
 		auto* const findings = window.findings_tab_scroll();
 		auto* const drawer   = window.conversations_drawer();
 		// [[BPR-1592]]. The agent's provisional tab follows Tour.
-		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 4
-				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
-				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
-				   && tabs->tabText(3) == QStringLiteral("Agent") && tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
+		// RFC-BPR-0127 ([[BPR-2158]]) AC01. Comments absorbs Notes: the
+		// tray's tabs are Comments, Tour and Agent.
+		expect(tabs != nullptr && drawer->isAncestorOf(tabs)
+				   && tabs->count() == 3 && tabs->tabText(0) == QStringLiteral("Comments") && tabs->isTabVisible(0)
+				   && tabs->tabText(1) == QStringLiteral("Tour") && tabs->accessibleTabName(1) == QStringLiteral("Tour") && tabs->isTabVisible(1)
+				   && tabs->tabText(2) == QStringLiteral("Agent") && tabs->tabIcon(2).isNull() && tabs->accessibleTabName(2) == QStringLiteral("Agent") && tabs->isTabVisible(2)
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
-			   "the tray's header is Comments, Notes, Tour and Agent, and it opens on Comments");
-		const auto privateHeader = [&] {
-			return tabs->tabText(1) == QStringLiteral("Notes") && tabs->accessibleTabName(1) == QStringLiteral("Notes")
-				&& tabs->tabToolTip(1) == QStringLiteral("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft.")
-				&& tabs->accessibleDescription().contains(QStringLiteral("Notes"))
-				&& window.ai_tools_action()->text() == QStringLiteral("Agent");
+			   "AC01: the tray's header is Comments, Tour and Agent, and it opens on Comments");
+		// The Notes tab is gone, not hidden: no tab, hidden or shown, is
+		// named Notes, and nothing holds the retired panel.
+		const auto notesRetired = [&] {
+			for (auto index = 0; index < tabs->count(); ++index) {
+				if (tabs->accessibleTabName(index) == QStringLiteral("Notes")) {
+					return false;
+				}
+			}
+			return !tabs->accessibleDescription().contains(QStringLiteral("Notes")) && window.ai_tools_action()->text() == QStringLiteral("Agent")
+				&& window.findChild<QWidget*>(QStringLiteral("workbenchNotesTools")) == nullptr && window.findChild<QWidget*>(QStringLiteral("privateNotesPanel")) == nullptr;
 		};
-		expect(privateHeader(), "Notes labels, tooltip and accessible name state its private purpose");
-		tabs->setTabText(1, QStringLiteral("Findings"));
-		expect(!privateHeader(), "negative control: the obsolete Findings heading fails the Notes contract");
-		tabs->setTabText(1, QStringLiteral("Notes"));
+		expect(notesRetired(), "AC01: no Notes tab, and the tray's description names none");
+		const auto added = tabs->addTab(QStringLiteral("Notes"));
+		tabs->setAccessibleTabName(added, QStringLiteral("Notes"));
+		expect(!notesRetired(), "negative control: a Notes tab fails the contract");
+		tabs->removeTab(added);
 		auto* purpose = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
 		expect(purpose != nullptr && purpose->text() == QStringLiteral("Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."), "the Agent tab explains privacy and promotion");
 		window.agent_panel()->offer_profiles({ });
-		window.private_notes()->present({ .Scope = 1U, .Available = true });
 		expect(window.agent_panel()->profile_selector()->count() == 0
 				   && window.agent_panel()->profile_selector()->placeholderText() == QStringLiteral("No agent configured")
-				   && window.private_notes()->new_review_action()->isEnabled(),
-			   "private notes stay usable when no agent is configured");
-		expect(!findings->isAncestorOf(window.private_notes()), "[[BPR-1592]] the private notes are not among the agent's tools");
+				   && window.local_comment_action() != nullptr && !findings->isAncestorOf(window.conversation_panel()),
+			   "Local comments are Comments', not among the agent's tools, and need no agent");
 		expect(window.comments_count_text() == QStringLiteral("2")
 				   && tabs->accessibleTabName(0).contains(QStringLiteral("2 threads with new comments")),
 			   "the Comments tab carries the new-comment count and says it");
@@ -16226,12 +16952,32 @@ namespace {
 		};
 		auto* const onlyNew = window.conversation_panel()->filter_unread_button();
 		expect(comments->isVisible() && !findings->isVisible() && window.conversation_panel()->isVisible()
-				   && window.next_new_comment_button()->isVisible() && onTabRow(window.next_new_comment_button())
+				   && window.next_comment_button()->isVisible() && onTabRow(window.next_comment_button()) && onTabRow(window.previous_comment_button())
+				   && !window.next_new_comment_button()->isVisible()
 				   && onlyNew->isVisible() && onTabRow(onlyNew)
-				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
+				   && window.next_comment_button()->defaultAction() == window.next_comment_action() && window.previous_comment_button()->defaultAction() == window.previous_comment_action()
 				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
 				   && !window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible(),
 			   "Comments controls stay in the header tools row, wrapping below the tabs when needed, with private tools hidden");
+		// Owner look v002 ([[BPR-2158]]): Previous and Next comment step
+		// through every comment of the file, read or not, by button or key.
+		{
+			auto* const cards = window.conversation_panel()->cards();
+			cards->close_thread();
+			window.next_comment_action()->trigger();
+			process_events();
+			const auto first = cards->open_thread_id();
+			window.next_comment_action()->trigger();
+			process_events();
+			const auto second = cards->open_thread_id();
+			window.previous_comment_action()->trigger();
+			process_events();
+			expect(first == "review-thread:a" && second == "review-thread:b" && cards->open_thread_id() == "review-thread:a"
+					   && !window.next_comment_action()->shortcuts().isEmpty() && !window.previous_comment_action()->shortcuts().isEmpty(),
+				   "Next comment opens the first, then the next; Previous goes back; both have keys (" + first + ", " + second + ")");
+			cards->close_thread();
+			process_events();
+		}
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
 			expect(!rendered.isNull(), "the right tray renders in the composed window");
@@ -16246,26 +16992,15 @@ namespace {
 				   && findings->isAncestorOf(window.side_chat()) && !findings->isAncestorOf(window.defect_card())
 				   && comments->isAncestorOf(window.defect_count_label())
 				   && findings->isAncestorOf(window.agent_panel()) && findings->findChild<QWidget*>(QStringLiteral("workbenchDifAiSlot")) == nullptr,
-			   "the private tools stay in Notes while thread defect controls are outside it");
+			   "the private tools stay in the agent's column while thread defect controls are outside it");
 
 		auto* const view = window.conversation_view();
 		view->setCurrentIndex(window.conversation_model()->index_for_id("review-thread:b"));
 		process_events();
 		const auto selected = view->currentIndex();
-		// [[BPR-1592]]. Notes shows the notes and its two tools, and nothing
-		// of the agent.
-		tabs->setCurrentIndex(1);
-		process_events();
-		auto* const notesTools = window.findChild<QWidget*>(QStringLiteral("workbenchNotesTools"));
-		expect(window.private_notes()->isVisible() && !findings->isVisible() && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
-				   && !window.finding_queue()->isVisible() && !window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->isVisible()
-				   && notesTools != nullptr && notesTools->isVisible() && onTabRow(notesTools) && !window.next_new_comment_button()->isVisible()
-				   && !window.ai_tools_action()->isChecked(),
-			   "the Notes tab shows the notes with New note and the notes on the pull request on the tab row, and no agent tools");
-		save(QStringLiteral("tray-notes"));
 		// [[BPR-1594]]. The Agent tab: no agent set up, it says how to set one
 		// up, in one sentence and one action, with no nested pages.
-		tabs->setCurrentIndex(3);
+		tabs->setCurrentIndex(2);
 		process_events();
 		auto* const agent = window.agent_tab();
 		expect(agent != nullptr && agent->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked() && !window.conversation_panel()->isVisible()
@@ -16281,8 +17016,9 @@ namespace {
 
 		// Keyboard: the tabs are a focus stop, and the arrow keys move between them.
 		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
-				   && window.focus_order().contains(window.next_new_comment_button()),
+				   && window.focus_order().contains(window.previous_comment_button()) && window.focus_order().contains(window.next_comment_button()),
 			   "the tray's tabs and the Comments tab's tool are declared focus stops");
+		// RFC-BPR-0127: Notes is gone; Tour follows Comments.
 		tabs->setCurrentIndex(1);
 		process_events();
 		tabs->setFocus(Qt::OtherFocusReason);
@@ -16295,11 +17031,11 @@ namespace {
 		auto* const accessible = QAccessible::queryAccessibleInterface(tabs);
 		expect(accessible != nullptr && accessible->childCount() >= 2
 				   && accessible->child(0)->text(QAccessible::Name).startsWith(QStringLiteral("Comments"))
-				   && accessible->child(1)->text(QAccessible::Name) == QStringLiteral("Notes"),
+				   && accessible->child(1)->text(QAccessible::Name) == QStringLiteral("Tour"),
 			   "accessibility reaches each tab by name");
 
 		// The AI tools action and the Agent tab are one choice.
-		tabs->setCurrentIndex(3);
+		tabs->setCurrentIndex(2);
 		process_events();
 		expect(window.ai_tools_action()->isChecked(), "the Agent tab checks the AI tools action");
 		window.ai_tools_action()->setChecked(false);
@@ -16364,10 +17100,10 @@ namespace {
 		auto* const header = window.findChild<QWidget*>(QStringLiteral("workbenchTrayHeader"));
 		auto* const pill   = window.findChild<QWidget*>(QStringLiteral("workbenchTrayCommentsCount"));
 		auto* const drawer = window.conversations_drawer();
-		expect(tabs != nullptr && header != nullptr && pill != nullptr && tabs->count() == 4, "the tray's tab row is composed");
-		const QString names[] = { QStringLiteral("Comments"), QStringLiteral("Notes"), QStringLiteral("Tour"), QStringLiteral("Agent") };
+		expect(tabs != nullptr && header != nullptr && pill != nullptr && tabs->count() == 3, "the tray's tab row is composed");
+		const QString names[] = { QStringLiteral("Comments"), QStringLiteral("Tour"), QStringLiteral("Agent") };
 		const auto    named   = [&] {
-			for (auto index = 0; index < 4; ++index) {
+			for (auto index = 0; index < 3; ++index) {
 				if (tabs->tabText(index) != names[index]) {
 					return false;
 				}
@@ -16384,6 +17120,9 @@ namespace {
 		// elided, clipped or drawn over.
 		const auto namesWhole = [tabs] {
 			for (auto index = 0; index < tabs->count(); ++index) {
+				if (!tabs->isTabVisible(index)) {
+					continue;
+				}
 				const auto shown   = tabs->tabText(index);
 				const auto metrics = tabs->fontMetrics();
 				auto       option  = QStyleOptionTab{ };
@@ -16454,13 +17193,13 @@ namespace {
 				const auto padding = [&](const int aIndex) {
 					return tabs->tabRect(aIndex).width() - metrics.size(Qt::TextShowMnemonic, names[aIndex]).width();
 				};
+				// RFC-BPR-0127: Notes is gone; Tour's padding is the measure.
 				const auto notes = padding(1);
-				expect(std::abs(padding(2) - notes) <= 1, "Tour and Notes have the same padding" + context);
-				expect(std::abs(padding(3) - notes) <= 1 && tabs->tabIcon(3).isNull(),
-					   "at full width the Agent tab is its name alone, padded as Notes is, with no glyph" + context);
+				expect(std::abs(padding(2) - notes) <= 1 && tabs->tabIcon(2).isNull(),
+					   "at full width the Agent tab is its name alone, padded as Tour is, with no glyph" + context);
 				const auto count = withCount ? pill->sizeHint().width() + 4 : 0;
 				expect(std::abs(padding(0) - count - notes) <= 1,
-					   (withCount ? "the Comments tab is its name and its count, padded as Notes is"
+					   (withCount ? "the Comments tab is its name and its count, padded as Tour is"
 								  : "the Comments tab keeps no room for a count it is not showing")
 						   + context);
 				const auto fullRow = rowWidth();
@@ -16485,7 +17224,7 @@ namespace {
 					// that starts with its accessible name, which is its name.
 					expect(!named(), "the names go only when they do not fit" + where);
 					auto glyphsOnly = true;
-					for (auto index = 0; index < 4; ++index) {
+					for (auto index = 0; index < 3; ++index) {
 						const auto shown = tabs->tabText(index);
 						expect(!tabs->tabIcon(index).isNull(), "every compact tab shows its glyph" + where);
 						expect(shown.isEmpty() || (index == tabs->currentIndex() && shown == names[index]),
@@ -16520,9 +17259,9 @@ namespace {
 				drag_conversations_handle(window, 300);
 				process_events();
 				if (!named() && tabs->tabText(0) == names[0]) {
-					tabs->setCurrentIndex(3);
+					tabs->setCurrentIndex(2);
 					process_events();
-					expect(tabs->tabText(3) == names[3] && tabs->tabText(0).isEmpty() && rowWidth() <= header->width(),
+					expect(tabs->tabText(2) == names[2] && tabs->tabText(0).isEmpty() && rowWidth() <= header->width(),
 						   "choosing the Agent tab in a compact row names it instead" + context);
 					if (styleName.isEmpty()) {
 						saveHeader(QStringLiteral("tray-tabs-300-%1-agent").arg(withCount ? QStringLiteral("count") : QStringLiteral("none")));
@@ -18866,13 +19605,9 @@ namespace {
 		expect(toggles == 6 && open(files) && open(comments), "and it shows them again");
 
 		// An editable multi-line editor keeps the key and does nothing with it.
-		// [[BPR-1592]]. Notes is the tray's second tab.
-		window.tray_tabs()->setCurrentIndex(1);
+		// RFC-BPR-0127. Notes is gone; a field written in the drawer.
+		auto* const note = drawer_text_field(window);
 		process_events();
-		window.private_notes()->present({ .Scope = 1U, .Available = true });
-		window.private_notes()->new_review_action()->trigger();
-		process_events();
-		auto* const note = window.private_notes()->body_editor();
 		note->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(note->isVisible() && !note->isReadOnly() && QApplication::focusWidget() == note,
@@ -18895,6 +19630,7 @@ namespace {
 		expect(toggles == 7 && !open(comments), "a read-only multi-line view lets the key through");
 		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
 		note->setReadOnly(false);
+		note->hide();
 		window.tray_tabs()->setCurrentIndex(0);
 
 		// A hand toggle while hidden drops the memory: Comments opens alone,
@@ -19216,7 +19952,7 @@ namespace {
 		expect(!window.reveal_conversation_in_review("issue-comment:c1") && !window.reveal_conversation_in_review("review:r9"),
 			   "a pull request comment or a review is not opened in Review");
 		// [[BPR-1383]]. Discuss uses this same exact pending pick. Comments
-		// was closed, Notes selected, and the other file is still displayed.
+		// was closed, Tour selected, and the other file is still displayed.
 		window.conversations_drawer_toggle_action()->trigger();
 		window.tray_tabs()->setCurrentIndex(1);
 		window.choose_modality(qt::review_modality::discuss);
@@ -19229,7 +19965,7 @@ namespace {
 		lineButton->click();
 		process_events();
 		expect(window.current_modality() == qt::review_modality::review && comments->isVisible() && window.tray_tabs()->currentIndex() == 0,
-			   "Discuss opens the inline Comments view even when Comments was closed and Notes selected");
+			   "Discuss opens the inline Comments view even when Comments was closed and Tour selected");
 		expect(cards->open_thread_id() != "review-thread:late", "the Discuss pick waits for its own file comparison");
 		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
 		moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
@@ -19514,8 +20250,8 @@ namespace {
 		window.open_agent_action()->trigger();
 		process_events();
 		agent->refresh();
-		agent->set_line_links([&window](const QString& aPath) { return window.review_file_named(aPath); },
-							  [&window](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { static_cast<void>(window.go_to_file_line(aPath, aLine, aBefore)); });
+		agent->set_line_links([&window] { return core::agent_reference_files{ .Changed = window.review_changed_files() }; },
+							  [&window](const QString& aPath, const std::uint32_t aLine, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(window.go_to_file_line(aPath, aLine, aBefore, aLast)); });
 		agent->present_thread({ { .Question = QStringLiteral("What could this change break?"),
 								  .Answer   = QStringLiteral("The clearest regression is at `src/big.cpp:2991`. The budget is set at src/big.cpp:401."),
 								  .Footer   = QStringLiteral("Claude Code answered in 0:09.") } });
@@ -20792,14 +21528,15 @@ namespace {
 		auto* const drawer = window.overview_page()->status_drawer();
 		auto* const panel  = window.conversation_panel();
 		auto* const cards  = panel->cards();
-		auto* const notes  = window.private_notes();
 		auto* const agent  = window.agent_tab();
-		expect(window.showing_overview() && drawer->tabs()->count() == 6, "Overview's drawer has six tabs");
+		expect(window.showing_overview() && drawer->tabs()->count() == 5, "Overview's drawer has five tabs");
+		for (auto index = 0; index < drawer->tabs()->count(); ++index) {
+			expect(drawer->tabs()->tabText(index) != QStringLiteral("Notes") && drawer->tabs()->accessibleTabName(index) != QStringLiteral("Notes"),
+				   "AC01: Overview's drawer has no Notes tab, shown or hidden");
+		}
 		expect(!drawer->tour_tab_shown(), "no tour, and not the author: no Tour tab");
 		expect(drawer->holder(qt::overview_drawer_tab::comments)->isAncestorOf(panel) && cards->pull_request_comments_shown(),
 			   "Overview's Comments holds the one conversation panel, showing the pull request's conversation");
-		expect(drawer->holder(qt::overview_drawer_tab::notes)->isAncestorOf(notes) && notes->pull_request_only() && notes->elsewhere_shown(),
-			   "Overview's Notes holds the one notes panel, on the pull request's notes");
 		expect(drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent), "Overview's Agent holds the one Agent tab");
 		expect(!panel->new_comment()->isHidden(), "Overview's Comments offers a new comment on the pull request");
 
@@ -20841,21 +21578,13 @@ namespace {
 		process_events();
 		expect(hideResolved->isChecked() && cards->cards().size() == 2U, "Hide resolved keeps the comments, which are never resolved");
 
-		// Notes on Overview are the pull request's; state is the panel's own.
-		notes->present({ .Scope = 7, .Available = true, .Notes = { { .Id = 3, .Revision = 1, .Attachment = std::nullopt, .Label = "Pull request", .Text = "Soak test first." } } });
-		drawer->show_tab(qt::overview_drawer_tab::notes);
-		process_events();
-		notes->open_note(3);
-		expect(notes->open_note_id() == 3U, "a pull request note opens on Overview");
-
 		// To Review: the same objects move back to the tray, each keeping
 		// its state; Comments is the file's threads, with a link back.
 		window.choose_modality(qt::review_modality::review);
 		process_events();
-		expect(!drawer->isAncestorOf(panel) && !drawer->isAncestorOf(notes) && !drawer->isAncestorOf(agent), "in Review the panels are the tray's again");
-		expect(window.private_notes() == notes && window.agent_tab() == agent && window.conversation_panel() == panel, "one notes panel, one agent tab, one conversation panel");
-		expect(!cards->pull_request_comments_shown() && !notes->pull_request_only() && notes->open_note_id() == 3U,
-			   "Review's Comments has no pull request mode; the open note is still open");
+		expect(!drawer->isAncestorOf(panel) && !drawer->isAncestorOf(agent), "in Review the panels are the tray's again");
+		expect(window.agent_tab() == agent && window.conversation_panel() == panel, "one agent tab, one conversation panel");
+		expect(!cards->pull_request_comments_shown(), "Review's Comments has no pull request mode");
 		expect(panel->new_comment()->isHidden(), "beside the code there is no new pull request comment");
 		expect(!hideResolved->isChecked() && !onlyNew->isChecked() && !panel->discuss_controls()->isVisible(), "beside the code Review's own filters are back, off, on the tab row");
 		expect(window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest")) == nullptr || !window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest"))->isVisible(),
@@ -20877,9 +21606,9 @@ namespace {
 		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent) && agent->isVisible(),
 			   "the Ask agent key opens the Agent tab on Overview");
 		expect(window.showing_overview(), "and stays on Overview");
-		// N in Overview's Notes is a note on the pull request.
-		expect(notes->new_review_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note) && notes->new_line_action()->shortcuts().isEmpty(),
-			   "on Overview N writes a note on the pull request");
+		// RFC-BPR-0127 ([[BPR-2158]]). N is the window's Local comment.
+		expect(window.local_comment_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note),
+			   "N is the window's Local comment");
 
 		// The Tour tab.
 		auto* const summary  = drawer->tour_summary();
@@ -20907,16 +21636,34 @@ namespace {
 		window.publish(overview);
 		process_events();
 		expect(drawer->tour_tab_shown() && summary->shown().Kind == core::overview_tour_kind::prepare, "the author with no tour is offered Prepare");
-		auto draft = tests::review_tour_fixture();
+		auto draft    = tests::review_tour_fixture();
+		draft.Problem = "Crash when **deleted** data is read.";
 		editor->present({ .Draft = std::make_shared<const core::review_tour>(draft) });
 		process_events();
 		expect(summary->shown().Kind == core::overview_tour_kind::writer && summary->stop_titles().size() == static_cast<qsizetype>(draft.Stops.size()),
 			   "the author's draft shows its stops");
+		// [[BPR-1993]], RFC-BPR-0099 AC07. Problem and Solution are Markdown, as
+		// the Tour tab reads them; a stop row has its file, lines and first
+		// sentence and opens that stop in Review; the state line and actions
+		// are the Tour tab head's.
+		expect(summary->problem_view()->original_body() == draft.Problem && summary->problem_view()->rendered_available() && summary->problem_view()->rendered_view()->toPlainText().contains(QStringLiteral("Crash when deleted data is read.")),
+			   "Problem renders as Markdown, not as its source");
+		expect(summary->stop_places() == QStringList{ QStringLiteral("item.cpp, lines 4\u20136") } && summary->stop_leads() == QStringList{ QStringLiteral("Keep raw text <details>hidden</details>") },
+			   "a stop row has its file, its lines and its first sentence");
+		expect(summary->head() == editor->head() && summary->head_bar()->isVisibleTo(summary) && summary->head_bar()->state_label()->accessibleName() == editor->head_bar()->state_label()->accessibleName() && summary->head_bar()->shown_actions() == editor->head_bar()->shown_actions(),
+			   "the state line and actions are the Tour tab head's");
+		expect(summary->head_bar()->button(core::tour_head_action::publish) != nullptr && summary->head_bar()->button(core::tour_head_action::publish)->isEnabled() == editor->head_bar()->button(core::tour_head_action::publish)->isEnabled(), "Publish… is offered on Overview as in the Tour tab");
+		drawer->show_tab(qt::overview_drawer_tab::tour);
+		process_events();
+		summary->open_row(0U);
+		process_events();
+		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 1 && editor->selected_stop() != nullptr && editor->selected_stop()->Id == draft.Stops.front().Id, "a stop row opens that stop in Review");
+		window.choose_modality(qt::review_modality::overview);
 		drawer->show_tab(qt::overview_drawer_tab::tour);
 		process_events();
 		summary->action()->click();
 		process_events();
-		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 2 && window.current_modality() == qt::review_modality::review,
+		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 1 && window.current_modality() == qt::review_modality::review,
 			   "Continue in Review opens Review's Tour tab");
 		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == draft.Stops.front().Id, "at its stop");
 
@@ -20945,7 +21692,7 @@ namespace {
 		asked.Title   = "Renamed on GitHub";
 		window.start_tour_at_published_stop("review-comment:PRRC_how", asked);
 		process_events();
-		expect(window.tray_tabs()->currentIndex() == 2 && editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 },
+		expect(window.tray_tabs()->currentIndex() == 1 && editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 },
 			   "Open in tour opens the Tour tab at the stop bound to the comment");
 		editor->present({ .Draft = std::make_shared<const core::review_tour>(core::review_tour{ }) });
 		process_events();
@@ -23064,6 +23811,7 @@ namespace {
 			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
 			core::motion_observation::reduced));
 		process_events();
+		;
 		expect(provider->load_attempts() == 0U && window.dif() == nullptr,
 			   "compact Home does not decode art that has no presentation space");
 		window.resize(1'280, 820);
@@ -23189,12 +23937,12 @@ namespace {
 		auto* const tabs   = window.tray_tabs();
 		expect(action != nullptr && action->isCheckable() && !action->isChecked()
 				   && action->text() == QStringLiteral("Agent") && tabs != nullptr
-				   && tabs->accessibleTabName(3) == QStringLiteral("Agent") && tabs->currentIndex() == 0,
+				   && tabs->accessibleTabName(2) == QStringLiteral("Agent") && tabs->currentIndex() == 0,
 			   "the existing AI area has an explicit named selector");
 		window.adopt_dif(core::resolve_dif(
 			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
 			core::motion_observation::full));
-		tabs->setCurrentIndex(3);
+		tabs->setCurrentIndex(2);
 		process_events();
 		expect(dif->current_frame().Clip != qt::dif_index(qt::dif_clip_id::compare_glance),
 			   "selecting a hidden private tab does not replay the explicit-content cue in the corner");
@@ -24458,7 +25206,12 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 	}
-	const auto runCase = [&](const char* aName, auto aRun) {
+	// One case alone, for a render made under BPR_NATIVE_LOOK.
+	const auto onlyCase = qEnvironmentVariable("BPR_WORKBENCH_ONLY_CASE");
+	const auto runCase  = [&](const char* aName, auto aRun) {
+		if (!onlyCase.isEmpty() && onlyCase != QLatin1StringView{ aName }) {
+			return;
+		}
 		if (listCases) {
 			std::cout << "WORKBENCH_CASE:" << aName << '\n';
 			return;
@@ -24676,6 +25429,8 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1817]]. The composer's refusals, on their own.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
 		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+		runCase("test_the_agent_chat_sends_on_return_and_says_its_cost", &test_the_agent_chat_sends_on_return_and_says_its_cost);
+		runCase("test_the_agent_accent_is_on_exactly_the_run_controls", &test_the_agent_accent_is_on_exactly_the_run_controls);
 		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
 		runCase("test_an_agent_error_is_an_error_and_suggestions_wait_for_setup", &test_an_agent_error_is_an_error_and_suggestions_wait_for_setup);
 		runCase("test_a_failed_answer_asks_again_and_says_when_fixed", &test_a_failed_answer_asks_again_and_says_when_fixed);
@@ -24753,6 +25508,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
 		runCase("test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment", &test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment);
+		runCase("test_placement_notices_fold_into_the_composer_mark", &test_placement_notices_fold_into_the_composer_mark);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);
@@ -24804,8 +25560,10 @@ auto main(int argc, char** argv) -> int
 	runCase("test_composition_pages_retain_editors_and_never_submit_on_navigation", &test_composition_pages_retain_editors_and_never_submit_on_navigation);
 	runCase("test_composition_keys_open_the_pages_and_esc_returns", &test_composition_keys_open_the_pages_and_esc_returns);
 	runCase("test_finish_review_is_a_sheet_beside_the_code", &test_finish_review_is_a_sheet_beside_the_code);
+	runCase("test_compose_review_lightbox_gestures_and_window_controls", &test_compose_review_lightbox_gestures_and_window_controls);
 	runCase("test_the_tour_is_a_route_expanding_to_its_page", &test_the_tour_is_a_route_expanding_to_its_page);
 	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
+	runCase("test_a_reply_drafts_all_its_suggested_comments", &test_a_reply_drafts_all_its_suggested_comments);
 	runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
 	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
@@ -24928,6 +25686,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
 	runCase("test_threads_opens_a_thread_in_discuss", &test_threads_opens_a_thread_in_discuss);
 	runCase("test_a_large_file_leaves_the_widget_count_bounded", &test_a_large_file_leaves_the_widget_count_bounded);
+	runCase("test_the_duplicate_comment_and_add_stop_buttons_are_gone", &test_the_duplicate_comment_and_add_stop_buttons_are_gone);
 	if (!listCases) {
 		std::cout << "workbench-window-tests:pass\n";
 	}

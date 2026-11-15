@@ -94,8 +94,33 @@ namespace bpr::qt {
 			title_marks,
 			identity_marks,
 			author_marks,
+			/// [[RFC-BPR-0098]]. `int(home_row_tone)` for a row whose colour is
+			/// its next move's rather than its state's; absent otherwise.
+			tone,
+			/// [[BPR-2049]]. What the row's labelled action does, as its
+			/// tooltip says it; empty for none.
+			row_action_tip,
+			/// [[BPR-2049]]. `int(core::review_followup)` the row offers;
+			/// absent for none.
+			followup,
+			/// RFC-BPR-0108 (X02). True when a local PR draft of this profile
+			/// was associated with this pull request: the row is its one row,
+			/// and its chip says it was prepared here.
+			local_preparation,
 		};
 	} // namespace home_row_role
+
+	/// \brief [[RFC-BPR-0098]]. The colour a pull request of mine says its
+	/// next move in: Returned in Needs me's, Ready in the confirmed colour,
+	/// Failing and Blocked in the error colour, Waiting in its section's and
+	/// every other move in My pull requests'.
+	enum class home_row_tone : std::uint8_t {
+		needs_me,
+		my_pull_requests,
+		waiting_on_others,
+		confirmed,
+		error,
+	};
 
 	/// \brief [[BPR-1365]]. The tag on the row of the review this window has
 	/// open: "Reviewing", the word Home's landing title says it in.
@@ -120,9 +145,13 @@ namespace bpr::qt {
 		/// colour meaning state on Home.
 		QColor Added;
 		QColor Removed;
+		/// [[RFC-BPR-0098]]. A Ready row's word: the theme's accepted ink.
+		QColor Confirmed;
 
 		/// \brief The colour of one of Home's groups.
 		[[nodiscard]] auto for_group(home_group aGroup) const -> QColor;
+		/// \brief [[RFC-BPR-0098]]. The colour of one next move's tone.
+		[[nodiscard]] auto for_tone(home_row_tone aTone) const -> QColor;
 	};
 
 	/// \brief Reads Home's state colours for the variant a profile resolved.

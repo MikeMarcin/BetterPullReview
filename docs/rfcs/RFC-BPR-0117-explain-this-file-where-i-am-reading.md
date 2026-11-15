@@ -62,6 +62,23 @@ RFC; the Agent tab's attached lines cover it today.
   no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
   resumed session whose first turn carries the answer.
 
+### Implementation notes (2026-11-12)
+
+- The file's header is the comparison's header, the document tab strip: the
+  control stands at its right, before the plus, and Explain This File is in
+  each tab's menu. The card stands under the header while its file is the
+  active tab's.
+- The press reads the file at the pull request's base and head from the
+  review's own objects and sends one fresh, tool-free call
+  (`assistance_first_answer`) carrying the file's change (at most 96 KiB) and
+  its text at the head (at most 64 KiB), each cut at a line end and said so;
+  `review.explain-file` is the system prompt (profile schema 31).
+- Keep as note writes a private note on the file (not a line) whose first line
+  names the agent ("Agent: Claude explained this file."); the origin is in the
+  text, not a stored field. Continue in Agent tab opens the tab at the turn and
+  seeds the next question with it, as Ask more does.
+- Record: [verification](../verification/RFC-BPR-0117.md).
+
 ### Owner amendment (2026-11-13): comments absorb notes
 
 The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: Keep as note (AC03; card BPR-2076, parked on its look) keeps a Local comment on the file, labelled Keep local. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.

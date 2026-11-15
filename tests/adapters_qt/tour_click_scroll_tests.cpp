@@ -75,12 +75,12 @@ auto main(int argc, char** argv) -> int
 		draft.Stops.push_back(stop);
 	}
 	draft.LastStopId = 6U;
-	auto scroll      = QScrollArea{ };
-	scroll.setWidgetResizable(true);
-	scroll.resize(380, 700);
-	auto* const editor = new qt::review_tour_editor{ };
-	scroll.setWidget(editor);
-	// As the window answers: Show in code (navigate_stop) brings the stops
+	// [[BPR-1991]]. The route scrolls inside the tab, between its head and
+	// its agent bar: the drawer's scroll area is the editor's own.
+	auto        tab    = qt::review_tour_editor{ };
+	auto* const editor = &tab;
+	editor->resize(380, 700);
+	// As the window answers: arriving at a stop (navigate_stop) brings the stops
 	// step forward and the stop's lines into the code, and the host's
 	// presentation comes back with the stop selected.
 	editor->set_dispatch([](core::tour_command) { }, [editor](const qt::tour_editor_action aAction) {
@@ -92,28 +92,24 @@ auto main(int argc, char** argv) -> int
 			editor->show_problem();
 			editor->show_stops();
 			QTimer::singleShot(20, editor, [editor] {
-				for (auto* parent = editor->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-					if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
-						area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum());
-						return;
-					}
-				}
+				auto* const area = editor->route_scroll();
+				area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum());
 			});
 		} });
-	scroll.show();
+	editor->show();
 	editor->present({ .Draft = std::make_shared<const core::review_tour>(draft) });
 	editor->set_agent_readiness(qt::agent_setup_readiness::ready);
 	editor->show_stops();
 	settle();
 	auto* const outline = editor->findChild<QListWidget*>(QStringLiteral("tourOutline"));
 	expect(outline != nullptr && outline->count() == 6, "six stops on the route");
-	auto* const bar = scroll.verticalScrollBar();
+	auto* const bar = editor->route_scroll()->verticalScrollBar();
 	expect(bar->maximum() > 0, "the route is taller than the drawer");
 
 	// Each stop, clicked where it is shown: the drawer keeps its place.
 	for (int row = 0; row < outline->count(); ++row) {
 		// Bring the row into the middle of the drawer, as a person scrolls to it.
-		const auto rowTop = outline->mapTo(editor, outline->visualItemRect(outline->item(row)).topLeft()).y();
+		const auto rowTop = outline->mapTo(editor->route_scroll()->widget(), outline->visualItemRect(outline->item(row)).topLeft()).y();
 		bar->setValue(std::clamp(rowTop - 200, 0, bar->maximum()));
 		settle();
 		const auto before = bar->value();
@@ -123,7 +119,8 @@ auto main(int argc, char** argv) -> int
 		expect(outline->currentRow() == row, "the click opens stop " + std::to_string(row + 1));
 		expect(std::abs(after - before) <= 4, "a click on stop " + std::to_string(row + 1) + " keeps the drawer where it was: " + std::to_string(before) + " then " + std::to_string(after));
 	}
-	// The open stop's own controls: Show in code and the pencil.
+	// The open stop's own control: the pencil. [[BPR-2013]]: Show in code
+	// is gone; arriving at a stop shows its code.
 	// Settled past the hold, a scroll the person makes stands.
 	QTest_wait(700);
 	bar->setValue(0);
@@ -131,12 +128,12 @@ auto main(int argc, char** argv) -> int
 	expect(bar->value() == 0, "after the hold the person's own scroll stands");
 	bar->setValue(std::min(120, bar->maximum()));
 	settle();
-	for (const auto* name : { "tourReturn", "tourStopEdit" }) {
+	for (const auto* name : { "tourStopEdit" }) {
 		auto* const control = editor->findChild<QWidget*>(QString::fromLatin1(name));
 		expect(control != nullptr && control->isVisible(), std::string{ name } + " is shown");
 		const auto before = bar->value();
 		click(control, control->rect().center());
-		expect(std::abs(bar->value() - before) <= 4, std::string{ "a click on " } + name + " keeps the drawer where it was");
+		expect(std::abs(bar->value() - before) <= 4, std::string{ "a click on " } + name + " keeps the drawer where it was: " + std::to_string(before) + " then " + std::to_string(bar->value()) + " of " + std::to_string(bar->maximum()));
 	}
 	std::cout << "tour-click-scroll:pass\n";
 	return EXIT_SUCCESS;

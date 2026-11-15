@@ -13,6 +13,8 @@ add_library(
         src/suggestion_editor.cpp
         src/suggestion_composer.cpp
         src/review_cycle_view.cpp
+        src/local_draft_publication_area.cpp
+        src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp
         src/anchored_tooltip.cpp
@@ -28,8 +30,11 @@ add_library(
         src/quiet_push_button.cpp
         src/disclosure_button.cpp
         src/drawer_parts.cpp
+        src/enhance_control.cpp
+        src/suggest_change_control.cpp
         src/overview_status_drawer.cpp
         src/overview_tour_summary.cpp
+        src/tour_publication_surfaces.cpp
         src/commit_filter_view.cpp
         src/generated_files_view.cpp
         src/compose_review_sheet.cpp
@@ -64,16 +69,24 @@ add_library(
         src/refresh_note.cpp
         src/home_refusal.cpp
         src/defect_card_view.cpp
-        src/private_notes_panel.cpp
         src/agent_tab_view.cpp
+        src/agent_reference_links.cpp
         src/agent_suggestion_list.cpp
         src/agent_run_status.cpp
+        src/explain_file_card.cpp
+        src/ask_menu.cpp
+        src/agent_report_view.cpp
+        src/report_page.cpp
+        src/prompt_words.cpp
+        src/prompts_page.cpp
         src/agent_run_settings_picker.cpp
+        src/agent_footer.cpp
         src/agent_feature.cpp
         src/agent_setup_view.cpp
         src/account_setup_view.cpp
         src/agent_setup_settings.cpp
         src/agent_entry_dialog.cpp
+        src/agent_configuration_dialogs.cpp
         src/folder_list_editor.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
@@ -88,6 +101,8 @@ add_library(
             src/diagnostic_settings_panel.cpp
         src/profile_management_window.cpp
         src/workbench_strip.cpp
+        src/view_picker.cpp
+        src/local_changes_panel.cpp
         src/document_tab_strip.cpp
         src/native_window_chrome.cpp
         src/resize_handle_cursor.cpp
@@ -113,11 +128,13 @@ add_library(
         src/draft_state_chip.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp
+        src/comment_state_toggle.cpp
         src/conversation_glyphs.cpp
         src/discuss_header.cpp
         src/painted_glyph_icon.cpp
         src/progress_mark.cpp
         src/conversation_open_card.cpp
+        src/conversation_preview.cpp
         src/conversation_reactions.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp
@@ -163,13 +180,16 @@ add_library(
         src/workbench_window_construction.cpp
         src/workbench_window_defects_and_home_rows.cpp
         src/workbench_window_drafts_and_behaviour.cpp
+        src/workbench_window_draft_roster.cpp
         src/workbench_window_github_presentation.cpp
         src/workbench_window_header_and_queue_settings.cpp
         src/workbench_window_home_landing.cpp
+        src/workbench_window_local_draft.cpp
         src/workbench_window_line_navigation.cpp
         src/workbench_window_home_views.cpp
         src/workbench_window_queue_controls_and_menus.cpp
         src/workbench_window_replies_and_review_composition.cpp
+        src/workbench_window_agent_suggestion.cpp
         src/workbench_window_repositories_and_files.cpp
         src/workbench_window_settings_and_layout.cpp
         src/workbench_window_support.cpp

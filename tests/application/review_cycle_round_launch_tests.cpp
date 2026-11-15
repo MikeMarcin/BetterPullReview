@@ -54,18 +54,19 @@ namespace {
 	void frames_the_round_for_each_protocol()
 	{
 		const auto claude = application::build_round_launch(profile(core::claude_stream_json_profile_id), document, std::nullopt, "/work", parent);
-		expect(claude && claude->Arguments == std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" }, "Claude: print mode, stream JSON both ways");
+		expect(claude && claude->Arguments == std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" },
+			   "Claude: MCP off ([[BPR-2139]]), print mode, stream JSON both ways");
 		expect(claude->Input == "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"# Review Cycle RC-1 \xE2\x80\x94 F1\\n\\nSay \\\"why\\\".\\n\"}]}}\n",
 			   "the document as the one user message, escaped and nothing else");
 		expect(claude->WorkingDirectory == "/work" && claude->Executable == "claude", "in the cycle's folder, the profile's executable");
 		expect(claude->Environment == std::vector<std::pair<std::string, std::string>>{ { "PATH", "/usr/bin" } }, "only allowed names; no credential");
 		const auto resumed = application::build_round_launch(profile(core::claude_stream_json_profile_id), document, std::optional<std::string>{ "s-1" }, "/work", parent);
-		expect(resumed && resumed->Arguments.size() == 8U && resumed->Arguments[6] == "--resume" && resumed->Arguments[7] == "s-1", "continuing exactly the named session");
+		expect(resumed && resumed->Arguments.size() == 11U && resumed->Arguments[9] == "--resume" && resumed->Arguments[10] == "s-1", "continuing exactly the named session");
 
 		const auto jsonl = application::build_round_launch(profile(core::codex_jsonl_profile_id), document, std::nullopt, "/work", parent);
-		expect(jsonl && jsonl->Arguments == std::vector<std::string>{ "exec", "--json", "-" } && jsonl->Input == document, "Codex JSONL: the document is the prompt");
+		expect(jsonl && jsonl->Arguments == std::vector<std::string>{ "exec", "--json", "-c", "mcp_servers={}", "-" } && jsonl->Input == document, "Codex JSONL: the document is the prompt");
 		const auto server = application::build_round_launch(profile(core::codex_app_server_profile_id), document, std::nullopt, "/work", parent);
-		expect(server && server->Arguments == std::vector<std::string>{ "app-server" } && server->DeferredContext == document && server->Input.starts_with("{\"method\":\"initialize\""),
+		expect(server && server->Arguments == std::vector<std::string>{ "app-server", "-c", "mcp_servers={}" } && server->DeferredContext == document && server->Input.starts_with("{\"method\":\"initialize\""),
 			   "Codex App Server: initialize first, the document as the turn's text");
 		const auto terminal = application::build_round_launch(profile(core::external_terminal_profile_id), document, std::nullopt, "/work", parent);
 		expect(terminal && terminal->Arguments.empty() && terminal->Input == document, "the external terminal reads the document itself");

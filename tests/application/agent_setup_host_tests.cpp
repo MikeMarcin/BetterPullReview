@@ -508,6 +508,12 @@ namespace {
 		again.Host->set_suggestions_hidden(true);
 		again.settle();
 		expect(again.state().Preferences.SuggestionsHidden && again.Store.Stored->SuggestionsHidden, "hiding them is kept for the profile");
+		// RFC-BPR-0126 Q4/Q5 as answered: a follow-up is queued by default;
+		// Steer is a setting kept for the profile.
+		expect(!again.state().Preferences.FollowUpSteer, "follow-ups queue by default");
+		again.Host->set_follow_up_steer(true);
+		again.settle();
+		expect(again.state().Preferences.FollowUpSteer && again.Store.Stored->FollowUpSteer, "Steer is kept for the profile");
 
 		auto answer = std::optional<std::optional<core::agent_entry_refusal>>{ };
 		again.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
@@ -757,6 +763,45 @@ namespace {
 			expect(core::decide_agent_check(facts).Offer == core::agent_check_offer::no_agent, "nothing added: no check");
 		}
 	}
+
+	/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). Check
+	/// all checks each added agent in turn and keeps each one's result; the
+	/// chosen agent stays chosen, and a removed agent's result goes with it.
+	void test_check_all_keeps_each_result()
+	{
+		auto f = fixture{ };
+		f.Host->load();
+		f.settle();
+		f.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
+		f.Host->add_agent(core::preset_agent_entry(setup_agent::claude_code, core::codex_protocol_choice::app_server, { }), true);
+		f.Host->add_agent(core::preset_agent_entry(setup_agent::codex, core::codex_protocol_choice::app_server, { }));
+		f.Host->detect();
+		f.settle();
+		const auto agents = f.state().Preferences.Agents;
+		expect(agents.size() == 2U, "two agents are added");
+		const auto preferred = f.state().Preferences.PreferredAgent;
+		// Claude Code passes (status, then version); Codex is not signed in.
+		f.Process.Answers = { said(application::agent_run_outcome::success, R"({"loggedIn": true})"), said(application::agent_run_outcome::success, "2.1.321 (Claude Code)"),
+							  said(application::agent_run_outcome::success, "Not logged in") };
+		f.Host->check_all();
+		expect(f.state().Checking && f.state().CheckingEntry == std::optional{ agents[0].Id }, "Check all starts on the first agent and says which");
+		f.settle();
+		const auto& kept = f.state().Preferences.EntryChecks;
+		expect(kept.size() == 2U && kept[0].Id == agents[0].Id && kept[0].Check.State == setup_check_state::passed && kept[0].Check.Version == "2.1.321",
+			   "the first agent's pass is kept with its version");
+		expect(kept[1].Id == agents[1].Id && kept[1].Check.State == setup_check_state::failed && kept[1].Check.Failure.has_value(), "the second agent's failure is kept with why");
+		expect(!f.state().Checking && !f.state().CheckingEntry && f.state().Preferences.PreferredAgent == preferred, "Check all ends and the chosen agent stays chosen");
+		expect(f.Store.Stored && f.Store.Stored->EntryChecks == kept, "each result is saved, so it shows after a restart");
+		expect(f.state().State.AgentCheck.State == setup_check_state::passed, "the setup shows the chosen agent's own result again");
+		// One agent, from its row.
+		f.Process.Answers = { said(application::agent_run_outcome::success, "Logged in using ChatGPT"), said(application::agent_run_outcome::success, "codex-cli 0.163.0") };
+		f.Host->check_entry(agents[1].Id);
+		f.settle();
+		expect(f.state().Preferences.EntryChecks[1].Check.State == setup_check_state::passed && f.state().Preferences.PreferredAgent == preferred, "one agent's check keeps only its result");
+		f.Host->remove_agent(agents[1].Id);
+		f.settle();
+		expect(f.state().Preferences.EntryChecks.size() == 1U && f.Store.Stored->EntryChecks.size() == 1U, "a removed agent's result goes with it");
+	}
 }
 
 auto main() -> int
@@ -773,6 +818,7 @@ auto main() -> int
 	test_choice_and_steps();
 	test_the_agent_list();
 	test_check_from_settings();
+	test_check_all_keeps_each_result();
 	test_the_setup_follows_the_list();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;

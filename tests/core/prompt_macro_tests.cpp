@@ -4,6 +4,7 @@
 // the shipped set with stored differences.
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
+#include "bpr/core/skill_references.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -37,7 +38,7 @@ namespace {
 	/// What a chip offers, as today's code offers it: its label, what a
 	/// press sends (or puts in the field), its subject and whether it is a
 	/// review, and whether a click finishes it in the field.
-	using today_offer = std::tuple<std::string, std::string, prompt_subject, prompt_kind, bool>;
+	using today_offer = std::tuple<std::string, std::string, prompt_subject, prompt_ask, bool>;
 
 	auto offered(const prompt_offers& aOffers) -> std::vector<today_offer>
 	{
@@ -57,7 +58,7 @@ namespace {
 	{
 		auto       result = std::vector<today_offer>{ };
 		const auto offer  = [&result](const std::string& aText, const prompt_subject aSubject, const bool aReview) {
-			result.emplace_back(aText, aText, aSubject, aReview ? prompt_kind::review : prompt_kind::question, false);
+			result.emplace_back(aText, aText, aSubject, aReview ? prompt_ask::review : prompt_ask::question, false);
 		};
 		offer("Review this pull request", prompt_subject::pull_request, true);
 		if (aFile) {
@@ -76,8 +77,8 @@ namespace {
 	auto conversation_today(const bool aReplies) -> std::vector<today_offer>
 	{
 		auto result = std::vector<today_offer>{ };
-		for (const std::string text : { "Summarize this conversation", "Is the concern raised here right?", aReplies ? "Draft a reply to this conversation" : "Explain the code this note is on" }) {
-			result.emplace_back(text, text, prompt_subject::conversation, prompt_kind::question, false);
+		for (const std::string text : { "Summarize this conversation", "Is the concern raised here right?", aReplies ? "Draft a reply to this conversation" : "Explain the code this comment is on" }) {
+			result.emplace_back(text, text, prompt_subject::conversation, prompt_ask::question, false);
 		}
 		return result;
 	}
@@ -119,7 +120,7 @@ namespace {
 			for (const auto& prompt : tour_list_today(aSelection->Place)) {
 				if (prompt.Selection) {
 					const auto label = *aSelection == aThread ? std::string{ prompt.Text } : std::string{ prompt.Text } + " in " + aSelection->Part;
-					result.emplace_back(label, std::string{ prompt.Text }, prompt_subject::selected_text, prompt_kind::question, false);
+					result.emplace_back(label, std::string{ prompt.Text }, prompt_subject::selected_text, prompt_ask::question, false);
 					break;
 				}
 			}
@@ -128,7 +129,7 @@ namespace {
 			for (const auto& prompt : tour_list_today(aThread.Place)) {
 				if (!prompt.Selection) {
 					const auto label = prompt.Finish ? std::string{ prompt.Text } + "\xE2\x80\xA6" : std::string{ prompt.Text };
-					result.emplace_back(label, std::string{ prompt.Text }, subject_of(aThread.Place), prompt_kind::question, prompt.Finish);
+					result.emplace_back(label, std::string{ prompt.Text }, subject_of(aThread.Place), prompt_ask::question, prompt.Finish);
 				}
 			}
 		}
@@ -144,7 +145,9 @@ namespace {
 	void test_shipped_equals_today()
 	{
 		const auto set = shipped_set();
-		expect(set.size() == 22U, "22 built-ins");
+		// RFC-BPR-0128 added three action rows (What changed, Explain this file,
+		// Was this addressed?), which are never chips.
+		expect(set.size() == 25U, "25 built-ins");
 		expect(std::ranges::all_of(set, [](const prompt_macro& aMacro) { return aMacro.BuiltIn && aMacro.On && prompt_macro_valid(aMacro); }), "every built-in is on and valid");
 		const auto lineChoices = std::vector<std::optional<prompt_line_range>>{ std::nullopt, prompt_line_range{ 34U, 34U }, prompt_line_range{ 34U, 36U } };
 		for (const auto& file : { std::optional<std::string>{ }, std::optional<std::string>{ "src/render/renderer.cpp" }, std::optional<std::string>{ "README.md" } }) {
@@ -310,7 +313,9 @@ namespace {
 		expect(!wildcard_pattern_valid("a\\") && !wildcard_pattern_valid("[[:nope:]]") && wildcard_pattern_valid("[]]") && wildcard_pattern_valid("[!a-z]*.cpp") && wildcard_pattern_valid("[[:alpha:]]"),
 			   "pattern validity follows the matcher");
 		expect(parse_prompt_patterns(" src/**,  *.cpp ,, ") == std::vector<std::string>{ "src/**", "*.cpp" }, "the pattern field splits on commas");
-		const auto place = prompt_macro{ .Id = "own.place", .Place = prompt_place::conversation, .Body = { .Name = "P", .Template = "x", .Subject = prompt_subject::conversation, .Conditions = { { .Fact = prompt_fact::file_open } } } };
+		// [[BPR-2179]]: placement decides scope, so only a tour chat refuses
+		// the review's facts.
+		const auto place = prompt_macro{ .Id = "own.place", .Place = prompt_place::tour_stop, .Body = { .Name = "P", .Template = "x", .Subject = prompt_subject::stop, .Conditions = { { .Fact = prompt_fact::file_open } } } };
 		expect(has(place, prompt_problem::fact_not_for_place), "a fact the place does not hold is refused");
 	}
 
@@ -358,7 +363,7 @@ namespace {
 		expect(inName.size() == 2U && inName[0].Problem == other_place_variable && inName[0].InName && inName[0].Offset == 3U && inName[1].Problem == unknown_variable && !inName[1].InName,
 			   "variables are checked in the name and the template");
 		expect(problems({ .Id = "a", .Place = prompt_place::conversation, .Body = { .Name = "n", .Template = "x" } }) == std::vector{ subject_not_for_place }, "About is the place's");
-		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Subject = prompt_subject::selected_lines, .Kind = prompt_kind::review } }) == std::vector{ kind_not_for_subject }, "lines are not reviewed");
+		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Subject = prompt_subject::selected_lines, .Kind = prompt_ask::review } }) == std::vector{ kind_not_for_subject }, "lines are not reviewed");
 		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Conditions = { { .Fact = prompt_fact::path } } } }) == std::vector{ no_patterns }, "a pattern condition needs a pattern");
 		expect(problems({ .Id = "a", .Body = { .Name = "n", .Template = "x", .Conditions = { { .Fact = prompt_fact::path, .Patterns = { std::string(129U, 'p') } } } } }) == std::vector{ pattern_too_long }, "a pattern is 128 bytes");
 
@@ -411,7 +416,7 @@ namespace {
 				agentTab.push_back(entry.Macro.Id);
 			}
 		}
-		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block" },
+		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block", "agent-tab.what-changed", "agent-tab.explain-file" },
 			   "the stored order, then the built-ins it does not name after the place's last built-in");
 		const auto entry = [&merged](const std::string_view aId) {
 			return *std::ranges::find_if(merged.Entries, [aId](const prompt_set_entry& aEntry) { return aEntry.Macro.Id == aId; });
@@ -433,7 +438,7 @@ namespace {
 				newPlace.push_back(item.Macro.Id);
 			}
 		}
-		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new" },
+		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new", "agent-tab.what-changed", "agent-tab.explain-file" },
 			   "a new built-in appears on, after its place's other built-ins");
 
 		// The profile bound.
@@ -445,6 +450,52 @@ namespace {
 		expect(bounded.Entries.size() == maximum_prompt_macros && bounded.Dropped.size() == 50U - (maximum_prompt_macros - shipped.size()), "at most 64 macros, the built-ins included");
 		expect(merge_prompt_macros(shipped, stored) == merged, "the merge is deterministic");
 	}
+
+	/// Milestone 2, AC09. Only the template's own text names skills; a
+	/// value is never read as one.
+	void test_skill_text()
+	{
+		const auto expand = [](const std::string_view aTemplate, const std::string& aTitle) {
+			auto facts               = prompt_facts{ .Place = prompt_place::agent_tab, .PullRequest = pull_request_facts(), .OpenFile = "src/a.cpp" };
+			facts.PullRequest->Title = aTitle;
+			return *expand_prompt_template(scan_prompt_template(aTemplate, prompt_place::agent_tab), facts);
+		};
+		const auto titled = expand("Summarize {pr.title}", "/some-skill please");
+		expect(titled.Text == "Summarize /some-skill please" && titled.Values == std::vector<prompt_value_span>{ { .Begin = 10U, .End = 28U } }, "the value's place is recorded");
+		expect(find_skill_references(titled.Text).size() == 1U && prompt_skill_text(titled).empty(), "a title naming a skill brings in none");
+		const auto own = expand("Check {file}. /security-review then /tests", "x");
+		expect(prompt_skill_text(own) == "/security-review /tests", "the template's own references stay, in order");
+		expect(prompt_skill_text(expand("Use /skill{pr.title}", "-x")).empty(), "a value that would lengthen a reference makes it none");
+		expect(prompt_skill_text(expand("{pr.title}/skill", "")).empty(), "an empty value that would start a reference makes it none");
+		expect(prompt_skill_text(expand("{pr.title} /skill", "x")) == "/skill", "a reference after the template's own space is the template's");
+		const auto plain = expand("Review this /review-skill", "x");
+		expect(plain.Values.empty() && prompt_skill_text(plain) == "/review-skill", "with no values every reference counts, as in a typed question");
+
+		expect(suggested_subject_of(prompt_subject::pull_request) == agent_suggested_subject::pull_request && suggested_subject_of(prompt_subject::open_file) == agent_suggested_subject::open_file
+				   && suggested_subject_of(prompt_subject::selected_lines) == agent_suggested_subject::selected_lines,
+			   "the Agent tab's three subjects are RFC-BPR-0102's");
+		for (const auto subject : { prompt_subject::conversation, prompt_subject::stop, prompt_subject::part, prompt_subject::selected_text, prompt_subject::tour }) {
+			expect(!suggested_subject_of(subject), "the other places' subjects name none");
+		}
+	}
+
+	/// Milestone 2, AC07. The name a turn was sent under, kept bounded.
+	void test_turn_names()
+	{
+		auto names = prompt_turn_names{ };
+		expect(!names.remember({ .Asked = "Same", .Name = "Same" }) && !names.remember({ .Asked = "", .Name = "n" }) && !names.remember({ .Asked = "a", .Name = std::string(maximum_prompt_turn_name_bytes + 1U, 'n') }), "a name equal to its question, a blank one and an oversized one are not kept");
+		expect(names.remember({ .Asked = "Check a.cpp for injection.", .Name = "Security pass" }) && !names.remember({ .Asked = "Check a.cpp for injection.", .Name = "Security pass" }), "a name is kept once");
+		expect(names.recall("Check a.cpp for injection.") == std::optional<std::string>{ "Security pass" } && !names.recall("other"), "and recalled by its question");
+		expect(names.remember({ .Asked = "Check a.cpp for injection.", .Name = "Renamed" }) && names.records().size() == 1U && names.recall("Check a.cpp for injection.") == std::optional<std::string>{ "Renamed" }, "one question has the last name it was sent under");
+		auto restarted = prompt_turn_names{ };
+		restarted.remember({ .Asked = "q2", .Name = "newer" });
+		restarted.adopt({ { .Asked = "q1", .Name = "n1" }, { .Asked = "q2", .Name = "older" }, { .Asked = "x", .Name = "x" } });
+		expect(restarted.records() == std::vector<prompt_turn_name>{ { .Asked = "q1", .Name = "n1" }, { .Asked = "q2", .Name = "newer" } }, "adopting keeps what was remembered since, and drops invalid rows");
+		for (auto index = 0U; index < maximum_prompt_turn_names + 3U; ++index) {
+			restarted.remember({ .Asked = "q" + std::to_string(index + 10U), .Name = "n" });
+		}
+		expect(restarted.records().size() == maximum_prompt_turn_names && !restarted.recall("q1") && restarted.recall("q" + std::to_string(maximum_prompt_turn_names + 12U)), "the least recently sent go first");
+	}
 } // namespace
 
 auto main() -> int
@@ -455,6 +506,8 @@ auto main() -> int
 	test_order_and_limit();
 	test_validation_messages();
 	test_merge();
+	test_skill_text();
+	test_turn_names();
 	std::cout << "prompt-macro-tests:pass\n";
 	return EXIT_SUCCESS;
 }

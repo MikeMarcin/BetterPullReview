@@ -2,11 +2,15 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONTEXT_SUPPLEMENT_HPP
 
 #include "bpr/core/agent_chat_scope.hpp"
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "bpr/core/explain_file.hpp"
+#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_skill.hpp"
+#include "bpr/core/suggest_change.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -334,6 +338,12 @@ namespace bpr::core {
 		std::vector<brief_thread>         Threads;
 		brief_workspace                   Workspace = brief_workspace::private_copy;
 		std::optional<brief_review_skill> Skill;
+		/// [[BPR-2059]]. How the agent writes the comments it suggests: the
+		/// profile's suggested-comment prompt or its shipped default.
+		std::optional<supplement_feedback_guidance> CommentFormat;
+		/// RFC-BPR-0128. The report shape the asks answered as reports keep
+		/// to (docs/design/report-templates-v1).
+		std::optional<supplement_feedback_guidance> ReportFormat;
 		/// The earlier turns, oldest first.
 		std::vector<brief_turn> Conversation;
 
@@ -358,6 +368,10 @@ namespace bpr::core {
 		std::size_t                       ThreadsOmitted = 0U;
 		brief_workspace                   Workspace      = brief_workspace::private_copy;
 		std::optional<brief_review_skill> Skill;
+		/// [[BPR-2059]]. The suggested-comment format, as the input gave it.
+		std::optional<supplement_feedback_guidance> CommentFormat;
+		/// RFC-BPR-0128. The report shape, as the input gave it.
+		std::optional<supplement_feedback_guidance> ReportFormat;
 		/// The earlier turns kept, oldest first, and how many older ones
 		/// were left out.
 		std::vector<brief_turn> Conversation;
@@ -516,6 +530,20 @@ namespace bpr::core {
 		std::vector<supplement_skill> Skills;
 		/// [[BPR-1935]]. A tour run's composed prompt; see `agent_tour_prompt`.
 		std::optional<agent_tour_prompt> TourPrompt;
+		/// [[BPR-2002]]. What a chat question is about, and where the
+		/// reviewer is looking; absent for a launch that is not a question.
+		/// One outside its bounds refuses the request whole.
+		std::optional<supplement_subject>    Subject;
+		std::optional<supplement_looking_at> LookingAt;
+		/// RFC-BPR-0116. A returning question's material up front; outside
+		/// its bounds the request is refused whole.
+		std::optional<supplement_returning> Returning;
+		/// RFC-BPR-0117. Explain this file's material up front; outside its
+		/// bounds the request is refused whole.
+		std::optional<supplement_explain> Explain;
+		/// RFC-BPR-0118. Suggest the change's material up front, only with
+		/// its operation; outside its bounds the request is refused whole.
+		std::optional<supplement_suggest_change> SuggestChange;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -570,6 +598,19 @@ namespace bpr::core {
 		/// request's `agent_tour_prompt`; empty for every other launch.
 		std::string                      TourPrompt;
 		std::optional<transcript_replay> Replay;
+		/// [[BPR-2002]]. Carried through unchanged; absent for every launch
+		/// that is not a question.
+		std::optional<supplement_subject>    Subject;
+		std::optional<supplement_looking_at> LookingAt;
+		/// RFC-BPR-0116. Carried through unchanged; absent for every launch
+		/// that is not a returning question.
+		std::optional<supplement_returning> Returning;
+		/// RFC-BPR-0117. Carried through unchanged; absent for every launch
+		/// that is not Explain this file.
+		std::optional<supplement_explain> Explain;
+		/// RFC-BPR-0118. Carried through unchanged; absent for every launch
+		/// that is not Suggest the change.
+		std::optional<supplement_suggest_change> SuggestChange;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

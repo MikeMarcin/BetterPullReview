@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/flag-move",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Adds a TOML settings loader selected by `--strict-toml`. Without the flag the existing key=value loader runs as before; it moves to its own file.\n",
+	"changed_files": 7,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "strict-toml",
+		"repo": {
+			"full_name": "bpr-fixtures/flag-move",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_41",
+	"number": 41,
+	"state": "open",
+	"title": "Read settings as TOML behind --strict-toml",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

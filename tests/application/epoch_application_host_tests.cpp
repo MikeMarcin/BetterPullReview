@@ -5996,6 +5996,73 @@ namespace {
 		}
 	}
 
+	/// RFC-BPR-0099 AC08. A tour's repair and acceptance checks compare a
+	/// stop's file between two heads of a sparse review. An ordinary blob
+	/// read of that comparison has no grant to fetch a blob the cache lacks
+	/// (the live course on BPR-Test never compared a stop after a push); each
+	/// side read as a pinned source, granted just before its read, is.
+	void tour_comparison_reads_sparse_heads_as_pinned_sources()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		value.State.CachedBlobMissing = true;
+		const auto blob               = sha1_blob("exact selected blob");
+		const auto on_worker          = [&](const auto& aWork) {
+			auto done = std::atomic_bool{ false };
+			{
+				auto worker = std::jthread{ [&] {
+					aWork();
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (value.Effects.pending() != 0U) {
+						value.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+		};
+		auto       comparison = file_request(value, "pinned.cpp");
+		const auto authority  = comparison.WorkbenchAuthority;
+		// The stop's earlier head against the current one: a pair that is not
+		// the accepted comparison (here its two commits the other way round).
+		const auto left       = comparison.Diff.Comparison.Right.Commit;
+		const auto right      = comparison.Diff.Comparison.Left.Commit;
+		const auto leftEpoch  = comparison.Diff.Comparison.Left.Identity.Epoch;
+		const auto rightEpoch = comparison.Diff.Comparison.Right.Identity.Epoch;
+		const auto between    = value.Host->realignment_context(authority, { authority.Host, authority.Repository, authority.PullRequest, left, right, leftEpoch, rightEpoch });
+		expect(between.has_value(), "the comparison between the two heads is authorized");
+		comparison.Diff = *between;
+		value.State.TreeEntryResults.emplace_back(blob);
+		value.State.TreeEntryResults.emplace_back(blob);
+		auto ordinary = std::optional<application::tour_source_comparison>{ };
+		on_worker([&] { ordinary = application::materialize_tour_source_comparison(*value.Host, *bpr::tests::product_line_matcher(), comparison, { }); });
+		expect(!ordinary, "an ordinary read between two heads compares nothing");
+		expect(value.State.ExactBlobRequests.empty(), "an ordinary read between two heads fetches no blob the sparse cache lacks");
+
+		auto pinned = std::array<std::optional<application::tour_pinned_file>, 2U>{ };
+		for (const auto side : { 0U, 1U }) {
+			const auto commit  = side == 0U ? left : right;
+			const auto context = value.Host->realignment_context(authority, { authority.Host, authority.Repository, authority.PullRequest, commit, commit, leftEpoch, rightEpoch });
+			expect(context.has_value(), "each side's identical-commit pair is authorized before its read");
+			auto request        = comparison;
+			request.Diff        = *context;
+			request.File.Change = application::workbench_file_change_kind::unchanged;
+			value.State.TreeEntryResults.emplace_back(blob);
+			value.State.TreeEntryResults.emplace_back(blob);
+			on_worker([&] { pinned[side] = application::materialize_pinned_tour_file(*value.Host, request, { }); });
+			expect(pinned[side] && pinned[side]->Blob == blob && pinned[side]->Path == "pinned.cpp", "each side is read as a pinned source");
+		}
+		// Both sides hold the same blob here; the second may be the first's retained bytes.
+		expect(!value.State.ExactBlobRequests.empty(), "the pinned reads fetch the blob the sparse cache lacks");
+		const auto compared = application::compare_tour_source_files(*bpr::tests::product_line_matcher(), comparison, *pinned[0], *pinned[1], { });
+		expect(compared && compared->Left.Commit == left && compared->Right.Commit == right && compared->Left.Path == "pinned.cpp" && compared->Right.Blob == blob,
+			   "the two pinned files compare between the two heads");
+	}
+
 	/// [[BPR-1377]]. Pinned reads carry sealed endpoint proof for this call only.
 	void pinned_source_sparse_read_does_not_grant_ordinary_blob_reads()
 	{
@@ -9850,6 +9917,88 @@ namespace {
 		expect(registry.is_quiescent(), "destruction marker participates in profile quiescence");
 	}
 
+	/// [[BPR-2181]], RFC-BPR-0126 AC01. A review agent runtime's epoch host is
+	/// the profile's, not a window's: it is admitted with no window, holds the
+	/// review it was handed without the window's lease after that window
+	/// closes, and its consumers are bounded apart from the windows.
+	void profile_owned_host_holds_its_review_after_the_window_closes()
+	{
+		fixture                                   window;
+		fixture                                   runtime;
+		epoch_test_windows                        windows;
+		application::profile_epoch_actor_registry registry{ core::default_bpr_profile_id, windows, window.Caches, window.Effects };
+		const auto                                shown = windows.launch();
+		window.Host.reset();
+		runtime.Host.reset();
+		window.Host = std::make_unique<application::epoch_application_host>(
+			core::epoch_state{ .ApplicationSession = core::application_session_id{ 91U } }, registry, shown,
+			window.Catalogs, window.Entropy, window.Clock, window.Effects, window.Decisions, window.Projections);
+		runtime.Host = std::make_unique<application::epoch_application_host>(
+			core::epoch_state{ .ApplicationSession = core::application_session_id{ 93U } }, registry,
+			runtime.Catalogs, runtime.Entropy, runtime.Clock, window.Effects, runtime.Decisions, runtime.Projections);
+		const auto drain = [&] {
+			while (window.Effects.pending() || window.Decisions.pending() || runtime.Decisions.pending()) {
+				if (window.Effects.pending()) {
+					window.Effects.run_next();
+				}
+				if (window.Decisions.pending()) {
+					window.Decisions.run_next();
+				}
+				if (runtime.Decisions.pending()) {
+					runtime.Decisions.run_next();
+				}
+			}
+		};
+		window.Host->accept(make_handoff(window.State, 1U, 20U, true));
+		drain();
+		expect(window.Host->state().AcceptedComparison.has_value(), "the window ingests its review under its lease");
+		// Ingestion needs a live lease of its own, even for objects the
+		// profile cache already holds: the window's lease is bound to the
+		// window's session and is not lent, so a runtime needs one bound to
+		// its own session (the open lease-lending step of [[BPR-2181]]).
+		auto unleased               = make_handoff(window.State, 1U, 20U, false);
+		unleased.ApplicationSession = core::application_session_id{ 93U };
+		runtime.Host->accept(std::move(unleased));
+		drain();
+		expect(!runtime.Host->state().AcceptedComparison.has_value(), "a review handed over without a lease is not ingested");
+		auto adopted               = make_handoff(window.State, 1U, 20U, false);
+		adopted.ApplicationSession = core::application_session_id{ 93U };
+		adopted.SmartGit           = std::make_unique<fake_smart_authority>(window.State, application::authority_binding(adopted), 1U);
+		runtime.Host->accept(std::move(adopted));
+		drain();
+		expect(runtime.Host->state().AcceptedComparison.has_value(), "a profile-owned host accepts the review under its own lease with no window");
+		window.Host->shutdown();
+		expect(windows.Catalog.close(shown).has_value(), "the window closes");
+		drain();
+		expect(window.Host->is_quiescent(), "the window's host retires");
+		const auto request = selected_diff_request_for(runtime);
+		auto       result  = std::optional<application::workbench_selected_diff_observation>{ };
+		{
+			std::jthread worker{ [&] { result = runtime.Host->resolve(request, { }); } };
+			window.Effects.wait_for_pending();
+			window.Effects.run_next();
+		}
+		expect(result && result->Status == application::workbench_selected_diff_status::available,
+			   "the profile-owned host still reads its review after the window closed");
+		auto owned = std::vector<std::shared_ptr<application::profile_epoch_actor_consumer>>{ };
+		for (std::size_t index = 1U; index < application::maximum_profile_owned_epoch_consumers; ++index) {
+			auto consumer = registry.attach_profile_owned();
+			expect(consumer.has_value() && (*consumer)->current(), "a profile-owned consumer is current with no window");
+			owned.push_back(std::move(*consumer));
+		}
+		const auto excess = registry.attach_profile_owned();
+		expect(!excess && excess.error() == application::profile_epoch_actor_failure::consumer_limit, "profile-owned consumers are bounded");
+		expect(registry.attach(windows.launch()).has_value(), "profile-owned consumers never take a window's place");
+		owned.back()->retire();
+		expect(!owned.back()->current(), "a retired profile-owned consumer is not current");
+		expect(registry.attach_profile_owned().has_value(), "a retired consumer frees its place");
+		runtime.Host->shutdown();
+		drain();
+		expect(runtime.Host->is_quiescent(), "the profile-owned host retires");
+		registry.shutdown();
+		expect(!registry.attach_profile_owned(), "a closing registry admits no profile-owned consumer");
+	}
+
 	void profile_windows_share_one_cache_without_sharing_selection_or_lifetime()
 	{
 		fixture                                   first;
@@ -10153,6 +10302,7 @@ int main(int argc, char** argv)
 	profile_actor_runs_reviewer_work_before_queued_preparation();
 	profile_actor_replacement_waits_for_session_destruction();
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
+	profile_owned_host_holds_its_review_after_the_window_closes();
 	epoch_preparation_diagnostics_preserve_results();
 	git_tool_refusals_preserve_actionable_reasons_and_retry();
 	gh_tool_refusals_preserve_actionable_reasons_and_retry();
@@ -10202,6 +10352,7 @@ int main(int argc, char** argv)
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	selected_blob_reads_only_the_exact_missing_object();
 	tour_source_materializes_sparse_tree_without_selected_file();
+	tour_comparison_reads_sparse_heads_as_pinned_sources();
 	pinned_source_sparse_read_does_not_grant_ordinary_blob_reads();
 	prepared_files_read_their_missing_blobs_in_one_batch();
 	preparation_jobs_are_counted_apart_from_the_reviewers();

@@ -1055,7 +1055,7 @@ auto main(int argc, char** argv) -> int
 		if (!window.ai_tools_action()->isChecked()) {
 			window.ai_tools_action()->trigger();
 		}
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		if (!wait_until([&] { return window.files_drawer()->contents_view()->model()->rowCount() > 0 && panel->profile_selector()->count() >= 2; })) {
 			return fail(*application, "native-open");
 		}
@@ -1398,7 +1398,7 @@ auto main(int argc, char** argv) -> int
 						}
 						const auto before = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
 						chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
-						if (before.Quiescent || chat->new_session_button()->isEnabled() || chat->send_button()->isEnabled()
+						if (before.Quiescent || chat->new_session_action()->isEnabled() || chat->send_button()->isEnabled()
 							|| chat->status_line(chat->turn_count() - 1U)->live()
 							|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != before.AgentProcessLauncherInvocations) {
 							held.release();
@@ -1406,7 +1406,7 @@ auto main(int argc, char** argv) -> int
 						}
 						held.release();
 					}
-					if (!wait_until([&] { return chat->turn_count() > prior && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("process=") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+					if (!wait_until([&] { return chat->turn_count() > prior && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("process=") != std::string::npos && chat->new_session_action()->isEnabled(); }, extended_agent_budget)) {
 						return fail(*application, "tour-native-first-answer", chat->chat_text().toStdString());
 					}
 					const auto first = chat->reply(chat->turn_count() - 1U)->original_body();
@@ -1421,7 +1421,7 @@ auto main(int argc, char** argv) -> int
 						chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
 					}
 					chat->send_button()->click();
-					if (!wait_until([&] { return chat->turn_count() > prior + 1U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("tool-observation-7f13") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+					if (!wait_until([&] { return chat->turn_count() > prior + 1U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("tool-observation-7f13") != std::string::npos && chat->new_session_action()->isEnabled(); }, extended_agent_budget)) {
 						return fail(*application, "tour-native-followup", chat->chat_text().toStdString());
 					}
 					const auto second      = chat->reply(chat->turn_count() - 1U)->original_body();
@@ -1452,7 +1452,7 @@ auto main(int argc, char** argv) -> int
 						const auto confirmedBefore = editor->shown().Draft->Stops.front();
 						chat->composer()->setPlainText(QStringLiteral("update-source-explanation"));
 						chat->send_button()->click();
-						if (!wait_until([&] { return chat->new_session_button()->isEnabled() && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")); }, extended_agent_budget)) {
+						if (!wait_until([&] { return chat->new_session_action()->isEnabled() && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")); }, extended_agent_budget)) {
 							return fail(*application, "tour-native-update-proposal", chat->chat_text().toStdString());
 						}
 						chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept"))->click();
@@ -1470,7 +1470,7 @@ auto main(int argc, char** argv) -> int
 						}
 						chat->composer()->setPlainText(QStringLiteral("explain-source-status"));
 						chat->send_button()->click();
-						if (!wait_until([&] { return chat->turn_count() > prior + 3U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("accepted-update-confirmed") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+						if (!wait_until([&] { return chat->turn_count() > prior + 3U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("accepted-update-confirmed") != std::string::npos && chat->new_session_action()->isEnabled(); }, extended_agent_budget)) {
 							return fail(*application, "tour-native-current-accepted-snapshot", chat->chat_text().toStdString());
 						}
 						expectedSaved += 2U;
@@ -1485,19 +1485,21 @@ auto main(int argc, char** argv) -> int
 						if (!wait_until([&] { const auto& runs=editor->tour_agent()->session().Runs; return !runs.empty() && runs.back().Request==core::tour_agent_request::draft_tour && runs.back().State==core::tour_agent_run_state::answered; }, extended_agent_budget)) {
 							return fail(*application, "tour-native-draft-proposal", editor->tour_agent()->transcript_text().toStdString());
 						}
-						++expectedSaved;
+						// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). Draft
+						// Tour's first draft is a fresh run: it saves no turn in
+						// the whole-tour conversation; its answer seeds the next.
 					}
 					QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
 					auto priorId = QString{ };
 					if (!wait_until([&] { for (auto* item:chat->history_button()->menu()->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=expectedSaved) { priorId=item->data().toString(); } } return !priorId.isEmpty() && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-current-generation");
 					}
-					chat->new_session_button()->click();
+					chat->new_session_action()->trigger();
 					if (!wait_until([&] { return chat->turn_count() == 0U && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-new-empty", chat->chat_text().toStdString());
 					}
 					const auto retained = chat->history_button()->menu()->actions().size();
-					chat->new_session_button()->click();
+					chat->new_session_action()->trigger();
 					if (!wait_until([&] { return !chat->history_button()->property("loading").toBool(); }) || chat->history_button()->menu()->actions().size() != retained) {
 						return fail(*application, "tour-native-empty-reuse");
 					}
@@ -1527,7 +1529,7 @@ auto main(int argc, char** argv) -> int
 						const auto beforeReplay = chat->turn_count();
 						chat->composer()->setPlainText(QStringLiteral("verify-replay"));
 						chat->send_button()->click();
-						if (!wait_until([&] { return chat->turn_count() > beforeReplay && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("transcript-replay-ok") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+						if (!wait_until([&] { return chat->turn_count() > beforeReplay && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("transcript-replay-ok") != std::string::npos && chat->new_session_action()->isEnabled(); }, extended_agent_budget)) {
 							return fail(*application, "tour-readonly-replay-send", chat->chat_text().toStdString());
 						}
 						if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "transcript-replay-tour.png").u16string()))) {
@@ -1546,7 +1548,7 @@ auto main(int argc, char** argv) -> int
 					const auto beforeResume = chat->turn_count();
 					chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
 					chat->send_button()->click();
-					if (!wait_until([&] { return chat->turn_count() > beforeResume && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("memory=") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)
+					if (!wait_until([&] { return chat->turn_count() > beforeResume && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("memory=") != std::string::npos && chat->new_session_action()->isEnabled(); }, extended_agent_budget)
 						|| !verify_native_fixture_identity(chat->reply(chat->turn_count() - 1U)->original_body(), identityKey, true, dataRoot.parent_path())) {
 						return fail(*application, "tour-native-history-exact-memory-resume");
 					}
@@ -1581,7 +1583,7 @@ auto main(int argc, char** argv) -> int
 							const auto& session = editor->tour_agent()->session();
 							return session.LastRun > beforeRun && !session.Runs.empty() && session.Runs.back().Question == question && session.Runs.back().Thread == thread
 								&& session.Runs.back().State == core::tour_agent_run_state::answered && session.Runs.back().Reply.find("memory=") != std::string::npos
-								&& chat->turn_count() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body() == session.Runs.back().Reply && chat->new_session_button()->isEnabled();
+								&& chat->turn_count() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body() == session.Runs.back().Reply && chat->new_session_action()->isEnabled();
 						},
 									extended_agent_budget)
 						|| !verify_native_fixture_identity(chat->reply(chat->turn_count() - 1U)->original_body(), key, true, dataRoot.parent_path())) {
@@ -1637,7 +1639,7 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, "tour-old-choice-no-inference");
 				}
 				chat->send_button()->click();
-				if (!wait_until([&] { return chat->new_session_button()->isEnabled() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("stale-native-validated head=" + std::string{ core::canonical_hex(pinned->HeadOid).view() }) != std::string::npos; }, extended_agent_budget)) {
+				if (!wait_until([&] { return chat->new_session_action()->isEnabled() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("stale-native-validated head=" + std::string{ core::canonical_hex(pinned->HeadOid).view() }) != std::string::npos; }, extended_agent_budget)) {
 					return fail(*application, "tour-old-native-workspace-context", chat->chat_text().toStdString());
 				}
 				const auto continuedAnswer = chat->reply(chat->turn_count() - 1U)->original_body();
@@ -1647,14 +1649,14 @@ auto main(int argc, char** argv) -> int
 				if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "tour-old-revision.png").u16string()))) {
 					return fail(*application, "tour-old-revision-raster");
 				}
-				chat->new_session_button()->click();
+				chat->new_session_action()->trigger();
 				if (!wait_until([&] { return chat->turn_count() == 0U && !chat->history_button()->property("loading").toBool(); })) {
 					return fail(*application, "tour-current-native-generation");
 				}
 				const auto current = app::detail::github_application_fixture_access::agent_chat_evidence(*application).Observed;
 				chat->composer()->setPlainText(QStringLiteral("verify-current-native"));
 				chat->send_button()->click();
-				if (!wait_until([&] { return current && chat->new_session_button()->isEnabled() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("current-native-validated head=" + std::string{ core::canonical_hex(current->HeadOid).view() }) != std::string::npos; }, extended_agent_budget)) {
+				if (!wait_until([&] { return current && chat->new_session_action()->isEnabled() && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("current-native-validated head=" + std::string{ core::canonical_hex(current->HeadOid).view() }) != std::string::npos; }, extended_agent_budget)) {
 					return fail(*application, "tour-current-native-workspace-context", chat->chat_text().toStdString());
 				}
 				const auto freshAnswer = chat->reply(chat->turn_count() - 1U)->original_body();
@@ -1684,7 +1686,7 @@ auto main(int argc, char** argv) -> int
 				const auto beforeRefusal = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
 				chat->composer()->setPlainText(QStringLiteral("this must refuse before the agent"));
 				chat->send_button()->click();
-				const auto refused = wait_until([&] { return chat->new_session_button()->isEnabled() && chat->chat_text().contains(QStringLiteral("retained native workspace")); }, extended_agent_budget);
+				const auto refused = wait_until([&] { return chat->new_session_action()->isEnabled() && chat->chat_text().contains(QStringLiteral("retained native workspace")); }, extended_agent_budget);
 				std::filesystem::rename(held, marker, markerError);
 				if (markerError) {
 					return fail(*application, "tour-native-marker-restored", markerError.message());
@@ -1848,7 +1850,7 @@ auto main(int argc, char** argv) -> int
 		if (!window.ai_tools_action()->isChecked()) {
 			window.ai_tools_action()->trigger();
 		}
-		window.tray_tabs()->setCurrentIndex(3);
+		window.tray_tabs()->setCurrentIndex(2);
 		auto* const setup            = window.agent_setup();
 		const auto  button           = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
 		const auto  changeRepository = [setup] {
@@ -2238,7 +2240,7 @@ auto main(int argc, char** argv) -> int
 			if (
 				!expectedContext.has_value()
 				|| expectedContext->Files.size() != 1U
-				|| expectedContext->Private.Notes.size() != 2U
+				|| expectedContext->Private.LocalComments.size() != 2U
 				|| !selectedNoteFound
 				|| !expectedContext->CurrentDraft.has_value()
 				|| expectedContext->CurrentDraft->Draft.Body != selectedDraft
@@ -2286,7 +2288,7 @@ auto main(int argc, char** argv) -> int
 			if (notesPages == nullptr || privatePages == nullptr || composer == nullptr || turns == nullptr || profiles == nullptr) {
 				return fail(*application, "private-history-controls");
 			}
-			window.tray_tabs()->setCurrentIndex(1);
+			window.tray_tabs()->setCurrentIndex(2);
 			for (auto page = 0; page < notesPages->count(); ++page) {
 				if (notesPages->widget(page)->isAncestorOf(privatePanel)) {
 					notesPages->setCurrentIndex(page);
@@ -2993,7 +2995,13 @@ auto main(int argc, char** argv) -> int
 		briefSays = field("brief.title") == "Keep review snapshots deterministic" && field("brief.base_branch") == "main"
 			&& field("brief.workspace") == "private_copy" && field("brief.diff") == "git diff " + std::string{ fixture.BaseOid } + "..." + std::string{ fixture.HeadOneOid }
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
-			&& field("brief.skill.version") == "4" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
+			// [[BPR-2140]]. The skill's text rides the system prompt where the
+			// agent takes one, and the brief says so; otherwise the brief has it.
+			&& field("brief.skill.version") == "5"
+			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
+			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
+			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v1"
+			&& field("brief.comment_format.text").find("Say the problem in one sentence, then the fix.") != std::string::npos
 			// [[BPR-1753]], owner decision (b): the first turn about this
 			// pull request carries no earlier one.
 			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0";

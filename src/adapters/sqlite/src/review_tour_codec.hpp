@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_SQLITE_SRC_REVIEW_TOUR_CODEC_HPP
 #define BPR_SRC_ADAPTERS_SQLITE_SRC_REVIEW_TOUR_CODEC_HPP
 #include "bpr/core/review_tour.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <limits>
 #include <span>
 #include <type_traits>
@@ -13,7 +14,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 10;
+		std::uint8_t                  Version = 12;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -215,11 +216,29 @@ namespace bpr::adapters::sqlite::detail {
 			if (Version >= 10) {
 				number(aStop.FileCommentRequested);
 			}
+			if (Version >= 11) {
+				optional(aStop.Acceptance, [&](auto& aValue) { acceptance(aValue); });
+			}
+		}
+		/// [[BPR-2014]]. What the author accepted for a stop.
+		void acceptance(core::tour_stop_acceptance& aValue)
+		{
+			text(aValue.Title);
+			text(aValue.Body);
+			optional(aValue.Destination, [this](auto& aDestination) { destination(aDestination); });
+			oid(aValue.Head);
+			list(aValue.Material, core::maximum_tour_material, [&](auto& aMaterial) {
+				destination(aMaterial.Range);
+				number(aMaterial.Reference);
+				text(aMaterial.Written, core::maximum_tour_material_label_bytes);
+				oid(aMaterial.CheckedAt);
+				enumeration(aMaterial.Verdict);
+			});
 		}
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5 && Version != 6 && Version != 7 && Version != 8 && Version != 9 && Version != 10) {
+			if (Version < 1 || Version > 12) {
 				Good = false;
 				return;
 			}
@@ -256,6 +275,16 @@ namespace bpr::adapters::sqlite::detail {
 				optional(aTour.ObservedHead, [&](auto& aValue) { oid(aValue); });
 				number(aTour.HasPriorObservation);
 				list(aTour.ObservedChanges, core::maximum_tour_stops * 4 + 2, [&](auto& aValue) {enumeration(aValue.Kind);id(aValue.Stop);text(aValue.Title); });
+			}
+			// [[BPR-2014]], re-review finding 1. Earlier observed heads a stop
+			// still has its lines at; a version 11 draft has none recorded.
+			if (Version >= 12) {
+				list(aTour.EarlierHeads, core::maximum_tour_stops, [&](auto& aValue) { oid(aValue); });
+			}
+			// [[BPR-2014]]. A draft saved before stops were accepted: a stop
+			// Ready and reaffirmed stays Accepted, every other is not yet.
+			if (Reading && Good && Version < 11) {
+				core::carry_tour_acceptance(aTour);
 			}
 		}
 	};

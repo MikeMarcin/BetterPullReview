@@ -199,7 +199,7 @@ answers otherwise.
 
 ## Implementation notes (2026-11-14)
 
-Recorded in the verification record (`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`).
+Recorded in the [verification record](../verification/RFC-BPR-0128.md).
 
 - **Q5, amended by the owner (look ask-v005, 2026-11-14).** The assumed
   threshold (more than five runs ask first) was rejected: "Why would we do it
@@ -240,7 +240,6 @@ Recorded in the verification record (`docs/verification/RFC-BPR-0128.md` on lane
 ## Closeout (2026-11-14)
 
 Closed by [BPR-2168](../issues/60-done/BPR-2168-close-rfc-0128.md): every
-criterion evidenced on the verification record (on
-claude/v0-5-0-prerelease-targets-52265d), the owner's looks accepted through
-ask-v008 and report-templates-v004.
+criterion evidenced on the [verification record](../verification/RFC-BPR-0128.md),
+the owner's looks accepted through ask-v008 and report-templates-v004.
 

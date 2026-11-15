@@ -46,9 +46,13 @@ namespace bpr::core {
 	{
 		switch (aEntryPoint) {
 		case agent_entry_point::ask_about_selection:
-		case agent_entry_point::analyze_current_file:
-		case agent_entry_point::evaluate_proposed_fix:
 			return true;
+		// RFC-BPR-0117 ([[BPR-2076]]): the open file in Review names a file
+		// too; Explain this file acts on it, with no selection.
+		case agent_entry_point::analyze_current_file:
+		// RFC-BPR-0116 ([[BPR-2074]]): a fix is evaluated against the
+		// conversation that asked for it, not against a selection.
+		case agent_entry_point::evaluate_proposed_fix:
 		case agent_entry_point::analyze_latest_upload:
 		case agent_entry_point::workshop_comment:
 		case agent_entry_point::run_ai_review:
@@ -77,6 +81,8 @@ namespace bpr::core {
 			return "make_more_direct";
 		case workshop_operation::check_the_premise:
 			return "check_the_premise";
+		case workshop_operation::suggest_change:
+			return "suggest_change";
 		}
 		return { };
 	}

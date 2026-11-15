@@ -20,7 +20,7 @@ class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
-class QTextBrowser;
+class QTextEdit;
 class QToolButton;
 class QLayout;
 class QVBoxLayout;
@@ -32,6 +32,28 @@ namespace bpr::qt {
 		class markdown_code_block_objects;
 	}
 	class markdown_body_view;
+	/// \brief RFC-BPR-0106 as amended by the owner on 2026-11-13 ("I see 3
+	/// buttons that say accept and they all look totally different and I'm not
+	/// sure why"). The word on a proposed part's primary button.
+	///
+	/// \details Accept is the files' word for a stop: it is said only where
+	/// pressing accepts a stop (a stop's own Accept, the edited stop's Accept,
+	/// and a stop's own proposed text, which accepts the stop with it). A part
+	/// that only changes the tour says what it does: Add to tour, Use this
+	/// text, Remove, Merge, Split, Reorder.
+	[[nodiscard]] auto tour_proposal_apply_words(core::tour_proposal_part aPart) -> QString;
+	/// \brief Whether a proposed part's primary button accepts a stop.
+	[[nodiscard]] auto tour_proposal_accepts_stop(core::tour_proposal_part aPart) noexcept -> bool;
+	/// \brief The one look of Accept in the Tour panel and its side chats: the
+	/// platform's own default push button, the stop's one primary action.
+	void wear_stop_accept(QPushButton& aButton);
+	/// \brief The one action button of the Tour panel and its cards: the
+	/// platform's push button, as the stop's Accept is, with the same bevel,
+	/// padding, height, font and corners. Only the default (Accept) is filled.
+	/// \details The owner, rejecting the look on 2026-11-13: "My complaint
+	/// was that the button STYLE was inconsistent ... The accept style looks
+	/// better than the "Add to tour" or "Apply all" button styles."
+	[[nodiscard]] auto make_tour_action(const QString& aText, QWidget* aParent) -> QPushButton*;
 	/// \brief [[BPR-1900]]. The Tour tab's own agent session, at the top of
 	/// the tab: Draft the tour (Stop drafting while it runs), the whole-tour
 	/// proposal to accept, edit or discard item by item, and the session's
@@ -68,9 +90,15 @@ namespace bpr::qt {
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
 
 		explicit tour_agent_panel(QWidget* aParent = nullptr);
+		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Apply all.
+		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
 		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a part Draft
+		/// Tour's fresh first draft proposed: the run whose answer the tour's
+		/// chat continues from.
+		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore) { AskMoreDispatch = std::move(aAskMore); }
 		/// \brief [[BPR-1925]] v003, owner on v002: "I think this whole section
 		/// probably just goes away and we move the accept into the stops
 		/// directly". Each pending part of a proposal is offered to `aPlace`,
@@ -85,7 +113,7 @@ namespace bpr::qt {
 			Place      = std::move(aPlace);
 		}
 		/// \brief The proposal's one line: how many parts wait in the tour, and
-		/// Accept all.
+		/// Apply all.
 		[[nodiscard]] auto accept_all_button() const noexcept -> QPushButton* { return AcceptAll; }
 		[[nodiscard]] auto proposal_title() const noexcept -> QLabel* { return ProposalTitle; }
 		/// \brief [[BPR-1914]] v002. The thread for the tour as a whole, under
@@ -130,6 +158,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1937]]. A part of a revision the core refused, said
 		/// in plain words: which part, which stops, and why.
 		[[nodiscard]] static auto refused_words(const core::tour_refused_part& aPart) -> QString;
+		/// \brief Whether the head's Apply all takes `aItem`: not a thread's
+		/// part, and not a tour chat revision's, which its card in the chat takes.
+		[[nodiscard]] auto batched(const core::tour_proposal_item& aItem) const -> bool;
 		/// \brief Its Move to nearest change button, while it is offered.
 		[[nodiscard]] auto relocate_button(std::size_t aIndex) const -> QPushButton*;
 		/// \brief The quiet words under a stop's place, when it has some.
@@ -154,7 +185,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1913]]. The transcript's own window.
 		[[nodiscard]] auto transcript() const noexcept -> QWidget* { return TranscriptWindow; }
 		/// \brief The shown run's text, selectable across its entries.
-		[[nodiscard]] auto transcript_view() const noexcept -> QTextBrowser* { return RunView; }
+		[[nodiscard]] auto transcript_view() const noexcept -> QTextEdit* { return RunView; }
 		/// \brief The transcript's list of runs, newest first.
 		[[nodiscard]] auto transcript_runs() const noexcept -> QListWidget* { return RunList; }
 		[[nodiscard]] auto copy_run_button() const noexcept -> QPushButton* { return CopyRun; }
@@ -195,24 +226,26 @@ namespace bpr::qt {
 		/// [[BPR-1925]]. Conversation and the tour's chat glyph sit at the
 		/// right of Draft the tour, or on their own row under it when the
 		/// drawer is too narrow for both at their own widths.
-		void                             fit_head();
-		QLayout*                         Head  = nullptr;
-		QWidget*                         Trail = nullptr;
-		void                             fit_readers();
-		void                             rebuild_proposal();
-		void                             rebuild_transcript();
-		void                             show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
-		void                             copy(const QString& aText, const QString& aSaid);
-		void                             append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
-		void                             style_transcript_code();
-		void                             refresh_toggle();
-		std::function<void()>            DraftDispatch;
-		std::function<void()>            StopDispatch;
-		decide_dispatch                  DecideDispatch;
-		std::function<void(std::size_t)> RelocateDispatch;
-		std::function<void()>            PlaceBegin;
-		proposal_placer                  Place;
-		QPushButton*                     AcceptAll = nullptr;
+		void                                                        fit_head();
+		QLayout*                                                    Head  = nullptr;
+		QWidget*                                                    Trail = nullptr;
+		void                                                        fit_readers();
+		void                                                        rebuild_proposal();
+		void                                                        rebuild_transcript();
+		void                                                        show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
+		void                                                        copy(const QString& aText, const QString& aSaid);
+		void                                                        append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
+		void                                                        style_transcript_code();
+		void                                                        refresh_toggle();
+		std::function<void()>                                       DraftDispatch;
+		std::function<void()>                                       StopDispatch;
+		decide_dispatch                                             DecideDispatch;
+		std::function<void(core::tour_stop_id, const std::string&)> OwnAcceptDispatch;
+		std::function<void(std::size_t)>                            RelocateDispatch;
+		std::function<void(core::tour_agent_run_id)>                AskMoreDispatch;
+		std::function<void()>                                       PlaceBegin;
+		proposal_placer                                             Place;
+		QPushButton*                                                AcceptAll = nullptr;
 		/// [[BPR-1925]] v003. Each pending part's box, wherever it was placed.
 		std::map<std::size_t, QPointer<QWidget>>                                    Boxes;
 		std::map<std::size_t, markdown_body_view*>                                  Readers;
@@ -249,7 +282,7 @@ namespace bpr::qt {
 		QLabel*                                                                     OutsideList      = nullptr;
 		QWidget*                                                                    TranscriptWindow = nullptr;
 		QListWidget*                                                                RunList          = nullptr;
-		QTextBrowser*                                                               RunView          = nullptr;
+		QTextEdit*                                                                  RunView          = nullptr;
 		std::shared_ptr<detail::markdown_code_store>                                TranscriptCode;
 		detail::markdown_code_block_objects*                                        TranscriptFrames = nullptr;
 		QPushButton*                                                                CopyRun          = nullptr;

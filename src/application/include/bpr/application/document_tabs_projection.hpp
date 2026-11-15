@@ -4,6 +4,7 @@
 #include "bpr/core/document_tabs.hpp"
 
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace bpr::application {
@@ -18,6 +19,8 @@ namespace bpr::application {
 		core::document_tab_view_state State         = core::document_tab_view_state::idle;
 		bool                          Active        = false;
 		bool                          OwnComparison = false;
+		/// RFC-BPR-0128. A report's key; empty for a file's tab.
+		std::string Report;
 
 		auto operator==(const document_tab_entry&) const -> bool = default;
 	};

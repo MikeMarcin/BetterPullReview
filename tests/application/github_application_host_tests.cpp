@@ -7546,11 +7546,217 @@ namespace {
 		}
 	}
 
+	// [[BPR-2181]]. A review authority the profile lends a holder that is not
+	// a window: a window on PR 27 lends, the host revokes.
+	struct lending_course
+	{
+		host_fixture                                                       Fixture;
+		std::shared_ptr<fake_lease>                                        Transport;
+		std::vector<std::shared_ptr<application::github_window_read_host>> Windows;
+		std::vector<application::lent_review_authority_end>                Ends;
+		std::optional<application::lent_review_authority>                  Lent;
+
+		lending_course()
+			: Transport{ establish_native_session(Fixture) }
+		{
+		}
+
+		auto open_window(const std::uint64_t aWindow, const std::uint32_t aNumber) -> std::shared_ptr<application::github_window_read_host>
+		{
+			auto window = std::make_shared<application::github_window_read_host>(
+				core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ aWindow }, core::bpr_window_generation{ 1 } },
+				core::application_session_id{ 300 + aWindow }, Fixture.Provider, Fixture.Lane,
+				[](const application::github_window_read_update&) { });
+			expect(Fixture.Host.attach_window(window), "the profile admits the window");
+			Windows.push_back(window);
+			read(*window, aNumber);
+			return window;
+		}
+
+		void read(application::github_window_read_host& aWindow, const std::uint32_t aNumber)
+		{
+			aWindow.dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ aNumber } });
+			const auto pending = Fixture.Provider.PullRequests.back();
+			pending.Completion(application::github_pull_request_success{ pending.Request, snapshot(pending.Request) });
+			Fixture.Lane.drain();
+			expect(aWindow.accepted_snapshot().has_value(), "the window holds its pull request");
+		}
+
+		void lend(const std::shared_ptr<application::github_window_read_host>& aLender)
+		{
+			Lent = Fixture.Host.lend_review_authority(aLender, core::application_session_id{ 900 },
+													  [this](const application::lent_review_authority_end aEnd) { Ends.push_back(aEnd); });
+			expect(Lent && Lent->Lease.live() && Lent->Handoff.SmartGit != nullptr, "the host lends the window's pull request with a live lease");
+		}
+
+		[[nodiscard]] auto ended(const application::lent_review_authority_end aEnd) const -> bool
+		{
+			return Lent && !Lent->Lease.live() && Lent->Handoff.SmartGit->revoked() && Ends == std::vector{ aEnd };
+		}
+
+		void reenroll(const core::github_account_id aAccount, const std::optional<application::github_profile_authority>& aProfile)
+		{
+			Fixture.Provider.Profiles.clear();
+			Fixture.Provider.Viewers.clear();
+			Fixture.Provider.Capabilities.clear();
+			Fixture.Vault.Stores.clear();
+			Fixture.Vault.Retrieves.clear();
+			Fixture.Vault.Deletes.clear();
+			Fixture.Host.enroll_profile(core::host_profile_id{ 11U }, credential());
+			expect(Lent && !Lent->Lease.live() && Lent->Handoff.SmartGit->revoked(),
+				   "the activation that replaces the identity revokes the loan before any new identity is read");
+			Fixture.Lane.drain();
+			// The replaced credential's exact cleanup runs before the new one is resolved.
+			for (std::size_t index = 0U; index < Fixture.Vault.Deletes.size() && Fixture.Provider.Profiles.empty(); ++index) {
+				const auto deletion = Fixture.Vault.Deletes[index];
+				deletion.Completion(application::github_credential_delete_success{ deletion.Context, application::github_credential_delete_disposition::deleted });
+				Fixture.Lane.drain();
+			}
+			expect(!Fixture.Provider.Profiles.empty(), "the new identity's profile is resolved");
+			if (Fixture.Provider.Profiles.empty()) {
+				return;
+			}
+			const auto profileRequest = Fixture.Provider.Profiles.front().Request;
+			Fixture.Provider.Profiles.front().Completion(application::github_profile_success{
+				.Request = profileRequest, .Authority = aProfile.value_or(native_profile(profileRequest.Context.Profile)) });
+			Fixture.Lane.drain();
+			expect(!Fixture.Provider.Viewers.empty(), "the new identity's viewer is read");
+			if (Fixture.Provider.Viewers.empty()) {
+				return;
+			}
+			const auto bootstrap = Fixture.Provider.Viewers.front().Request;
+			Fixture.Provider.Viewers.front().Completion(application::github_viewer_success{
+				.Request = bootstrap, .Viewer = viewer(aAccount), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+			Fixture.Lane.drain();
+		}
+	};
+
+	void test_a_lent_review_authority_is_the_holders_and_ends_when_it_lets_go()
+	{
+		lending_course course;
+		const auto     lender = course.open_window(2U, 27U);
+		expect(!course.Fixture.Host.lend_review_authority(lender, lender->state().ApplicationSession, { })
+				   && !course.Fixture.Host.lend_review_authority(lender, core::application_session_id{ }, { }),
+			   "no loan to a window's own session or to no session");
+		const auto stranger = std::make_shared<application::github_window_read_host>(
+			core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ 9 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 309 }, course.Fixture.Provider, course.Fixture.Lane, [](const application::github_window_read_update&) { });
+		expect(!course.Fixture.Host.lend_review_authority(stranger, core::application_session_id{ 900 }, { }), "no loan from a window the profile did not attach");
+		course.lend(lender);
+		const auto& handoff = course.Lent->Handoff;
+		expect(handoff.ApplicationSession == core::application_session_id{ 900 } && handoff.Number == core::pull_request_number{ 27U }
+				   && handoff.Account == core::github_account_id{ 51U },
+			   "the handoff is the window's pull request in the holder's session");
+		auto foreign               = smart_context(handoff);
+		foreign.ApplicationSession = lender->state().ApplicationSession;
+		expect(!handoff.SmartGit->acquire(foreign).has_value(), "the lease refuses the lending window's session");
+		auto acquired = handoff.SmartGit->acquire(smart_context(handoff));
+		expect(acquired.has_value() && *acquired == course.Transport->LastTransport, "the lease acquires over the session's account transport in the holder's name");
+		course.Lent->Lease.release();
+		course.Fixture.Lane.drain();
+		expect(handoff.SmartGit->revoked() && (*acquired)->revoked() && course.Ends.empty(),
+			   "letting go revokes the lease and its transport and tells nobody");
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+	}
+
+	void test_a_lent_review_authority_ends_when_the_account_signs_out()
+	{
+		lending_course course;
+		course.lend(course.open_window(2U, 27U));
+		course.Fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+		expect(course.Lent->Handoff.SmartGit->revoked(), "sign-out revokes the lease at once");
+		course.Fixture.Lane.drain();
+		expect(course.ended(application::lent_review_authority_end::identity_changed), "the holder is told once, on the lane");
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+	}
+
+	void test_a_lent_review_authority_ends_when_the_account_changes()
+	{
+		lending_course course;
+		course.lend(course.open_window(2U, 27U));
+		course.reenroll(core::github_account_id{ 52U }, std::nullopt);
+		expect(course.ended(application::lent_review_authority_end::identity_changed), "another account's sign-in ends the loan");
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+	}
+
+	void test_a_lent_review_authority_ends_when_the_identity_generation_changes()
+	{
+		lending_course course;
+		course.lend(course.open_window(2U, 27U));
+		const auto generation = course.Fixture.Host.accepted_identity_generation();
+		course.reenroll(core::github_account_id{ 51U }, std::nullopt);
+		expect(course.Fixture.Host.state().IdentityGeneration != generation
+				   && course.ended(application::lent_review_authority_end::identity_changed),
+			   "the same account signed in again is a new generation and ends the loan");
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+	}
+
+	void test_a_lent_review_authority_ends_when_the_profile_revision_changes()
+	{
+		lending_course course;
+		course.lend(course.open_window(2U, 27U));
+		auto revised            = native_profile(core::host_profile_id{ 11U });
+		revised.ProfileRevision = application::github_profile_revision{ 32U };
+		course.reenroll(core::github_account_id{ 51U }, revised);
+		expect(course.ended(application::lent_review_authority_end::identity_changed), "a profile resolved at another revision ends the loan");
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+	}
+
+	void test_a_lent_review_authority_ends_when_its_pull_request_is_inaccessible()
+	{
+		lending_course course;
+		const auto     lender  = course.open_window(2U, 27U);
+		const auto     sibling = course.open_window(3U, 27U);
+		course.lend(lender);
+		course.read(*lender, 28U);
+		course.Fixture.Host.detach_window(lender->window());
+		course.Fixture.Lane.drain();
+		expect(course.Lent->Lease.live() && course.Ends.empty(), "the lender switching pull request or closing ends nothing");
+
+		const auto refuse = [&course](application::github_window_read_host& aWindow, const std::uint32_t aNumber) {
+			aWindow.dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ aNumber } });
+			const auto pending = course.Fixture.Provider.PullRequests.back();
+			pending.Completion(application::github_pull_request_error{
+				.Request = pending.Request,
+				.Error   = { .Failure = application::github_provider_failure::permission, .RetryAfterSeconds = std::nullopt, .RateLimits = { }, .RateLimitCause = std::nullopt },
+			});
+			course.Fixture.Lane.drain();
+		};
+		refuse(*sibling, 29U);
+		expect(course.Lent->Lease.live() && course.Ends.empty(), "another pull request's 404 ends nothing");
+		refuse(*sibling, 27U);
+		expect(course.ended(application::lent_review_authority_end::pull_request_inaccessible),
+			   "a read of the lent pull request that answers 404 or refused permission ends the loan");
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+	}
+
+	void test_a_lent_review_authority_ends_when_the_host_closes()
+	{
+		lending_course course;
+		course.lend(course.open_window(2U, 27U));
+		course.Fixture.Host.shutdown();
+		course.Fixture.Lane.drain();
+		expect(course.ended(application::lent_review_authority_end::host_closing), "shutdown ends the loan");
+	}
+
 }
 
 auto main() -> int
 {
 	bpr::tests::report_qualification_build();
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_is_the_holders_and_ends_when_it_lets_go", &test_a_lent_review_authority_is_the_holders_and_ends_when_it_lets_go);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_account_signs_out", &test_a_lent_review_authority_ends_when_the_account_signs_out);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_account_changes", &test_a_lent_review_authority_ends_when_the_account_changes);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_identity_generation_changes", &test_a_lent_review_authority_ends_when_the_identity_generation_changes);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_profile_revision_changes", &test_a_lent_review_authority_ends_when_the_profile_revision_changes);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_its_pull_request_is_inaccessible", &test_a_lent_review_authority_ends_when_its_pull_request_is_inaccessible);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_host_closes", &test_a_lent_review_authority_ends_when_the_host_closes);
 	bpr::tests::run_qualification_case("test_accepted_server_snapshots_fan_out_without_window_effects", &test_accepted_server_snapshots_fan_out_without_window_effects);
 	bpr::tests::run_qualification_case("test_signed_out_explicit_windows_adopt_authentication_at_capacity", &test_signed_out_explicit_windows_adopt_authentication_at_capacity);
 	bpr::tests::run_qualification_case("test_explicit_first_detach_preserves_existing_legacy_reader", &test_explicit_first_detach_preserves_existing_legacy_reader);

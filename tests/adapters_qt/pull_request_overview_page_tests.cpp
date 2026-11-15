@@ -23,6 +23,7 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -88,8 +89,7 @@ namespace {
 		const application::overview_change_since_review aChanged,
 		const std::optional<core::file_read_state>      aRead,
 		const std::size_t                               aThreads    = 0U,
-		const std::size_t                               aUnresolved = 0U,
-		const std::optional<std::string>&               aNote       = std::nullopt)
+		const std::size_t                               aUnresolved = 0U)
 		-> application::overview_file_row
 	{
 		const auto slash = aPath.rfind('/');
@@ -107,7 +107,6 @@ namespace {
 			.Mark                  = aRead.has_value() ? std::optional{ static_cast<core::file_progress_mark>(static_cast<int>(*aRead)) } : std::nullopt,
 			.ThreadCount           = aThreads,
 			.UnresolvedThreadCount = aUnresolved,
-			.Note                  = aNote,
 		};
 	}
 
@@ -128,8 +127,7 @@ namespace {
 			row("Engine/Renderer/HairStrandsLighting.cpp", application::overview_file_operation::modified,
 				application::overview_change_since_review::unchanged, core::file_read_state::seen, 3U, 1U),
 			row("Engine/Renderer/HairStrandsVoxelization.cpp", application::overview_file_operation::modified,
-				application::overview_change_since_review::changed, core::file_read_state::read, 2U, 0U,
-				std::string{ "Re-read the atomic move" }),
+				application::overview_change_since_review::changed, core::file_read_state::read, 2U, 0U),
 			row("Engine/Shaders/HairStrandsDeepShadow.usf", application::overview_file_operation::added,
 				application::overview_change_since_review::added, std::nullopt),
 		};
@@ -166,6 +164,7 @@ namespace {
 		};
 		page.present_loading();
 		page.present_observation(metadata);
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
 		page.present_observed_files({ { .Path = "file.cpp", .Change = core::cached_file_change::modified } });
 		auto early = application::overview_checks_projection{
 			.Checks    = { .Passed = 2U },
@@ -175,6 +174,7 @@ namespace {
 			.ChecksNote = "Merge rules and required checks are still loading."
 		};
 		page.present_observed_checks(early);
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true });
 		now = core::pending_reveal_milliseconds;
 		page.pending_veils().Side->advance();
 		QApplication::processEvents();
@@ -194,6 +194,7 @@ namespace {
 		final.CheckRows                    = early.CheckRows;
 		final.CheckRows.back().Requirement = "Optional";
 		page.present(final);
+		page.present_loading_readiness({ });
 		expect(page.projection() && !page.pending_veils().Side->busy() && disclosure->isChecked()
 				   && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("check:second") && open->isEnabled(),
 			   "final status preserves selection and disclosure and admits the ordinary link");
@@ -201,9 +202,13 @@ namespace {
 		page.present_loading();
 		++metadata.Number;
 		page.present_observation(metadata);
-		expect(list->topLevelItemCount() == 0 && page.status_section(qt::overview_status_section::checks)->isHidden(),
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
+		// [[BPR-2180]]. The section stands in its place and waits for its own
+		// results; nothing of the previous pull request's is listed.
+		expect(list->topLevelItemCount() == 0 && page.pending_veils().Checks->busy(),
 			   "another PR waits for its own results");
 		page.present_observed_checks({ .ChecksComplete = false, .ChecksNote = "Check runs unavailable." });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true });
 		expect(!page.status_section(qt::overview_status_section::checks)->isHidden() && list->topLevelItemCount() == 0
 				   && page.findChild<QLabel*>(QStringLiteral("overviewChecksNote"))->text().contains(QStringLiteral("unavailable")),
 			   "unavailable results are explicit and never reuse the previous PR");
@@ -232,7 +237,7 @@ namespace {
 		auto* list = page.findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
 		list->setCurrentItem(list->topLevelItem(1));
 		auto* files = page.value_label(qt::overview_value::files_read);
-		auto* notes = page.value_label(qt::overview_value::private_notes);
+		auto* notes = page.value_label(qt::overview_value::local_comments);
 		auto* meter = page.findChild<QWidget*>(QStringLiteral("overviewReadMeter"));
 		expect(files->text() == QStringLiteral("Loading…") && notes->text() == QStringLiteral("Loading…") && meter->isHidden()
 				   && !page.pending_veils().Side->busy() && header->accessibleName().contains(QStringLiteral("Loading")),
@@ -258,7 +263,10 @@ namespace {
 			   "local completion keeps final counts, disclosure and check selection");
 		page.clear();
 		page.present_loading();
-		expect(!page.projection() && page.status_section(qt::overview_status_section::my_review)->isHidden(), "replacement does not retain the previous review's progress");
+		page.present_loading_readiness({ .FirstRead = true });
+		// [[BPR-2180]]. My review stands in its place and waits; nothing of the
+		// previous review's progress is shown in it.
+		expect(!page.projection() && files->text().isEmpty() && page.pending_veils().MyReview->busy(), "replacement does not retain the previous review's progress");
 	}
 
 	auto test_page_presents_the_projection_and_reports_its_gestures() -> void
@@ -309,9 +317,10 @@ namespace {
 				   && voxel.siblingAtColumn(qt::overview_file_model::changed_column).data().toString() == QStringLiteral("changed")
 				   && voxel.siblingAtColumn(qt::overview_file_model::read_column).data(Qt::AccessibleTextRole).toString() == QStringLiteral("read")
 				   && voxel.siblingAtColumn(qt::overview_file_model::comments_column).data().toString() == QStringLiteral("2")
-				   && voxel.siblingAtColumn(qt::overview_file_model::note_column).data().toString() == QStringLiteral("Re-read the atomic move")
+				   && model->columnCount() == qt::overview_file_model::comments_column + 1
+				   && !model->headerData(qt::overview_file_model::comments_column + 1, Qt::Horizontal, Qt::DisplayRole).isValid()
 				   && voxel.data(qt::overview_file_model::path_role).toString() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "a file row answers every column of the accepted table");
+			   "a file row answers every column of the accepted table, which has no Note column (RFC-BPR-0127)");
 		const auto lighting = model->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"));
 		const auto shadow   = model->index_for_path(QStringLiteral("Engine/Shaders/HairStrandsDeepShadow.usf"));
 		expect(lighting.siblingAtColumn(qt::overview_file_model::comments_column).data().toString() == QStringLiteral("1 / 3")
@@ -343,8 +352,9 @@ namespace {
 				   && page.value_label(qt::overview_value::my_unresolved_threads)->text() == QStringLiteral("2")
 				   && page.value_label(qt::overview_value::checks)->text() == QStringLiteral("3 passed, 1 skipped")
 				   && page.value_label(qt::overview_value::files_read)->text() == QStringLiteral("1 of 3")
-				   && page.value_label(qt::overview_value::private_notes)->text() == QStringLiteral("1")
-				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("1"),
+				   && page.value_label(qt::overview_value::local_comments)->text() == QStringLiteral("1")
+				   && page.value_label(qt::overview_value::in_review)->text() == QStringLiteral("1")
+				   && !rowShown(qt::overview_value::not_in_review),
 			   "[[BPR-1589]] the Status drawer states what happened since my last review and my progress, "
 			   "and draws no row where the host cannot answer");
 		expect(page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
@@ -368,7 +378,7 @@ namespace {
 		expect(page.files_heading()->text().contains(QStringLiteral("not yet resolved"))
 				   && !rowShown(qt::overview_value::uploads)
 				   && page.value_label(qt::overview_value::files_changed)->text() == QStringLiteral("not yet resolved") && rowShown(qt::overview_value::files_changed)
-				   && !rowShown(qt::overview_value::drafted_comments)
+				   && !rowShown(qt::overview_value::in_review)
 				   && page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")).siblingAtColumn(qt::overview_file_model::changed_column).data().toString()
 					   == QStringLiteral("?")
 				   && page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
@@ -729,7 +739,7 @@ namespace {
 		expect(!view->isExpanded(renderer) && view->visualRect(file).isEmpty() && view->currentIndex().siblingAtColumn(0) == renderer
 				   && dispatches == 0,
 			   "clicking the disclosure hides the files and leaves the folder current without opening a file");
-		click(*view, view->visualRect(QModelIndex{ renderer }.siblingAtColumn(qt::overview_file_model::note_column)).center());
+		click(*view, view->visualRect(QModelIndex{ renderer }.siblingAtColumn(qt::overview_file_model::comments_column)).center());
 		expect(view->isExpanded(renderer) && !view->visualRect(file).isEmpty() && dispatches == 0,
 			   "clicking anywhere on the folder row shows its files again");
 		view->doubleClicked(renderer);
@@ -1620,7 +1630,7 @@ namespace {
 		// open or not, at the delegate's own measure.
 		for (const auto& folder : folders) {
 			for (auto column = 0; column < qt::overview_file_model::column_count; ++column) {
-				if (column == qt::overview_file_model::note_column || column == qt::overview_file_model::comments_column) {
+				if (column == qt::overview_file_model::comments_column) {
 					continue;
 				}
 				expect(view->sizeHintForIndex(folder.sibling(folder.row(), column)).width() <= header->sectionSize(column),
@@ -2402,6 +2412,143 @@ namespace {
 	/// Left and Right stay the tree's; Tab steps onto a row's chips with a
 	/// ring and a tooltip; the current cell and chip survive a refresh and a
 	/// sort.
+	/// [[BPR-2093]]. The Comments cell shows the file's drafts as one chip at
+	/// its right end, before the qualifier; a folder adds its files up; the
+	/// comment chips fold before reaching it; its tooltip says how many are in
+	/// the review; a click or Enter asks for that row's drafts. Without counts
+	/// the drafts chip still shows.
+	void test_drafts_chip_counts_and_goes_to_the_drafts(const QString& aRender = { })
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1'300, 760);
+		auto asked  = std::vector<application::overview_feedback_request>{ };
+		auto wanted = std::vector<QString>{ };
+		auto opened = std::vector<QString>{ };
+		page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+		page.set_drafts_dispatch([&](const QString& aPath) { wanted.push_back(aPath); });
+		page.set_file_dispatch([&](const QString& aPath) { opened.push_back(aPath); });
+		page.present(projection());
+		page.show();
+		settle();
+		page.set_drafts({ { QString::fromStdString(lighting), qt::overview_draft_count{ .InReview = 2U, .NotInReview = 1U } },
+						  { QString::fromStdString(voxel), qt::overview_draft_count{ .InReview = 1U, .NotInReview = 0U } } });
+		settle();
+		auto* const view    = page.files_view();
+		auto* const model   = page.file_model();
+		const auto  drafted = [&](const QModelIndex& aCell) {
+			const auto chips = qt::overview_comment_chips(model->feedback_at(aCell), view->visualRect(aCell), view->font(), model->drafts_at(aCell));
+			const auto found = std::ranges::find(chips, qt::overview_comment_chip::kind::drafts, &qt::overview_comment_chip::Kind);
+			return found == chips.end() ? std::optional<qt::overview_comment_chip>{ } : std::optional{ *found };
+		};
+		const auto before = drafted(cell(page, lighting));
+		expect(before && before->Count == 3U && before->NotInReview == 1U, "without counts the cell shows the file's drafts");
+		const auto review = mixed_review();
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
+		settle();
+		const auto chip = drafted(cell(page, lighting));
+		const auto rect = view->visualRect(cell(page, lighting));
+		expect(chip && chip->Count == 3U && chip->NotInReview == 1U && chip->Box.right() <= rect.right() && chip->Box.left() >= rect.left(), "with counts the drafts chip is in the cell");
+		const auto all = qt::overview_comment_chips(model->feedback_at(cell(page, lighting)), rect, view->font(), model->drafts_at(cell(page, lighting)));
+		expect(std::ranges::none_of(all, [&](const qt::overview_comment_chip& aOther) { return aOther.Kind != qt::overview_comment_chip::kind::drafts && aOther.Box.intersects(chip->Box); }),
+			   "no comment chip covers it");
+		const auto folder = model->index_for_path(QString::fromStdString(lighting)).parent().siblingAtColumn(qt::overview_file_model::comments_column);
+		const auto summed = drafted(folder);
+		expect(summed && summed->Count == 4U && summed->NotInReview == 1U, "a folder adds up its files' drafts");
+		expect(qt::overview_drafts_text(*chip).startsWith(QStringLiteral("3 drafts of yours here. 2 in your review, 1 not.")), "the tooltip says how many are in the review");
+		expect(qt::overview_drafts_text(*drafted(cell(page, voxel))).startsWith(QStringLiteral("1 draft of yours here. It is in your review.")), "one draft, in the review");
+		click_at(*view->viewport(), chip->Box.center());
+		expect(wanted.size() == 1U && wanted.back() == QString::fromStdString(lighting) && opened.empty(), "a click asks for that file's drafts and opens no file");
+		click_at(*view->viewport(), summed->Box.center());
+		expect(wanted.size() == 2U && wanted.back() == QStringLiteral("Engine/Renderer"), "a folder's chip asks for the folder's drafts");
+		if (!aRender.isEmpty()) {
+			QDir{ }.mkpath(aRender);
+			view->clearSelection();
+			settle();
+			static_cast<void>(page.grab().save(aRender + QStringLiteral("/overview-drafts.png"), "PNG"));
+		}
+		page.set_drafts({ });
+		settle();
+		expect(!drafted(cell(page, lighting)), "no drafts, no chip");
+	}
+
+	/// RFC-BPR-0127 ([[BPR-2159]], AC08). A file's Comments cell shows a
+	/// Local chip with its count beside the drafts chip, a folder its files'
+	/// sum; its activation asks for Threads on Local at that row and opens no
+	/// file; My review counts my comments by state; Overview has no Note
+	/// column and no Private notes row.
+	void test_local_chip_and_my_review_by_state(const QString& aRender = { })
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1'300, 760);
+		auto asked  = std::vector<application::overview_feedback_request>{ };
+		auto local  = std::vector<QString>{ };
+		auto drafts = std::vector<QString>{ };
+		auto opened = std::vector<QString>{ };
+		page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+		page.set_drafts_dispatch([&](const QString& aPath) { drafts.push_back(aPath); });
+		page.set_local_dispatch([&](const QString& aPath) { local.push_back(aPath); });
+		page.set_file_dispatch([&](const QString& aPath) { opened.push_back(aPath); });
+		page.present(projection());
+		page.show();
+		settle();
+		page.set_drafts({ { QString::fromStdString(lighting), qt::overview_draft_count{ .InReview = 1U, .NotInReview = 1U, .Local = 2U } },
+						  { QString::fromStdString(voxel), qt::overview_draft_count{ .Local = 1U } } });
+		const auto review = mixed_review();
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
+		settle();
+		auto* const view  = page.files_view();
+		auto* const model = page.file_model();
+		const auto  chip  = [&](const QModelIndex& aCell, const qt::overview_comment_chip::kind aKind) {
+			const auto chips = qt::overview_comment_chips(model->feedback_at(aCell), view->visualRect(aCell), view->font(), model->drafts_at(aCell));
+			const auto found = std::ranges::find(chips, aKind, &qt::overview_comment_chip::Kind);
+			return found == chips.end() ? std::optional<qt::overview_comment_chip>{ } : std::optional{ *found };
+		};
+		const auto mine    = chip(cell(page, lighting), qt::overview_comment_chip::kind::local);
+		const auto drafted = chip(cell(page, lighting), qt::overview_comment_chip::kind::drafts);
+		const auto rect    = view->visualRect(cell(page, lighting));
+		expect(mine && mine->Count == 2U && drafted && drafted->Count == 2U, "a file shows its Local chip beside its drafts chip");
+		expect(mine->Box.right() <= drafted->Box.left() && mine->Box.left() >= rect.left() && std::abs(mine->Box.center().y() - drafted->Box.center().y()) < 0.5,
+			   "the Local chip sits just left of the drafts chip, on its line");
+		const auto onlyLocal = chip(cell(page, voxel), qt::overview_comment_chip::kind::local);
+		expect(onlyLocal && onlyLocal->Count == 1U && !chip(cell(page, voxel), qt::overview_comment_chip::kind::drafts), "a file with only Local comments shows only the Local chip");
+		const auto folder = model->index_for_path(QString::fromStdString(lighting)).parent().siblingAtColumn(qt::overview_file_model::comments_column);
+		const auto summed = chip(folder, qt::overview_comment_chip::kind::local);
+		expect(summed && summed->Count == 3U, "a folder shows its files' sum");
+		expect(qt::overview_local_text(*mine) == QStringLiteral("2 local comments, only on this computer") && qt::overview_local_text(*mine).size() <= 60, "its words are short and say where they are");
+		click_at(*view->viewport(), mine->Box.center());
+		expect(local == std::vector{ QString::fromStdString(lighting) } && drafts.empty() && opened.empty(), "a click asks for Threads on Local at that file, and opens no file");
+		click_at(*view->viewport(), summed->Box.center());
+		expect(local.size() == 2U && local.back() == QStringLiteral("Engine/Renderer"), "a folder's chip asks for the folder's");
+		// No Note column.
+		for (auto column = 0; column < model->columnCount(); ++column) {
+			expect(model->headerData(column, Qt::Horizontal, Qt::DisplayRole).toString() != QStringLiteral("Note"), "Overview has no Note column");
+		}
+		// My review by state.
+		page.status_drawer()->show_tab(qt::overview_drawer_tab::status);
+		auto* const header = page.status_section_header(qt::overview_status_section::my_review);
+		if (!header->isChecked()) {
+			header->click();
+		}
+		page.set_mine_totals({ .InReview = 2U, .NotInReview = 1U, .Local = 3U });
+		settle();
+		const auto rowShown = [&page](const qt::overview_value aValue) { return !page.value_label(aValue)->parentWidget()->isHidden(); };
+		expect(page.value_label(qt::overview_value::in_review)->text() == QStringLiteral("2") && page.value_label(qt::overview_value::not_in_review)->text() == QStringLiteral("1")
+				   && page.value_label(qt::overview_value::local_comments)->text() == QStringLiteral("3") && rowShown(qt::overview_value::in_review) && rowShown(qt::overview_value::not_in_review)
+				   && rowShown(qt::overview_value::local_comments),
+			   "My review counts my comments in the review, not in it, and Local");
+		const auto labels = page.findChildren<QLabel*>();
+		expect(std::ranges::none_of(labels, [](const QLabel* aLabel) { return aLabel->text() == QStringLiteral("Private notes"); }), "Overview has no Private notes row");
+		if (!aRender.isEmpty()) {
+			QDir{ }.mkpath(aRender);
+			view->clearSelection();
+			settle();
+			static_cast<void>(page.grab().save(aRender + QStringLiteral("/overview-local.png"), "PNG"));
+		}
+		page.set_mine_totals({ .InReview = 0U, .NotInReview = 0U, .Local = 0U });
+		settle();
+		expect(!rowShown(qt::overview_value::not_in_review) && !rowShown(qt::overview_value::local_comments), "a zero draws no row");
+	}
+
 	void test_chip_activation_names_exactly_its_count()
 	{
 		qt::pull_request_overview_page page;
@@ -3577,7 +3724,6 @@ namespace {
 			}
 			if (file.Path == "src/engine/shaders/basic.frag" || file.Path == "src/engine/shaders/basic.vert") {
 				file.Operation = application::overview_file_operation::renamed;
-				file.Note      = std::string{ "Check the precision qualifiers" };
 				file.Changed   = application::overview_change_since_review::unknown;
 			}
 			if (file.Path == "docs/guide.md" || file.Path == "src/engine/renderer.h") {
@@ -4088,12 +4234,27 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-status-look:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-2093]]. The drafts chip's look, for the owner's review.
+	if (argc > 2 && std::string_view{ argv[1] } == "--drafts-look") {
+		test_drafts_chip_counts_and_goes_to_the_drafts(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-drafts-look:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// RFC-BPR-0127 ([[BPR-2159]]). The Local chip and My review, for the
+	// owner's look.
+	if (argc > 2 && std::string_view{ argv[1] } == "--local-look") {
+		test_local_chip_and_my_review_by_state(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-local-look:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1331]] v003. The read column's marks alone.
 	if (argc > 1 && std::string_view{ argv[1] } == "--read-marks") {
 		test_the_read_column_shows_the_mark();
 		std::cout << "pull-request-overview-read-marks:pass\n";
 		return EXIT_SUCCESS;
 	}
+	test_drafts_chip_counts_and_goes_to_the_drafts();
+	test_local_chip_and_my_review_by_state();
 	test_checks_load_independently_of_remaining_status();
 	test_local_progress_loads_independently();
 	test_history_publication_does_not_touch_file_rows();

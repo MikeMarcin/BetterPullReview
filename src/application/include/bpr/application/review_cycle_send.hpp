@@ -5,6 +5,7 @@
 #include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/review_cycle_send.hpp"
 
 #include <functional>
@@ -36,6 +37,8 @@ namespace bpr::application {
 		std::string Document;
 		/// Where the harness runs: the folder the cycle is bound to.
 		std::string WorkingDirectory;
+		/// [[BPR-2139]]. The agent's MCP servers setting (Off by default).
+		core::agent_mcp_servers McpServers = core::agent_mcp_servers::off;
 	};
 
 	/// \brief An installed agent adapter: the existing launch policy, process
@@ -61,6 +64,8 @@ namespace bpr::application {
 		effect_executor* Lane = nullptr;
 		/// The host of the account this profile acts as, asked at each send.
 		std::function<std::optional<std::string>()> AccountHost;
+		/// [[BPR-2139]]. An added agent's MCP servers setting; none is Off.
+		std::function<core::agent_mcp_servers(core::agent_profile_id)> McpServersOf;
 	};
 
 	/// \brief What one send leaves to be recorded about its own round.

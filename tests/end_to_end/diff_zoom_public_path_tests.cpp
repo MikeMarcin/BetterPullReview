@@ -137,7 +137,7 @@ int main(int aArgc, char** aArgv)
 
 	// The reader's line: the change the file opened on, wherever the reveal put it.
 	// [[BPR-1383]]. A Discuss comment opens inline in Review through the
-	// selected Git/cache comparison, with Comments closed and Notes selected.
+	// selected Git/cache comparison, with Comments closed and Tour selected.
 	window.conversations_drawer_toggle_action()->trigger();
 	wait_for([&] { return window.conversations_drawer()->state() == core::workbench_drawer_state::collapsed; }, "Comments closes before the Discuss pick");
 	window.tray_tabs()->setCurrentIndex(1);

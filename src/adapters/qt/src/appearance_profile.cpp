@@ -145,6 +145,18 @@ namespace bpr::qt {
 			// green and red, and as strong as the text floor allows.
 			{ role::find_match_background, srgb(0xF2CC6B) },
 			{ role::find_current_match_background, srgb(0xDB9100) },
+			// [[BPR-2000]], RFC-BPR-0101. The agent accent: the indigo shipped
+			// since [[BPR-1881]] for Light and Dark, and for the high-contrast
+			// variants an indigo of the same hue that meets their text floor
+			// (8.8:1 on white, 11.1:1 on black).
+			{ role::agent_accent, srgb(0x4A3FD6) },
+			// RFC-BPR-0128. The report's page, the attended-review slate by day.
+			{ role::report_paper, srgb(0xEEF1F0) },
+			{ role::report_ink, srgb(0x1C2427) },
+			{ role::report_verdict_open, srgb(0xB2392A) },
+			{ role::report_verdict_partial, srgb(0x94610A) },
+			{ role::report_verdict_done, srgb(0x1D7040) },
+			{ role::report_code_wash, srgb(0xFFFFFF) },
 		} });
 
 		constexpr auto dark_profile = make_profile(profile_entries{ {
@@ -232,6 +244,14 @@ namespace bpr::qt {
 			{ role::syntax_enum_member, srgb(0xD6A05A) },
 			{ role::find_match_background, srgb(0x5C4214) },
 			{ role::find_current_match_background, srgb(0x754D00) },
+			{ role::agent_accent, srgb(0xA3A0FF) },
+			// RFC-BPR-0128. The report's page, the slate by night.
+			{ role::report_paper, srgb(0x20272B) },
+			{ role::report_ink, srgb(0xEBE6DA) },
+			{ role::report_verdict_open, srgb(0xE5A093) },
+			{ role::report_verdict_partial, srgb(0xE4C27A) },
+			{ role::report_verdict_done, srgb(0x8FCAA0) },
+			{ role::report_code_wash, srgb(0x192024) },
 		} });
 
 		constexpr auto high_contrast_light_profile = make_profile(profile_entries{ {
@@ -299,6 +319,14 @@ namespace bpr::qt {
 			{ role::syntax_enum_member, srgb(0x2F4F4F) },
 			{ role::find_match_background, srgb(0xFFF3C4) },
 			{ role::find_current_match_background, srgb(0xFFEBA3) },
+			{ role::agent_accent, srgb(0x3A2FC4) },
+			// RFC-BPR-0128. The report's page, high-contrast paper.
+			{ role::report_paper, srgb(0xFFFFFF) },
+			{ role::report_ink, srgb(0x000000) },
+			{ role::report_verdict_open, srgb(0x9E2416) },
+			{ role::report_verdict_partial, srgb(0x6B4500) },
+			{ role::report_verdict_done, srgb(0x0E5A2E) },
+			{ role::report_code_wash, srgb(0xF2F4F3) },
 		} });
 
 		constexpr auto high_contrast_dark_profile = make_profile(profile_entries{ {
@@ -366,6 +394,14 @@ namespace bpr::qt {
 			{ role::syntax_enum_member, srgb(0xFFCB80) },
 			{ role::find_match_background, srgb(0x33260C) },
 			{ role::find_current_match_background, srgb(0x422C00) },
+			{ role::agent_accent, srgb(0xB8B5FF) },
+			// RFC-BPR-0128. The report's page, high-contrast slate.
+			{ role::report_paper, srgb(0x000000) },
+			{ role::report_ink, srgb(0xFFFFFF) },
+			{ role::report_verdict_open, srgb(0xFFB4A6) },
+			{ role::report_verdict_partial, srgb(0xFFD98A) },
+			{ role::report_verdict_done, srgb(0xA6E8B8) },
+			{ role::report_code_wash, srgb(0x161B1E) },
 		} });
 
 		/// \brief [[BPR-0776]]. Home's section colours per built-in variant, in

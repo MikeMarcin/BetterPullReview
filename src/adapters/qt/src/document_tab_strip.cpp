@@ -1,5 +1,6 @@
 #include "bpr/qt/document_tab_strip.hpp"
 
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
@@ -9,6 +10,8 @@
 #include <QMenu>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -36,6 +39,43 @@ namespace bpr::qt {
 			}
 			auto minimumTabSizeHint(int aIndex) const -> QSize override { return tabSizeHint(aIndex); }
 		};
+		/// Look ask-v007 (owner: "I think we need a different icon for the tab
+		/// header, because that one reaads as though this report is going to
+		/// do something with the agent. It should read as this is a report not
+		/// a file."): a report's tab wears a page with a folded corner and
+		/// lines of text, in the tab's ink, not the agent's sparkle.
+		[[nodiscard]] auto report_glyph(const QPalette& aPalette) -> QIcon
+		{
+			auto icon = QIcon{ };
+			for (const auto mode : { QIcon::Normal, QIcon::Disabled }) {
+				auto pixmap = QPixmap{ 32, 32 };
+				pixmap.setDevicePixelRatio(2.0);
+				pixmap.fill(Qt::transparent);
+				auto painter = QPainter{ &pixmap };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				auto ink = aPalette.color(mode == QIcon::Normal ? QPalette::Active : QPalette::Disabled, QPalette::WindowText);
+				ink.setAlphaF(0.8F);
+				painter.setPen(QPen{ ink, 1.1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				auto page = QPainterPath{ };
+				page.moveTo(3.5, 1.5);
+				page.lineTo(9.5, 1.5);
+				page.lineTo(12.5, 4.5);
+				page.lineTo(12.5, 14.5);
+				page.lineTo(3.5, 14.5);
+				page.closeSubpath();
+				painter.drawPath(page);
+				painter.drawLine(QPointF{ 9.5, 1.5 }, QPointF{ 9.5, 4.5 });
+				painter.drawLine(QPointF{ 9.5, 4.5 }, QPointF{ 12.5, 4.5 });
+				// The report's lines: a heading and two of text.
+				painter.drawLine(QPointF{ 5.5, 7.0 }, QPointF{ 9.0, 7.0 });
+				painter.drawLine(QPointF{ 5.5, 9.5 }, QPointF{ 10.5, 9.5 });
+				painter.drawLine(QPointF{ 5.5, 12.0 }, QPointF{ 10.5, 12.0 });
+				painter.end();
+				icon.addPixmap(pixmap, mode);
+			}
+			return icon;
+		}
+
 		constexpr int pill_padding = 6;
 		constexpr int pill_height  = 16;
 
@@ -306,6 +346,10 @@ namespace bpr::qt {
 			connect(action, &QAction::triggered, this, [this, intent = std::move(aIntent)] { send(intent); });
 			return action;
 		};
+		if (tab.Report) {
+			add(QStringLiteral("Close Report"), "documentTabClose", core::close_tab_intent{ .Tab = tab.Id }, true);
+			return menu;
+		}
 		add(QStringLiteral("Duplicate Tab"), "documentTabDuplicate", core::duplicate_tab_intent{ .Tab = tab.Id }, true);
 		add(QStringLiteral("Close Tab"), "documentTabClose", core::close_tab_intent{ .Tab = tab.Id }, true);
 		add(QStringLiteral("Close Other Tabs"), "documentTabCloseOthers", core::close_other_tabs_intent{ .Tab = tab.Id }, Tabs.size() > 1U);
@@ -314,7 +358,39 @@ namespace bpr::qt {
 			core::return_tab_to_window_comparison_intent{ .Tab = tab.Id }, tab.OwnComparison);
 		add(QStringLiteral("Make New Tabs Use This Comparison"), "documentTabMakeWindow",
 			core::make_tab_comparison_window_intent{ .Tab = tab.Id }, tab.OwnComparison);
+		if (MenuExtension) {
+			menu->addSeparator();
+			MenuExtension(tab, *menu);
+		}
 		return menu;
+	}
+
+	void document_tab_strip::add_trailing_control(QWidget* const aControl)
+	{
+		auto* const row = qobject_cast<QHBoxLayout*>(layout());
+		if (aControl == nullptr || row == nullptr) {
+			return;
+		}
+		aControl->setParent(this);
+		row->insertWidget(row->indexOf(NewTab), aControl);
+	}
+
+	void document_tab_strip::set_active_tab_control(QWidget* const aControl)
+	{
+		ActiveControl = aControl;
+		if (ActiveControl != nullptr) {
+			ActiveControl->setParent(this);
+			ActiveControl->hide();
+		}
+		rebuild();
+	}
+
+	void document_tab_strip::offer_active_tab_control(const bool aOffered)
+	{
+		if (ActiveOffered != aOffered) {
+			ActiveOffered = aOffered;
+			rebuild();
+		}
 	}
 
 	auto document_tab_strip::sizeHint() const -> QSize
@@ -328,6 +404,9 @@ namespace bpr::qt {
 		// strip keeps room for one tab at its minimum beside the plus. The
 		// strip's horizontal policy is Ignored, which makes a layout read the
 		// explicit minimum width, so this is also what the strip sets.
+		// RFC-BPR-0117. A holder's trailing control (Explain this file) is not
+		// counted: the strip's minimum is what the window's layout was built
+		// around, and the tabs scroll sooner instead.
 		return QSize{ MinimumTab + (NewTab != nullptr ? NewTab->sizeHint().width() : 0), height_pixels };
 	}
 
@@ -340,6 +419,15 @@ namespace bpr::qt {
 	void document_tab_strip::changeEvent(QEvent* const aEvent)
 	{
 		QWidget::changeEvent(aEvent);
+		// The Agent accent is set on a control, not inherited: a trailing run
+		// control (Explain this file) wears a changed accent again here.
+		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange) {
+			for (auto* const control : findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+				if (agent_run_control(*control)) {
+					wear_agent_accent(*control, palette());
+				}
+			}
+		}
 		if (Bar != nullptr && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange)) {
 			setMinimumWidth(minimumSizeHint().width());
 			rebuild();
@@ -411,6 +499,12 @@ namespace bpr::qt {
 		Rebuilding = true;
 		{
 			const QSignalBlocker blocker{ Bar };
+			// The active tab's control leaves its tab before the tabs go:
+			// their buttons go with them.
+			if (ActiveControl != nullptr) {
+				ActiveControl->hide();
+				ActiveControl->setParent(this);
+			}
 			while (Bar->count() > 0) {
 				Bar->removeTab(0);
 			}
@@ -426,8 +520,14 @@ namespace bpr::qt {
 				const auto label = tab.State == core::document_tab_view_state::unavailable
 					? QStringLiteral("%1 (unavailable)").arg(tab.Name)
 					: tab.Name;
-				const auto index = Bar->addTab(label);
-				auto       tip   = tab.Path;
+				// docs/design/report-card-v4, defect 4: a report's title is cut
+				// at its end, its glyph kept; a path keeps its end (its name).
+				const auto shownLabel = tab.Report ? Bar->fontMetrics().elidedText(label, Qt::ElideRight, std::max(40, MinimumTab - 72)) : label;
+				const auto index      = tab.Report ? Bar->addTab(report_glyph(Bar->palette()), shownLabel) : Bar->addTab(shownLabel);
+				if (tab.Report) {
+					Bar->setTabData(index, QStringLiteral("report"));
+				}
+				auto tip = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Path;
 				if (!tab.Pair.isEmpty()) {
 					tip.append(QStringLiteral("\n%1 %2").arg(tab.OwnComparison ? QStringLiteral("Its own comparison:") : QStringLiteral("The window's comparison:"), tab.Pair));
 				}
@@ -435,7 +535,7 @@ namespace bpr::qt {
 					tip.append(QStringLiteral("\n%1").arg(state));
 				}
 				Bar->setTabToolTip(index, tip);
-				auto accessible = tab.Name;
+				auto accessible = tab.Report ? QStringLiteral("Agent's report: %1").arg(tab.Name) : tab.Name;
 				if (tab.OwnComparison && !tab.Pair.isEmpty()) {
 					accessible.append(QStringLiteral(", comparing %1").arg(tab.Pair));
 				}
@@ -443,7 +543,22 @@ namespace bpr::qt {
 					accessible.append(QStringLiteral(", %1").arg(state.toLower()));
 				}
 				Bar->setAccessibleTabName(index, accessible);
-				if (tab.OwnComparison && !tab.OwnPair.isEmpty()) {
+				const auto pill    = tab.OwnComparison && !tab.OwnPair.isEmpty();
+				const auto control = tab.Active && !tab.Report && ActiveControl != nullptr && ActiveOffered;
+				if (control) {
+					auto* const holder = new QWidget{ Bar };
+					holder->setObjectName(QStringLiteral("documentTabActiveControls"));
+					auto* const row = new QHBoxLayout{ holder };
+					row->setContentsMargins(0, 0, 0, 0);
+					row->setSpacing(4);
+					if (pill) {
+						row->addWidget(new pair_pill{ tab.OwnPair, holder });
+					}
+					ActiveControl->setParent(holder);
+					row->addWidget(ActiveControl);
+					ActiveControl->show();
+					Bar->setTabButton(index, pillSide, holder);
+				} else if (pill) {
 					Bar->setTabButton(index, pillSide, new pair_pill{ tab.OwnPair, Bar });
 				}
 				Shown.push_back(tab.Id);

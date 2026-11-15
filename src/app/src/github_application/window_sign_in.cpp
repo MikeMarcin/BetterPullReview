@@ -79,6 +79,8 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 			observe_clone_repository();
 			observe_conversation();
+			// [[BPR-2179]]. A pull request uses its repository's prompts.
+			refresh_prompt_repository();
 #endif
 			const auto authority = workbench_authority(aHandoff);
 			const auto snapshot  = Host != nullptr
@@ -199,6 +201,7 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		observe_clone_repository();
 		observe_conversation();
+		refresh_prompt_repository();
 #endif
 		// [[BPR-1365]]. No recent entry is open any more.
 		if (closed) {
@@ -965,6 +968,10 @@ namespace bpr::app {
 		// 2026-10-13), not reused.
 		if (aDestination.Target.Kind != core::pull_request_location_kind::pull_request) {
 			PendingLinkLocation = link_location{ .Destination = aDestination };
+		}
+		// [[RFC-BPR-0105]]. An open starts a fresh review surface.
+		if (Window != nullptr) {
+			Window->begin_review_open();
 		}
 		WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
 		return application::setup_destination_opening::reading;

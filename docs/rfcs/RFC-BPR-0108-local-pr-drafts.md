@@ -255,5 +255,5 @@ the behaviour above, for the owner to see:
   with their RFCs and are not shown before then. Evidence is not part of
   0.5.0 (owner amendment, 2026-11-12).
 - **Handoff.** `bpr draft open [PATH] [--context TEXT]`
-  (guide `docs/development/draft-cli.md` on the lane `claude/v0-5-0-prerelease-targets-52265d`); context becomes a note from the
+  ([guide](../development/draft-cli.md)); context becomes a note from the
   harness.

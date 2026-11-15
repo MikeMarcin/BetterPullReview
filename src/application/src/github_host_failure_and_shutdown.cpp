@@ -321,10 +321,12 @@ namespace bpr::application {
 		// Never call an external port while holding the completion gate.
 		// A cancellation implementation may wait for a worker callback that
 		// itself needs the gate in order to enqueue its terminal.
+		end_lent_authorities(lent_review_authority_end::host_closing, [](const lent_review_record&) { return true; });
 		if (ReadWindow) {
 			ReadWindow->shutdown();
 		}
 		for (auto& slot : AttachedWindows) {
+			slot.Host->observe_access_loss({ });
 			slot.Host->shutdown();
 			slot.Detaching = true;
 		}

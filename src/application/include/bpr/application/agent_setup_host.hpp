@@ -51,6 +51,13 @@ namespace bpr::application {
 		/// by entry id, once asked; an entry being asked is in `Cataloguing`.
 		std::map<std::uint32_t, agent_harness_catalog> Catalogs;
 		std::vector<std::uint32_t>                     Cataloguing;
+		/// [[BPR-2051]]. The added agent a check runs on now, by entry id;
+		/// none while no check runs or a check's agent is not in the list.
+		std::optional<std::uint32_t> CheckingEntry;
+		/// [[BPR-2177]], look ask-v003 ("The footer does not say fixture
+		/// agent"). What each popular agent is called where it is named, when
+		/// not its plain name: a tests-on build's fixture agent.
+		std::map<core::setup_agent, std::string> Names;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -87,6 +94,8 @@ namespace bpr::application {
 		/// Claude Code entry once.
 		std::function<std::string()>     LegacyClaudeModel;
 		std::vector<core::agent_profile> Profiles;
+		/// [[BPR-2177]]. Names the popular agents go by (`agent_setup_projection::Names`).
+		std::map<core::setup_agent, std::string> Names;
 		/// Metadata reads and store writes.
 		effect_executor* Effects = nullptr;
 		/// The check's runs, which may take their whole bound: a lane of
@@ -140,6 +149,13 @@ namespace bpr::application {
 		void choose_entry(std::uint32_t aId);
 		/// Runs Check it works' agent row.
 		void check();
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1").
+		/// Checks every added agent in turn, each as Check it works checks the
+		/// chosen one, and keeps each one's result for the Agents roster. The
+		/// chosen agent stays chosen.
+		void check_all();
+		/// \brief [[BPR-2051]]. Checks one added agent, from its sheet.
+		void check_entry(std::uint32_t aId);
 		void stop();
 		/// Saves a program path for Codex or the plain-text harness after the
 		/// adapter inspected it; empty clears it. Answers on the decision lane.
@@ -165,8 +181,14 @@ namespace bpr::application {
 		/// \brief Owner decision 2026-10-23: the run time limit in minutes,
 		/// 0 for none. Answers whether it was taken.
 		[[nodiscard]] auto set_run_limit(std::uint32_t aMinutes) -> bool;
+		/// \brief RFC-BPR-0104 as amended 2026-11-11. The scratch folder
+		/// limit in MiB and the days an unused folder is kept (0: until
+		/// cleared). Answers whether they were taken.
+		[[nodiscard]] auto set_scratch_policy(std::uint32_t aLimitMiB, std::uint32_t aKeepDays) -> bool;
 		/// \brief Owner look v004: the Agent tab's Suggestions toggle, kept.
 		void set_suggestions_hidden(bool aHidden);
+		/// \brief RFC-BPR-0126 Q4/Q5: Queue (false, the default) or Steer.
+		void set_follow_up_steer(bool aSteer);
 		/// \brief Owner look v006 ("Codex is totally missing its model
 		/// settings"). Asks an added agent's harness what it offers, once per
 		/// window: a Codex protocol's `model/list` through its own program and

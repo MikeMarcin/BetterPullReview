@@ -235,6 +235,16 @@ namespace bpr::core {
 		return tour_agent_tools::none;
 	}
 
+	auto stable_name(const tour_context_route aRoute) noexcept -> std::string_view
+	{
+		switch (aRoute) {
+		case tour_context_route::up_front:                           return "up_front";
+		case tour_context_route::reads_repository_diff_too_large:    return "reads_repository_diff_too_large";
+		case tour_context_route::reads_repository_no_tool_free_mode: return "reads_repository_no_tool_free_mode";
+		}
+		return "up_front";
+	}
+
 	auto tour_request_of(const writing_hook aHook, const writing_scope aScope) noexcept -> tour_agent_request
 	{
 		if (aHook == writing_hook::outline) {
@@ -681,6 +691,34 @@ namespace bpr::core {
 		return true;
 	}
 
+	auto cost_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::optional<agent_cost> aCost, const std::optional<agent_cost> aSessionCost) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end() || found->State == tour_agent_run_state::running) {
+			return false;
+		}
+		found->Cost        = aCost;
+		found->SessionCost = aSessionCost;
+		return true;
+	}
+
+	auto tour_thread_cost(const tour_agent_session& aSession, const tour_thread& aThread) -> std::optional<agent_cost>
+	{
+		auto sum = std::optional<agent_cost>{ };
+		for (auto it = aSession.Runs.rbegin(); it != aSession.Runs.rend(); ++it) {
+			if (!(it->Thread == aThread)) {
+				continue;
+			}
+			if (it->SessionCost) {
+				return *it->SessionCost + sum.value_or(0U);
+			}
+			if (it->Cost) {
+				sum = sum.value_or(0U) + *it->Cost;
+			}
+		}
+		return sum;
+	}
+
 	auto remove_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun) -> bool
 	{
 		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
@@ -689,6 +727,59 @@ namespace bpr::core {
 		}
 		aSession.Runs.erase(found);
 		return true;
+	}
+
+	auto confine_to_passage(tour_ask_answer aAnswer, const review_tour& aSubmitted, const tour_thread& aThread, const tour_passage& aPassage) -> tour_ask_answer
+	{
+		auto        result = tour_ask_answer{ .Reply = std::move(aAnswer.Reply) };
+		const auto* field  = static_cast<const std::string*>(nullptr);
+		auto        number = std::size_t{ 0U };
+		auto        given  = std::optional<std::string>{ };
+		switch (aThread.Kind) {
+		case tour_thread_kind::problem:
+			field = &aSubmitted.Problem;
+			given = std::move(aAnswer.Changes.Problem);
+			break;
+		case tour_thread_kind::solution:
+			field = &aSubmitted.Solution;
+			given = std::move(aAnswer.Changes.Solution);
+			break;
+		case tour_thread_kind::stop: {
+			const auto found = std::ranges::find(aSubmitted.Stops, aThread.Stop, &tour_stop::Id);
+			if (found == aSubmitted.Stops.end()) {
+				return result;
+			}
+			field  = &found->Body;
+			number = static_cast<std::size_t>(found - aSubmitted.Stops.begin()) + 1U;
+			if (const auto text = std::ranges::find(aAnswer.StopTexts, number, &proposed_stop_text::Stop); text != aAnswer.StopTexts.end()) {
+				given = std::move(text->Explanation);
+			}
+			break;
+		}
+		case tour_thread_kind::tour: return result;
+		}
+		const auto& passage = aPassage.Text;
+		const auto  at      = passage.empty() ? std::string::npos : field->find(passage);
+		if (!given || at == std::string::npos || field->find(passage, at + 1U) != std::string::npos) {
+			return result;
+		}
+		const auto before = std::string_view{ *field }.substr(0U, at);
+		const auto after  = std::string_view{ *field }.substr(at + passage.size());
+		auto       middle = std::string_view{ *given };
+		if (!(before.empty() && after.empty()) && middle.size() >= before.size() + after.size() && middle.starts_with(before) && middle.ends_with(after)) {
+			middle = middle.substr(before.size(), middle.size() - before.size() - after.size());
+		}
+		if (middle.find_first_not_of(" \t\r\n") == std::string_view::npos) {
+			return result;
+		}
+		auto whole = std::string{ before } + std::string{ middle } + std::string{ after };
+		switch (aThread.Kind) {
+		case tour_thread_kind::problem:  result.Changes.Problem = std::move(whole); break;
+		case tour_thread_kind::solution: result.Changes.Solution = std::move(whole); break;
+		case tour_thread_kind::stop:     result.StopTexts.push_back({ number, std::move(whole) }); break;
+		case tour_thread_kind::tour:     break;
+		}
+		return result;
 	}
 
 	auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal
@@ -713,7 +804,7 @@ namespace bpr::core {
 	{
 		auto turns = std::vector<tour_conversation_turn>{ };
 		for (const auto& run : aSession.Runs) {
-			if (run.State != tour_agent_run_state::answered) {
+			if (run.State != tour_agent_run_state::answered || run.Fresh) {
 				continue;
 			}
 			// [[BPR-1914]] v003. A side chat replays its own turns; the

@@ -802,7 +802,7 @@ namespace {
 			}
 			if (line.find("explain-source-status") != std::string::npos) {
 				const auto hasFact   = [&line](const std::string& aFact) {const auto once=json_escape(aFact);return line.find(once)!=std::string::npos || line.find(json_escape(once))!=std::string::npos; };
-				const bool bootstrap = line.find("bpr.tour-context.v1") != std::string::npos && line.find("bpr.tour-guide.v1") != std::string::npos;
+				const bool bootstrap = line.find("bpr.tour-context.v1") != std::string::npos && line.find("bpr.tour-guide.v2") != std::string::npos;
 				answer               = (bootstrap && hasFact("\"confirmed_lines\":true") && hasFact("\"source_attention\":false") ? "current-source-confirmed no-source-warning" : "missing-current-source-context") + std::string{ " process=" } + process;
 				if (hasFact("\"outcome\":\"accepted\"") && line.find("Source-preserving update from fixture.") != std::string::npos) {
 					answer = "accepted-update-confirmed process=" + process;

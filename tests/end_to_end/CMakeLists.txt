@@ -1713,6 +1713,29 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_agent_finding_canary)
 bpr_enable_warnings(test_better_pull_review_agent_finding_canary)
 
+# [[BPR-2061]], [[BPR-2059]]. A fixture agent whose review carries several
+# suggested comments, for the owner's look at Draft all and the finding card
+# (`--attended-agent-look`).
+bpr_add_executable(
+    test_better_pull_review_agent_suggestions_fixture
+    agent_suggestions_fixture_main.cpp
+)
+target_compile_features(
+    test_better_pull_review_agent_suggestions_fixture
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_agent_suggestions_fixture)
+bpr_enable_warnings(test_better_pull_review_agent_suggestions_fixture)
+# Named `codex`, alone in its folder, so the look's agent search finds it
+# and nothing of the person's own.
+set_target_properties(
+    test_better_pull_review_agent_suggestions_fixture
+    PROPERTIES
+        OUTPUT_NAME codex
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/suggestions-agent"
+)
+
 bpr_add_executable(
     test_better_pull_review_agent_finding_composition_public_path
     agent_finding_composition_public_path.cpp
@@ -1771,6 +1794,54 @@ bpr_enable_warnings(
     test_better_pull_review_agent_chat_composition_public_path
 )
 
+# [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103. A scripted Claude replaying the
+# installed runtime's own frames for a turn with three background helpers; the
+# second copy ends after its message's first result with two still out.
+foreach(script_mode IN ITEMS complete unfinished attended)
+    set(script_target "test_better_pull_review_scripted_claude_helpers_${script_mode}")
+    bpr_add_executable("${script_target}" scripted_claude_helpers_main.cpp)
+    target_compile_definitions(
+        "${script_target}"
+        PRIVATE
+            "BPR_AGENT_TRACE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent/traces\""
+            $<$<STREQUAL:${script_mode},unfinished>:BPR_SCRIPT_UNFINISHED=1>
+            $<$<STREQUAL:${script_mode},attended>:BPR_SCRIPT_ATTENDED=1>
+    )
+    bpr_enable_hardening("${script_target}")
+    bpr_enable_warnings("${script_target}")
+    add_dependencies(test_better_pull_review_agent_chat_composition_public_path "${script_target}")
+endforeach()
+bpr_add_network_isolated_test(
+    NAME application_agent_chat_helpers_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_agent_chat_composition_public_path
+        helpers
+        $<TARGET_FILE:test_better_pull_review_scripted_claude_helpers_complete>
+)
+bpr_add_network_isolated_test(
+    NAME application_agent_chat_helpers_unfinished_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_agent_chat_composition_public_path
+        helpers-unfinished
+        $<TARGET_FILE:test_better_pull_review_scripted_claude_helpers_unfinished>
+)
+set_tests_properties(
+    application_agent_chat_helpers_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+        PASS_REGULAR_EXPRESSION "agent-chat-helpers:pass"
+        TIMEOUT 180
+)
+set_tests_properties(
+    application_agent_chat_helpers_unfinished_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+        PASS_REGULAR_EXPRESSION "agent-chat-helpers-unfinished:pass"
+        TIMEOUT 180
+)
+
 foreach(
     course
     IN ITEMS
@@ -1781,6 +1852,8 @@ foreach(
         construction-cut
         conversation
         custom-agent
+        custom-agent-refused
+        subject
         setup-list
 )
     if(course STREQUAL "positive")
@@ -2816,6 +2889,9 @@ bpr_add_network_isolated_test(
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-theme-customization-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
+        # RFC-BPR-0128. The theme predates the report colours, so the import
+        # fills them from its base's (Dark's) built-ins.
+        "-DBPR_THEME_FILLED_ROLES=report_paper #20272bff,report_ink #ebe6daff,report_verdict_open #e5a093ff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff,report_code_wash #192024ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
@@ -2845,7 +2921,7 @@ bpr_add_network_isolated_test(
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-older-theme-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
-        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff"
+        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff,report_paper #20272bff,report_ink #ebe6daff,report_verdict_open #e5a093ff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff,report_code_wash #192024ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
@@ -3551,6 +3627,15 @@ bpr_add_network_isolated_test(NAME application_review_tour_composition_public_pa
 set_tests_properties(application_review_tour_composition_public_path PROPERTIES
     ENVIRONMENT "${bpr_review_tour_composition_environment}"
     TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-composition:pass")
+# [[BPR-2051]]. Enhance on a draft comment and a note, on the scoped writing stub.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_network_isolated_test(NAME application_enhance_comment_note_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_review_tour_composition_public_path --enhance "$<TARGET_FILE:test_scoped_writing_agent>")
+    set_tests_properties(application_enhance_comment_note_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        TIMEOUT 120 PASS_REGULAR_EXPRESSION "review-tour-enhance:pass")
+endif()
 foreach(scale IN ITEMS 125 200)
     if(scale EQUAL 125)
         set(tour_scale_factor "1.25")
@@ -4669,7 +4754,7 @@ target_link_libraries(test_review_tour_publication_public_path PRIVATE BetterPul
 target_compile_definitions(test_review_tour_publication_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_review_tour_publication_public_path)
 bpr_enable_warnings(test_review_tour_publication_public_path)
-foreach(course native compat stop description conflict unsupported maintenance reconciliation manual repairs mixed file)
+foreach(course native compat stop description conflict unsupported maintenance reconciliation manual repairs mixed file push)
     bpr_add_network_isolated_test(NAME application_review_tour_publication_${course} WINDOWS_UNCONTAINED COMMAND test_review_tour_publication_public_path ${course} "${CMAKE_CURRENT_BINARY_DIR}/review-tour-publication-${course}.png")
     set_tests_properties(application_review_tour_publication_${course} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
 endforeach()
@@ -4696,6 +4781,62 @@ add_custom_command(TARGET test_scoped_writing_agent POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-failing-claude"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-failing-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
     VERBATIM)
+# RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning pull request's two
+# questions, on returning-review-v1 at its next push, with the scoped writing
+# stub as the installed Claude.
+bpr_add_executable(test_returning_review_public_path returning_review_public_path.cpp)
+target_link_libraries(test_returning_review_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_returning_review_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_returning_review_public_path)
+bpr_enable_warnings(test_returning_review_public_path)
+add_dependencies(test_returning_review_public_path test_scoped_writing_agent)
+foreach(course IN ITEMS latest addressed gone)
+    bpr_add_network_isolated_test(NAME application_returning_review_${course}_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_returning_review_public_path ${course} "$<TARGET_FILE:test_scoped_writing_agent>")
+    set_tests_properties(application_returning_review_${course}_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "returning-review-${course}:pass")
+endforeach()
+# RFC-BPR-0117 ([[BPR-2076]]). Explain this file, on nested-folders-v1 with
+# the scoped writing stub as the installed Claude.
+bpr_add_executable(test_explain_file_public_path explain_file_public_path.cpp)
+target_link_libraries(test_explain_file_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_explain_file_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_explain_file_public_path)
+bpr_enable_warnings(test_explain_file_public_path)
+add_dependencies(test_explain_file_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_explain_file_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_explain_file_public_path explain "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_explain_file_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "explain-file:pass")
+# RFC-BPR-0127 ([[BPR-2160]]). One keep action on the agent surfaces (AC10)
+# and the two private-context opt-ins (AC12), on nested-folders-v1 with the
+# suggestions fixture agent as the only Codex.
+bpr_add_executable(test_agent_keep_action_public_path agent_keep_action_public_path.cpp)
+target_link_libraries(test_agent_keep_action_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_agent_keep_action_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_agent_keep_action_public_path)
+bpr_enable_warnings(test_agent_keep_action_public_path)
+add_dependencies(test_agent_keep_action_public_path test_better_pull_review_agent_suggestions_fixture)
+bpr_add_network_isolated_test(NAME application_agent_keep_action_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_keep_action_public_path keep "$<TARGET_FILE:test_better_pull_review_agent_suggestions_fixture>")
+set_tests_properties(application_agent_keep_action_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "keep-action:pass")
+# RFC-BPR-0118 ([[BPR-2078]]). Suggest the change, on nested-folders-v1 with
+# the scoped writing stub as the installed Claude.
+bpr_add_executable(test_suggest_change_public_path suggest_change_public_path.cpp)
+target_link_libraries(test_suggest_change_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_suggest_change_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_suggest_change_public_path)
+bpr_enable_warnings(test_suggest_change_public_path)
+add_dependencies(test_suggest_change_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_suggest_change_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_suggest_change_public_path suggest "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_suggest_change_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 150 PASS_REGULAR_EXPRESSION "suggest-change:pass")
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")
@@ -4797,6 +4938,38 @@ if(APPLE)
     target_link_libraries(test_live_second_account_course PRIVATE BetterPullReview::Composition)
     bpr_enable_hardening(test_live_second_account_course)
     bpr_enable_warnings(test_live_second_account_course)
+endif()
+
+# RFC-BPR-0104, third review round (F1). The installed Codex and Claude Code
+# in a checkout holding a pull request's hostile agent settings, with dead
+# model providers. Run by hand on macOS (see the source's header); never a
+# registered row: it starts the installed agents.
+if(APPLE AND BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_live_agent_checkout_settings_course live_agent_checkout_settings_course.cpp)
+    target_link_libraries(test_live_agent_checkout_settings_course PRIVATE BetterPullReview::Application)
+    target_compile_definitions(test_live_agent_checkout_settings_course PRIVATE
+        "BPR_CHECKOUT_SETTINGS_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent-checkout-settings\"")
+    bpr_enable_hardening(test_live_agent_checkout_settings_course)
+    bpr_enable_warnings(test_live_agent_checkout_settings_course)
+    # Fourth review (2026-11-11): registered as an opt-in row. Never on by
+    # default: it starts the installed agents (dead model providers only).
+    option(BPR_LIVE_AGENT_COURSES "Register the live courses that start the installed Codex and Claude Code" OFF)
+    if(BPR_LIVE_AGENT_COURSES)
+        find_program(bpr_live_codex codex)
+        find_program(bpr_live_claude claude)
+        set(bpr_live_agent_arguments)
+        if(bpr_live_codex)
+            list(APPEND bpr_live_agent_arguments --codex "${bpr_live_codex}")
+        endif()
+        if(bpr_live_claude)
+            list(APPEND bpr_live_agent_arguments --claude "${bpr_live_claude}")
+        endif()
+        if(bpr_live_agent_arguments)
+            bpr_add_live_agent_course(NAME live_agent_checkout_settings
+                COMMAND test_live_agent_checkout_settings_course --root "${CMAKE_CURRENT_BINARY_DIR}/live-agent-checkout-settings" --replace ${bpr_live_agent_arguments}
+                PASS "live-agent-checkout-settings-course:pass")
+        endif()
+    endif()
 endif()
 
 # BPR-1409: shared-runtime reopen uses the production metadata store and exact CLI viewer checks.
@@ -5073,6 +5246,20 @@ set_tests_properties(application_home_return_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-return-public-path:pass")
 
+# [[RFC-BPR-0105]]. A long session opening pull requests from Home in one
+# window: a submission always ends in a stated condition, another pull
+# request's work does not hold it, and each review opens fresh.
+bpr_add_executable(test_dependable_session_public_path dependable_session_public_path_tests.cpp)
+target_link_libraries(test_dependable_session_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_dependable_session_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_dependable_session_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_dependable_session_public_path)
+bpr_enable_warnings(test_dependable_session_public_path)
+bpr_add_network_isolated_test(NAME application_dependable_session_public_path WINDOWS_UNCONTAINED COMMAND test_dependable_session_public_path)
+set_tests_properties(application_dependable_session_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "dependable-session-public-path:pass")
+
 # [[BPR-1865]]. Home's fuzzy filter through the composed application: Command-F,
 # a number, a title word, an author, nothing, Escape twice, typing from the
 # list, and Return opening the current result; no filtering reads GitHub.
@@ -5086,6 +5273,37 @@ bpr_add_network_isolated_test(NAME application_home_filter_public_path WINDOWS_U
 set_tests_properties(application_home_filter_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-filter-public-path:pass")
+
+# [[RFC-BPR-0098]]. Home says whose move each of my pull requests is: ten
+# pull requests of mine, one per next move, through the composed application.
+bpr_add_executable(test_home_next_move_public_path home_next_move_public_path_tests.cpp)
+target_link_libraries(test_home_next_move_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_home_next_move_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_home_next_move_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_home_next_move_public_path)
+bpr_enable_warnings(test_home_next_move_public_path)
+bpr_add_network_isolated_test(NAME application_home_next_move_public_path WINDOWS_UNCONTAINED COMMAND test_home_next_move_public_path)
+set_tests_properties(application_home_next_move_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-next-move-public-path:pass")
+
+# [[BPR-2048]] [[BPR-2049]]. One pull request too large to read fails no
+# refresh and opens to a card naming what was too large; an approval with
+# new commits after it offers Seen, which moves it to Following at once.
+bpr_add_executable(test_home_oversized_public_path home_oversized_public_path_tests.cpp)
+target_link_libraries(test_home_oversized_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_home_oversized_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_home_oversized_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_home_oversized_public_path)
+bpr_enable_warnings(test_home_oversized_public_path)
+bpr_add_network_isolated_test(NAME application_home_oversized_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path)
+set_tests_properties(application_home_oversized_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+bpr_add_network_isolated_test(NAME application_home_approve_again_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --approve-again)
+set_tests_properties(application_home_approve_again_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
 
 # [[BPR-1575]]. Refresh made visible on the pull request and on Home, through
 # the composed application with slow, changed, unchanged, offline and
@@ -5128,6 +5346,53 @@ set_tests_properties(application_conversation_read_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CONVERSATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/conversation-renders" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "CONVERSATION_READ_PUBLIC_PATH_OK")
 
+# [[BPR-2171]]. Discuss on a busy pull request: the column, files once with
+# folds, the review's verdict on its own comment, Fold bots, Mark as bot and
+# Only this file; renders at three sizes (native with BPR_NATIVE_LOOK=1).
+bpr_add_executable(test_discuss_busy_public_path discuss_busy_public_path.cpp)
+if(APPLE)
+    target_sources(test_discuss_busy_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_discuss_busy_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_discuss_busy_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_discuss_busy_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_discuss_busy_public_path)
+bpr_enable_warnings(test_discuss_busy_public_path)
+bpr_add_network_isolated_test(NAME application_discuss_busy_public_path WINDOWS_UNCONTAINED
+    COMMAND test_discuss_busy_public_path)
+set_tests_properties(application_discuss_busy_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_DISCUSS_RENDER_ROOT=${PROJECT_BINARY_DIR}/discuss-busy-renders" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "DISCUSS_BUSY_PUBLIC_PATH_OK")
+
+# RFC-BPR-0127 ([[BPR-2157]], [[BPR-2158]]): Local comments through the
+# composed window and the Comments drawer; the sends that must not carry them.
+bpr_add_executable(test_local_comments_composition_public_path local_comments_composition_public_path.cpp)
+target_link_libraries(test_local_comments_composition_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_local_comments_composition_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_local_comments_composition_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_local_comments_composition_public_path)
+bpr_enable_warnings(test_local_comments_composition_public_path)
+bpr_add_network_isolated_test(NAME application_local_comments_composition_public_path WINDOWS_UNCONTAINED
+    COMMAND test_local_comments_composition_public_path)
+set_tests_properties(application_local_comments_composition_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240
+    PASS_REGULAR_EXPRESSION "LOCAL_COMMENTS_COMPOSITION_OK")
+
+# RFC-BPR-0127 ([[BPR-2159]]): Local comments found and counted through the
+# composed window: Threads' state filter, Overview's Local chip and My review,
+# Finish your review's Local line and Keep Local.
+bpr_add_executable(test_local_comments_found_public_path local_comments_found_public_path.cpp)
+target_link_libraries(test_local_comments_found_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_local_comments_found_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_local_comments_found_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_local_comments_found_public_path)
+bpr_enable_warnings(test_local_comments_found_public_path)
+bpr_add_network_isolated_test(NAME application_local_comments_found_public_path WINDOWS_UNCONTAINED
+    COMMAND test_local_comments_found_public_path)
+set_tests_properties(application_local_comments_found_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240
+    PASS_REGULAR_EXPRESSION "LOCAL_COMMENTS_FOUND_OK")
+
 # RFC-BPR-0086: the menu, profile host, local inventory and fixed native window.
 bpr_add_executable(test_insights_public_path insights_public_path_tests.cpp)
 target_link_libraries(test_insights_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
@@ -5136,3 +5401,184 @@ bpr_enable_hardening(test_insights_public_path)
 bpr_enable_warnings(test_insights_public_path)
 bpr_add_network_isolated_test(NAME application_insights_public_path WINDOWS_UNCONTAINED COMMAND test_insights_public_path)
 set_tests_properties(application_insights_public_path PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120 PASS_REGULAR_EXPRESSION "insights-public-path:pass")
+
+# RFC-BPR-0108 ([[BPR-2021]]). Prepare Pull Request… through the real window
+# and the local-draft composition, on real Git repositories.
+if(TARGET Git::Git)
+    bpr_add_executable(test_local_draft_desktop_public_path local_draft_desktop_public_path.cpp)
+    target_link_libraries(test_local_draft_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_desktop_public_path)
+    bpr_add_network_isolated_test(NAME application_local_draft_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_desktop_public_path --git "$<TARGET_FILE:Git::Git>")
+    set_tests_properties(application_local_draft_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-desktop"
+        PASS_REGULAR_EXPRESSION "local-draft-desktop-public-path:pass"
+        TIMEOUT 180)
+    # The owner's redesign, 2026-11-12 (RFC-BPR-0108, 0113 and 0114 as
+    # amended): the local draft in the pull request window in author state,
+    # through the window and composition on a real worktree and a local bare
+    # "hosted" repository. Native renders with BPR_NATIVE_LOOK=1.
+    bpr_add_executable(test_local_draft_author_desktop_public_path local_draft_author_desktop_public_path.cpp "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+    target_link_libraries(test_local_draft_author_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_author_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_author_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_author_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_author_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_author_desktop_public_path)
+    bpr_add_network_isolated_test(NAME application_local_draft_author_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_author_desktop_public_path --git "$<TARGET_FILE:Git::Git>" --fixture "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_author_worktree.sh")
+    set_tests_properties(application_local_draft_author_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-author"
+        PASS_REGULAR_EXPRESSION "local-draft-author-desktop-public-path:(pass|skipped)"
+        TIMEOUT 240)
+    # RFC-BPR-0110 ([[BPR-2026]], [[BPR-2027]]). The Description and Tour
+    # areas through the same window and composition, with a scripted agent.
+    bpr_add_executable(test_local_draft_tour_desktop_public_path local_draft_tour_desktop_public_path.cpp "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+    target_link_libraries(test_local_draft_tour_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_tour_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_tour_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_tour_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_tour_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_tour_desktop_public_path)
+    bpr_add_network_isolated_test(NAME application_local_draft_tour_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_tour_desktop_public_path --git "$<TARGET_FILE:Git::Git>")
+    set_tests_properties(application_local_draft_tour_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-tour-desktop"
+        PASS_REGULAR_EXPRESSION "local-draft-tour-desktop-public-path:pass"
+        TIMEOUT 180)
+    # RFC-BPR-0111 ([[BPR-2029]], [[BPR-2030]]).
+    bpr_add_executable(test_local_draft_publication_desktop_public_path local_draft_publication_desktop_public_path.cpp)
+    target_link_libraries(test_local_draft_publication_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_publication_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_publication_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_publication_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_publication_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_publication_desktop_public_path)
+    bpr_add_network_isolated_test(NAME application_local_draft_publication_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_publication_desktop_public_path --git "$<TARGET_FILE:Git::Git>")
+    set_tests_properties(application_local_draft_publication_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-publication-desktop"
+        PASS_REGULAR_EXPRESSION "local-draft-publication-desktop-public-path:pass"
+        TIMEOUT 180)
+endif()
+# RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]]). The Ask menus, on
+# returning-review-v1 at its next push, with the scoped writing stub as the
+# installed Claude.
+bpr_add_executable(test_ask_menu_public_path ask_menu_public_path.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_ask_menu_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_ask_menu_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+target_compile_definitions(test_ask_menu_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_ask_menu_public_path)
+bpr_enable_warnings(test_ask_menu_public_path)
+add_dependencies(test_ask_menu_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_ask_menu_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path menu "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_menu_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu:pass")
+bpr_add_network_isolated_test(NAME application_ask_addressed_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path addressed "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_addressed_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-addressed:pass")
+bpr_add_network_isolated_test(NAME application_ask_report_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path report "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_report_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-report:pass")
+# [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on build runs
+# the fixture agent and can never start a real one.
+bpr_add_executable(test_fixture_agent_guard_public_path fixture_agent_guard_public_path.cpp)
+target_link_libraries(test_fixture_agent_guard_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_fixture_agent_guard_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_fixture_agent_guard_public_path)
+bpr_enable_warnings(test_fixture_agent_guard_public_path)
+add_dependencies(test_fixture_agent_guard_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_fixture_agent_guard_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_fixture_agent_guard_public_path "${CMAKE_BINARY_DIR}/fixture-agent")
+    set_tests_properties(application_fixture_agent_guard_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "fixture-agent-guard:pass")
+endif()
+# [[BPR-2177]], look ask-v004 ("still doesnt work"). The application itself, as
+# a look runs it at the next push: every quick ask it offers, typed questions
+# with the line chip, a continuation and a queue, each answered by the fixture
+# agent, with no real agent started.
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_fixture_agent_every_ask
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/fixture_agent_every_ask.py" "$<TARGET_FILE:app_better_pull_review>")
+    set_tests_properties(application_fixture_agent_every_ask PROPERTIES
+        TIMEOUT 600 PASS_REGULAR_EXPRESSION "fixture-agent-every-ask:pass" RUN_SERIAL TRUE)
+endif()
+# [[BPR-2177]]. The fixture agent's own answers, streams and scripted failures.
+bpr_add_network_isolated_test(NAME fixture_agent_answers
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/fixture_agent_tests.py" "${CMAKE_BINARY_DIR}/fixture-agent")
+set_tests_properties(fixture_agent_answers PROPERTIES PASS_REGULAR_EXPRESSION "fixture-agent-answers:pass" ENVIRONMENT "BPR_FIXTURE_AGENT_PAUSE_MS=1")
+# RFC-BPR-0125 milestone 3 ([[BPR-2146]] AC11 to AC13), through the window.
+bpr_add_network_isolated_test(NAME application_prompt_macros_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path macros "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_prompt_macros_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "ask-menu-macros:pass")
+bpr_add_network_isolated_test(NAME application_ask_queue_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path queue "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_queue_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-queue:pass")
+# RFC-BPR-0126 AC03 ([[BPR-2151]]), Q1: whole-tour feedback typed while the
+# draft runs is the tour conversation's first queued message.
+bpr_add_network_isolated_test(NAME application_tour_feedback_queue_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path tour-queue "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_tour_feedback_queue_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "ask-menu-tour-queue:pass")
+# RFC-BPR-0126 AC04 ([[BPR-2151]]), Q10 as overridden: two windows on one
+# session show and edit its one queue; closing one neither pauses nor stops it.
+bpr_add_executable(test_agent_queue_windows_public_path agent_queue_windows_public_path.cpp)
+target_link_libraries(test_agent_queue_windows_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_agent_queue_windows_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_agent_queue_windows_public_path)
+bpr_enable_warnings(test_agent_queue_windows_public_path)
+add_dependencies(test_agent_queue_windows_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_agent_queue_windows_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_agent_queue_windows_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-windows:pass")
+# [[BPR-2181]]. A run that ends while a second window still loads the pull
+# request retires, and the session's queue goes on.
+bpr_add_network_isolated_test(NAME application_agent_queue_second_window_loading_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --second-window-loading)
+set_tests_properties(application_agent_queue_second_window_loading_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-second-window-loading:pass")
+# [[BPR-2181]] AC01. Two messages queued behind a running one, the session's
+# window closed: the profile's runtime runs every turn; reopened, each shows once.
+bpr_add_network_isolated_test(NAME application_agent_queue_close_runs_on_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --close-runs-on)
+set_tests_properties(application_agent_queue_close_runs_on_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-close-runs-on:pass")
+# [[BPR-2181]] AC04. A queue left at quit is read back from disk on relaunch,
+# paused because the app restarted.
+bpr_add_network_isolated_test(NAME application_agent_queue_restart_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --restart)
+set_tests_properties(application_agent_queue_restart_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-restart:pass")

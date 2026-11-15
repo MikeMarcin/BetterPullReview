@@ -25,9 +25,3 @@ Atomic claim of the exact entry and version, durably marked Sending and bound to
 ## Notes
 
 Owner questions: Q16.
-
-- From BPR-2153's review (2026-11-14): a correction's own reply is bounded
-  (an unanswered App Server `turn/steer` is unknown after 30 s, and a run
-  with an unknown correction sets `agent_run_result::SteerDeliveryUnknown`).
-  The bound on the whole run under delivery uncertainty (AC06: a terminal
-  run must not hold its lease indefinitely) is this card's, not built there.

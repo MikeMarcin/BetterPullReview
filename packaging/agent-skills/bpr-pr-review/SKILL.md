@@ -3,7 +3,7 @@ name: bpr-pr-review
 description: "Review one GitHub pull request that BetterPullReview hands you with a review brief and a workspace at its exact head: read the brief, follow the change through the code, verify each finding before reporting it, say whether the pull request introduced it, and say what you could not verify. Use when a BetterPullReview review request names this skill."
 compatibility: Works in any harness BetterPullReview starts (Claude Code, Codex or a plain-text harness). Needs only the brief on standard input and the workspace as the working directory; no BetterPullReview command, network access or credential.
 metadata:
-  bpr-version: 4
+  bpr-version: 5
   role: review-method
 ---
 
@@ -29,28 +29,20 @@ BetterPullReview shows each finding as a card under your answer, from which the 
    "severity": "major", "category": "correctness", "confidence": "high",
    "claim": "The retry budget resets every frame, so the loop never stops.",
    "evidence": "Retry_.reset() runs at the start of begin_frame.",
-   "suggestedComment": "question (blocking): This resets the budget each frame; should it reset once per request?"}
+   "suggestedComment": "`begin_frame` resets `Retry_` every frame, so the retry loop never ends. Reset it once per request instead."}
 ]}
 ```
 
 - `path` is the file's path in the workspace, as `brief.file.N.path` names it; `startLine` and `endLine` are one-based and inclusive, at the head (add `"side": "left"` for a line only in the base).
 - `severity` is `trivial`, `minor`, `major` or `critical`; `category` is `correctness`, `security`, `performance`, `maintainability`, `style`, `documentation` or `other`; `confidence` is `low`, `medium` or `high`.
-- `claim` is one sentence; `evidence` is how you know; `suggestedComment` is what you would write on the pull request, in the reviewer's voice, and is what a draft comment starts from. Write it as a Conventional Comment, as below.
+- `claim` is one sentence; `evidence` is how you know; `suggestedComment` is what you would write on the pull request, in the reviewer's voice, and is what a draft comment starts from. Write it as the next section says.
 - With no finding, write the block with an empty list. Answers that are not reviews need no block.
 
-## Write suggested comments as Conventional Comments
+## Write suggested comments as the reviewer asks
 
-The reviewer's comment editor labels comments with [Conventional Comments](https://conventionalcomments.org/), and a draft made from your words opens with your label already chosen. Begin every `suggestedComment`, and any reply you write for the reviewer to post, with one plain header on its first line, then the subject on the same line:
+`brief.comment_format.text` is the reviewer's own instruction for the comments you suggest: every `suggestedComment`, and any reply you write for the reviewer to post. Follow it; where it and this skill differ about a comment's form, it wins. `brief.comment_format.version` and `.source` say whether it is BetterPullReview's default or the reviewer's own text.
 
-```text
-label (decorations): subject
-
-discussion
-```
-
-- `label` is one of `praise`, `nitpick`, `suggestion`, `issue`, `todo`, `question`, `thought`, `chore` or `note`, in lowercase. Pick the one that says what the comment asks of the author: `issue` for a defect you verified, `question` for something you could not confirm, `suggestion` for a change you propose, `nitpick` for a trivial preference, `praise` for something done well.
-- `(decorations)` is optional: `(blocking)` when it must be resolved before the pull request is accepted, `(non-blocking)` when it need not be, and `(if-minor)` when the author should resolve it only if the change is small; `(non-blocking, if-minor)` combines them.
-- Write the header plainly: no bold, no heading and no other label. Leave it out rather than guess when no label fits.
+Without it, write a short comment the reviewer could post as it stands: the problem in one sentence, then the fix, with code in `code spans` and more than one line of code in a fenced block. Start with the point rather than a severity or label, and do not repeat the finding's claim or evidence.
 
 ## Read the brief first
 

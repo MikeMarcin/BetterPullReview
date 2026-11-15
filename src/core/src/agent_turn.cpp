@@ -88,7 +88,7 @@ namespace bpr::core {
 	auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions
 	{
 		if (aFacts.Outcome == agent_turn_outcome::answered) {
-			return { .Error = false, .Copy = aFacts.HasText, .SaveNote = aFacts.HasText, .DraftComment = aFacts.HasText, .Recovery = agent_turn_recovery::none };
+			return { .Error = false, .Copy = aFacts.HasText, .Keep = aFacts.HasText, .Recovery = agent_turn_recovery::none };
 		}
 		auto actions       = agent_turn_actions{ .Error = true, .Copy = aFacts.HasText };
 		actions.FixedSince = aFacts.CausePassedSince && agent_turn_cause_of(aFacts.Outcome) != agent_turn_cause::none;

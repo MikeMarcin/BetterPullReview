@@ -432,6 +432,10 @@ namespace bpr::qt {
 			return aAnyColumns ? QStringLiteral("Other") : QStringLiteral("Comments");
 		case overview_comment_chip::kind::more:
 			return QStringLiteral("More");
+		case overview_comment_chip::kind::drafts:
+			return QStringLiteral("My drafts");
+		case overview_comment_chip::kind::local:
+			return QStringLiteral("My local comments");
 		case overview_comment_chip::kind::uncertain:
 			break;
 		}
@@ -474,6 +478,10 @@ namespace bpr::qt {
 			lines.push_back(QStringLiteral("Click or press Enter to choose one."));
 			return lines.join(QLatin1Char{ '\n' });
 		}
+		case overview_comment_chip::kind::drafts:
+			return overview_drafts_text(aChip);
+		case overview_comment_chip::kind::local:
+			return overview_local_text(aChip);
 		case overview_comment_chip::kind::uncertain:
 			break;
 		}

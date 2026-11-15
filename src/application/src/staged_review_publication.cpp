@@ -94,7 +94,7 @@ namespace bpr::application {
 				if (core::needs_tour_destination(stop)) {
 					const auto found  = std::ranges::find(aPlan.Stops, stop.Id, &staged_tour_stop::Id);
 					const auto source = (stop.Mapping == core::tour_mapping::author_selected && stop.Mapped) ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
-					if (found == aPlan.Stops.end() || found->Title != stop.Title || found->Narrative != stop.Body || !source || found->Source != *source) {
+					if (found == aPlan.Stops.end() || found->Title != stop.Title || (found->Authored.empty() ? found->Narrative : found->Authored) != stop.Body || !source || found->Source != *source) {
 						return false;
 					}
 					++count;
@@ -530,30 +530,138 @@ namespace bpr::application {
 		}
 		return aAfter.Pending.has_value() && !aAfter.PossiblyTransmitted && aBefore->Review == aAfter.Review && aBefore->Index == aAfter.Index && aBefore->Comments == aAfter.Comments && aBefore->Patched == aAfter.Patched && aBefore->Published == aAfter.Published && aBefore->DescriptionDone == aAfter.DescriptionDone && aBefore->Updated == aAfter.Updated && aBefore->DestinationsPublished == aAfter.DestinationsPublished;
 	}
+	auto staged_publication_steps(const staged_review_plan& aPlan) -> std::vector<staged_publication_write>
+	{
+		using kind = staged_step_kind;
+		auto steps = std::vector<staged_publication_write>{ };
+		if (aPlan.ConversationReply) {
+			steps.push_back({ .Kind = kind::stop_create, .Representation = core::tour_representation::conversation_permalink });
+			return steps;
+		}
+		const auto order = staged_stop_order(aPlan);
+		if (!aPlan.Stops.empty()) {
+			if (!aPlan.Compatibility) {
+				steps.push_back({ .Kind = kind::review_create });
+			}
+			for (const auto index : order) {
+				const auto representation = aPlan.Compatibility ? core::tour_representation::conversation_permalink : aPlan.Stops[index].Representation;
+				if (aPlan.Compatibility || (aPlan.Mixed && representation != core::tour_representation::native_line)) {
+					steps.push_back({ .Kind = kind::stop_create, .Stop = index + 1U, .Representation = representation });
+				}
+			}
+			if (aPlan.Compatibility && !aPlan.Update) {
+				steps.push_back({ .Kind = kind::index_create });
+			}
+			for (const auto index : order) {
+				steps.push_back({ .Kind = kind::stop_links, .Stop = index + 1U, .Representation = aPlan.Compatibility ? core::tour_representation::conversation_permalink : aPlan.Stops[index].Representation });
+			}
+			if (!aPlan.Compatibility) {
+				steps.push_back({ .Kind = kind::review_submit });
+			}
+		}
+		if (aPlan.Update) {
+			steps.push_back({ .Kind = kind::existing_edits });
+		}
+		if (aPlan.Description) {
+			steps.push_back({ .Kind = kind::description });
+		}
+		return steps;
+	}
+	auto staged_publication_confirmed(const staged_publication_record& aRecord) -> std::size_t
+	{
+		using kind       = staged_step_kind;
+		const auto& plan = aRecord.Plan;
+		if (plan.ConversationReply) {
+			return aRecord.Published ? 1U : 0U;
+		}
+		// The pending review returns its own stops' comments with it, so a
+		// mixed plan's standalone comments follow them in the record.
+		const auto native  = plan.Compatibility ? std::size_t{ 0U } : static_cast<std::size_t>(std::ranges::count_if(plan.Stops, [&](const auto& aStop) { return !plan.Mixed || aStop.Representation == core::tour_representation::native_line; }));
+		auto       created = std::size_t{ 0U };
+		auto       linked  = std::size_t{ 0U };
+		auto       count   = std::size_t{ 0U };
+		for (const auto& step : staged_publication_steps(plan)) {
+			auto confirmed = false;
+			switch (step.Kind) {
+			case kind::review_create:  confirmed = aRecord.Review.has_value(); break;
+			case kind::stop_create:    confirmed = aRecord.Comments.size() >= native + ++created; break;
+			case kind::index_create:   confirmed = aRecord.Index.has_value(); break;
+			case kind::stop_links:     confirmed = aRecord.Patched >= ++linked; break;
+			case kind::review_submit:  confirmed = plan.Update ? aRecord.DestinationsPublished : aRecord.Published; break;
+			case kind::existing_edits: {
+				const auto bodies = staged_update_bodies(aRecord);
+				confirmed         = aRecord.Published || (bodies && aRecord.Updated >= bodies->Edits.size());
+				break;
+			}
+			case kind::description: confirmed = aRecord.DescriptionDone; break;
+			}
+			if (!confirmed) {
+				break;
+			}
+			++count;
+		}
+		return count;
+	}
+	auto staged_stop_list(const std::span<const std::size_t> aNumbers) -> std::string
+	{
+		auto runs = std::vector<std::string>{ };
+		for (std::size_t i = 0U; i < aNumbers.size();) {
+			auto j = i;
+			while (j + 1U < aNumbers.size() && aNumbers[j + 1U] == aNumbers[j] + 1U) {
+				++j;
+			}
+			if (j >= i + 2U) {
+				runs.push_back(std::to_string(aNumbers[i]) + " to " + std::to_string(aNumbers[j]));
+			} else {
+				for (auto k = i; k <= j; ++k) {
+					runs.push_back(std::to_string(aNumbers[k]));
+				}
+			}
+			i = j + 1U;
+		}
+		if (runs.empty()) {
+			return { };
+		}
+		auto result = std::string{ aNumbers.size() == 1U ? "stop " : "stops " };
+		for (std::size_t i = 0U; i < runs.size(); ++i) {
+			result += (i == 0U ? "" : i + 1U == runs.size() ? " and "
+															: ", ")
+				+ runs[i];
+		}
+		return result;
+	}
 	auto staged_publication_stages(const staged_review_plan& aPlan) -> std::vector<std::string>
 	{
+		using kind = staged_step_kind;
 		if (aPlan.ConversationReply) {
 			return { "The reply" };
 		}
-		auto stages = std::vector<std::string>{ aPlan.Mixed ? "One pending review (mixed tour, non-atomic)" : aPlan.Update ? "The tour's updated comments"
-													: aPlan.Compatibility                                                  ? "The index comment"
-																														   : "The tour comment" };
-		if (!aPlan.Update) {
-			for (const auto index : staged_stop_order(aPlan)) {
-				// The presentation consumes UTF-8 on every host, including MSVC.
-				stages.push_back("Stop " + std::to_string(index + 1) + ", \xE2\x80\x9C" + aPlan.Stops[index].Title + "\xE2\x80\x9D");
-				if (aPlan.Mixed) {
-					stages.back() += aPlan.Stops[index].Representation == core::tour_representation::native_line ? " (in the pending review)" : aPlan.Stops[index].Representation == core::tour_representation::file_permalink ? " (standalone file comment)"
-																																																							   : " (conversation comment)";
-				}
+		// The presentation consumes UTF-8 on every host, including MSVC.
+		const auto named = [&](const std::size_t aStop) {
+			return "Stop " + std::to_string(aStop) + ", \xE2\x80\x9C" + aPlan.Stops[aStop - 1U].Title + "\xE2\x80\x9D";
+		};
+		auto inReview = std::vector<std::size_t>{ };
+		for (std::size_t i = 0U; i < aPlan.Stops.size(); ++i) {
+			if (!aPlan.Mixed || aPlan.Stops[i].Representation == core::tour_representation::native_line) {
+				inReview.push_back(i + 1U);
 			}
 		}
-		if (aPlan.Mixed) {
-			stages.emplace_back("Cross-kind navigation");
-			stages.emplace_back("One COMMENT submission");
-		}
-		if (aPlan.Description) {
-			stages.emplace_back("The description link");
+		auto stages = std::vector<std::string>{ };
+		for (const auto& step : staged_publication_steps(aPlan)) {
+			switch (step.Kind) {
+			case kind::review_create: {
+				auto list = inReview.empty() ? std::string{ "the stops" } : staged_stop_list(inReview);
+				list[0]   = static_cast<char>(list[0] - 'a' + 'A');
+				stages.push_back(list + (aPlan.Update ? ", added in a pending review" : ", in the pending review"));
+				break;
+			}
+			case kind::stop_create:    stages.push_back(named(step.Stop) + (step.Representation == core::tour_representation::file_permalink ? ", as a file comment" : ", as a conversation comment")); break;
+			case kind::index_create:   stages.emplace_back("The tour's index comment"); break;
+			case kind::stop_links:     stages.push_back("Links for stop " + std::to_string(step.Stop)); break;
+			case kind::review_submit:  stages.emplace_back(aPlan.Update ? "Submit the added stops' review" : "Submit the review as a comment"); break;
+			case kind::existing_edits: stages.emplace_back("The tour's published comments"); break;
+			case kind::description:    stages.emplace_back(aPlan.Update ? "The description" : "The description link"); break;
+			}
 		}
 		return stages;
 	}

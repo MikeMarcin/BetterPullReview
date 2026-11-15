@@ -1093,7 +1093,7 @@ namespace {
 			editor->make_more_direct_action(),
 			editor->check_the_premise_action(),
 		};
-		static_assert(controls.size() == core::workshop_operation_count);
+		static_assert(controls.size() == core::prose_workshop_operation_count);
 
 		for (auto index = std::size_t{ 0U }; index < controls.size(); ++index) {
 			const auto asked = static_cast<core::workshop_operation>(index);
@@ -1134,7 +1134,7 @@ namespace {
 		expect(
 			path.Projection.Refusals == 0U
 				&& path.Host.statistics().Proposals
-					== core::workshop_operation_count,
+					== core::prose_workshop_operation_count,
 			"six presses reached the one host six times");
 		expect(
 			log.Drafts.empty()
@@ -1180,7 +1180,7 @@ namespace {
 			"and the surface says what was asked while it waits");
 
 		for (auto index = std::size_t{ 0U };
-			 index < core::workshop_operation_count;
+			 index < core::prose_workshop_operation_count;
 			 ++index) {
 			auto* const control = editor->workshop_action(
 				static_cast<core::workshop_operation>(index));
@@ -1246,7 +1246,7 @@ namespace {
 
 		editor->clarify_action()->trigger();
 		for (auto index = std::size_t{ 0U };
-			 index < core::workshop_operation_count;
+			 index < core::prose_workshop_operation_count;
 			 ++index) {
 			expect(
 				!editor->workshop_action(
@@ -1261,7 +1261,7 @@ namespace {
 			.Reason = "the turn proposed no revision",
 		});
 		for (auto index = std::size_t{ 0U };
-			 index < core::workshop_operation_count;
+			 index < core::prose_workshop_operation_count;
 			 ++index) {
 			auto* const control = editor->workshop_action(
 				static_cast<core::workshop_operation>(index));
@@ -1316,7 +1316,7 @@ namespace {
 			});
 
 		for (auto index = std::size_t{ 0U };
-			 index < core::workshop_operation_count;
+			 index < core::prose_workshop_operation_count;
 			 ++index) {
 			auto* const control = editor->workshop_action(
 				static_cast<core::workshop_operation>(index));
@@ -1466,8 +1466,8 @@ namespace {
 		// else fails here rather than appearing beside them.
 		static_assert(std::is_same_v<
 					  decltype(workshopOperations),
-					  const std::array<QAction*, core::workshop_operation_count>>);
-		static_assert(core::workshop_operation_count == 6U);
+					  const std::array<QAction*, core::prose_workshop_operation_count>>);
+		static_assert(core::prose_workshop_operation_count == 6U);
 		static_assert(
 			std::is_same_v<
 				decltype(shownDraft),

@@ -6,6 +6,7 @@
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <functional>
+#include <span>
 #include <string_view>
 namespace bpr::application {
 	struct staged_tour_stop
@@ -13,8 +14,12 @@ namespace bpr::application {
 		core::tour_stop_id          Id;
 		core::tour_code_destination Source;
 		std::string                 Title, Narrative, SourceLink;
-		core::tour_representation   Representation                                    = core::tour_representation::native_line;
-		auto                        operator==(const staged_tour_stop&) const -> bool = default;
+		core::tour_representation   Representation = core::tour_representation::native_line;
+		/// [[BPR-1996]]. The stop's text as the author wrote it; `Narrative` is
+		/// its published form, references made permalinks. Empty in a plan
+		/// journaled before, whose narrative was the text itself.
+		std::string Authored                                          = { };
+		auto        operator==(const staged_tour_stop&) const -> bool = default;
 	};
 	struct staged_description_edit
 	{
@@ -121,14 +126,47 @@ namespace bpr::application {
 	/// `aRecord.Comments[aRecord.Patched]`, while its own review is still
 	/// pending: GraphQL, by the comment's node ID, never REST.
 	[[nodiscard]] auto staged_pending_edit(const staged_publication_record& aRecord, std::string aBody) -> staged_review_request;
-	/// \brief [[BPR-1782]]. What publishing the plan sends, in order, in the
-	/// reader's words, each starting a sentence: the tour comment (or the index comment, or the update),
-	/// each stop by its number and title, then the description link.
-	/// \details Names the captured plan's stages; it does not say which one
-	/// is under way, since a running publication reports only its terminal.
 	/// \brief [[BPR-1786]]. The description a publication writes: the desired
 	/// text, below a `[Review tour](…)` line when the plan adds the link.
 	[[nodiscard]] auto staged_description_body(const staged_description_edit& aEdit, std::string_view aTourLink) -> std::string;
+	/// \brief [[BPR-1992]]. One write a publication makes, in the order it
+	/// makes them: the step a reader sees advance.
+	enum class staged_step_kind : std::uint8_t {
+		/// The pending review, created with the stops that go in it.
+		review_create,
+		/// One stop created as its own comment (compatibility or mixed).
+		stop_create,
+		/// The compatibility index comment.
+		index_create,
+		/// A stop's navigation links patched in.
+		stop_links,
+		/// The pending review submitted as a COMMENT.
+		review_submit,
+		/// An update's edits to the tour's published comments.
+		existing_edits,
+		/// The pull request description.
+		description,
+	};
+	struct staged_publication_write
+	{
+		staged_step_kind Kind = staged_step_kind::review_create;
+		/// One-based route number of the stop, for a stop's step.
+		std::size_t               Stop                                                      = 0U;
+		core::tour_representation Representation                                            = core::tour_representation::native_line;
+		auto                      operator==(const staged_publication_write&) const -> bool = default;
+	};
+	/// \brief [[BPR-1992]]. The plan's writes, in the order
+	/// `staged_next_request` makes them.
+	[[nodiscard]] auto staged_publication_steps(const staged_review_plan& aPlan) -> std::vector<staged_publication_write>;
+	/// \brief [[BPR-1992]]. How many of `staged_publication_steps` the record
+	/// holds GitHub's confirmation for: a step counts only once its returned
+	/// identity or confirmed edit is in the record.
+	[[nodiscard]] auto staged_publication_confirmed(const staged_publication_record& aRecord) -> std::size_t;
+	/// \brief [[BPR-1992]]. Stop numbers in words: "stop 4", "stops 4 and 8",
+	/// "stops 1 to 7", "stops 1 to 3, 5 and 9".
+	[[nodiscard]] auto staged_stop_list(std::span<const std::size_t> aNumbers) -> std::string;
+	/// \brief [[BPR-1782]], [[BPR-1992]]. Each of `staged_publication_steps`
+	/// in the reader's words, each starting a sentence.
 	[[nodiscard]] auto staged_publication_stages(const staged_review_plan& aPlan) -> std::vector<std::string>;
 	/// \brief [[BPR-1782]]. Where GitHub shows a published tour: the review,
 	/// the index comment or the updated root's returned address; empty until

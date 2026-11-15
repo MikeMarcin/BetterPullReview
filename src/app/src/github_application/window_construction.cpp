@@ -1,5 +1,9 @@
 #include "github_application/window_composition.hpp"
 
+#include <QFile>
+#include <QSaveFile>
+#include <QStandardPaths>
+
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -15,6 +19,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_ignore.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -36,10 +41,12 @@
 #include <QObject>
 #include <QStyleHints>
 #include <QTextStream>
+#include <QWindow>
 
 #include <algorithm>
 #include <iterator>
 #include <limits>
+#include <random>
 #include <stdexcept>
 #include <type_traits>
 #include <variant>
@@ -106,13 +113,22 @@ namespace bpr::app {
 			[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); },
 			nullptr,
 			aConfig.DifCatalog);
-		Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
+		Window->set_comment_state_dispatch([this](const qt::comment_state_gesture& aGesture) { dispatch_comment_state(aGesture); });
 		Window->set_header_source_dispatch([this] { dispatch_header_source(); });
 		Window->set_review_navigation_dispatch([this](const auto aCommand) { request_review_navigation(aCommand); });
 		Window->set_close_review_dispatch([this] { close_review(); });
 		Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
+			if (!Closing && local_tour_shown()) {
+				DraftDesktop->tour_command(aCommand);
+				return;
+			}
 			if (!Closing && TourHost && current(DraftWindow)) {
 				aCommand.Attention = current_tour_attention();
+				// [[BPR-2014]]. Accepting records the code at every reference
+				// the stop's text makes: the changed paths resolve them.
+				if (aCommand.Kind == core::tour_command_kind::accept || aCommand.Kind == core::tour_command_kind::complete) {
+					aCommand.Files = tour_changed_files();
+				}
 				static_cast<void>(TourHost->execute({ .Command = std::move(aCommand) }));
 			} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
 		Window->tour_editor()->set_repair_dispatch([this](core::tour_stop_id aStop, qt::tour_repair_action aAction) { dispatch_tour_repair(aStop, aAction); });
@@ -171,6 +187,44 @@ namespace bpr::app {
 #endif
 		);
 		CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
+		// RFC-BPR-0108. Local PR drafts read the chosen worktree through
+		// their own isolated Git reader; signed out as well as in.
+		DraftDesktop = std::make_unique<local_draft_desktop>(*Window, ApplicationDataRoot, Profile->InstalledGit, windows_system_root(), WorkbenchEffects, DecisionLane,
+															 local_draft_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder });
+		// RFC-BPR-0111. Create draft PR acts as this profile's accepted
+		// account through its pull request catalog (a gh connection carries
+		// it). A tests-enabled build creates nothing unless the agent-run live
+		// course composed it, and then only on MikeMarcin/BPR-Test.
+		// RFC-BPR-0111 as drawn: a draft pull request created from the window
+		// opens there, read fresh as any opened pull request is.
+		// It opens by the path Recently viewed's Open takes, under the
+		// signed-in account's exact session only.
+		DraftDesktop->set_pull_request_opener([this](const std::string& aHost, const std::string& aOwner, const std::string& aName, const std::uint64_t aNumber) {
+			const auto* const session = Host ? &Host->accepted_session() : nullptr;
+			if (Closing || session == nullptr || !*session || aNumber == 0U || aNumber > std::numeric_limits<std::uint32_t>::max()) {
+				return;
+			}
+			Window->leave_local_draft();
+			open_review_destination({ .Mode       = core::github_access_mode::authenticated,
+									  .Hostname   = aHost,
+									  .Repository = { .Owner = aOwner, .Name = aName },
+									  .Number     = core::pull_request_number{ static_cast<std::uint32_t>(aNumber) },
+									  .Account    = (*session)->Viewer.Account });
+		});
+		DraftDesktop->set_publishing([this]() -> std::optional<application::github_publication_account> {
+			if (Closing || !Host) {
+				return std::nullopt;
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture || !DesignatedLivePublication) {
+				return std::nullopt;
+			}
+			auto account = Host->accepted_pull_request_account();
+			return account ? std::optional{ designated_pull_request_account(std::move(*account)) } : std::nullopt;
+#else
+			return Host->accepted_pull_request_account();
+#endif
+		});
 		// [[BPR-1177]]. Publish as Pull Request acts as the account this
 		// profile's session accepted, through its own publication catalog.
 		CycleDesktop->set_publishing({
@@ -198,20 +252,35 @@ namespace bpr::app {
 		auto& reviewDecisions = DecisionLane;
 #endif
 #if defined(BPR_BUILD_TESTING)
+		// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The agent-run live course
+		// issues the same one-use grant the gesture issues in a shipped build
+		// (five minutes, this request), and only for BPR-Test.
 		review_submission_workflow::grant_factory issueReviewGrant = [this](auto aSession, auto aGeneration, const auto& aRequest) {
-			return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aRequest) : application::review_submission_execution_grant{ };
+			if (Fixture) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aRequest);
+			}
+			if (DesignatedLivePublication && aRequest.LiveBinding && designated_live_publication_target(aRequest.LiveBinding->Target)) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aRequest, std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+			}
+			return application::review_submission_execution_grant{ };
 		};
 #else
 		review_submission_workflow::grant_factory issueReviewGrant = [](auto session, auto generation, const application::review_submission_request& request) { return application::detail::review_submission_user_authority_issuer::issue(session, generation, request); };
 #endif
-		ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
-																		*Window->review_submission_editor_view(), std::move(issueReviewGrant),
-																		[this](const application::review_submission_live_binding& aBinding) {
-																			return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity);
-																		});
+		ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->review_submission_editor_view(), std::move(issueReviewGrant), [this](const application::review_submission_live_binding& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); },
+																		// [[RFC-BPR-0105]]. Each review host sends on its own lane:
+																		// tour publication, replies and another pull request's
+																		// review work never wait in front of a submission.
+																		[] { return std::make_unique<worker_executor>(); }, DiagnosticLog);
 #if defined(BPR_BUILD_TESTING)
 		review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
-			return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aPlan) : application::review_submission_execution_grant{ };
+			if (Fixture) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aPlan);
+			}
+			if (DesignatedLivePublication && aPlan.Submission.LiveBinding && designated_live_publication_target(aPlan.Submission.LiveBinding->Target)) {
+				return application::make_review_submission_testing_grant(aSession, aGeneration, aPlan, std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+			}
+			return application::review_submission_execution_grant{ };
 		};
 #else
 		review_tour_publication_workflow::grant_factory issueTourGrant = [](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
@@ -250,6 +319,14 @@ namespace bpr::app {
 		Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 		Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 		Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
+		// [[BPR-2094]]. Finish your review's Add, Add all and Leave out.
+		Window->set_draft_review_dispatch([this](const std::vector<core::review_draft_id>& aDrafts, const bool aAdd) {
+			if (aAdd) {
+				add_drafts_to_review(aDrafts);
+			} else {
+				leave_drafts_out_of_review(aDrafts);
+			}
+		});
 		Window->set_carried_suggestion_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { discard_carried_suggestion(aDraft, aRevision); });
 		Window->set_review_draft_dispatch(
 			[this](core::review_draft_command aCommand) {
@@ -267,7 +344,15 @@ namespace bpr::app {
 			[this](const qt::reaction_gesture& aGesture) { react_to_post(aGesture); });
 		// [[BPR-1774]]. Save in Overview's description editor.
 		Window->overview_page()->set_description_save_dispatch(
-			[this](const qt::overview_description_save& aSave) { save_description(aSave); });
+			[this](const qt::overview_description_save& aSave) {
+				// A local draft's description is the draft's, saved with its title.
+				if (local_tour_shown()) {
+					DraftDesktop->save_description(aSave.Body);
+					Window->overview_page()->close_description_editor();
+					return;
+				}
+				save_description(aSave);
+			});
 		// [[BPR-1852]]. Ready for review and Convert to draft, from Overview
 		// and the Pull Request menu.
 		Window->set_draft_state_dispatch(
@@ -287,6 +372,10 @@ namespace bpr::app {
 		// on one exact draft, and this composition is what decides whether
 		// there is anything to answer with. The widget holds no host, no
 		// agent, and no revision of its own.
+		// [[BPR-2051]]. Enhance on a draft comment, a reply or a private
+		// note reaches the writing operation a tour stop's Enhance uses.
+		Window->set_enhance_dispatch([this](qt::enhance_request aRequest) { request_enhancement(std::move(aRequest)); },
+									 [this](const std::uint64_t aRequest) { cancel_enhancement(aRequest); });
 		if (Window->review_editor() != nullptr) {
 			Window->review_editor()->set_workshop_dispatch(
 				[this](qt::comment_workshop_request aRequest) {
@@ -398,6 +487,20 @@ namespace bpr::app {
 					Profile->ViewFilterMemory->remember(aChoice);
 				}
 			});
+		// [[BPR-2171]]. The profile's Discuss preferences: each repository's
+		// bot marks and the column, for every window.
+		Window->set_discuss_preferences(
+			[this] { return Profile->DiscussPreferences ? Profile->DiscussPreferences->preferences() : core::discuss_preferences{ }; },
+			[this](const std::string& aRepository, const std::string& aLogin, const bool aBot) {
+				if (!Closing && Profile->DiscussPreferences) {
+					static_cast<void>(Profile->DiscussPreferences->mark(aRepository, aLogin, aBot));
+				}
+			},
+			[this](const core::discuss_column aColumn) {
+				if (!Closing && Profile->DiscussPreferences) {
+					static_cast<void>(Profile->DiscussPreferences->set_column(aColumn));
+				}
+			});
 		// [[BPR-1089]]. The Overview's chips: its request is counted from the
 		// kept label buckets, and a count's activation lists exactly its
 		// conversations in Discuss. Neither asks a provider.
@@ -498,6 +601,13 @@ namespace bpr::app {
 					QueueHost->apply(std::move(aIntent));
 				}
 			});
+		// [[BPR-2049]]. Seen is the queue's, and local.
+		Window->set_home_seen_dispatch(
+			[this](application::queue_seen_intent aIntent) {
+				if (!Closing && QueueHost != nullptr) {
+					QueueHost->apply(std::move(aIntent));
+				}
+			});
 		// [[BPR-1407]]. Home's row ages are measured to discovery's clock.
 		Window->set_home_clock([this]() -> std::optional<std::int64_t> {
 			return DiscoveryClock != nullptr ? std::optional{ DiscoveryClock->now_seconds() } : std::nullopt;
@@ -569,7 +679,7 @@ namespace bpr::app {
 
 		PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, ReviewLedgerFile, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
 #if defined(BPR_AGENT_INTEGRATIONS)
-			if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
+			if (Closing || !AgentHost || !agent_turn_quiescent()) {
 				return false;
 			}
 			const auto composing = aIntent.Purpose == core::private_run_purpose::composition;
@@ -685,6 +795,7 @@ namespace bpr::app {
 						return;
 					}
 					finish_writing(aIdentity, aResult);
+					note_agent_scratch(aIdentity.Session.Profile, aResult);
 					settle_comment_workshop(
 						aIdentity.Session.Id, aResult.Outcome);
 					Window->finish_dif_invocation(aIdentity, aResult.Outcome);
@@ -701,6 +812,12 @@ namespace bpr::app {
 				},
 				[this](std::string_view) {
 					if (!PendingWriting) {
+						return;
+					}
+					if (const auto enhance = PendingWriting->Enhance) {
+						PendingWriting.reset();
+						WritingState.cancel();
+						answer_enhancement(*enhance, std::nullopt, QStringLiteral("The agent refused this request. Your text is unchanged."));
 						return;
 					}
 					const bool test = PendingWriting->Test;
@@ -745,6 +862,10 @@ namespace bpr::app {
 			const auto claude = std::ranges::find(agentProfiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
 			if (claude != agentProfiles.end()) {
 				claude->Executable = ClaudeAgentExecutable->string();
+				// [[BPR-2177]]. A person's session says whose answers they read.
+				if (FixtureAgentSession) {
+					claude->DisplayName = "Fixture agent";
+				}
 			}
 			BuiltInProfilesOffered = true;
 		}
@@ -755,6 +876,9 @@ namespace bpr::app {
 				&core::agent_profile::Id);
 			if (codex != agentProfiles.end()) {
 				codex->Executable = CodexAgentExecutable->string();
+				if (FixtureAgentSession) {
+					codex->DisplayName = "Fixture agent (Codex)";
+				}
 			}
 			BuiltInProfilesOffered = true;
 		}
@@ -770,6 +894,13 @@ namespace bpr::app {
 			AgentProcessProbe
 				= std::make_unique<composition_agent_process_launcher_probe>(
 					*AgentProcess);
+			// [[BPR-2177]] (owner, 2026-11-14). With a fixture, a program named
+			// `claude` or `codex` starts only from a folder this run named (the
+			// fixture agent's, a course's stub, a search path it set); in a
+			// person's session every program must be one of those.
+			if (Fixture) {
+				AgentProcessProbe->set_admission(fixture_agent_admission());
+			}
 		}
 		if (AgentProcessProbe != nullptr) {
 			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
@@ -797,7 +928,10 @@ namespace bpr::app {
 			// [[BPR-1827]]. Every run the host starts leaves an
 			// `agent.run` started and ended line: enums and counts only.
 			DiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*EntryProcess, DiagnosticLog);
-			AgentHost        = std::make_unique<application::agent_invocation_host>(
+			// [[BPR-2181]]. The profiles this window's agent host offers, for the
+			// session runtime it seeds.
+			ComposedAgentProfiles = agentProfiles;
+			AgentHost             = std::make_unique<application::agent_invocation_host>(
 				agentProfiles,
 				agentPolicies,
 				AgentWorkspaceNeighbourhood,
@@ -813,9 +947,32 @@ namespace bpr::app {
 				AgentEffects,
 				DecisionLane,
 				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get(), DiagnosticLog.get());
+			// [[BPR-2007]], RFC-BPR-0104. Scratch folders sit beside the
+			// profile's data. Claude cannot match a rule to a quoted path, so a
+			// root whose path has a space (macOS's "Application Support") moves
+			// to the user's cache folder, one per profile; with neither usable
+			// no folder is granted.
+			{
+				auto leaf = ApplicationDataRoot.filename();
+				leaf += "-agent-scratch-v1";
+				auto root = ApplicationDataRoot.parent_path() / leaf;
+				if (!application::valid_agent_grant_path((root / "x").string())) {
+					auto hash = std::uint64_t{ 14695981039346656037ULL };
+					for (const auto byte : ApplicationDataRoot.generic_string()) {
+						hash = (hash ^ static_cast<unsigned char>(byte)) * 1099511628211ULL;
+					}
+					root = std::filesystem::path{ QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation).toStdString() } / "betterpullreview-agent-scratch-v1"
+						/ QString::number(hash, 16).toStdString();
+				}
+				if (application::valid_agent_grant_path((root / "x").string())) {
+					AgentHost->set_scratch_root(root);
+					AgentScratchRoot = root;
+				}
+			}
 			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
 			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
 			compose_tour_session(agentProfiles, agentPolicies);
+			compose_local_draft_agent(agentProfiles);
 		}
 		PrivateReview->profiles(agentProfiles);
 #else
@@ -965,12 +1122,12 @@ namespace bpr::app {
 			// ledger, off the decision lane; its answer reaches the finding
 			// host only while this window and that ledger remain.
 			FindingHost = std::make_unique<application::agent_finding_host>(
-				[this](const application::local_note_record&                                                               aNote,
-					   std::function<void(std::expected<application::local_note_record, application::local_note_failure>)> aDone) {
+				[this](const application::local_comment_record&                                                                  aNote,
+					   std::function<void(std::expected<application::local_comment_record, application::local_comment_failure>)> aDone) {
 					if (Closing || ReviewLedgerHost == nullptr) {
 						return false;
 					}
-					ReviewLedgerHost->persist(aNote, std::nullopt, ledger_answer([this, done = std::move(aDone)](std::expected<application::local_note_record, application::local_note_failure> aStored) {
+					ReviewLedgerHost->persist(aNote, std::nullopt, ledger_answer([this, done = std::move(aDone)](std::expected<application::local_comment_record, application::local_comment_failure> aStored) {
 												  if (FindingHost != nullptr) {
 													  done(std::move(aStored));
 												  }
@@ -1020,19 +1177,30 @@ namespace bpr::app {
 						// the chat host validated, handed to the same
 						// launch path a start gesture uses. This is the
 						// only call site that passes a message.
-						return dispatch_agent_invocation(
+						// [[BPR-2002]]. A question carries its subject and
+						// the entry point the core decided for it; a turn
+						// without one asks about the selection, as before.
+						ChatQuestion    = aTurn.Question;
+						ChatSkillText   = aTurn.SkillText;
+						const auto sent = dispatch_agent_invocation(
 							aTurn.Session.Profile,
 							aTurn.IncludeNotes
 								? all_private_note_ids()
-								: std::vector<application::local_note_id>{ },
+								: std::vector<application::local_comment_id>{ },
 							aTurn.IncludeDraft ? current_agent_draft_choice()
 											   : std::nullopt,
 							false,
 							aTurn.Message,
 							aTurn.Session,
-							aTurn.EntryPoint == core::agent_entry_point::ask_about_conversation ? core::agent_entry_point::ask_about_conversation
-																								: core::agent_entry_point::ask_about_selection,
-							std::nullopt);
+							aTurn.Question                                                            ? aTurn.Question->EntryPoint
+								: aTurn.EntryPoint == core::agent_entry_point::ask_about_conversation ? core::agent_entry_point::ask_about_conversation
+																									  : core::agent_entry_point::ask_about_selection,
+							// RFC-BPR-0118. Suggest the change is the
+							// workshop's seventh operation.
+							aTurn.Question ? aTurn.Question->Operation : std::nullopt);
+						ChatQuestion.reset();
+						ChatSkillText.reset();
+						return sent;
 					},
 					[this]() -> application::agent_chat_private_prose {
 						return current_chat_private_prose();
@@ -1046,6 +1214,7 @@ namespace bpr::app {
 			*Window->comparison_surface(),
 			[this](const application::diff_publication& aPublication) {
 				ReviewSourceMaterial.reset();
+				AcceptedDiff = aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key ? aPublication.Result : nullptr;
 				if (aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key) {
 					ReviewSourceMaterial = application::review_mutation_source_material{
 						.Key        = aPublication.Context.Key,
@@ -1072,6 +1241,9 @@ namespace bpr::app {
 				observe_selected_material(aPublication);
 				finish_tour_navigation();
 				observe_tour_comparison();
+				// [[BPR-2014]]. A comparison on screen is the epoch context the
+				// accepted code's comparisons with a new head need.
+				check_tour_material();
 				correlate_defects();
 				retain_reading_position();
 				schedule_reading_restoration();
@@ -1199,7 +1371,9 @@ namespace bpr::app {
 		}
 		WritingHookSubscription = Profile->WorkbenchPreferences->subscribe(DraftWindow.Profile, [this](const auto& aPreferences) {
 			if (!Closing) {
-				if (PendingWriting && PendingWriting->Request.Target.HookRevision != aPreferences.WritingHooks.Revision) {
+				// [[BPR-2051]]. An Enhance run keeps the prompt saved when it
+				// was pressed; a later save does not stop it.
+				if (PendingWriting && !PendingWriting->Enhance && PendingWriting->Request.Target.HookRevision != aPreferences.WritingHooks.Revision) {
 					cancel_writing();
 				}
 				Window->writing_hooks()->present(aPreferences.WritingHooks);
@@ -1267,7 +1441,14 @@ namespace bpr::app {
 			dependencies.Decision = &DecisionLane;
 			dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
 			dependencies.Log      = DiagnosticLog; // [[BPR-1828]]
-			AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
+	#if defined(BPR_BUILD_TESTING)
+			// [[BPR-2177]], look ask-v003 (owner, 2026-11-14: "The footer does
+			// not say fixture agent"): the setup, Check and Settings name it.
+			if (FixtureAgentSession) {
+				dependencies.Names = { { core::setup_agent::claude_code, "Fixture agent" }, { core::setup_agent::codex, "Fixture agent (Codex)" } };
+			}
+	#endif
+			AgentSetup = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 		}
 		AgentSetup->load();
 		// [[BPR-1750]], RFC-BPR-0092 D2. The profile's clone folders
@@ -1323,6 +1504,37 @@ namespace bpr::app {
 			ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));
 		}
 		ReviewSkill->load();
+		// [[BPR-2016]], RFC-BPR-0107. Import and export of agents and
+		// prompts: the file and the stores on the effect lane, no process.
+		AgentConfigurationStore = adapters::sqlite::make_agent_configuration_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::agent_configuration_dependencies{ };
+			dependencies.Store    = AgentConfigurationStore.get();
+			dependencies.ReadFile = [](const std::string& aPath, const std::size_t aLimit) -> std::optional<std::string> {
+				auto file = QFile{ QString::fromStdString(aPath) };
+				if (!file.open(QIODevice::ReadOnly)) {
+					return std::nullopt;
+				}
+				const auto bytes = file.read(static_cast<qint64>(aLimit) + 1);
+				return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
+			};
+			dependencies.WriteFile = [](const std::string& aPath, const std::string& aBytes) {
+				auto file = QSaveFile{ QString::fromStdString(aPath) };
+				return file.open(QIODevice::WriteOnly) && file.write(aBytes.data(), static_cast<qint64>(aBytes.size())) == static_cast<qint64>(aBytes.size()) && file.commit();
+			};
+			dependencies.MintIdentity = [] {
+				auto           random   = std::random_device{ };
+				auto           identity = std::string{ };
+				constexpr auto digits   = std::string_view{ "0123456789abcdef" };
+				for (auto index = 0U; index < 32U; ++index) {
+					identity += digits[random() & 15U];
+				}
+				return identity;
+			};
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			AgentConfiguration    = std::make_unique<application::agent_configuration_host>(std::move(dependencies));
+		}
 		// [[BPR-1753]], owner decision (b) 2026-10-23. One
 		// conversation per pull request, kept with the setup.
 		AgentConversationStore = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
@@ -1346,28 +1558,210 @@ namespace bpr::app {
 			AgentFindingCards     = std::make_unique<application::agent_finding_card_host>(std::move(dependencies));
 		}
 		AgentFindingCards->load();
+		// RFC-BPR-0125 (AC07). A suggested prompt's turn keeps its name past
+		// a restart.
+		PromptTurnNameStore = adapters::sqlite::make_prompt_turn_name_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::prompt_turn_name_dependencies{ };
+			dependencies.Store    = PromptTurnNameStore.get();
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			dependencies.Loaded   = [this] { present_remembered_turn_names(); };
+			PromptTurnNames       = std::make_unique<application::prompt_turn_name_host>(std::move(dependencies));
+		}
+		PromptTurnNames->load();
+		// RFC-BPR-0125 milestone 3 ([[BPR-2146]]), RFC-BPR-0128. The
+		// profile's suggested prompts: read at start and whenever the window
+		// comes back to the front, so another window's edit reaches it.
+		PromptMacroStore = adapters::sqlite::make_prompt_macro_store(ApplicationDataRoot);
+		{
+			auto dependencies     = application::prompt_macro_dependencies{ };
+			dependencies.Store    = PromptMacroStore.get();
+			dependencies.Effects  = &WorkbenchEffects;
+			dependencies.Decision = &DecisionLane;
+			dependencies.Changed  = [this](const application::prompt_macro_projection& aProjection) {
+				if (!Closing) {
+					present_prompt_macros(aProjection);
+				}
+	#if defined(BPR_BUILD_TESTING)
+				// [[BPR-2179]] look prompts-v002: a fresh profile starts with
+				// two prompts of the reviewer's own whose conditions nest.
+				if (!Closing && PromptExamplesLook && !PromptExamplesSeeded && aProjection.Loaded && aProjection.Readable && aProjection.Revision == 0U) {
+					PromptExamplesSeeded = true;
+					using core::prompt_fact;
+					using core::prompt_match;
+					auto again            = core::prompt_macro{ .Id = "own.example-look-again", .Place = core::prompt_place::agent_tab };
+					again.Body.Name       = "Ready to look again?";
+					again.Body.Template   = "Has {pr.title} changed enough since my review that I should look again?";
+					again.Body.Conditions = { { .Fact = prompt_fact::pushes_since_review } };
+					again.Body.Groups     = { { .Match = prompt_match::none, .Conditions = { { .Fact = prompt_fact::draft } } },
+											  { .Match = prompt_match::any, .Conditions = { { .Fact = prompt_fact::checks_failing }, { .Fact = prompt_fact::author_is_me, .Negated = true } } } };
+					auto open             = core::prompt_macro{ .Id = "own.example-still-open", .Place = core::prompt_place::conversation };
+					open.Body.Name        = "Still open after the push?";
+					open.Body.Template    = "Is the concern in this thread still open after the latest push?";
+					open.Body.Subject     = core::prompt_subject::conversation;
+					open.Body.Conditions  = { { .Fact = prompt_fact::thread_unresolved } };
+					open.Body.Groups      = { { .Match = prompt_match::any, .Conditions = { { .Fact = prompt_fact::replies_since_mine }, { .Fact = prompt_fact::thread_activity, .Activity = core::prompt_activity_value::pushes } } } };
+					auto macros           = aProjection.Set.macros();
+					auto surfaces         = aProjection.Set.Surfaces;
+					macros.push_back(again);
+					macros.push_back(open);
+					for (const auto& [id, surface] : { std::pair{ again.Id, core::prompt_surface::pull_request_menu }, std::pair{ again.Id, core::prompt_surface::pull_request_chips },
+													   std::pair{ open.Id, core::prompt_surface::thread_menu }, std::pair{ open.Id, core::prompt_surface::thread_chips } }) {
+						static_cast<void>(core::place(surfaces, macros, id, surface));
+					}
+					auto document     = core::prompt_edit_document_of(aProjection.Set);
+					document.Library  = std::move(macros);
+					document.Surfaces = std::move(surfaces);
+					PromptMacros->save(core::prompt_macro_differences_of(core::shipped_prompt_macros(), document), aProjection.Revision);
+				}
+	#endif
+			};
+			PromptMacros = std::make_unique<application::prompt_macro_host>(std::move(dependencies));
+		}
+		PromptMacros->load();
+		// [[BPR-2179]], [[BPR-2185]]. Settings › Prompts sends the save its
+		// core editor made: the differences and the revision they came from.
+		// The host writes them if the store is still there and says how it
+		// ended before it reads the store back; the host mints identities.
+		Window->prompts()->set_save_dispatch([this](core::prompt_save_request aRequest) {
+			if (!Closing && PromptMacros) {
+				PromptMacros->save(std::move(aRequest.Differences), aRequest.From, [this](const application::prompt_macro_write aWrite) {
+					if (!Closing && Window != nullptr) {
+						Window->prompts()->settle_save(aWrite);
+					}
+				});
+			}
+		});
+		Window->prompts()->set_identity_source([this] { return PromptMacros ? PromptMacros->mint_identity() : std::string{ }; });
+		QObject::connect(qGuiApp, &QGuiApplication::focusWindowChanged, Window.get(), [this](QWindow* const aFocus) {
+			if (!Closing && PromptMacros && Window && aFocus != nullptr && aFocus == Window->windowHandle()) {
+				PromptMacros->load();
+			}
+		});
 		compose_agent_setup_view();
 		observe_conversation();
 #endif
-		Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
+		Window->writing_hooks()->set_dispatch(
+			[this](core::writing_hook aHook, std::string aText) {
+				if (Closing || !Profile->WorkbenchPreferences->apply_writing_hook(aHook, aText)) {
+					return false;
+				}
+#if defined(BPR_AGENT_INTEGRATIONS)
+				// [[BPR-2016]]. A saved override was written against today's built-in.
+				if (AgentConfiguration) {
+					AgentConfiguration->record_written_against(aHook, std::move(aText));
+				}
+#endif
+				return true;
+			},
+			[this](core::writing_hook aHook) { test_writing_hook(aHook); });
 		compose_skill_catalog();
-		Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
+		Window->tour_editor()->set_writing_dispatch(
+			[this](core::writing_hook aHook, qt::prose_capture aCaptured) {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_writing(aHook);
+					return;
+				}
+				request_writing(aHook, std::move(aCaptured));
+			},
+			[this] {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_stop();
+					return;
+				}
+				cancel_writing();
+			});
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
 		// and each proposed field's or stop's Accept and Discard.
-		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) { choose_tour_continuation(aThread); });
-		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) { observe_tour_native_history(aThread, std::move(aChoice)); });
-		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) { request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update); });
+		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) {
+			if (!local_tour_shown()) {
+				choose_tour_continuation(aThread);
+			}
+		});
+		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) {
+			if (!local_tour_shown()) {
+				observe_tour_native_history(aThread, std::move(aChoice));
+			}
+		});
+		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) {
+			if (local_tour_shown()) {
+				DraftDesktop->tour_ask(aAsk);
+				return;
+			}
+			TourAskFresh     = aAsk.Fresh;
+			TourAskSkillText = aAsk.SkillText;
+			request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update);
+			TourAskFresh = false;
+			TourAskSkillText.reset();
+		});
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.
-		Window->tour_editor()->set_tour_shape_dispatch([this] { clear_tour_focus(); }, [this] { reset_tour(); }, [this] { undo_tour_reset(); });
-		Window->tour_editor()->side_chat()->set_focus_undo_dispatch([this](const core::tour_agent_run_id aRun) { undo_tour_focus(aRun); });
+		Window->tour_editor()->set_tour_shape_dispatch(
+			[this] {
+				if (!local_tour_shown()) {
+					clear_tour_focus();
+				}
+			},
+			[this] {
+				if (!local_tour_shown()) {
+					reset_tour();
+				}
+			},
+			[this] {
+				if (!local_tour_shown()) {
+					undo_tour_reset();
+				}
+			});
+		Window->tour_editor()->side_chat()->set_focus_undo_dispatch([this](const core::tour_agent_run_id aRun) {
+			if (!local_tour_shown()) {
+				undo_tour_focus(aRun);
+			}
+		});
 		// [[BPR-1941]]. Delete on a chat turn that ended without an answer.
 		Window->tour_editor()->side_chat()->set_delete_dispatch([this](const core::tour_agent_run_id aRun) {
+			if (local_tour_shown()) {
+				return;
+			}
 			if (core::remove_tour_run(TourAgent, aRun)) {
 				present_tour_session();
 			}
 		});
-		Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
+		Window->tour_editor()->set_tour_session_dispatch(
+			[this] {
+				if (local_tour_shown()) {
+					// Draft the tour, for a local draft: a whole-change question
+					// whose proposals wait in the tour.
+					DraftDesktop->tour_ask({ .Question = QStringLiteral("Draft the tour: propose a Problem, a Solution and stops on this candidate's lines.") });
+					return;
+				}
+				request_tour_draft();
+			},
+			[this] {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_stop();
+					return;
+				}
+				cancel_tour_run();
+			},
+			[this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) {
+				if (local_tour_shown()) {
+					DraftDesktop->tour_decide(aIndex, aDecision, aText);
+					return;
+				}
+				decide_tour_proposal(aIndex, aDecision, aText);
+			},
+			[this](const std::size_t aIndex) {
+				if (!local_tour_shown()) {
+					relocate_tour_proposal(aIndex);
+				}
+			});
+		Window->tour_editor()->set_tour_ask_more_dispatch([this](const core::tour_agent_run_id aRun) {
+			// A local draft's turns replay or resume their conversation; none is fresh.
+			if (!local_tour_shown()) {
+				ask_more_from(aRun);
+			}
+		});
 #endif
 		WorkbenchHost = std::make_unique<
 			application::workbench_application_host>(
@@ -1405,6 +1799,11 @@ namespace bpr::app {
                 if(!endpoint || endpoint->blob()!=aLocation.Blob || endpoint->side()!=aLocation.Side){return false;}
                 const auto path=endpoint->path().generic_u8string();return std::string_view{reinterpret_cast<const char*>(path.data()),path.size()}==aPath; }, [this] { return TabHost ? TabHost->state().Active : std::nullopt; });
 		Window->set_pr_search_dispatch([this](auto aGesture) {
+			// A local draft searches its own candidate through the same panel.
+			if (DraftDesktop && Window->showing_local_draft() && !Closing) {
+				DraftDesktop->search(static_cast<int>(aGesture));
+				return;
+			}
 			if (!PrFind || Closing) {
 				return;
 			}
@@ -1414,6 +1813,21 @@ namespace bpr::app {
 				PrFind->navigate(aGesture == qt::source_find_gesture::next ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
 			} else {
 				PrFind->dispatch(aGesture);
+			}
+		});
+		Window->set_local_draft_observer([this](const bool aShown) {
+			if (Closing) {
+				return;
+			}
+			if (aShown && DraftDesktop) {
+				DraftDesktop->attach_search();
+				DraftDesktop->present_tour();
+			} else if (!aShown) {
+				if (PrFind) {
+					PrFind->attach();
+					PrFind->observe_scope();
+				}
+				restore_tour_panel();
 			}
 		});
 		Window->set_document_tab_dispatch([this](const core::document_tab_intent& aIntent) {
@@ -1536,6 +1950,7 @@ namespace bpr::app {
 				MarkdownSnippets->request(aRequests);
 			}
 		});
+		Window->set_tour_permalink_source([this](const std::string& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { return Closing ? std::nullopt : tour_permalink(aPath, aFirst, aLast, aBefore); });
 
 		AppearanceProjections.set_span_sink(
 			[this](const application::token_span_publication& aSpans) {

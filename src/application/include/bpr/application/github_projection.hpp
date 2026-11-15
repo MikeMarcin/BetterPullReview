@@ -9,6 +9,7 @@
 #include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/github_model.hpp"
+#include "bpr/core/github_window_read.hpp"
 #include "bpr/core/home_open.hpp"
 #include "bpr/core/markdown_image.hpp"
 #include "bpr/core/markdown_navigation.hpp"
@@ -427,6 +428,16 @@ namespace bpr::application {
 		auto operator<=>(const github_host_diagnostic_projection&) const = default;
 	};
 
+	/// \brief [[BPR-2180]]. A file a first read reported before the review is
+	/// accepted, under the identity the host minted for its path.
+	struct github_provisional_file
+	{
+		core::file_identity File;
+		std::string         Path;
+
+		auto operator<=>(const github_provisional_file&) const = default;
+	};
+
 	/// \brief Describes the github presentation update record.
 	struct github_presentation_update
 	{
@@ -450,6 +461,14 @@ namespace bpr::application {
 		std::vector<markdown_image_projection> Images{ };
 		/// [[BPR-1807]]. People's pictures this window asked for that changed state.
 		std::vector<identity_avatar_projection> Avatars{ };
+		/// [[BPR-2180]]. What a first read has shown so far, part by part, as
+		/// the lane decided: published with every transition and every
+		/// admitted observation. Presentation maps each part to its wait.
+		std::optional<core::github_loading_readiness> Loading = std::nullopt;
+		/// [[BPR-2180]]. The files a first read reported, for the window's file
+		/// rows until the accepted review's replace them; engaged and empty
+		/// when they are withdrawn because the read ended without a review.
+		std::optional<std::vector<github_provisional_file>> ProvisionalFiles = std::nullopt;
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};

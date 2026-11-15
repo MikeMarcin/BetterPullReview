@@ -136,6 +136,39 @@ The **Review feedback** hook explains comment-label conventions. It is sent
 with comment workshop requests only while **Comments > Feedback guidance** is
 on. You can also edit it with `bpr tour hooks show|edit|reset feedback`.
 
+#### Enhance prompts
+
+Each place that offers **Enhance** has its own prompt under
+**Agents & context > Built-in prompts**: **Enhance a stop** (a tour stop with
+text), **Enhance a comment** (a draft comment or reply) and **Enhance a note**
+(a private note). Each has a built-in default and **Reset to built-in**. A
+press uses the prompt saved at that moment. On a comment or a note the result
+is a suggestion under the field, used only with **Use suggestion**; Enhance
+writes nothing to GitHub. `bpr tour hooks show|edit|reset` takes
+`enhance-stop`, `enhance-comment` and `enhance-note`.
+
+#### Suggested comments
+
+**Agents & context > Built-in prompts > Agent tab > Suggested comments** says
+how the agent writes the comments it suggests for you to post (a finding's
+suggested comment, or a reply written to be posted). Its built-in default asks
+for a short comment you could post as it stands: the problem in one sentence,
+then the fix, code in code spans, no severity or label prefix, and no
+restating of the finding. Every Agent tab question carries it, and the review
+skill follows it; **Reset to built-in** restores the default. Add as draft
+comment and **Draft all** on a reply start from what it writes. `bpr tour
+hooks show|edit|reset suggested-comment` edits it too.
+
+#### Local drafts
+
+**Agents & context > Built-in prompts > Local drafts** holds the two prompts a
+local PR draft's agent questions carry (RFC-BPR-0110): **Description writing**,
+sent when you ask about the draft's title or description, and **Change
+discussion**, sent with every other question in its Tour and Description
+areas. Both cite code as `path:first-last` in the candidate and keep moved
+behaviour described as kept. Each has **Reset to built-in**, and both are
+in Export configuration… and Import configuration….
+
 See the [AI agent boundary](../architecture/ai-agent-boundary.md) for exactly
 what an agent receives and may do.
 

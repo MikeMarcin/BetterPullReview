@@ -173,6 +173,104 @@ namespace bpr::app {
 			: std::nullopt;
 	}
 #if defined(BPR_BUILD_TESTING)
+	auto designated_live_publication_target(
+		const application::review_mutation_target_binding& aTarget) -> bool
+	{
+		return aTarget.Hostname.value() == designated_review_hostname
+			&& aTarget.Repository.Owner == designated_review_owner
+			&& aTarget.Repository.Name == designated_review_name
+			&& aTarget.RepositoryDatabaseId == designated_review_repository_id
+			&& aTarget.Semantic.Repository.value() == designated_review_repository_id;
+	}
+
+	namespace {
+		class designated_pull_request_port final : public application::github_publication_port
+		{
+		public:
+			explicit designated_pull_request_port(std::shared_ptr<application::github_publication_port> aInner)
+				: Inner{ std::move(aInner) }
+			{
+			}
+
+			auto observe_repository(const application::github_publication_target& aTarget, std::stop_token aStop)
+				-> application::github_publication_result<application::github_publication_capability> override
+			{
+				return admitted(aTarget) ? Inner->observe_repository(aTarget, aStop) : refused<application::github_publication_capability>();
+			}
+			auto observe_branch(const application::github_publication_target& aTarget, const std::string& aBranch, std::stop_token aStop)
+				-> application::github_publication_result<std::optional<core::git_commit_oid>> override
+			{
+				return admitted(aTarget) ? Inner->observe_branch(aTarget, aBranch, aStop) : refused<std::optional<core::git_commit_oid>>();
+			}
+			auto observe_commit(const application::github_publication_target&, const core::git_commit_oid&, std::stop_token)
+				-> application::github_publication_result<std::optional<application::github_publication_commit>> override
+			{
+				return refused<std::optional<application::github_publication_commit>>();
+			}
+			auto observe_tree(const application::github_publication_target&, const core::git_tree_oid&, std::stop_token) -> application::github_publication_result<bool> override
+			{
+				return refused<bool>();
+			}
+			auto observe_blob(const application::github_publication_target&, const core::git_entry_oid&, std::stop_token) -> application::github_publication_result<bool> override
+			{
+				return refused<bool>();
+			}
+			auto create_blob(const application::github_publication_target&, std::span<const std::uint8_t>, const core::git_entry_oid&, std::stop_token)
+				-> application::github_publication_result<void> override
+			{
+				return refused<void>();
+			}
+			auto create_tree(const application::github_publication_target&, const core::git_tree_oid&, const std::vector<core::git_tree_entry>&, const std::vector<std::string>&,
+							 const core::git_tree_oid&, std::stop_token) -> application::github_publication_result<void> override
+			{
+				return refused<void>();
+			}
+			auto create_commit(const application::github_publication_target&, const core::git_commit_content&, const core::git_commit_oid&, std::stop_token)
+				-> application::github_publication_result<void> override
+			{
+				return refused<void>();
+			}
+			auto create_branch(const application::github_publication_target&, const std::string&, const core::git_commit_oid&, std::stop_token)
+				-> application::github_publication_result<application::github_branch_creation> override
+			{
+				return refused<application::github_branch_creation>();
+			}
+			auto create_pull_request(const application::github_publication_target& aTarget, const application::github_pull_request_draft& aDraft, std::stop_token aStop)
+				-> application::github_publication_result<application::github_pull_request_observation> override
+			{
+				return admitted(aTarget) ? Inner->create_pull_request(aTarget, aDraft, aStop) : refused<application::github_pull_request_observation>();
+			}
+			auto find_pull_requests(const application::github_publication_target& aTarget, const std::string& aHead, const std::string& aBase, std::stop_token aStop)
+				-> application::github_publication_result<std::vector<application::github_pull_request_observation>> override
+			{
+				return admitted(aTarget) ? Inner->find_pull_requests(aTarget, aHead, aBase, aStop) : refused<std::vector<application::github_pull_request_observation>>();
+			}
+			auto observe_pull_request(const application::github_publication_target& aTarget, const std::uint64_t aNumber, std::stop_token aStop)
+				-> application::github_publication_result<std::optional<application::github_pull_request_observation>> override
+			{
+				return admitted(aTarget) ? Inner->observe_pull_request(aTarget, aNumber, aStop) : refused<std::optional<application::github_pull_request_observation>>();
+			}
+
+		private:
+			[[nodiscard]] static auto admitted(const application::github_publication_target& aTarget) -> bool
+			{
+				return aTarget.Host == designated_review_hostname && aTarget.Owner == designated_review_owner && aTarget.Repository == designated_review_name;
+			}
+			template <typename T>
+			[[nodiscard]] static auto refused() -> application::github_publication_result<T>
+			{
+				return std::unexpected{ application::github_publication_error{ .Failure = application::github_publication_failure::unsupported_host } };
+			}
+			std::shared_ptr<application::github_publication_port> Inner;
+		};
+	}
+
+	auto designated_pull_request_account(application::github_publication_account aAccount) -> application::github_publication_account
+	{
+		aAccount.Provider = std::make_shared<designated_pull_request_port>(std::move(aAccount.Provider));
+		return aAccount;
+	}
+
 	gated_review_mutation_decision_executor::gated_review_mutation_decision_executor(
 		application::decision_executor& aTarget)
 		: Target{ aTarget }

@@ -36,6 +36,9 @@ namespace bpr::qt {
 			return { group::surfaces_and_text, "Find match background" };
 		case role::find_current_match_background:
 			return { group::surfaces_and_text, "Find current match background" };
+		// [[BPR-2000]]. Controls that start an agent run, and agent marks.
+		case role::agent_accent:
+			return { group::surfaces_and_text, "Agent accent" };
 
 		case role::diff_added_background:
 			return { group::diff, "Diff added background" };
@@ -160,6 +163,20 @@ namespace bpr::qt {
 		// review states it sits beside.
 		case role::state_attention:
 			return { group::review_states, "State attention" };
+
+		// RFC-BPR-0128. A report's page.
+		case role::report_paper:
+			return { group::reports, "Report paper" };
+		case role::report_ink:
+			return { group::reports, "Report ink" };
+		case role::report_verdict_open:
+			return { group::reports, "Report needs work" };
+		case role::report_verdict_partial:
+			return { group::reports, "Report half done or asked" };
+		case role::report_verdict_done:
+			return { group::reports, "Report done" };
+		case role::report_code_wash:
+			return { group::reports, "Report code wash" };
 		}
 
 		return { };
@@ -196,6 +213,8 @@ namespace bpr::qt {
 			return QStringLiteral("Syntax");
 		case appearance_role_group::comment_labels:
 			return QStringLiteral("Comment labels");
+		case appearance_role_group::reports:
+			return QStringLiteral("Reports");
 		}
 
 		return { };

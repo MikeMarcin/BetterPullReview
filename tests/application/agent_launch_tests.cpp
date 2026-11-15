@@ -117,18 +117,18 @@ namespace {
 				},
 			},
 			.Private = {
-				.Notes = {
+				.LocalComments = {
 					{
-						.Id   = application::local_note_id{ 1U },
-						.Note = { .Text = "not selected" },
+						.Id   = application::local_comment_id{ 1U },
+						.Body = "not selected",
 					},
 					{
-						.Id         = application::local_note_id{ 2U },
-						.Attachment = application::local_note_attachment{
+						.Id         = application::local_comment_id{ 2U },
+						.Attachment = application::local_comment_attachment{
 							.File       = identity<core::file_identity>(3U),
 							.Comparison = comparison,
 						},
-						.Note = { .Text = "check retry exhaustion" },
+						.Body = "check retry exhaustion",
 					},
 				},
 				.LastReviewedHead = commit(4U),
@@ -166,7 +166,7 @@ namespace {
 					.Body   = "Would a bounded retry be safer?",
 				},
 			},
-			.IncludedNotes = { application::local_note_id{ 2U } },
+			.IncludedNotes = { application::local_comment_id{ 2U } },
 			.IncludedDraft = application::agent_draft_choice{ .Id = core::review_draft_id{ 3U }, .Revision = 7U },
 		};
 	}
@@ -216,7 +216,7 @@ namespace {
 			"only the explicitly named private note crosses");
 
 		auto missing          = observation();
-		missing.IncludedNotes = { application::local_note_id{ 99U } };
+		missing.IncludedNotes = { application::local_comment_id{ 99U } };
 		const auto missingResult
 			= application::build_agent_context_supplement(missing, session());
 		expect(
@@ -236,8 +236,8 @@ namespace {
 			"a duplicated selection is refused rather than duplicated on the wire");
 
 		auto duplicateSource = observation();
-		duplicateSource.Private.Notes.push_back(
-			duplicateSource.Private.Notes.back());
+		duplicateSource.Private.LocalComments.push_back(
+			duplicateSource.Private.LocalComments.back());
 		const auto duplicateSourceResult
 			= application::build_agent_context_supplement(duplicateSource, session());
 		expect(
@@ -440,6 +440,8 @@ namespace {
 			.Threads     = { { .Path = "src/retry.cpp", .Line = 12U, .Comments = { { .Author = "octo", .Body = "Is this bounded?" } } } },
 			.Workspace   = core::brief_workspace::linked_clone_history,
 			.Skill       = core::brief_review_skill{ .Source = core::review_skill_source::built_in, .Version = 1U, .Text = std::string{ application::built_in_review_skill() } },
+			// [[BPR-2059]]. The suggested-comment format, as a profile override.
+			.CommentFormat = core::supplement_feedback_guidance{ .Source = core::feedback_guidance_source::profile_override, .Version = "suggested-comment-v1", .Text = "One sentence.\nThen the fix." },
 			// [[BPR-1753]], owner decision (b): the conversation so far.
 			.Conversation = { { .Asked = "Does this work?", .Answered = "Yes.\nThe loop ends." } },
 		});
@@ -470,6 +472,9 @@ namespace {
 				 "brief.skill.present\t1\n",
 				 "brief.skill.source\tbuilt_in\n",
 				 "brief.skill.version\t1\n",
+				 "brief.comment_format.source\tprofile_override\n",
+				 "brief.comment_format.version\tsuggested-comment-v1\n",
+				 "brief.comment_format.text\tOne sentence.\\nThen the fix.\n",
 			 }) {
 			expect(encoded.find(required) != std::string::npos, "the exact brief field is encoded");
 		}
@@ -673,10 +678,14 @@ namespace {
 			core::agent_protocol::claude_stream_json,
 			core::agent_protocol::external_terminal,
 		};
+		// [[BPR-2139]]. MCP servers are off unless the agent says otherwise.
 		const auto expectedArguments = std::array{
-			std::vector<std::string>{ "app-server" },
-			std::vector<std::string>{ "exec", "--json", "-" },
+			std::vector<std::string>{ "app-server", "-c", "mcp_servers={}" },
+			std::vector<std::string>{ "exec", "--json", "-c", "mcp_servers={}", "-" },
 			std::vector<std::string>{
+				"--strict-mcp-config",
+				"--mcp-config",
+				R"({"mcpServers":{}})",
 				"-p",
 				"--input-format",
 				"stream-json",
@@ -1233,7 +1242,7 @@ namespace {
 			gated.has_value() && gated->Notes.empty() && gated->Drafts.empty(),
 			"a session that opted into nothing carries no note and no draft");
 		expect(
-			!unselected.Private.Notes.empty()
+			!unselected.Private.LocalComments.empty()
 				&& unselected.CurrentDraft.has_value(),
 			"and the review still held both, so the gate is what emptied them");
 		expect(
@@ -1419,12 +1428,12 @@ namespace {
 		// a level outside the agent's own vocabulary refuses.
 		{
 			const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { "gpt-5", "high" } });
-			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-" }, "Codex exec runs the chosen model at the chosen effort");
+			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-c", "mcp_servers={}", "-" }, "Codex exec runs the chosen model at the chosen effort");
 			// Owner look v006: the harness says its levels, so max and ultra
 			// are Codex's to take; only a word that could read as more than
 			// one argument refuses.
 			const auto maxExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max" } });
-			expect(maxExec && maxExec->Arguments[maxExec->Arguments.size() - 2U] == "model_reasoning_effort=\"max\"", "Codex takes max as its catalog lists it");
+			expect(maxExec && std::ranges::find(maxExec->Arguments, "model_reasoning_effort=\"max\"") != maxExec->Arguments.end(), "Codex takes max as its catalog lists it");
 			const auto badExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max\" -c x=\"1" } });
 			expect(!badExec && badExec.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that is not one word refuses");
 			const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "opus", "xhigh" } });
@@ -1444,7 +1453,7 @@ namespace {
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
 		const auto launched = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } } });
-		expect(launched && launched->Arguments == std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
+		expect(launched && launched->Arguments == std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
 				   && launched->Metadata.Requested.Model == "claude-sonnet-5-5",
 			   "a requested Claude model is one argument after --model and is recorded as requested");
 		auto configured                  = claude;
@@ -1471,11 +1480,13 @@ namespace {
 	/// sign-in: the exact restriction set, no `--bare`, in that order.
 	void test_claude_writing_argv_reads_the_account_sign_in()
 	{
-		const auto writing  = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true });
-		const auto expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5",
-														"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "",
+		const auto writing = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true, .Path = core::agent_run_path::enhance_writing });
+		// [[BPR-2142]]. The restrictions, whose options take several values,
+		// come before `-p`.
+		const auto expected = std::vector<std::string>{ "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "",
 														"--disable-slash-commands", "--no-session-persistence", "--settings",
-														R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})" };
+														R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})",
+														"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" };
 		expect(writing && writing->WritingOnly && writing->Arguments == expected, "writing argv is the exact restricted print-mode set");
 		expect(writing && std::ranges::find(writing->Arguments, "--bare") == writing->Arguments.end(), "writing never passes --bare, which would ignore the account sign-in");
 		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
@@ -1544,8 +1555,9 @@ namespace {
 		// No run gets the Skill tool: a read-only run is exactly BPR-1900's,
 		// whatever its prompt names, and Codex gets the skills inline too.
 		const auto readOnly = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .ReadOnlyTools = true });
-		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
-		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		// [[BPR-2142]]. The restrictions come before `-p`.
+		auto expected = std::vector<std::string>{ application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end() };
+		expected.insert(expected.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 		expect(readOnly && readOnly->Arguments == expected && std::string{ readOnly->Input.begin(), readOnly->Input.end() }.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos,
 			   "a read-only run keeps its exact allowlist and receives the skill inline");
 		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), supplement, reader(), { .ReadOnlyTools = true });
@@ -1677,9 +1689,10 @@ namespace {
 
 	void test_read_only_tour_drafting()
 	{
-		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
-		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
-		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
+		// [[BPR-2142]]. The restrictions come before `-p`.
+		auto expected = std::vector<std::string>{ application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end() };
+		expected.insert(expected.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 		expect(claude && claude->ReadOnlyTools && !claude->WritingOnly && claude->Arguments == expected, "a read-only run is print mode with the read-only allowlist");
 		expect(claude && std::ranges::find(claude->Arguments, "Read,Grep,Glob,Bash") != claude->Arguments.end() && std::ranges::find(claude->Arguments, "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task") != claude->Arguments.end(),
 			   "it loads only read, search and shell, and denies edits, writes, the network and subagents");
@@ -2310,6 +2323,120 @@ namespace {
 		expect(!application::build_agent_protocol_followup(app, { .Kind = application::agent_protocol_event_kind::context_channel_ready, .Text = std::string(1025, 't') }), "oversized late thread identity refuses before context write");
 	}
 
+	/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC01, AC04, AC06. A granted
+	/// Agent tab turn carries exactly the narrow allowance; with none it
+	/// launches as before; tour and writing runs never take one.
+	void test_the_grant_crosses_exactly()
+	{
+		const auto folder  = std::string{ "/data/bpr-agent-scratch-v1/0123abcd" };
+		const auto ws      = std::string{ "/data/agent workspaces/w1" };
+		auto       scratch = application::agent_launch_grant{ .ScratchFolder = folder };
+		const auto none    = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { });
+		const auto claude  = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
+		expect(none && claude, "both launch");
+		const auto has = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
+		expect(!has(none, "--add-dir") && !has(none, "--allowedTools") && none->Arguments.size() + 0U < claude->Arguments.size(), "off: no allowance at all");
+		// [[BPR-2142]]. The grant's options, which take several values, come first.
+		auto expected = std::vector<std::string>{ "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)" };
+		for (const auto runner : application::claude_scratch_runners) {
+			expected.push_back("Bash(" + std::string{ runner } + " " + folder + "/*)");
+		}
+		// Re-review N5: the parent-step denial names the runners only, so it
+		// rides the scratch grant and never a build program's arguments.
+		expected.emplace_back("--disallowedTools");
+		for (const auto runner : application::claude_scratch_runners) {
+			expected.push_back("Bash(" + std::string{ runner } + " */..*)");
+		}
+		expected.insert(expected.end(), none->Arguments.begin(), none->Arguments.end());
+		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, running files in it with an interpreter, and no parent step; nothing else");
+		// Review finding 2 (2026-11-11): no rule runs a file directly or
+		// changes a mode; both matched commands that wrote the workspace.
+		expect(!has(claude, "Bash(" + folder + "/*)") && !has(claude, "Bash(chmod +x " + folder + "/*)"), "no direct run and no chmod rule");
+		const auto told = std::string{ claude->Input.begin(), claude->Input.end() };
+		expect(told.find("scratch_folder") != std::string::npos && told.find(folder) != std::string::npos, "Claude is told its folder");
+		expect(claude->Grant == std::optional{ scratch }, "the launch records its grant");
+
+		scratch.ScratchFull = true;
+		const auto full     = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
+		expect(full && !has(full, "Write(/" + folder + "/**)") && std::string{ full->Input.begin(), full->Input.end() }.find("may not write") != std::string::npos,
+			   "AC03: a full folder gives no write allowance, and the agent is told why");
+		// Re-review N6: a turn starting full is not watched, so Claude (whose
+		// scripts are not confined) gets no run rule there: only reading.
+		expect(has(full, "--add-dir") && !has(full, "Bash(python3 " + folder + "/*)") && !has(full, "--allowedTools") && !has(full, "--disallowedTools"), "full: Claude reads the folder only");
+
+		const auto codexNone = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { });
+		const auto codex     = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder }, .PullRequestCheckout = { ws } });
+		expect(codexNone && codex && codexNone->Arguments == std::vector<std::string>{ "app-server", "-c", "mcp_servers={}" }, "Codex off: as before, MCP off");
+		expect(codex->Arguments
+				   == std::vector<std::string>{ "app-server", "-c", "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}", "-c", "mcp_servers={}", "-c", "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\"}", "-c",
+												"default_permissions=\"betterpullreview_grant\"", "-c", "approval_policy=\"never\"" },
+			   "Codex: a profile that reads everything and writes only the folder, network unset (off)");
+		const auto builds = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });
+		expect(builds && builds->Arguments.back() == "-" && has(builds, "permissions.betterpullreview_grant.filesystem={\":root\"=\"read\",\"" + folder + "\"=\"write\",\"" + ws + "\"=\"write\",\":tmpdir\"=\"write\"}"),
+			   "AC04: builds add the disposable checkout and the temporary folder, before exec's stdin marker");
+		const auto claudeBuilds = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });
+		expect(claudeBuilds && has(claudeBuilds, "Bash(cmake:*)") && has(claudeBuilds, "Bash(ctest:*)") && !has(claudeBuilds, "--add-dir") && !has(claudeBuilds, "--disallowedTools"), "Claude builds: the build programs only, and `cmake ../..` is not denied (re-review N5)");
+		const auto both = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws }, .PullRequestCheckout = { ws } });
+		expect(both && has(both, "Bash(cmake:*)") && has(both, "Bash(python3 */..*)") && !has(both, "Bash(*/..*)"), "both: the denial still names only the runners");
+		scratch.ScratchFull     = false;
+		scratch.ScratchLimitMiB = 64U;
+		const auto limited      = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = scratch });
+		expect(limited && std::string{ limited->Input.begin(), limited->Input.end() }.find("64 MiB") != std::string::npos, "the agent is told the limit as set");
+
+		// AC06: tour and writing runs never take a grant; a plain-text harness neither.
+		const auto grant = application::agent_launch_grant{ .ScratchFolder = folder };
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true, .Grant = grant }), "a read-only tour run refuses a grant");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .WritingOnly = true, .Grant = grant }), "a tool-free run refuses a grant");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::external_terminal), built_supplement(), reader(), { .Grant = grant }), "the plain-text harness refuses a grant");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = "/Library/Application Support/x" } }),
+			   "a folder a rule cannot name is refused");
+		expect(!application::valid_agent_grant_path("relative/x") && application::valid_agent_build_path("/a b/c"), "path rules");
+		// Review finding 8: a glob character would widen the rule it is named in.
+		for (const auto* const path : { "/d/*", "/d/a?", "/d/[a]", "/d/{a,b}", "/d/x]" }) {
+			expect(!application::valid_agent_grant_path(path), "a glob character is refused");
+		}
+	}
+
+	// RFC-BPR-0104, third review round F1 (2026-11-11, Codex 0.167.0 and
+	// Claude Code 2.1.319, live): in a checkout made from the pull request,
+	// Codex wrote `trust_level = "trusted"` for it into the reviewer's
+	// configuration and ran the checkout's `mcp_servers` outside its
+	// sandbox, and Claude ran the checkout's hooks and MCP servers. The
+	// pull request's own agent settings are never loaded there.
+	void test_the_pull_requests_own_settings_never_load()
+	{
+		const auto ws        = std::string{ "/data/agent workspaces/w1" };
+		const auto canonical = std::string{ "/private/data/agent workspaces/w1" };
+		const auto folder    = std::string{ "/data/bpr-agent-scratch-v1/0123abcd" };
+		const auto has       = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
+		const auto untrusted = "projects={\"" + ws + "\"={trust_level=\"untrusted\"},\"" + canonical + "\"={trust_level=\"untrusted\"}}";
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec }) {
+			const auto plain = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .PullRequestCheckout = { ws, canonical } });
+			expect(plain && has(plain, untrusted), "Codex in a pull request's checkout: both paths untrusted, with no grant too");
+			const auto tour = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .ReadOnlyTools = true, .PullRequestCheckout = { ws } });
+			expect(tour && has(tour, "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}"), "and on a read-only tour run");
+			const auto own = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { });
+			expect(own && std::ranges::none_of(own->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("projects="); }), "the reviewer's own checkout keeps their settings");
+			// A Codex grant without the checkout named untrusted never launches.
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } }), "a Codex scratch grant needs it");
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } }), "a Codex build grant needs it");
+			const auto granted = application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws }, .PullRequestCheckout = { ws, canonical } });
+			expect(granted && has(granted, untrusted) && has(granted, "default_permissions=\"betterpullreview_grant\""), "a Codex build grant with it launches, the checkout untrusted");
+		}
+		const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .PullRequestCheckout = { ws } });
+		expect(claude && !std::ranges::search(claude->Arguments, std::vector<std::string>{ "--setting-sources", "user" }).empty(), "Claude in a pull request's checkout reads only the user's settings");
+		const auto claudeOwn = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { });
+		expect(claudeOwn && !has(claudeOwn, "--setting-sources"), "and in the reviewer's own checkout, all of theirs");
+		const auto claudeTour = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true, .PullRequestCheckout = { ws } });
+		expect(claudeTour && has(claudeTour, "--setting-sources"), "a Claude tour run in it too");
+		// A build grant names only that checkout.
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws } }), "a Claude build grant needs it");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .BuildWorkspace = ws }, .PullRequestCheckout = { "/elsewhere" } }), "and builds only in it");
+		expect(application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder } }).has_value(), "a Claude scratch grant in the reviewer's own checkout is unchanged");
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .PullRequestCheckout = { "" } }), "an empty checkout path is refused");
+		// The value is TOML: quotes, backslashes and control characters escaped; one entry per path.
+		expect(application::codex_untrusted_project_argument(std::vector<std::string>{ "/a\"b\\c\nd", "/a\"b\\c\nd" }) == "projects={\"/a\\\"b\\\\c\\u000Ad\"={trust_level=\"untrusted\"}}", "escaped, and a repeated path named once");
+	}
 } // namespace
 
 auto main() -> int
@@ -2348,6 +2475,8 @@ auto main() -> int
 	test_every_protocol_decoder_handles_partial_frames();
 	test_process_and_staleness_outcomes_remain_distinct();
 	test_private_prose_crosses_only_through_the_session_keyed_optin();
+	test_the_grant_crosses_exactly();
+	test_the_pull_requests_own_settings_never_load();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;
 }

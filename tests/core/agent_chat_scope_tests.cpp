@@ -167,7 +167,7 @@ namespace {
 		},
 		entry_point_row{
 			core::agent_entry_point::analyze_current_file,
-			true,
+			false,
 			"analyze_current_file",
 		},
 		entry_point_row{
@@ -177,7 +177,7 @@ namespace {
 		},
 		entry_point_row{
 			core::agent_entry_point::evaluate_proposed_fix,
-			true,
+			false,
 			"evaluate_proposed_fix",
 		},
 		entry_point_row{
@@ -281,10 +281,11 @@ namespace {
 				"is refused exactly as an absent one is");
 		}
 		expect(
-			refused == 3U && permitted == 5U,
-			"three of the eight act on the reviewer's selection; four take "
-			"their subject from the session's binding and one from the "
-			"conversation the reviewer chose");
+			refused == 1U && permitted == 7U,
+			"one of the eight acts on the reviewer's selection; four take "
+			"their subject from the session's binding, two, since "
+			"RFC-BPR-0116, from the conversation the reviewer chose, and "
+			"one, since RFC-BPR-0117, from the file open in Review");
 	}
 
 	/// \brief An entry point nobody declared is refused before anything else.
@@ -889,12 +890,15 @@ namespace {
 				  "phrase_as_a_question",
 				  "make_more_direct",
 				  "check_the_premise",
+				  "suggest_change",
 			  };
 
+		// RFC-BPR-0118 adds the seventh, Suggest the change, which writes
+		// the change on the draft's lines rather than its prose.
 		expect(
-			core::workshop_operation_count == 6U,
-			"docs/ux/ai-experience.md promises six comment-workshop "
-			"operations and the tree declares six");
+			core::workshop_operation_count == 7U && core::prose_workshop_operation_count == 6U,
+			"docs/ux/ai-experience.md promises six prose operations and "
+			"Suggest the change, and the tree declares seven");
 
 		for (auto index = std::size_t{ 0U }; index < expected.size(); ++index) {
 			const auto operation

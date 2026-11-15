@@ -271,12 +271,15 @@ namespace bpr::qt {
 			commits += QStringLiteral(" (%1 returned by GitHub)")
 						   .arg(count_text(aProjection.ReturnedCommitCount));
 		}
-		Summary->setText(QStringLiteral("%1 wants to merge %2 into %3 from %4.%5")
-							 .arg(text(aProjection.AuthorLogin),
-								  commits,
-								  text(aProjection.BaseRef),
-								  text(aProjection.HeadRef),
-								  state));
+		// A local draft has no commit count of GitHub's to state.
+		Summary->setText(aProjection.CommitCount == 0U && aProjection.Number.value() == 0U
+							 ? QStringLiteral("%1 would merge %2 into %3.").arg(text(aProjection.AuthorLogin), text(aProjection.HeadRef), text(aProjection.BaseRef))
+							 : QStringLiteral("%1 wants to merge %2 into %3 from %4.%5")
+								   .arg(text(aProjection.AuthorLogin),
+										commits,
+										text(aProjection.BaseRef),
+										text(aProjection.HeadRef),
+										state));
 		if (updateBody) {
 			Body->present_body(aProjection.Body);
 		}
@@ -668,7 +671,7 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::set_pending_appearance(const bool aFullMotion, const bool aHighContrast, const QColor& aFailureInk)
 	{
-		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side }) {
+		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side, Veils.Merge, Veils.MyReview, Veils.Checks, Veils.People, Veils.Roster }) {
 			if (veil != nullptr) {
 				veil->set_full_motion(aFullMotion);
 				veil->set_high_contrast(aHighContrast);
@@ -694,20 +697,45 @@ namespace bpr::qt {
 		// received yet keeps its own loading presentation.
 		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
 		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
-		if (Loading && has_observed_status()) {
+		// [[BPR-2180]]. The column is never covered whole: each section stands
+		// in its place under its heading and waits over its own body for its
+		// own part of the read, and the column's plate says what is still
+		// coming. A section whose part has arrived shows while others wait.
+		// Each wait is the read lane's: the readiness the host published.
+		const auto reading = Readiness.FirstRead && !Cached;
+		if (reading) {
+			// The words are BPR-1895's; review progress always comes last.
 			auto remaining = QStringList{ };
-			if (!ObservedPeople) {
+			if (!Readiness.People) {
 				remaining.push_back(QStringLiteral("reviewers"));
 			}
-			if (!ObservedChecks) {
+			if (!Readiness.Checks) {
 				remaining.push_back(QStringLiteral("checks"));
 			}
+			// Merge rules finish only with the accepted review.
 			remaining.push_back(QStringLiteral("merge rules"));
 			Veils.Side->present(core::pending_activity::loading, true, true,
 								{ .Waiting = waiting, .Coming = QStringLiteral("Loading %1 and review progress…").arg(remaining.join(QStringLiteral(", "))) });
 		} else {
-			section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
+			Veils.Side->present_ready();
 		}
+		const auto line  = QFontMetrics{ font() }.height();
+		const auto waits = [&](const overview_status_section aSection, pending_veil& aVeil, const bool aPending, const int aHeight, QString aLoading) {
+			auto& parts = Sections[static_cast<std::size_t>(aSection)];
+			if (aPending) {
+				parts.Frame->show();
+			}
+			// The section's body holds a place for its placeholders while it
+			// waits, however little of its own it has yet.
+			parts.Body->setMinimumHeight(aPending ? aHeight : 0);
+			section(aVeil, aPending, std::move(aLoading));
+		};
+		const auto pairs = (pending_veil::inset / 2) + 4;
+		waits(overview_status_section::attention, *Veils.Merge, reading && !Readiness.Merge, pairs + (2 * (line + 6)), QStringLiteral("Loading the merge state…"));
+		waits(overview_status_section::my_review, *Veils.MyReview, reading, pairs + (4 * (line + 6)), QStringLiteral("Loading my review…"));
+		waits(overview_status_section::checks, *Veils.Checks, reading && !Readiness.Checks, pairs + (2 * (((line * 3) / 2) + 4)), QStringLiteral("Loading checks…"));
+		waits(overview_status_section::people, *Veils.People, reading && !Readiness.People, line + 12, QStringLiteral("Loading reviewers…"));
+		section(*Veils.Roster, reading && !Readiness.People, QStringLiteral("Loading participants…"));
 		// As many placeholder rows as GitHub reported files, once it has.
 		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
 		if (Loading && ObservedFiles) {
@@ -822,6 +850,15 @@ namespace bpr::qt {
 	auto pull_request_overview_page::has_observed_status() const noexcept -> bool
 	{
 		return ObservedChecks.has_value() || ObservedPeople.has_value() || ObservedMerge.has_value();
+	}
+
+	void pull_request_overview_page::present_loading_readiness(const core::github_loading_readiness& aReadiness)
+	{
+		if (Readiness == aReadiness) {
+			return;
+		}
+		Readiness = aReadiness;
+		apply_pending();
 	}
 
 	void pull_request_overview_page::present_observed_files(const std::vector<core::cached_review_file>& aFiles)

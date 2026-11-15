@@ -1,4 +1,6 @@
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_comment_range.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -17,7 +19,9 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "github_presentation_text.hpp"
@@ -67,7 +71,6 @@
 #include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
-#include <QTextBrowser>
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
@@ -78,6 +81,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
@@ -563,6 +567,8 @@ namespace bpr::qt {
 		CentralStack->addWidget(HomePage);
 		CentralStack->addWidget(ReviewSurface);
 		setCentralWidget(CentralStack);
+		// [[BPR-2175]]. Compose review's lightbox follows the whole content area.
+		CentralStack->installEventFilter(this);
 		connect(CentralStack, &QStackedWidget::currentChanged, statusBar(), [this] { statusBar()->update(); });
 
 		// [[BPR-0646]]. Refresh sits in the strip's right region, before the
@@ -767,6 +773,8 @@ namespace bpr::qt {
 				claim_home_selection(home_selection_list::recent);
 			} else if (aNow == HomeCyclesList) {
 				claim_home_selection(home_selection_list::cycles);
+			} else if (aNow == HomeDraftsList) {
+				claim_home_selection(home_selection_list::drafts);
 			} else if (qobject_cast<QListView*>(aNow) != nullptr && HomeList->isAncestorOf(aNow)) {
 				claim_home_selection(home_selection_list::queue);
 			}
@@ -810,6 +818,7 @@ namespace bpr::qt {
 			}
 		});
 		HomeList->set_ignore_dispatch([this](const core::queue_item& aItem) { dispatch_home_ignore(aItem); });
+		HomeList->set_followup_dispatch([this](const core::queue_item& aItem) { dispatch_home_followup(aItem); });
 		// [[BPR-1865]]. The filter decides nothing: the core ranks, the list
 		// shows what it found, and these keys move through it.
 		if (HomeFilter != nullptr) {
@@ -836,6 +845,26 @@ namespace bpr::qt {
 		if (HomeRecentResumeAction != nullptr) {
 			HomeRowMenu->addAction(HomeRecentResumeAction);
 		}
+		// RFC-BPR-0108 (X02). A pull request a local draft became opens its
+		// preparation from its own row: the row's mark, and this item.
+		HomeOpenPreparationAction = new QAction{ QStringLiteral("Open Local Preparation"), this };
+		HomeOpenPreparationAction->setObjectName(QStringLiteral("homeOpenPreparationAction"));
+		HomeOpenPreparationAction->setStatusTip(QStringLiteral("Opens the local draft this pull request was prepared from"));
+		HomeOpenPreparationAction->setVisible(false);
+		HomeRowMenu->addAction(HomeOpenPreparationAction);
+		connect(HomeOpenPreparationAction, &QAction::triggered, this, [this] {
+			const auto target = home_review_target();
+			if (!target || !std::holds_alternative<core::queue_item>(*target) || !ResumeDraftDispatch) {
+				return;
+			}
+			const auto& ref = std::get<core::queue_item>(*target).Ref;
+			for (const auto& mark : DraftHome.Marks) {
+				if (mark.Owner + "/" + mark.Name == ref.Repository && static_cast<std::int64_t>(mark.Number) == ref.Number) {
+					ResumeDraftDispatch(mark.Id);
+					return;
+				}
+			}
+		});
 		HomeRowMenu->addSeparator();
 		HomeRowMenu->addAction(OpenOnGithubAction);
 		HomeRowMenu->addSeparator();
@@ -1070,60 +1099,17 @@ namespace bpr::qt {
 
 	void workbench_window::build_capability_settings()
 	{
-		auto* const agents      = new QWidget;
-		auto* const column      = new QVBoxLayout{ agents };
-		auto* const explanation = new QLabel{ QStringLiteral("The selected host determines which agent profiles are allowed. The request choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel."), agents };
-		explanation->setWordWrap(true);
-		column->addWidget(explanation);
-		auto* const form    = new QFormLayout{ };
-		auto* const profile = new QComboBox{ agents };
-		profile->setObjectName(QStringLiteral("settingsAgentProfile"));
-		profile->setAccessibleName(QStringLiteral("Allowed agent profile for this request"));
-		profile->setModel(AgentPanel->profile_selector()->model());
-		form->addRow(QStringLiteral("Allowed profile"), profile);
-		auto* const notes = new QListView{ agents };
-		notes->setObjectName(QStringLiteral("settingsAgentNotes"));
-		notes->setAccessibleName(QStringLiteral("Private notes included with this request"));
-		notes->setModel(AgentPanel->note_selector()->model());
-		notes->setMaximumHeight(160);
-		form->addRow(QStringLiteral("Private notes"), notes);
-		auto* const draft = new QCheckBox{ agents };
-		draft->setObjectName(QStringLiteral("settingsAgentDraft"));
-		draft->setAccessibleName(QStringLiteral("Include current private draft"));
-		form->addRow(QStringLiteral("Private draft"), draft);
-		column->addLayout(form);
-		auto* const checkout = new quiet_tool_button{ agents };
-		checkout->setDefaultAction(AgentPanel->existing_checkout_action());
-		checkout->setAccessibleName(QStringLiteral("Use existing working copy for this request"));
-		column->addWidget(checkout);
-		auto* const scope = new QLabel{ agents };
-		scope->setTextFormat(Qt::PlainText);
-		scope->setWordWrap(true);
-		scope->setAccessibleName(QStringLiteral("Agent request scope"));
-		column->addWidget(scope);
-		const auto refresh = [page = QPointer<QWidget>{ agents }, panel = QPointer<agent_launch_panel>{ AgentPanel }, profile, notes, draft, scope] {
-			if (!page || !panel) {
-				return;
-			}
-			const auto profileBlock = QSignalBlocker{ profile };
-			const auto draftBlock   = QSignalBlocker{ draft };
-			profile->setCurrentIndex(panel->profile_selector()->currentIndex());
-			profile->setEnabled(panel->profile_selector()->isEnabled() && profile->count() != 0);
-			notes->setEnabled(panel->note_selector()->isEnabled());
-			draft->setText(panel->draft_selector()->text());
-			draft->setChecked(panel->draft_selector()->isChecked());
-			draft->setEnabled(panel->draft_selector()->isEnabled());
-			scope->setText(panel->disclosure_text().isEmpty() ? QStringLiteral("Open a review to see its allowed profiles and request scope.") : panel->disclosure_text());
-		};
-		connect(profile, &QComboBox::currentIndexChanged, AgentPanel->profile_selector(), &QComboBox::setCurrentIndex);
-		connect(draft, &QCheckBox::toggled, AgentPanel->draft_selector(), &QCheckBox::setChecked);
-		connect(AgentPanel->draft_selector(), &QCheckBox::toggled, agents, refresh);
-		AgentPanel->set_configuration_observer(refresh);
+		auto* const agents = new QWidget;
+		auto* const column = new QVBoxLayout{ agents };
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"; the earlier
+		// look, 2026-11-10: "this top part is ugly as sin and needs a
+		// redesign"). The page opens on the agents roster. Which agent a
+		// pull request uses is its footer's picker; what a question includes
+		// is the Agent tab's, as it was.
 		// [[BPR-1301]]. Saved for the profile, unlike the choices above, so
 		// it sits apart under its own heading, beside the writing hooks.
 		// [[BPR-1753]]. Agent setup's saved programs, beside the wrapper.
 		AgentPrograms = new agent_programs_panel{ agents };
-		column->addSpacing(12);
 		column->addWidget(AgentPrograms);
 		// [[BPR-1753]], owner decision 2026-10-23: the Claude process
 		// wrapper and model rows are gone from Settings; their values moved
@@ -1131,15 +1117,19 @@ namespace bpr::qt {
 		// saved values that move once.
 		ClaudeWrapper = new claude_wrapper_panel{ this };
 		ClaudeWrapper->hide();
-		WritingHooks = new writing_hooks_panel{ agents };
-		column->addSpacing(12);
-		column->addWidget(WritingHooks);
+		// [[BPR-2179]]. The owner, 2026-11-14: agents and prompts are separate
+		// sections. Prompts holds Surfaces above the Prompt library; the
+		// system prompts (Built-in prompts until now) are in the library.
+		Prompts      = new prompts_page;
+		WritingHooks = new writing_hooks_panel{ Prompts };
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
 		// [[BPR-1917]]. The review skill is one of the built-in prompts: it is
 		// listed with them, under the Agent tab, and shows its own editor.
-		ReviewSkill = new review_skill_panel{ agents };
+		ReviewSkill = new review_skill_panel{ Prompts };
 		WritingHooks->adopt_review_skill(ReviewSkill);
+		Prompts->adopt_system_prompts(WritingHooks);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+		SettingsWindow->adopt_panel(settings_page::prompts, Prompts);
 		// [[BPR-1856]], owner 2026-11-04: Add repository comes first on
 		// Repositories; the clone folders and linked clones follow it.
 		CloneFolders = new clone_folders_panel;
@@ -1389,8 +1379,9 @@ namespace bpr::qt {
 		}
 		// A draft's editor is read-only for a moment while each edit is saved,
 		// so a multi-line editor holding the focus counts whatever its state;
-		// only a browser, which is never written in, does not.
-		if (qobject_cast<const QTextBrowser*>(focus) != nullptr) {
+		// only a reader (a transcript, a report), which is never written in,
+		// does not.
+		if (focus->property("bprReader").toBool()) {
 			return false;
 		}
 		return qobject_cast<const QTextEdit*>(focus) != nullptr || qobject_cast<const QPlainTextEdit*>(focus) != nullptr;
@@ -1559,3 +1550,29 @@ namespace bpr::qt {
 		update_notification_controls();
 	}
 }
+
+namespace bpr::qt {
+	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection, const std::string& aRepository)
+	{
+		// [[BPR-2179]]. The chips and menus read each surface's placements,
+		// as the open pull request's repository has them.
+		auto macros = core::placed_prompt_macros(core::prompt_set_for_repository(aProjection.Set, aRepository));
+		if (AgentTab != nullptr) {
+			AgentTab->present_prompt_macros(macros);
+		}
+		if (TourEditor != nullptr && TourEditor->side_chat() != nullptr) {
+			TourEditor->side_chat()->set_prompt_macros(macros);
+		}
+		if (Prompts != nullptr) {
+			Prompts->present(aProjection);
+		}
+	}
+
+	void workbench_window::reveal_prompt_macros()
+	{
+		open_settings(settings_page::prompts);
+		if (Prompts != nullptr) {
+			Prompts->reveal();
+		}
+	}
+} // namespace bpr::qt

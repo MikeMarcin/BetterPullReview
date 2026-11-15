@@ -44,7 +44,7 @@ namespace bpr::application {
 
 	auto agent_round_sender::send(const cycle_send_assignment& aAssignment, std::stop_token aStop) -> core::cycle_send_result
 	{
-		auto launch = build_round_launch(aAssignment.Profile, aAssignment.Document, aAssignment.Session.Continue, aAssignment.WorkingDirectory, Environment);
+		auto launch = build_round_launch(aAssignment.Profile, aAssignment.Document, aAssignment.Session.Continue, aAssignment.WorkingDirectory, Environment, aAssignment.McpServers);
 		if (!launch) {
 			return { .End = core::cycle_send_end::not_started };
 		}

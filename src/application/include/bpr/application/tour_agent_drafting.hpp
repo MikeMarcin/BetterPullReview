@@ -31,7 +31,28 @@ namespace bpr::application {
 		/// [[BPR-1900]]. The head lines of each hunk, when GitHub gave the
 		/// patch; the request asks for stops on them.
 		std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>> Hunks = std::nullopt;
+		/// [[BPR-2141]]. The file's patch, when GitHub gave one, for a run
+		/// whose diff is in its request up front.
+		std::optional<std::string> Patch = std::nullopt;
 	};
+
+	/// \brief [[BPR-2141]]. The bytes of every patch: what a fresh drafting
+	/// run's request would carry, against `core::maximum_up_front_diff_bytes`.
+	[[nodiscard]] auto tour_diff_bytes(std::span<const tour_draft_file> aFiles) noexcept -> std::size_t;
+
+	/// \brief [[BPR-2141]]. The pull request's diff as a field draft's or an
+	/// outline's request carries it after its evidence: each file's patch in
+	/// a fenced block, and the files without one named.
+	[[nodiscard]] auto render_up_front_diff(std::span<const tour_draft_file> aFiles) -> std::string;
+
+	/// \brief [[BPR-2141]]. What a tool-free Draft from PR context or Suggest
+	/// an outline request is prefixed with: no tools, the diff is below.
+	[[nodiscard]] auto up_front_writing_preamble() -> std::string_view;
+
+	/// \brief [[BPR-2140]]. A tour prompt as its instructions (everything
+	/// before its untrusted evidence) and its material (the evidence, and
+	/// anything after it). Joined, they are the prompt.
+	[[nodiscard]] auto split_tour_prompt(std::string_view aPrompt) -> writing_prompt_parts;
 
 	/// \brief The whole-tour request: the read-only working rules, the answer
 	/// schema, and the pull request and the tour so far as untrusted evidence.
@@ -41,7 +62,9 @@ namespace bpr::application {
 	/// [[BPR-1935]]. `aDirective` is the [[BPR-1916]] skill directive, added
 	/// last; the whole request is refused when it is longer than
 	/// `core::maximum_tour_prompt_bytes`, the bound of its carrier.
-	[[nodiscard]] auto build_tour_draft_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, std::string_view aFocus = { }, std::string_view aDirective = { }, const tour_agent_context& aContext = { })
+	/// [[BPR-2141]]. `aDiffUpFront`: the run has no tools, and each file's
+	/// patch is in the evidence; otherwise it reads the repository.
+	[[nodiscard]] auto build_tour_draft_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, std::string_view aFocus = { }, std::string_view aDirective = { }, const tour_agent_context& aContext = { }, bool aDiffUpFront = false)
 		-> std::optional<std::string>;
 
 	/// \brief What a read-only Draft from PR context or Suggest an outline

@@ -676,6 +676,28 @@ namespace bpr::core {
 	/// failure it must repaint away.
 	[[nodiscard]] auto pairs_requiring_non_color_indicator(
 		const appearance_palette& aPalette) -> std::vector<color_vision_finding>;
+
+	/// \brief [[BPR-2184]] (review N6). The shades a report's page derives from
+	/// its paper and ink, decided here so the contrast floor sees them: quieter
+	/// ink for secondary words (`Dim`) and for the quietest (`Faint`), both
+	/// held to the text floor on the paper; the stronger rule (`Strong`) at
+	/// least the indicator ratio; the hairline (`Line`), decorative; and the
+	/// link colour, a blue at the text floor on the paper.
+	struct report_shades
+	{
+		appearance_color Dim;
+		appearance_color Faint;
+		appearance_color Strong;
+		appearance_color Line;
+		appearance_color Link;
+
+		auto operator<=>(const report_shades&) const = default;
+	};
+	[[nodiscard]] auto derive_report_shades(const appearance_palette& aPalette) noexcept -> report_shades;
+
+	/// \brief The derived shades' findings against the paper: Dim, Faint and
+	/// Link at the text floor, Strong at the indicator ratio.
+	[[nodiscard]] auto measure_report_shades(const appearance_palette& aPalette) -> std::vector<contrast_finding>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_APPEARANCE_CONTRAST_HPP

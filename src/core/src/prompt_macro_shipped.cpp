@@ -8,14 +8,18 @@
 namespace bpr::core {
 	namespace {
 		/// A built-in whose name is its template.
-		auto plain(std::string aId, const prompt_place aPlace, const std::string& aText, const prompt_subject aSubject, std::vector<prompt_condition> aConditions = { }, const prompt_kind aKind = prompt_kind::question) -> prompt_builtin
+		auto plain(std::string aId, const prompt_place aPlace, const std::string& aText, const prompt_subject aSubject, std::vector<prompt_condition> aConditions = { }, const prompt_ask aKind = prompt_ask::question) -> prompt_builtin
 		{
+			// [[BPR-2179]]: a built-in's row does what its conditions did
+			// before the choice was the prompt's (a reply where none can be
+			// written, lines not selected: hidden).
+			const auto when = migrated_when_unmet(aConditions, { });
 			return {
 				.Macro = {
 					.Id      = std::move(aId),
 					.BuiltIn = true,
 					.Place   = aPlace,
-					.Body    = { .Name = aText, .Template = aText, .Subject = aSubject, .Kind = aKind, .Conditions = std::move(aConditions) },
+					.Body    = { .Name = aText, .Template = aText, .Subject = aSubject, .Kind = aKind, .Conditions = std::move(aConditions), .WhenUnmet = when },
 				},
 			};
 		}
@@ -27,10 +31,56 @@ namespace bpr::core {
 			return aBuiltin;
 		}
 
+		/// RFC-BPR-0128. A built-in listed in the Ask menus at `aScopes`.
+		auto quick(prompt_builtin aBuiltin, const prompt_scopes aScopes) -> prompt_builtin
+		{
+			aBuiltin.Macro.Body.QuickAsk = true;
+			aBuiltin.Macro.Body.Scopes   = aScopes;
+			return aBuiltin;
+		}
+
+		/// RFC-BPR-0128 (Q13). One of the host's actions as a built-in row:
+		/// what it sends stays in Built-in prompts.
+		auto action(std::string aId, const prompt_place aPlace, const std::string& aName, const prompt_subject aSubject, const prompt_action aAction, const prompt_scopes aScopes)
+			-> prompt_builtin
+		{
+			auto builtin         = quick(plain(std::move(aId), aPlace, aName, aSubject), aScopes);
+			builtin.Macro.Action = aAction;
+			return builtin;
+		}
+
+		constexpr auto at_thread       = prompt_scopes{ .Thread = true };
+		constexpr auto at_file         = prompt_scopes{ .File = true };
+		constexpr auto at_pull_request = prompt_scopes{ .PullRequest = true };
+		constexpr auto everywhere      = prompt_scopes{ .Thread = true, .File = true, .PullRequest = true };
+
 		auto is(const prompt_fact aFact) -> prompt_condition { return { .Fact = aFact }; }
 		auto is_not(const prompt_fact aFact) -> prompt_condition { return { .Fact = aFact, .Negated = true }; }
 		auto lines(const prompt_lines_value aValue) -> prompt_condition { return { .Fact = prompt_fact::selected_lines, .Lines = aValue }; }
 	} // namespace
+
+	auto sample_prompt_facts(const prompt_place aPlace) -> prompt_facts
+	{
+		auto facts             = prompt_facts{ };
+		facts.Place            = aPlace;
+		facts.PullRequest      = prompt_pull_request{ .Number = 42U, .Title = "Render retained frames before presenting", .Url = "https://github.com/octo/render/pull/42", .Author = "octocat", .Base = "main", .Head = "retained-frames" };
+		facts.Repository       = "octo/render";
+		facts.OpenFile         = "src/render/renderer.cpp";
+		facts.Lines            = prompt_line_range{ .First = 5U, .Last = 8U };
+		facts.ConversationFile = "src/render/renderer.cpp";
+		facts.TakesReplies     = true;
+		facts.Draft            = false;
+		facts.AuthorIsMe       = false;
+		facts.ChecksFailing    = false;
+		facts.ChatEmpty        = true;
+		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole) {
+			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : aPlace == prompt_place::tour_part ? "the Problem"
+																																					   : "",
+											 .StopNumber = 3U,
+											 .StopTitle  = "The frame pool" };
+		}
+		return facts;
+	}
 
 	auto shipped_prompt_macros() -> std::vector<prompt_builtin>
 	{
@@ -39,16 +89,24 @@ namespace bpr::core {
 		return std::vector<prompt_builtin>{
 			// The Agent tab: owner decision (a), 2026-10-23, and looks v004
 			// and v005 (a block says so, and names its file and lines).
-			plain("agent-tab.review-pull-request", prompt_place::agent_tab, "Review this pull request", pull_request, { }, prompt_kind::review),
-			plain("agent-tab.review-open-file", prompt_place::agent_tab, "Review {file}", open_file, { }, prompt_kind::review),
-			plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request),
+			quick(plain("agent-tab.review-pull-request", prompt_place::agent_tab, "Review this pull request", pull_request, { }, prompt_ask::review), at_pull_request),
+			quick(plain("agent-tab.review-open-file", prompt_place::agent_tab, "Review {file}", open_file, { }, prompt_ask::review), at_file),
+			quick(plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request), at_pull_request),
 			plain("agent-tab.explain-line", prompt_place::agent_tab, "Explain {file} {lines}", selected_lines, { lines(prompt_lines_value::one) }),
 			plain("agent-tab.explain-block", prompt_place::agent_tab, "Explain the selected block ({file} {lines})", selected_lines, { lines(prompt_lines_value::several) }),
+			// RFC-BPR-0128 (Q13): the actions as built-in rows. The Ask menus
+			// list action rows first; an action row is never a chip, so the
+			// chips are as before.
+			action("agent-tab.what-changed", prompt_place::agent_tab, "What changed since my review", pull_request, prompt_action::what_changed, at_pull_request),
+			action("agent-tab.explain-file", prompt_place::agent_tab, "Explain this file", open_file, prompt_action::explain_file, at_file),
 			// [[BPR-1773]]: a reply only where one can be written.
-			plain("conversation.summarize", prompt_place::conversation, "Summarize this conversation", prompt_subject::conversation),
-			plain("conversation.concern-right", prompt_place::conversation, "Is the concern raised here right?", prompt_subject::conversation),
-			plain("conversation.draft-reply", prompt_place::conversation, "Draft a reply to this conversation", prompt_subject::conversation, { is(prompt_fact::takes_replies) }),
-			plain("conversation.explain-note-code", prompt_place::conversation, "Explain the code this note is on", prompt_subject::conversation, { is_not(prompt_fact::takes_replies) }),
+			quick(plain("conversation.summarize", prompt_place::conversation, "Summarize this conversation", prompt_subject::conversation), at_thread),
+			quick(plain("conversation.concern-right", prompt_place::conversation, "Is the concern raised here right?", prompt_subject::conversation), at_thread),
+			quick(plain("conversation.draft-reply", prompt_place::conversation, "Draft a reply to this conversation", prompt_subject::conversation, { is(prompt_fact::takes_replies) }), at_thread),
+			quick(plain("conversation.explain-note-code", prompt_place::conversation, "Explain the code this comment is on", prompt_subject::conversation, { is_not(prompt_fact::takes_replies) }), at_thread),
+			// RFC-BPR-0128: Was this addressed? on any thread, a file's threads
+			// or every thread.
+			action("conversation.was-addressed", prompt_place::conversation, "Was this addressed?", prompt_subject::conversation, prompt_action::was_addressed, everywhere),
 			// [[BPR-1934]]: the selected block whatever the chat holds, the
 			// rest while it is empty.
 			plain("tour-stop.explain-selection", prompt_place::tour_stop, "Explain the selected block", selected_text),

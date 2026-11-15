@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0116"
 title: "A returning pull request says what changed, and whether a comment was addressed"
-status: "Proposed"
+status: "In Progress"
 metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0001","inspected_revision":"90785ae34aeccf63724b9e5e7a70446f89341ec5","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"a9663a706fd72061f60b615bd8e749ee0ddb66b5"}
 depends_on: ["RFC-BPR-0009", "RFC-BPR-0094", "RFC-BPR-0101", "RFC-BPR-0102"]
 ---
@@ -109,6 +109,29 @@ the grants the Agent tab already has.
 - Its first answer is a fresh run (RFC-BPR-0101's amendment of 2026-11-12):
   no native session, nothing saved. It is one model call with no tools: the context it needs is in the request. Ask more on the answer promotes it into a
   resumed session whose first turn carries the answer.
+
+### Implementation notes (2026-11-12)
+
+- The earlier revision is the later of my last submitted review and my Seen,
+  ordered by the pull request's commits. The change between it and the head
+  is read from the review's own objects (the files that differ, each at both
+  commits, compared with the review's diff engine) and carried in the
+  request as unified text, at most 96 KiB and 64 files, the rest counted.
+  Only the pull request's files are compared.
+- Was this addressed? is offered on a review thread I commented in when the
+  head differs from the commit my last comment there was written on. Its
+  request carries the thread, my comment's lines at that commit and the
+  thread's lines at the head (for a thread the fix made outdated, the same
+  line numbers at the head, with context).
+- Both run on `assistance_first_answer`: fresh, one tool-free Claude call
+  (an agent without a tool-free mode runs the same request fresh with the
+  Agent tab's tools and no scratch folder), with the action's own prompt as
+  the system prompt and neither the review skill nor earlier Agent tab turns.
+  The answer is shown in the Agent tab with Ask more; Was this addressed?'s
+  lead word is shown above it as "Agent's claim: …".
+- While the earlier revision cannot be read, the Pull Request menu item's
+  words say why and the Agent tab shows the same reason where its suggestion
+  would stand. Record: [verification](../verification/RFC-BPR-0116.md).
 
 ### Owner amendment (2026-11-13): comments absorb notes
 

@@ -39,6 +39,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto effort() const noexcept -> QComboBox* { return Effort; }
 		/// [[BPR-1918]]. Strict run checks; none for a popular agent.
 		[[nodiscard]] auto strict_checks() const noexcept -> QCheckBox* { return StrictChecks; }
+		/// [[BPR-2007]], [[BPR-2008]]. Scratch folder starts; Build and run tests.
+		[[nodiscard]] auto scratch_starts() const noexcept -> QComboBox* { return ScratchStarts; }
+		[[nodiscard]] auto mcp_servers() const noexcept -> QComboBox* { return McpServers; }
+		[[nodiscard]] auto instructions() const noexcept -> QComboBox* { return Instructions; }
+		[[nodiscard]] auto builds() const noexcept -> QCheckBox* { return Builds; }
 		[[nodiscard]] auto problem() const noexcept -> QLabel* { return Problem; }
 		[[nodiscard]] auto buttons() const noexcept -> QDialogButtonBox* { return Buttons; }
 
@@ -47,16 +52,22 @@ namespace bpr::qt {
 		void offer_efforts();
 
 		core::agent_entry Base;
-		QLineEdit*        Name         = nullptr;
-		QComboBox*        Protocol     = nullptr;
-		QLineEdit*        Program      = nullptr;
-		QPlainTextEdit*   Arguments    = nullptr;
-		QPlainTextEdit*   Check        = nullptr;
-		QLineEdit*        Model        = nullptr;
-		QComboBox*        Effort       = nullptr;
-		QCheckBox*        StrictChecks = nullptr;
-		QLabel*           Problem      = nullptr;
-		QDialogButtonBox* Buttons      = nullptr;
+		QLineEdit*        Name          = nullptr;
+		QComboBox*        Protocol      = nullptr;
+		QLineEdit*        Program       = nullptr;
+		QPlainTextEdit*   Arguments     = nullptr;
+		QPlainTextEdit*   Check         = nullptr;
+		QLineEdit*        Model         = nullptr;
+		QComboBox*        Effort        = nullptr;
+		QCheckBox*        StrictChecks  = nullptr;
+		QComboBox*        ScratchStarts = nullptr;
+		/// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12).
+		QComboBox*        McpServers    = nullptr;
+		QComboBox*        Instructions  = nullptr;
+		QCheckBox*        Builds        = nullptr;
+		QLabel*           BuildsMeaning = nullptr;
+		QLabel*           Problem       = nullptr;
+		QDialogButtonBox* Buttons       = nullptr;
 	};
 
 	/// \brief How a view asks for an entry to be added or edited: the entry

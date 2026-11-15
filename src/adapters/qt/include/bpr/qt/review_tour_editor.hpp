@@ -3,9 +3,12 @@
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/core/tour_publication_head.hpp"
 #include "bpr/core/tour_steps.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
@@ -31,6 +34,7 @@ class QTextDocument;
 class QPlainTextEdit;
 class QTabWidget;
 class QLabel;
+class QScrollArea;
 class QPushButton;
 class QToolButton;
 class QBoxLayout;
@@ -40,6 +44,9 @@ namespace bpr::qt {
 	class markdown_body_view;
 	class stop_action_row;
 	class tour_agent_panel;
+	class tour_head_bar;
+	class tour_step_list;
+	class tour_publication_banner_view;
 	enum class tour_repair_action : std::uint8_t { repin,
 												   preview_relocation,
 												   apply_relocation,
@@ -64,8 +71,10 @@ namespace bpr::qt {
 												   resume_publication,
 												   reconcile_publication,
 												   stop_publication,
-												   suggest_outline,
-												   insert_outline,
+												   /// [[BPR-1991]]. The published tour on GitHub.
+												   open_published,
+												   /// [[BPR-1992]]. A refusal's Use another connection.
+												   choose_connection,
 												   /// [[BPR-1914]] v002. Ask about the open stop's code: the
 												   /// lines selected in the code, or the stop's own.
 												   ask_code };
@@ -86,6 +95,16 @@ namespace bpr::qt {
 		/// One-based lines the stop is on, under the amber bracket.
 		std::uint32_t StopFirst = 1U;
 		std::uint32_t StopLast  = 1U;
+	};
+
+	/// \brief RFC-BPR-0110 as amended (owner, 2026-11-13: "stick with the PR
+	/// view and just augment it"). A local draft's tour in this panel: why a
+	/// yellow stop is yellow, and where its lines are, in the draft's own
+	/// words (a candidate, never a commit). Empty text keeps the panel's own.
+	struct tour_local_words
+	{
+		std::function<QString(core::tour_stop_id)> Reason;
+		std::function<QString(core::tour_stop_id)> Source;
 	};
 
 	/// \brief Native Markdown interaction and inert projections for private tour preparation.
@@ -114,8 +133,23 @@ namespace bpr::qt {
 		void open_step(core::tour_step aStep);
 		/// \brief [[BPR-1593]]. The publication column of the tour page.
 		[[nodiscard]] auto publication_panel() const noexcept -> QWidget* { return PublicationPanel; }
-		/// \brief [[BPR-1593]]. The private draft's state and Preview and publish.
+		/// \brief [[BPR-1593]]. The private draft's save state.
 		[[nodiscard]] auto foot() const noexcept -> QWidget* { return Foot; }
+		/// \brief [[BPR-1991]]. The head band: where the tour stands and its
+		/// one publication action; the route's scroll area; the agent bar.
+		[[nodiscard]] auto head_bar() const noexcept -> tour_head_bar* { return Head; }
+		[[nodiscard]] auto route_scroll() const noexcept -> QScrollArea* { return RouteScroll; }
+		/// \brief [[BPR-1991]]. The head as last decided, which Overview shows too.
+		[[nodiscard]] auto head() const -> const core::tour_head&;
+		/// \brief [[BPR-1991]]. Told when the head's decision changes.
+		void set_head_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1991]]. Does what the head's action does, from the head
+		/// or from Overview.
+		void trigger_head(core::tour_head_action aAction);
+		/// \brief [[BPR-1992]]. The publication panel's banner and checklist.
+		[[nodiscard]] auto publication_banner() const noexcept -> tour_publication_banner_view* { return Banner; }
+		[[nodiscard]] auto publication_steps() const noexcept -> tour_step_list* { return StepList; }
+		[[nodiscard]] auto publication_shown() const noexcept -> const application::tour_publication_presentation& { return ShownPublication; }
 		[[nodiscard]] auto excerpt() const noexcept -> QWidget* { return Excerpt; }
 		void               set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction);
 		void               present(const application::tour_presentation& aProjection);
@@ -125,12 +159,16 @@ namespace bpr::qt {
 		void               present_publication(const application::tour_publication_presentation& aProjection);
 		void               set_repair_dispatch(std::function<void(core::tour_stop_id, tour_repair_action)>);
 		void               present_repair_preview(core::tour_stop_id, const core::tour_source_range&, std::string_view, std::uint64_t);
-		[[nodiscard]] auto compatibility_publication() const -> bool;
-		[[nodiscard]] auto mixed_publication() const -> bool;
 		[[nodiscard]] auto description_publication() const -> bool;
+		/// \brief RFC-BPR-0110 X19: where "Update PR description after publishing"
+		/// starts for this pull request: off for one associated with a local
+		/// draft. Turning it on asks for a new Preview, as every change does.
+		void set_description_publication_default(bool aOn);
+		/// \brief RFC-BPR-0110. A local draft's words while its tour shows;
+		/// none for a pull request's.
+		void               set_local_words(std::optional<tour_local_words> aWords);
+		[[nodiscard]] auto local_words() const noexcept -> bool { return LocalWords.has_value(); }
 		void               show_problem();
-		void               present_outline(const std::vector<core::tour_outline_entry>& aEntries);
-		[[nodiscard]] auto retained_outline_entries() const -> std::vector<std::size_t>;
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
@@ -149,9 +187,24 @@ namespace bpr::qt {
 		/// Stop (a drafting run, from the control that started it), and one
 		/// proposed part's Accept, with the author's edit, or Discard.
 		void set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide, std::function<void(std::size_t)> aRelocate = { });
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh answer
+		/// (Draft Tour's proposal, a part's Enhance suggestion), by its run.
+		void set_tour_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore);
 		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
 		/// decided.
 		void present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
+		/// \brief [[BPR-1995]], RFC-BPR-0100 AC04. Review each in the tour on a
+		/// revision card in the chat: shows that run's first waiting part.
+		void review_revision(core::tour_agent_run_id aRun);
+		/// \brief [[BPR-1995]]. The one-shot writing request a field's Enhance
+		/// made before RFC-BPR-0100 moved Enhance into the part's side chat:
+		/// the field's text, or its selection, rewritten by the writing hook
+		/// in place, with one native undo. RFC-BPR-0100 keeps the one-shot
+		/// hooks for the `bpr tour` CLI and RFC-BPR-0051's convention hooks;
+		/// the composed courses drive the restricted writing launch with it.
+		void request_field_writing(core::writing_hook aHook);
+		/// \brief The run whose revision Review each last showed, if any.
+		[[nodiscard]] auto reviewed_revision() const noexcept -> std::optional<core::tour_agent_run_id> { return ReviewedRun; }
 		/// \brief [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour
 		/// (confirmed) and Undo reset; the host performs each.
 		void set_tour_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset);
@@ -190,6 +243,16 @@ namespace bpr::qt {
 		void set_side_chat_observer(std::function<void()> aObserver) { SideChatObserver = std::move(aObserver); }
 		/// \brief The chat column, for the window to place in the Tour tab.
 		[[nodiscard]] auto side_chat() const noexcept -> tour_side_chat* { return SideChat; }
+		/// \brief [[BPR-1996]], RFC-BPR-0100 AC06. A stop's references: which
+		/// files they may name, where a link goes, the permalink a reference
+		/// alone on its line is shown as (a snippet), and where other links of
+		/// the stop go.
+		void set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate, tour_permalink_source aPermalink, std::function<void(const std::string&)> aOtherLink);
+		/// \brief [[BPR-1996]]. The stop's snippets, as the conversation's are
+		/// read: the pull request's repository, the request and the answer.
+		void set_permalink_repository(std::optional<core::markdown_repository> aRepository);
+		void set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		void apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
 		/// \brief Opens the side chat about `aThread`, quoting `aPassage`.
 		void open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
 		/// \brief [[BPR-1925]] v002. What a part's chat toggle does: opens the
@@ -214,28 +277,21 @@ namespace bpr::qt {
 		/// not, and the line it says.
 		[[nodiscard]] auto agent_failure_notice(core::writing_hook aHook) const -> QWidget*;
 		[[nodiscard]] auto agent_failure_text(core::writing_hook aHook) const -> QString;
-		/// \brief [[BPR-1878]], owner looks v001 to v003. The Agent tab's own
-		/// agent picker (a second `agent_run_settings_picker` on its source)
-		/// in the tab's bottom bar, styled as the Agent tab's and the last
-		/// thing in the tab, so choosing here chooses there.
-		void               set_agent_picker(agent_run_settings_picker* aPicker);
-		[[nodiscard]] auto agent_picker() const noexcept -> agent_run_settings_picker* { return AgentPicker; }
 		/// \brief [[BPR-1881]], owner 2026-11-06. The Agent tab's setup
 		/// readiness. Until it is `ready` the tab's top says to set the agent
 		/// up (only while `unfinished`), and every agent feature is disabled
-		/// with a tooltip saying why. Agent features wear `agent_accent`
+		/// with a tooltip saying why ([[BPR-2051]]: the window's footer, not
+		/// this tab, asks for setup). Agent features wear `agent_accent`
 		/// in every state. Ready until told otherwise.
+		/// \brief Owner on the live build, 2026-11-11 ("no stray status text
+		/// in the panel"). Where a writing request's notice is said: the
+		/// window's status line. The panel's own label is never shown.
+		void               set_notice_dispatch(std::function<void(const QString&)> aDispatch);
 		void               set_agent_readiness(agent_setup_readiness aReadiness);
 		[[nodiscard]] auto agent_readiness() const noexcept -> agent_setup_readiness { return AgentReadiness; }
-		/// \brief [[BPR-1881]]. Set up the agent, in the call to action:
-		/// asks the window for the Agent tab at its setup. The tab never
-		/// asks by itself.
-		void set_agent_setup_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1881]]. Told each time the tab shows, so the setup
 		/// may look for agents and say whether it has finished.
 		void set_shown_observer(std::function<void()> aObserver);
-		/// \brief [[BPR-1881]]. The call to action at the top of the tab.
-		[[nodiscard]] auto agent_setup_call() const noexcept -> QWidget* { return AgentSetupCall; }
 		/// \brief [[BPR-1881]]. Every agent feature on the tab: the drafting
 		/// helpers, Suggest an outline and its Insert, and the agent bar.
 		[[nodiscard]] auto agent_features() const -> std::vector<QWidget*>;
@@ -260,6 +316,10 @@ namespace bpr::qt {
 		/// the editors hold text the draft has not taken. The text is saved in
 		/// the private draft as it is typed; Save closes the editor.
 		void finish_stop_edit();
+		/// \brief [[BPR-2014]]. Save: finishes the edit and accepts the stop.
+		void save_stop_edit();
+		/// \brief [[BPR-2014]]. Accept: the author accepts `aStop` as it is now.
+		void accept_stop(core::tour_stop_id aStop);
 		/// \brief [[BPR-1936]]. Cancel: the title and explanation go back to
 		/// what they were when the editor opened, and the stop reads again.
 		void cancel_stop_edit();
@@ -277,14 +337,12 @@ namespace bpr::qt {
 		/// [[BPR-1936]]. A wrapping editor: a long title stays whole while written.
 		[[nodiscard]] auto stop_title() const -> QPlainTextEdit* { return Title; }
 		[[nodiscard]] auto stop_body() const -> QPlainTextEdit* { return Body; }
-		/// [[BPR-1900]] follow-up, owner 2026-11-07. The open stop's "Head
-		/// changed" chip, beside its title and outside its explanation; a
-		/// click asks "Still accurate?" in place, with Confirm and Edit.
-		[[nodiscard]] auto head_chip() const -> QToolButton* { return HeadChip; }
-		[[nodiscard]] auto head_confirm() const -> QWidget* { return HeadConfirm; }
-		[[nodiscard]] auto head_question() const -> QLabel* { return HeadQuestion; }
-		[[nodiscard]] auto head_confirm_button() const -> QPushButton* { return HeadConfirmYes; }
-		[[nodiscard]] auto head_edit_button() const -> QPushButton* { return HeadEdit; }
+		/// [[BPR-2014]]. The open stop's Accept and its one-line reason,
+		/// shown while the stop is yellow and read.
+		[[nodiscard]] auto accept_button() const -> QPushButton* { return Complete; }
+		[[nodiscard]] auto accept_reason() const -> QLabel* { return AcceptReason; }
+		/// [[BPR-2013]]. The stop's context menu.
+		[[nodiscard]] auto stop_menu() const -> QMenu* { return StopMenu; }
 		[[nodiscard]] auto problem_editor() const -> QPlainTextEdit* { return Problem; }
 		[[nodiscard]] auto solution_editor() const -> QPlainTextEdit* { return Solution; }
 		[[nodiscard]] auto roadmap() const -> QTabWidget* { return Roadmap; }
@@ -314,6 +372,7 @@ namespace bpr::qt {
 
 	private:
 		std::function<void()>                                                      PresentedObserver;
+		std::optional<tour_local_words>                                            LocalWords;
 		void                                                                       edit(core::tour_command_kind aKind, const std::string& aText);
 		void                                                                       add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QBoxLayout* aLayout);
 		std::function<void(core::writing_hook, prose_capture)>                     WritingRequest;
@@ -325,8 +384,8 @@ namespace bpr::qt {
 		void                                                                       view_stop(core::tour_stop_view_event aEvent);
 		void                                                                       present_stop_view();
 		void                                                                       structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
-		void                                                                       reaffirm_stop(core::tour_stop_id aStop);
-		void                                                                       present_head_chip(const core::tour_stop& aStop);
+		void                                                                       accept_proposed_stop_text(core::tour_stop_id aStop, const std::string& aText);
+		[[nodiscard]] auto                                                         acceptance_reason(const core::tour_acceptance_decision& aDecision) const -> QString;
 		[[nodiscard]] auto                                                         selected_stops() const -> std::vector<core::tour_stop_id>;
 		void                                                                       select_stops(const std::vector<core::tour_stop_id>& aStops);
 		void                                                                       update_stop_actions();
@@ -375,15 +434,8 @@ namespace bpr::qt {
 		QWidget*         OutlineTools     = nullptr;
 		QWidget*         Notices          = nullptr;
 		/// [[BPR-1878]]. The tab's bottom bar, its field, and the picker in it.
-		QWidget*                   AgentBar    = nullptr;
-		QWidget*                   AgentField  = nullptr;
-		agent_run_settings_picker* AgentPicker = nullptr;
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
-		QWidget*                           AgentSetupCall   = nullptr;
-		QPushButton*                       AgentSetupButton = nullptr;
-		QPushButton*                       SuggestOutline   = nullptr;
-		std::function<void()>              AgentSetupDispatch;
 		std::function<void()>              ShownObserver;
 		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
 		std::vector<std::function<void()>> AgentLabels;
@@ -454,8 +506,10 @@ namespace bpr::qt {
 		bool                                                        ShowsStopProposal = false;
 		QVBoxLayout*                                                StopFieldsLayout  = nullptr;
 		QPushButton*                                                Complete          = nullptr;
-		QPushButton*                                                ShowInCode        = nullptr;
-		std::optional<core::tour_stop_id>                           AdvanceFrom;
+		QLabel*                                                     AcceptReason      = nullptr;
+		QString                                                     SourceChip;
+		void                                                        paint_source_link();
+		QAction*                                                    MarkNotAccepted = nullptr;
 		void                                                        begin_proposals();
 		[[nodiscard]] auto                                          place_proposal(std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool;
 		void                                                        mark_proposed();
@@ -467,33 +521,40 @@ namespace bpr::qt {
 		auto                                                        add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
 		void                                                        refresh_agent_features();
 		void                                                        restyle_agent_features();
-		QWidget*                                                    Foot           = nullptr;
-		QLabel*                                                     FootState      = nullptr;
-		QPushButton*                                                PreviewPublish = nullptr;
-		QToolButton*                                                HeadChip       = nullptr;
-		QWidget*                                                    HeadConfirm    = nullptr;
-		QLabel*                                                     HeadQuestion   = nullptr;
-		QPushButton*                                                HeadConfirmYes = nullptr;
-		QPushButton*                                                HeadEdit       = nullptr;
-		QPushButton*                                                Previous       = nullptr;
-		QPushButton*                                                Next           = nullptr;
-		QWidget*                                                    RepairList     = nullptr;
-		QWidget*                                                    RepairPreview  = nullptr;
-		QLabel*                                                     RepairRange    = nullptr;
-		QPlainTextEdit*                                             RepairText     = nullptr;
-		QPushButton*                                                ApplyRepair    = nullptr;
+		QWidget*                                                    Foot          = nullptr;
+		QLabel*                                                     FootState     = nullptr;
+		QPushButton*                                                Previous      = nullptr;
+		QPushButton*                                                Next          = nullptr;
+		QWidget*                                                    RepairList    = nullptr;
+		QWidget*                                                    RepairPreview = nullptr;
+		QLabel*                                                     RepairRange   = nullptr;
+		QPlainTextEdit*                                             RepairText    = nullptr;
+		QPushButton*                                                ApplyRepair   = nullptr;
 		core::tour_stop_id                                          PreviewRepairStop;
 		std::uint64_t                                               PreviewRepairRevision = 0U;
 		std::vector<core::tour_destination_repair>                  ShownRepairs;
 		std::function<void(core::tour_stop_id, tour_repair_action)> RepairDispatch;
-		QComboBox*                                                  PublicationMode    = nullptr;
-		QCheckBox*                                                  DescriptionEdit    = nullptr;
-		QLabel*                                                     PublicationStatus  = nullptr;
-		markdown_body_view*                                         PublicationPreview = nullptr;
-		QPushButton*                                                PublishTour        = nullptr;
-		QPushButton*                                                ResumeTour         = nullptr;
-		QPushButton*                                                ReconcileTour      = nullptr;
-		QPushButton*                                                StopTour           = nullptr;
+		/// [[BPR-1991]], [[BPR-1992]]. The head, the route's scroll area, and
+		/// the panel's banner, form sentence, one-review offer and steps.
+		tour_head_bar*                             Head              = nullptr;
+		QScrollArea*                               RouteScroll       = nullptr;
+		tour_publication_banner_view*              Banner            = nullptr;
+		QLabel*                                    FormSentence      = nullptr;
+		QPushButton*                               KeepOneReview     = nullptr;
+		QLabel*                                    KeepOneReviewList = nullptr;
+		QLabel*                                    StepCount         = nullptr;
+		tour_step_list*                            StepList          = nullptr;
+		application::tour_publication_presentation ShownPublication;
+		core::tour_head_progress                   HeadProgress;
+		std::function<void()>                      HeadObserver;
+		void                                       follow_remedy(application::tour_publication_remedy aRemedy, core::tour_stop_id aStop);
+		QCheckBox*                                 DescriptionEdit    = nullptr;
+		QLabel*                                    PublicationStatus  = nullptr;
+		markdown_body_view*                        PublicationPreview = nullptr;
+		QPushButton*                               PublishTour        = nullptr;
+		QPushButton*                               ResumeTour         = nullptr;
+		QPushButton*                               ReconcileTour      = nullptr;
+		QPushButton*                               StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;
@@ -505,8 +566,6 @@ namespace bpr::qt {
 		QPushButton*         PreparePublication = nullptr;
 		QComboBox*           Imports            = nullptr;
 		QPushButton*         Import             = nullptr;
-		QListWidget*         SuggestedOutline   = nullptr;
-		QPushButton*         InsertOutline      = nullptr;
 		QListWidget*         Outline            = nullptr;
 		QListWidget*         Related            = nullptr;
 		QPlainTextEdit*      Title              = nullptr;
@@ -515,14 +574,24 @@ namespace bpr::qt {
 		/// [[BPR-1805]]. The stop read: its title, its rendered explanation,
 		/// the pencil. [[BPR-1936]]: written, Cancel and Save at its foot, as
 		/// the overview's description editor has them.
-		core::tour_stop_view StopView;
-		QLabel*              ReadTitle  = nullptr;
-		markdown_body_view*  StopReader = nullptr;
-		QToolButton*         EditStop   = nullptr;
-		QPushButton*         SaveStop   = nullptr;
-		QPushButton*         CancelStop = nullptr;
-		QPushButton*         UseLines   = nullptr;
-		QAction*             Retarget   = nullptr;
+		core::tour_stop_view                    StopView;
+		QLabel*                                 ReadTitle  = nullptr;
+		markdown_body_view*                     StopReader = nullptr;
+		std::optional<core::tour_proposal>      ShownProposal;
+		bool                                    OneShotWriting = false;
+		agent_reference_files_source            ReferenceFiles;
+		agent_reference_navigation              ReferenceNavigate;
+		tour_permalink_source                   ReferencePermalink;
+		std::function<void(const std::string&)> OtherLink;
+		/// The open stop's text as it is shown: its references made links
+		/// and snippets.
+		[[nodiscard]] auto                     shown_stop_body(const core::tour_stop& aStop) const -> std::string;
+		std::optional<core::tour_agent_run_id> ReviewedRun;
+		QToolButton*                           EditStop   = nullptr;
+		QPushButton*                           SaveStop   = nullptr;
+		QPushButton*                           CancelStop = nullptr;
+		QPushButton*                           UseLines   = nullptr;
+		QAction*                               Retarget   = nullptr;
 		/// [[BPR-1936]]. The card's trash, and the stop menu its card and row share.
 		QToolButton* RemoveStop = nullptr;
 		/// [[BPR-1936]] v003. The trash's question under the foot, and its stop.
@@ -581,7 +650,9 @@ namespace bpr::qt {
 		QLabel*                                      RevisionChanges = nullptr;
 		QPushButton*                                 NextChanged     = nullptr;
 		QLabel*                                      WritingStatus   = nullptr;
-		agent_run_status_line*                       DraftStatus     = nullptr;
+		std::function<void(const QString&)>          NoticeDispatch;
+		void                                         settle_notices();
+		agent_run_status_line*                       DraftStatus = nullptr;
 		void                                         show_draft_status();
 		std::optional<agent_run_status>              DraftLive;
 		QElapsedTimer                                DraftClock;

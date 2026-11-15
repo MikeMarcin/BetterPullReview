@@ -168,6 +168,20 @@ namespace bpr::application {
 		auto operator<=>(const queue_metadata_answer&) const = default;
 	};
 
+	/// \brief [[BPR-2048]]. One retained pull request whose own read exceeded
+	/// the response limits.
+	///
+	/// \details Only that row is affected: it keeps what was last read and
+	/// says it is too large to load here. The next read of it that answers
+	/// clears the mark.
+	struct queue_too_large_answer
+	{
+		queue_session_id       Session;
+		core::pull_request_ref Ref;
+
+		auto operator<=>(const queue_too_large_answer&) const = default;
+	};
+
 	/// \brief Retains enrollments and projects the queue from them.
 	///
 	/// \details Holds no provider, no clock, and no database. The durable store
@@ -338,6 +352,18 @@ namespace bpr::application {
 		std::uint32_t                Repositories = 0U;
 
 		auto operator<=>(const queue_discovery_status&) const = default;
+	};
+
+	/// \brief [[BPR-2049]]. The reviewer's Seen on a pull request they
+	/// approved that has new commits: those commits, up to `Head`, are not
+	/// news to them. Local only; nothing is written to GitHub.
+	struct queue_seen_intent
+	{
+		core::pull_request_ref Ref;
+		/// The head the row showed when Seen was pressed.
+		std::string Head;
+
+		auto operator<=>(const queue_seen_intent&) const = default;
 	};
 
 	/// \brief [[BPR-0989]]. The reviewer's local follow or unfollow of one pull request.
@@ -685,6 +711,8 @@ namespace bpr::application {
 		std::uint64_t FollowIntents         = 0U;
 		/// [[BPR-1683]].
 		std::uint64_t IgnoreIntents = 0U;
+		/// [[BPR-2049]]. Seen gestures the queue was asked to apply.
+		std::uint64_t SeenIntents   = 0U;
 		std::uint64_t IgnoresPruned = 0U;
 
 		auto operator<=>(const review_queue_host_statistics&) const = default;
@@ -748,6 +776,8 @@ namespace bpr::application {
 		void apply(queue_discovery_answer aAnswer);
 		/// \brief Refreshes exact retained-row metadata without loading a review.
 		void apply(queue_metadata_answer aAnswer);
+		/// \brief [[BPR-2048]]. Marks one retained row too large to load.
+		void apply(queue_too_large_answer aAnswer);
 		/// \brief [[BPR-0989]]. The reviewer's local follow; changes nothing on GitHub.
 		void apply(queue_follow_intent aIntent);
 		/// \brief [[BPR-1683]]. Ignores or unignores one Home row; changes nothing on GitHub.
@@ -756,6 +786,10 @@ namespace bpr::application {
 		/// store answers before the change is kept. An ignored pull request the
 		/// queue later observes closed or off Home is pruned the same way.
 		void apply(core::home_ignore_intent aIntent);
+		/// \brief [[BPR-2049]]. Records new commits as seen on a row whose
+		/// approval still stands; the row moves at once. Refused unless the
+		/// core offers Seen for it and the head is still the one shown.
+		void apply(queue_seen_intent aIntent);
 		/// \brief [[BPR-0989]]. Publishes the discovery status with the queue.
 		void present_discovery(queue_discovery_status aStatus);
 		void adopt(queue_session_id aSession);

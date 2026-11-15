@@ -135,6 +135,9 @@ namespace bpr::app {
 		// the gate this exists for selects no fixture: it drives the
 		// shipped composition and only wants the connect denied.
 		NetworkDenied = aConfig.NetworkDenied;
+		// RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. Never with a fixture: the
+		// fixture's own server answers its writes.
+		DesignatedLivePublication = aConfig.DesignatedLivePublication && !aFixture.has_value();
 		// [[BPR-0797]]. Decided here for the same reason: the marker
 		// answers a question that has nothing to do with which fixture
 		// this run selected. A selected fixture answers it too, on its
@@ -206,6 +209,7 @@ namespace bpr::app {
 				= aFixtureOptions.ExternalAgentExecutable;
 			CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
 			SparseAgentSetupLook    = aFixtureOptions.SparseAgentSetupLook;
+			PromptExamplesLook      = aFixtureOptions.PromptExamplesLook;
 			ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 			PersonalSkillHome       = aFixtureOptions.PersonalSkillHome;
 			ClaudeSearch            = aFixtureOptions.ClaudeSearch;
@@ -218,7 +222,31 @@ namespace bpr::app {
 			SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
 			AttendedWindowBrowser   = aFixtureOptions.AttendedWindowBrowser;
 			AttendedAgentSearch     = aFixtureOptions.AttendedAgentSearch;
-			LabelHelper             = aFixtureOptions.LabelHelper;
+			FixtureAgentSession     = aFixtureOptions.FixtureAgentSession;
+	#if defined(BPR_FIXTURE_AGENT_DIRECTORY)
+			// [[BPR-2177]] (owner, 2026-11-14: "we need a fixture agent for
+			// testing"). A person's session on a tests-on build runs the
+			// fixture agent: found by the setup's search, set on Claude's
+			// profile, and the only agent the launch guard admits.
+			if (FixtureAgentSession) {
+				const auto folder   = std::filesystem::path{ BPR_FIXTURE_AGENT_DIRECTORY };
+				AttendedAgentSearch = false;
+				if (!ClaudeAgentExecutable) {
+					ClaudeAgentExecutable = folder / "claude";
+				}
+				// Look ask-v002 (2026-11-14) opened on Codex, which nothing
+				// answered: Codex is the fixture agent too. Only Claude is
+				// searched for, so one agent is found and the setup takes it
+				// as it takes a person's only agent.
+				if (!CodexAgentExecutable) {
+					CodexAgentExecutable = folder / "codex";
+				}
+				if (!ClaudeSearch) {
+					ClaudeSearch = detail::claude_search_environment{ .PathVariable = folder.string() };
+				}
+			}
+	#endif
+			LabelHelper = aFixtureOptions.LabelHelper;
 			DisableDeviceAuthorizationPanelComposition
 				= aFixtureOptions
 					  .DisableDeviceAuthorizationPanelComposition;
@@ -634,14 +662,24 @@ namespace bpr::app {
 			throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 		}
 
-		EpochActors          = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+		EpochActors = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2016]], RFC-BPR-0107. An agent and prompt import a crash cut
+		// off between its two settings files is undone before either is read.
+		if (const auto exchange = adapters::sqlite::make_agent_configuration_store(applicationDataRoot)) {
+			static_cast<void>(exchange->recover());
+		}
+#endif
 		WorkbenchPreferences = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
 		// The shared owner also serves defaults-only windows, which have no window-record restore.
 		WorkbenchPreferences->restore();
 		// [[BPR-1844]]. Read once, before any window opens a pull request,
 		// so a relaunch opens with the filters last chosen.
-		ViewFilterStore       = std::make_unique<view_filter_memory_store>(applicationDataRoot);
-		ViewFilterMemory      = std::make_unique<application::view_filter_memory_host>(*ViewFilterStore, WorkbenchEffects, DecisionLane, ViewFilterStore->load());
+		ViewFilterStore  = std::make_unique<view_filter_memory_store>(applicationDataRoot);
+		ViewFilterMemory = std::make_unique<application::view_filter_memory_host>(*ViewFilterStore, WorkbenchEffects, DecisionLane, ViewFilterStore->load());
+		// [[BPR-2171]]. Read once, like the filters.
+		DiscussStore          = std::make_unique<discuss_preferences_store>(applicationDataRoot);
+		DiscussPreferences    = std::make_unique<application::discuss_preferences_host>(*DiscussStore, WorkbenchEffects, DecisionLane, DiscussStore->load());
 		AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), qt::builtin_appearance_palettes(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
 		SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
 		QueueStore            = adapters::sqlite::make_queue_enrollment_store({

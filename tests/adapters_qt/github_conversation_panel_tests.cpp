@@ -804,7 +804,7 @@ namespace {
 		// Every control keeps its name, and says what it does when hovered.
 		const auto named = std::vector<std::pair<QWidget*, QString>>{
 			{ whole, QStringLiteral("Whole pull request") },
-			{ file, QStringLiteral("File scope") },
+			{ file, QStringLiteral("Only this file") },
 			{ choice, QStringLiteral("Thread file scope") },
 			{ unread, QStringLiteral("Unread only") },
 			{ unresolved, QStringLiteral("Unresolved only") },
@@ -816,24 +816,28 @@ namespace {
 			expect(control->accessibleName() == name && (control == summary || !control->toolTip().isEmpty()),
 				   "each band control keeps its accessible name and has a tooltip");
 		}
+		auto* const bots = panel.fold_bots_button();
 		expect(unread->toolButtonStyle() == Qt::ToolButtonIconOnly && unresolved->toolButtonStyle() == Qt::ToolButtonIconOnly
-				   && clear->toolButtonStyle() == Qt::ToolButtonIconOnly && whole->toolButtonStyle() == Qt::ToolButtonTextOnly,
-			   "the filters and Clear are icons; the scope's two choices are words");
+				   && clear->toolButtonStyle() == Qt::ToolButtonIconOnly && file->isCheckable() && !whole->isVisibleTo(&panel) && bots->isVisibleTo(&panel) && !bots->isChecked(),
+			   "[[BPR-2171]]: the scope is one toggle, Only this file, and Fold bots sits beside Hide resolved, off");
 
 		// One row at this width: scope, filters, then the counts and Clear at
 		// the right end, every control centred on the same line.
 		expect(whole->isChecked() && !choice->isVisibleTo(&panel), "the whole pull request is in scope and the file choice is hidden");
-		const auto row = in_band(*band, *whole).center().y();
-		for (auto* const control : std::vector<QWidget*>{ file, unread, unresolved, summary, clear }) {
+		const auto row = in_band(*band, *file).center().y();
+		for (auto* const control : std::vector<QWidget*>{ file, unread, unresolved, bots, summary, clear }) {
 			expect(std::abs(in_band(*band, *control).center().y() - row) <= 1, "the band is one row");
 		}
-		expect(in_band(*band, *whole).right() < in_band(*band, *file).left() + 1 && in_band(*band, *file).right() < in_band(*band, *unread).left()
-				   && in_band(*band, *unread).right() < in_band(*band, *unresolved).left()
-				   && in_band(*band, *unresolved).right() < in_band(*band, *summary).left() && in_band(*band, *summary).right() < in_band(*band, *clear).left(),
+		expect(in_band(*band, *file).right() < in_band(*band, *unread).left()
+				   && in_band(*band, *unread).right() < in_band(*band, *unresolved).left() && in_band(*band, *unresolved).right() < in_band(*band, *bots).left()
+				   && in_band(*band, *bots).right() < in_band(*band, *summary).left() && in_band(*band, *summary).right() < in_band(*band, *clear).left(),
 			   "scope, filters, counts and Clear read left to right");
-		expect(in_band(*band, *whole).left() == 12 && band->width() - in_band(*band, *clear).right() - 1 == 16,
-			   "the band starts at the list's edge and ends at its right margin");
-		expect(band->height() <= 50 && whole->height() == 30 && unread->height() == 30, "one 30-pixel row of chips in a band under 50 pixels");
+		const auto [columnLeft, columnWidth] = panel.cards()->column();
+		const auto viewportLeft              = band->mapFrom(&panel, panel.cards()->viewport()->mapTo(&panel, QPoint{ 0, 0 })).x();
+		expect(std::abs(in_band(*band, *file).left() - std::max(12, viewportLeft + columnLeft)) <= 1
+				   && std::abs(in_band(*band, *clear).right() + 1 - std::min(band->width() - 16, viewportLeft + columnLeft + columnWidth)) <= 1,
+			   "[[BPR-2171]]: the band's chips share the list's column edges");
+		expect(band->height() <= 50 && file->height() == 30 && unread->height() == 30, "one 30-pixel row of chips in a band under 50 pixels");
 		expect(summary->text() == QStringLiteral("4 threads, 2 unresolved, 0 new"), "the counts say the whole sentence");
 
 		// The ordinary availability line is said by the counts.
@@ -844,22 +848,21 @@ namespace {
 		expect(panel.availability_label()->isVisibleTo(&panel), "any other availability line stays shown in Discuss");
 		panel.set_availability_ordinary(true);
 
-		// File: the file is chosen inside the scope.
+		// Only this file: the file is chosen beside the toggle.
 		file->click();
 		process_events();
-		expect(file->isChecked() && choice->isVisibleTo(&panel) && in_band(*band, *choice).left() - in_band(*band, *file).right() <= 8,
-			   "choosing File shows the file choice right after it");
+		expect(file->isChecked() && !whole->isChecked() && choice->isVisibleTo(&panel) && in_band(*band, *choice).left() - in_band(*band, *file).right() <= 8,
+			   "Only this file shows the file choice right after it");
 		expect(summary->text().contains(QStringLiteral("pathless")) && summary->toolTip().contains(QStringLiteral("File leaves them out")),
 			   "File says it leaves out what is not on a file");
-		whole->click();
+		file->click();
 		process_events();
-		expect(!choice->isVisibleTo(&panel), "back to the whole pull request, the file choice hides again");
+		expect(whole->isChecked() && !file->isChecked() && !choice->isVisibleTo(&panel), "the toggle off is the whole pull request, and the file choice hides again");
 
 		// The keyboard walks the band in reading order, then the notes. The
-		// scope is one stop, as two radio buttons are: Tab reaches the chosen
-		// one and the arrows choose the other.
+		// scope is one toggle: Space turns it on and off.
 		panel.activateWindow();
-		whole->setFocus(Qt::TabFocusReason);
+		file->setFocus(Qt::TabFocusReason);
 		process_events();
 		const auto press = [](const Qt::Key aKey) {
 			QKeyEvent key{ QEvent::KeyPress, aKey, Qt::NoModifier };
@@ -872,14 +875,15 @@ namespace {
 				expect(QApplication::focusWidget() == next, "Tab walks scope, file, filters and Clear in reading order, then the notes");
 			}
 		};
-		walk({ unread, unresolved, clear, panel.cards() });
-		whole->setFocus(Qt::TabFocusReason);
-		press(Qt::Key_Right);
-		expect(QApplication::focusWidget() == file && file->isChecked() && choice->isVisibleTo(&panel), "Right chooses File and shows the file choice");
-		walk({ choice, unread, unresolved, clear, panel.cards() });
+		walk({ unread, unresolved, bots, clear, panel.cards() });
 		file->setFocus(Qt::TabFocusReason);
-		press(Qt::Key_Left);
-		expect(QApplication::focusWidget() == whole && whole->isChecked() && !choice->isVisibleTo(&panel), "Left chooses the whole pull request again");
+		file->click();
+		process_events();
+		expect(file->isChecked() && choice->isVisibleTo(&panel), "on, it shows the file choice");
+		walk({ choice, unread, unresolved, bots, clear, panel.cards() });
+		file->click();
+		process_events();
+		expect(whole->isChecked() && !choice->isVisibleTo(&panel), "off, the whole pull request again");
 		// A drill-down's pill sits between the filters and the counts, and so
 		// does its × in the keyboard's order.
 		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 threads"), QStringLiteral("Listed from the Overview"));
@@ -889,13 +893,13 @@ namespace {
 				   && pill->isAncestorOf(panel.listing_caption()) && pill->isAncestorOf(panel.clear_listing_button()),
 			   "the drill-down is a pill after the filters, holding its caption and its ×");
 		unresolved->setFocus(Qt::TabFocusReason);
-		walk({ panel.clear_listing_button(), clear, panel.cards() });
+		walk({ bots, panel.clear_listing_button(), clear, panel.cards() });
 		// Leaving Discuss and coming back keeps that order.
 		panel.set_discuss(false);
 		panel.set_discuss(true);
 		process_events();
-		whole->setFocus(Qt::TabFocusReason);
-		walk({ unread, unresolved, panel.clear_listing_button(), clear, panel.cards() });
+		file->setFocus(Qt::TabFocusReason);
+		walk({ unread, unresolved, bots, panel.clear_listing_button(), clear, panel.cards() });
 		panel.clear_listing_button()->click();
 		process_events();
 
@@ -922,7 +926,7 @@ namespace {
 		auto* const band = panel.discuss_controls();
 		panel.scope_this_file_button()->click();
 		process_events();
-		const auto controls = std::vector<QWidget*>{ panel.scope_whole_pull_request_button(), panel.scope_this_file_button(),
+		const auto controls = std::vector<QWidget*>{ panel.scope_this_file_button(),
 													 panel.findChild<QComboBox*>(QStringLiteral("conversationFileScope")), panel.filter_unread_button(),
 													 panel.filter_unresolved_button(), panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters")),
 													 panel.discuss_summary() };
@@ -960,7 +964,9 @@ namespace {
 			const auto  fill  = image.pixelColor(QPoint{ image.width() / 2, 2 });
 			expect(std::abs(fill.lightness() - base.lightness()) <= 2, "the band is drawn in the palette's base");
 			expect((fill.lightness() < 128) == dark, "the band is dark in the dark theme and light in the light one");
-			const auto chosen = panel.scope_whole_pull_request_button()->grab().toImage();
+			panel.scope_this_file_button()->setChecked(true);
+			process_events();
+			const auto chosen = panel.scope_this_file_button()->grab().toImage();
 			expect(chosen.pixelColor(QPoint{ 6, chosen.height() / 2 }) != fill, "the chosen scope is filled, not bare");
 			panel.close();
 
@@ -1145,7 +1151,7 @@ namespace {
 			// Discuss borrows the panel from Overview and leaves Overview's state.
 			panel.set_discuss(true);
 			process_events();
-			expect(panel.discuss() && !panel.pull_request_conversation() && !unread->isChecked() && panel.scope_whole_pull_request_button()->isVisibleTo(&panel),
+			expect(panel.discuss() && !panel.pull_request_conversation() && !unread->isChecked() && panel.scope_this_file_button()->isVisibleTo(&panel) && panel.scope_whole_pull_request_button()->isChecked(),
 				   "Discuss takes the panel with its own filters and scope");
 			panel.set_discuss(false);
 			panel.set_pull_request_conversation(true);

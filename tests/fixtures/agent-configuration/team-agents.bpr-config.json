@@ -1,0 +1,84 @@
+{
+  "format": "bpr.agent-configuration",
+  "version": 1,
+  "label": "Fixture team agents",
+  "exported_by": "BetterPullReview fixture",
+  "agents": [
+    {
+      "id": "team-reviewer",
+      "name": "Team reviewer",
+      "protocol": "claude_stream_json",
+      "program_name": "team-reviewer",
+      "arguments": ["--team", "platform"],
+      "check_arguments": ["--version"],
+      "model": "sonnet",
+      "effort": "medium",
+      "strict_run_checks": false,
+      "scratch_starts": false,
+      "builds_and_tests": true
+    },
+    {
+      "id": "work-claude",
+      "name": "Work Claude",
+      "protocol": "claude_stream_json",
+      "program_name": "work-claude",
+      "arguments": ["--profile", "work"],
+      "check_arguments": [],
+      "model": "sonnet",
+      "effort": "high",
+      "strict_run_checks": true,
+      "scratch_starts": true,
+      "builds_and_tests": false
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "protocol": "claude_stream_json",
+      "preset": "claude_code",
+      "arguments": [],
+      "check_arguments": [],
+      "model": "",
+      "effort": "",
+      "strict_run_checks": true,
+      "scratch_starts": true,
+      "builds_and_tests": false
+    },
+    {
+      "id": "future-agent",
+      "name": "Future agent",
+      "protocol": "future_stream_json",
+      "arguments": [],
+      "check_arguments": [],
+      "model": "",
+      "effort": "",
+      "strict_run_checks": true,
+      "scratch_starts": true,
+      "builds_and_tests": false
+    }
+  ],
+  "prompts": [
+    {
+      "purpose": "review.feedback",
+      "origin": "edited",
+      "written_against": "review-feedback-v1",
+      "text": "Lead with what matters to the author: the risk first, then the fix. One point per comment. Say \"nit:\" for anything they may ignore."
+    },
+    {
+      "purpose": "tour.problem",
+      "origin": "edited",
+      "written_against": "review-preparation-v0",
+      "text": "State the problem as the on-call engineer met it, in one paragraph."
+    },
+    {
+      "purpose": "enhance.writing",
+      "origin": "edited",
+      "written_against": "enhance-writing-v1",
+      "text": "Improve the writing the way /team-style says, and keep every technical claim as written."
+    },
+    {
+      "purpose": "release.notes",
+      "origin": "edited",
+      "text": "A prompt from a later version."
+    }
+  ]
+}

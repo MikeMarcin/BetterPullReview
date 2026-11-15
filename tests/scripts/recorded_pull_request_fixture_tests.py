@@ -311,6 +311,13 @@ CONSTRUCTIONS = (
         "Files": 4,
         "Folders": 4,
     },
+    # [[BPR-1996]], RFC-BPR-0100 AC08. A loader moved unchanged behind a flag.
+    {
+        "Directory": "flag-move-v1",
+        "Generator": "scripts/build_flag_move_fixture.py",
+        "Files": 7,
+        "Folders": 4,
+    },
     # [[BPR-1537]]. Five files of everyday changed lines, for intraline
     # emphasis.
     {

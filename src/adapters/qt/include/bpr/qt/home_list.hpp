@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QPersistentModelIndex>
 #include <QScrollArea>
+#include <QSet>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSortFilterProxyModel>
@@ -121,6 +122,9 @@ namespace bpr::qt {
 		/// \details A row drops the chip where its group already says the account:
 		/// under Account grouping, and in a group whose rows are all one account.
 		void set_chips(bool aChips);
+		/// \brief RFC-BPR-0108. The pull requests ("owner/name#123") a local
+		/// draft was associated with; the list owns the set.
+		void set_prepared(const QSet<QString>* aPrepared) noexcept;
 
 		[[nodiscard]] auto state() const noexcept -> std::optional<home_group>;
 		[[nodiscard]] auto key() const -> home_group_key;
@@ -147,6 +151,7 @@ namespace bpr::qt {
 		std::optional<home_group>    State;
 		bool                         StateOrdered = false;
 		bool                         Chips        = true;
+		const QSet<QString>*         Prepared     = nullptr;
 	};
 
 	/// \brief [[BPR-0776]]. A list view exactly as tall as its rows, inside a panel.
@@ -276,8 +281,12 @@ namespace bpr::qt {
 
 		/// \brief Takes Recently viewed as the last panel.
 		void adopt_recent(home_recent_view& aRecent);
-		void set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
-		void set_settings_dispatch(std::function<void()> aDispatch);
+		/// \brief RFC-BPR-0108 (X02). Marks the rows of these pull requests
+		/// ("owner/name#123") as prepared here.
+		void               set_prepared(QSet<QString> aPrepared);
+		[[nodiscard]] auto prepared() const noexcept -> const QSet<QString>&;
+		void               set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
+		void               set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
 		void set_clear_filters_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1843]]. A Recently viewed row's Open on GitHub, from its
@@ -289,6 +298,9 @@ namespace bpr::qt {
 		void set_ignore_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		/// \brief [[BPR-1338]]. A queue row's Open on GitHub, from its icon button.
 		void set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch);
+		/// \brief [[BPR-2049]]. A queue row's Seen or Approve again, from its
+		/// labelled button; the item says which the core offers.
+		void set_followup_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		/// \brief [[BPR-1338]]. The icon and tooltip every queue row's Open on
 		/// GitHub button shows, the window action's.
 		void set_page_action(const QIcon& aIcon, const QString& aToolTip);
@@ -463,7 +475,9 @@ namespace bpr::qt {
 			QAbstractItemView* Rows  = nullptr;
 		};
 
-		void schedule_refresh();
+		/// RFC-BPR-0108. The associated pull requests every slice reads.
+		QSet<QString> Prepared;
+		void          schedule_refresh();
 		/// \brief [[BPR-1865]]. Ranks again once whatever changed has landed.
 		void schedule_filter();
 		void apply_filter();
@@ -582,6 +596,7 @@ namespace bpr::qt {
 		std::function<void(int aRow)>                RecentPageDispatch;
 		std::function<void()>                        ViewObserver;
 		std::function<void(const core::queue_item&)> PageDispatch;
+		std::function<void(const core::queue_item&)> FollowupDispatch;
 		std::function<void(const QPoint&)>           RowMenuDispatch;
 		std::function<void()>                        CurrentObserver;
 		std::function<void(const core::queue_item&)> NewWindowDispatch;

@@ -7,6 +7,7 @@
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/draft_state.hpp"
+#include "bpr/core/github_window_read.hpp"
 #include "bpr/core/reviewer_request.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -27,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -105,6 +107,12 @@ namespace bpr::qt {
 			/// The round qualifier: units the count leaves out or cannot
 			/// classify, or a count that is not exact.
 			uncertain,
+			/// [[BPR-2093]]. My drafts on the row: `Count` of them, of which
+			/// `NotInReview` the review does not carry.
+			drafts,
+			/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments on the row:
+			/// `Count` of them, only on this computer.
+			local,
 		};
 		kind                                Kind = kind::label;
 		std::optional<core::feedback_label> Label;
@@ -112,7 +120,9 @@ namespace bpr::qt {
 		core::feedback_state_counts         States{ };
 		/// For `more`: the folded chips, in order.
 		std::vector<overview_comment_chip> Folded;
-		QRectF                             Box;
+		/// For `drafts`: how many the review does not carry.
+		std::size_t NotInReview = 0U;
+		QRectF      Box;
 	};
 
 	/// \brief [[BPR-1089]]. The chips of one Comments cell, laid out in it: the
@@ -122,6 +132,33 @@ namespace bpr::qt {
 	/// this one layout.
 	[[nodiscard]] auto overview_comment_chips(const core::feedback_counter_projection& aCounts, const QRect& aCell, const QFont& aFont)
 		-> std::vector<overview_comment_chip>;
+
+	/// \brief [[BPR-2093]]. A row's drafts: in the review and not in it.
+	struct overview_draft_count
+	{
+		std::size_t InReview    = 0U;
+		std::size_t NotInReview = 0U;
+		/// RFC-BPR-0127 ([[BPR-2159]]). My Local comments there, beside the
+		/// drafts; `total()` counts only drafts.
+		std::size_t Local = 0U;
+
+		[[nodiscard]] auto total() const noexcept -> std::size_t { return InReview + NotInReview; }
+		auto               operator==(const overview_draft_count&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-2093]]. The Comments cell with my drafts: the drafts chip
+	/// keeps its place at the cell's right end, before the qualifier, and the
+	/// comment chips fold into "+n" before they reach it. Without counts only
+	/// the drafts chip is laid out.
+	[[nodiscard]] auto overview_comment_chips(const core::feedback_counter_projection* aCounts, const QRect& aCell, const QFont& aFont, std::optional<overview_draft_count> aDrafts)
+		-> std::vector<overview_comment_chip>;
+
+	/// \brief [[BPR-2093]]. What the drafts chip says, in its tooltip and to
+	/// a screen reader.
+	[[nodiscard]] auto overview_drafts_text(const overview_comment_chip& aChip) -> QString;
+
+	/// \brief RFC-BPR-0127 ([[BPR-2159]]). What the Local chip says.
+	[[nodiscard]] auto overview_local_text(const overview_comment_chip& aChip) -> QString;
 
 	/// \brief [[BPR-1089]]. The chip the keyboard is on: Tab steps from a row
 	/// onto its chips, and the row and the chip's kind and label name it, so it
@@ -172,7 +209,7 @@ namespace bpr::qt {
 	/// without files of its own takes no row. Siblings keep projection order
 	/// and surviving items keep their indexes across refresh. Columns follow the
 	/// accepted table: operation, file, added, removed, changed, read,
-	/// comments, note. The model holds the projection's rows and decides
+	/// comments (RFC-BPR-0127: no note). The model holds the projection's rows and decides
 	/// nothing about them.
 	class overview_file_model final : public QAbstractItemModel
 	{
@@ -185,7 +222,6 @@ namespace bpr::qt {
 			changed_column,
 			read_column,
 			comments_column,
-			note_column,
 			column_count,
 		};
 
@@ -240,6 +276,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto feedback() const noexcept -> const std::optional<application::overview_feedback_projection>&;
 		/// \brief The counts of a file, folder or remainder row, or none.
 		[[nodiscard]] auto feedback_at(const QModelIndex& aIndex) const -> const core::feedback_counter_projection*;
+		/// \brief [[BPR-2093]]. My drafts per file, by path; only the
+		/// Comments column changes.
+		void apply_drafts(std::map<QString, overview_draft_count> aDrafts);
+		/// \brief A file row's drafts, a folder row's files' drafts together,
+		/// or none.
+		[[nodiscard]] auto drafts_at(const QModelIndex& aIndex) const -> std::optional<overview_draft_count>;
+		/// \brief The path a drafts chip names: a file's, or a folder's.
+		[[nodiscard]] auto path_at(const QModelIndex& aIndex) const -> QString;
 		/// \brief The row a drill-down from this index names.
 		[[nodiscard]] auto feedback_row(const QModelIndex& aIndex) const
 			-> std::optional<std::pair<application::overview_feedback_row_kind, std::string>>;
@@ -279,6 +323,8 @@ namespace bpr::qt {
 		std::optional<application::overview_feedback_projection> Feedback;
 		QHash<QString, std::size_t>                              FileFeedback;
 		QHash<QString, std::size_t>                              FolderFeedback;
+		/// [[BPR-2093]]. My drafts per file, by path.
+		std::map<QString, overview_draft_count> Drafts;
 	};
 
 	/// \brief Paints the overview table's marks: operation, changed, read, comments.
@@ -326,7 +372,12 @@ namespace bpr::qt {
 		void                      paint_cell(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_disclosure(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
-		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode) const;
+		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection* aCounts, core::feedback_resolution_mode aMode) const;
+		/// [[BPR-2093]]. The drafts chip: a pencil in a dashed outline, the
+		/// draft's own mark, its count, and an amber dot while any draft is
+		/// not in the review.
+		void paint_drafts_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
+		void paint_local_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
 
 		const overview_colours&            Colours;
 		std::optional<overview_chip_focus> ChipFocus;
@@ -461,11 +512,14 @@ namespace bpr::qt {
 		my_unresolved_threads,
 		checks,
 		files_read,
-		private_notes,
-		drafted_comments,
+		/// RFC-BPR-0127 ([[BPR-2159]]). My review counts my comments by
+		/// state: in the review, not in it, and Local.
+		in_review,
+		not_in_review,
+		local_comments,
 	};
 
-	inline constexpr std::size_t overview_value_count = 9U;
+	inline constexpr std::size_t overview_value_count = 10U;
 
 	using overview_path_dispatch = std::function<void(const QString&)>;
 	/// [[BPR-1089]]. The view's chips, mode and sort, for the host to count.
@@ -488,7 +542,18 @@ namespace bpr::qt {
 		/// The files table: the catalogue, then its comment counts.
 		pending_veil* Files = nullptr;
 		/// Merge, waiting on, participants, since my last review, checks.
+		/// [[BPR-2180]]: the plate at the column's foot saying what is still
+		/// coming; each section waits over its own place.
 		pending_veil* Side = nullptr;
+		/// [[BPR-2180]]. Each section of the side column, waiting on its own
+		/// part of the read in its own shape: Needs attention (merge state)
+		/// as pairs, My review as pairs, Checks as rows, People as faces and
+		/// its roster as faces and names.
+		pending_veil* Merge    = nullptr;
+		pending_veil* MyReview = nullptr;
+		pending_veil* Checks   = nullptr;
+		pending_veil* People   = nullptr;
+		pending_veil* Roster   = nullptr;
 	};
 
 	/// \brief [[BPR-1774]]. Save pressed in the description's editor: the body
@@ -531,6 +596,10 @@ namespace bpr::qt {
 		/// meanwhile is remembered (`pending_open`) for the window to open once
 		/// the review is accepted.
 		void present_observed_files(const std::vector<core::cached_review_file>& aFiles);
+		/// \brief [[BPR-2180]]. What the first read has shown so far, part by
+		/// part, as the read's lane decided: the side column's sections each
+		/// wait on their own part.
+		void present_loading_readiness(const core::github_loading_readiness& aReadiness);
 		/// \brief [[BPR-1895]]. Show complete results while other Status data loads.
 		void               present_observed_checks(const application::overview_checks_projection& aChecks);
 		void               present_observed_people(const application::overview_people_projection& aPeople);
@@ -629,6 +698,18 @@ namespace bpr::qt {
 		void set_attention_colour(const QColor& aColour);
 		void set_feedback_dispatch(overview_feedback_dispatch aDispatch);
 		void set_drill_down_dispatch(overview_drill_down_dispatch aDispatch);
+		/// \brief [[BPR-2093]]. My drafts per file, by path; the Comments
+		/// column shows them. Empty clears them.
+		void set_drafts(std::map<QString, overview_draft_count> aDrafts);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). My review's counts: my drafts
+		/// in the review and not in it, and my Local comments, all of them.
+		void set_mine_totals(overview_draft_count aTotals);
+		/// \brief [[BPR-2093]]. Where a drafts chip goes: the file's (or the
+		/// folder's) path, to list its drafts.
+		void set_drafts_dispatch(std::function<void(const QString&)> aDispatch);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). A Local chip's activation:
+		/// Threads on Local at the first in this row's path.
+		void set_local_dispatch(std::function<void(const QString&)> aDispatch);
 		/// \brief The view's current request: its chips, mode and sort.
 		[[nodiscard]] auto feedback_request() const -> application::overview_feedback_request;
 		/// \brief Chooses the mode, as the switch does.
@@ -899,6 +980,7 @@ namespace bpr::qt {
 		{
 			drawer_section_header* Header  = nullptr;
 			QWidget*               Frame   = nullptr;
+			QWidget*               Body    = nullptr;
 			QWidget*               Details = nullptr;
 		};
 		status_section_parts       Sections[overview_status_section_count]{ };
@@ -954,6 +1036,9 @@ namespace bpr::qt {
 		std::optional<application::overview_feedback_request> AskedFeedback;
 		overview_feedback_dispatch                            FeedbackDispatch;
 		overview_drill_down_dispatch                          DrillDownDispatch;
+		std::function<void(const QString&)>                   DraftsDispatch;
+		std::function<void(const QString&)>                   LocalDispatch;
+		std::optional<overview_draft_count>                   MineTotals;
 		QToolButton*                                          OpenCounts    = nullptr;
 		QToolButton*                                          AllCounts     = nullptr;
 		QToolButton*                                          Uncertain     = nullptr;
@@ -970,7 +1055,9 @@ namespace bpr::qt {
 		bool        Observing     = false;
 		std::size_t ReportedFiles = 0U;
 		/// [[BPR-1842]]. The provisional file list is shown.
-		bool                                                   ObservedFiles = false;
+		bool ObservedFiles = false;
+		/// [[BPR-2180]]. The read lane's own account of the first read.
+		core::github_loading_readiness                         Readiness;
 		std::optional<application::overview_checks_projection> ObservedChecks;
 		std::optional<application::overview_people_projection> ObservedPeople;
 		std::optional<application::overview_merge_projection>  ObservedMerge;

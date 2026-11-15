@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Report templates</title><style>/* Tokens are the application's own roles (src/adapters/qt/src/appearance_profile.cpp) and the surfaces
+   sampled from the owner's screenshots of 2026-11-14. No new hue: the Agent accent is the only colour
+   a report surface adds, and it stays on the glyph. */
+*{box-sizing:border-box}
+html{background:var(--canvas)}
+[data-theme=light]{--canvas:#dcdde1;--docink:#1b1c20;--docink2:#474a52;--doclink:#0b4fd6;--docrule:rgba(0,0,0,.13);--quote:rgba(0,0,0,.045);--pickbg:rgba(26,127,55,.08);--pickline:rgba(26,127,55,.3);
+--surface:#f6f7f9;--base:#fff;--raise:#fff;--tab:#eceff2;--tabon:#fff;--rule:#d9dee4;--rule2:#c3cad2;--ink:#1f2328;--ink2:#57606a;--ink3:#7d8590;--signal:#0969da;--selbg:#0969da;--onsel:#fff;--rowsel:#b9d6f6;--send:#0969da;--ok:#1a7f37;--bad:#cf222e;--needs:#ad7a00;--agent:#4a3fd6;--agentline:rgba(74,63,214,.38);--agentwash:rgba(74,63,214,.07);--codebox:#f0f2f5;--reftint:rgba(9,105,218,.08);--selrow:rgba(9,105,218,.10);--kw:#b51d27;--fn:#6639ba;--ty:#6e3ec8;--num:#0550ae;--codeink:#1f2328;--menu:#fbfbfc;--winedge:rgba(0,0,0,.24);--shadow:0 26px 64px rgba(0,0,0,.22),0 3px 10px rgba(0,0,0,.10);--light2:#d1d5db;color-scheme:light}
+[data-theme=dark]{--canvas:#101113;--docink:#e6edf3;--docink2:#a3acb6;--doclink:#7fb0e8;--docrule:rgba(255,255,255,.14);--quote:rgba(255,255,255,.05);--pickbg:rgba(63,185,80,.08);--pickline:rgba(63,185,80,.3);
+--surface:#1c2026;--base:#0d1117;--raise:#2a2e34;--tab:#262626;--tabon:#343434;--rule:#30363f;--rule2:#414955;--ink:#e6edf3;--ink2:#a3acb6;--ink3:#7e8893;--signal:#7fb0e8;--selbg:#28518c;--onsel:#fff;--rowsel:#28518c;--send:#4a8cff;--ok:#3fb950;--bad:#f47067;--needs:#e0a23c;--agent:#a3a0ff;--agentline:rgba(163,160,255,.46);--agentwash:rgba(163,160,255,.09);--codebox:#161c24;--reftint:rgba(127,176,232,.10);--selrow:rgba(127,176,232,.14);--kw:#6da9db;--fn:#ff8000;--ty:#ffd700;--num:#b5cea8;--codeink:#dcdcdc;--menu:#282e36;--winedge:rgba(255,255,255,.16);--shadow:0 26px 64px rgba(0,0,0,.6),0 3px 10px rgba(0,0,0,.4);--light2:#3a4048;color-scheme:dark}
+
+/* ---------- the page around the frames ---------- */
+body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--docink);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1480px;margin:0 auto;padding:40px 40px 120px}
+.crumbs{display:flex;gap:18px;font-size:13.5px;margin:0 0 26px;color:var(--docink2)}
+.crumbs .themes{margin-left:auto}
+.wrap a{color:var(--doclink);text-decoration-thickness:1px;text-underline-offset:3px}
+.wrap a:focus-visible{outline:2px solid var(--doclink);outline-offset:3px;border-radius:3px}
+h1.doc{font-size:30px;line-height:1.14;font-weight:700;letter-spacing:-.022em;margin:0 0 10px}
+.lede{max-width:74ch;margin:0 0 8px;color:var(--docink2);font-size:16px;line-height:1.5}
+h2.doc{font-size:23px;font-weight:700;letter-spacing:-.016em;margin:76px 0 6px;padding-top:22px;border-top:1px solid var(--docrule)}
+h3.doc{font-size:18px;font-weight:680;letter-spacing:-.01em;margin:44px 0 4px}
+.say{max-width:76ch;margin:0 0 8px;color:var(--docink2)}
+.say b,.say code{color:var(--docink)}
+.wrap code{font:.92em "SF Mono",ui-monospace,Menlo,monospace}
+figure{margin:22px 0 14px}
+figure .scroll{overflow-x:auto;padding:6px 6px 40px;margin:0 -6px -22px}
+figcaption{max-width:84ch;margin:0;color:var(--docink2);font-size:14px;line-height:1.5}
+figcaption b{color:var(--docink);font-weight:650}
+.pngs{font-size:13px;margin:4px 0 0;color:var(--docink2)}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:6px 40px;max-width:1040px;margin:16px 0 0;padding:0}
+.trade dt{font-weight:650;margin:0 0 2px}
+.trade dd{margin:0;color:var(--docink2);font-size:14.5px;line-height:1.5}
+.trade ul{margin:0;padding-left:18px}
+.trade li{margin:0 0 4px}
+ul.plain{max-width:80ch;margin:8px 0 0;padding-left:20px;color:var(--docink2);font-size:14.5px}
+ul.plain li{margin:0 0 6px}
+ul.plain b{color:var(--docink)}
+.said{max-width:86ch;margin:18px 0 0;padding:12px 18px;border-radius:8px;background:var(--quote);font-size:14.5px;color:var(--docink2)}
+.said p{margin:0}
+table.sum{border-collapse:collapse;max-width:1100px;margin:14px 0 0;font-size:14px;color:var(--docink2)}
+table.sum th,table.sum td{text-align:left;vertical-align:top;padding:7px 18px 7px 0;border-bottom:1px solid var(--docrule)}
+table.sum th{color:var(--docink);font-weight:650}
+table.sum td:first-child{color:var(--docink);font-weight:600;white-space:nowrap}
+body.shot{display:inline-block;padding:40px}
+body.shot .wrap{max-width:none;margin:0;padding:0}
+body.shot .doconly,body.shot figcaption,body.shot .pngs{display:none}
+body.shot figure{display:none;margin:0}
+body.shot figure.sel{display:block}
+body.shot figure .scroll{overflow:visible;padding:0;margin:0}
+@media (max-width:760px){.wrap{padding:26px 18px 80px}.trade{grid-template-columns:1fr}}
+
+/* ---------- the window, as the build draws it ---------- */
+.bpr{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;font:13px/16px var(--font);color:var(--ink);cursor:default;text-align:left}
+.bpr.win{position:relative;width:1280px;height:820px;border-radius:12px;background:var(--surface);overflow:hidden;box-shadow:0 0 0 .5px var(--winedge),var(--shadow);display:flex;flex-direction:column}
+.bpr svg.i{flex:none;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block}
+.bpr svg.i.fl{fill:currentColor;stroke:none}
+.bpr svg.i.spark{stroke-width:2.1}
+.bpr .sp{flex:1}
+.bpr .mk{color:var(--agent)}
+.q3{color:var(--ink3)}
+.tb1{flex:none;display:flex;align-items:center;gap:9px;height:30px;padding:0 10px 0 11px}
+.lights{display:flex;gap:8px;margin-right:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.lights i:nth-child(2){background:#febc2e}
+.lights i:nth-child(3){background:#28c840}
+.ib{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:22px;border-radius:5px;color:var(--ink)}
+.ib.on{box-shadow:inset 0 0 0 1px var(--rule2);background:var(--raise)}
+.ttl{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl b{font-weight:400;margin-right:7px}
+.seg{flex:none;display:inline-flex;height:22px;border-radius:6px;background:var(--base);box-shadow:inset 0 0 0 1px var(--rule)}
+.seg span{display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:5px;white-space:nowrap;font-size:12px}
+.seg span.on{background:var(--selbg);color:var(--onsel)}
+.tb2{flex:none;display:flex;align-items:center;gap:8px;height:28px;padding:0 6px 0 14px;white-space:nowrap}
+.tb2 .upd{display:inline-flex;align-items:center;gap:5px;color:var(--ink2);font-size:12px;margin-right:6px}
+.tb2 .upd svg.i{width:11px;height:11px}
+.tb2 .dd{display:inline-flex;align-items:center;justify-content:center;gap:40px;width:196px;height:21px;padding:0 8px 0 46px;border-radius:5px;background:var(--base);box-shadow:inset 0 0 0 1px var(--rule);font-size:12px}
+.tb2 .dd svg.i,.tb2 .tbtn svg.i.down{width:10px;height:10px}
+.tb2 .tbtn{display:inline-flex;align-items:center;gap:6px;height:21px;padding:0 8px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--rule);font-size:12px}
+.tb2 .nv{display:inline-flex;align-items:center;gap:10px;height:28px;padding:0 10px 0 36px;border-bottom:2px solid var(--selbg)}
+.tb2 .nv svg.i{width:12px;height:12px}
+.tb2 .nv .nb{display:inline-flex;align-items:center;justify-content:center;width:26px;height:19px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--rule)}
+.tb2 .nv.off{color:var(--ink3)}
+.tb2 .nv.off .nb{color:var(--ink3)}
+.tb2 .vw{display:inline-flex;height:21px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--rule);overflow:hidden;font-size:12px;margin-left:8px}
+.tb2 .vw span{display:inline-flex;align-items:center;gap:6px;padding:0 10px}
+.tb2 .vw span.on{background:var(--selbg);color:var(--onsel)}
+.tb2 .vw svg.i{width:13px;height:13px}
+.tb2 .vw .okc{color:var(--ok);font-style:normal}
+.tb2 .mini{display:inline-flex;align-items:center;gap:3px;color:var(--ink2)}
+.tb2 .mini svg.i{width:14px;height:14px}
+.main{flex:1;min-height:0;display:flex}
+
+/* files panel */
+.files{flex:none;width:319px;display:flex;flex-direction:column;border-right:1px solid var(--rule)}
+.ptabs{flex:none;display:flex;align-items:flex-end;height:28px;border-bottom:1px solid var(--rule)}
+.ptabs span{display:inline-flex;align-items:center;height:25px;padding:0 14px;background:var(--tab);border:1px solid var(--rule);border-bottom:0;border-left-width:0;color:var(--ink2)}
+.ptabs span:first-child{border-left-width:1px}
+.ptabs span.on{background:var(--tabon);color:var(--ink);font-weight:500}
+.frow{flex:none;display:flex;align-items:center;gap:4px;height:26px;padding:0 4px 0 3px}
+.frow .sel{display:inline-flex;align-items:center;width:126px;height:21px;padding:0 8px 0 12px;border-radius:5px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule)}
+.frow .sel svg.i{width:9px;height:13px;margin-left:auto}
+.frow .flt{flex:1;height:19px;padding:0 3px;background:var(--base);box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink3);line-height:19px}
+.tree{flex:1;min-height:0;padding-top:6px;background:var(--base);overflow:hidden}
+.tr{display:flex;align-items:center;gap:6px;height:18px;padding-right:5px;white-space:nowrap}
+.tr.d{color:var(--ink2);font-weight:500}
+.tr svg.i{width:10px;height:10px}
+.tr .st{width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1.2px var(--ink2);flex:none}
+.tr .st.h{box-shadow:inset 0 0 0 1.2px var(--needs);background:linear-gradient(90deg,var(--needs) 50%,transparent 50%)}
+.tr .lt{margin-left:auto;color:var(--ink3);font-size:11px;width:10px;text-align:center}
+.tr .lt.a{color:var(--ok)}
+.tr .pl{color:var(--ok);font-size:11px;min-width:16px;text-align:right}
+.tr .mi{color:var(--bad);font-size:11px}
+.tr.sel{background:var(--rowsel)}
+[data-theme=dark] .tr.sel{color:#fff}
+
+/* the document tab strip */
+.center{flex:1;min-width:0;display:flex;flex-direction:column}
+.dts{position:relative;flex:none;display:flex;height:28px;border-bottom:1px solid var(--rule);overflow:hidden}
+.dt{position:relative;flex:none;width:220px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;margin-top:3px;border-right:1px solid var(--rule);color:var(--ink2);white-space:nowrap}
+.dt span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.dt.on{background:var(--tabon);color:var(--ink);font-weight:600;box-shadow:inset 0 1px 0 var(--rule),inset 1px 0 0 var(--rule)}
+.dt svg.i.spark{width:13px;height:13px;color:var(--agent)}
+.dt .x{position:absolute;left:8px;top:6px;width:12px;height:12px;color:var(--ink2)}
+.dt .x svg.i{width:12px;height:12px}
+.dt .tabask{position:absolute;right:5px;top:3px;display:inline-flex;align-items:center;gap:1px;height:19px;padding:0 3px 0 4px;border-radius:5px;color:var(--agent);box-shadow:inset 0 0 0 1px var(--agentline);background:var(--agentwash)}
+.dt .tabask svg.i{width:12px;height:12px}
+.dt .tabask svg.i.down{width:8px;height:8px;stroke-width:1.8}
+.dts .end{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;gap:4px;padding:0 6px 0 5px;background:var(--surface);border-left:1px solid var(--rule)}
+.dts .end svg.i{width:11px;height:11px}
+.dts .end .oldask{display:inline-flex;align-items:center;gap:5px;height:21px;padding:0 6px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--rule2);background:var(--raise);font-size:12px}
+.dts .end .oldask.off{color:var(--ink3)}
+.dts .end .oldask.off .mk{opacity:.5}
+.dts .end .oldask svg.i.spark{width:13px;height:13px}
+.dts .end .oldask svg.i.down{width:9px;height:9px}
+
+/* the drawer, as built */
+.drawer{flex:none;width:323px;display:flex;flex-direction:column;border-left:1px solid var(--rule);background:var(--surface)}
+.dtabs{flex:none;display:flex;align-items:flex-end;height:28px;padding-left:5px;border-bottom:1px solid var(--rule)}
+.dtabs span{display:inline-flex;align-items:center;height:25px;padding:0 14px;background:var(--tab);border:1px solid var(--rule);border-bottom:0;border-left-width:0;color:var(--ink2)}
+.dtabs span:first-child{border-left-width:1px}
+.dtabs span.on{background:var(--tabon);color:var(--ink);font-weight:500}
+.ahead{flex:none;display:flex;align-items:center;gap:8px;padding:13px 10px 0 14px;white-space:nowrap}
+.ahead b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.ahead .sha{color:var(--ink3)}
+.ahead svg.i{color:var(--ink)}
+.cont{flex:none;padding:13px 10px 0 4px}
+.msgs{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:8px 11px 0 16px;overflow:hidden}
+.msgs .when{align-self:flex-end;color:var(--ink3)}
+.asked{padding:5px 10px 6px;border-radius:8px;background:var(--base);box-shadow:inset 0 0 0 1px var(--rule)}
+.reply{position:relative;border-radius:8px;background:var(--base);box-shadow:inset 0 0 0 1px var(--rule);padding:8px 10px 6px 12px}
+.reply .ans{color:var(--ink3);margin-top:8px}
+.reply .acts{display:flex;align-items:center;gap:10px;margin-top:6px;white-space:nowrap}
+.reply .acts .when{margin-left:auto;color:var(--ink3)}
+.reply .acts svg.i{width:14px;height:14px}
+.pbtn{flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 9px;border-radius:5px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule2);white-space:nowrap}
+.pbtn svg.i{width:13px;height:13px}
+.sugg{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:10px 11px 0 16px;height:66px;overflow:hidden}
+.sugg span{display:inline-flex;align-items:center;height:28px;padding:0 6px;border-radius:3px;color:var(--agent);box-shadow:inset 0 0 0 1px var(--agentline);white-space:nowrap;margin-bottom:-3px;background:var(--surface)}
+.compose{flex:none;margin:8px 10px 0 14px;border-radius:9px;background:var(--base);box-shadow:inset 0 0 0 1px var(--rule);padding:6px 6px 12px 8px}
+.compose .chip{display:inline-flex;align-items:center;gap:12px;height:30px;padding:0 9px 0 8px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--rule)}
+.compose .chip svg.i{width:11px;height:11px}
+.compose .phd{color:var(--ink3);height:44px;padding:9px 3px 0}
+.compose .tools{display:flex;align-items:center;gap:6px;padding-top:11px;border-top:1px solid var(--rule)}
+.compose .tools .tb{display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;border-radius:5px;color:var(--ink2)}
+.compose .tools .tb.o{box-shadow:inset 0 0 0 1px var(--rule2);background:var(--raise);color:var(--ink)}
+.compose .tools .tb svg.i{width:13px;height:13px}
+.compose .tools .send{display:inline-flex;align-items:center;justify-content:center;width:50px;height:23px;border-radius:5px;background:var(--send);color:#fff}
+.compose .tools .send svg.i{width:12px;height:12px;stroke-width:1.8}
+.sess{flex:none;text-align:right;color:var(--ink3);padding:7px 10px 9px}
+.sbar{flex:none;display:flex;align-items:center;gap:12px;height:34px;padding:0 10px 0 6px;border-top:1px solid var(--rule);white-space:nowrap}
+.sbar .dif{flex:none;width:21px;height:25px;margin:0 6px 0 2px;background:url(data:image/png;base64,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) center/contain no-repeat}
+.sbar .msg{flex:0 1 auto;min-width:40px;overflow:hidden;text-overflow:ellipsis}
+.sbar .fresh{flex:none;color:var(--ink3)}
+.apill{flex:none;display:inline-flex;align-items:center;gap:7px;height:20px;padding:0 6px 0 10px;border-radius:10px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule);font-size:11.5px}
+.apill svg.i{width:8px;height:12px;color:var(--ink2)}
+.cost{flex:none;font-size:11.5px;font-variant-numeric:tabular-nums;margin:0 150px 0 4px}
+
+/* the drawer alone, for the card figures */
+.bpr.np{position:relative;width:324px;height:728px;display:flex;flex-direction:column;border-radius:10px;background:var(--surface);overflow:hidden;box-shadow:0 0 0 .5px var(--winedge),0 8px 22px rgba(0,0,0,.14)}
+.bpr.np .drawer{flex:1;width:auto;border-left:0;min-height:0}
+.cols{display:flex;gap:28px;align-items:flex-start;font:13px/16px -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;color:var(--docink)}
+.col .slab{margin:0 0 9px;font-weight:650;font-size:14px}
+.col .slab span{font-weight:400;color:var(--docink2);margin-left:8px}
+.strip{margin:26px 0 0;font:13px/16px -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;color:var(--docink)}
+.strip .slab{margin:0 0 8px;font-weight:650;font-size:14px}
+.strip .slab span{font-weight:400;color:var(--docink2);margin-left:8px}
+.bpr.piece{position:relative;border-radius:9px;background:var(--surface);box-shadow:0 0 0 .5px var(--winedge),0 2px 7px rgba(0,0,0,.08)}
+.bpr.piece .dts{border-radius:9px 9px 0 0}
+.menu{position:absolute;z-index:55;min-width:210px;padding:5px;border-radius:9px;background:var(--menu);box-shadow:0 0 0 .5px var(--winedge),0 12px 34px rgba(0,0,0,.28);font:13px/16px var(--font);color:var(--ink);white-space:nowrap}
+.menu .mi{display:flex;align-items:center;gap:6px;height:23px;padding:0 12px 0 5px;border-radius:5px}
+.menu .gc{flex:none;width:17px;display:inline-flex;justify-content:center}
+.menu .gc svg.i{width:12px;height:12px;stroke-width:2}
+.menu .mi.sub{padding-left:19px}
+.menu .mi.on{background:var(--selbg);color:#fff}
+.menu hr{border:0;border-top:1px solid var(--rule);margin:5px 8px}
+
+/* ---------- shared report prose (options A, B, C) ---------- */
+.ref{font:12px/16px var(--mono);color:var(--signal);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--signal) 45%,transparent);text-underline-offset:2px;padding:0 3px;border-radius:3px;background:var(--reftint);overflow-wrap:anywhere}
+.bpr code{font:12px/16px var(--mono);padding:0 3px;border-radius:3px;background:var(--codebox)}
+.doc2{line-height:20px;overflow-wrap:break-word}
+.doc2 h1{margin:0;font-weight:700;letter-spacing:-.012em}
+.doc2 h2{margin:24px 0 6px;font-size:15px;line-height:20px;font-weight:650;letter-spacing:-.005em}
+.doc2 h3{margin:16px 0 4px;font-size:13px;line-height:18px;font-weight:650}
+.doc2 p{margin:0 0 8px}
+.doc2 ul{margin:0 0 8px;padding-left:18px}
+.doc2 li{margin:0 0 5px}
+.doc2 li .st2{color:var(--ink2)}
+.doc2 pre{margin:8px 0 10px;padding:8px 12px;border-radius:6px;background:var(--codebox);box-shadow:inset 0 0 0 1px var(--rule);font:12px/18px var(--mono);color:var(--codeink);white-space:pre;overflow:hidden}
+.doc2 pre .k{color:var(--kw)}.doc2 pre .f{color:var(--fn)}.doc2 pre .y{color:var(--ty)}.doc2 pre .n{color:var(--num)}
+.prov{color:var(--ink3);font-size:12px;line-height:16px}
+.icb{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;border-radius:5px;color:var(--ink2)}
+.icb svg.i{width:14px;height:14px}
+.icb.o{box-shadow:inset 0 0 0 1px var(--rule2);background:var(--raise);color:var(--ink)}
+.sbtn{flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:5px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule2);font-size:12px;white-space:nowrap}
+.sbtn svg.i{width:12px;height:12px}
+.sg2{flex:none;display:inline-flex;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--rule2);overflow:hidden;font-size:12px;background:var(--raise)}
+.sg2 span{display:inline-flex;align-items:center;padding:0 9px}
+.sg2 span.on{background:var(--selbg);color:var(--onsel)}
+
+/* ---------- current: the card and the tab as built ---------- */
+.rc0{border-radius:4px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rule) 55%,var(--base));padding:8px 10px;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.rc0 b{font-weight:700}
+.rc0 .lead{white-space:pre-line;line-height:16px}
+.rv0{flex:1;min-height:0;display:flex}
+.rv0 .side{flex:none;width:220px;display:flex;flex-direction:column;gap:6px;padding:12px 8px 12px 12px}
+.rv0 .side .hd{display:flex;gap:6px;align-items:flex-start;font-weight:700}
+.rv0 .side .hd svg.i{width:16px;height:16px;margin-top:0;color:var(--agent)}
+.rv0 .side .ol{flex:1;background:var(--base);padding:1px 0}
+.rv0 .side .ol div{height:17px;padding:0 5px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.rv0 .pg{flex:1;min-width:0;padding:16px 20px 24px;overflow:hidden}
+.rv0 .pg .tools{display:flex;gap:14px;margin:0 0 10px}
+.rv0 .pg .body{background:var(--base);padding:6px 5px 10px;line-height:16px}
+.rv0 .body h1{margin:0 0 9px;font-size:26px;line-height:31px;font-weight:700;letter-spacing:-.01em}
+.rv0 .body h2{margin:14px 0 9px;font-size:20px;line-height:24px;font-weight:700;letter-spacing:-.02em}
+.rv0 .body h3{margin:12px 0 8px;font-size:15px;line-height:19px;font-weight:700}
+.rv0 .body p{margin:0 0 10px}
+.rv0 .body ul{margin:0 0 10px;padding-left:26px}
+.rv0 .body pre{margin:0 0 10px;padding:6px 8px;background:var(--codebox);box-shadow:inset 0 0 0 1px var(--rule);font:12px/17px var(--mono);color:var(--codeink);white-space:pre;overflow:hidden}
+.rv0 .body pre .k{color:var(--kw)}.rv0 .body pre .f{color:var(--fn)}.rv0 .body pre .y{color:var(--ty)}.rv0 .body pre .n{color:var(--num)}
+.rv0 .body .ref{background:var(--codebox);padding:0;border-radius:0}
+
+/* ---------- A: the same card, set properly ---------- */
+.reply.rcA{padding:10px 12px 6px}
+.rcA .hd{display:flex;gap:6px;align-items:flex-start;font-weight:600;line-height:17px}
+.rcA .hd svg.i{width:14px;height:14px;margin-top:1px;color:var(--agent)}
+.rcA .meta{color:var(--ink3);font-size:12px;margin:2px 0 6px 20px}
+.rcA .lead{line-height:18px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+.rcA .open{display:flex;margin:9px 0 0}
+.rcA .rl{height:1px;background:var(--rule);margin:10px -11px 0}
+.reply.isopen{box-shadow:inset 0 0 0 1.5px var(--signal)}
+.rvA{flex:1;min-height:0;display:flex}
+.rvA .rail{flex:none;width:176px;padding:10px 0;border-right:1px solid var(--rule)}
+.rvA .rail div{position:relative;height:24px;line-height:24px;padding:0 10px 0 14px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rvA .rail div.l3{padding-left:28px}
+.rvA .rail div.on{color:var(--ink);font-weight:600}
+.rvA .rail div.on::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:1px;background:var(--signal)}
+.rvA .col2{flex:1;min-width:0;display:flex;flex-direction:column}
+.rbar{flex:none;display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 14px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.rvA .pg{flex:1;min-height:0;background:var(--base);padding:20px 28px 24px;overflow:hidden}
+.rvA .doc2 h1{font-size:20px;line-height:26px;margin-bottom:8px}
+
+/* ---------- B: contents in the card, a jump bar in the tab ---------- */
+.reply.rcB{padding:0 0 6px}
+.rcB .top{padding:10px 8px 9px 12px}
+.rcB .hd{display:flex;gap:6px;align-items:flex-start;font-weight:600;line-height:17px}
+.rcB .hd svg.i.spark{width:14px;height:14px;margin-top:1px;color:var(--agent)}
+.rcB .hd .icb{margin:-3px 0 -3px auto}
+.rcB .lead{line-height:18px;margin-top:5px;padding-right:4px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.rcB .toc{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:3px 0;margin:0 1px}
+.rcB .toc div{position:relative;display:flex;gap:8px;height:24px;line-height:24px;padding:0 10px 0 12px;white-space:nowrap}
+.rcB .toc b{flex:none;font-weight:500}
+.rcB .toc span{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ink3)}
+.rcB .toc div.on b{font-weight:650}
+.rcB .toc div.on::before{content:"";position:absolute;left:1.5px;top:3px;bottom:3px;width:2px;border-radius:1px;background:var(--signal)}
+.rcB .toc div.hov{background:var(--selrow)}
+.rcB .toc div.hov svg.i{width:10px;height:10px;margin:7px 0 0 auto;color:var(--ink2);flex:none}
+.rcB .ans,.rcB .acts{margin-left:12px;margin-right:10px}
+.rvB{flex:1;min-height:0;display:flex;flex-direction:column}
+.jump{display:flex;align-items:center;gap:6px;min-width:0}
+.jump svg.i.spark{width:13px;height:13px;color:var(--agent)}
+.jump svg.i.right{width:9px;height:9px;color:var(--ink3)}
+.jump svg.i.down{width:9px;height:9px;color:var(--ink2)}
+.jump span{color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.jump span.cur{color:var(--ink);font-weight:500;flex:none}
+.rvB .pg{flex:1;min-height:0;background:var(--base);overflow:hidden}
+.rvB .measure{width:560px;margin:0 auto;padding:26px 0 24px}
+.rvB .doc2 h1{font-size:22px;line-height:28px;margin-bottom:5px}
+.rvB .doc2 .standfirst{font-size:14px;line-height:21px;margin:12px 0 0;padding-bottom:16px;border-bottom:1px solid var(--rule)}
+.rvB .doc2 h2{margin-top:20px}
+
+/* ---------- C: a summary with the report attached; sections that fold ---------- */
+.reply.rcC{padding:9px 10px 6px 12px}
+.rcC .sum{line-height:18px}
+.att{display:flex;align-items:center;gap:8px;margin:9px 0 0;padding:7px 8px 7px 8px;border-radius:7px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--rule2)}
+.att .tile{flex:none;width:24px;height:30px}
+.att .tile .pg1{fill:var(--base);stroke:var(--ink3);stroke-width:1.1}
+.att .tile .sp1{fill:none;stroke:var(--agent);stroke-width:1.5;stroke-linejoin:round}
+.att .tx{flex:1;min-width:0}
+.att .tx b{font-weight:600;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.att .tx span{display:block;color:var(--ink3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.att > svg.i{width:10px;height:10px;color:var(--ink2)}
+.att.isopen{box-shadow:inset 0 0 0 1.5px var(--signal);background:var(--selrow)}
+.rcC .rl{height:1px;background:var(--rule);margin:10px -9px 0 -11px}
+.rvC{flex:1;min-height:0;background:var(--base);overflow:hidden}
+.rvC .measure{width:572px;margin:0 auto;padding:22px 0 24px}
+.rvC .mast{display:flex;align-items:flex-start;gap:6px}
+.rvC .doc2 h1{flex:1;font-size:22px;line-height:28px}
+.rvC .mast .sbtn{margin-top:3px}
+.rvC .mast .icb{margin-top:3px}
+.rvC .prov{margin:4px 0 12px}
+.rvC .doc2 .standfirst{margin:0 0 16px}
+.fold{border-top:1px solid var(--rule)}
+.fold:last-child{border-bottom:1px solid var(--rule)}
+.fold .fb{display:flex;align-items:center;gap:8px;height:32px;white-space:nowrap}
+.fold .fb svg.i{width:11px;height:11px;color:var(--ink2);margin-left:2px}
+.fold .fb b{flex:none;font-size:14px;font-weight:650;letter-spacing:-.005em}
+.fold .fb span{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ink3)}
+.fold .fb i{flex:none;margin-left:auto;font-style:normal;color:var(--ink3);font-size:12px;padding-left:12px}
+.fold .in{padding:0 0 8px 21px}
+.fold .in > :last-child{margin-bottom:6px}
+
+/* ================= round 2: the opened report ================= */
+[data-theme=light]{--add:#e6ffec;--del:#ffebe9;--scrim:rgba(24,26,32,.30);--onrow:#1f2328;--onrow2:#3d4a5c}
+[data-theme=dark]{--add:#153622;--del:#3e1f1f;--scrim:rgba(0,0,0,.52);--onrow:#fff;--onrow2:rgba(255,255,255,.78)}
+
+/* a suggested change: its lines as a diff, drafted the way the Agent tab's suggested comments are */
+.sg{margin:10px 0 12px;border-radius:6px;box-shadow:inset 0 0 0 1px var(--rule2);overflow:hidden;background:var(--base)}
+.sg .sh{display:flex;align-items:center;gap:8px;height:26px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--rule);white-space:nowrap;font-size:12px;line-height:16px}
+.sg .sh b{font-weight:600}
+.sg .sh svg.i{width:12px;height:12px;color:var(--ink2)}
+.sg .sl{display:flex;font:12px/18px var(--mono);white-space:pre;color:var(--codeink);overflow:hidden}
+.sg .sl .g{flex:none;width:34px;padding-right:6px;text-align:right;color:var(--ink3)}
+.sg .sl .m{flex:none;width:14px;margin-right:6px;text-align:center;color:var(--ink2)}
+.sg .sl.del{background:var(--del)}
+.sg .sl.add{background:var(--add)}
+.sg .sf{display:flex;align-items:center;gap:10px;height:36px;padding:0 7px;border-top:1px solid var(--rule);font-size:12px;line-height:16px;white-space:nowrap}
+.sg .sf .q3{margin-left:auto;padding-right:5px}
+.sbtn.b24{height:24px}
+
+/* back to the card */
+.back{display:inline-flex;align-items:center;gap:5px;color:var(--signal);white-space:nowrap}
+.back svg.i{width:12px;height:12px}
+.prov .back{margin-right:10px}
+
+/* A: the digest, two levels of disclosure */
+.fold.sub .fb{height:30px}
+.fold.sub .fb b{font-size:13px}
+.fold.sub:last-child{border-bottom:0}
+.fold .in.kids{padding-bottom:0}
+.fold .in.kids > :last-child{margin-bottom:0}
+.fold.sub .in{padding-bottom:2px}
+.rvC.digest .measure{padding-top:20px}
+.rvC.digest .doc2 .standfirst{margin-bottom:14px}
+
+/* B: the straight read, a heading that stays and a ruler of sections */
+.rvS{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:var(--base)}
+.stick{flex:none;display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 36px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.stick b{font-size:14px;font-weight:650;letter-spacing:-.005em}
+.stick .q3{font-size:12px}
+.rvS .scrollv{position:relative;flex:1;min-height:0;overflow:hidden}
+.rvS .measure{width:540px;margin:0 0 0 36px;padding:6px 0 0}
+.rvS .doc2 h3{font-size:14px;line-height:20px;margin:14px 0 4px}
+.rvS .doc2 h2{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule)}
+.ruler{position:absolute;right:8px;top:8px;bottom:8px;width:16px}
+.ruler::before{content:"";position:absolute;right:0;top:0;bottom:0;width:1px;background:var(--rule2)}
+.ruler i{position:absolute;right:0;height:2px;border-radius:1px;background:var(--ink3);width:7px}
+.ruler i.h2{width:13px}
+.ruler i.on{background:var(--signal)}
+.ruler .vp{position:absolute;right:-4px;left:-3px;border-radius:4px;background:var(--selrow);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--signal) 40%,transparent)}
+.bpr.pane{position:relative;display:flex;flex-direction:column;overflow:hidden;border-radius:9px;background:var(--base);box-shadow:0 0 0 .5px var(--winedge),0 2px 7px rgba(0,0,0,.08)}
+
+/* B in place: the drawer at reading width, the code still beside it */
+.drawer.wide{width:560px}
+.rdh{flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 8px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.rdh b{font-weight:600;margin-left:4px}
+.rdh svg.i.spark{width:14px;height:14px;color:var(--agent);margin-left:4px}
+.drawer.wide .stick{padding-left:24px;background:var(--base)}
+.drawer.wide .rvS .measure{width:478px;margin-left:24px}
+.drawer.wide .compose .phd{height:30px}
+.codev{flex:1;min-height:0;background:var(--base);overflow:hidden;padding-top:4px}
+.cl{display:flex;height:18px;font:12px/18px var(--mono);white-space:pre;color:var(--codeink)}
+.cl .g{flex:none;width:40px;padding-right:9px;text-align:right;color:var(--ink3);background:var(--codebox)}
+.cl .t{flex:1;min-width:0;padding-left:9px;overflow:hidden}
+.cl.add .t{background:var(--add)}
+.cl.cur .g{color:var(--ink);font-weight:700;box-shadow:inset 2px 0 0 var(--signal)}
+.cl.cur .t{box-shadow:inset 0 1px 0 var(--signal),inset 0 -1px 0 var(--signal)}
+.cl .k,.sg .k{color:var(--kw)}.cl .f,.sg .f{color:var(--fn)}.cl .y,.sg .y{color:var(--ty)}.cl .n,.sg .n{color:var(--num)}.cl .c{color:var(--ink3)}
+
+/* C: one section at a time */
+.tb2 .nv.live{color:var(--ink)}
+.rvP{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--base)}
+.pbar{flex:none;display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.pbar .q3{font-size:12px}
+.rvP .pgv{flex:1;min-height:0;overflow:hidden}
+.rvP .measure{width:572px;margin:0 auto;padding:20px 0 0}
+.doc2 h1.pt{font-size:20px;line-height:26px;margin-bottom:6px}
+.paged h3{font-size:14px;line-height:20px;margin:14px 0 4px}
+.pager{display:flex;gap:12px;margin-top:16px;padding-top:8px;border-top:1px solid var(--rule)}
+.pager span{flex:1;display:flex;align-items:center;gap:6px;height:30px;white-space:nowrap}
+.pager span.nx{justify-content:flex-end}
+.pager svg.i{width:10px;height:10px;color:var(--ink2)}
+.toc2{border-top:1px solid var(--rule);margin-top:14px}
+.toc2 div{display:flex;align-items:center;gap:10px;height:34px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.toc2 div b{flex:none;font-size:14px;font-weight:650;letter-spacing:-.005em}
+.toc2 div span{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ink3)}
+.toc2 div i{flex:none;margin-left:auto;font-style:normal;font-size:12px;color:var(--ink3);padding-left:10px}
+.toc2 div svg.i{flex:none;width:10px;height:10px;color:var(--ink3);margin-left:auto}
+.toc2 div i + svg.i{margin-left:0}
+
+/* C previewed: Quick Look over the window, dimmed from under the title row */
+.scrim{position:absolute;z-index:20;left:0;right:0;top:30px;bottom:0;background:var(--scrim)}
+.ql{position:absolute;z-index:21;left:176px;top:82px;width:928px;height:672px;border-radius:10px;background:var(--base);box-shadow:0 0 0 .5px var(--winedge),0 24px 60px rgba(0,0,0,.42),0 3px 10px rgba(0,0,0,.2);display:flex;flex-direction:column;overflow:hidden}
+.qlh{flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 9px 0 14px;background:var(--surface);border-bottom:1px solid var(--rule);white-space:nowrap}
+.qlh b{font-weight:600}
+.qlh svg.i.spark{width:14px;height:14px;color:var(--agent)}
+.qlh .q3{font-size:12px;margin-left:4px}
+.qlb{flex:1;min-height:0;display:flex}
+.qll{flex:none;width:236px;background:var(--surface);border-right:1px solid var(--rule);padding:6px}
+.qll div{padding:5px 10px 6px;border-radius:6px}
+.qll div b{display:block;font-weight:600}
+.qll div span{display:block;color:var(--ink3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qll div.on{background:var(--rowsel);color:var(--onrow)}
+.qll div.on span{color:var(--onrow2)}
+.qlp{flex:1;min-width:0;overflow:hidden}
+.qlp .measure{width:600px;margin:0 auto;padding:20px 0 0}
+.keys{display:inline-flex;align-items:center;gap:5px;color:var(--ink3);font-size:12px}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 5px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink2);font-size:11px;line-height:16px}
+
+/* ================= round 3: the opened report, in the file tab only ================= */
+.rvS .doc2 h1{font-size:22px;line-height:28px;margin:14px 0 4px}
+.rvS .doc2 .standfirst{margin:10px 0 0}
+.pgb{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:22px;border-radius:5px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink)}
+.pgb svg.i{width:11px;height:11px}
+.pbar .nm{display:inline-flex;align-items:center;gap:5px;font-weight:600;margin-left:4px}
+.pbar .nm svg.i{width:9px;height:9px;color:var(--ink2)}
+.menu .gc svg.i.bubble{stroke-width:1.5}
+
+/* ================= round 4: the straight read with a navigation menu ================= */
+.rvS.plain .measure{width:572px;margin:0 auto;padding:6px 0 0}
+.rvS.plain .doc2 h2.first{margin-top:12px;padding-top:0;border-top:0}
+.rvS.plain .doc2 h1{margin-top:16px}
+.nbar{flex:none;display:flex;align-items:center;gap:8px;height:32px;padding:0 8px 0 8px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.mbtn{flex:none;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px 0 7px;border-radius:5px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule2);font-weight:500}
+.mbtn svg.i{width:13px;height:13px}
+.mbtn svg.i.down{width:9px;height:9px;color:var(--ink2);margin-left:1px}
+.mbtn.open,.fab.open{background:var(--selrow);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--signal) 55%,transparent)}
+.fab{position:absolute;z-index:30;right:14px;top:12px;display:inline-flex;align-items:center;justify-content:center;width:32px;height:28px;border-radius:7px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--rule2),0 3px 10px rgba(0,0,0,.2);color:var(--ink)}
+.fab svg.i{width:15px;height:15px}
+.fab.open{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--signal) 55%,transparent),0 3px 10px rgba(0,0,0,.2);background:color-mix(in srgb,var(--signal) 14%,var(--raise))}
+.pop{position:absolute;z-index:55;border-radius:10px;background:var(--menu);box-shadow:0 0 0 .5px var(--winedge),0 14px 40px rgba(0,0,0,.30),0 2px 6px rgba(0,0,0,.14);padding:6px;font:13px/16px var(--font);color:var(--ink);white-space:nowrap}
+.pop::before{content:"";position:absolute;top:-6px;left:var(--ax,22px);width:12px;height:12px;background:var(--menu);transform:rotate(45deg);box-shadow:-.5px -.5px 0 0 var(--winedge)}
+.pop.r::before{left:auto;right:var(--ax,10px)}
+.pop .pr{position:relative;padding:5px 10px 6px 12px;border-radius:6px}
+.pop .pr b{display:block;font-weight:600}
+.pop .pr span{display:block;color:var(--ink3);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.pop .pr.sub{padding:4px 10px 4px 26px}
+.pop .pr.one{padding:4px 10px 4px 12px}
+.pop .pr.one.sub{padding-left:26px}
+.pop .pr.on{background:var(--selrow)}
+.pop .pr.on::before{content:"";position:absolute;left:3px;top:5px;bottom:5px;width:2px;border-radius:1px;background:var(--signal)}
+.pop hr{border:0;border-top:1px solid var(--rule);margin:5px 6px}
+.pop .act{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 10px;border-radius:6px}
+.pop .act svg.i{width:13px;height:13px;color:var(--ink2)}
+
+/* ================= report templates ================= */
+[data-theme=light]{--c-bad:#cf222e;--c-needs:#9a6100;--c-ok:#1a7f37;--c-stale:#5b6570;--c-sig:#0969da;--c-q:#8250df;--c-praise:#bf3989}
+[data-theme=dark]{--c-bad:#ff7b72;--c-needs:#e0a23c;--c-ok:#3fb950;--c-stale:#8b949e;--c-sig:#7fb0e8;--c-q:#c29bff;--c-praise:#f778ba}
+.rep{position:relative;padding:0 0 30px;background:var(--base)}
+.rep .measure{width:572px;margin:0 auto;padding:6px 0 0}
+.rep .doc2 h1{font-size:22px;line-height:28px;margin:16px 0 4px}
+.rep .doc2 .standfirst{margin:10px 0 0}
+.rep .doc2 h2{margin:26px 0 6px;padding-top:14px;border-top:1px solid var(--rule)}
+.rep .doc2 h3{font-size:14px;line-height:20px;margin:14px 0 4px}
+.rep .doc2 blockquote{margin:6px 0 8px;padding:0 0 0 10px;border-left:2px solid var(--rule2);color:var(--ink2)}
+.rep .doc2 pre .cap{display:block;margin:-2px 0 4px;font:11.5px/16px var(--font);color:var(--ink3)}
+.rep .doc2 ul{padding-left:18px}
+.cardblk{width:300px;padding:10px 2px 12px;display:flex;flex-direction:column;gap:6px;background:var(--surface);border-radius:10px;box-shadow:0 0 0 .5px var(--winedge),0 2px 7px rgba(0,0,0,.08)}
+.cardblk > *{margin:0 11px 0 14px}
+/* B: what the app draws from the template */
+.bd{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:9px;font:600 11.5px/18px var(--font);color:var(--c,var(--ink2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c,var(--ink3)) 45%,transparent);background:color-mix(in srgb,var(--c,var(--ink3)) 9%,transparent);white-space:nowrap}
+.bd.dash{box-shadow:none;outline:1px dashed color-mix(in srgb,var(--c) 55%,transparent);outline-offset:-1px;background:transparent}
+.bd i{font-style:normal;font-weight:500;margin-left:5px;opacity:.85}
+.c-bad{--c:var(--c-bad)}.c-needs{--c:var(--c-needs)}.c-ok{--c:var(--c-ok)}.c-stale{--c:var(--c-stale)}.c-sig{--c:var(--c-sig)}.c-q{--c:var(--c-q)}.c-praise{--c:var(--c-praise)}
+.tally{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+.rcC .tally{margin:8px 0 0}
+.repB .doc2 h2{display:flex;align-items:center;gap:8px}
+.repB .doc2 h2 .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
+.repB .doc2 h2 .n{margin-left:auto;font-size:12px;font-weight:400;color:var(--ink3)}
+.it{padding:10px 0 4px;border-top:1px solid var(--rule)}
+.repB .doc2 h2 + .it{border-top:0;padding-top:4px}
+.it .ih{display:flex;align-items:baseline;gap:8px;margin:0 0 4px}
+.it .ih b{flex:1;min-width:0;font-size:14px;line-height:20px;font-weight:650}
+.it .ih .bd{align-self:flex-start;margin-top:1px}
+.it .ih .ref{flex:none}
+.rows{margin:2px 0 10px;border-top:1px solid var(--rule)}
+.rows .rw{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--rule)}
+.rows .rw .bd{align-self:center}
+.rows .rw .lb{flex:none;display:flex}
+.rows .rw .ref{flex:none}
+.rows .rw .tx{flex:1;min-width:0}
+.cx{margin:8px 0 10px;border-radius:6px;background:var(--codebox);box-shadow:inset 0 0 0 1px var(--rule);overflow:hidden;padding:5px 0}
+.cx div{display:flex;font:12px/18px var(--mono);white-space:pre;color:var(--codeink)}
+.cx div span:first-child{flex:none;width:36px;padding-right:10px;text-align:right;color:var(--ink3)}
+.chk{display:flex;gap:8px;align-items:baseline;margin:8px 0 10px;padding:6px 10px;border-radius:6px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--rule)}
+.chk b{flex:none;font-weight:600;color:var(--ink2)}
+.skel{max-width:900px;margin:10px 0 0;padding:12px 16px;border-radius:8px;background:var(--quote);font:12.5px/1.55 "SF Mono",ui-monospace,Menlo,monospace;color:var(--docink);white-space:pre-wrap}
+</style><script>var q=new URLSearchParams(location.search),t=q.get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;document.addEventListener('DOMContentLoaded',function(){var f=q.get('frame');if(f){document.body.classList.add('shot');var e=document.querySelector('[data-frame="'+f+'"]');if(e)e.classList.add('sel');}});</script></head><body><div class="wrap"><p class="crumbs doconly"><span>docs/design/report-templates-v1</span><span class="themes"><a href="?theme=light">Light</a> &nbsp; <a href="?theme=dark">Dark</a></span></p><h1 class="doc doconly">Report templates</h1><p class="lede doconly">A template for each report the app asks an agent for, and the system prompt that asks for it. Each report here is the same Markdown in both directions. A is that Markdown shown as Markdown. B is the same text with the app drawing what the template lets it recognise.</p><div class="said doconly"><p>Owner, 2026-11-14: “the report is ugly as crap. Like we need maybe a system prompt and a template to fit the reports in.”</p></div><ul class="plain doconly"><li><b>One convention for all five:</b> a title, one summary paragraph (the card shows it), fixed section headings for the kind, then items under them. An item is a third-level heading, the line it is about on the next line, then why. The ☰ list is the headings.</li><li><b>The agent writes Markdown, not JSON.</b> The headings the app navigates by are the ones the reader sees, a report that strays from the template still reads, and Copy source stays readable. The two machine blocks the app already reads at the end of an answer (<code>bpr-claims</code>, <code>bpr-findings</code>) stay as they are.</li><li><b>A, Markdown only.</b> The prompt and the template do all the work. The app shows the report as it shows any Markdown: nothing new to build beyond the prompts.</li><li><b>B, dressed.</b> The app reads the template: verdict words become badges with a tally under the summary and on the card, an item’s line sits at the right of its heading, code carries its line numbers, a suggestion is a diff with Add as draft comment, and list rows line up.</li><li>Every frame is the report tab’s page (572 point column, the floating ☰) beside the card in the Agent drawer. Each page is drawn whole; in the app it scrolls. The reports are parsed from <code>examples/</code> by the convention’s own rules.</li></ul><h2 class="doc doconly" id="wc">What changed since my review</h2><p class="say doconly">The template the system prompt asks for (<a href="prompts/what-changed.md">prompt</a>, <a href="examples/what-changed.md">this example’s source</a>):</p><pre class="skel doconly"># What changed since your review
+
+How many commits and merges since the review, then the one or two changes that matter, then whether anything else the reviewer read has changed.
+
+## Changed
+
+### An area, in a word or two
+
+- `path:line` What changed here, in a sentence.
+- `path:line` The next change in this area.
+
+```language
+the changed lines, only when seeing them helps
+```
+
+## Merged main
+
+- Merged main (N commits). Whether it touched this pull request's files.
+
+## Your conversations
+
+- **Lines changed** `path:line` The comment's first words.
+- **Replied** `path:line` The comment's first words. Who replied, and whether the lines changed.
+- **Unchanged** `path:line` The comment's first words.</pre><figure data-frame="wc-a"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">What changed since my review</div><div class="reply rcC"><div class="sum">Two commits and one merge of main since you reviewed at <code>6f2a91c</code>. The resize is now clamped to one pixel, as you asked, and a tonemap pass is new. Nothing else you read has changed.</div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>What changed since your review</b><span>Report, 3 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>What changed since your review</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>What changed since my review</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">Two commits and one merge of main since you reviewed at <code>6f2a91c</code>. The resize is now clamped to one pixel, as you asked, and a tonemap pass is new. Nothing else you read has changed.</p><h2>Changed</h2><h3>Rendering</h3><ul><li><a class="ref">src/engine/renderer.cpp:12</a> The width is clamped to at least one pixel before the resize. The height is not.</li><li><a class="ref">src/engine/renderer.h:31</a> The comment on <code>resize()</code> now states the one-pixel floor.</li></ul><pre>const auto width = std::max(aSize.Width, 1);
+Target.resize(extent{ width, aSize.Height });</pre><h3>Shaders</h3><ul><li><a class="ref">src/engine/shaders/post/tonemap.frag:1-5</a> A new pass that samples <code>uScene</code> and writes it straight through.</li></ul><h3>Tests</h3><ul><li><a class="ref">tests/engine/renderer_tests.cpp:6</a> A zero-width resize is covered. A zero height is not.</li></ul><h2>Merged main</h2><ul><li>Merged main (9 commits). None touched this pull request's files.</li></ul><h2>Your conversations</h2><ul><li><b>Lines changed</b> <a class="ref">src/engine/renderer.cpp:12</a> Clamp the size to at least one pixel.</li><li><b>Replied</b> <a class="ref">src/ui/widgets/slider.cpp:18</a> Should this clamp to the maximum? tbutler replied; the lines are as they were.</li><li><b>Unchanged</b> <a class="ref">src/ui/widgets/button.cpp:7</a> nitpick: name the magic number.</li></ul></div></div></div></div></div></div><figcaption><b>What changed since your review: A, Markdown only.</b></figcaption><p class="pngs">Render: <a href="png/wc-a-light.png">light</a>, <a href="png/wc-a-dark.png">dark</a></p></figure><figure data-frame="wc-b"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">What changed since my review</div><div class="reply rcC"><div class="sum">Two commits and one merge of main since you reviewed at <code>6f2a91c</code>. The resize is now clamped to one pixel, as you asked, and a tonemap pass is new. Nothing else you read has changed.</div><div class="tally"><span class="bd ">Rendering<i>2</i></span><span class="bd ">Shaders<i>1</i></span><span class="bd ">Tests<i>1</i></span></div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>What changed since your review</b><span>Report, 3 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep repB"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>What changed since your review</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>What changed since my review</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">Two commits and one merge of main since you reviewed at <code>6f2a91c</code>. The resize is now clamped to one pixel, as you asked, and a tonemap pass is new. Nothing else you read has changed.</p><div class="tally"><span class="bd ">Rendering<i>2</i></span><span class="bd ">Shaders<i>1</i></span><span class="bd ">Tests<i>1</i></span></div><h2>Changed<span class="n">3</span></h2><div class="it"><div class="ih"><b>Rendering</b></div><div class="rows"><div class="rw"><a class="ref">src/engine/renderer.cpp:12</a><span class="tx">The width is clamped to at least one pixel before the resize. The height is not.</span></div><div class="rw"><a class="ref">src/engine/renderer.h:31</a><span class="tx">The comment on <code>resize()</code> now states the one-pixel floor.</span></div></div><div class="cx"><div><span>12</span><span>const auto width = std::max(aSize.Width, 1);</span></div><div><span>13</span><span>Target.resize(extent{ width, aSize.Height });</span></div></div></div><div class="it"><div class="ih"><b>Shaders</b></div><div class="rows"><div class="rw"><a class="ref">src/engine/shaders/post/tonemap.frag:1-5</a><span class="tx">A new pass that samples <code>uScene</code> and writes it straight through.</span></div></div></div><div class="it"><div class="ih"><b>Tests</b></div><div class="rows"><div class="rw"><a class="ref">tests/engine/renderer_tests.cpp:6</a><span class="tx">A zero-width resize is covered. A zero height is not.</span></div></div></div><h2>Merged main</h2><div class="rows"><div class="rw"><span class="tx">Merged main (9 commits). None touched this pull request's files.</span></div></div><h2>Your conversations</h2><div class="rows"><div class="rw"><span class="lb"><span class="bd c-needs">Lines changed</span></span><a class="ref">src/engine/renderer.cpp:12</a><span class="tx">Clamp the size to at least one pixel.</span></div><div class="rw"><span class="lb"><span class="bd c-sig">Replied</span></span><a class="ref">src/ui/widgets/slider.cpp:18</a><span class="tx">Should this clamp to the maximum? tbutler replied; the lines are as they were.</span></div><div class="rw"><span class="lb"><span class="bd c-stale">Unchanged</span></span><a class="ref">src/ui/widgets/button.cpp:7</a><span class="tx">nitpick: name the magic number.</span></div></div></div></div></div></div></div></div><figcaption><b>What changed since your review: B, dressed.</b></figcaption><p class="pngs">Render: <a href="png/wc-b-light.png">light</a>, <a href="png/wc-b-dark.png">dark</a></p></figure><h2 class="doc doconly" id="ex">Explain this file</h2><p class="say doconly">The template the system prompt asks for (<a href="prompts/explain-file.md">prompt</a>, <a href="examples/explain-file.md">this example’s source</a>):</p><pre class="skel doconly"># What {file} does
+
+What the file is for and where it sits, in two sentences. Then what this pull request does to it.
+
+## How it works
+
+### A function or block, by its name
+
+`path:first-last`
+
+What it does and when it runs.
+
+```language
+the few lines that carry the idea
+```
+
+## What this pull request changes
+
+- `path:line` What changed here.
+
+## How it fits
+
+- **Declared in** `path:line`
+- **Called by** `path:line` When.
+- **Calls** `path:line` What for.
+- **Tested by** `path:line`
+
+## Worth knowing
+
+- `path:line` Something a reader would otherwise trip on.</pre><figure data-frame="ex-a"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">Explain this file</div><div class="reply rcC"><div class="sum"><a class="ref">src/engine/renderer.cpp</a> draws one frame: it sizes the swap chain, then paints each layer of the scene between <code>begin_frame()</code> and <code>present()</code>. It keeps no state beyond the target and the shader set. This pull request moves it into <code>src/engine/</code> and adds a one-pixel clamp to the resize.</div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>What renderer.cpp does</b><span>Report, 4 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>What renderer.cpp does</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>Explain this file</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst"><a class="ref">src/engine/renderer.cpp</a> draws one frame: it sizes the swap chain, then paints each layer of the scene between <code>begin_frame()</code> and <code>present()</code>. It keeps no state beyond the target and the shader set. This pull request moves it into <code>src/engine/</code> and adds a one-pixel clamp to the resize.</p><h2>How it works</h2><h3>resize()</h3><p><a class="ref">src/engine/renderer.cpp:9-14</a></p><p>Clamps the width to one pixel and resizes the target. It runs whenever the window's extent changes, including when the window is minimised.</p><pre>const auto width = std::max(aSize.Width, 1);
+Target.resize(extent{ width, aSize.Height });</pre><h3>draw()</h3><p><a class="ref">src/engine/renderer.cpp:16-21</a></p><p>Begins the frame, draws the scene and presents it. Nothing is drawn outside that bracket.</p><h3>draw_scene()</h3><p><a class="ref">src/engine/renderer.cpp:23-28</a></p><p>Paints each layer with the post shaders, in the scene's own order. Nothing here sorts.</p><h2>What this pull request changes</h2><ul><li><a class="ref">src/engine/renderer.cpp:1-3</a> The include paths follow the move to <code>src/engine/</code>.</li><li><a class="ref">src/engine/renderer.cpp:11-13</a> The width clamp is new.</li><li><a class="ref">src/engine/renderer.cpp:26</a> <code>paint()</code> now takes the post shaders.</li></ul><h2>How it fits</h2><ul><li><b>Declared in</b> <a class="ref">src/engine/renderer.h:12</a></li><li><b>Called by</b> <a class="ref">src/main.cpp:41</a> Once a frame.</li><li><b>Calls</b> <a class="ref">src/engine/swap_chain.h:20</a> <code>resize</code>, <code>begin_frame</code> and <code>present</code>.</li><li><b>Tested by</b> <a class="ref">tests/engine/renderer_tests.cpp:6</a></li></ul><h2>Worth knowing</h2><ul><li><a class="ref">src/engine/renderer.cpp:13</a> A zero height reaches <code>Target.resize</code> unclamped.</li><li><a class="ref">src/engine/renderer.cpp:19</a> <code>draw_scene()</code> assumes <code>begin_frame()</code> has run. Nothing checks.</li></ul></div></div></div></div></div></div><figcaption><b>What renderer.cpp does: A, Markdown only.</b></figcaption><p class="pngs">Render: <a href="png/ex-a-light.png">light</a>, <a href="png/ex-a-dark.png">dark</a></p></figure><figure data-frame="ex-b"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">Explain this file</div><div class="reply rcC"><div class="sum"><a class="ref">src/engine/renderer.cpp</a> draws one frame: it sizes the swap chain, then paints each layer of the scene between <code>begin_frame()</code> and <code>present()</code>. It keeps no state beyond the target and the shader set. This pull request moves it into <code>src/engine/</code> and adds a one-pixel clamp to the resize.</div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>What renderer.cpp does</b><span>Report, 4 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep repB"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>What renderer.cpp does</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>Explain this file</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst"><a class="ref">src/engine/renderer.cpp</a> draws one frame: it sizes the swap chain, then paints each layer of the scene between <code>begin_frame()</code> and <code>present()</code>. It keeps no state beyond the target and the shader set. This pull request moves it into <code>src/engine/</code> and adds a one-pixel clamp to the resize.</p><h2>How it works<span class="n">3</span></h2><div class="it"><div class="ih"><b>resize()</b><a class="ref">src/engine/renderer.cpp:9-14</a></div><p>Clamps the width to one pixel and resizes the target. It runs whenever the window's extent changes, including when the window is minimised.</p><div class="cx"><div><span>9</span><span>const auto width = std::max(aSize.Width, 1);</span></div><div><span>10</span><span>Target.resize(extent{ width, aSize.Height });</span></div></div></div><div class="it"><div class="ih"><b>draw()</b><a class="ref">src/engine/renderer.cpp:16-21</a></div><p>Begins the frame, draws the scene and presents it. Nothing is drawn outside that bracket.</p></div><div class="it"><div class="ih"><b>draw_scene()</b><a class="ref">src/engine/renderer.cpp:23-28</a></div><p>Paints each layer with the post shaders, in the scene's own order. Nothing here sorts.</p></div><h2>What this pull request changes</h2><div class="rows"><div class="rw"><a class="ref">src/engine/renderer.cpp:1-3</a><span class="tx">The include paths follow the move to <code>src/engine/</code>.</span></div><div class="rw"><a class="ref">src/engine/renderer.cpp:11-13</a><span class="tx">The width clamp is new.</span></div><div class="rw"><a class="ref">src/engine/renderer.cpp:26</a><span class="tx"><code>paint()</code> now takes the post shaders.</span></div></div><h2>How it fits</h2><div class="rows"><div class="rw"><span class="lb"><span class="bd ">Declared in</span></span><a class="ref">src/engine/renderer.h:12</a><span class="tx"></span></div><div class="rw"><span class="lb"><span class="bd ">Called by</span></span><a class="ref">src/main.cpp:41</a><span class="tx">Once a frame.</span></div><div class="rw"><span class="lb"><span class="bd ">Calls</span></span><a class="ref">src/engine/swap_chain.h:20</a><span class="tx"><code>resize</code>, <code>begin_frame</code> and <code>present</code>.</span></div><div class="rw"><span class="lb"><span class="bd ">Tested by</span></span><a class="ref">tests/engine/renderer_tests.cpp:6</a><span class="tx"></span></div></div><h2>Worth knowing</h2><div class="rows"><div class="rw"><a class="ref">src/engine/renderer.cpp:13</a><span class="tx">A zero height reaches <code>Target.resize</code> unclamped.</span></div><div class="rw"><a class="ref">src/engine/renderer.cpp:19</a><span class="tx"><code>draw_scene()</code> assumes <code>begin_frame()</code> has run. Nothing checks.</span></div></div></div></div></div></div></div></div><figcaption><b>What renderer.cpp does: B, dressed.</b></figcaption><p class="pngs">Render: <a href="png/ex-b-light.png">light</a>, <a href="png/ex-b-dark.png">dark</a></p></figure><h2 class="doc doconly" id="br">What could this change break?</h2><p class="say doconly">The template the system prompt asks for (<a href="prompts/could-break.md">prompt</a>, <a href="examples/could-break.md">this example’s source</a>):</p><pre class="skel doconly"># What this change could break
+
+Whether the change is safe on the whole, then the most likely break, named, then how many others.
+
+## Likely
+
+### What goes wrong, as someone would report it
+
+`path:line`
+
+Why this change causes it, and why nothing catches it.
+
+```language
+the lines at fault
+```
+
+**Check:** The one thing to run or read to find out.
+
+## Possible
+
+### The same item shape
+
+## Unlikely
+
+### The same item shape
+
+## Not checked
+
+- What you could not verify, and why.</pre><figure data-frame="br-a"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">What could this change break?</div><div class="reply rcC"><div class="sum">The move itself is safe: every include resolves and the tests pass. One thing is likely to break where no test looks: the packaging script still collects shaders from the old folder. Two more are possible.</div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>What this change could break</b><span>Report, 4 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>What this change could break</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>What could this change break?</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">The move itself is safe: every include resolves and the tests pass. One thing is likely to break where no test looks: the packaging script still collects shaders from the old folder. Two more are possible.</p><h2>Likely</h2><h3>A packaged build starts with no shaders</h3><p><a class="ref">tools/build/scripts/package.py:41</a></p><p>The script collects <code>src/shaders/*.frag</code>. After the move that matches nothing, and nothing fails: the archive is built without them.</p><pre>SHADERS = glob("src/shaders/*.frag")</pre><p><b>Check:</b> Run the packaging script and list the archive's <code>shaders/</code> folder.</p><h2>Possible</h2><h3>A minimised window asserts</h3><p><a class="ref">src/engine/renderer.cpp:13</a></p><p>The width is clamped to one pixel but the height is not, and the swap chain asserts on a zero extent.</p><p><b>Check:</b> Add a zero-height resize beside the zero-width one in <a class="ref">tests/engine/renderer_tests.cpp:6</a>.</p><h3>Code outside this repository that includes the old paths</h3><p><a class="ref">src/engine/renderer.h:1</a></p><p>Anything that includes <code>renderer.h</code> by its old path stops compiling.</p><p><b>Check:</b> Search the dependants for <code>#include "renderer.h"</code>.</p><h2>Unlikely</h2><h3>Layers drawn in a different order</h3><p><a class="ref">src/engine/renderer.cpp:25</a></p><p>The loop over the layers is as it was; only the call inside it gained an argument.</p><p><b>Check:</b> None needed.</p><h2>Not checked</h2><ul><li>The Windows build. No CI ran on this push.</li><li><a class="ref">docs/api/v2/endpoints.md</a> against the server it describes.</li></ul></div></div></div></div></div></div><figcaption><b>What this change could break: A, Markdown only.</b></figcaption><p class="pngs">Render: <a href="png/br-a-light.png">light</a>, <a href="png/br-a-dark.png">dark</a></p></figure><figure data-frame="br-b"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">What could this change break?</div><div class="reply rcC"><div class="sum">The move itself is safe: every include resolves and the tests pass. One thing is likely to break where no test looks: the packaging script still collects shaders from the old folder. Two more are possible.</div><div class="tally"><span class="bd c-bad">Likely<i>1</i></span><span class="bd c-needs">Possible<i>2</i></span><span class="bd c-stale">Unlikely<i>1</i></span></div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>What this change could break</b><span>Report, 4 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep repB"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>What this change could break</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>What could this change break?</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">The move itself is safe: every include resolves and the tests pass. One thing is likely to break where no test looks: the packaging script still collects shaders from the old folder. Two more are possible.</p><div class="tally"><span class="bd c-bad">Likely<i>1</i></span><span class="bd c-needs">Possible<i>2</i></span><span class="bd c-stale">Unlikely<i>1</i></span></div><h2><span class="dot c-bad"></span>Likely<span class="n">1</span></h2><div class="it"><div class="ih"><b>A packaged build starts with no shaders</b><a class="ref">tools/build/scripts/package.py:41</a></div><p>The script collects <code>src/shaders/*.frag</code>. After the move that matches nothing, and nothing fails: the archive is built without them.</p><div class="cx"><div><span>41</span><span>SHADERS = glob("src/shaders/*.frag")</span></div></div><div class="chk"><b>Check</b><span>Run the packaging script and list the archive's <code>shaders/</code> folder.</span></div></div><h2><span class="dot c-needs"></span>Possible<span class="n">2</span></h2><div class="it"><div class="ih"><b>A minimised window asserts</b><a class="ref">src/engine/renderer.cpp:13</a></div><p>The width is clamped to one pixel but the height is not, and the swap chain asserts on a zero extent.</p><div class="chk"><b>Check</b><span>Add a zero-height resize beside the zero-width one in <a class="ref">tests/engine/renderer_tests.cpp:6</a>.</span></div></div><div class="it"><div class="ih"><b>Code outside this repository that includes the old paths</b><a class="ref">src/engine/renderer.h:1</a></div><p>Anything that includes <code>renderer.h</code> by its old path stops compiling.</p><div class="chk"><b>Check</b><span>Search the dependants for <code>#include "renderer.h"</code>.</span></div></div><h2><span class="dot c-stale"></span>Unlikely<span class="n">1</span></h2><div class="it"><div class="ih"><b>Layers drawn in a different order</b><a class="ref">src/engine/renderer.cpp:25</a></div><p>The loop over the layers is as it was; only the call inside it gained an argument.</p><div class="chk"><b>Check</b><span>None needed.</span></div></div><h2>Not checked</h2><div class="rows"><div class="rw"><span class="tx">The Windows build. No CI ran on this push.</span></div><div class="rw"><a class="ref">docs/api/v2/endpoints.md</a><span class="tx">against the server it describes.</span></div></div></div></div></div></div></div></div><figcaption><b>What this change could break: B, dressed.</b></figcaption><p class="pngs">Render: <a href="png/br-b-light.png">light</a>, <a href="png/br-b-dark.png">dark</a></p></figure><h2 class="doc doconly" id="ad">Was this addressed? (6 threads)</h2><p class="say doconly">The template the system prompt asks for (<a href="prompts/was-addressed.md">prompt</a>, <a href="examples/was-addressed.md">this example’s source</a>):</p><pre class="skel doconly"># Was this addressed?
+
+Of N threads, how many are addressed, partly, not addressed and cannot be told. Then what is left to do, in a sentence.
+
+## Not addressed
+
+### The comment's first words
+
+`path:line`
+
+&gt; The comment, its first sentence or two, when it says more than the heading.
+
+What the code shows now, and why that does not answer the comment.
+
+```language
+the lines as they are now
+```
+
+## Partly
+
+### The same item shape: what is done, then what is not
+
+## Cannot tell
+
+### The same item shape: what stopped you from telling
+
+## Addressed
+
+### The same item shape, with one sentence and no code</pre><figure data-frame="ad-a"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">Was this addressed? (6 threads)</div><div class="reply rcC"><div class="sum">Of six threads, two are addressed, two partly, one is not, and one cannot be told from the code. What is left: the slider's maximum, the zero-height resize and a test for it.</div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>Was this addressed?</b><span>Report, 4 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>Was this addressed?</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>Was this addressed? (6 threads)</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">Of six threads, two are addressed, two partly, one is not, and one cannot be told from the code. What is left: the slider's maximum, the zero-height resize and a test for it.</p><h2>Not addressed</h2><h3>Should this clamp to the maximum?</h3><p><a class="ref">src/ui/widgets/slider.cpp:18</a></p><blockquote>Should this clamp to the maximum? A value of 1.2 draws past the track.</blockquote><p>The lines are as they were when you commented. tbutler replied that it belongs in a follow-up; no follow-up is linked.</p><pre>Value = aValue;
+if (Value &gt; Maximum) { notify_overflow(); }</pre><h2>Partly</h2><h3>Clamp the size to at least one pixel</h3><p><a class="ref">src/engine/renderer.cpp:12</a></p><blockquote>Clamp the size to at least one pixel. A zero extent asserts.</blockquote><p>The width is clamped. The height still goes to <code>Target.resize</code> as it arrives.</p><pre>const auto width = std::max(aSize.Width, 1);
+Target.resize(extent{ width, aSize.Height });</pre><h3>Cover the zero-size resize with a test</h3><p><a class="ref">tests/engine/renderer_tests.cpp:6</a></p><p>A zero width is tested. A zero height is not.</p><h2>Cannot tell</h2><h3>Is the bloom threshold still right after the move?</h3><p><a class="ref">src/engine/shaders/post/bloom.frag:5</a></p><p>The file moved, so its lines cannot be compared with the ones you commented on, and nothing in the push says.</p><h2>Addressed</h2><h3>Name the magic number</h3><p><a class="ref">src/ui/widgets/button.cpp:7</a></p><p><code>7</code> is now <code>corner_radius</code>.</p><h3>Say who owns the target</h3><p><a class="ref">src/engine/renderer.h:14</a></p><p>A comment on the member says the renderer does.</p></div></div></div></div></div></div><figcaption><b>Was this addressed?: A, Markdown only.</b></figcaption><p class="pngs">Render: <a href="png/ad-a-light.png">light</a>, <a href="png/ad-a-dark.png">dark</a></p></figure><figure data-frame="ad-b"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">Was this addressed? (6 threads)</div><div class="reply rcC"><div class="sum">Of six threads, two are addressed, two partly, one is not, and one cannot be told from the code. What is left: the slider's maximum, the zero-height resize and a test for it.</div><div class="tally"><span class="bd c-bad">Not addressed<i>1</i></span><span class="bd c-needs">Partly<i>2</i></span><span class="bd c-stale dash">Cannot tell<i>1</i></span><span class="bd c-ok">Addressed<i>2</i></span></div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>Was this addressed?</b><span>Report, 4 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep repB"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>Was this addressed?</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>Was this addressed? (6 threads)</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">Of six threads, two are addressed, two partly, one is not, and one cannot be told from the code. What is left: the slider's maximum, the zero-height resize and a test for it.</p><div class="tally"><span class="bd c-bad">Not addressed<i>1</i></span><span class="bd c-needs">Partly<i>2</i></span><span class="bd c-stale dash">Cannot tell<i>1</i></span><span class="bd c-ok">Addressed<i>2</i></span></div><h2><span class="dot c-bad"></span>Not addressed<span class="n">1</span></h2><div class="it"><div class="ih"><b>Should this clamp to the maximum?</b><a class="ref">src/ui/widgets/slider.cpp:18</a></div><blockquote>Should this clamp to the maximum? A value of 1.2 draws past the track.</blockquote><p>The lines are as they were when you commented. tbutler replied that it belongs in a follow-up; no follow-up is linked.</p><div class="cx"><div><span>18</span><span>Value = aValue;</span></div><div><span>19</span><span>if (Value &gt; Maximum) { notify_overflow(); }</span></div></div></div><h2><span class="dot c-needs"></span>Partly<span class="n">2</span></h2><div class="it"><div class="ih"><b>Clamp the size to at least one pixel</b><a class="ref">src/engine/renderer.cpp:12</a></div><blockquote>Clamp the size to at least one pixel. A zero extent asserts.</blockquote><p>The width is clamped. The height still goes to <code>Target.resize</code> as it arrives.</p><div class="cx"><div><span>12</span><span>const auto width = std::max(aSize.Width, 1);</span></div><div><span>13</span><span>Target.resize(extent{ width, aSize.Height });</span></div></div></div><div class="it"><div class="ih"><b>Cover the zero-size resize with a test</b><a class="ref">tests/engine/renderer_tests.cpp:6</a></div><p>A zero width is tested. A zero height is not.</p></div><h2><span class="dot c-stale"></span>Cannot tell<span class="n">1</span></h2><div class="it"><div class="ih"><b>Is the bloom threshold still right after the move?</b><a class="ref">src/engine/shaders/post/bloom.frag:5</a></div><p>The file moved, so its lines cannot be compared with the ones you commented on, and nothing in the push says.</p></div><h2><span class="dot c-ok"></span>Addressed<span class="n">2</span></h2><div class="it"><div class="ih"><b>Name the magic number</b><a class="ref">src/ui/widgets/button.cpp:7</a></div><p><code>7</code> is now <code>corner_radius</code>.</p></div><div class="it"><div class="ih"><b>Say who owns the target</b><a class="ref">src/engine/renderer.h:14</a></div><p>A comment on the member says the renderer does.</p></div></div></div></div></div></div></div><figcaption><b>Was this addressed?: B, dressed.</b></figcaption><p class="pngs">Render: <a href="png/ad-b-light.png">light</a>, <a href="png/ad-b-dark.png">dark</a></p></figure><h2 class="doc doconly" id="rv">Review this pull request</h2><p class="say doconly">The template the system prompt asks for (<a href="prompts/review.md">prompt</a>, <a href="examples/review.md">this example’s source</a>):</p><pre class="skel doconly"># Review of #N
+
+What the change does and whether it does it well, in a sentence. Then what must be fixed before it merges, named. Then anything open.
+
+## Must fix
+
+### issue (blocking): The finding, in a few words
+
+`path:first-last`
+
+What is wrong and what it causes.
+
+```language
+the lines at fault
+```
+
+```suggestion
+the lines as they should read
+```
+
+## Worth a look
+
+### suggestion (non-blocking): The same item shape
+
+### question: The same item shape
+
+## Good
+
+### praise: What was done well
+
+`path:line`
+
+Why it matters.
+
+## Questions for the author
+
+- `path:line` The question.
+
+## Not reviewed
+
+- What you left out, and why.</pre><figure data-frame="rv-a"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">Review this pull request</div><div class="reply rcC"><div class="sum">The move is clean: fourteen of the seventeen files moved without a change in behaviour. Two things need fixing before this merges: a zero height still asserts, and <code>package.py</code> still ships the old shader paths. The new tonemap pass raises a question.</div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>Review of #21</b><span>Report, 5 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>Review of #21</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>Review this pull request</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">The move is clean: fourteen of the seventeen files moved without a change in behaviour. Two things need fixing before this merges: a zero height still asserts, and <code>package.py</code> still ships the old shader paths. The new tonemap pass raises a question.</p><h2>Must fix</h2><h3>issue (blocking): A zero height still asserts</h3><p><a class="ref">src/engine/renderer.cpp:12-13</a></p><p>The width is clamped, but the height goes to <code>Target.resize</code> as it arrives. A minimised window reports a height of zero, and the swap chain asserts on it.</p><pre>const auto width = std::max(aSize.Width, 1);
+Target.resize(extent{ width, aSize.Height });</pre><pre><span class="cap">suggestion</span>    const auto height = std::max(aSize.Height, 1);
+    Target.resize(extent{ width, height });</pre><h3>issue (blocking): package.py ships the old shader paths</h3><p><a class="ref">tools/build/scripts/package.py:41</a></p><p>The script still collects <code>src/shaders/*.frag</code>. After the move that matches nothing, so a packaged build starts with no shaders.</p><pre><span class="cap">suggestion</span>SHADERS = glob("src/engine/shaders/**/*.frag", recursive=True)</pre><h2>Worth a look</h2><h3>question: Is the tonemap pass meant to ignore exposure?</h3><p><a class="ref">src/engine/shaders/post/tonemap.frag:5</a></p><p>It writes the scene straight through. Either it is a placeholder, or <code>uExposure</code> was lost in the move; <a class="ref">src/engine/shaders/post/bloom.frag:3</a> still declares it.</p><pre>void main() { vec4 c = texture(uScene, vUv); fragColour = c; }</pre><h3>suggestion (non-blocking): Clamp the slider's value before storing it</h3><p><a class="ref">src/ui/widgets/slider.cpp:18</a></p><p>The value is stored and then compared with <code>Maximum</code>. Your conversation there is still open.</p><h2>Good</h2><h3>praise: The move keeps history</h3><p><a class="ref">src/engine/renderer.cpp:1</a></p><p>Every file moved with <code>git mv</code>, so blame still reaches the original commits.</p><h2>Questions for the author</h2><ul><li><a class="ref">src/engine/shaders/post/tonemap.frag:5</a> Is this pass a placeholder for now?</li><li><a class="ref">docs/guide.md:9</a> Should the guide name the new shader folder?</li></ul><h2>Not reviewed</h2><ul><li><a class="ref">docs/api/v2/endpoints.md</a> and <a class="ref">docs/api/reference.md</a>. Prose only.</li><li>Fourteen files that moved with only their include paths changed.</li></ul></div></div></div></div></div></div><figcaption><b>Review of #21: A, Markdown only.</b></figcaption><p class="pngs">Render: <a href="png/rv-a-light.png">light</a>, <a href="png/rv-a-dark.png">dark</a></p></figure><figure data-frame="rv-b"><div class="scroll"><div class="cols"><div class="col"><p class="slab">The card<span></span></p><div class="bpr cardblk"><span class="when" style="align-self:flex-end;color:var(--ink3)">6 min ago</span><div class="asked">Review this pull request</div><div class="reply rcC"><div class="sum">The move is clean: fourteen of the seventeen files moved without a change in behaviour. Two things need fixing before this merges: a zero height still asserts, and <code>package.py</code> still ships the old shader paths. The new tonemap pass raises a question.</div><div class="tally"><span class="bd c-bad">issue<i>2</i></span><span class="bd c-q">question<i>1</i></span><span class="bd c-sig">suggestion<i>1</i></span><span class="bd c-praise">praise<i>1</i></span></div><div class="att"><svg class="tile" viewBox="0 0 26 32"><path class="pg1" d="M3.5 1.5h13l6 6v21a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2v-25a2 2 0 0 1 2-2z"/><path class="pg1" d="M16.5 1.5v6h6"/><path class="sp1" d="M11.5 12.5Q11.5 18.5 17.5 18.5Q11.5 18.5 11.5 24.5Q11.5 18.5 5.5 18.5Q11.5 18.5 11.5 12.5Z"/></svg><span class="tx"><b>Review of #21</b><span>Report, 5 sections</span></span><svg class="i right " viewBox="0 0 16 16"><path d="M6 3.2 10.8 8 6 12.8"/></svg></div><div class="rl"></div><div class="ans">Claude Code answered in 1:52 · $0.34</div><div class="acts"><svg class="i copy " viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="7.6" height="7.6" rx="1.4"/><path d="M10.4 3.4a1.2 1.2 0 0 0-1.2-.8H4A1.4 1.4 0 0 0 2.6 4v5.2a1.2 1.2 0 0 0 .8 1.2"/></svg><span class="pbtn"><svg class="i pencil " viewBox="0 0 16 16"><path d="M10.8 2.8l2.4 2.4-7.4 7.4-3 .6.6-3z"/></svg>Draft</span><span>Ask more</span><span class="when">6 min ago</span></div></div></div></div><div class="col"><p class="slab">The report tab<span>the whole page</span></p><div class="bpr pane" style="width:631px"><div class="rep repB"><span class="fab"><svg class="i burger " viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="measure doc2"><h1>Review of #21</h1><div class="prov"><span class="back"><svg class="i bubble " viewBox="0 0 16 16"><path d="M3 3.4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.4v-2.4H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg>Review this pull request</span>Claude Code answered in 1:52, 6 min ago, at cd24836</div><p class="standfirst">The move is clean: fourteen of the seventeen files moved without a change in behaviour. Two things need fixing before this merges: a zero height still asserts, and <code>package.py</code> still ships the old shader paths. The new tonemap pass raises a question.</p><div class="tally"><span class="bd c-bad">issue<i>2</i></span><span class="bd c-q">question<i>1</i></span><span class="bd c-sig">suggestion<i>1</i></span><span class="bd c-praise">praise<i>1</i></span></div><h2>Must fix<span class="n">2</span></h2><div class="it"><div class="ih"><span class="bd c-bad">issue (blocking)</span><b>A zero height still asserts</b><a class="ref">src/engine/renderer.cpp:12-13</a></div><p>The width is clamped, but the height goes to <code>Target.resize</code> as it arrives. A minimised window reports a height of zero, and the swap chain asserts on it.</p><div class="cx"><div><span>12</span><span>const auto width = std::max(aSize.Width, 1);</span></div><div><span>13</span><span>Target.resize(extent{ width, aSize.Height });</span></div></div><div class="sg"><div class="sl del"><span class="g">13</span><span class="m">−</span><span>    Target.resize(extent{ width, aSize.Height });</span></div><div class="sl add"><span class="g">13</span><span class="m">+</span><span>    const auto height = std::max(aSize.Height, 1);</span></div><div class="sl add"><span class="g">14</span><span class="m">+</span><span>    Target.resize(extent{ width, height });</span></div><div class="sf"><span class="sbtn b24">Add as draft comment</span><span class="q3">Nothing is published</span></div></div></div><div class="it"><div class="ih"><span class="bd c-bad">issue (blocking)</span><b>package.py ships the old shader paths</b><a class="ref">tools/build/scripts/package.py:41</a></div><p>The script still collects <code>src/shaders/*.frag</code>. After the move that matches nothing, so a packaged build starts with no shaders.</p><div class="sg"><div class="sl del"><span class="g">41</span><span class="m">−</span><span>SHADERS = glob("src/shaders/*.frag")</span></div><div class="sl add"><span class="g">41</span><span class="m">+</span><span>SHADERS = glob("src/engine/shaders/**/*.frag", recursive=True)</span></div><div class="sf"><span class="sbtn b24">Add as draft comment</span><span class="q3">Nothing is published</span></div></div></div><h2>Worth a look<span class="n">2</span></h2><div class="it"><div class="ih"><span class="bd c-q">question</span><b>Is the tonemap pass meant to ignore exposure?</b><a class="ref">src/engine/shaders/post/tonemap.frag:5</a></div><p>It writes the scene straight through. Either it is a placeholder, or <code>uExposure</code> was lost in the move; <a class="ref">src/engine/shaders/post/bloom.frag:3</a> still declares it.</p><div class="cx"><div><span>5</span><span>void main() { vec4 c = texture(uScene, vUv); fragColour = c; }</span></div></div></div><div class="it"><div class="ih"><span class="bd c-sig">suggestion (non-blocking)</span><b>Clamp the slider's value before storing it</b><a class="ref">src/ui/widgets/slider.cpp:18</a></div><p>The value is stored and then compared with <code>Maximum</code>. Your conversation there is still open.</p></div><h2>Good<span class="n">1</span></h2><div class="it"><div class="ih"><span class="bd c-praise">praise</span><b>The move keeps history</b><a class="ref">src/engine/renderer.cpp:1</a></div><p>Every file moved with <code>git mv</code>, so blame still reaches the original commits.</p></div><h2>Questions for the author</h2><div class="rows"><div class="rw"><a class="ref">src/engine/shaders/post/tonemap.frag:5</a><span class="tx">Is this pass a placeholder for now?</span></div><div class="rw"><a class="ref">docs/guide.md:9</a><span class="tx">Should the guide name the new shader folder?</span></div></div><h2>Not reviewed</h2><div class="rows"><div class="rw"><a class="ref">docs/api/v2/endpoints.md</a><span class="tx">and <a class="ref">docs/api/reference.md</a>. Prose only.</span></div><div class="rw"><span class="tx">Fourteen files that moved with only their include paths changed.</span></div></div></div></div></div></div></div></div><figcaption><b>Review of #21: B, dressed.</b></figcaption><p class="pngs">Render: <a href="png/rv-b-light.png">light</a>, <a href="png/rv-b-dark.png">dark</a></p></figure></div></body></html>

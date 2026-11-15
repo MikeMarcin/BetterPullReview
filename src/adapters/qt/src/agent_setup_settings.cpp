@@ -1,10 +1,14 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 
+#include "pull_request_overview_support.hpp"
+
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
@@ -14,19 +18,25 @@
 #include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStringList>
+#include <QStyle>
+#include <QStyledItemDelegate>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace bpr::qt {
@@ -64,6 +74,113 @@ namespace bpr::qt {
 			}
 			return { };
 		}
+
+		/// [[BPR-2051]]. The roster row's roles.
+		enum roster_role : int {
+			ring_role = Qt::UserRole + 1,
+			name_role,
+			line_role,
+			state_role,
+			failed_role,
+		};
+
+		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
+		{
+			const auto keep = 1.0 - aShare;
+			return QColor::fromRgbF(static_cast<float>(aFrom.redF() * keep + aTo.redF() * aShare), static_cast<float>(aFrom.greenF() * keep + aTo.greenF() * aShare),
+									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
+		}
+
+		/// \brief [[BPR-2051]], owner decision 2026-11-11 (mockup "A ·
+		/// Roster"). One added agent: its check ring, its name over its model
+		/// and effort (or what to do), its state at the right and a chevron,
+		/// for the sheet a click opens. Native selection and focus are drawn
+		/// first; every colour is the palette's or the setup's own.
+		class roster_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& /*aIndex*/) const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ aOption.font };
+				return { 320, metrics.height() * 2 + 22 };
+			}
+
+			void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				option.text.clear();
+				const auto* const widget = option.widget;
+				auto* const       style  = widget != nullptr ? widget->style() : QApplication::style();
+				style->drawPrimitive(QStyle::PE_PanelItemViewItem, &option, aPainter, widget);
+				const auto selected = (option.state & QStyle::State_Selected) != 0;
+				const auto palette  = option.palette;
+				const auto ink      = palette.color(selected ? QPalette::HighlightedText : QPalette::Text);
+				const auto quiet    = selected ? ink : palette.color(QPalette::PlaceholderText);
+				const auto rect     = option.rect;
+				aPainter->save();
+				aPainter->setRenderHint(QPainter::Antialiasing, true);
+				// The row's rule, under every row but the last.
+				if (aIndex.row() + 1 < aIndex.model()->rowCount()) {
+					aPainter->setPen(QPen{ mixed(palette.color(QPalette::Base), palette.color(QPalette::Text), 0.12), 1.0 });
+					aPainter->drawLine(QPointF{ rect.left() + 48.0, rect.bottom() + 0.5 }, QPointF{ static_cast<qreal>(rect.right()), rect.bottom() + 0.5 });
+				}
+				// The ring: passed, failed, checking or not checked.
+				const auto state = static_cast<core::setup_check_state>(aIndex.data(ring_role).toInt());
+				const auto ring  = QRectF{ rect.left() + 14.0, rect.center().y() - 10.0, 20.0, 20.0 };
+				auto       mark  = quiet;
+				switch (state) {
+				case core::setup_check_state::passed:  mark = setup_passed_colour(palette); break;
+				case core::setup_check_state::failed:  mark = setup_failed_colour(palette); break;
+				case core::setup_check_state::running: mark = palette.color(QPalette::Highlight); break;
+				case core::setup_check_state::not_run: break;
+				}
+				if (selected) {
+					mark = ink;
+				}
+				aPainter->setPen(QPen{ mark, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter->setBrush(Qt::NoBrush);
+				if (state == core::setup_check_state::running) {
+					aPainter->drawArc(ring.adjusted(1, 1, -1, -1), 90 * 16, -270 * 16);
+				} else {
+					aPainter->drawEllipse(ring.adjusted(1, 1, -1, -1));
+				}
+				const auto c = ring.center();
+				if (state == core::setup_check_state::passed) {
+					aPainter->drawPolyline(std::array{ QPointF{ c.x() - 4.5, c.y() + 0.2 }, QPointF{ c.x() - 1.4, c.y() + 3.2 }, QPointF{ c.x() + 4.6, c.y() - 3.4 } }.data(), 3);
+				} else if (state == core::setup_check_state::failed) {
+					aPainter->drawLine(QPointF{ c.x() - 3.5, c.y() - 3.5 }, QPointF{ c.x() + 3.5, c.y() + 3.5 });
+					aPainter->drawLine(QPointF{ c.x() + 3.5, c.y() - 3.5 }, QPointF{ c.x() - 3.5, c.y() + 3.5 });
+				}
+				// The chevron, then the state, right-aligned.
+				const auto chevron = QPointF{ rect.right() - 16.0, static_cast<qreal>(rect.center().y()) };
+				aPainter->setPen(QPen{ quiet, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter->drawPolyline(std::array{ chevron + QPointF{ -2.5, -5.0 }, chevron + QPointF{ 2.5, 0.0 }, chevron + QPointF{ -2.5, 5.0 } }.data(), 3);
+				const auto metrics  = QFontMetrics{ option.font };
+				const auto said     = aIndex.data(state_role).toString();
+				const auto failed   = aIndex.data(failed_role).toBool();
+				const auto stateW   = std::min(metrics.horizontalAdvance(said) + 2, rect.width() / 3);
+				const auto stateBox = QRect{ rect.right() - 30 - stateW, rect.top(), stateW, rect.height() };
+				aPainter->setFont(option.font);
+				aPainter->setPen(failed && !selected ? setup_failed_colour(palette) : quiet);
+				aPainter->drawText(stateBox, Qt::AlignRight | Qt::AlignVCenter, metrics.elidedText(said, Qt::ElideRight, stateW));
+				// The name over its line.
+				const auto left  = rect.left() + 48;
+				const auto right = stateBox.left() - 12;
+				auto       bold  = option.font;
+				bold.setWeight(QFont::DemiBold);
+				const auto top = rect.top() + 9;
+				aPainter->setFont(bold);
+				aPainter->setPen(ink);
+				aPainter->drawText(QRect{ left, top, std::max(0, right - left), metrics.height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ bold }.elidedText(aIndex.data(name_role).toString(), Qt::ElideRight, std::max(0, right - left)));
+				aPainter->setFont(option.font);
+				aPainter->setPen(quiet);
+				aPainter->drawText(QRect{ left, top + metrics.height() + 2, std::max(0, right - left), metrics.height() }, Qt::AlignLeft | Qt::AlignVCenter, metrics.elidedText(aIndex.data(line_role).toString(), Qt::ElideRight, std::max(0, right - left)));
+				aPainter->restore();
+			}
+		};
 	} // namespace
 
 	agent_programs_panel::agent_programs_panel(QWidget* aParent)
@@ -73,16 +190,51 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("agentProgramsPanel"));
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->addWidget(heading(tr("Agents"), this));
-		column->addWidget(note(tr("The agents the Agent tab offers, in this order. An agent you have not added is never offered. Each runs its own program with the fixed arguments you give it, such as a wrapper given --codex for Codex models."), this));
+		// [[BPR-2051]], owner decision 2026-11-11 (mockup "A · Roster"): the
+		// agents as a roster. Each row says its last check by its ring and in
+		// words, and opens its sheet; Check all and Add agent… follow it.
+		auto* const top = new QHBoxLayout{ };
+		top->setSpacing(10);
+		top->addWidget(heading(tr("Agents"), this), 0, Qt::AlignBaseline);
+		auto* const lead = note(tr("A pull request picks one of these in its footer. Drag to reorder."), this);
+		lead->setObjectName(QStringLiteral("settingsAgentsLead"));
+		top->addWidget(lead, 1, Qt::AlignBaseline);
+		column->addLayout(top);
 		List = new QListWidget{ this };
 		List->setObjectName(QStringLiteral("settingsAgentList"));
-		List->setMaximumHeight(160);
+		List->setAccessibleName(tr("Agents"));
+		List->setItemDelegate(new roster_delegate{ List });
+		List->setUniformItemSizes(true);
+		List->setFrameShape(QFrame::StyledPanel);
+		List->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		List->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		List->setDragDropMode(QAbstractItemView::InternalMove);
+		List->setDefaultDropAction(Qt::MoveAction);
+		List->setContextMenuPolicy(Qt::CustomContextMenu);
+		List->setMouseTracking(true);
 		connect(List, &QListWidget::currentRowChanged, this, [this] { settle_buttons(); });
-		connect(List, &QListWidget::itemDoubleClicked, this, [this] { EditButton->click(); });
+		// A row opens its sheet; its menu holds the rest.
+		connect(List, &QListWidget::itemClicked, this, [this] { EditButton->click(); });
+		connect(List, &QListWidget::itemActivated, this, [this] { EditButton->click(); });
+		connect(List, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) { open_row_menu(aAt); });
+		// Dragged to a new place: moved there one step at a time, as Move up
+		// and Move down do, so the saved order is the one shown.
+		connect(List->model(), &QAbstractItemModel::rowsMoved, this, [this](const QModelIndex&, const int aStart, int, const QModelIndex&, const int aRow) {
+			const auto destination = aRow > aStart ? aRow - 1 : aRow;
+			if (aStart < 0 || static_cast<std::size_t>(aStart) >= Agents.size() || destination == aStart || !Dispatch.Move) {
+				return;
+			}
+			const auto id    = Agents[static_cast<std::size_t>(aStart)].Id;
+			const auto delta = destination > aStart ? 1 : -1;
+			for (auto at = aStart; at != destination; at += delta) {
+				Dispatch.Move(id, delta);
+			}
+		});
 		column->addWidget(List);
 		auto* const row = new QHBoxLayout{ };
-		AddButton       = new quiet_push_button{ tr("Add agent…"), this };
+		row->setSpacing(8);
+		row->addStretch(1);
+		AddButton = new quiet_push_button{ tr("Add agent…"), this };
 		AddButton->setObjectName(QStringLiteral("settingsAddAgent"));
 		AddButton->setMenu(new QMenu{ AddButton });
 		connect(AddButton->menu(), &QMenu::aboutToShow, this, [this] {
@@ -105,9 +257,11 @@ namespace bpr::qt {
 			custom->setObjectName(QStringLiteral("settingsAddCustom"));
 			connect(custom, &QAction::triggered, this, [this] { add_agent(std::nullopt); });
 		});
-		row->addWidget(AddButton);
+		// Edit…, Remove, Move up and Move down are the rows' own: a click
+		// opens the sheet, the row's menu and a drag do the rest.
 		EditButton = new quiet_push_button{ tr("Edit…"), this };
 		EditButton->setObjectName(QStringLiteral("settingsEditAgent"));
+		EditButton->hide();
 		connect(EditButton, &QPushButton::clicked, this, [this] {
 			const auto* const entry = selected();
 			if (entry == nullptr || !Editor || !Dispatch.Update) {
@@ -115,47 +269,51 @@ namespace bpr::qt {
 			}
 			if (auto edited = Editor(*entry, this)) {
 				Dispatch.Update(std::move(*edited), [this](const std::optional<core::agent_entry_refusal> aRefusal) {
-					Status->setText(aRefusal ? text_of(core::describe(*aRefusal)) : tr("Saved."));
+					say(aRefusal ? text_of(core::describe(*aRefusal)) : tr("Saved."));
 				});
 			}
 		});
-		row->addWidget(EditButton);
 		RemoveButton = new quiet_push_button{ tr("Remove"), this };
 		RemoveButton->setObjectName(QStringLiteral("settingsRemoveAgent"));
+		RemoveButton->hide();
 		connect(RemoveButton, &QPushButton::clicked, this, [this] {
 			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Remove) {
 				Dispatch.Remove(entry->Id);
 			}
 		});
-		row->addWidget(RemoveButton);
 		UpButton = new quiet_push_button{ tr("Move up"), this };
 		UpButton->setObjectName(QStringLiteral("settingsAgentUp"));
+		UpButton->hide();
 		connect(UpButton, &QPushButton::clicked, this, [this] {
 			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Move) {
 				Dispatch.Move(entry->Id, -1);
 			}
 		});
-		row->addWidget(UpButton);
 		DownButton = new quiet_push_button{ tr("Move down"), this };
 		DownButton->setObjectName(QStringLiteral("settingsAgentDown"));
+		DownButton->hide();
 		connect(DownButton, &QPushButton::clicked, this, [this] {
 			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Move) {
 				Dispatch.Move(entry->Id, 1);
 			}
 		});
-		row->addWidget(DownButton);
-		row->addStretch(1);
+		build_check(*column, *row);
+		row->addWidget(AddButton);
 		column->addLayout(row);
 		Status = note({ }, this);
 		Status->setObjectName(QStringLiteral("settingsAgentStatus"));
+		Status->hide();
 		column->addWidget(Status);
-		build_check(*column);
+		column->addWidget(CheckRows);
 		// Owner decision 2026-10-23 ("I guess we can keep a timeout as an
 		// option, but i wouldnt want it on by default"): off unless chosen.
+		column->addSpacing(8);
 		auto* const limitRow = new QHBoxLayout{ };
 		RunLimitOn           = new QCheckBox{ tr("Stop a run after"), this };
 		RunLimitOn->setObjectName(QStringLiteral("settingsRunLimitOn"));
+		RunLimitOn->setToolTip(tr("Off, a run goes on until the agent finishes or you press Stop."));
 		limitRow->addWidget(RunLimitOn);
+		limitRow->addStretch(1);
 		RunLimit = new QSpinBox{ this };
 		RunLimit->setObjectName(QStringLiteral("settingsRunLimitMinutes"));
 		RunLimit->setRange(1, static_cast<int>(application::maximum_run_limit_minutes));
@@ -163,17 +321,144 @@ namespace bpr::qt {
 		RunLimit->setSuffix(tr(" min"));
 		RunLimit->setEnabled(false);
 		limitRow->addWidget(RunLimit);
-		limitRow->addStretch(1);
 		column->addLayout(limitRow);
-		column->addWidget(note(tr("Off, a run goes on until the agent finishes or you press Stop."), this));
 		connect(RunLimitOn, &QCheckBox::toggled, this, [this](const bool aOn) {
 			RunLimit->setEnabled(aOn);
 			send_run_limit();
 		});
 		connect(RunLimit, &QSpinBox::editingFinished, this, [this] { send_run_limit(); });
-		column->addSpacing(8);
+		// RFC-BPR-0126 Q4/Q5 as answered (owner, 2026-11-13: "Default is a
+		// setting, queue initially with a shortcut to the secondary action.
+		// See codex setting for inspiration."): Follow-up behaviour, Queue or
+		// Steer, a segmented choice; Cmd+Return the other for one message.
+		{
+			auto* const followRow = new QHBoxLayout{ };
+			auto* const says      = new QLabel{ tr("Follow-up behaviour"), this };
+			says->setToolTip(tr("What a message typed while the agent is answering does"));
+			followRow->addWidget(says);
+			followRow->addStretch(1);
+			auto* const segments = new QWidget{ this };
+			segments->setObjectName(QStringLiteral("settingsFollowUp"));
+			segments->setAccessibleName(tr("Follow-up behaviour"));
+			auto* const pair = new QHBoxLayout{ segments };
+			pair->setContentsMargins(0, 0, 0, 0);
+			pair->setSpacing(0);
+			auto* const group = new QButtonGroup{ segments };
+			// Owner, look prompts-v003: "Use this styling from overview ...
+			// Do that everywhere": a choice is drawn as Overview's Open and All.
+			FollowUpQueue = new counts_mode_button{ segments };
+			FollowUpQueue->setText(tr("Queue"));
+			FollowUpQueue->setObjectName(QStringLiteral("settingsFollowUpQueue"));
+			FollowUpSteer = new counts_mode_button{ segments };
+			FollowUpSteer->setText(tr("Steer"));
+			FollowUpSteer->setObjectName(QStringLiteral("settingsFollowUpSteer"));
+			for (auto* const option : { FollowUpQueue, FollowUpSteer }) {
+				option->setCheckable(true);
+				option->setAutoRaise(true);
+				option->setFocusPolicy(Qt::StrongFocus);
+				group->addButton(option);
+				pair->addWidget(option);
+			}
+			FollowUpQueue->setChecked(true);
+			group->setExclusive(true);
+			followRow->addWidget(segments);
+			column->addLayout(followRow);
+			const auto  other = QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText);
+			auto* const hint  = new QLabel{ tr("Queue follow-ups while the agent answers, or steer the run it is on. Press %1Return to do the other for one message.").arg(other), this };
+			hint->setObjectName(QStringLiteral("settingsFollowUpHint"));
+			hint->setWordWrap(true);
+			hint->setForegroundRole(QPalette::PlaceholderText);
+			column->addWidget(hint);
+			connect(FollowUpSteer, &QToolButton::toggled, this, [this](const bool aSteer) {
+				if (Dispatch.SetFollowUpSteer) {
+					Dispatch.SetFollowUpSteer(aSteer);
+				}
+			});
+		}
+		// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d: "we need to
+		// make sure that our app doesn't just consume disk space without
+		// bounds"). The scratch folders' limit, how long an unused one is
+		// kept, what they hold and Clear now. The explanations are tooltips.
+		auto* const scratchRow = new QHBoxLayout{ };
+		auto* const limitSays  = new QLabel{ tr("Scratch folder limit"), this };
+		limitSays->setToolTip(tr("The most an agent's scratch folder may hold. A question that starts with it full may run what is there but not write; one that fills it is stopped."));
+		scratchRow->addWidget(limitSays);
+		scratchRow->addStretch(1);
+		ScratchLimit = new QSpinBox{ this };
+		ScratchLimit->setObjectName(QStringLiteral("settingsScratchLimit"));
+		ScratchLimit->setRange(static_cast<int>(core::minimum_agent_scratch_limit_mib), static_cast<int>(core::maximum_agent_scratch_limit_mib));
+		ScratchLimit->setValue(static_cast<int>(core::default_agent_scratch_limit_mib));
+		ScratchLimit->setSuffix(tr(" MiB"));
+		ScratchLimit->setToolTip(limitSays->toolTip());
+		limitSays->setBuddy(ScratchLimit);
+		scratchRow->addWidget(ScratchLimit);
+		column->addLayout(scratchRow);
+		auto* const keepRow = new QHBoxLayout{ };
+		ScratchKeepOn       = new QCheckBox{ tr("Remove scratch folders unused for"), this };
+		ScratchKeepOn->setObjectName(QStringLiteral("settingsScratchKeepOn"));
+		ScratchKeepOn->setToolTip(tr("Checked when BetterPullReview starts. Off, a folder stays until you clear it."));
+		keepRow->addWidget(ScratchKeepOn);
+		keepRow->addStretch(1);
+		ScratchKeepDays = new QSpinBox{ this };
+		ScratchKeepDays->setObjectName(QStringLiteral("settingsScratchKeepDays"));
+		ScratchKeepDays->setRange(1, static_cast<int>(core::maximum_agent_scratch_keep_days));
+		ScratchKeepDays->setValue(static_cast<int>(core::default_agent_scratch_keep_days));
+		ScratchKeepDays->setSuffix(tr(" days"));
+		keepRow->addWidget(ScratchKeepDays);
+		column->addLayout(keepRow);
+		auto* const usageRow = new QHBoxLayout{ };
+		ScratchUsage         = note({ }, this);
+		ScratchUsage->setObjectName(QStringLiteral("settingsScratchUsage"));
+		usageRow->addWidget(ScratchUsage, 1);
+		ScratchClear = new quiet_push_button{ tr("Clear scratch folders"), this };
+		ScratchClear->setObjectName(QStringLiteral("settingsScratchClear"));
+		ScratchClear->setToolTip(tr("Remove every agent's scratch folder now, except those of this pull request's agents. Not while a question runs. The agents' conversations stay."));
+		usageRow->addWidget(ScratchClear);
+		column->addLayout(usageRow);
+		connect(ScratchLimit, &QSpinBox::editingFinished, this, [this] { send_scratch_policy(); });
+		connect(ScratchKeepDays, &QSpinBox::editingFinished, this, [this] { send_scratch_policy(); });
+		connect(ScratchKeepOn, &QCheckBox::toggled, this, [this](const bool aOn) {
+			ScratchKeepDays->setEnabled(aOn);
+			send_scratch_policy();
+		});
+		connect(ScratchClear, &QPushButton::clicked, this, [this] {
+			if (Dispatch.ClearScratch) {
+				Dispatch.ClearScratch();
+			}
+		});
+		// [[BPR-2017]], RFC-BPR-0107 (placement: the owner's Agents roster,
+		// 2026-11-11). Share agents and edited prompts, before Reset agents….
+		auto* const shareRow  = new QHBoxLayout{ };
+		auto* const shareSays = new QLabel{ tr("Share agents and edited prompts"), this };
+		shareRow->addWidget(shareSays, 1);
+		ImportButton = new quiet_push_button{ tr("Import configuration…"), this };
+		ImportButton->setObjectName(QStringLiteral("settingsImportConfiguration"));
+		ImportButton->setToolTip(tr("Read agents and prompts from a configuration file, see what each would change and choose what to import. Nothing runs."));
+		ExportButton = new quiet_push_button{ tr("Export configuration…"), this };
+		ExportButton->setObjectName(QStringLiteral("settingsExportConfiguration"));
+		ExportButton->setToolTip(tr("Write chosen agents and prompts to a file another computer or profile can import. Program locations and accounts stay here."));
+		shareRow->addWidget(ImportButton);
+		shareRow->addWidget(ExportButton);
+		column->addLayout(shareRow);
+		ExchangeNote = note({ }, this);
+		ExchangeNote->setObjectName(QStringLiteral("settingsConfigurationNote"));
+		ExchangeNote->hide();
+		column->addWidget(ExchangeNote);
+		connect(ImportButton, &QPushButton::clicked, this, [this] {
+			if (Dispatch.ImportConfiguration) {
+				Dispatch.ImportConfiguration();
+			}
+		});
+		connect(ExportButton, &QPushButton::clicked, this, [this] {
+			if (Dispatch.ExportConfiguration) {
+				Dispatch.ExportConfiguration();
+			}
+		});
 		// Owner look v006: the setup is not entered again except to start
 		// afresh; Reset agents… asks first, then clears every agent setting.
+		auto* const resetRow  = new QHBoxLayout{ };
+		auto* const resetSays = new QLabel{ tr("Remove every agent and set up again"), this };
+		resetRow->addWidget(resetSays, 1);
 		auto* const reset = new quiet_push_button{ tr("Reset agents…"), this };
 		reset->setObjectName(QStringLiteral("settingsResetAgents"));
 		reset->setToolTip(tr("Remove every agent and its settings, the clone folders and linked clones, and the edited review skill, then set up again"));
@@ -182,17 +467,47 @@ namespace bpr::qt {
 				Dispatch.Reset();
 			}
 		});
-		column->addWidget(reset, 0, Qt::AlignLeft);
+		resetRow->addWidget(reset);
+		column->addLayout(resetRow);
 		settle_buttons();
 	}
 
 	void agent_programs_panel::set_dispatch(dispatch aDispatch) { Dispatch = std::move(aDispatch); }
+
+	void agent_programs_panel::present_exchange(const QString& aSaid)
+	{
+		ExchangeNote->setText(aSaid);
+		ExchangeNote->setVisible(!aSaid.isEmpty());
+	}
 
 	void agent_programs_panel::send_run_limit()
 	{
 		if (Dispatch.SetRunLimit) {
 			static_cast<void>(Dispatch.SetRunLimit(RunLimitOn->isChecked() ? static_cast<std::uint32_t>(RunLimit->value()) : 0U));
 		}
+	}
+
+	void agent_programs_panel::send_scratch_policy()
+	{
+		if (Dispatch.SetScratchPolicy) {
+			static_cast<void>(Dispatch.SetScratchPolicy(static_cast<std::uint32_t>(ScratchLimit->value()), ScratchKeepOn->isChecked() ? static_cast<std::uint32_t>(ScratchKeepDays->value()) : 0U));
+		}
+	}
+
+	void agent_programs_panel::present_scratch_usage(const std::optional<std::pair<std::uint64_t, std::size_t>> aUsage, const QString& aSaid)
+	{
+		auto words = QString{ };
+		if (aUsage) {
+			const auto size = QLocale{ }.formattedDataSize(static_cast<qint64>(aUsage->first));
+			words           = aUsage->second == 0U ? tr("No scratch folders.")
+				: aUsage->second == 1U             ? tr("Scratch folders hold %1 in 1 folder.").arg(size)
+												   : tr("Scratch folders hold %1 in %2 folders.").arg(size).arg(aUsage->second);
+		}
+		if (!aSaid.isEmpty()) {
+			words += (words.isEmpty() ? QString{ } : QStringLiteral(" ")) + aSaid;
+		}
+		ScratchUsage->setText(words);
+		ScratchClear->setEnabled(!aUsage || aUsage->second != 0U);
 	}
 
 	void agent_programs_panel::set_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
@@ -205,7 +520,7 @@ namespace bpr::qt {
 		auto start = aPreset ? core::preset_agent_entry(*aPreset, core::codex_protocol_choice::app_server, { }) : core::agent_entry{ };
 		if (auto chosen = Editor(start, this)) {
 			Dispatch.Add(std::move(*chosen), [this](const std::optional<core::agent_entry_refusal> aRefusal) {
-				Status->setText(aRefusal ? text_of(core::describe(*aRefusal)) : tr("Added."));
+				say(aRefusal ? text_of(core::describe(*aRefusal)) : tr("Added."));
 			});
 		}
 	}
@@ -232,9 +547,28 @@ namespace bpr::qt {
 			const auto blockToggle  = QSignalBlocker{ RunLimitOn };
 			const auto blockMinutes = QSignalBlocker{ RunLimit };
 			RunLimitOn->setChecked(aPreferences.RunLimitMinutes != 0U);
+			if (FollowUpSteer != nullptr) {
+				const auto blockSteer = QSignalBlocker{ FollowUpSteer };
+				const auto blockQueue = QSignalBlocker{ FollowUpQueue };
+				FollowUpSteer->setChecked(aPreferences.FollowUpSteer);
+				FollowUpQueue->setChecked(!aPreferences.FollowUpSteer);
+			}
 			RunLimit->setEnabled(aPreferences.RunLimitMinutes != 0U);
 			if (aPreferences.RunLimitMinutes != 0U && !RunLimit->hasFocus()) {
 				RunLimit->setValue(static_cast<int>(aPreferences.RunLimitMinutes));
+			}
+		}
+		{
+			const auto blockLimit  = QSignalBlocker{ ScratchLimit };
+			const auto blockToggle = QSignalBlocker{ ScratchKeepOn };
+			const auto blockDays   = QSignalBlocker{ ScratchKeepDays };
+			if (!ScratchLimit->hasFocus()) {
+				ScratchLimit->setValue(static_cast<int>(aPreferences.ScratchLimitMiB));
+			}
+			ScratchKeepOn->setChecked(aPreferences.ScratchKeepDays != 0U);
+			ScratchKeepDays->setEnabled(aPreferences.ScratchKeepDays != 0U);
+			if (aPreferences.ScratchKeepDays != 0U && !ScratchKeepDays->hasFocus()) {
+				ScratchKeepDays->setValue(static_cast<int>(aPreferences.ScratchKeepDays));
 			}
 		}
 		const auto keptId = selected() != nullptr ? selected()->Id : 0U;
@@ -257,22 +591,111 @@ namespace bpr::qt {
 			}
 		}
 		List->setCurrentRow(current);
+		Kept = aPreferences.EntryChecks;
+		present_roster();
 		settle_buttons();
 	}
 
-	void agent_programs_panel::build_check(QVBoxLayout& aColumn)
+	void agent_programs_panel::say(const QString& aText)
 	{
-		aColumn.addSpacing(8);
-		auto* const row = new QHBoxLayout{ };
-		row->setSpacing(8);
-		CheckButton = new quiet_push_button{ tr("Check agent"), this };
-		CheckButton->setObjectName(QStringLiteral("settingsCheckAgent"));
-		connect(CheckButton, &QPushButton::clicked, this, [this] {
-			if (Dispatch.Check) {
-				Dispatch.Check();
+		// The roster's answer line takes room only while it says something.
+		Status->setText(aText);
+		Status->setVisible(!aText.isEmpty());
+	}
+
+	void agent_programs_panel::present_roster()
+	{
+		for (int row = 0; row < List->count() && static_cast<std::size_t>(row) < Agents.size(); ++row) {
+			const auto& entry = Agents[static_cast<std::size_t>(row)];
+			auto* const item  = List->item(row);
+			const auto  found = std::ranges::find(Kept, entry.Id, &application::agent_entry_check_record::Id);
+			const auto  kept  = found == Kept.end() ? std::optional<core::setup_check>{ } : std::optional{ found->Check };
+			const auto  agent = entry.Preset ? *entry.Preset : core::setup_agent_of(entry.Protocol);
+			auto        ring  = kept ? kept->State : core::setup_check_state::not_run;
+			if (Checking == std::optional{ entry.Id }) {
+				ring = core::setup_check_state::running;
+			}
+			// Under the name: what it runs with, or what to do.
+			auto line = QStringList{ };
+			if (entry.Preset || !entry.Model.empty() || !entry.Effort.empty()) {
+				line << (entry.Model.empty() ? tr("default model") : agent_model_display_name(text_of(entry.Model)));
+				if (!entry.Effort.empty()) {
+					line << tr("%1 effort").arg(text_of(entry.Effort));
+				}
+			} else {
+				line << QDir::toNativeSeparators(entry.Program.empty() ? tr("its own program") : text_of(entry.Program));
+			}
+			auto under = line.join(QStringLiteral(" · "));
+			auto said  = tr("Not checked");
+			auto bad   = false;
+			if (ring == core::setup_check_state::running) {
+				said = tr("Checking…");
+			} else if (kept && kept->State == core::setup_check_state::passed) {
+				said = entry.Preset && agent != core::setup_agent::plain_text_harness ? (kept->Version.empty() ? tr("Signed in") : tr("Signed in, version %1").arg(text_of(kept->Version)))
+																					  : (kept->Version.empty() ? tr("Works") : tr("Works, version %1").arg(text_of(kept->Version)));
+			} else if (kept && kept->State == core::setup_check_state::failed) {
+				bad              = true;
+				const auto which = kept->Failure.value_or(core::agent_setup_failure::status_unreadable);
+				said             = which == core::agent_setup_failure::not_signed_in ? tr("Not signed in")
+					: which == core::agent_setup_failure::agent_not_found            ? tr("Not found")
+					: which == core::agent_setup_failure::timed_out                  ? tr("Didn't answer")
+																					 : tr("Check failed");
+				if (which == core::agent_setup_failure::not_signed_in && !sign_in_command(agent).isEmpty()) {
+					under = tr("Run %1 in a terminal, then check again.").arg(sign_in_command(agent));
+				}
+			}
+			item->setData(ring_role, static_cast<int>(ring));
+			item->setData(name_role, text_of(entry.Name));
+			item->setData(line_role, under);
+			item->setData(state_role, said);
+			item->setData(failed_role, bad);
+			item->setData(Qt::AccessibleTextRole, tr("%1, %2. %3").arg(text_of(entry.Name), said, under));
+			item->setToolTip(item->text());
+		}
+		// As tall as its rows: the roster never scrolls inside the page.
+		const auto rows = std::max(1, List->count());
+		const auto each = List->sizeHintForRow(0) > 0 ? List->sizeHintForRow(0) : List->fontMetrics().height() * 2 + 22;
+		List->setFixedHeight(rows * each + 2 * List->frameWidth());
+	}
+
+	auto agent_programs_panel::roster_row_text(const int aRow) const -> QString
+	{
+		const auto* const item = List->item(aRow);
+		return item == nullptr ? QString{ } : item->data(name_role).toString() + QLatin1Char{ '\n' } + item->data(line_role).toString() + QLatin1Char{ '\n' } + item->data(state_role).toString();
+	}
+
+	void agent_programs_panel::open_row_menu(const QPoint& aAt)
+	{
+		auto* const item = List->itemAt(aAt);
+		if (item == nullptr) {
+			return;
+		}
+		List->setCurrentItem(item);
+		const auto* const entry = selected();
+		if (entry == nullptr) {
+			return;
+		}
+		auto menu = QMenu{ this };
+		menu.setObjectName(QStringLiteral("settingsAgentRowMenu"));
+		menu.addAction(tr("Edit…"), EditButton, &QPushButton::click);
+		auto* const check = menu.addAction(tr("Check %1").arg(text_of(entry->Name)), this, [this, id = entry->Id] {
+			if (Dispatch.CheckEntry) {
+				Dispatch.CheckEntry(id);
 			}
 		});
-		row->addWidget(CheckButton, 0, Qt::AlignVCenter);
+		check->setEnabled(static_cast<bool>(Dispatch.CheckEntry) && !Checking);
+		menu.addSeparator();
+		menu.addAction(tr("Move up"), UpButton, &QPushButton::click)->setEnabled(UpButton->isEnabled());
+		menu.addAction(tr("Move down"), DownButton, &QPushButton::click)->setEnabled(DownButton->isEnabled());
+		menu.addSeparator();
+		menu.addAction(tr("Remove %1").arg(text_of(entry->Name)), RemoveButton, &QPushButton::click);
+		menu.exec(List->viewport()->mapToGlobal(aAt));
+	}
+
+	void agent_programs_panel::build_check(QVBoxLayout& /*aColumn*/, QHBoxLayout& aRow)
+	{
+		// [[BPR-2051]]. Stop and the check's progress, then Check all, on the
+		// roster's own row; what the check does is its tooltip.
 		StopCheckButton = new quiet_push_button{ tr("Stop"), this };
 		StopCheckButton->setObjectName(QStringLiteral("settingsStopAgentCheck"));
 		StopCheckButton->hide();
@@ -281,7 +704,6 @@ namespace bpr::qt {
 				Dispatch.StopCheck();
 			}
 		});
-		row->addWidget(StopCheckButton, 0, Qt::AlignVCenter);
 		auto* const progress = new QProgressBar{ this };
 		progress->setObjectName(QStringLiteral("settingsAgentCheckProgress"));
 		progress->setRange(0, 0);
@@ -289,11 +711,23 @@ namespace bpr::qt {
 		progress->setMaximumWidth(64);
 		progress->hide();
 		CheckProgress = progress;
-		row->addWidget(progress, 0, Qt::AlignVCenter);
+		aRow.addWidget(progress, 0, Qt::AlignVCenter);
+		aRow.addWidget(StopCheckButton, 0, Qt::AlignVCenter);
+		CheckButton = new quiet_push_button{ tr("Check all"), this };
+		CheckButton->setObjectName(QStringLiteral("settingsCheckAgent"));
+		connect(CheckButton, &QPushButton::clicked, this, [this] {
+			if (Dispatch.CheckAll) {
+				Dispatch.CheckAll();
+			} else if (Dispatch.Check) {
+				Dispatch.Check();
+			}
+		});
+		aRow.addWidget(CheckButton, 0, Qt::AlignVCenter);
+		// What the check does, or why it cannot run: the button's tooltip and
+		// the check's accessible description, not a line on the page.
 		CheckNote = note({ }, this);
 		CheckNote->setObjectName(QStringLiteral("settingsAgentCheckNote"));
-		row->addWidget(CheckNote, 1, Qt::AlignVCenter);
-		aColumn.addLayout(row);
+		CheckNote->hide();
 
 		// The rows, as Check it works draws them: a mark and what it proves.
 		CheckRows        = new QWidget{ this };
@@ -368,7 +802,6 @@ namespace bpr::qt {
 		under->addWidget(DetailsText);
 		connect(toggle, &QToolButton::toggled, DetailsText, &QWidget::setVisible);
 		CheckRows->hide();
-		aColumn.addWidget(CheckRows);
 	}
 
 	void agent_programs_panel::changeEvent(QEvent* const aEvent)
@@ -382,17 +815,23 @@ namespace bpr::qt {
 
 	void agent_programs_panel::present_check(const agent_check_presentation& aCheck)
 	{
+		Kept     = aCheck.Setup.Preferences.EntryChecks;
+		Checking = aCheck.Setup.Checking ? aCheck.Setup.CheckingEntry : std::nullopt;
+		present_roster();
 		ShownCheck                   = aCheck;
 		const auto& setup            = aCheck.Setup;
 		const auto& state            = setup.State;
 		const auto  saved            = state.Chosen ? state.Chosen : setup.Preferences.Chosen;
-		const auto  name             = saved ? setup_agent_name(setup.Preferences, *saved) : tr("The agent");
+		const auto  name             = saved ? setup_agent_name(setup, *saved) : tr("The agent");
 		const auto  offer            = aCheck.Decision.Offer;
 		const auto  running          = offer == core::agent_check_offer::running;
 		const auto  workspaceRunning = state.WorkspaceCheck.State == core::setup_check_state::running;
 		const auto  ran              = state.AgentCheck.State != core::setup_check_state::not_run || state.WorkspaceCheck.State != core::setup_check_state::not_run;
-		CheckButton->setText(ran && !running ? tr("Check again") : tr("Check agent"));
-		CheckButton->setEnabled(offer == core::agent_check_offer::available);
+		static_cast<void>(ran);
+		// [[BPR-2051]]. Check all checks each added agent in turn; only a
+		// running check or a host that forbids the agent holds it back.
+		CheckButton->setText(tr("Check all"));
+		CheckButton->setEnabled(!running && !Agents.empty() && offer != core::agent_check_offer::forbidden && (Dispatch.CheckAll || offer == core::agent_check_offer::available));
 		StopCheckButton->setVisible(running);
 		CheckProgress->setVisible(running);
 
@@ -419,9 +858,7 @@ namespace bpr::qt {
 		case core::agent_check_offer::forbidden:  said = tr("The open pull request's host doesn't allow %1, so it can't be checked now.").arg(name); break;
 		}
 		CheckNote->setText(said);
-		CheckButton->setToolTip(offer == core::agent_check_offer::available ? tr("Run the setup's check of %1 again").arg(name)
-									: running                               ? tr("A check is running. Stop it to start again.")
-																			: said);
+		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No question or code is sent."));
 		CheckButton->setAccessibleDescription(offer == core::agent_check_offer::available ? QString{ } : CheckButton->toolTip());
 		CheckProgress->setAccessibleName(said);
 
@@ -435,7 +872,10 @@ namespace bpr::qt {
 		};
 		const auto agentRan     = state.AgentCheck.State != core::setup_check_state::not_run;
 		const auto workspaceRan = state.WorkspaceCheck.State != core::setup_check_state::not_run;
-		CheckRows->setVisible(agentRan || workspaceRan);
+		// [[BPR-2051]]. A pass is the roster's ring and words; the rows show
+		// here only to explain a failure and what to do.
+		const auto anyFailed = state.AgentCheck.State == core::setup_check_state::failed || state.WorkspaceCheck.State == core::setup_check_state::failed;
+		CheckRows->setVisible((agentRan || workspaceRan) && anyFailed);
 		mark(AgentMark, state.AgentCheck.State);
 		auto proves = agent_check_words(setup, name);
 		if (state.AgentCheck.State == core::setup_check_state::passed && !state.AgentCheck.Version.empty()) {
@@ -476,7 +916,9 @@ namespace bpr::qt {
 	{
 		auto lines = QStringList{ };
 		for (const auto* label : { AgentRow, WorkspaceRow, CheckFailure, SignInCommand, WorkspaceReason }) {
-			if (label->isVisibleTo(this) && !label->text().isEmpty()) {
+			// A pass is said by the roster's ring; its rows still read here.
+			const auto shown = label->isVisibleTo(CheckRows);
+			if (shown && !label->text().isEmpty()) {
 				const auto* const mark = label == AgentRow ? AgentMark : label == WorkspaceRow ? WorkspaceMark
 																							   : nullptr;
 				lines << (mark != nullptr ? mark->text() + QStringLiteral(" ") : QString{ }) + label->text();
@@ -487,7 +929,7 @@ namespace bpr::qt {
 
 	void agent_programs_panel::show_answer(const core::setup_agent /*aAgent*/, const std::optional<core::agent_wrapper_refusal>& aRefusal)
 	{
-		Status->setText(aRefusal ? refusal_words(*aRefusal) : tr("Saved."));
+		say(aRefusal ? refusal_words(*aRefusal) : tr("Saved."));
 	}
 
 	clone_folders_panel::clone_folders_panel(QWidget* aParent)

@@ -2754,9 +2754,24 @@ namespace {
 	}
 }
 
+/// [[BPR-2184]] (review N6). Every built-in theme's report page derives
+/// its quieter inks, rule and link in core, and each meets its floor on
+/// the paper (the faint ink was 3.84:1 in Light before).
+void test_report_shades_meet_the_floor()
+{
+	for (const auto variant : all_variants) {
+		auto profile = qt::appearance_profile{ };
+		profile.select_mode(explicit_mode_for(variant));
+		for (const auto& finding : core::measure_report_shades(profile.palette())) {
+			expect(finding.Meets, "each report shade meets its floor on the paper in every built-in theme");
+		}
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_report_shades_meet_the_floor();
 
 	QApplication::setQuitOnLastWindowClosed(false);
 

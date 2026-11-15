@@ -26,12 +26,15 @@ namespace bpr::qt {
 		/// [[BPR-1083]]. The fifth group, Comment labels: the twelve label
 		/// tints (owner, BPR-1079 `tints-v002`).
 		comment_labels,
+		/// RFC-BPR-0128. The sixth group, Reports: a report's paper, ink,
+		/// verdict colours and code wash.
+		reports,
 	};
 
-	inline constexpr std::size_t appearance_role_group_count = 5U;
+	inline constexpr std::size_t appearance_role_group_count = 6U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role_group::comment_labels) + 1U
+		static_cast<std::size_t>(appearance_role_group::reports) + 1U
 			== appearance_role_group_count,
 		"appearance_role_group_count must cover every declared group");
 

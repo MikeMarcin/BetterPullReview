@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_SRC_GITHUB_HOST_IMPLEMENTATION_HPP
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
+#include "git_smart_authority_lease.hpp"
 #include "github_host_support.hpp"
 #include "github_projection_mapping.hpp"
 
@@ -23,6 +24,23 @@
 // The GitHub application host's state and its profile, credential and capability lanes
 // (github_application_host::implementation).
 namespace bpr::application {
+	/// \brief [[BPR-2181]]. One review authority the host lent: its lease's
+	/// revocable state, the scope a lost read is matched against, and the
+	/// holder's revocation callback.
+	struct lent_review_record
+	{
+		std::shared_ptr<smart_authority_state>         Authority;
+		core::host_profile_id                          Profile;
+		core::github_account_id                        Account;
+		core::github_access_mode                       Mode{ };
+		core::repository_locator                       Repository;
+		core::pull_request_number                      Number;
+		std::function<void(lent_review_authority_end)> Revoked;
+		bool                                           Ended = false;
+
+		[[nodiscard]] auto live() const noexcept -> bool { return !Ended && !Authority->Revoked.load(std::memory_order_acquire); }
+	};
+
 	struct github_application_host::implementation final
 	{
 		enum class viewer_mode : std::uint8_t {
@@ -332,6 +350,12 @@ namespace bpr::application {
 		bool attach_window(const std::shared_ptr<github_window_read_host>& aWindow);
 		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, const bool aFreshSnapshot);
 		void detach_window(const core::bpr_window_context aContext);
+		auto lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender, core::application_session_id aHolder,
+								   std::function<void(lent_review_authority_end)> aRevoked) -> std::optional<lent_review_authority>;
+		/// \brief [[BPR-2181]]. Ends every live loan \p aEnds selects: revokes
+		/// its lease at once, then posts its holder's callback with \p aCause.
+		void end_lent_authorities(lent_review_authority_end aCause, const std::function<bool(const lent_review_record&)>& aEnds) noexcept;
+		void observe_access_loss(const github_pull_request_access_loss& aLoss) noexcept;
 
 		void publish_profile_session();
 
@@ -658,33 +682,34 @@ namespace bpr::application {
 		std::array<std::optional<std::function<void(device_binding_result)>>, 8> WithdrawnBindings;
 		std::size_t                                                              WithdrawnBindingCount = 0U;
 
-		std::shared_ptr<github_window_read_host> ReadWindow;
-		std::vector<window_slot>                 AttachedWindows;
-		std::uint64_t                            SharedSnapshotSequence = 0U;
-		std::optional<github_profile_session>    PublishedSession;
-		bool                                     PrimaryReadClosed       = false;
-		bool                                     ExplicitPrimaryAttached = false;
-		core::bpr_window_id                      LastAttachedWindow{ };
-		std::array<core::bpr_window_id, 32>      RestoredWindows{ };
-		std::size_t                              RestoredWindowCount = 0;
-		bool                                     RestorationSealed   = false;
-		core::github_state                       State;
-		github_profile_port&                     Profiles;
-		github_viewer_port&                      Viewers;
-		github_capability_port&                  Capabilities;
-		github_pull_request_port&                PullRequests;
-		github_credential_vault_port&            Credentials;
-		github_credential_binding_catalog&       CredentialBindings;
-		const core::bpr_profile_id               BprProfile;
-		github_capability_cache                  CapabilityCache;
-		decision_executor&                       DecisionLane;
-		github_projection_port&                  Projections;
-		github_credential_shutdown_policy        CredentialShutdownPolicy = github_credential_shutdown_policy::retain;
-		github_epoch_handoff_port*               Epochs                   = nullptr;
-		github_pull_request_port*                AnonymousPullRequests    = nullptr;
-		git_smart_transport_factory_port*        AnonymousSmartGit        = nullptr;
-		public_preview_projection_port*          PublicPreview            = nullptr;
-		public_preview_sign_in_sink              PublicPreviewSignIn;
+		std::shared_ptr<github_window_read_host>         ReadWindow;
+		std::vector<window_slot>                         AttachedWindows;
+		std::vector<std::shared_ptr<lent_review_record>> LentAuthorities;
+		std::uint64_t                                    SharedSnapshotSequence = 0U;
+		std::optional<github_profile_session>            PublishedSession;
+		bool                                             PrimaryReadClosed       = false;
+		bool                                             ExplicitPrimaryAttached = false;
+		core::bpr_window_id                              LastAttachedWindow{ };
+		std::array<core::bpr_window_id, 32>              RestoredWindows{ };
+		std::size_t                                      RestoredWindowCount = 0;
+		bool                                             RestorationSealed   = false;
+		core::github_state                               State;
+		github_profile_port&                             Profiles;
+		github_viewer_port&                              Viewers;
+		github_capability_port&                          Capabilities;
+		github_pull_request_port&                        PullRequests;
+		github_credential_vault_port&                    Credentials;
+		github_credential_binding_catalog&               CredentialBindings;
+		const core::bpr_profile_id                       BprProfile;
+		github_capability_cache                          CapabilityCache;
+		decision_executor&                               DecisionLane;
+		github_projection_port&                          Projections;
+		github_credential_shutdown_policy                CredentialShutdownPolicy = github_credential_shutdown_policy::retain;
+		github_epoch_handoff_port*                       Epochs                   = nullptr;
+		github_pull_request_port*                        AnonymousPullRequests    = nullptr;
+		git_smart_transport_factory_port*                AnonymousSmartGit        = nullptr;
+		public_preview_projection_port*                  PublicPreview            = nullptr;
+		public_preview_sign_in_sink                      PublicPreviewSignIn;
 		// The profile the signed-out session was activated for, kept so a
 		// sign-in gesture names the host the reviewer is already reading
 		// rather than whichever one a later picker change would resolve to.

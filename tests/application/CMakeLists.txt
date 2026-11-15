@@ -543,6 +543,16 @@ bpr_enable_warnings(test_better_pull_review_review_cycle_round_launch_tests)
 bpr_add_network_isolated_test(NAME application_review_cycle_round_launch COMMAND test_better_pull_review_review_cycle_round_launch_tests)
 set_tests_properties(application_review_cycle_round_launch PROPERTIES PASS_REGULAR_EXPRESSION "review-cycle-round-launch-tests:pass")
 
+# [[BPR-2138]], [[BPR-2139]], [[BPR-2140]], [[BPR-2142]]. The owner's agent
+# launch policy of 2026-11-12: session mode per launch path, MCP servers,
+# instructions in the system prompt, argument order, failed sign-ins.
+bpr_add_executable(test_better_pull_review_agent_launch_policy_tests agent_launch_policy_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_launch_policy_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_agent_launch_policy_tests)
+bpr_enable_warnings(test_better_pull_review_agent_launch_policy_tests)
+bpr_add_network_isolated_test(NAME application_agent_launch_policy COMMAND test_better_pull_review_agent_launch_policy_tests)
+set_tests_properties(application_agent_launch_policy PROPERTIES PASS_REGULAR_EXPRESSION "agent-launch-policy-tests:pass")
+
 bpr_add_executable(
     test_better_pull_review_agent_protocol_loop_tests
     agent_protocol_loop_tests.cpp
@@ -568,6 +578,40 @@ set_tests_properties(
     application_agent_protocol_loop
     PROPERTIES
         PASS_REGULAR_EXPRESSION "agent-protocol-loop-tests:pass"
+)
+
+# [[BPR-2004]], RFC-BPR-0103. A turn with helpers, on the installed runtimes'
+# own recorded frames.
+bpr_add_executable(
+    test_better_pull_review_agent_helper_turn_tests
+    agent_helper_turn_tests.cpp
+    "${PROJECT_SOURCE_DIR}/src/adapters/agent/src/agent_protocol_loop.cpp"
+)
+target_include_directories(
+    test_better_pull_review_agent_helper_turn_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/agent/src"
+)
+target_compile_definitions(
+    test_better_pull_review_agent_helper_turn_tests
+    PRIVATE
+        "BPR_AGENT_TRACE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent/traces\""
+)
+target_link_libraries(
+    test_better_pull_review_agent_helper_turn_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_helper_turn_tests)
+bpr_enable_warnings(test_better_pull_review_agent_helper_turn_tests)
+bpr_add_network_isolated_test(
+    NAME application_agent_helper_turn
+    COMMAND test_better_pull_review_agent_helper_turn_tests
+)
+set_tests_properties(
+    application_agent_helper_turn
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-helper-turn-tests:pass"
 )
 
 bpr_add_executable(
@@ -1074,7 +1118,26 @@ target_link_libraries(test_better_pull_review_agent_conversation_host_tests PRIV
 bpr_enable_hardening(test_better_pull_review_agent_conversation_host_tests)
 bpr_enable_warnings(test_better_pull_review_agent_conversation_host_tests)
 bpr_add_network_isolated_test(NAME application_agent_conversation_host COMMAND test_better_pull_review_agent_conversation_host_tests)
+# RFC-BPR-0126 AC04 ([[BPR-2151]]). One session's queue across windows.
+bpr_add_executable(test_better_pull_review_agent_queue_host_tests agent_queue_host_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_queue_host_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_agent_queue_host_tests)
+bpr_enable_warnings(test_better_pull_review_agent_queue_host_tests)
+bpr_add_network_isolated_test(NAME application_agent_queue_host COMMAND test_better_pull_review_agent_queue_host_tests)
+bpr_add_executable(test_better_pull_review_review_agent_runtime_tests review_agent_runtime_tests.cpp)
+target_link_libraries(test_better_pull_review_review_agent_runtime_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_review_agent_runtime_tests)
+bpr_enable_warnings(test_better_pull_review_review_agent_runtime_tests)
+bpr_add_network_isolated_test(NAME application_review_agent_runtime COMMAND test_better_pull_review_review_agent_runtime_tests)
 set_tests_properties(application_agent_conversation_host PROPERTIES PASS_REGULAR_EXPRESSION "agent-conversation-host-tests:pass" TIMEOUT 30)
+# [[BPR-2185]] (review N1 of BPR-2179). The suggested prompts' host: a save
+# is written from the revision it names; stale and failed change nothing.
+bpr_add_executable(test_better_pull_review_prompt_macro_host_tests prompt_macro_host_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_macro_host_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_prompt_macro_host_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_macro_host_tests)
+bpr_add_network_isolated_test(NAME application_prompt_macro_host COMMAND test_better_pull_review_prompt_macro_host_tests)
+set_tests_properties(application_prompt_macro_host PROPERTIES PASS_REGULAR_EXPRESSION "prompt-macro-host-tests:pass" TIMEOUT 30)
 endif()
 # RFC-BPR-0032 amendment r1. The in-window account setup host with stubbed gh.
 bpr_add_executable(test_better_pull_review_account_setup_host_tests account_setup_host_tests.cpp)
@@ -1221,6 +1284,14 @@ bpr_enable_hardening(test_view_filter_memory_host)
 bpr_enable_warnings(test_view_filter_memory_host)
 bpr_add_network_isolated_test(NAME application_view_filter_memory_host COMMAND test_view_filter_memory_host)
 
+# [[BPR-2171]]. The profile's Discuss preferences: bot marks and the column.
+bpr_add_executable(test_discuss_preferences_host discuss_preferences_host_tests.cpp)
+target_link_libraries(test_discuss_preferences_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_discuss_preferences_host)
+bpr_enable_warnings(test_discuss_preferences_host)
+bpr_add_network_isolated_test(NAME application_discuss_preferences_host COMMAND test_discuss_preferences_host)
+set_tests_properties(application_discuss_preferences_host PROPERTIES PASS_REGULAR_EXPRESSION "DISCUSS_PREFERENCES_HOST_OK")
+
 # [[BPR-1850]]. Activity notifications' poll host over a fixture transport.
 bpr_add_executable(test_pull_request_activity_host pull_request_activity_host_tests.cpp)
 target_link_libraries(test_pull_request_activity_host PRIVATE BetterPullReview::Application)
@@ -1237,3 +1308,13 @@ bpr_enable_hardening(test_better_pull_review_tour_agent_conversation_tests)
 bpr_enable_warnings(test_better_pull_review_tour_agent_conversation_tests)
 bpr_add_network_isolated_test(NAME application_tour_agent_conversation COMMAND test_better_pull_review_tour_agent_conversation_tests)
 set_tests_properties(application_tour_agent_conversation PROPERTIES PASS_REGULAR_EXPRESSION "tour-agent-conversation:pass")
+
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+# [[BPR-2007]], RFC-BPR-0104 AC03. The scratch folder's lifetime and bound.
+bpr_add_executable(test_better_pull_review_agent_scratch_folder_tests agent_scratch_folder_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_scratch_folder_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_agent_scratch_folder_tests)
+bpr_enable_warnings(test_better_pull_review_agent_scratch_folder_tests)
+bpr_add_network_isolated_test(NAME application_agent_scratch_folder COMMAND test_better_pull_review_agent_scratch_folder_tests)
+set_tests_properties(application_agent_scratch_folder PROPERTIES PASS_REGULAR_EXPRESSION "agent-scratch-folder-tests:pass")
+endif()

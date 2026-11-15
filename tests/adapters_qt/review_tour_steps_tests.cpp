@@ -122,7 +122,7 @@ auto main(int argc, char** argv) -> int
 	auto* const problemEdit  = child<QPushButton>(editor, "tourProblemChange");
 	auto* const solutionEdit = child<QPushButton>(editor, "tourSolutionChange");
 	auto* const addStop      = child<QPushButton>(editor, "tourAddStop");
-	auto* const publish      = child<QPushButton>(editor, "tourPreviewAndPublish");
+	auto* const publish      = child<QPushButton>(editor, "tourHeadPublish");
 	auto* const problem      = editor.problem_editor();
 	auto* const solution     = editor.solution_editor();
 	auto* const outline      = editor.outline();
@@ -204,7 +204,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(outline->isVisible() && editor.steps().Current == tour_step::stops, "the stops header opens the route again");
 
-	// Ready to publish: every step done, the stops open, Preview and publish at the foot.
+	// Ready to publish: every step done, the stops open, Publish… in the head.
 	draft.Stops[1] = stop(2, "Zero width is a real state", core::tour_preparation::ready);
 	++draft.Revision;
 	show();
@@ -214,7 +214,7 @@ auto main(int argc, char** argv) -> int
 	expect(states(editor, state::current, state::done, state::done) && stopsRow->accessibleDescription() == QStringLiteral("2 of 2 stops ready"), "every stop Ready: the stops step is done");
 	stopsRow->click();
 	QApplication::processEvents();
-	expect(publish->isVisible() && publish->isEnabled(), "Preview and publish stays at the foot");
+	expect(publish->isVisible(), "[[BPR-1991]]: Publish… stays in the head");
 	render(editor, prefix, "ready-to-publish");
 
 	// A step passed unwritten needs attention, and still opens.

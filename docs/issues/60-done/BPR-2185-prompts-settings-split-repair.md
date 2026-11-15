@@ -52,7 +52,7 @@ undo and redo cover every edit, so no look.
 ## Closeout (2026-11-14)
 
 Built at `798613f0f`; the verification record has the detail
-(`docs/verification/RFC-BPR-0128.md` on lane `claude/v0-5-0-prerelease-targets-52265d`, "Correction: Prompts
+([RFC-BPR-0128](../../verification/RFC-BPR-0128.md), "Correction: Prompts
 settings split").
 
 - **N1:** `core::settle_prompt_save` and `adopt_prompt_projection` decide a

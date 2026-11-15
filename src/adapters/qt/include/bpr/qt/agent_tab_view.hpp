@@ -11,13 +11,19 @@
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/core/agent_chat_scope.hpp"
+#include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_reference_links.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
@@ -57,6 +63,7 @@ namespace bpr::qt {
 		open,
 		working,
 		drafted,
+		/// RFC-BPR-0127. Kept as a Local comment (once "saved as a note").
 		noted,
 		dismissed,
 		/// The action could not be done; the card says why and stays open.
@@ -84,13 +91,16 @@ namespace bpr::qt {
 	struct agent_thread_turn
 	{
 		QString Question;
+		/// RFC-BPR-0125 (AC07). The suggested prompt it was sent as, when
+		/// that is not its question; empty for a typed question.
+		QString Name;
 		QString Answer;
 		QString Footer;
 		/// When it was asked and answered; invalid when not known.
 		QDateTime AskedAt;
 		QDateTime AnsweredAt;
 		/// [[BPR-1847]]. How it ended: an answer, or an error that offers
-		/// neither Save as note nor Draft comment.
+		/// no keep action.
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 		/// The cards its stored answer's findings block makes, when the host
 		/// read them; a turn whose cards this view still holds keeps those.
@@ -109,17 +119,27 @@ namespace bpr::qt {
 	{
 		QString                                                OpenFile;
 		std::optional<std::pair<std::uint32_t, std::uint32_t>> Lines;
+		/// RFC-BPR-0125. The pull request's names and the facts a suggested
+		/// prompt's conditions read, as the window holds them; none is
+		/// unknown, which no condition holds for.
+		std::optional<core::prompt_pull_request> PullRequest;
+		std::optional<std::string>               Repository;
+		std::optional<bool>                      Draft;
+		std::optional<bool>                      AuthorIsMe;
+		std::optional<bool>                      ChecksFailing;
 	};
 
 	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
 	/// like that"). What a reviewer may do with one finding card; nothing is
-	/// done by itself.
+	/// done by itself. RFC-BPR-0127: a card offers one keep action, Draft
+	/// comment where its line takes a draft and Keep local where none does
+	/// (`core::decide_keep`).
 	enum class agent_finding_card_action : std::uint8_t {
 		/// A private line draft at the finding's lines, from its suggested
 		/// comment (or its claim).
 		draft_comment,
-		/// A private note on its lines, never published.
-		save_note,
+		/// A Local comment on its file, or on the pull request; never sent.
+		keep_local,
 		dismiss,
 		/// Takes a dismissal back.
 		undo_dismiss,
@@ -134,6 +154,29 @@ namespace bpr::qt {
 		agent_finding_card_action Action = agent_finding_card_action::draft_comment;
 	};
 	using agent_finding_card_dispatch = std::function<void(const agent_finding_card_request&)>;
+	/// \brief [[BPR-2061]]. Draft all: the suggested comments of one reply
+	/// to draft, in its cards' order, as one batch; `Planned` already counts
+	/// those passed over before drafting.
+	struct agent_draft_all_request
+	{
+		std::uint64_t                           Batch = 0U;
+		std::vector<agent_finding_card_request> Cards;
+		core::draft_all_outcome                 Planned;
+	};
+	/// \brief How the batch ended; `aUndoable` when it made a draft that
+	/// one Undo can remove. Each card's own state still goes through
+	/// `present_finding_card_state`.
+	using agent_draft_all_done     = std::function<void(const core::draft_all_outcome& aOutcome, bool aUndoable)>;
+	using agent_draft_all_dispatch = std::function<void(agent_draft_all_request aRequest, agent_draft_all_done aDone)>;
+	/// \brief Undo of one batch: the drafts it made that are unchanged since
+	/// are removed (`aRemoved`); a draft edited since is kept (`aKept`). The
+	/// host opens each removed draft's card again through
+	/// `present_finding_card_state`.
+	using agent_draft_all_undo_done = std::function<void(std::size_t aRemoved, std::size_t aKept)>;
+	using agent_draft_all_undo      = std::function<void(std::uint64_t aBatch, agent_draft_all_undo_done aDone)>;
+	/// \brief Whether a finding's lines are in the pull request at the
+	/// current head, as far as the host knows now.
+	using agent_finding_placeability = std::function<bool(const core::agent_finding&)>;
 	/// \brief Owner report 2026-11-10, after BPR-2052. A card under an
 	/// answer whose findings block it came from took a state the host
 	/// reported: the block as written, the card's place in it, and the state,
@@ -147,9 +190,10 @@ namespace bpr::qt {
 		std::uint64_t            Note = 0U;
 	};
 	using agent_finding_card_observer = std::function<void(const agent_finding_card_change&)>;
-	/// \brief Save as note on a plain answer: the text (the whole reply, or
-	/// the selected part), and where the host says how it went: the note it
-	/// made, which Go to note opens (owner look v004), when it was saved.
+	/// \brief Keep local on a plain answer (RFC-BPR-0127): the text (the
+	/// whole reply, or the selected part), and where the host says how it
+	/// went: the Local comment it made, which Go to comment opens, when it
+	/// was kept.
 	using agent_answer_note_done     = std::function<void(bool aSaved, const QString& aWhy, std::uint64_t aNote)>;
 	using agent_answer_note_dispatch = std::function<void(const QString& aText, agent_answer_note_done aDone)>;
 	/// \brief [[BPR-1773]]. The conversation the next questions are about,
@@ -162,9 +206,13 @@ namespace bpr::qt {
 		QString Text;
 		/// What the agent gets, as its tooltip says.
 		QString Detail;
-		/// The conversation takes replies (a review thread, not a note): its
+		/// The conversation takes replies (a review thread, not my own
+		/// comment): its
 		/// prompts offer to draft one.
 		bool Replies = false;
+		/// RFC-BPR-0116 ([[BPR-2074]]). I commented in it and commits followed:
+		/// its prompts lead with Was this addressed?
+		bool Addressed = false;
 
 		auto operator==(const agent_conversation_chip&) const -> bool = default;
 	};
@@ -175,6 +223,10 @@ namespace bpr::qt {
 	{
 		std::string Key;
 		QString     Tip;
+		/// RFC-BPR-0127 (`core::decide_keep`). No thread or line takes a
+		/// draft: the answer's one keep action is Keep local, a Local
+		/// comment on the pull request, not Draft comment.
+		bool Local = false;
 
 		auto operator==(const agent_answer_draft_target&) const -> bool = default;
 	};
@@ -186,48 +238,13 @@ namespace bpr::qt {
 	using agent_answer_draft_dispatch   = std::function<void(const std::string& aKey, const QString& aText, agent_answer_draft_done aDone)>;
 	using agent_answer_draft_navigation = std::function<void(const std::string& aKey)>;
 
-	/// \brief Opens a private note the tab saved, in the Notes area.
+	/// \brief Opens a Local comment the tab kept, in Comments.
 	using agent_note_navigation = std::function<void(std::uint64_t aNote)>;
-	/// \brief Owner look v004 ("This should be a link to the file and line I
-	/// can click"). A file of the pull request a reference names: the path
-	/// it is shown under, or nothing when the pull request has no such file.
-	using agent_file_resolver = std::function<std::optional<QString>(const QString& aPath)>;
-	/// \brief Opens a file of the pull request in Review at a one-based line
-	/// of its head (or, `aBefore`, of the change's base).
-	using agent_line_navigation = std::function<void(const QString& aPath, std::uint32_t aLine, bool aBefore)>;
-
-	/// \brief One place a text names a file and line of the pull request.
-	struct agent_line_reference
-	{
-		/// Where in the text, in UTF-16 units.
-		qsizetype Begin  = 0;
-		qsizetype Length = 0;
-		QString   Path;
-		/// One-based, first and last.
-		std::uint32_t First  = 0U;
-		std::uint32_t Last   = 0U;
-		bool          Before = false;
-
-		auto operator==(const agent_line_reference&) const -> bool = default;
-	};
-
-	/// \brief Every reference to a file and line in `aText`: `path:34`,
-	/// `path:34-36`, `path line 34`, `path lines 34–36` (either followed by
-	/// "before the change" for the base), each only when `aResolve` knows
-	/// the path; and, when `aContextFile` is not empty, a bare `line 34` or
-	/// `lines 34–36`, which names that file.
-	[[nodiscard]] auto agent_line_references(const QString& aText, const agent_file_resolver& aResolve, const QString& aContextFile = { }) -> std::vector<agent_line_reference>;
-	/// \brief `aMarkdown` with each reference outside code made a link, and
-	/// an inline code span that is wholly one made a link around it. Fenced
-	/// code is left as written.
-	[[nodiscard]] auto agent_markdown_with_line_links(const QString& aMarkdown, const agent_file_resolver& aResolve, const QString& aContextFile = { }) -> QString;
-	/// \brief The link a reference is opened by, and what it names: a path,
-	/// `#L` for the head or `#B` for the base, and the first line.
-	[[nodiscard]] auto agent_line_link(const QString& aPath, std::uint32_t aLine, bool aBefore) -> QString;
-	[[nodiscard]] auto agent_line_link_target(const QString& aLink) -> std::optional<std::pair<QString, std::pair<std::uint32_t, bool>>>;
-
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
+
+	/// \brief [[BPR-2051]]. A running turn's status and its clock.
+	using agent_tab_run_observer = std::function<void(const agent_run_status& aStatus, const QElapsedTimer& aStarted)>;
 
 	enum class agent_tab_state : std::uint8_t {
 		/// No agent is set up: the tab offers Set up an agent.
@@ -293,6 +310,9 @@ namespace bpr::qt {
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief [[BPR-2051]]. The window's footer holds the one picker; the
+		/// tab opens it for a bare /model or /effort and reads its words.
+		void adopt_run_settings_button(agent_run_settings_picker* aPicker);
 		/// \brief [[BPR-1924]]. The picker has its own row under the field's
 		/// tools, because the one row cannot hold it whole.
 		[[nodiscard]] auto run_settings_wrapped() const noexcept -> bool { return RunSettingsWrapped; }
@@ -326,14 +346,30 @@ namespace bpr::qt {
 		/// and how the turn ended.
 		[[nodiscard]] auto conversation_thread() const noexcept -> QWidget* { return Thread; }
 		[[nodiscard]] auto turn_count() const noexcept -> std::size_t { return Turns.size(); }
+		/// \brief RFC-BPR-0128. The facts the suggested prompts read now, for
+		/// the Ask menus.
+		[[nodiscard]] auto suggestion_context_now() const -> agent_suggestion_context { return current_suggestion_context(); }
 		[[nodiscard]] auto turn_answer(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_question(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_footer(std::size_t aTurn) const -> QString;
+		/// \brief [[BPR-2005]]. A turn's running block, or its folded line;
+		/// null past the last turn.
+		[[nodiscard]] auto turn_activity(std::size_t aTurn) const -> agent_activity_view*;
 		/// \brief [[BPR-1753]], owner decision (b). Shows a pull
 		/// request's kept thread in place of the one shown (none: an empty
 		/// thread), and says each finished turn to `set_thread_observer`'s
 		/// observer with the whole thread, so the host keeps it.
-		void               present_thread(const std::vector<agent_thread_turn>& aTurns);
+		void present_thread(const std::vector<agent_thread_turn>& aTurns);
+		/// \brief [[BPR-1999]], RFC-BPR-0101. The session's total, as kept
+		/// with its history (none: not known), under the composer as "$2.37
+		/// this session". A new thread starts with none; each turn that
+		/// reports a cost adds to it.
+		void present_session_cost(std::optional<core::agent_cost> aTotal);
+		/// \brief [[BPR-2051]]. The window's footer hears the tab's run as it
+		/// moves, how it ended, and the session's total.
+		void               set_footer_observers(agent_tab_run_observer aRun, std::function<void(const QString&)> aEnded, std::function<void(std::optional<core::agent_cost>)> aCost);
+		[[nodiscard]] auto session_cost() const noexcept -> std::optional<core::agent_cost> { return SessionTotal; }
+		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
 		void               set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver);
 		[[nodiscard]] auto thread_turns() const -> std::vector<agent_thread_turn>;
 		/// \brief Clear session: asks `set_clear_confirmation`'s question when
@@ -383,7 +419,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return History; }
 		[[nodiscard]] auto finding_cards() const -> std::vector<QWidget*>;
 		/// \brief [[BPR-1753]], owner decision 2026-10-23. Where a
-		/// card's Add as draft comment, Save as note and Dismiss go, and the
+		/// card's keep action (Draft comment or Keep local) and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
 		void set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
 		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
@@ -392,17 +428,189 @@ namespace bpr::qt {
 		/// findings block is said, so the host keeps it.
 		void               set_finding_card_observer(agent_finding_card_observer aObserver) { CardObserver = std::move(aObserver); }
 		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
+		/// \brief [[BPR-2061]]. Where a reply's Draft all and its Undo go, and
+		/// what says whether a suggestion's lines are still in the diff (none:
+		/// the anchor the finding arrived with).
+		void set_draft_all_dispatch(agent_draft_all_dispatch aDispatch, agent_draft_all_undo aUndo);
+		void set_finding_placeability(agent_finding_placeability aPlaceable);
+		/// \brief The host found this finding's file or lines not in the pull
+		/// request at the head: Draft all no longer counts it.
+		void mark_finding_gone(std::uint64_t aSession, std::size_t aOrdinal);
+		/// \brief Draft all's button, its sentence and its Undo, on one turn.
+		[[nodiscard]] auto turn_draft_all_button(std::size_t aTurn) const -> QPushButton*;
+		[[nodiscard]] auto turn_draft_all_state(std::size_t aTurn) const -> QLabel*;
+		[[nodiscard]] auto turn_draft_all_undo(std::size_t aTurn) const -> QPushButton*;
+		/// \brief Draft all's sentence for one outcome, and for one Undo.
+		[[nodiscard]] static auto draft_all_words(const core::draft_all_outcome& aOutcome) -> QString;
+		[[nodiscard]] static auto draft_all_undo_words(std::size_t aRemoved, std::size_t aKept) -> QString;
 		/// \brief [[BPR-1773]]. Shows the conversation chip (none: removes
 		/// it), with conversation prompts in place of the usual ones while it
 		/// is shown. Its close button calls `set_conversation_dismiss`'s
 		/// callback; nothing else removes it.
-		void               set_conversation_chip(std::optional<agent_conversation_chip> aChip);
+		void set_conversation_chip(std::optional<agent_conversation_chip> aChip);
+		/// RFC-BPR-0116 ([[BPR-2073]]). What What changed since my review
+		/// offers now: a suggestion while offered, a quiet line saying why
+		/// while unavailable, nothing otherwise.
+		void               present_latest_upload(const core::latest_upload_offer& aOffer);
+		[[nodiscard]] auto latest_upload_offer() const noexcept -> const core::latest_upload_offer& { return LatestUpload; }
+		[[nodiscard]] auto latest_upload_note() const noexcept -> QLabel* { return LatestUploadNote; }
+		/// RFC-BPR-0116. Asks a returning question, as its suggestion does.
+		/// \brief `aThreads`: how many threads an `addressed_threads` ask carries.
+		void ask_returning(core::returning_operation aOperation, std::size_t aThreads = 0U);
+		/// [[BPR-2138]]. Ask more on a returning answer: the host keeps its
+		/// question and answer for the next question here.
+		void               set_ask_more_dispatch(std::function<void(const QString& aQuestion, const QString& aAnswer)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
+		[[nodiscard]] auto turn_claim(std::size_t aTurn) const -> QLabel*;
+		[[nodiscard]] auto turn_ask_more_button(std::size_t aTurn) const -> QPushButton*;
+		/// Whether a turn's question was a returning one, and which.
+		[[nodiscard]] auto turn_returning(std::size_t aTurn) const -> std::optional<core::returning_operation>;
+		/// \brief RFC-BPR-0117 ([[BPR-2076]]). Asks Explain this file of
+		/// `aPath` as a turn here, as a suggestion is sent, without showing the
+		/// tab. Answers the refusal's words when nothing was sent, else empty.
+		auto ask_explain_file(const QString& aPath) -> QString;
+		/// \brief RFC-BPR-0117. Each Explain this file turn as it starts, runs
+		/// and ends, or a refusal of one, for the card at the file's header.
+		void set_explain_observer(std::function<void(const explain_file_progress&)> aObserver) { ExplainObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0128 ([[BPR-2165]]). A Was this addressed? answer's
+		/// claim, by the thread it was asked about and its turn.
+		using claim_observer = std::function<void(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn)>;
+		void set_claim_observer(claim_observer aObserver) { ClaimObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0128 ([[BPR-2166]]). A report card's row: the report
+		/// to open as a tab (or go to, when it is open).
+		using report_dispatch = std::function<void(const agent_report_document& aReport)>;
+		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
+		/// \brief docs/design/report-card-v4: while a report's tab is active,
+		/// its card's row is selected; none clears it.
+		void mark_open_report(std::optional<std::size_t> aTurn);
+		/// \brief RFC-BPR-0128 with RFC-BPR-0126's queue. Told when the agent
+		/// may take more: setup finished, or a turn settled.
+		/// `aSettled` is true when a turn has just settled.
+		void set_availability_observer(std::function<void(bool aSettled)> aObserver) { AvailabilityObserver = std::move(aObserver); }
+		/// \brief Shift+click on a quick ask: its message in the field, sent by
+		/// nobody until the reviewer sends it.
+		void draft_prompt(const QString& aPrompt);
+		/// \brief Whether a question can be sent now (not answering, Send on).
+		[[nodiscard]] auto ready_to_send() const -> bool;
+		/// \brief Puts `aText` in the field for the reviewer to finish.
+		void draft_text(const QString& aText);
+		/// \brief What waits its turn in this session's queue.
+		void present_queue(const QStringList& aWaiting, const QString& aState);
+		/// \brief RFC-BPR-0126 ([[BPR-2151]]). One waiting message as the
+		/// pending list shows it.
+		struct queue_row
+		{
+			std::uint64_t Id = 0U;
+			QString       Label;
+			/// A typed message's text; empty for a quick ask, which is not
+			/// edited in place.
+			QString Text;
+			bool    Held    = false;
+			bool    Sending = false;
+		};
+		/// \brief What the pending list's controls ask of the session's queue.
+		struct queue_dispatch
+		{
+			std::function<void(std::uint64_t)>                 Edit;
+			std::function<void(std::uint64_t, const QString&)> Save;
+			std::function<void(std::uint64_t)>                 Cancel;
+			std::function<void(std::uint64_t)>                 Remove;
+			std::function<void(std::uint64_t, int)>            Move;
+			/// Steer the running turn with this message instead of waiting.
+			std::function<void(std::uint64_t)> Steer;
+			std::function<void()>              Pause;
+			std::function<void()>              Resume;
+		};
+		void set_queue_dispatch(queue_dispatch aDispatch) { QueueDispatch = std::move(aDispatch); }
+		/// \brief The session's waiting messages, in order, with the queue's
+		/// state ("waiting its turn", "paused: Stop") and whether it is paused.
+		void               present_queue_rows(std::vector<queue_row> aRows, const QString& aState, bool aPaused);
+		[[nodiscard]] auto queue_list() const noexcept -> QWidget* { return QueueList; }
+		/// \brief A waiting card dropped at `aAt` among the waiting cards,
+		/// as the pending list's drop does.
+		void drop_queued(std::uint64_t aId, int aAt);
+		/// \brief RFC-BPR-0126 Q4/Q5 as answered: while a turn runs or messages
+		/// wait, a typed message is a follow-up; Queue (the default) or Steer
+		/// by the setting, Cmd+Return (Ctrl+Return off macOS) the other for
+		/// one message. Returns whether it was taken.
+		using follow_up = std::function<bool(const QString& aText, bool aSteer)>;
+		void set_follow_up(follow_up aFollowUp) { FollowUp = std::move(aFollowUp); }
+		void set_follow_up_steer(bool aSteer);
+		/// \brief A queued typed message released: sent as typed, bypassing
+		/// the follow-up. Empty when it went.
+		[[nodiscard]] auto send_released(const QString& aText) -> QString;
+		[[nodiscard]] auto queue_note() const noexcept -> QLabel* { return QueueNote; }
+		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
+		void               open_report(std::size_t aTurn);
+		[[nodiscard]] auto turn_report_card(std::size_t aTurn) const -> QWidget*;
+		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One Suggest the change turn:
+		/// its index, and once it ends whether it answered, the answer as
+		/// written and the ending line; a refused send has no turn.
+		struct suggest_change_turn
+		{
+			std::size_t Turn     = 0U;
+			bool        Ended    = false;
+			bool        Answered = false;
+			QString     AnswerText;
+			QString     Ending;
+		};
+		/// \brief RFC-BPR-0118. Asks Suggest the change on a draft comment's
+		/// lines as a turn of its own ("Suggest the change on lines 3–5 of
+		/// path"), sent alone; what the reviewer had typed stays.
+		/// \returns Why it was not sent, or empty.
+		auto ask_suggest_change(const QString& aPath, std::uint32_t aFirst, std::uint32_t aLast) -> QString;
+		void set_suggest_change_observer(std::function<void(const suggest_change_turn&)> aObserver) { SuggestObserver = std::move(aObserver); }
+		/// \brief RFC-BPR-0118. The file a turn suggested a change in; empty for any other.
+		[[nodiscard]] auto turn_suggest_change(std::size_t aTurn) const -> QString;
+		/// \brief RFC-BPR-0117. The file a turn explained; empty for any other.
+		[[nodiscard]] auto turn_explain(std::size_t aTurn) const -> QString;
+		/// \brief RFC-BPR-0117. Continue in Agent tab: brings the turn into view.
+		void reveal_turn(std::size_t aTurn);
+		/// \brief An answer's reference, followed as the tab's own are.
+		void open_reference(const QString& aLink) { follow_link(aLink); }
+		/// \brief Sets another surface's answer as the tab's answers are set.
+		void               dress_answer_view(markdown_body_view& aView) const { dress_answer(aView); }
 		void               set_conversation_dismiss(std::function<void()> aDismiss);
 		[[nodiscard]] auto conversation_chip() const noexcept -> QWidget* { return ConversationChip; }
 		[[nodiscard]] auto conversation_chip_text() const -> QString;
 		[[nodiscard]] auto conversation_chip_close() const noexcept -> QToolButton* { return ConversationClose; }
+		/// \brief [[BPR-2002]], RFC-BPR-0102. The selected lines, as the chip
+		/// in the question field shows them while they are attached. The
+		/// chip's close button detaches them from the questions that follow
+		/// and leaves the diff's selection as it is; a new selection, or
+		/// `attach_lines`, attaches again.
+		[[nodiscard]] auto lines_chip() const noexcept -> QWidget* { return LinesChip; }
+		[[nodiscard]] auto lines_chip_text() const -> QString;
+		[[nodiscard]] auto lines_chip_close() const noexcept -> QToolButton* { return LinesClose; }
+		[[nodiscard]] auto lines_attached() const -> bool;
+		/// \brief Attaches the selected lines again (Ask the agent about
+		/// these lines).
+		void attach_lines();
+		/// \brief RFC-BPR-0125 (Q2, AC10). The suggested prompt the question
+		/// field holds as a draft, beside the lines chip: sending keeps its
+		/// subject and kind. Its close button, or emptying the field, makes
+		/// the text a typed question.
+		[[nodiscard]] auto macro_chip() const noexcept -> QWidget* { return MacroChip; }
+		[[nodiscard]] auto macro_chip_text() const -> QString;
+		[[nodiscard]] auto macro_chip_close() const noexcept -> QToolButton* { return MacroClose; }
+		/// \brief RFC-BPR-0125. The suggested prompts this tab offers from,
+		/// every place's in the reviewer's order; the shipped set until the
+		/// host gives another. The chips are the core's offers.
+		void               present_prompt_macros(std::vector<core::prompt_macro> aMacros);
+		[[nodiscard]] auto suggestion_list() const noexcept -> agent_suggestion_list* { return Suggestions; }
+		/// \brief RFC-BPR-0125 (AC07). The name a turn was sent under, shown
+		/// above its question; empty when none differs from it.
+		[[nodiscard]] auto turn_name(std::size_t aTurn) const -> QString;
+		/// \brief Show all, on a question folded past six lines; none when
+		/// the question is not folded.
+		[[nodiscard]] auto turn_show_all(std::size_t aTurn) const -> QPushButton*;
+		/// \brief The question field, whose tooltip says what the agent can
+		/// read ([[BPR-2038]]: a tooltip, no longer a line under it).
+		[[nodiscard]] auto question_field() const noexcept -> QWidget* { return Field; }
+		/// \brief [[BPR-2002]]. The question the last send carried, as the
+		/// core decided it; none before any.
+		[[nodiscard]] auto last_question() const noexcept -> const std::optional<core::agent_question>& { return LastQuestion; }
 		/// \brief [[BPR-1773]], owner look 2026-10-27. Draft comment on every
-		/// answer, beside Save as note: where a sent question's answer would
+		/// answer, or its Keep local: where a sent question's answer would
 		/// be drafted (asked when it is sent), where a press goes, and where
 		/// Go to draft goes once it is drafted.
 		void set_answer_draft_target(std::function<agent_answer_draft_target()> aTarget);
@@ -419,10 +627,10 @@ namespace bpr::qt {
 		/// \brief The turn's asked line as read: "About <conversation>:
 		/// <question>" for a turn about a conversation, else the question.
 		[[nodiscard]] auto turn_asked(std::size_t aTurn) const -> QString;
-		/// \brief Save as note on a plain answer.
+		/// \brief Keep local on a plain answer (RFC-BPR-0127).
 		void set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
 		/// \brief Owner look v004 ("After save as note it should turn into Go
-		/// to note"): where Go to note goes.
+		/// to note"): where Go to comment goes, the Local comment kept.
 		void set_note_navigation(agent_note_navigation aNavigate);
 		/// \brief Owner look v006. Where opening the agent menu asks the
 		/// agent's harness what it offers, by the agent's profile.
@@ -432,9 +640,12 @@ namespace bpr::qt {
 		/// clears the agents' settings and the setup starts again at Agent.
 		void set_reset_dispatch(std::function<void()> aReset, std::function<bool()> aConfirm = { });
 		void reset_agents();
-		/// \brief Which files references may name, and where a link to one
-		/// goes; references are links only when both are set.
-		void set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate);
+		/// \brief [[BPR-1998]]. Which files references may name, and where a
+		/// link to one goes; references are links only when both are set. A
+		/// shared name is offered by `set_reference_chooser`'s chooser, or a
+		/// menu.
+		void set_line_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate);
+		void set_reference_chooser(agent_reference_chooser aChoose) { ReferenceChooser = std::move(aChoose); }
 		/// \brief Owner look v004 ("Not drawing inline comment with syntax
 		/// highlighing"): the file name the answers' inline code is
 		/// coloured as, such as `code.cpp` for a C++ pull request; empty
@@ -504,16 +715,25 @@ namespace bpr::qt {
 			bool                     Anchored = false;
 			agent_finding_card_state State    = agent_finding_card_state::open;
 			QString                  Why;
-			/// The note Save as note made; 0 for none.
+			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t Note = 0U;
 			/// The turn it is under; none for a card no turn brought.
 			std::optional<std::size_t> Turn;
 			QPointer<QWidget>          Widget;
+			/// [[BPR-2061]]. Its claim, evidence and suggested comment as
+			/// Markdown, each fitted to the card's width.
+			std::vector<QPointer<markdown_body_view>> Texts;
+			/// [[BPR-2061]]. Found not at the head when it was drafted.
+			bool Gone = false;
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
-		void               show_card_state(card_entry& aEntry);
-		void               act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
-		std::uint64_t      NextCardId = 1U;
+		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
+		void fit_card_text(markdown_body_view& aView) const;
+		void show_card_state(card_entry& aEntry);
+		/// RFC-BPR-0127. Shows the card's one keep action, Draft comment or Keep local.
+		void          show_card_keep(const card_entry& aEntry) const;
+		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
+		std::uint64_t NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go
 		/// under its answer.
 		void                    claim_findings(std::size_t aTurn);
@@ -558,8 +778,9 @@ namespace bpr::qt {
 		std::function<void(std::uint64_t)> CatalogDispatch;
 		std::function<void()>              ResetDispatch;
 		std::function<bool()>              ResetConfirm;
-		agent_file_resolver                LineResolve;
-		agent_line_navigation              LineNavigate;
+		agent_reference_files_source       LineResolve;
+		agent_reference_navigation         LineNavigate;
+		agent_reference_chooser            ReferenceChooser;
 		QString                            InlineCodeFile;
 		void                               follow_link(const QString& aLink);
 		void                               present_banner();
@@ -612,10 +833,14 @@ namespace bpr::qt {
 		/// One question and its answer.
 		struct turn
 		{
-			QString           Question;
-			bool              Review = false;
-			bool              Done   = false;
-			QPointer<QWidget> Widget;
+			QString Question;
+			/// RFC-BPR-0125. The suggested prompt's name, when it differs.
+			QString               Name;
+			QPointer<QPushButton> ShowAll;
+			bool                  Unfolded = false;
+			bool                  Review   = false;
+			bool                  Done     = false;
+			QPointer<QWidget>     Widget;
 			/// The answer as written, shown as Markdown.
 			QPointer<markdown_body_view> Answer;
 			QString                      AnswerText;
@@ -623,16 +848,19 @@ namespace bpr::qt {
 			/// answer ended with a complete one: what its cards came from.
 			std::string                     FindingsBlock;
 			QPointer<agent_run_status_line> Footer;
-			QPointer<QPushButton>           SaveNote;
-			QPointer<QVBoxLayout>           CardColumn;
-			QPointer<QToolButton>           Copy;
-			QPointer<QLabel>                AskedTime;
-			QPointer<QLabel>                AnsweredTime;
-			QDateTime                       AskedAt;
-			QDateTime                       AnsweredAt;
+			/// [[BPR-2005]]. Its helpers and the quiet notice while it runs;
+			/// the folded line after.
+			QPointer<agent_activity_view> Activity;
+			QPointer<QPushButton>         SaveNote;
+			QPointer<QVBoxLayout>         CardColumn;
+			QPointer<QToolButton>         Copy;
+			QPointer<QLabel>              AskedTime;
+			QPointer<QLabel>              AnsweredTime;
+			QDateTime                     AskedAt;
+			QDateTime                     AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own.
 			std::uint64_t Serial = 0U;
-			/// The note Save as note made; 0 for none.
+			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t    Note = 0U;
 			QPointer<QLabel> QuestionLabel;
 			/// The one file the question names, which a bare "line 34" in the
@@ -644,7 +872,27 @@ namespace bpr::qt {
 			std::optional<agent_answer_draft_target> DraftTarget;
 			QPointer<QPushButton>                    Draft;
 			bool                                     Drafted = false;
-			QPointer<QWidget>                        Asked;
+			/// RFC-BPR-0127, owner look v006. Whether the answer offers its
+			/// one keep action, Draft.
+			bool KeepOffered = false;
+			/// RFC-BPR-0116. A returning question's fresh first answer: the
+			/// claim it leads with, and Ask more.
+			std::optional<core::returning_operation> Returning;
+			/// RFC-BPR-0117. The file Explain this file asked about; empty for
+			/// every other turn.
+			QString Explain;
+			/// RFC-BPR-0118. The file Suggest the change asked about; empty
+			/// for every other turn.
+			QString          SuggestChange;
+			QPointer<QLabel> Claim;
+			/// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report card
+			/// here, opened as a file tab.
+			QPointer<QWidget>     ReportCard;
+			QPointer<QLabel>      ReportTitle;
+			QPointer<QLabel>      ReportMeta;
+			QPointer<QPushButton> ReportOpen;
+			QPointer<QPushButton> AskMore;
+			QPointer<QWidget>     Asked;
 			/// [[BPR-1847]]. How it ended, its reply card, and the one way
 			/// back an error offers.
 			core::agent_turn_outcome  Outcome = core::agent_turn_outcome::answered;
@@ -659,11 +907,46 @@ namespace bpr::qt {
 			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
 			/// thread.
 			QPointer<QPushButton> Delete;
+			/// [[BPR-2061]]. Draft all over its cards, what the last press
+			/// did, and the Undo of that batch.
+			QPointer<QWidget>          DraftAllRow;
+			QPointer<QPushButton>      DraftAll;
+			QPointer<QLabel>           DraftAllState;
+			QPointer<QPushButton>      DraftAllUndo;
+			std::uint64_t              DraftAllBatch = 0U;
+			bool                       DraftAllBusy  = false;
+			std::vector<std::uint64_t> DraftAllCards;
 		};
 		std::vector<turn> Turns;
+		/// [[BPR-2061]].
+		void                       refresh_draft_all(std::size_t aTurn);
+		void                       draft_all(std::size_t aTurn);
+		void                       undo_draft_all(std::size_t aTurn);
+		[[nodiscard]] auto         turn_of_widget(const QObject* aWidget) const -> std::optional<std::size_t>;
+		agent_draft_all_dispatch   DraftAllDispatch;
+		agent_draft_all_undo       DraftAllUndo;
+		agent_finding_placeability FindingPlaceable;
+		std::uint64_t              NextDraftAllBatch = 1U;
+		/// [[BPR-2005]]. How the turns this window saw end: their line and
+		/// what they did, so a thread drawn again from its saved history
+		/// keeps them. Not saved with the history; the last 32.
+		struct ended_turn
+		{
+			QString Question;
+			/// What the turn said when it ended without an answer: the text
+			/// that arrived and how it ended, which its history does not keep.
+			QString                   Ending;
+			QString                   Footer;
+			core::agent_turn_activity Activity;
+			qint64                    Seconds = 0;
+		};
+		std::vector<ended_turn> EndedTurns;
 		/// The question and the answer as shown, their references links.
-		void         show_question(turn& aTurn);
-		void         show_answer(turn& aTurn);
+		void show_question(turn& aTurn);
+		void show_answer(turn& aTurn);
+		/// RFC-BPR-0127, owner look v006. Shows the answer's Draft, struck
+		/// where nothing takes a draft, or Go to draft once drafted.
+		void         present_keep(turn& aTurn);
 		QWidget*     Thread       = nullptr;
 		QVBoxLayout* ThreadColumn = nullptr;
 		/// Each turn's widgets, made for a new or restored turn.
@@ -740,16 +1023,93 @@ namespace bpr::qt {
 		quiet_tool_button* Context         = nullptr;
 		QLabel*            Chips           = nullptr;
 		/// [[BPR-1773]]. The conversation chip and what it is now.
-		QWidget*                                   ConversationChip  = nullptr;
-		QLabel*                                    ConversationText  = nullptr;
-		quiet_tool_button*                         ConversationClose = nullptr;
-		std::optional<agent_conversation_chip>     ConversationShown;
-		std::function<void()>                      ConversationDismiss;
-		std::function<agent_answer_draft_target()> DraftTargetSource;
-		agent_answer_draft_dispatch                DraftDispatch;
-		agent_answer_draft_navigation              DraftNavigate;
-		QLabel*                                    Log      = nullptr;
-		bool                                       LogShown = false;
+		QWidget*                               ConversationChip  = nullptr;
+		QLabel*                                ConversationText  = nullptr;
+		quiet_tool_button*                     ConversationClose = nullptr;
+		std::optional<agent_conversation_chip> ConversationShown;
+		/// [[BPR-2002]]. The lines chip, the lines it last showed, and
+		/// whether the reviewer detached them.
+		QWidget*     LinesChip  = nullptr;
+		QLabel*      LinesText  = nullptr;
+		QToolButton* LinesClose = nullptr;
+		/// [[BPR-1999]]. The session's cost under the composer.
+		QLabel*                                              SessionCostLine = nullptr;
+		std::optional<core::agent_cost>                      SessionTotal;
+		agent_tab_run_observer                               RunObserver;
+		std::function<void(const QString&)>                  EndedObserver;
+		std::function<void(std::optional<core::agent_cost>)> CostObserver;
+		/// [[BPR-1999]]. An input method is composing in the question field.
+		bool                                                                       Composing = false;
+		[[nodiscard]] auto                                                         send_tip() const -> QString;
+		std::optional<std::pair<QString, std::pair<std::uint32_t, std::uint32_t>>> LinesSeen;
+		bool                                                                       LinesDetached = false;
+		/// RFC-BPR-0125. The macros offered from, and the core's offers shown
+		/// now, chips then More.
+		std::vector<core::prompt_macro> PromptMacros;
+		std::vector<core::prompt_offer> Offered;
+		/// What a sent or drafted suggested prompt carries: its name, its
+		/// subject and kind for `decide_agent_question`, and, for a direct
+		/// send, the only text skill references are read from.
+		struct macro_send
+		{
+			QString                                      Key;
+			QString                                      Name;
+			std::optional<core::agent_suggested_subject> Subject;
+			bool                                         Review = false;
+			std::optional<std::string>                   SkillText;
+		};
+		/// The suggestion being sent, while it is.
+		std::optional<macro_send> SendingMacro;
+		/// (Q2) The suggestion the field holds as a draft, and its chip.
+		std::optional<macro_send> DraftedMacro;
+		QWidget*                  MacroChip  = nullptr;
+		QLabel*                   MacroText  = nullptr;
+		QToolButton*              MacroClose = nullptr;
+		void                      present_macro_chip();
+		[[nodiscard]] auto        offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*;
+		/// The name the next admitted turn was sent under.
+		QString PendingName;
+		/// RFC-BPR-0116. The returning prompts by their keys, the one being
+		/// sent, the one a sent question was, and what the host offers.
+		std::map<QString, core::returning_operation> ReturningPrompts;
+		claim_observer                               ClaimObserver;
+		report_dispatch                              ReportDispatch;
+		std::function<void(bool)>                    AvailabilityObserver;
+		QLabel*                                      QueueNote = nullptr;
+		QWidget*                                     QueueList = nullptr;
+		queue_dispatch                               QueueDispatch;
+		follow_up                                    FollowUp;
+		bool                                         FollowUpSteer = false;
+		bool                                         QueueOccupied = false;
+		bool                                         Opposite      = false;
+		bool                                         Releasing     = false;
+		std::optional<std::uint64_t>                 EditingQueued;
+		void                                         refresh_send_label();
+		std::optional<core::returning_operation>     SendingReturning;
+		std::optional<core::returning_operation>     PendingReturning;
+		/// RFC-BPR-0117. The file Explain this file is being sent for, the
+		/// one a sent question was for, and who is told of its turns.
+		QString                                           SendingExplain;
+		QString                                           PendingExplain;
+		std::function<void(const explain_file_progress&)> ExplainObserver;
+		/// RFC-BPR-0118. The file Suggest the change is being sent for, the
+		/// one the next turn takes, and who hears of it.
+		QString                                             SendingSuggest;
+		QString                                             PendingSuggest;
+		std::function<void(const suggest_change_turn&)>     SuggestObserver;
+		void                                                publish_explain(std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, bool aAnswered, qint64 aSeconds);
+		core::latest_upload_offer                           LatestUpload;
+		QLabel*                                             LatestUploadNote = nullptr;
+		std::function<void(const QString&, const QString&)> AskMoreDispatch;
+		std::optional<core::agent_question>                 LastQuestion;
+		[[nodiscard]] auto                                  current_suggestion_context() const -> agent_suggestion_context;
+		void                                                present_lines_chip(const agent_suggestion_context& aContext);
+		std::function<void()>                               ConversationDismiss;
+		std::function<agent_answer_draft_target()>          DraftTargetSource;
+		agent_answer_draft_dispatch                         DraftDispatch;
+		agent_answer_draft_navigation                       DraftNavigate;
+		QLabel*                                             Log      = nullptr;
+		bool                                                LogShown = false;
 		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
 		/// the stopped banner stands down.
 		bool LatestFixedSince = false;

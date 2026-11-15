@@ -68,13 +68,19 @@ namespace bpr::adapters::github::detail {
 					&& std::ranges::adjacent_find(known, std::greater_equal<>{ }) == known.end());
 			// [[BPR-1680]]. A batched retained read names two or more pull
 			// requests, ascending, the first its `Number`, inside the core's bound.
-			const auto& numbers      = aRequest.Numbers;
-			const auto  numbersValid = numbers.empty()
-				|| (aRequest.Reason == application::personal_discovery_reason::retained && numbers.size() >= 2U
+			// [[RFC-BPR-0098]]. A batch of one is an authored pull request's,
+			// for its conversations; its authored numbers are some of its own.
+			const auto& numbers       = aRequest.Numbers;
+			const auto& authored      = aRequest.Authored;
+			const auto  authoredValid = authored.empty()
+				|| (std::ranges::adjacent_find(authored, std::greater_equal<>{ }) == authored.end()
+					&& std::ranges::all_of(authored, [&numbers](const core::pull_request_number aNumber) { return std::ranges::binary_search(numbers, aNumber); }));
+			const auto numbersValid = numbers.empty()
+				|| (aRequest.Reason == application::personal_discovery_reason::retained && (numbers.size() >= 2U || authored.size() == 1U)
 					&& numbers.size() <= core::maximum_discovery_batch_pull_requests && aRequest.Number == numbers.front()
 					&& std::ranges::all_of(numbers, [](const core::pull_request_number aNumber) { return aNumber.value() != 0U && aNumber.value() <= core::maximum_pull_request_number; })
 					&& std::ranges::adjacent_find(numbers, std::greater_equal<>{ }) == numbers.end());
-			return reason && repositoriesValid && knownValid && numbersValid && limits_valid(aLimits) && application::detail::valid_context(context)
+			return reason && repositoriesValid && knownValid && numbersValid && authoredValid && limits_valid(aLimits) && application::detail::valid_context(context)
 				&& (!aRequest.AuthenticationSession || aRequest.AuthenticationSession->value() != 0U)
 				&& application::valid(authority) && aRequest.AccountTransport != nullptr
 				&& aRequest.Viewer.Account.value() != 0U && aRequest.Viewer.Account == context.Account
@@ -545,7 +551,10 @@ namespace bpr::adapters::github::detail {
 				|| !author.Valid || !json_is_array(users) || !json_is_array(teams)) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
-			if (json_array(users).size() + json_array(teams).size() > limits.MaximumPageRecords) {
+			// [[BPR-2048]]. A closed pull request leaves Home whatever else it
+			// holds, so its state is taken before any of its lists is bounded.
+			const auto closed = text(json_member(object, "state")) == "closed";
+			if (!closed && json_array(users).size() + json_array(teams).size() > limits.MaximumPageRecords) {
 				return execution.terminal_failure(application::github_provider_failure::response_limit);
 			}
 			const auto base = json_member(object, "base");
@@ -563,7 +572,7 @@ namespace bpr::adapters::github::detail {
 			if (application::detail::validate_author(author.Actor, budget, limits.Records) != application::github_read_validation_error::none) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
-			for (const auto& user : json_array(users)) {
+			for (const auto& user : closed ? page_json_array{ } : json_array(users)) {
 				const auto reviewer = optional_rest_actor(user);
 				if (!reviewer.Valid || !reviewer.Actor
 					|| application::detail::validate_author(reviewer.Actor, budget, limits.Records) != application::github_read_validation_error::none) {
@@ -580,7 +589,7 @@ namespace bpr::adapters::github::detail {
 				.Detailed         = true,
 				.ReviewersAwaited = static_cast<std::uint32_t>(json_array(users).size() + json_array(teams).size()),
 				.HeadOid          = application::commit_oid{ text(json_member(json_object(head), "sha")) },
-				.Closed           = text(json_member(object, "state")) == "closed",
+				.Closed           = closed,
 				.Draft            = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
@@ -622,6 +631,7 @@ namespace bpr::adapters::github::detail {
 																	.State       = review->State,
 																	.Commit      = review->Commit,
 																	.SubmittedAt = at.transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; }),
+																	.Login = review->Author ? review->Author->Login : std::string{ },
 																};
 															});
 			if (!reviews) {
@@ -745,11 +755,67 @@ namespace bpr::adapters::github::detail {
 			bool                                Paged = false;
 		};
 
+		/// [[RFC-BPR-0098]]. Of an authored pull request's last review
+		/// threads, the unresolved ones whose latest comment is not the
+		/// viewer's, and whether it has more threads than were read; none
+		/// when the answer is not that shape.
+		struct home_conversations
+		{
+			std::uint32_t AwaitingReply = 0U;
+			bool          More          = false;
+		};
+
+		[[nodiscard]] auto parse_home_conversations(const page_json_value& aValue, const application::github_viewer_record& aViewer)
+			-> std::optional<home_conversations>
+		{
+			if (!json_is_object(aValue) || !has_exact_keys(json_object(aValue), { "nodes", "totalCount" })) {
+				return std::nullopt;
+			}
+			const auto threads = json_object(aValue);
+			if (!exact_integer(json_member(threads, "totalCount")) || !json_is_array(json_member(threads, "nodes"))) {
+				return std::nullopt;
+			}
+			const auto nodes  = json_array(json_member(threads, "nodes"));
+			const auto total  = integer(json_member(threads, "totalCount"));
+			auto       result = home_conversations{ .More = total > nodes.size() };
+			if (nodes.size() > core::maximum_queue_review_threads || total < nodes.size()) {
+				return std::nullopt;
+			}
+			for (const auto& node : nodes) {
+				const auto thread   = json_is_object(node) ? json_object(node) : page_json_object{ };
+				const auto comments = json_member(thread, "comments");
+				if (!has_exact_keys(thread, { "comments", "isResolved" }) || !json_is_bool(json_member(thread, "isResolved")) || !json_is_object(comments)
+					|| !has_exact_keys(json_object(comments), { "nodes" }) || !json_is_array(json_member(json_object(comments), "nodes"))
+					|| json_array(json_member(json_object(comments), "nodes")).size() > 1U) {
+					return std::nullopt;
+				}
+				const auto latest = json_array(json_member(json_object(comments), "nodes"));
+				if (latest.empty()) {
+					continue;
+				}
+				const auto comment = json_is_object(latest.front()) ? json_object(latest.front()) : page_json_object{ };
+				const auto author  = optional_graphql_actor(json_member(comment, "author"));
+				if (!has_exact_keys(comment, { "author" }) || !author.Valid) {
+					return std::nullopt;
+				}
+				// A deleted account's comment is not mine either.
+				const auto mine = author.Actor && !aViewer.Node.value().empty() && author.Actor->Actor == aViewer.Node;
+				if (!json_bool(json_member(thread, "isResolved")) && !mine) {
+					++result.AwaitingReply;
+				}
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto parse_home_pull_request(const page_json_object& aPull, const application::personal_discovery_request& aRequest,
 												   const core::pull_request_number aNumber, const github_paged_read_limits& aLimits)
 			-> std::optional<home_batch_row>
 		{
-			if (!has_exact_keys(aPull, { "additions", "author", "autoMergeRequest", "baseRefName", "baseRefOid", "comments", "commits", "createdAt", "deletions", "headRefOid", "id", "isDraft", "mergeStateStatus", "number", "reviewDecision", "reviewRequests", "reviews", "state", "title" })
+			// [[RFC-BPR-0098]]. An authored pull request's alias also holds its
+			// review threads.
+			const auto authored = std::ranges::binary_search(aRequest.Authored, aNumber);
+			if (!(authored ? has_exact_keys(aPull, { "additions", "author", "autoMergeRequest", "baseRefName", "baseRefOid", "comments", "commits", "createdAt", "deletions", "headRefOid", "id", "isDraft", "mergeStateStatus", "number", "reviewDecision", "reviewRequests", "reviewThreads", "reviews", "state", "title" })
+						   : has_exact_keys(aPull, { "additions", "author", "autoMergeRequest", "baseRefName", "baseRefOid", "comments", "commits", "createdAt", "deletions", "headRefOid", "id", "isDraft", "mergeStateStatus", "number", "reviewDecision", "reviewRequests", "reviews", "state", "title" }))
 				|| uint32(json_member(aPull, "number")) != aNumber.value() || !json_is_string(json_member(aPull, "title"))
 				|| !bounded_text(text(json_member(aPull, "title")), aLimits.Records.MaximumTitleBytes, true) || !json_is_bool(json_member(aPull, "isDraft"))
 				|| !one_of(json_member(aPull, "state"), { "OPEN", "CLOSED", "MERGED" }) || !hexadecimal_oid(json_member(aPull, "headRefOid"))
@@ -774,6 +840,12 @@ namespace bpr::adapters::github::detail {
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
 			row.Repository     = aRequest.Context.Repository;
 			auto result        = home_batch_row{ };
+			// [[BPR-2048]]. A closed or merged one leaves Home on its state
+			// alone: nothing else it holds can keep it there.
+			if (row.Closed) {
+				result.Row = std::move(row);
+				return result;
+			}
 
 			const auto reviews  = parse_home_connection(json_member(aPull, "reviews"));
 			const auto requests = parse_home_connection(json_member(aPull, "reviewRequests"));
@@ -832,6 +904,7 @@ namespace bpr::adapters::github::detail {
 					.State       = state,
 					.Commit      = json_is_null(commit) ? std::nullopt : std::optional{ application::commit_oid{ text(json_member(json_object(commit), "oid")) } },
 					.SubmittedAt = at.transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; }),
+					.Login       = actor.Actor ? actor.Actor->Login : std::string{ },
 				});
 				// A pending review's comments are not yet the pull request's.
 				if (state != application::github_review_state::pending) {
@@ -886,6 +959,14 @@ namespace bpr::adapters::github::detail {
 			}
 			row.Waiting      = application::queue_waiting_for(snapshot);
 			row.Waiting.Head = row.HeadOid->value();
+			if (authored) {
+				const auto conversations = parse_home_conversations(json_member(aPull, "reviewThreads"), aRequest.Viewer);
+				if (!conversations) {
+					return std::nullopt;
+				}
+				row.Waiting.AwaitingReply     = conversations->AwaitingReply;
+				row.Waiting.MoreConversations = conversations->More;
+			}
 
 			// Age, size and conversation.
 			const auto opened = json_is_string(json_member(aPull, "createdAt")) ? parse_timeline_timestamp(text(json_member(aPull, "createdAt"))) : std::nullopt;
@@ -963,6 +1044,9 @@ namespace bpr::adapters::github::detail {
 				for (const auto number : aRequest.Numbers) {
 					semantic.PullRequestNumbers.push_back(number.value());
 				}
+				for (const auto number : aRequest.Authored) {
+					semantic.AuthoredPullRequestNumbers.push_back(number.value());
+				}
 				const auto page   = batch.fetch(semantic);
 				const auto answer = [&]() -> std::optional<std::vector<home_batch_row>> {
 					if (!page || !json_is_object(page->Document) || !has_exact_keys(json_object(page->Document), { "data" })) {
@@ -1037,8 +1121,12 @@ namespace bpr::adapters::github::detail {
 					rows.push_back(std::move(row));
 				}
 			}
-			// Nothing read at all fails as the one read would have.
-			if (rows.empty() && firstFailure) {
+			// Nothing read at all fails as the one read would have, unless
+			// every one was too large to read: [[BPR-2048]] each is then its
+			// own row's condition, said by the host, not the read's.
+			const auto allTooLarge = !unread.empty() && unread.size() == restNumbers.size()
+				&& std::ranges::all_of(unread, [](const application::personal_discovery_unread& aUnread) { return aUnread.Error.Failure == application::github_provider_failure::response_limit; });
+			if (rows.empty() && firstFailure && !allTooLarge) {
 				return { .Read = std::unexpected{ *firstFailure }, .Unsupported = unsupported };
 			}
 			std::ranges::sort(rows, { }, &application::personal_discovery_row::Number);
@@ -1199,10 +1287,14 @@ namespace bpr::adapters::github::detail {
 					const auto read = read_discovery_membership(aTransport, aProfile, aRequest, context, numbers, *server, aStop, aLimits, rates, recoveryBudget, &work.RosterRecoveries);
 					if (!read) {
 						const auto* error = std::get_if<application::github_provider_error>(&read.error());
+						// [[BPR-2048]]. One pull request with more requests than
+						// a roster read takes is read on its own below, so it
+						// does not fail the search of the rest.
+						if (error && error->Failure == application::github_provider_failure::response_limit) {
+							note(core::discovery_completeness_reason::roster_limit);
+							break;
+						}
 						if (!error || error->Failure != application::github_provider_failure::unsupported_capability) {
-							if (error && error->Failure == application::github_provider_failure::response_limit) {
-								note(core::discovery_completeness_reason::roster_limit);
-							}
 							return std::unexpected{ read.error() };
 						}
 						// A server without the narrow schema uses the existing
@@ -1263,10 +1355,18 @@ namespace bpr::adapters::github::detail {
 					parsed = recover_discovery_reviewers(aTransport, aProfile, aRequest, requested_reviewers_parent(rowContext, row.Number), *server, aStop, aLimits, rates, recoveryBudget);
 					if (!parsed) {
 						const auto* recoveryError = std::get_if<application::github_provider_error>(&parsed.error());
-						if (recoveryError && recoveryError->Failure == application::github_provider_failure::response_limit) {
-							note(core::discovery_completeness_reason::roster_limit);
+						if (!recoveryError || recoveryError->Failure != application::github_provider_failure::response_limit) {
+							return std::unexpected{ parsed.error() };
 						}
-						return std::unexpected{ parsed.error() };
+						// [[BPR-2048]]. Its roster is too large to read: the
+						// search's own qualifier names the viewer, so the row
+						// stays, its waiting unknown, and the rest are read.
+						note(core::discovery_completeness_reason::roster_limit);
+						if (!requested) {
+							kept.push_back(std::move(row));
+							continue;
+						}
+						parsed = requested_reviewers{ .NamesViewer = true, .Awaited = 0U };
 					}
 				}
 				// Asked of a team the viewer belongs to is not asked of the

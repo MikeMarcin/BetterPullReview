@@ -1,4 +1,5 @@
 #include "tour_assist.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -70,6 +71,22 @@ namespace bpr::app {
 		case core::writing_hook::outline:  return "outline";
 		case core::writing_hook::comment:  return "comment";
 		case core::writing_hook::feedback: return "feedback";
+		// [[BPR-2051]] The Enhance prompts, named for `bpr tour hooks`.
+		case core::writing_hook::enhance_stop:    return "enhance-stop";
+		case core::writing_hook::enhance_writing: return "enhance-writing";
+		// [[BPR-2059]] How an agent writes the comments it suggests.
+		case core::writing_hook::suggested_comment: return "suggested-comment";
+		// RFC-BPR-0110 The local-authoring prompts.
+		case core::writing_hook::local_description:    return "local-description";
+		case core::writing_hook::local_discussion:     return "local-discussion";
+		case core::writing_hook::local_commit_message: return "local-commit-message";
+		// RFC-BPR-0116 The returning questions.
+		case core::writing_hook::review_latest_upload: return "review-latest-upload";
+		case core::writing_hook::review_proposed_fix:  return "review-proposed-fix";
+		// RFC-BPR-0117 Explain this file.
+		case core::writing_hook::review_explain_file: return "review-explain-file";
+		// RFC-BPR-0118 Suggest the change.
+		case core::writing_hook::review_suggest_change: return "review-suggest-change";
 		}
 		return "problem";
 	}
@@ -219,7 +236,7 @@ namespace bpr::app {
 		const auto        selected = std::string_view{ raw }.substr(begin, end - begin);
 		const QJsonObject packet{ { "schema", "bpr.tour.assist-context.v1" },
 								  { "ticket", id_text(issued->Id) },
-								  { "hook", QJsonObject{ { "name", text(tour_hook_name(aQuery.Hook)) }, { "version", text(application::writing_hook_version) }, { "revision", id_text(aSettings.Revision) }, { "instructions", text(application::effective_writing_hook(aSettings, aQuery.Hook)) } } },
+								  { "hook", QJsonObject{ { "name", text(tour_hook_name(aQuery.Hook)) }, { "version", text(application::writing_hook_version_of(aQuery.Hook)) }, { "revision", id_text(aSettings.Revision) }, { "instructions", text(application::effective_writing_hook(aSettings, aQuery.Hook)) } } },
 								  { "contract", text(application::writing_application_contract()) },
 								  { "scope", describe_range(*issued) },
 								  { "field", outline ? QString{ } : aQuery.Hook == core::writing_hook::comment ? "stop:" + id_text(aQuery.Stop.value())
@@ -274,7 +291,7 @@ namespace bpr::app {
 			// [[BPR-1090]] The feedback hook goes only with comment workshop requests, and only while the
 			// label helper is on; the review-preparation hooks apply whenever their field is assisted.
 			const bool active = hook != core::writing_hook::feedback || helper;
-			hooks.append(QJsonObject{ { "name", text(tour_hook_name(hook)) }, { "version", text(application::writing_hook_version_of(hook)) }, { "customized", !settings.Overrides[index].empty() }, { "active", active }, { "instructions", text(application::effective_writing_hook(settings, hook)) } });
+			hooks.append(QJsonObject{ { "name", text(tour_hook_name(hook)) }, { "purpose", text(application::writing_hook_purpose(hook)) }, { "version", text(application::writing_hook_version_of(hook)) }, { "customized", !settings.Overrides[index].empty() }, { "active", active }, { "instructions", text(application::effective_writing_hook(settings, hook)) } });
 		}
 		return compact(QJsonObject{ { "version", text(application::writing_hook_version) }, { "revision", id_text(settings.Revision) }, { "label_helper", helper ? "on" : "off" }, { "hooks", hooks } });
 	}
@@ -312,6 +329,11 @@ namespace bpr::app {
 		}
 		if (!(*store)->store_preferences(candidate, { })) {
 			return refuse("storage_unavailable", "The hook change was not saved.", 7);
+		}
+		// [[BPR-2016]], RFC-BPR-0107. The override was written against
+		// today's built-in; best effort, as a Settings save records it.
+		if (const auto exchange = adapters::sqlite::make_agent_configuration_store(aRoot)) {
+			static_cast<void>(exchange->record_written_against(aHook, candidate.WritingHooks.Overrides[static_cast<std::size_t>(aHook)], application::writing_hook_version_of(aHook)));
 		}
 		return tour_hook_state{ std::move(candidate.WritingHooks), candidate.Behaviour.LabelHelper };
 	}

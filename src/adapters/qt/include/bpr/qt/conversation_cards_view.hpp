@@ -5,16 +5,20 @@
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
+#include "bpr/core/returning_review.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/suggest_change_control.hpp"
 
 #include <QAbstractScrollArea>
 #include <QColor>
@@ -133,7 +137,94 @@ namespace bpr::qt {
 		/// [[BPR-1773]]. Ask the agent about this conversation: the Agent
 		/// tab opens with it attached to the next question. Nothing is sent.
 		ask_agent,
+		/// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed?: the Agent tab
+		/// asks it of this conversation. Nothing is resolved or posted.
+		was_addressed,
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on the drawer
+		/// draft's lines, or Stop while the agent writes it.
+		suggest_change,
+		/// RFC-BPR-0118. The agent's change open in the code goes into the
+		/// comment (Keep change), is dropped (Discard), the comment goes back
+		/// to how it was (Undo), or the panel closes (Done, Dismiss).
+		keep_suggested_change,
+		discard_suggested_change,
+		undo_suggested_change,
+		close_suggested_change,
+		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comment becomes a draft
+		/// of the same kind at the same place, not in the review, or at the
+		/// selected line ("Make draft on line N"). Nothing is published.
+		make_draft,
+		/// RFC-BPR-0127. My draft becomes a Local comment: only on this
+		/// computer, never sent.
+		keep_local,
+		/// RFC-BPR-0127. My Local comment is deleted, once the window has asked.
+		delete_local,
+		/// RFC-BPR-0127. My Local comment's words, copied as written.
+		copy_local,
+		/// RFC-BPR-0127. The composer's state control: Local chosen.
+		compose_local,
+		/// RFC-BPR-0127. The composer's state control: Draft (or Reply) chosen.
+		compose_draft,
+		/// RFC-BPR-0127. Save the composer's words as a Local comment (⌘↩).
+		save_local,
+		/// RFC-BPR-0127. My Local comment on another file: the window goes to
+		/// the file, then the line, and opens it there.
+		open_local_elsewhere,
+		/// RFC-BPR-0127. My Local comment's words, edited in place, saved
+		/// only on this computer.
+		edit_local,
 	};
+
+	/// \brief RFC-BPR-0127 ("Where a Local comment can be"). Where the
+	/// window found my Local comment against the comparison shown.
+	enum class local_comment_place : std::uint8_t {
+		/// At its line (or range) in the shown comparison.
+		line,
+		/// Its line is not in the shown comparison: why is in `Notice`.
+		outdated,
+		/// On this file as a whole: the file's edge chip.
+		whole_file,
+		/// On the pull request: the pull request chip, and Overview's
+		/// Comments tab.
+		pull_request,
+		/// On another file: the "Other files" chip.
+		other_file,
+	};
+
+	/// \brief RFC-BPR-0127 ([[BPR-2158]]). One of my Local comments, as the
+	/// window placed it against the comparison shown: only on this computer,
+	/// never sent. Nothing here decides where it is.
+	struct local_comment_card
+	{
+		std::uint64_t Id       = 0U;
+		std::uint64_t Revision = 0U;
+		QString       Body;
+		/// The comparison shown, where it is drawn at its line; none for a
+		/// comment the comparison does not place.
+		std::optional<core::file_comparison_digest> Comparison;
+		core::diff_side                             Side = core::diff_side::right;
+		/// Its one-based line, and the first of a range.
+		std::optional<std::uint32_t> Line;
+		std::optional<std::uint32_t> FirstLine;
+		/// The thread a Local reply answers, by its provider identity.
+		std::optional<std::string> ReplyToThread;
+		/// Not at a line of its own here: why (outdated), drawn after the
+		/// placed cards as an outdated thread is.
+		QString Notice;
+		/// What Make draft is offered as: "Make draft", "Make draft on line
+		/// N", or empty when it is not offered; and why not.
+		QString MakeDraft;
+		QString MakeDraftWhy;
+		/// Where it stands, and for another file its path and one-based line.
+		local_comment_place          Place = local_comment_place::line;
+		QString                      Path;
+		std::optional<std::uint32_t> PathLine;
+
+		auto operator==(const local_comment_card&) const -> bool = default;
+	};
+
+	/// \brief RFC-BPR-0127. What assistive technology hears for each state.
+	[[nodiscard]] auto comment_state_words(bool aLocal, bool aDraft, bool aInReview) -> QString;
 
 	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of
 	/// the file shown, as the core decided at this head (RFC-BPR-0090, "A new
@@ -174,6 +265,8 @@ namespace bpr::qt {
 		/// [[BPR-1089]]. Exactly these conversations, by root identity: an
 		/// Overview count's drill-down. None lists every conversation.
 		std::optional<std::set<std::string>> Listed;
+		/// [[BPR-2171]]. Fold bots: runs of bot comments fold to one row.
+		bool FoldBots = false;
 
 		auto operator<=>(const discuss_filters&) const = default;
 	};
@@ -211,6 +304,13 @@ namespace bpr::qt {
 		/// The post's depth beneath the root, one for the first reply.
 		std::size_t Depth = 0U;
 		bool        Mine  = false;
+		/// RFC-BPR-0127. My Local reply inside the thread, after its
+		/// published posts: only on this computer.
+		bool Local = false;
+		/// RFC-BPR-0127. What Make draft is offered as on my Local reply,
+		/// or empty with why not.
+		QString LocalMakeDraft;
+		QString LocalMakeDraftWhy;
 		/// Newer than my cursor, as the ledger decided ([[BPR-0656]]).
 		bool Unread = false;
 		/// "author" for the pull request's author, "reviewer" otherwise.
@@ -263,6 +363,22 @@ namespace bpr::qt {
 	};
 
 	/// \brief One thread's note: a review thread's root and its replies, or my draft.
+	/// \brief RFC-BPR-0128 ([[BPR-2165]]). The agent's claim on a thread from
+	/// Was this addressed?, and the lines it read: as the thread started and
+	/// as they are now. A claim; nothing is resolved or posted by it.
+	struct thread_claim
+	{
+		core::addressed_claim                Claim = core::addressed_claim::cannot_tell;
+		std::optional<core::returning_lines> Then;
+		std::optional<core::returning_lines> Now;
+		/// The Agent tab turn that answered.
+		std::size_t Turn = 0U;
+
+		auto operator==(const thread_claim&) const -> bool = default;
+	};
+	/// \brief The chip's word: Addressed, Partly, Not addressed, Unclear.
+	[[nodiscard]] auto thread_claim_words(core::addressed_claim aClaim) -> QString;
+
 	struct thread_card
 	{
 		/// The thread root's identity; empty for the draft note.
@@ -274,6 +390,10 @@ namespace bpr::qt {
 		/// view and Discuss's whole pull request), the review whose bundle the
 		/// comment was posted in; empty otherwise or outside any review.
 		std::string Bundle;
+		/// [[BPR-2171]]. In time order, beside the author: the review's
+		/// verdict on its own comment, and when it was written.
+		QString HeadVerdict;
+		QString When;
 		/// [[BPR-1779]]. Its place in that order.
 		std::size_t                    TimelineOrder = 0U;
 		QString                        DefectBadge;
@@ -307,6 +427,12 @@ namespace bpr::qt {
 		/// `thread_reply_refusal_text` says why.
 		core::thread_reply_refusal ReplyRefusal = core::thread_reply_refusal::none;
 		bool                       Draft        = false;
+		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comment: dashed as a draft
+		/// is, marked with the computer, never sent. `Draft` is also set.
+		bool               Local = false;
+		local_comment_card LocalComment;
+		/// RFC-BPR-0127. How many of my Local replies the thread holds.
+		std::size_t LocalReplies = 0U;
 		/// [[BPR-1345]]. My draft is pending in my review, or held by its
 		/// submission.
 		bool Pending = false;
@@ -321,6 +447,11 @@ namespace bpr::qt {
 		/// written in it and not sent; on my kept reply's own note, where its
 		/// thread stands. None when there is no unsent reply.
 		std::optional<core::reply_draft_standing> UnsentReply;
+		/// RFC-BPR-0127, owner look v003. On a thread's note, my draft reply
+		/// in it and its words, so the thread shows it stands (one draft
+		/// reply per thread is why a Local reply cannot become one).
+		std::optional<core::review_draft_id> UnsentReplyDraft;
+		QString                              UnsentReplyBody;
 		/// [[BPR-1374]]. What became of the thread an unsent reply answers, in
 		/// a sentence, drawn under the note's name; empty when nothing did.
 		QString Notice;
@@ -463,6 +594,11 @@ namespace bpr::qt {
 		/// What the last Publish came to ([[BPR-1329]]), else why Publish is
 		/// unavailable, or empty.
 		QString Notice;
+		/// [[BPR-2172]]. `Notice` is a caution about where the comment goes
+		/// that leaves Publish offered: the composer shows it as a warning
+		/// mark in its tool row, its sentence disclosed on press, not as
+		/// lines under the row.
+		bool NoticeFolds = false;
 		/// [[BPR-1329]]. The draft editor offers Publish again as a retry of
 		/// the same publication.
 		bool Retry = false;
@@ -470,6 +606,16 @@ namespace bpr::qt {
 		/// decides its foot: Add single comment and Start a review, or Add
 		/// review comment as the main action while a review is in progress.
 		draft_review_state Review = draft_review_state::none;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: whether it is
+		/// offered on these lines, and where a press stands.
+		agent_suggestion_presentation AgentSuggestion;
+		/// RFC-BPR-0127 ([[BPR-2158]]). The composer opens on Local (N): its
+		/// foot is Delete and Save, and nothing in it can send.
+		bool Local = false;
+		/// RFC-BPR-0127. Why this draft cannot be kept local now (a submitted
+		/// review holds it, or it is being published): the Local segment is
+		/// disabled and says so. Empty when Local is offered.
+		QString LocalRefusal;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};
@@ -489,6 +635,8 @@ namespace bpr::qt {
 			path,
 			/// The New rule above the first comment not yet read.
 			fresh,
+			/// [[BPR-2171]]. A run of bot comments folded to one row.
+			bots,
 		};
 		kind Kind = kind::bundle;
 		/// The review's identity, or the thread's for a path line.
@@ -497,8 +645,16 @@ namespace bpr::qt {
 		QString     Verdict;
 		/// When, in words; empty when GitHub gave no time.
 		QString When;
-		/// The path line's words: "src/a.cpp:42".
+		/// [[BPR-2171]]. The file row's path, named once over its threads.
 		QString Path;
+		/// [[BPR-2171]]. What a file or bots row folds: how many comments, the
+		/// fold's key (empty when it folds nothing) and whether it is open.
+		std::size_t Folded = 0U;
+		std::string Fold;
+		bool        Open = false;
+		/// [[BPR-2171]]. A bundle whose review's own comment comes first says
+		/// who, the verdict and when on that comment: its line is not drawn.
+		bool Merged = false;
 		/// Where it is drawn, in content coordinates. A bundle's `Reach` is the
 		/// foot of its last comment, which its rail runs down to.
 		QRect Rect;
@@ -508,6 +664,9 @@ namespace bpr::qt {
 	};
 
 	class open_thread_card;
+	namespace detail {
+		struct note_preview;
+	}
 	class scoped_prose_editor;
 
 	/// \brief [[BPR-1775]]. Save pressed while editing one of my published
@@ -533,6 +692,9 @@ namespace bpr::qt {
 		QString     Status;
 		bool        Saving = false;
 		bool        Newer  = false;
+		/// RFC-BPR-0127. My Local comment, edited in place: saved only on
+		/// this computer, never sent.
+		bool Local = false;
 
 		auto operator==(const comment_edit_presentation&) const -> bool = default;
 	};
@@ -625,6 +787,34 @@ namespace bpr::qt {
 		/// carried to, or at its own, while that comparison is shown. The
 		/// window says what each offers; nothing here decides it.
 		void set_moved_suggestions(std::vector<moved_suggestion_card> aMoved);
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). My Local comments: at their
+		/// lines in the line's group (after published threads, before my
+		/// draft), my Local replies inside their threads' cards, and the
+		/// outdated after the placed cards with their reason.
+		void               set_local_comments(std::vector<local_comment_card> aComments);
+		[[nodiscard]] auto local_comments() const noexcept -> const std::vector<local_comment_card>&;
+		/// \brief RFC-BPR-0127. The identity of a Local comment's card, and
+		/// the comment a card identity names.
+		[[nodiscard]] static auto local_comment_identity(std::uint64_t aId) -> std::string;
+		[[nodiscard]] static auto local_comment_of(const std::string& aIdentity) -> std::optional<std::uint64_t>;
+		/// \brief RFC-BPR-0127 ("Where a Local comment can be"). The edge
+		/// chips for my Local comments on this whole file and on other files,
+		/// which the window places beside the pull request link. Each counts
+		/// them beside the computer; hidden with none.
+		[[nodiscard]] auto local_file_chip() const noexcept -> QAbstractButton*;
+		/// \brief RFC-BPR-0127. In a drawer too narrow for their words the
+		/// pull request link and the Local comment chips keep only their
+		/// glyphs and counts; their words stay their names and tooltips.
+		void set_edge_chips_compact(bool aCompact);
+		/// \brief How much wider the shown edge chips are with their words
+		/// than as they are drawn now.
+		[[nodiscard]] auto edge_chips_saving() const -> int;
+		[[nodiscard]] auto local_elsewhere_chip() const noexcept -> QAbstractButton*;
+		/// \brief The menu the Other files chip opens, while it is open.
+		[[nodiscard]] auto local_elsewhere_menu() const noexcept -> QMenu*;
+		/// \brief RFC-BPR-0127. Told when Save is pressed on my Local
+		/// comment edited in place: its identity, its revision and the words.
+		void set_local_edit_dispatch(std::function<void(std::uint64_t, std::uint64_t, const std::string&)> aDispatch);
 		/// \brief [[BPR-1733]]. The identity of a moved suggestion's note.
 		[[nodiscard]] static auto moved_suggestion_identity(core::review_draft_id aDraft) -> std::string;
 		/// \brief [[BPR-1733]]. What a moved suggestion's note says about where
@@ -640,6 +830,26 @@ namespace bpr::qt {
 		/// goes, from a thread's menu (its first post's author) and from a
 		/// post's body menu (that post's author), with the GitHub login.
 		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-2171]]. Who this repository's marks say is a bot or
+		/// not; GitHub decides the rest.
+		void set_author_bots(core::author_bot_marks aMarks);
+		/// \brief [[BPR-2171]]. Mark as bot (true) or Not a bot, by login.
+		void set_author_bot_dispatch(std::function<void(const std::string&, bool)> aDispatch);
+		/// \brief [[BPR-2171]]. Discuss's centred column, in logical pixels;
+		/// none for the whole width.
+		void               set_column_width(std::optional<int> aWidth);
+		[[nodiscard]] auto column_width() const noexcept -> std::optional<int>;
+		/// \brief [[BPR-2171]]. Where the list's column is: its left edge and
+		/// width in the viewport.
+		[[nodiscard]] auto column() const -> std::pair<int, int>;
+		/// \brief [[BPR-2171]]. Opens the fold holding a thread (or a post's
+		/// thread), so a thread asked for by name is listed.
+		void reveal_folded(const std::string& aId) { unfold_for(aId); }
+		/// \brief [[BPR-2171]]. Opens or closes a fold by its row's key.
+		void               toggle_fold(const std::string& aFold);
+		[[nodiscard]] auto unfolded() const noexcept -> const std::set<std::string>&;
+		/// \brief [[BPR-2171]]. Comments a closed fold holds, not listed.
+		[[nodiscard]] auto folded_count() const noexcept -> std::size_t;
 		/// \brief [[BPR-1699]]. How many posts this login wrote that are
 		/// new, over every card; what the author's Mark all is offered for.
 		[[nodiscard]] auto unread_post_count_from(const QString& aLogin) const -> std::size_t;
@@ -708,7 +918,24 @@ namespace bpr::qt {
 		[[nodiscard]] auto comment_edit_offered() const noexcept -> bool;
 		/// \brief [[BPR-1806]]. Offers Open in tour on a published tour stop,
 		/// or withdraws it: offered while the window has the tour to follow.
-		void               set_tour_open_offered(bool aOffered);
+		void set_tour_open_offered(bool aOffered);
+		/// \brief RFC-BPR-0116 ([[BPR-2074]]). The threads Was this addressed?
+		/// is offered on, by identity.
+		/// \brief RFC-BPR-0128 ([[BPR-2164]]). Fills a thread's Ask menu (its
+		/// identity and section title): the open card's Ask and the thread's
+		/// right-click Ask. None offers no Ask.
+		using ask_menu_filler = std::function<void(QMenu&, const QString& aThread, const QString& aTitle)>;
+		/// \brief RFC-BPR-0128 ([[BPR-2165]]). Each thread's claim, shown as a
+		/// chip in its header (open) and its meta (closed); a press on the
+		/// open card's chip shows the lines then and now.
+		void               set_thread_claims(std::map<std::string, thread_claim> aClaims);
+		[[nodiscard]] auto thread_claims() const noexcept -> const std::map<std::string, thread_claim>& { return Claims; }
+		/// \brief The chip's Open the answer: the Agent tab at that turn.
+		void               set_claim_answer_dispatch(std::function<void(std::size_t)> aDispatch) { ClaimAnswerDispatch = std::move(aDispatch); }
+		void               set_ask_menu_filler(ask_menu_filler aFiller);
+		[[nodiscard]] auto thread_title(const std::string& aThread) const -> QString;
+		void               set_addressed_threads(std::set<std::string> aThreads);
+		[[nodiscard]] auto addressed_threads() const noexcept -> const std::set<std::string>& { return AddressedThreads; }
 		[[nodiscard]] auto tour_open_offered() const noexcept -> bool;
 		/// \brief [[BPR-1806]]. Where Open in tour goes: the post's identity
 		/// and the stop it was read as. Nothing is opened by the view.
@@ -765,6 +992,10 @@ namespace bpr::qt {
 		/// \details [[BPR-0972]]. Decided once per adopted forest or read
 		/// state and retained, so a scroll frame that asks again walks nothing.
 		[[nodiscard]] auto unread_threads_in_file_order() const -> const std::vector<std::string>&;
+		/// \brief Owner look v002 ([[BPR-2158]]). Every review thread on a file
+		/// with its path, in file and then line order: Previous and Next
+		/// comment walk it past the file shown.
+		[[nodiscard]] auto threads_in_file_order() const -> std::vector<std::pair<std::string, QString>>;
 		/// \brief [[BPR-1601]]. File threads, then PR comments and summaries in Discuss order.
 		[[nodiscard]] auto unread_conversations_in_navigation_order() const -> const std::vector<std::string>&;
 		/// \brief The zero-based lines of the threads whose first post is unread.
@@ -851,6 +1082,15 @@ namespace bpr::qt {
 		void set_draft_text_dispatch(std::function<void(const QString&)> aDispatch);
 		/// \brief [[BPR-1212]]. The draft's field, while it is being written.
 		[[nodiscard]] auto draft_editor() const -> QPlainTextEdit*;
+		/// \brief [[BPR-2051]]. Where Enhance on the draft or reply written
+		/// here goes, and how a run it started is stopped.
+		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		/// \brief [[BPR-2051]]. The answer to one press; false when no field
+		/// shown here asked it.
+		auto present_enhancement(const enhance_outcome& aOutcome) -> bool;
+		/// \brief [[BPR-2051]]. The open card's Enhance control and panel.
+		[[nodiscard]] auto enhance_control() const -> enhance_button*;
+		[[nodiscard]] auto enhance_panel() const -> enhance_suggestion*;
 		/// \brief [[BPR-1212]]. The identity the draft's note and composer carry.
 		[[nodiscard]] static auto draft_identity() -> const std::string&;
 		/// \brief The reply's label chip and menu ([[BPR-1083]]'s
@@ -858,6 +1098,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto reply_label_controls() const -> feedback_label_controls*;
 		/// \brief The open thread's card, while one is open.
 		[[nodiscard]] auto open_card() const -> QWidget*;
+		/// \brief RFC-BPR-0128. The open thread's identity; empty for none.
+		[[nodiscard]] auto open_identity() const noexcept -> const std::string& { return Open; }
 		/// \brief The out-of-view chips shown now, top first then bottom.
 		[[nodiscard]] auto edge_chips() const -> std::vector<QAbstractButton*>;
 		/// \brief What the notes scroll by themselves beyond the code.
@@ -986,6 +1228,9 @@ namespace bpr::qt {
 		void               notify_marks();
 		void               step_new(int aDirection);
 		void               ensure_visible(const QRect& aViewportRect);
+		/// [[BPR-2173]]. Beside the code, the card just opened is brought
+		/// whole into view by the notes' own scroll.
+		void reveal_opened(const std::string& aId);
 		/// \brief Brings what is being read in an open thread into view: the
 		/// notes' own overflow in Discuss, the code (which the drawer follows)
 		/// in Review, as a wheel over the notes would.
@@ -1021,6 +1266,16 @@ namespace bpr::qt {
 		std::vector<timeline_line>      TimelineLines;
 		/// [[BPR-1779]]. The path line under the pointer, drawn in full ink.
 		std::string HoveredPath;
+		/// [[BPR-2171]].
+		core::author_bot_marks                        BotMarks;
+		std::function<void(const std::string&, bool)> AuthorBotDispatch;
+		std::optional<int>                            ColumnLimit = 820;
+		std::set<std::string>                         Unfolded;
+		std::size_t                                   FoldedComments   = 0U;
+		std::size_t                                   FoldedThreads    = 0U;
+		std::size_t                                   FoldedUnresolved = 0U;
+		[[nodiscard]] auto                            card_width_for(const thread_card& aCard) const -> std::pair<int, int>;
+		void                                          unfold_for(const std::string& aId);
 		/// [[BPR-1779]]. The pull request's comments and their unread, as the
 		/// Pull request chip counts them: comments, not reviews.
 		mutable std::optional<std::pair<std::size_t, std::size_t>> PullRequestCounts;
@@ -1058,6 +1313,13 @@ namespace bpr::qt {
 		std::vector<core::review_comment_draft>                                              SavedDrafts;
 		std::vector<core::reply_draft_decision>                                              UnsentReplies;
 		std::vector<moved_suggestion_card>                                                   MovedSuggestions;
+		std::vector<local_comment_card>                                                      LocalComments;
+		QAbstractButton*                                                                     LocalFileChip      = nullptr;
+		QAbstractButton*                                                                     LocalElsewhereChip = nullptr;
+		QPointer<QMenu>                                                                      LocalElsewhereMenu;
+		std::function<void(std::uint64_t, std::uint64_t, const std::string&)>                LocalEditDispatch;
+		void                                                                                 sync_local_chips();
+		void                                                                                 open_local_elsewhere_menu();
 		std::optional<core::file_comparison_digest>                                          CurrentComparison;
 		card_line_locator                                                                    Locator;
 		card_thread_dispatch                                                                 ThreadDispatch;
@@ -1077,6 +1339,8 @@ namespace bpr::qt {
 		bool                                       Writing = false;
 		std::optional<draft_composer_presentation> Composer;
 		std::function<void(const QString&)>        DraftTextDispatch;
+		enhance_dispatch                           EnhanceDispatch;
+		enhance_cancel                             EnhanceCancel;
 		QString                                    Viewer;
 		std::string                                Current;
 		bool                                       PullRequestComments = false;
@@ -1128,6 +1392,10 @@ namespace bpr::qt {
 		};
 		bool                                                                      CommentEditOffered = false;
 		bool                                                                      TourOpenOffered    = false;
+		std::set<std::string>                                                     AddressedThreads;
+		ask_menu_filler                                                           AskMenuFiller;
+		std::map<std::string, thread_claim>                                       Claims;
+		std::function<void(std::size_t)>                                          ClaimAnswerDispatch;
 		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenDispatch;
 		/// [[BPR-1810]]. Where a stop's chevrons go, and which chevron the
 		/// stepped-to thread's plate takes focus on ("" for none).
@@ -1161,15 +1429,25 @@ namespace bpr::qt {
 		/// [[BPR-0673]]. Two widths, because a scroll bar that comes and goes
 		/// alternates the content width; keeping one width re-measured every
 		/// note of a large review each time it did.
-		measurement_generation        Measurements;
-		measurement_generation        PreviousMeasurements;
-		QFont                         MeasurementFont;
-		std::uint64_t                 MeasurementCount = 0U;
-		open_thread_card*             OpenCard         = nullptr;
-		std::vector<QAbstractButton*> Chips;
-		std::size_t                   ChipsShown = 0U;
-		QWidget*                      BandAbove  = nullptr;
-		QWidget*                      BandBelow  = nullptr;
+		measurement_generation Measurements;
+		measurement_generation PreviousMeasurements;
+		QFont                  MeasurementFont;
+		std::uint64_t          MeasurementCount = 0U;
+		/// [[BPR-2171]]. Each closed note's preview, by its card, kept while
+		/// its body is the same: read once, not at every width.
+		struct preview_entry
+		{
+			QString                                     Body;
+			qsizetype                                   Header = 0;
+			std::shared_ptr<const detail::note_preview> Preview;
+		};
+		mutable std::unordered_map<std::string, preview_entry> Previews;
+		[[nodiscard]] auto                                     preview_for(const thread_card& aCard) const -> const detail::note_preview&;
+		open_thread_card*                                      OpenCard = nullptr;
+		std::vector<QAbstractButton*>                          Chips;
+		std::size_t                                            ChipsShown = 0U;
+		QWidget*                                               BandAbove  = nullptr;
+		QWidget*                                               BandBelow  = nullptr;
 	};
 } // namespace bpr::qt
 

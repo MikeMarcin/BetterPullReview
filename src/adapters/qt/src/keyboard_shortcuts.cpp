@@ -59,6 +59,8 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::go_to_line, .Group = navigation, .Binding = bound, .Title = "Go to line…", .Keys = "Ctrl+G", .StepsAsideWhileTyping = true, .Objects = "goToLineAction;desktopGoToLineAction" },
 #endif
 			shortcut_entry{ .Command = command::next_new_comment, .Group = navigation, .Binding = bound, .Title = "Next new comment", .Keys = "Alt+N", .Objects = "nextNewCommentAction" },
+			shortcut_entry{ .Command = command::previous_comment, .Group = navigation, .Binding = bound, .Title = "Previous comment", .Keys = "Alt+[", .StepsAsideWhileTyping = true, .Objects = "previousCommentAction" },
+			shortcut_entry{ .Command = command::next_comment, .Group = navigation, .Binding = bound, .Title = "Next comment", .Keys = "Alt+]", .StepsAsideWhileTyping = true, .Objects = "nextCommentAction" },
 			shortcut_entry{ .Command = command::home, .Group = navigation, .Binding = bound, .Title = "Home, or back to the review", .Keys = "Ctrl+Shift+H", .Objects = "workbenchHomeAction" },
 #if defined(Q_OS_MACOS)
 			// Control-Tab on macOS too, which Qt names Meta.
@@ -132,7 +134,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::repositories_drawer, .Group = views, .Binding = bound, .Title = "Repositories drawer", .Keys = repositories_drawer_keys, .Objects = "toggleWorkbenchRepositoriesDrawerAction" },
 			shortcut_entry{ .Command = command::open_agent, .Group = views, .Binding = bound, .Title = "The Agent tab", .Keys = "Alt+Shift+A", .Objects = "openAgentTabAction" },
 			shortcut_entry{ .Command = command::ask_agent, .Group = views, .Binding = bound, .Title = "Ask the agent about the selected lines", .Keys = "Ctrl+I", .Objects = "askAgentAboutLinesAction" },
-			shortcut_entry{ .Command = command::new_note, .Group = comments, .Binding = bound, .Title = "A private note on the selected line", .Place = "In Notes", .Keys = "N", .Objects = "newLineNoteAction" },
+			shortcut_entry{ .Command = command::new_note, .Group = comments, .Binding = bound, .Title = "A local comment on the selected lines", .Place = "In Comments", .Keys = "N", .Objects = "localCommentAction" },
 			shortcut_entry{ .Command = command::review_details, .Group = views, .Binding = bound, .Title = "Review details", .Keys = "Alt+Shift+3", .Objects = "toggleWorkbenchReviewDetailsAction" },
 			shortcut_entry{ .Command = command::line_numbers, .Group = views, .Binding = bound, .Title = "Line numbers", .Keys = "Alt+Shift+5", .Objects = "toggleWorkbenchLineNumbersAction;desktopToggleLineNumbersAction" },
 			// [[BPR-1815]]. P for pane, among the other Option-Shift views; the
@@ -179,7 +181,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::tour_remove, .Group = tours, .Binding = bound, .Title = "Remove the stop", .Place = in_outline, .Keys = "Del;Backspace", .Objects = "tourRemove" },
 			shortcut_entry{ .Command = command::tour_keep_stop, .Group = tours, .Binding = bound, .Title = "Keep the stop", .Place = "In the stop removal question", .Keys = "Escape", .Objects = "tourStopRemoveKeepKey" },
 			shortcut_entry{ .Command = command::tour_retarget, .Group = tours, .Binding = bound, .Title = "Point the stop at the selected lines", .Place = in_outline, .Keys = "Alt+Shift+U", .Objects = "tourRetarget" },
-			shortcut_entry{ .Command = command::tour_ready_next, .Group = tours, .Binding = bound, .Title = "Next step, or ready and the next stop", .Place = in_editor, .Keys = "Alt+Return", .Objects = "tourComplete;tourProblemNext;tourSolutionNext" },
+			shortcut_entry{ .Command = command::tour_ready_next, .Group = tours, .Binding = bound, .Title = "Next step, or accept the stop", .Place = in_editor, .Keys = "Alt+Return", .Objects = "tourAccept;tourProblemNext;tourSolutionNext" },
 			shortcut_entry{ .Command = command::tour_undo, .Group = tours, .Binding = bound, .Title = "Undo a change to the stops", .Place = in_editor, .Standard = QKeySequence::Undo, .Objects = "tourUndo" },
 			shortcut_entry{ .Command = command::tour_redo, .Group = tours, .Binding = bound, .Title = "Redo a change to the stops", .Place = in_editor, .Standard = QKeySequence::Redo, .Objects = "tourRedo" },
 

@@ -30,4 +30,4 @@ implementation revision or passing result has been assigned. Follow the
 
 ## Owner verdict (2026-11-13)
 
-Session `0002b9fa…`: **Reject**, "I think this gets folded into Ask." Parked pending the owner's Ask redesign (RFC-BPR-0117 ledger, `docs/verification/RFC-BPR-0117.md` on the lane `claude/v0-5-0-prerelease-targets-52265d`).
+Session `0002b9fa…`: **Reject**, "I think this gets folded into Ask." Parked pending the owner's Ask redesign ([RFC-BPR-0117 ledger](../../verification/RFC-BPR-0117.md)).

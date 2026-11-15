@@ -9,6 +9,8 @@
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/agent_queue_host.hpp"
+#include "bpr/application/agent_session_runner.hpp"
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/appearance_preferences_application_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
@@ -78,6 +80,7 @@
 #include "github_application/github_presentation_projections.hpp"
 #include "github_application/public_preview_wire_transport.hpp"
 #include "github_application/queue_notifications.hpp"
+#include "github_application/review_agent_stack.hpp"
 #include "github_application/review_mutation_selection.hpp"
 #include "github_application/session_settings.hpp"
 #include "github_application/theme_document_file.hpp"
@@ -347,12 +350,21 @@ namespace bpr::app {
 		std::optional<QString>                                                   RestorationGlobalNotice;
 		std::unique_ptr<application::remembered_connection_store_port>           ConnectionStore;
 		std::unique_ptr<application::remembered_connection_host>                 Connections;
-		std::optional<core::github_identity_generation>                          RememberedGeneration;
-		std::set<core::host_profile_id>                                          CliConsent;
-		void                                                                     connection_notice(application::connection_metadata_observation aObservation);
-		[[nodiscard]] auto                                                       selected_connection(std::optional<std::string_view> aHostname = std::nullopt) const -> std::optional<core::remembered_connection>;
-		[[nodiscard]] auto                                                       suppress_device(std::string_view aHostname) const -> bool;
-		void                                                                     observe_connection();
+		/// RFC-BPR-0126 AC04 ([[BPR-2151]], [[BPR-2181]]). The profile's session
+		/// queue host: it owns every session's queue and drains it on each
+		/// run's retirement event; windows subscribe to its deltas and send it
+		/// commands, and closing one neither pauses nor hands a queue over.
+		/// Made by the first window that asks; it outlives every window.
+		std::unique_ptr<application::agent_queue_store_port> AgentQueueStore;
+		/// [[BPR-2181]]. The agent runtimes the queue host starts turns on.
+		application::agent_session_runner               AgentRunner;
+		std::unique_ptr<application::agent_queue_host>  AgentQueue;
+		std::optional<core::github_identity_generation> RememberedGeneration;
+		std::set<core::host_profile_id>                 CliConsent;
+		void                                            connection_notice(application::connection_metadata_observation aObservation);
+		[[nodiscard]] auto                              selected_connection(std::optional<std::string_view> aHostname = std::nullopt) const -> std::optional<core::remembered_connection>;
+		[[nodiscard]] auto                              suppress_device(std::string_view aHostname) const -> bool;
+		void                                            observe_connection();
 		/// [[BPR-1494]]. A native sign-in begins on a profile minted before its
 		/// account is known. Once the host's bootstrap `/user` names the account,
 		/// core decides whether this profile already holds that account's own
@@ -484,6 +496,8 @@ namespace bpr::app {
 		// [[BPR-1338]]. See `github_public_path_fixture_options`.
 		bool AttendedWindowBrowser = false;
 		bool AttendedAgentSearch   = false;
+		/// [[BPR-2177]]. See `github_public_path_fixture_options`.
+		bool FixtureAgentSession = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool LabelHelper = false;
@@ -496,6 +510,8 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool NetworkDenied = false;
+		/// See `github_application_config::DesignatedLivePublication`.
+		bool DesignatedLivePublication = false;
 		std::optional<std::vector<detail::github_public_path_fixture_options::github_cli_discovery_account>>
 											GithubCliDiscoveryAccounts;
 		std::shared_ptr<std::atomic_size_t> GithubCliInventoryChecks;
@@ -566,7 +582,9 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		/// [[BPR-1879]]. The attended Repository-step look shows a fixture
 		/// review's agent setup as a review read sparsely through `gh`.
-		bool                                 SparseAgentSetupLook = false;
+		bool SparseAgentSetupLook = false;
+		/// [[BPR-2179]]. Seed a fresh profile's prompts for a look.
+		bool                                 PromptExamplesLook = false;
 		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> ClaudeAgentExecutable;
 		/// [[BPR-1916]]. A fixture home whose skill folders are read instead
@@ -684,11 +702,39 @@ namespace bpr::app {
 		// [[BPR-1844]]. The store outlives the host that writes through it.
 		std::unique_ptr<view_filter_memory_store>             ViewFilterStore;
 		std::unique_ptr<application::view_filter_memory_host> ViewFilterMemory;
+		/// [[BPR-2171]]. Bot marks per repository and Discuss's column.
+		std::unique_ptr<discuss_preferences_store>             DiscussStore;
+		std::unique_ptr<application::discuss_preferences_host> DiscussPreferences;
 		// [[BPR-1850]]. The store, sink and timer outlive the host.
 		std::unique_ptr<pull_request_activity_store>                 ActivityStore;
 		std::unique_ptr<qt::pull_request_activity_notification_sink> ActivitySink;
 		std::unique_ptr<qt::pull_request_activity_timer>             ActivityTimer;
 		std::unique_ptr<application::pull_request_activity_host>     Activity;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		/// [[BPR-2181]], RFC-BPR-0126 AC01. The review agent runtimes the
+		/// queue host starts the Agent tab's turns on: one per review session,
+		/// each on a stack of its own (`review_agent_stack`), owned here and
+		/// not by any window. Declared last, so it goes before the queue host,
+		/// the epoch registry and the lanes its stacks use; shut down before
+		/// the epoch registry. Made with the queue host.
+		struct agent_runtime_stack
+		{
+			review_agent_stack* Stack = nullptr;
+			std::weak_ptr<bool> Alive;
+		};
+		std::map<std::string, review_agent_stack_seed>      AgentRuntimeSeeds;
+		std::map<std::string, agent_runtime_stack>          AgentRuntimeStacks;
+		std::uint64_t                                       LastAgentRuntimeSession = 0U;
+		std::shared_ptr<application::review_agent_runtimes> AgentRuntimes;
+		/// \brief Makes the queue host, its store and the runtimes, once.
+		void compose_agent_queue();
+		/// \brief Makes the registry beside the queue host, once.
+		void compose_agent_runtimes();
+		/// \brief The session's runtime, composed from `aSeed` when it has none.
+		[[nodiscard]] auto open_agent_runtime(const std::string& aSession, review_agent_stack_seed aSeed) -> application::review_agent_runtime*;
+		/// \brief The live stack of the session's runtime, if it has one.
+		[[nodiscard]] auto agent_stack(const std::string& aSession) const -> review_agent_stack*;
+#endif
 	};
 }
 #endif

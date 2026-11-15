@@ -113,7 +113,7 @@ Owner, 2026-11-14, verbatim: "disallow duplicate a system prompt". System prompt
 
 ## Spec questions, 2026-11-14 (owner, in chat)
 
-Owner decisions on the questions the spec (SPEC.md (`docs/design/prompts-settings-v4/SPEC.md` on lane `claude/v0-5-0-prerelease-targets-52265d`)) raised:
+Owner decisions on the questions the spec ([SPEC.md](../../design/prompts-settings-v4/SPEC.md)) raised:
 - Action rows ("What changed since my review", "Explain this file", "Was this addressed?"): "Menu only, never chips". The thread-chip placement of "Was this addressed?" in the worked example is withdrawn.
 - About is dropped: placement decides scope; a drop onto a surface whose scope cannot fill the prompt's placeholders is refused with a reason.
 - Tour chats get surfaces: Tour stop, Tour part and Whole tour, under the same model.
@@ -128,7 +128,7 @@ The card is ready to build.
 
 ## Claimed, 2026-11-14
 
-Built from SPEC.md (`docs/design/prompts-settings-v4/SPEC.md` on lane `claude/v0-5-0-prerelease-targets-52265d`) with the
+Built from [SPEC.md](../../design/prompts-settings-v4/SPEC.md) with the
 owner's answers above, in slices. Frontend-design loaded.
 
 ### Slice 1: surfaces in core (2026-11-14)

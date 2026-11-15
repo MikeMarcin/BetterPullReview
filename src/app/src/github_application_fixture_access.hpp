@@ -18,6 +18,7 @@
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_application_host.hpp"
+#include "bpr/core/agent_queue.hpp"
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
@@ -96,6 +97,9 @@ namespace bpr::app::detail {
 		/// JSON, unwrapped Markdown, a long SQL literal and call, and a
 		/// twelve-thousand-character minified line, for judging Line details.
 		line_details_v1,
+		/// [[BPR-1996]], RFC-BPR-0100 AC08. A settings loader moved unchanged
+		/// behind `--strict-toml`, beside the new loader the flag selects.
+		flag_move_v1,
 		/// [[BPR-1537]]. Five files of everyday changed lines (renames,
 		/// arguments, strings, operators, spacing, numbers, rewritten lines
 		/// and prose, non-Latin text), for judging intraline emphasis.
@@ -121,6 +125,10 @@ namespace bpr::app::detail {
 		/// description and comments hold fenced code in many languages and
 		/// diff blocks, and whose threads suggest changes to its lines.
 		markdown_code_v1,
+		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). conventional-comments-v1
+		/// read by a reviewer who reviewed its first head and commented in its
+		/// line-12 thread there. See `scripts/build_returning_review_fixture.py`.
+		returning_review_v1,
 		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
 		/// base branch moved on, reverting nothing of the pull request's but
 		/// landing its `b.txt` change separately. GitHub's Files changed is
@@ -191,6 +199,24 @@ namespace bpr::app::detail {
 	/// that fetched it would have to ask for it.
 	struct github_personal_discovery_fixture
 	{
+		/// [[RFC-BPR-0098]]. The facts Home's batched read serves for one pull
+		/// request, exactly, in place of the summary the other fields imply.
+		struct next_move_facts
+		{
+			/// `reviewDecision`: "APPROVED", "CHANGES_REQUESTED",
+			/// "REVIEW_REQUIRED", or empty for null.
+			std::string_view Decision;
+			/// `mergeStateStatus`.
+			std::string_view MergeState = "CLEAN";
+			/// Submitted reviews, oldest first: login and GitHub state.
+			std::vector<std::pair<std::string_view, std::string_view>> Reviews;
+			/// One failed check of this name, when not empty.
+			std::string_view FailedCheck;
+			std::uint32_t    PassedChecks = 3U, PendingChecks = 0U;
+			/// Review threads: unresolved with another's latest comment,
+			/// unresolved with mine, and resolved.
+			std::uint32_t Awaiting = 0U, Answered = 0U, Resolved = 0U;
+		};
 		struct pull_request
 		{
 			std::uint32_t            Number = 0U;
@@ -209,6 +235,14 @@ namespace bpr::app::detail {
 			/// records the author's reply in a review thread: 0 none, 1 on the
 			/// current head, 2 on an earlier commit (the author pushed after).
 			std::shared_ptr<std::atomic<int>> ViewerReply;
+			std::optional<next_move_facts>    NextMove;
+			/// [[BPR-2048]]. More requested reviewers than one page: Home's own
+			/// read of it is too large. With `OversizedFiles`, opening it reads
+			/// more changed files than GitHub lists.
+			bool OversizedRequests = false, OversizedFiles = false;
+			/// [[BPR-2049]]. The viewer's own review on an earlier commit, as
+			/// GitHub records it ("APPROVED", "DISMISSED"); empty for none.
+			std::string_view ViewerVerdictBefore;
 		};
 		std::vector<pull_request> OpenPullRequests;
 		/// [[BPR-1681]]. While set, a personal search of any saved
@@ -261,6 +295,58 @@ namespace bpr::app::detail {
 			pull.Number         = row.Number;
 			pull.Author         = std::string{ row.Author };
 			pull.RequestedUsers = { std::string{ row.Author == aViewer ? std::string_view{ "alice" } : aViewer } };
+			rows.push_back(std::move(pull));
+		}
+		return rows;
+	}
+
+	/// \brief [[RFC-BPR-0098]]. One pull request of the viewer's with the
+	/// facts that decide one next move, and its title.
+	struct home_next_move_fixture_row
+	{
+		std::uint32_t                                      Number = 0U;
+		std::string_view                                   Title;
+		std::vector<std::string_view>                      Requested;
+		bool                                               Draft = false;
+		github_personal_discovery_fixture::next_move_facts Facts;
+	};
+
+	/// \brief [[RFC-BPR-0098]]. Ten pull requests of mine, one for each move
+	/// a fixture can show without local reading state (Unread needs it), in
+	/// the design round's words: the composed course and the attended look
+	/// (`--attended-home-moves`) read the same rows.
+	[[nodiscard]] inline auto home_next_move_fixture_rows() -> std::vector<home_next_move_fixture_row>
+	{
+		using facts = github_personal_discovery_fixture::next_move_facts;
+		return {
+			{ .Number = 4030U, .Title = "Render retained frames before presenting", .Facts = facts{ .Decision = "CHANGES_REQUESTED", .MergeState = "BLOCKED", .Reviews = { { "alice", "CHANGES_REQUESTED" } }, .Awaiting = 3U, .Answered = 1U, .Resolved = 2U } },
+			{ .Number = 4031U, .Title = "Retire the legacy swapchain path", .Facts = facts{ .Decision = "REVIEW_REQUIRED", .MergeState = "BLOCKED", .Reviews = { { "bo", "COMMENTED" } }, .Awaiting = 2U } },
+			{ .Number = 4032U, .Title = "Mark layers dirty from setters only", .Facts = facts{ .Decision = "APPROVED", .Reviews = { { "alice", "APPROVED" }, { "bo", "APPROVED" } }, .Resolved = 1U } },
+			{ .Number = 4033U, .Title = "Pool frames by size class", .Facts = facts{ .Decision = "APPROVED", .MergeState = "UNSTABLE", .Reviews = { { "alice", "APPROVED" } }, .FailedCheck = "build-linux" } },
+			{ .Number = 4034U, .Title = "Split the frame graph by pass", .Facts = facts{ .MergeState = "DIRTY", .Reviews = { { "cy", "COMMENTED" } } } },
+			{ .Number = 4035U, .Title = "Document the frame pool contract", .Facts = facts{ .Decision = "REVIEW_REQUIRED", .MergeState = "BLOCKED" } },
+			{ .Number = 4036U, .Title = "Explore a tiled renderer", .Draft = true, .Facts = facts{ .MergeState = "DRAFT" } },
+			{ .Number = 4037U, .Title = "Resize without dropping the retained frame", .Requested = { "alice", "cy" }, .Facts = facts{ .Decision = "REVIEW_REQUIRED", .MergeState = "BLOCKED" } },
+			{ .Number = 4038U, .Title = "Batch uploads across frames", .Facts = facts{ .Decision = "APPROVED", .MergeState = "BLOCKED", .Reviews = { { "bo", "APPROVED" } }, .PendingChecks = 2U } },
+			{ .Number = 4039U, .Title = "Tidy the frame timing log", .Facts = facts{ .Reviews = { { "cy", "COMMENTED" } } } },
+		};
+	}
+
+	/// \brief [[RFC-BPR-0098]]. Those rows as discovery serves them, opened
+	/// by `aViewer`.
+	[[nodiscard]] inline auto home_next_move_fixture_pull_requests(const std::string_view aViewer)
+		-> std::vector<github_personal_discovery_fixture::pull_request>
+	{
+		auto rows = std::vector<github_personal_discovery_fixture::pull_request>{ };
+		for (auto& row : home_next_move_fixture_rows()) {
+			auto pull   = github_personal_discovery_fixture::pull_request{ };
+			pull.Number = row.Number;
+			pull.Author = std::string{ aViewer };
+			for (const auto login : row.Requested) {
+				pull.RequestedUsers.emplace_back(login);
+			}
+			pull.Draft    = std::make_shared<std::atomic<bool>>(row.Draft);
+			pull.NextMove = std::move(row.Facts);
 			rows.push_back(std::move(pull));
 		}
 		return rows;
@@ -484,6 +570,10 @@ namespace bpr::app::detail {
 		bool ModifiedMissingEndpointCourse = false;
 		/// BPR-1979: retained historical bytes and one off-hunk destination.
 		bool TourDestinationRepairsCourse = false;
+		/// [[BPR-2117]], RFC-BPR-0106 AC04. The reading graph with a second
+		/// head pushed on the first that changes `review.cpp` line 2 and
+		/// `secondary.cpp` line 5 only (`tour-push-v1`).
+		bool TourPushCourse = false;
 		/// Test-owned gate before catalogue reads; absent from production builds.
 		std::function<void(std::stop_token)> BeforeFilesPage;
 		/// [[BPR-1895]]. Test-owned gate after check results, before remaining status.
@@ -534,6 +624,10 @@ namespace bpr::app::detail {
 		/// [[BPR-1879]]. The agent setup treats the fixture review as one read
 		/// sparsely through `gh`, so a look shows the Repository step's choice.
 		bool SparseAgentSetupLook = false;
+		/// [[BPR-2179]] look prompts-v002. A fresh profile's prompts start
+		/// with two of the reviewer's own that use nested conditions, placed
+		/// on the pull request's and a thread's menu and chips.
+		bool PromptExamplesLook = false;
 		/// [[BPR-1301]]. Where the shipped bare `claude` is looked for, so a
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.
@@ -638,6 +732,11 @@ namespace bpr::app::detail {
 		/// it with `AttendedWindowBrowser`; every automated course keeps its
 		/// own search path and never finds the developer's agent.
 		bool AttendedAgentSearch = false;
+		/// [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on
+		/// build (any `--attended…` launch): the fixture agent is the agent,
+		/// named "Fixture agent", and no real agent program is ever started.
+		/// `AttendedAgentSearch` is never set with it.
+		bool FixtureAgentSession = false;
 		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
 		// before this process has a session at all, which is the state a past
 		// grant's orderly shutdown used to leave behind: the access token
@@ -1434,6 +1533,9 @@ namespace bpr::app::detail {
 		/// pending comments in a review and a written summary, then Finish
 		/// review opens and the window is left to the person.
 		showcase,
+		/// [[BPR-2092]] [[BPR-2094]]. `showcase` with its last two comments
+		/// left as drafts the review does not carry: three pending, two not.
+		drafts_showcase,
 	};
 
 	enum class start_review_probe_result {
@@ -1622,6 +1724,20 @@ namespace bpr::app::detail {
 
 		auto operator<=>(const agent_invocation_composition_evidence&) const
 			= default;
+	};
+
+	/// \brief [[BPR-2181]]. One session's queue and runtime as the profile
+	/// holds them, read with no window showing the session.
+	struct agent_session_evidence
+	{
+		std::size_t       Queued    = 0U;
+		bool              Sending   = false;
+		core::queue_pause Paused    = core::queue_pause::none;
+		bool              Runtime   = false;
+		bool              Running   = false;
+		bool              Quiescent = true;
+		/// Programs the session's runtime stack started.
+		std::size_t Launches = 0U;
 	};
 
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.
@@ -2063,6 +2179,12 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1867]]. Whether the window still owes a reread.
 		[[nodiscard]] static auto reread_owed(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
+		/// \brief RFC-BPR-0116 ([[BPR-2073]]). The head my last review is taken
+		/// to be on, in place of the read's: a commit the review's objects do
+		/// not hold stands for a rewritten branch whose earlier commits are
+		/// gone. (The fixture GitHub refuses to load a review on a commit it
+		/// cannot serve, so the read cannot carry one.)
+		static void               force_returning_review_head(github_application& aApplication, std::string aHead);
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;
@@ -2165,6 +2287,32 @@ namespace bpr::app::detail {
 		/// seconds pass. Decision delivery and public gestures keep turning.
 		[[nodiscard]] static auto hold_private_review_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[RFC-BPR-0105]]. Holds the profile's shared publication
+		/// effect lane (tour publication and conversation replies) the way a
+		/// slow or hung earlier effect does, until the returned function
+		/// releases it or thirty seconds pass.
+		[[nodiscard]] static auto hold_review_submission_effects(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[RFC-BPR-0105]]. Holds the current review host's own lane,
+		/// so the shown review's submission cannot start, until the returned
+		/// function releases it or thirty seconds pass. Empty without a host.
+		/// \brief RFC-BPR-0114 AC06 ([[BPR-2065]]). Holds the lane the
+		/// author's own Git runs on (a push in flight), until the returned
+		/// release runs or 30 seconds pass.
+		[[nodiscard]] static auto hold_author_git_lane(github_application& aApplication) -> std::function<void()>;
+		/// \brief RFC-BPR-0111 AC07 ([[BPR-2029]]). Holds Create Draft PR's
+		/// own lane as a creation waiting on GitHub holds it, until the
+		/// returned release runs or 30 seconds pass. Empty when the lane is
+		/// not composed.
+		[[nodiscard]] static auto hold_local_draft_publication_lane(github_application& aApplication) -> std::function<void()>;
+		[[nodiscard]] static auto hold_review_submission_lane(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[RFC-BPR-0105]]. Shortens the bound on waiting to start.
+		static void set_review_submission_wait_bound(github_application& aApplication, std::chrono::milliseconds aBound);
+		/// \brief [[RFC-BPR-0105]]. Delivers the window's own authority
+		/// change for the accepted pull request, as a changed account or
+		/// identity does, superseding what is in flight. False without one.
+		[[nodiscard]] static auto invalidate_current_authority(github_application& aApplication) -> bool;
 		/// \brief [[BPR-1971]]. Hold the existing Workbench effect queue at
 		/// a settled agent-course boundary, including its legacy history load.
 		/// Other Workbench effects also wait; release before shutdown or thirty
@@ -2328,6 +2476,15 @@ namespace bpr::app::detail {
 		/// is on, holding `aBody`, through the window's own Comment action and
 		/// editor, the way a reviewer would write it. Shown once the draft and
 		/// the editor hold `aBody`. Nothing is published.
+		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Test access only, for the
+		/// attended look: two Local replies in `aThread` (by provider identity)
+		/// on `aLine`, the second then made a draft reply through Make draft.
+		[[nodiscard]] static auto seed_local_replies_for_look(github_application& aApplication, const std::string& aThread, core::source_line_ref aLine) -> bool;
+		/// \brief RFC-BPR-0127. Test access only: one Local comment on the
+		/// shown file as a whole (`aWholeFile`) or on the pull request, as a
+		/// migrated note or an agent's keep action leaves one; no surface
+		/// writes either shape before milestone 4.
+		[[nodiscard]] static auto seed_local_comment(github_application& aApplication, const std::string& aBody, bool aWholeFile) -> bool;
 		[[nodiscard]] static auto seed_attended_comment_draft(github_application& aApplication, core::diff_side aSide, const std::string& aBody)
 			-> fixture_file_reveal_result;
 		/// \brief [[BPR-1083]]. In Read on `src/engine/renderer.cpp`: the
@@ -2444,9 +2601,16 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto start_mcp_context_helper(
 			github_application& aApplication, std::string aRequest)
 			-> application::mcp_helper_refusal;
+		/// \brief [[BPR-2177]]. Whether this run's launch guard admits a program.
+		/// The program it would start, or none when it refuses.
+		[[nodiscard]] static auto fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> std::optional<std::string>;
 		[[nodiscard]] static auto agent_invocation_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_invocation_composition_evidence;
+		/// \brief [[BPR-2181]]. The Agent-tab session the application's first
+		/// window shows; empty when it shows none.
+		[[nodiscard]] static auto agent_session_key(const github_application& aApplication) -> std::string;
+		[[nodiscard]] static auto agent_session(const github_application& aApplication, const std::string& aSession) -> agent_session_evidence;
 		/// \brief Seeds unselected private prose and a last-reviewed head.
 		[[nodiscard]] static auto seed_agent_private_context_canary(
 			github_application& aApplication,

@@ -11,6 +11,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFontMetrics>
+#include <QLabel>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -60,9 +61,28 @@ namespace bpr::qt {
 			std::pair{ 4, 0.27 },
 			std::pair{ 0, 0.08 },
 		};
-		constexpr qreal sweep_step  = 0.04;
-		constexpr qreal sweep_span  = 1.3;
-		constexpr qreal sweep_width = 0.3;
+		/// [[BPR-2180]]. A thread card's two lines of what was said, card by
+		/// card, and its author's name: no two neighbours alike.
+		constexpr auto card_lines = std::array{
+			std::pair{ 0.93, 0.58 },
+			std::pair{ 0.86, 0.34 },
+			std::pair{ 0.90, 0.71 },
+			std::pair{ 0.78, 0.45 },
+		};
+		constexpr auto card_names = std::array{ 0.34, 0.26, 0.41, 0.30 };
+		/// A thread card's measures, as the Comments drawer draws one: its
+		/// face's left, the gap after the face, the space above and below.
+		constexpr int card_face_left = 12;
+		constexpr int card_face_gap  = 9;
+		constexpr int card_top       = 7;
+		constexpr int card_bottom    = 9;
+		constexpr int card_gap       = 8;
+		constexpr int card_rail      = 3;
+		/// How many faces a one-line People place holds.
+		constexpr int   people_faces = 3;
+		constexpr qreal sweep_step   = 0.04;
+		constexpr qreal sweep_span   = 1.3;
+		constexpr qreal sweep_width  = 0.3;
 		// [[BPR-1851]]. Room a plate keeps beyond its words' measured advance.
 		constexpr int plate_text_slack = 4;
 
@@ -202,6 +222,16 @@ namespace bpr::qt {
 		present(core::pending_activity::idle, true, false, Words);
 	}
 
+	auto pending_veil::find(const QWidget& aTarget, const QString& aObjectName) -> pending_veil*
+	{
+		for (auto* const child : aTarget.findChildren<QWidget*>(aObjectName, Qt::FindDirectChildrenOnly)) {
+			if (auto* const veil = dynamic_cast<pending_veil*>(child); veil != nullptr) {
+				return veil;
+			}
+		}
+		return nullptr;
+	}
+
 	void pending_veil::restart()
 	{
 		StartedAt = now();
@@ -252,6 +282,12 @@ namespace bpr::qt {
 		update();
 	}
 
+	void pending_veil::set_words_beside(const bool aBeside)
+	{
+		WordsBeside = aBeside;
+		update();
+	}
+
 	void pending_veil::set_clock(std::function<std::int64_t()> aClock)
 	{
 		Clock     = std::move(aClock);
@@ -266,6 +302,11 @@ namespace bpr::qt {
 	auto pending_veil::look() const noexcept -> core::pending_look
 	{
 		return Look;
+	}
+
+	auto pending_veil::shape() const noexcept -> pending_shape
+	{
+		return Shape;
 	}
 
 	auto pending_veil::words() const noexcept -> const pending_words&
@@ -569,7 +610,9 @@ namespace bpr::qt {
 		const auto line = line_height();
 		// Two lines are kept for the words, the second for what a slow wait
 		// still waits on, so the placeholders never move when it is said.
-		const auto top      = Shape == pending_shape::line ? 0 : words_rect().bottom() + line + 2 + (line / 2);
+		const auto top      = Shape == pending_shape::line ? 0
+			: WordsBeside                                  ? inset / 2
+														   : words_rect().bottom() + line + 2 + (line / 2);
 		const auto left     = Shape == pending_shape::line ? 0 : inset;
 		const auto width    = std::max(0, aArea.width() - left - (Shape == pending_shape::line ? 0 : inset));
 		const auto bar      = std::max(4, (line * 11) / 20);
@@ -588,6 +631,12 @@ namespace bpr::qt {
 		};
 		switch (Shape) {
 		case pending_shape::block:
+			return;
+		case pending_shape::cards:
+			paint_cards(aPainter, aArea, top, tint);
+			return;
+		case pending_shape::people:
+			paint_people(aPainter, aArea, top, tint);
 			return;
 		case pending_shape::line: {
 			if (Look == core::pending_look::placeholder) {
@@ -652,11 +701,98 @@ namespace bpr::qt {
 		}
 	}
 
+	void pending_veil::paint_cards(QPainter& aPainter, const QRect& aArea, const int aTop, const QColor& aTint)
+	{
+		// [[BPR-2180]]. Cards as the Comments drawer draws a thread: a rail
+		// in the feedback's place, the author's face, a name and an age on
+		// its line, and two lines of what was said under the name.
+		const auto line   = line_height();
+		const auto bar    = std::max(4, (line * 11) / 20);
+		const auto face   = std::max(14, line + 2);
+		const auto step   = line + (line / 3);
+		const auto height = card_top + face + (line / 3) + step + bar + card_bottom;
+		const auto left   = inset / 2.0;
+		const auto width  = static_cast<qreal>(std::max(0, aArea.width() - inset));
+		const auto text   = left + card_face_left + face + card_face_gap;
+		const auto across = std::max(0.0, left + width - 10.0 - text);
+		const auto radius = bar / 2.0;
+		auto       y      = aTop;
+		for (auto index = std::size_t{ 0U }; (Count == 0 || std::cmp_less(index, Count)) && y + height <= aArea.bottom(); ++index, y += height + card_gap) {
+			const auto top = static_cast<qreal>(y);
+			aPainter.setPen(QPen{ aTint, 1.0 });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawRoundedRect(QRectF{ left, top, width, static_cast<qreal>(height) }.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
+			aPainter.setPen(Qt::NoPen);
+			aPainter.setBrush(aTint);
+			aPainter.drawRoundedRect(QRectF{ left + 4.0, top + card_top, static_cast<qreal>(card_rail), static_cast<qreal>(height - card_top - card_bottom) }, 1.5, 1.5);
+			aPainter.drawRoundedRect(QRectF{ left + card_face_left, top + card_top, static_cast<qreal>(face), static_cast<qreal>(face) }, 3.0, 3.0);
+			const auto name = top + card_top + ((face - bar) / 2.0);
+			const auto age  = across * 0.14;
+			aPainter.drawRoundedRect(QRectF{ text, name, across * card_names[index % card_names.size()], static_cast<qreal>(bar) }, radius, radius);
+			aPainter.drawRoundedRect(QRectF{ text + across - age, name, age, static_cast<qreal>(bar) }, radius, radius);
+			const auto [first, second] = card_lines[index % card_lines.size()];
+			const auto body            = top + card_top + face + (line / 3.0);
+			aPainter.drawRoundedRect(QRectF{ text, body, across * first, static_cast<qreal>(bar) }, radius, radius);
+			aPainter.drawRoundedRect(QRectF{ text, body + step, across * second, static_cast<qreal>(bar) }, radius, radius);
+			Painted += 6;
+		}
+	}
+
+	void pending_veil::paint_people(QPainter& aPainter, const QRect& aArea, const int aTop, const QColor& aTint)
+	{
+		// [[BPR-2180]]. One line high, the People section's own line: faces in
+		// a row and the line beside them. Taller, the roster: a face and a
+		// name on each row, and the person's standing at the right.
+		const auto line   = line_height();
+		const auto bar    = std::max(4, (line * 11) / 20);
+		const auto radius = bar / 2.0;
+		aPainter.setPen(Qt::NoPen);
+		aPainter.setBrush(aTint);
+		if (aArea.height() < line * 3) {
+			const auto side = std::max(8, std::min(aArea.height() - 4, line + 6));
+			const auto top  = (aArea.height() - side) / 2.0;
+			auto       x    = 4.0;
+			const auto many = Count > 0 ? std::min(Count, people_faces) : people_faces;
+			for (auto index = 0; index < many; ++index, x += side + 3.0) {
+				aPainter.drawEllipse(QRectF{ x, top, static_cast<qreal>(side), static_cast<qreal>(side) });
+				++Painted;
+			}
+			const auto rest = std::max(0.0, aArea.width() - x - 7.0);
+			if (rest > 0.0) {
+				aPainter.drawRoundedRect(QRectF{ x + 7.0, (aArea.height() - bar) / 2.0, rest * 0.55, static_cast<qreal>(bar) }, radius, radius);
+				++Painted;
+			}
+			return;
+		}
+		const auto side  = line + 2;
+		const auto row   = side + 8;
+		const auto width = static_cast<qreal>(std::max(0, aArea.width() - (2 * inset)));
+		const auto name  = static_cast<qreal>(inset + side + 8);
+		auto       y     = aTop;
+		for (auto index = std::size_t{ 0U }; (Count == 0 || std::cmp_less(index, Count)) && y + side <= aArea.bottom(); ++index, y += row) {
+			aPainter.drawEllipse(QRectF{ static_cast<qreal>(inset), static_cast<qreal>(y), static_cast<qreal>(side), static_cast<qreal>(side) });
+			const auto middle = y + ((side - bar) / 2.0);
+			aPainter.drawRoundedRect(QRectF{ name, middle, width * (0.22 + (0.2 * row_lengths[index % row_lengths.size()])), static_cast<qreal>(bar) }, radius, radius);
+			aPainter.drawRoundedRect(QRectF{ inset + width - (width * 0.16), middle, width * 0.16, static_cast<qreal>(bar) }, radius, radius);
+			Painted += 3;
+		}
+	}
+
+	auto pending_veil::words_drawn() const -> bool
+	{
+		// A failure is always said in place. Otherwise a heading beside the
+		// pane says the wait, or a one-line People place has no room for it.
+		if (failing(Look)) {
+			return true;
+		}
+		return !WordsBeside && !(Shape == pending_shape::people && height() < line_height() * 3);
+	}
+
 	void pending_veil::paint_words(QPainter& aPainter)
 	{
 		const auto said = shown_text();
 		const auto line = words_rect();
-		if (said.isEmpty() || line.isEmpty()) {
+		if (said.isEmpty() || line.isEmpty() || !words_drawn()) {
 			return;
 		}
 		const auto mark    = QRect{ line.left(), line.top(), line.height(), line.height() };
@@ -820,6 +956,39 @@ namespace bpr::qt {
 	{
 		FullMotion = aFull;
 		follow();
+	}
+
+	void pending_mark::lead(QLabel& aLabel)
+	{
+		Led = &aLabel;
+		setParent(&aLabel);
+		aLabel.setIndent(QFontMetrics{ aLabel.font() }.height() + 8);
+		aLabel.installEventFilter(this);
+		place();
+		follow();
+	}
+
+	void pending_mark::place()
+	{
+		if (Led == nullptr) {
+			return;
+		}
+		const auto side = QFontMetrics{ Led->font() }.height();
+		const auto top  = std::max(0, (Led->height() - side) / 2);
+		if (const auto at = QRect{ 2, top, side, side }; geometry() != at) {
+			setGeometry(at);
+		}
+	}
+
+	auto pending_mark::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
+	{
+		if (aWatched == Led && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::FontChange)) {
+			if (aEvent->type() == QEvent::FontChange) {
+				Led->setIndent(QFontMetrics{ Led->font() }.height() + 8);
+			}
+			place();
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
 	}
 
 	auto pending_mark::turning() const noexcept -> bool

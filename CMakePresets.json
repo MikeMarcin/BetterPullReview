@@ -48,7 +48,11 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "BPR_BUILD_QT": "ON",
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_MAKE_PROGRAM": {
+          "type": "FILEPATH",
+          "value": "${sourceDir}/scripts/jobserver_ninja.py"
+        }
       }
     },
     {
@@ -259,7 +263,8 @@
     {
       "name": "dev",
       "inherits": "_build-common",
-      "configurePreset": "dev"
+      "configurePreset": "dev",
+      "jobs": 8
     },
     {
       "name": "core-only",

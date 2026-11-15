@@ -308,7 +308,7 @@ namespace {
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
 		const auto claude = agents / "claude";
-		expect(sends_in(claude) == 1U && read_file(claude / "send-1.args") == "-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose", "one harness process, a new session");
+		expect(sends_in(claude) == 1U && read_file(claude / "send-1.args") == "--strict-mcp-config\n--mcp-config\n{\"mcpServers\":{}}\n-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose", "one harness process, a new session");
 		expect(contains(sheet->status()->text(), QStringLiteral("Claude finished its turn on F1")) && contains(sheet->status()->text(), QStringLiteral("Its response is added to F1"))
 				   && contains(sheet->status()->text(), QStringLiteral("Nothing was captured or verified")),
 			   "finished, its structured response added, nothing more");
@@ -562,7 +562,7 @@ namespace {
 		const auto document = desktop.host().projection().Share->Document;
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
-		expect(sends_in(folder) == 1U && read_file(folder / "send-1.args") == "-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose",
+		expect(sends_in(folder) == 1U && read_file(folder / "send-1.args") == "--strict-mcp-config\n--mcp-config\n{\"mcpServers\":{}}\n-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose",
 			   "the wrapper ran in place of the bare claude, with exactly Claude's arguments");
 		expect(framed_text(read_file(folder / "send-1.stdin")) == QString::fromStdString(document), "and read the round exactly as Claude would");
 		expect(contains(sheet->status()->text(), QStringLiteral("Claude finished its turn on F1")), "the send finished as Claude's: " + sheet->status()->text().toStdString());
@@ -606,7 +606,7 @@ namespace {
 		const auto document = desktop.host().projection().Share->Document;
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
-		expect(sends_in(folder) == 1U && read_file(folder / "send-1.args") == "-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose",
+		expect(sends_in(folder) == 1U && read_file(folder / "send-1.args") == "--strict-mcp-config\n--mcp-config\n{\"mcpServers\":{}}\n-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose",
 			   "the added agent's own program ran, with exactly Claude's arguments");
 		expect(framed_text(read_file(folder / "send-1.stdin")) == QString::fromStdString(document), "and read the round exactly as Claude would");
 		expect(contains(sheet->status()->text(), QStringLiteral("Claude finished its turn on F1")), "the send finished as Claude's: " + sheet->status()->text().toStdString());

@@ -1222,6 +1222,8 @@ namespace bpr::adapters::github::detail {
 						.Deletions    = object.Deletions,
 						.ContentKind  = application::github_file_content_kind::unknown,
 						.HeadHunks    = head_hunks(object.Patch),
+						// [[BPR-2141]]. The diff a fresh tour draft carries up front.
+						.Patch = object.Patch && object.Patch->size() <= application::maximum_github_file_patch_bytes ? object.Patch : std::nullopt,
 					});
 			}
 

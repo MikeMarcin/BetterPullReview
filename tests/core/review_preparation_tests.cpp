@@ -101,5 +101,16 @@ int main()
 		expect(core::splice_writing_result(text, 0, 5, "\xff").error() == core::writing_refusal::invalid_result && core::splice_writing_result(text, 0, 5, std::string(core::maximum_tour_field_bytes + 1U, 'x')).error() == core::writing_refusal::invalid_result, "malformed or oversized output is refused");
 		expect(core::splice_writing_result("", 0, 0, "drafted").value() == "drafted", "an empty field can be drafted");
 	}
+	// [[BPR-2051]] A stop with text sends the stop's Enhance prompt; an empty
+	// stop and every other target send their own.
+	expect(core::writing_instructions_for(core::writing_hook::comment, core::writing_scope::field) == core::writing_hook::enhance_stop
+			   && core::writing_instructions_for(core::writing_hook::comment, core::writing_scope::selection) == core::writing_hook::enhance_stop
+			   && core::writing_instructions_for(core::writing_hook::comment, core::writing_scope::empty_field) == core::writing_hook::comment,
+		   "a stop's Enhance and Generate comment take their own prompts");
+	expect(core::writing_instructions_for(core::writing_hook::problem, core::writing_scope::field) == core::writing_hook::problem
+			   && core::writing_instructions_for(core::writing_hook::enhance_writing, core::writing_scope::selection) == core::writing_hook::enhance_writing
+			   && core::writing_instructions_for(core::writing_hook::enhance_writing, core::writing_scope::field) == core::writing_hook::enhance_writing,
+		   "every other target sends its own prompt");
+	expect(core::enhance_hook(core::writing_hook::enhance_stop) && core::enhance_hook(core::writing_hook::enhance_writing) && !core::enhance_hook(core::writing_hook::feedback) && !core::enhance_hook(core::writing_hook::suggested_comment), "the Enhance prompts are named as such");
 	std::cout << "review-preparation:pass\n";
 }

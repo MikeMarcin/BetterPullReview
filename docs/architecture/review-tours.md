@@ -197,7 +197,7 @@ ring and rail that turn amber once it is accepted. A stop's new explanation
 sits on its card, where **Ready, next** is. A proposed Problem or Solution sits
 under the part's own text, with a "Proposed" pill on its step. Each has
 **Accept** at the right, with **Edit text** and **Discard** before it. One line
-under the button counts them, with **Accept all**. **Ready, next** shows only
+under the button counts them, with **Apply all** (for parts no chat card holds). **Ready, next** shows only
 when it can act: a read stop whose title, explanation and lines are confirmed
 and which is not yet Ready. Until the lines are confirmed (Show in code, then
 Use selected lines while editing) the location line says "Lines not
@@ -264,9 +264,28 @@ run events (admitted, workspace made, first output) as `qt::agent_run_status`;
 Delete is `core::remove_tour_run`. A running Draft Tour shows the same line
 under the tab's notice and at the end of the whole tour's chat. The folded
 "Worked for Ns" and its steps are gone from the chat; the conversation window
-below keeps every run's steps. **Update the Solution from this chat** (or the Problem, this
-stop, the tour) asks for the part rewritten from the chat, and the proposal is
-accepted, edited or discarded in the chat. Each chat is its own thread,
+below keeps every run's steps. Since [[BPR-1995]] (RFC-BPR-0100) the update is offered in one
+place: under the newest answer that changed nothing, in every thread, "Nothing in the Solution
+changed. **Update the Solution from this chat**" (or the Problem, this stop, the tour), whose link
+asks for the part rewritten from the chat; the proposal is accepted, edited or discarded in the
+chat. A request for a change (fewer stops, a merge, a rewrite) is answered with the change in the
+same turn, as the conversation contract states; a whole-tour revision is also a card in the chat
+that lists its parts in plain words, with **Apply all**, **Review each** (in the tour, where the
+parts wait marked grey) and **Discard**, drawn from the one proposal so deciding in either place
+settles the other. Under the transcript sit only a notice when something is not as usual (a
+transcript replay, native continuation unavailable, a moved head with Continue old revision), the
+composer with an attached passage as a chip inside its field, and one line: the **Session** menu
+(its ordinal; New session, transcript replay and earlier sessions are its items) and what the
+session cost. Enhance on the Problem, the Solution, a stop or a selection opens that part's chat
+and sends its update turn there; a selection's answer replaces only the selection
+(`core::confine_to_passage`). The one-shot writing hooks remain for the `bpr tour` CLI, an empty
+field's draft and RFC-BPR-0051's hooks. A stop's text cites code as `path:first-last`: in the
+application it is a link that opens those lines in Review, and alone on its line a snippet of at
+most 12 of them at the tour's pinned head, with Show in Review (`core::rewrite_tour_references`);
+published, an inline reference is a Markdown link to the commit-pinned permalink and one alone is
+the bare permalink, which GitHub draws as a snippet in review comments and conversation comments
+alike (established on BPR-Test, 2026-11-11). A reference that names no file of the pull request
+stays as written and the publication preview says so. Each chat is its own thread,
 isolated by agent entry incarnation, draft/reset generation and stable thread identity. Native turns receive current tour data without replaying BPR's shortened transcript as their memory. The conversation window described
 next is the copyable record of every chat.
 
@@ -283,9 +302,10 @@ if typed, with any quoted passage. Shift-click puts it in the composer to
 edit, and "Focus on …" always goes there to be finished. The core's
 `decide_agent_suggestion_press` decides the press, as it does for the Agent
 tab. The prompts show only once the agent is set up ([[BPR-1881]]), and they
-go with the chat's first turn. The lists live in one place in the application
-layer (`application::tour_chat_prompts`); the window hands them to the chat,
-so Agent settings can later make them editable.
+go with the chat's first turn. Since RFC-BPR-0125 milestone 2 the prompts
+are built-in suggested-prompt macros (`core::shipped_prompt_macros`): the
+chat asks the core's `decide_prompt_offers` what to show, and nothing in the
+chat or the application layer builds a prompt's text.
 
 BPR-1934 v002 (owner on v001: "I want a suggest prompt for explain selection
 like agent has for code, but mine for the selected block on the tour") adds

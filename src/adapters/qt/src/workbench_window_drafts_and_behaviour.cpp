@@ -1,3 +1,4 @@
+#include "bpr/core/local_comment.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
@@ -237,14 +238,19 @@ namespace bpr::qt {
 		// or why it did not happen. Otherwise, why Publish is unavailable.
 		auto notice = ReviewEditor->publication_status();
 		// RFC-BPR-0089 M4. Then where the comment goes, read before Publish.
+		// [[BPR-2172]]. That caution, when it leaves Publish offered, folds
+		// to the composer's warning mark.
+		auto folds = false;
 		if (notice.isEmpty()) {
 			notice = ReviewEditor->target_notice_text();
+			folds  = !notice.isEmpty() && !ReviewEditor->target_notice_blocks();
 		}
 		if (notice.isEmpty() && !ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
 			notice = ReviewEditor->publish_action()->toolTip();
 		}
 		if (!hold.first.isEmpty()) {
 			notice = hold.first;
+			folds  = false;
 		}
 		cards->present_draft(draft_composer_presentation{
 			.Body        = linked ? PaneSuggestion->Prose : body,
@@ -255,10 +261,33 @@ namespace bpr::qt {
 			.InCode      = linked,
 			.Convert     = hold.second,
 			.Notice      = notice,
+			.NoticeFolds = folds,
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),
+			// RFC-BPR-0118. Suggest the change, on lines that take a suggestion.
+			.AgentSuggestion = agent_suggestion_presentation_now(),
+			// RFC-BPR-0127. N opened it on Local.
+			.Local = ComposeLocal,
+			// RFC-BPR-0127. Local is not offered on a draft the core would
+			// refuse to keep local; the segment says why.
+			.LocalRefusal = local_refusal_words(*draft),
 		});
 		publish_pending_file_comment();
+	}
+
+	auto workbench_window::local_refusal_words(const core::review_comment_draft& aDraft) -> QString
+	{
+		const auto decided = core::decide_keep_local(core::keep_local_input{ .Draft = aDraft });
+		if (decided.has_value()) {
+			return { };
+		}
+		switch (decided.error()) {
+		case core::keep_local_refusal::held_by_review: return tr("Your submitted review holds this draft");
+		case core::keep_local_refusal::publishing:     return tr("This draft is being published");
+		case core::keep_local_refusal::published:      return tr("This comment is on GitHub.");
+		case core::keep_local_refusal::discarded:      return tr("This draft was discarded.");
+		}
+		return { };
 	}
 
 	auto workbench_window::draft_review() const -> draft_review_state
@@ -675,6 +704,11 @@ namespace bpr::qt {
 		// The reviewer may have gone elsewhere since: only an Overview still
 		// shown for the review opens the file it was asked for.
 		if (PendingReviewPath.isEmpty() || !HasGithubPullRequest || !showing_overview()) {
+			return;
+		}
+		// [[BPR-2180]]. Rows a read only reported cannot be opened yet: the
+		// review's own rows bring this back when they replace them.
+		if (!ProvisionalFiles.empty()) {
 			return;
 		}
 		if (file_for_path(PendingReviewPath).has_value()) {
@@ -1161,6 +1195,40 @@ namespace bpr::qt {
 		// [[BPR-1597]]: a row of Review › Reading.
 		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
 		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
+		// [[BPR-2171]]. The owner, 2026-11-13, on Discuss's column: "should be
+		// a setting, Centered I think." A Discuss preference of the profile,
+		// kept in its own store, so its buttons dispatch on their own.
+		auto* const discussColumn       = new QWidget{ BehaviourEditor };
+		auto* const discussColumnLayout = new QHBoxLayout{ discussColumn };
+		discussColumnLayout->setContentsMargins(0, 0, 0, 0);
+		discussColumnLayout->setSpacing(4);
+		discussColumn->setObjectName(QStringLiteral("discussColumn"));
+		auto* const discussColumnGroup = new QButtonGroup{ discussColumn };
+		discussColumnGroup->setExclusive(true);
+		DiscussColumnButtons.clear();
+		for (const auto& [words, name, width] : { std::tuple{ QStringLiteral("Narrow"), QStringLiteral("discussColumnNarrow"), core::discuss_column::narrow },
+												  std::tuple{ QStringLiteral("Column"), QStringLiteral("discussColumnColumn"), core::discuss_column::column },
+												  std::tuple{ QStringLiteral("Wide"), QStringLiteral("discussColumnWide"), core::discuss_column::wide },
+												  std::tuple{ QStringLiteral("Full width"), QStringLiteral("discussColumnFull"), core::discuss_column::full } }) {
+			auto* const button = new quiet_tool_button{ discussColumn };
+			button->setObjectName(name);
+			button->setText(words);
+			button->setAccessibleName(QStringLiteral("Discuss column: ") + words);
+			button->setCheckable(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setChecked(width == core::default_discuss_column);
+			discussColumnGroup->addButton(button);
+			discussColumnLayout->addWidget(button);
+			DiscussColumnButtons.push_back(button);
+			connect(button, &QToolButton::toggled, this, [this, chosen = width](const bool aChecked) {
+				if (aChecked && !ApplyingBehaviour && DiscussColumnDispatch) {
+					DiscussColumnDispatch(chosen);
+					apply_discuss_preferences();
+				}
+			});
+		}
+		auto* const discussColumnInfo = new info_glyph{ QStringLiteral("Discuss lists the conversation in a centred column this wide. An open comment with code may grow wider."), BehaviourEditor };
+		discussColumnInfo->setObjectName(QStringLiteral("discussColumnInfo"));
 		addGroup(
 			column,
 			QStringLiteral("Reading"),
@@ -1187,6 +1255,7 @@ namespace bpr::qt {
 					 readingInfo,
 					 nullptr,
 					 4 },
+				row{ 0U, QStringLiteral("Discuss column"), QStringLiteral("discussColumnRow"), { }, discussColumnInfo, discussColumn, 4 },
 			},
 			[](application::review_behaviour_settings& aNext) {
 				aNext.MarkRead       = application::review_behaviour_settings{ }.MarkRead;
@@ -1344,9 +1413,9 @@ namespace bpr::qt {
 			if (SettingsWindow == nullptr) {
 				return;
 			}
-			SettingsWindow->present(settings_page::agents_and_context);
-			if (WritingHooks != nullptr) {
-				WritingHooks->select_hook(core::writing_hook::feedback);
+			SettingsWindow->present(settings_page::prompts);
+			if (Prompts != nullptr) {
+				Prompts->select_system(static_cast<int>(core::writing_hook::feedback));
 			}
 		});
 		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
@@ -1553,6 +1622,9 @@ namespace bpr::qt {
 		}
 		if (Finder != nullptr) {
 			Finder->set_label_marks(theme);
+			if (AttentionColour.has_value()) {
+				Finder->set_attention_colour(*AttentionColour);
+			}
 		}
 		if (FeedbackMarksPreview != nullptr) {
 			FeedbackMarksPreview->set_theme(theme);

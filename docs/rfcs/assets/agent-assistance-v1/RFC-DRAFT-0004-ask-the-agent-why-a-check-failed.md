@@ -26,7 +26,7 @@ The owner asked for it ([notes 2 and 3](SOURCE_NOTES.md)).
 
 A question has four possible subjects today: the pull request, a file,
 lines or a conversation
-(`src/core/include/bpr/core/agent_question.hpp`, on the v0.5.0 prerelease lane).
+([agent_question.hpp](../../../../src/core/include/bpr/core/agent_question.hpp)).
 A check is none of them.
 
 ## Proposed behavior and boundaries

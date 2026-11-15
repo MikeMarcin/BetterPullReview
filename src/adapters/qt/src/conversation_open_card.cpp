@@ -1,5 +1,7 @@
 #include "conversation_open_card.hpp"
 
+#include "bpr/qt/ask_menu.hpp"
+
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -7,9 +9,11 @@
 #include "bpr/qt/scoped_prose_editor.hpp"
 
 #include "button_surface.hpp"
+#include "comment_state_toggle.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
 
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
@@ -22,10 +26,14 @@
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include <QApplication>
+#include <QFontDatabase>
 #include <QFontMetricsF>
+#include <QFrame>
+#include <QPushButton>
 #include <QTextEdit>
 
 #include <QAbstractTextDocumentLayout>
+#include <QContextMenuEvent>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFontMetrics>
@@ -42,10 +50,12 @@
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QResizeEvent>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -381,7 +391,7 @@ namespace bpr::qt {
 			{
 				setObjectName(QStringLiteral("threadReplyText"));
 				setFrameShape(QFrame::NoFrame);
-				setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+				setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 				setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 				setTabChangesFocus(true);
 				document()->setDocumentMargin(0.0);
@@ -394,21 +404,76 @@ namespace bpr::qt {
 
 			void fit()
 			{
+				// Owner look v005 ("a lot of overlap"). A fit resizes the
+				// field, and a resize asks for a fit: once at a time. The
+				// scrollbar is shown only when the text is taller than the
+				// field may grow, so showing it cannot rewrap the text into a
+				// different height (the field swung between two heights,
+				// left a minimum above its maximum, and the rows under it
+				// were drawn over it).
+				if (Fitting) {
+					return;
+				}
+				Fitting = true;
 				// The plain layout measures the document in lines, wrapped
 				// lines included.
-				const auto lines  = std::max<qreal>(1.0, document()->size().height());
-				const auto pixels = static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing()));
-				const auto height = std::clamp(pixels + 2, reply_minimum, reply_maximum);
-				if (height != this->height() || minimumHeight() != height) {
-					setFixedHeight(height);
+				const auto measure = [this] {
+					const auto lines = std::max<qreal>(1.0, document()->size().height());
+					return static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing())) + 2;
+				};
+				auto pixels = measure();
+				if (pixels > reply_maximum && verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded) {
+					setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+				} else if (pixels <= reply_maximum && verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOff) {
+					setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+					pixels = measure();
 				}
+				const auto height = std::clamp(pixels, reply_minimum, reply_maximum);
+				if (height != this->height() || minimumHeight() != height || maximumHeight() != height) {
+					const auto changed = minimumHeight() != height || maximumHeight() != height;
+					setMinimumHeight(0);
+					setMaximumHeight(height);
+					setMinimumHeight(height);
+					// The card is told after this layout pass, so the rows
+					// under the field are laid out apart from it.
+					if (changed && Refit) {
+						QTimer::singleShot(0, this, [this] {
+							if (Refit) {
+								Refit();
+							}
+						});
+					}
+				}
+				Fitting = false;
 			}
+
+			/// The field's own height changed.
+			std::function<void()> Refit;
+
+		private:
+			bool Fitting = false;
+
+		public:
+			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
+			std::function<void(QMenu&)> ExtendMenu;
 
 		protected:
 			void resizeEvent(QResizeEvent* aEvent) override
 			{
 				QPlainTextEdit::resizeEvent(aEvent);
 				fit();
+			}
+
+			void contextMenuEvent(QContextMenuEvent* aEvent) override
+			{
+				if (!ExtendMenu) {
+					QPlainTextEdit::contextMenuEvent(aEvent);
+					return;
+				}
+				auto* const menu = createStandardContextMenu(aEvent->pos());
+				menu->setAttribute(Qt::WA_DeleteOnClose);
+				ExtendMenu(*menu);
+				menu->popup(aEvent->globalPos());
 			}
 		};
 
@@ -1267,6 +1332,12 @@ namespace bpr::qt {
 		setProperty("postIdentity", QString::fromStdString(aPost.Id));
 		setAccessibleName(aPost.Name.isEmpty() ? shown_author(aPost.Author) : aPost.Name);
 		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
+		if (aPost.Local) {
+			// Owner look v002: its words name the tag, not the whole post,
+			// so they are answered at the tag (`event`), never as the
+			// post's own tooltip, which anchors to the whole post.
+			setAccessibleDescription(comment_state_words(true, false, false));
+		}
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		// RFC-BPR-0036. The body reads through the shared Markdown reader, in
 		// place: as tall as its content, its links through the application's
@@ -1671,7 +1742,10 @@ namespace bpr::qt {
 			painter.fillRect(QRect{ 0, 0, 3, height() }, colours.Route);
 		}
 		if (RuleAbove) {
-			painter.setPen(QPen{ with_alpha(colours.Rule, 0.6), 1.0 });
+			// Owner look v002 ([[BPR-2158]]): "these lines between comments
+			// are slightly too subtle, compare it to slack's". The stronger
+			// rule, whole, as Slack's are.
+			painter.setPen(QPen{ colours.Rule2, 1.0 });
 			painter.drawLine(QPointF{ 0.0, 0.5 }, QPointF{ static_cast<qreal>(width()), 0.5 });
 		}
 		const auto rail = rail_rect();
@@ -1707,6 +1781,19 @@ namespace bpr::qt {
 			painter.setBrush(colours.New);
 			painter.drawEllipse(QRectF{ static_cast<qreal>(x), post_padding + name / 2.0 - 3.5, 7.0, 7.0 });
 		}
+		// RFC-BPR-0127 ([[BPR-2158]]). My Local reply wears the computer and
+		// says Local reply: only on this computer, never sent.
+		if (Post.Local && x + 16 < tools) {
+			const auto small = scaled(font(), 0.92);
+			const auto words = QFontMetrics{ small }.elidedText(QStringLiteral("Local reply"), Qt::ElideRight, std::max(0, tools - x - 16));
+			paint_conversation_glyph(painter, QRectF{ static_cast<qreal>(x), post_padding + (name - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::computer, colours.Ink2);
+			painter.setFont(small);
+			painter.setPen(colours.Ink2);
+			painter.drawText(QRect{ x + 16, post_padding, std::max(0, tools - x - 16), name }, Qt::AlignLeft | Qt::AlignVCenter, words);
+			LocalTag = QRect{ x, post_padding, 16 + QFontMetrics{ small }.horizontalAdvance(words), name };
+		} else {
+			LocalTag = QRect{ };
+		}
 	}
 
 	auto thread_post_view::event(QEvent* const aEvent) -> bool
@@ -1723,6 +1810,12 @@ namespace bpr::qt {
 			}
 			if (QRect{ gut_left, post_padding, avatar_size, avatar_size }.contains(point)) {
 				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, shown_author(Post.Author));
+				return true;
+			}
+			// Owner look v002 ([[BPR-2158]]). "Local reply" says what it
+			// means right under itself.
+			if (!LocalTag.isEmpty() && LocalTag.contains(point)) {
+				show_anchored_tooltip(*this, LocalTag, QStringLiteral("Only on this computer. Never sent."));
 				return true;
 			}
 			// [[BPR-1757]]. A name cut short says itself whole.
@@ -1764,6 +1857,15 @@ namespace bpr::qt {
 			return;
 		}
 		Joined = aJoined;
+		update();
+	}
+
+	void note_button::set_draft_words(const QString& aWords)
+	{
+		if (DraftWords == aWords) {
+			return;
+		}
+		DraftWords = aWords;
 		update();
 	}
 
@@ -1857,8 +1959,26 @@ namespace bpr::qt {
 			painter.setBrush(colours.CodeBackground.isValid() ? colours.CodeBackground : colours.Panel);
 			painter.drawRoundedRect(box, 7.0, 7.0);
 			paint_avatar(painter, QRectF{ 9.0, (height() - 18) / 2.0, 18.0, 18.0 }, Style.Viewer, true, colours, font());
-			painter.setPen(colours.Faint);
-			painter.drawText(QRect{ 36, 0, width() - 70, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			if (DraftWords.isEmpty()) {
+				painter.setPen(colours.Faint);
+				painter.drawText(QRect{ 36, 0, width() - 70, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			} else {
+				// RFC-BPR-0127, owner look v003 ("I didnt see any other
+				// comments on there [that] were drafts"). My draft reply is
+				// shown as one: the pencil, "Draft reply" and its words.
+				paint_conversation_glyph(painter, QRectF{ 36.0, (height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.SignalInk);
+				const auto lead   = QStringLiteral("Draft reply ");
+				const auto strong = semibold(font());
+				const auto leadW  = QFontMetrics{ strong }.horizontalAdvance(lead);
+				const auto room   = std::max(0, width() - 70 - 16);
+				painter.setFont(strong);
+				painter.setPen(colours.SignalInk);
+				painter.drawText(QRect{ 52, 0, room, height() }, Qt::AlignLeft | Qt::AlignVCenter, lead);
+				painter.setFont(font());
+				painter.setPen(colours.Ink2);
+				painter.drawText(QRect{ 52 + leadW, 0, std::max(0, room - leadW), height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ font() }.elidedText(DraftWords, Qt::ElideRight, std::max(0, room - leadW)));
+			}
 			const auto small   = semibold(scaled(font(), 0.84));
 			const auto metrics = QFontMetrics{ small };
 			const auto key     = QStringLiteral("R");
@@ -1920,7 +2040,11 @@ namespace bpr::qt {
 		row->setContentsMargins(8, 0, 4, 0);
 		row->setSpacing(2);
 		const auto& palette = this->palette();
-		if (aCard.Path.isEmpty()) {
+		// Owner look v002 ([[BPR-2158]]): "I dont understand why this comment
+		// says \"pull request\"". Only a comment on the pull request says so;
+		// my Local comments and drafts on a file never do.
+		const auto onPullRequest = aCard.Local ? aCard.LocalComment.Place == local_comment_place::pull_request : aCard.Path.isEmpty() && !aCard.Draft;
+		if (onPullRequest) {
 			// [[BPR-1757]]. In a narrow drawer the scope gives way to
 			// the verdict, which stays whole.
 			auto* const scope = new yielding_label{ QStringLiteral("Pull request"), header };
@@ -1983,15 +2107,29 @@ namespace bpr::qt {
 			row->addWidget(NewPill, 0, Qt::AlignVCenter);
 			row->addSpacing(4);
 		}
+		// RFC-BPR-0127 (owner, Q1). The computer is Local and nothing else; a
+		// draft wears its pencil; no state wears a lock. Each state is said
+		// in words to assistive technology.
 		if (aCard.Writing) {
-			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.SignalInk, header };
-			DraftState        = state;
+			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::edit, Style.Colours.SignalInk, header };
+			state->setAccessibleName(comment_state_words(false, true, aCard.Pending));
+			DraftState = state;
+			row->addWidget(state);
+		} else if (aCard.Local) {
+			auto* const state = new state_label{ QStringLiteral("Local"), conversation_glyph::computer, Style.Colours.Ink2, header };
+			state->setObjectName(QStringLiteral("threadLocalState"));
+			state->setAccessibleName(comment_state_words(true, false, false));
+			state->setToolTip(QStringLiteral("Only on this computer"));
 			row->addWidget(state);
 		} else if (aCard.Draft && aCard.Pending) {
 			// [[BPR-1345]]. Sent with the review when it is finished.
-			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.SignalInk, header });
+			auto* const state = new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::edit, Style.Colours.SignalInk, header };
+			state->setAccessibleName(comment_state_words(false, true, true));
+			row->addWidget(state);
 		} else if (aCard.Draft) {
-			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
+			auto* const state = new state_label{ QStringLiteral("Draft, not in your review"), conversation_glyph::edit, Style.Colours.Faint, header };
+			state->setAccessibleName(comment_state_words(false, true, false));
+			row->addWidget(state);
 		} else if (aCard.ResolutionPending) {
 			// [[BPR-1741]]. Shown at once; GitHub's answer settles it.
 			row->addWidget(new state_label{ aCard.Resolved ? QStringLiteral("Resolving…") : QStringLiteral("Reopening…"), std::nullopt, Style.Colours.Faint, header });
@@ -2002,7 +2140,9 @@ namespace bpr::qt {
 			row->addWidget(new state_label{ QStringLiteral("Outdated"), std::nullopt, Style.Colours.Faint, header });
 		}
 		row->addStretch(1);
-		if (aCard.Path.isEmpty()) {
+		// Owner look v005 ("a lot of overlap"): a draft being written has its
+		// own way there (Open in Discuss, below); one glyph, one action.
+		if (aCard.Path.isEmpty() && !aCard.Writing) {
 			auto* const show = tool(header, QStringLiteral("conversationShowInDiscuss"), QStringLiteral("Show in Discuss"), conversation_glyph::maximize, palette);
 			connect(show, &QToolButton::clicked, this, [this] { const auto dispatch=ShowInDiscussRequested;const auto id=Id;if(dispatch){dispatch(id);} });
 			row->addWidget(show);
@@ -2021,24 +2161,26 @@ namespace bpr::qt {
 				});
 				row->addWidget(resolve);
 			}
-			// [[BPR-1773]]. Ask the agent about this conversation, with the
-			// Agent tab's own mark.
-			if (aCard.Kind == QStringLiteral("Inline thread") && !aCard.Path.isEmpty() && !aCard.Posts.empty()) {
-				auto* const askAgent = card_button(header);
-				askAgent->setObjectName(QStringLiteral("threadAskAgent"));
-				askAgent->setAutoRaise(true);
-				askAgent->setIcon(drawer_icon(drawer_glyph::agent, palette));
-				askAgent->setToolTip(QStringLiteral("Ask agent about this conversation"));
-				askAgent->setAccessibleName(askAgent->toolTip());
-				askAgent->setFocusPolicy(Qt::StrongFocus);
-				askAgent->setIconSize(QSize{ 16, 16 });
-				askAgent->setCursor(Qt::ArrowCursor);
-				connect(askAgent, &QToolButton::clicked, this, [this] {
-					if (Action) {
-						Action(card_action::ask_agent);
-					}
-				});
-				row->addWidget(askAgent);
+			// RFC-BPR-0128 ([[BPR-2164]]). Ask agent and Was this addressed? left
+			// the header for the thread's Ask, where a reply is written.
+			// RFC-BPR-0128 ([[BPR-2165]]), Q14. The agent's claim is one chip in
+			// the header, in ordinary roles with the glyph in the accent, at the
+			// header's tool height: it moves nothing. A press shows the lines.
+			if (Style.Claim) {
+				auto* const chip = card_button(header);
+				chip->setObjectName(QStringLiteral("threadClaimChip"));
+				chip->setAutoRaise(true);
+				chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+				chip->setIcon(agent_glyph(palette));
+				chip->setIconSize(QSize{ 12, 12 });
+				chip->setText(thread_claim_words(Style.Claim->Claim));
+				chip->setAccessibleName(QStringLiteral("Agent's claim: %1").arg(chip->text()));
+				chip->setAccessibleDescription(QStringLiteral("Show the lines as the thread started and as they are now. Nothing was resolved or posted."));
+				chip->setToolTip(QStringLiteral("Agent's claim: %1. Show the lines then and now").arg(chip->text()));
+				chip->setFocusPolicy(Qt::StrongFocus);
+				chip->setCursor(Qt::ArrowCursor);
+				connect(chip, &QToolButton::clicked, this, [this, chip] { show_claim_evidence(*chip); });
+				row->addWidget(chip);
 			}
 			const auto  unread = aCard.UnreadCount;
 			auto* const read   = tool(header, QStringLiteral("threadMarkRead"),
@@ -2047,6 +2189,9 @@ namespace bpr::qt {
 									  conversation_glyph::read, palette);
 			read->setEnabled(unread > 0U);
 			MarkRead = read;
+			if (auto* const chip = header->findChild<QToolButton*>(QStringLiteral("threadClaimChip")); chip != nullptr) {
+				chip->setFixedHeight(read->sizeHint().height());
+			}
 			connect(read, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::mark_read); } });
 			row->addWidget(read);
 			auto* const more = tool(header, QStringLiteral("threadMore"), QStringLiteral("More: reply, mark read, resolve, classify"), conversation_glyph::more, palette);
@@ -2160,7 +2305,9 @@ namespace bpr::qt {
 			}
 			// [[BPR-1775]]. Edit on my own published comment: its tool and
 			// its body menu, as the core decides from the read's "Mine".
-			const auto editable = Style.CommentEditOffered && !aCard.Draft && core::comment_edit_offered(post.Id, post.Mine, false);
+			// RFC-BPR-0127. My Local comment is edited in place, only on this
+			// computer.
+			const auto editable = post.Local || (Style.CommentEditOffered && !aCard.Draft && core::comment_edit_offered(post.Id, post.Mine, false));
 			if (editable) {
 				view->set_editable(true);
 				view->EditRequested = [this, id = post.Id] {
@@ -2292,6 +2439,44 @@ namespace bpr::qt {
 			};
 			Posts.push_back(view);
 			column->addWidget(view);
+			// RFC-BPR-0127 ([[BPR-2158]]). My Local reply inside a published
+			// thread: Make draft moves it to my draft reply here, its words
+			// can be copied, or it is deleted once the window has asked.
+			if (post.Local && !aCard.Local) {
+				auto* const localRow = new QHBoxLayout{ };
+				localRow->setContentsMargins(text_left, 0, text_right, 4);
+				localRow->setSpacing(4);
+				// Owner look v005: the state control every comment of mine has;
+				// a refused Draft is the struck pencil, its reason the tooltip.
+				auto* const state = new comment_state_toggle{ QPalette::Base, this };
+				state->setObjectName(QStringLiteral("threadLocalReplyState"));
+				state->setProperty("postIdentity", QString::fromStdString(post.Id));
+				state->local_button()->setObjectName(QStringLiteral("threadLocalReplyLocal"));
+				state->draft_button()->setObjectName(QStringLiteral("threadLocalReplyMakeDraft"));
+				state->draft_button()->setText(post.LocalMakeDraft.isEmpty() ? QStringLiteral("Make draft") : post.LocalMakeDraft);
+				state->set_names(QStringLiteral("Local reply, only on this computer"), post.LocalMakeDraft.isEmpty() ? QStringLiteral("Make draft") : post.LocalMakeDraft);
+				state->set_local(true, QStringLiteral("Only on this computer"));
+				state->set_draft(!post.LocalMakeDraft.isEmpty(), post.LocalMakeDraft.isEmpty() ? post.LocalMakeDraftWhy : QStringLiteral("Make it your draft reply here"));
+				state->set_state(comment_state_toggle::state::local);
+				state->DraftChosen = [this, id = post.Id] { if (PostAction) { PostAction(card_action::make_draft, id); } };
+				localRow->addWidget(state);
+				auto* const copy = card_button(this);
+				copy->setObjectName(QStringLiteral("threadLocalReplyCopy"));
+				copy->setAutoRaise(true);
+				copy->setText(QStringLiteral("Copy text"));
+				copy->setToolTip(QStringLiteral("Copy the reply as written"));
+				copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+				copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+				copy->setFocusPolicy(Qt::StrongFocus);
+				connect(copy, &QToolButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::copy_local, id); } });
+				localRow->addWidget(copy);
+				localRow->addStretch(1);
+				auto* const remove = tool(this, QStringLiteral("threadLocalReplyDelete"), QStringLiteral("Delete local reply"), conversation_glyph::trash, palette);
+				remove->setProperty("postIdentity", QString::fromStdString(post.Id));
+				connect(remove, &QToolButton::clicked, this, [this, id = post.Id] { if (PostAction) { PostAction(card_action::delete_local, id); } });
+				localRow->addWidget(remove);
+				column->addLayout(localRow);
+			}
 			first = false;
 		}
 
@@ -2349,6 +2534,47 @@ namespace bpr::qt {
 			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::discard_reply); } });
 			actions->addWidget(discard);
 			footRow->addLayout(actions);
+		} else if (aCard.Local) {
+			// RFC-BPR-0127 ([[BPR-2158]]). My Local comment: only on this
+			// computer. Make draft moves it (the same words and place, not in
+			// the review); its words can be copied or it can be deleted.
+			// Nothing here sends it.
+			footRow->setContentsMargins(text_left, 2, text_right, 10);
+			footRow->setSpacing(8);
+			if (notice != nullptr) {
+				footRow->addWidget(notice);
+			}
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(4);
+			auto* const state = new comment_state_toggle{ QPalette::Base, Foot };
+			state->setObjectName(QStringLiteral("threadLocalStateControl"));
+			state->local_button()->setObjectName(QStringLiteral("threadLocalStateLocal"));
+			state->draft_button()->setObjectName(QStringLiteral("threadMakeDraft"));
+			const auto offer = aCard.LocalComment.MakeDraft.isEmpty() ? QStringLiteral("Make draft") : aCard.LocalComment.MakeDraft;
+			state->draft_button()->setText(offer);
+			state->set_names(comment_state_words(true, false, false), offer);
+			state->set_local(true, QStringLiteral("Only on this computer"));
+			state->set_draft(!aCard.LocalComment.MakeDraft.isEmpty(), aCard.LocalComment.MakeDraft.isEmpty() ? aCard.LocalComment.MakeDraftWhy : offer == QStringLiteral("Make draft") ? QStringLiteral("Make it a draft here, not in your review")
+																																													   : QStringLiteral("%1, not in your review").arg(offer));
+			state->set_state(comment_state_toggle::state::local);
+			state->DraftChosen = [this] { if (Action) { Action(card_action::make_draft); } };
+			actions->addWidget(state);
+			auto* const copy = card_button(Foot);
+			copy->setObjectName(QStringLiteral("threadCopyLocal"));
+			copy->setAutoRaise(true);
+			copy->setText(QStringLiteral("Copy text"));
+			copy->setToolTip(QStringLiteral("Copy the comment as written"));
+			copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+			copy->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::copy));
+			copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			copy->setFocusPolicy(Qt::StrongFocus);
+			connect(copy, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::copy_local); } });
+			actions->addWidget(copy);
+			actions->addStretch(1);
+			auto* const discard = tool(Foot, QStringLiteral("threadDeleteLocal"), QStringLiteral("Delete local comment"), conversation_glyph::trash, palette);
+			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_local); } });
+			actions->addWidget(discard);
+			footRow->addLayout(actions);
 		} else if (aCard.Draft && aCard.MovedSuggestion) {
 			// [[BPR-1733]]. My kept suggestion from an earlier head: written
 			// again at its lines here when the core carries it, or its change
@@ -2403,8 +2629,21 @@ namespace bpr::qt {
 			connect(edit, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::edit_draft); } });
 			auto* const remove = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete draft"), conversation_glyph::trash, palette);
 			connect(remove, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
+			// RFC-BPR-0127 ([[BPR-2158]]). Keep local: the same words and place,
+			// out of the review, only on this computer.
+			auto* const keep = new comment_state_toggle{ QPalette::Base, Foot };
+			keep->setObjectName(QStringLiteral("threadDraftState"));
+			keep->local_button()->setObjectName(QStringLiteral("threadKeepLocal"));
+			keep->draft_button()->setObjectName(QStringLiteral("threadDraftStateDraft"));
+			keep->local_button()->setText(QStringLiteral("Keep local"));
+			keep->set_names(QStringLiteral("Keep local"), comment_state_words(false, true, aCard.Pending));
+			keep->set_local(true, QStringLiteral("Keep it only on this computer"));
+			keep->set_draft(true, aCard.Pending ? QStringLiteral("Draft, in your review") : QStringLiteral("Draft, not in your review"));
+			keep->set_state(comment_state_toggle::state::draft);
+			keep->LocalChosen = [this] { if (Action) { Action(card_action::keep_local); } };
 			// [[BPR-1345]]. A pending draft goes with the review; it is opened
 			// to change it, and nothing here publishes it on its own.
+			actions->addWidget(keep);
 			if (aCard.Pending) {
 				publish->hide();
 			} else {
@@ -2434,6 +2673,7 @@ namespace bpr::qt {
 				ink.setColor(QPalette::WindowText, Style.Colours.Ink2);
 				refusal->setPalette(ink);
 				footRow->addWidget(refusal, 1);
+				add_ask(*footRow, Foot, QStringLiteral("threadAsk"));
 			} else {
 				// [[BPR-1374]]. My unsent reply in this thread is opened by Reply.
 				ReplyField = new note_button{ note_button::kind::reply_field, aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"), Foot };
@@ -2442,7 +2682,30 @@ namespace bpr::qt {
 				ReplyField->setAccessibleName(QStringLiteral("Reply"));
 				ReplyField->set_style(Style);
 				connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
-				footRow->addWidget(ReplyField);
+				// RFC-BPR-0127, owner look v005. My draft reply has the same
+				// state control as every comment of mine: Local keeps it here.
+				DraftReplyState = new comment_state_toggle{ QPalette::Base, Foot };
+				DraftReplyState->setObjectName(QStringLiteral("threadDraftReplyState"));
+				DraftReplyState->local_button()->setObjectName(QStringLiteral("threadDraftReplyKeepLocal"));
+				DraftReplyState->draft_button()->setObjectName(QStringLiteral("threadDraftReplyDraft"));
+				DraftReplyState->set_names(QStringLiteral("Keep local"), QStringLiteral("Draft reply, not sent"));
+				DraftReplyState->set_local(true, QStringLiteral("Keep it only on this computer"));
+				DraftReplyState->set_draft(true, QStringLiteral("Your draft reply, not sent"));
+				DraftReplyState->set_state(comment_state_toggle::state::draft);
+				DraftReplyState->LocalChosen = [this] {
+					if (DraftReplyId.has_value() && PostAction) {
+						PostAction(card_action::keep_local, "draft:unpublished:" + std::to_string(DraftReplyId->value()));
+					}
+				};
+				DraftReplyState->hide();
+				auto* const field = new QHBoxLayout{ };
+				field->setContentsMargins(0, 0, 0, 0);
+				field->setSpacing(6);
+				field->addWidget(DraftReplyState, 0, Qt::AlignVCenter);
+				field->addWidget(ReplyField, 1);
+				add_ask(*field, Foot, QStringLiteral("threadAsk"));
+				footRow->addLayout(field);
+				present_unsent_reply(aCard);
 			}
 			// [[BPR-1741]]. Where GitHub puts it: at the thread's end,
 			// beside Reply, for a viewer GitHub lets resolve the thread.
@@ -2480,7 +2743,12 @@ namespace bpr::qt {
 				outdated->setPalette(ink);
 				editor->addWidget(outdated);
 			}
-			ReplyBox = new reply_text{ Editor };
+			ReplyBox                                  = new reply_text{ Editor };
+			static_cast<reply_text*>(ReplyBox)->Refit = [this] {
+				if (HeightChanged) {
+					HeightChanged();
+				}
+			};
 			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
 											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
 															: QStringLiteral("Reply"));
@@ -2496,28 +2764,73 @@ namespace bpr::qt {
 			Labels->set_theme(Style.Marks);
 			style_reply_chip(*Labels->chip(), Style);
 			controls->addWidget(Labels);
+			// RFC-BPR-0128 ([[BPR-2164]]). The thread's Ask beside the label
+			// picker: Plain, Ask, Publish.
+			add_ask(*controls, Editor, QStringLiteral("threadReplyAsk"));
 			// [[BPR-1084]]. A small mark beside the chip, shown only for a
 			// suggested change; its tooltip says what GitHub will do with it.
 			Placement  = aCard.Suggestion;
 			Suggestion = new suggestion_mark{ Editor };
 			Suggestion->setObjectName(QStringLiteral("threadReplySuggestionMark"));
+			// [[BPR-2051]], owner look 2026-11-10 ("placed pretty consistently
+			// across the whole app surface"): Enhance is the first control
+			// of the row under the field, on every surface that has it.
+			build_enhance(*controls, enhance_surface::reply);
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
+			// Owner look v002 ([[BPR-2158]]): "this compose looks like a
+			// mess". The writing tools keep the first row; the state and
+			// the sending actions take a row of their own under them, so
+			// nothing is cut to a letter in a narrow drawer.
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(6);
+			// RFC-BPR-0127 ([[BPR-2158]]). In a thread the state control is
+			// Local and Reply: Local keeps the reply only on this computer,
+			// inside this thread, with Save (⌘↩) in Send's place.
+			{
+				auto* const states = new comment_state_toggle{ QPalette::Base, Editor };
+				states->setObjectName(QStringLiteral("threadReplyState"));
+				states->setAccessibleName(QStringLiteral("Reply state"));
+				StateToggle = states;
+				StateLocal  = states->local_button();
+				StateDraft  = states->draft_button();
+				StateLocal->setObjectName(QStringLiteral("threadReplyStateLocal"));
+				StateDraft->setObjectName(QStringLiteral("threadReplyStateReply"));
+				StateDraft->setText(QStringLiteral("Reply"));
+				states->set_names(QStringLiteral("Local reply, only on this computer"), QStringLiteral("Reply, sent to the thread"));
+				states->set_draft(true, QStringLiteral("A reply you send to the thread"));
+				states->set_state(comment_state_toggle::state::draft);
+				states->LocalChosen = [this] { choose_local(true, false); };
+				states->DraftChosen = [this] { choose_local(false, false); };
+				actions->addWidget(states);
+				actions->addStretch(1);
+			}
 			auto* const cancel = new quiet_tool_button{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
 			cancel->setAutoRaise(true);
 			cancel->setText(QStringLiteral("Cancel"));
 			cancel->setFocusPolicy(Qt::StrongFocus);
 			connect(cancel, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::cancel_reply); } });
-			controls->addWidget(cancel);
+			actions->addWidget(cancel);
 			Publish = new note_button{ note_button::kind::primary, aCard.Path.isEmpty() ? QStringLiteral("Send") : QStringLiteral("Publish"), Editor };
 			Publish->setObjectName(QStringLiteral("threadReplyPublish"));
 			Publish->setIcon(conversation_icon(conversation_glyph::send, palette));
 			Publish->setToolTip(QStringLiteral("Publish reply  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 			Publish->set_style(Style);
 			connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_reply); } });
-			controls->addWidget(Publish);
+			actions->addWidget(Publish);
+			SaveLocal = new note_button{ note_button::kind::primary, QStringLiteral("Save"), Editor };
+			SaveLocal->setObjectName(QStringLiteral("threadReplySaveLocal"));
+			SaveLocal->setAccessibleName(QStringLiteral("Save local reply"));
+			SaveLocal->setToolTip(QStringLiteral("Keep it only on this computer  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			SaveLocal->setAccessibleDescription(QStringLiteral("Saves this reply only on this computer, inside this thread. It is never sent."));
+			SaveLocal->set_style(Style);
+			SaveLocal->hide();
+			connect(SaveLocal, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::save_local); } });
+			actions->addWidget(SaveLocal);
 			editor->addLayout(controls);
+			editor->addLayout(actions);
+			editor->addWidget(EnhancePanel);
 			ReplyStatus = new QLabel{ Editor };
 			ReplyStatus->setObjectName(QStringLiteral("threadReplyStatus"));
 			ReplyStatus->setWordWrap(true);
@@ -2570,6 +2883,11 @@ namespace bpr::qt {
 		editor->setSpacing(7);
 		ReplyBox = new reply_text{ Editor };
 		ReplyBox->setObjectName(QStringLiteral("threadDraftText"));
+		static_cast<reply_text*>(ReplyBox)->Refit = [this] {
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		};
 		const auto line = aCard.Line.value_or(0U);
 		ReplyBox->setAccessibleName(QStringLiteral("Comment on line %1").arg(line));
 		ReplyBox->setPlaceholderText(QStringLiteral("Comment on line %1. Type : at the start for a label.").arg(line));
@@ -2582,12 +2900,82 @@ namespace bpr::qt {
 		Labels->set_theme(Style.Marks);
 		style_reply_chip(*Labels->chip(), Style);
 		controls->addWidget(Labels);
+		// [[BPR-2172]]. The owner, on look v007 of RFC-BPR-0127: "Can we
+		// make this warning take less space, maybe it's just a warning sign
+		// on the row above and expands a disclosure on click". The notice
+		// is a mark beside the label chip; pressing it (or Space) shows its
+		// sentence under the row and pressing it again hides it.
+		NoticeMark = tool(Editor, QStringLiteral("threadDraftNoticeMark"), QString{ }, conversation_glyph::warning, palette);
+		NoticeMark->setCheckable(true);
+		NoticeMark->hide();
+		controls->addWidget(NoticeMark, 0, Qt::AlignVCenter);
+		connect(NoticeMark, &QToolButton::toggled, this, [this](bool) {
+			present_notice_mark();
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		});
 		Placement  = aCard.Suggestion;
 		Suggestion = new suggestion_mark{ Editor };
 		Suggestion->setObjectName(QStringLiteral("threadDraftSuggestionMark"));
+		// [[BPR-2051]]. Enhance first in the field's own tool row, as on every
+		// surface; its suggestion under that row.
+		build_enhance(*controls, enhance_surface::comment);
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change is on the field's
+		// right-click menu, where its lines can take a suggestion (the
+		// coordinator, 2026-11-12: no new visible control while the owner's
+		// Ask model is designed); what came of it shows under Enhance's panel.
+		SuggestAction = new QAction{ QStringLiteral("Suggest the Change"), this };
+		SuggestAction->setObjectName(QStringLiteral("threadDraftSuggestChange"));
+		SuggestAction->setToolTip(QStringLiteral("Ask the agent to write this change in the code"));
+		SuggestAction->setVisible(false);
+		connect(SuggestAction, &QAction::triggered, this, [this] { if (Action) { Action(card_action::suggest_change); } });
+		static_cast<reply_text*>(ReplyBox)->ExtendMenu = [this](QMenu& aMenu) {
+			if (SuggestAction->isVisible()) {
+				aMenu.addSeparator();
+				aMenu.addAction(SuggestAction);
+			}
+		};
 		controls->addWidget(Suggestion);
 		controls->addStretch(1);
 		editor->addLayout(controls);
+		editor->addWidget(EnhancePanel);
+		SuggestPanel       = new suggest_change_panel{ Editor };
+		auto* const first  = new note_button{ note_button::kind::primary, QStringLiteral("Keep change"), SuggestPanel };
+		auto* const second = new note_button{ note_button::kind::secondary, QStringLiteral("Discard"), SuggestPanel };
+		first->setObjectName(QStringLiteral("suggestChangeFirst"));
+		second->setObjectName(QStringLiteral("suggestChangeSecond"));
+		first->set_style(Style);
+		second->set_style(Style);
+		SuggestPanel->set_buttons(first, second);
+		connect(first, &QAbstractButton::clicked, this, [this] {
+			switch (SuggestPanel->phase()) {
+			case agent_suggestion_phase::proposed:
+				if (Action) {
+					Action(card_action::keep_suggested_change);
+				}
+				break;
+			case agent_suggestion_phase::kept:
+				if (Action) {
+					Action(card_action::undo_suggested_change);
+				}
+				break;
+			case agent_suggestion_phase::refused:
+				SuggestPanel->toggle_reply();
+				if (HeightChanged) {
+					HeightChanged();
+				}
+				break;
+			case agent_suggestion_phase::running:
+			case agent_suggestion_phase::idle:    break;
+			}
+		});
+		connect(second, &QAbstractButton::clicked, this, [this] {
+			if (Action) {
+				Action(SuggestPanel->phase() == agent_suggestion_phase::proposed ? card_action::discard_suggested_change : card_action::close_suggested_change);
+			}
+		});
+		editor->addWidget(SuggestPanel);
 		ReplyStatus = new QLabel{ Editor };
 		ReplyStatus->setObjectName(QStringLiteral("threadDraftStatus"));
 		ReplyStatus->setWordWrap(true);
@@ -2614,12 +3002,36 @@ namespace bpr::qt {
 		// split arrow carries Add single comment.
 		DraftActions = new QBoxLayout{ QBoxLayout::LeftToRight };
 		DraftActions->setSpacing(6);
-		auto* const privacy = new state_label{ QStringLiteral("Private until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
-		privacy->setObjectName(QStringLiteral("threadDraftPrivacy"));
-		privacy->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-		privacy->show_whole_or_glyph(QStringLiteral("Only you see this draft until you publish it."));
-		Privacy = privacy;
-		DraftActions->addWidget(privacy, 1);
+		// RFC-BPR-0127 ([[BPR-2158]]). Where "Private until you publish"
+		// stood, the comment's state: Local or Draft, two segments joined.
+		// Local is only on this computer; Draft is meant to be sent.
+		// Owner look v005: the same control as every card's (icons only).
+		auto* const states = new comment_state_toggle{ QPalette::Base, Foot };
+		states->setObjectName(QStringLiteral("threadCommentState"));
+		StateToggle = states;
+		StateLocal  = states->local_button();
+		StateDraft  = states->draft_button();
+		StateLocal->setObjectName(QStringLiteral("threadStateLocal"));
+		StateDraft->setObjectName(QStringLiteral("threadStateDraft"));
+		states->set_names(comment_state_words(true, false, false), QStringLiteral("Draft"));
+		states->set_draft(true, QStringLiteral("A draft you can add to your review or post"));
+		states->set_state(comment_state_toggle::state::draft);
+		states->LocalChosen = [this] { choose_local(true, true); };
+		states->DraftChosen = [this] { choose_local(false, true); };
+		Privacy             = states;
+		DraftActions->addWidget(states);
+		LocalWords = new QLabel{ QStringLiteral("Only on this computer. Never sent."), Foot };
+		LocalWords->setObjectName(QStringLiteral("threadLocalWords"));
+		LocalWords->setTextFormat(Qt::PlainText);
+		LocalWords->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		{
+			auto ink = LocalWords->palette();
+			ink.setColor(QPalette::WindowText, Style.Colours.Faint);
+			LocalWords->setPalette(ink);
+		}
+		LocalWords->hide();
+		DraftActions->addWidget(LocalWords, 1);
+		DraftActions->addStretch(0);
 		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete this comment"), conversation_glyph::trash, palette);
 		discard->setAccessibleName(QStringLiteral("Delete comment"));
 		connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
@@ -2676,6 +3088,16 @@ namespace bpr::qt {
 		ConvertAction->hide();
 		connect(ConvertAction, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::convert_draft); } });
 		DraftActions->addWidget(ConvertAction);
+		// RFC-BPR-0127. Local's one action: Save (⌘↩). Nothing here can send it.
+		SaveLocal = new note_button{ note_button::kind::primary, QStringLiteral("Save"), Foot };
+		SaveLocal->setObjectName(QStringLiteral("threadSaveLocal"));
+		SaveLocal->setAccessibleName(QStringLiteral("Save local comment"));
+		SaveLocal->setToolTip(QStringLiteral("Keep it only on this computer  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		SaveLocal->setAccessibleDescription(QStringLiteral("Saves this comment only on this computer. It is never sent."));
+		SaveLocal->set_style(Style);
+		SaveLocal->hide();
+		connect(SaveLocal, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::save_local); } });
+		DraftActions->addWidget(SaveLocal);
 		aFoot.addLayout(DraftActions);
 		present_review_state();
 		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
@@ -2692,6 +3114,135 @@ namespace bpr::qt {
 		});
 	}
 
+	void open_thread_card::show_claim_evidence(const QWidget& aChip)
+	{
+		if (!Style.Claim) {
+			return;
+		}
+		auto* const popup = new QFrame{ this, Qt::Popup };
+		popup->setObjectName(QStringLiteral("threadClaimEvidence"));
+		popup->setAttribute(Qt::WA_DeleteOnClose);
+		popup->setFrameShape(QFrame::StyledPanel);
+		popup->setAccessibleName(QStringLiteral("The lines then and now"));
+		auto* const column = new QVBoxLayout{ popup };
+		column->setContentsMargins(12, 10, 12, 10);
+		column->setSpacing(6);
+		auto* const lead = new QLabel{ QStringLiteral("Agent's claim: %1. A claim: nothing was resolved or posted.").arg(thread_claim_words(Style.Claim->Claim)), popup };
+		lead->setWordWrap(true);
+		column->addWidget(lead);
+		const auto block = [popup, column](const QString& aTitle, const std::optional<core::returning_lines>& aLines, const QString& aName) {
+			auto* const title = new QLabel{ popup };
+			title->setTextFormat(Qt::PlainText);
+			auto bold = title->font();
+			bold.setBold(true);
+			title->setFont(bold);
+			auto* const text = new QPlainTextEdit{ popup };
+			text->setObjectName(aName);
+			text->setReadOnly(true);
+			text->setLineWrapMode(QPlainTextEdit::NoWrap);
+			text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+			text->setAccessibleName(aTitle);
+			if (aLines) {
+				title->setText(QStringLiteral("%1, %2").arg(aTitle, QString::fromStdString(aLines->Commit.substr(0U, 7U))));
+				auto body = QStringList{ };
+				auto line = aLines->FirstLine;
+				for (const auto& each : aLines->Lines) {
+					body << QStringLiteral("%1  %2").arg(line++, 4).arg(QString::fromStdString(each));
+				}
+				text->setPlainText(body.join(QLatin1Char('\n')));
+			} else {
+				title->setText(aTitle);
+				text->setPlainText(QStringLiteral("These lines can't be read here."));
+			}
+			text->setMinimumWidth(480);
+			text->setFixedHeight(text->fontMetrics().lineSpacing() * std::min<int>(static_cast<int>(aLines ? aLines->Lines.size() : 1U) + 1, 14) + 12);
+			column->addWidget(title);
+			column->addWidget(text);
+		};
+		block(QStringLiteral("When the thread started"), Style.Claim->Then, QStringLiteral("threadClaimThen"));
+		block(QStringLiteral("Now"), Style.Claim->Now, QStringLiteral("threadClaimNow"));
+		auto* const open = new QPushButton{ QStringLiteral("Open the answer"), popup };
+		open->setObjectName(QStringLiteral("threadClaimOpenAnswer"));
+		open->setEnabled(static_cast<bool>(Style.ClaimAnswer));
+		connect(open, &QPushButton::clicked, popup, [popup, dispatch = Style.ClaimAnswer, turn = Style.Claim->Turn] {
+			popup->close();
+			if (dispatch) {
+				dispatch(turn);
+			}
+		});
+		column->addWidget(open, 0, Qt::AlignRight);
+		popup->adjustSize();
+		popup->move(aChip.mapToGlobal(QPoint{ aChip.width() - popup->width(), aChip.height() }));
+		popup->show();
+		open->setFocus(Qt::PopupFocusReason);
+	}
+
+	void open_thread_card::add_ask(QBoxLayout& aRow, QWidget* const aParent, const QString& aName)
+	{
+		if (!Style.AskMenu) {
+			return;
+		}
+		auto* const ask = new ask_menu_button{ aParent };
+		ask->setObjectName(aName);
+		ask->setAccessibleDescription(tr("Ask the agent a quick question about this thread"));
+		ask->set_filler(Style.AskMenu);
+		// Look ask-v006: the comments' own button, as the tab's Ask wears it.
+		ask->wear_comment_look();
+		// The height of the comments' own buttons beside it.
+		ask->setFixedHeight(std::max(26, QFontMetrics{ ask->font() }.height() + 8));
+		aRow.addWidget(ask, 0, Qt::AlignVCenter);
+	}
+
+	void open_thread_card::build_enhance(QBoxLayout& aControls, const enhance_surface aSurface)
+	{
+		// [[BPR-2051]]. The field's Enhance: an icon in its tool row, and under
+		// the field the run, then the suggestion with Use and Discard drawn as
+		// this card's own buttons. Nothing changes the field until Use.
+		EnhanceButton = new enhance_button{ aSurface, Editor };
+		aControls.insertWidget(0, EnhanceButton, 0, Qt::AlignVCenter);
+		EnhancePanel    = new enhance_suggestion{ aSurface, Editor };
+		auto* const use = new note_button{ note_button::kind::primary, QStringLiteral("Use suggestion"), EnhancePanel };
+		use->setObjectName(QStringLiteral("commentEnhanceUse"));
+		use->set_style(Style);
+		auto* const discard = new note_button{ note_button::kind::secondary, QStringLiteral("Discard"), EnhancePanel };
+		discard->setObjectName(QStringLiteral("commentEnhanceDiscard"));
+		discard->setAccessibleName(QStringLiteral("Discard suggestion"));
+		discard->set_style(Style);
+		EnhancePanel->set_buttons(use, discard);
+		Enhance          = new enhance_binding{ *ReplyBox, aSurface, *EnhanceButton, *EnhancePanel, this };
+		Enhance->Changed = [this] {
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		};
+	}
+
+	void open_thread_card::present_agent_suggestion(const agent_suggestion_presentation& aSuggestion)
+	{
+		if (SuggestAction == nullptr || SuggestPanel == nullptr) {
+			return;
+		}
+		const auto running = aSuggestion.Phase == agent_suggestion_phase::running;
+		SuggestAction->setText(running ? QStringLiteral("Stop Suggesting the Change") : QStringLiteral("Suggest the Change"));
+		SuggestAction->setVisible(aSuggestion.Offered || running);
+		SuggestAction->setEnabled(running || (aSuggestion.Offered && aSuggestion.Phase != agent_suggestion_phase::proposed));
+		const auto before     = SuggestPanel->isVisibleTo(Editor);
+		const auto lineBefore = SuggestPanel->line_text();
+		SuggestPanel->present(aSuggestion);
+		if (HeightChanged && (before != SuggestPanel->isVisibleTo(Editor) || lineBefore != SuggestPanel->line_text())) {
+			HeightChanged();
+		}
+	}
+
+	void open_thread_card::bind_enhance(enhance_dispatch aDispatch, enhance_cancel aCancel)
+	{
+		if (Enhance != nullptr) {
+			Enhance->set_dispatch(std::move(aDispatch), std::move(aCancel));
+		}
+	}
+
+	auto open_thread_card::present_enhancement(const enhance_outcome& aOutcome) -> bool { return Enhance != nullptr && Enhance->present(aOutcome); }
+
 	void open_thread_card::present_draft(const std::optional<draft_composer_presentation>& aDraft)
 	{
 		if (!Writing || ReplyBox == nullptr) {
@@ -2701,6 +3252,9 @@ namespace bpr::qt {
 		// of that same publication is still offered.
 		Publishable = aDraft.has_value() && aDraft->Publishable && (aDraft->Editable || aDraft->Retry);
 		ReplyBox->setReadOnly(!aDraft.has_value() || !aDraft->Editable);
+		if (Enhance != nullptr) {
+			Enhance->refresh();
+		}
 		if (aDraft.has_value() && ReplyBox->toPlainText() != aDraft->Body) {
 			// The draft editor's text arrives. A suggestion's caret goes to
 			// the end of the last line inside its block; any other to the end.
@@ -2739,7 +3293,24 @@ namespace bpr::qt {
 		if (DraftState != nullptr) {
 			static_cast<state_label*>(DraftState)->set_text(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
+		// RFC-BPR-0127. N opens the composer on Local; the choice is not
+		// remembered between comments.
+		if (aDraft.has_value() && aDraft->Local != LocalChosen) {
+			choose_local(aDraft->Local, false);
+		}
+		// RFC-BPR-0127. A draft a submitted review holds, or one being
+		// published, cannot be kept local: Local is disabled and says why.
+		if (StateLocal != nullptr) {
+			const auto refusal = aDraft.has_value() ? aDraft->LocalRefusal : QString{ };
+			const auto tip     = refusal.isEmpty() ? QStringLiteral("Only on this computer") : refusal;
+			StateLocal->setEnabled(refusal.isEmpty());
+			if (StateLocal->toolTip() != tip) {
+				StateLocal->setToolTip(tip);
+				StateLocal->setAccessibleDescription(tip);
+			}
+		}
 		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
+		present_agent_suggestion(aDraft.has_value() ? aDraft->AgentSuggestion : agent_suggestion_presentation{ });
 		// [[RFC-BPR-0090]]. The code's change counts as content, and a held
 		// suggestion offers Convert in place of the sending buttons.
 		CodeChange      = inCode && aDraft->Change.has_value() && !aDraft->Change->unchanged();
@@ -2764,14 +3335,43 @@ namespace bpr::qt {
 				HeightChanged();
 			}
 		}
-		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
-		if (!LastNotice.isEmpty()) {
+		const auto former      = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
+		const auto noticeShown = !ReplyStatus->isHidden();
+		const auto noticeWords = ReplyStatus->text();
+		const auto folded      = std::exchange(NoticeFolds, NoticeMark != nullptr && aDraft.has_value() && aDraft->NoticeFolds && !LastNotice.isEmpty());
+		if (NoticeMark != nullptr && (former != LastNotice || folded != NoticeFolds)) {
+			// A changed notice starts closed.
+			const auto blocker = QSignalBlocker{ NoticeMark };
+			NoticeMark->setChecked(false);
+		}
+		if (NoticeFolds) {
+			// [[BPR-2172]]. The notice is the mark; its sentence shows only
+			// while the mark is pressed.
+			if (!former.isEmpty() && ReplyStatus->text() == former) {
+				ReplyStatus->hide();
+			}
+			present_notice_mark();
+		} else if (!LastNotice.isEmpty()) {
+			if (NoticeMark != nullptr) {
+				NoticeMark->hide();
+			}
 			ReplyStatus->setText(LastNotice);
 			ReplyStatus->setAccessibleName(LastNotice);
 			ReplyStatus->show();
-		} else if (!former.isEmpty() && ReplyStatus->text() == former) {
-			// [[BPR-1329]]. A notice that no longer holds goes with it.
-			ReplyStatus->hide();
+		} else {
+			if (NoticeMark != nullptr) {
+				NoticeMark->hide();
+			}
+			if (!former.isEmpty() && ReplyStatus->text() == former) {
+				// [[BPR-1329]]. A notice that no longer holds goes with it.
+				ReplyStatus->hide();
+			}
+		}
+		// Owner look v005 ("a lot of overlap"): a notice that comes or goes
+		// changes the composer's height; the card is told, so its rows are
+		// laid out apart and none is drawn over the field.
+		if ((noticeShown != !ReplyStatus->isHidden() || noticeWords != ReplyStatus->text()) && HeightChanged) {
+			HeightChanged();
 		}
 		Review = aDraft.has_value() ? aDraft->Review : draft_review_state::none;
 		present_review_state();
@@ -2797,13 +3397,92 @@ namespace bpr::qt {
 		}
 	}
 
+	void open_thread_card::present_notice_mark()
+	{
+		if (NoticeMark == nullptr || ReplyStatus == nullptr) {
+			return;
+		}
+		const auto has = NoticeFolds && !LastNotice.isEmpty();
+		NoticeMark->setVisible(has);
+		if (!has) {
+			return;
+		}
+		const auto open = NoticeMark->isChecked();
+		// Its name says what it is and what pressing it does; the sentence
+		// is its description, so assistive technology reads it whole
+		// without opening it.
+		NoticeMark->setAccessibleName(open ? QStringLiteral("Placement warning, shown") : QStringLiteral("Placement warning"));
+		NoticeMark->setAccessibleDescription(LastNotice);
+		NoticeMark->setToolTip(open ? QStringLiteral("Hide the warning") : QStringLiteral("GitHub may not place this comment on its line. Show why"));
+		if (open) {
+			ReplyStatus->setText(LastNotice);
+			ReplyStatus->setAccessibleName(LastNotice);
+			ReplyStatus->show();
+		} else if (ReplyStatus->text() == LastNotice) {
+			ReplyStatus->hide();
+		}
+	}
+
 	auto open_thread_card::writing() const noexcept -> bool
 	{
 		return Writing;
 	}
 
+	auto open_thread_card::local_chosen() const noexcept -> bool
+	{
+		return LocalChosen;
+	}
+
+	void open_thread_card::choose_local(const bool aLocal, const bool aDispatch)
+	{
+		if (StateLocal == nullptr || StateDraft == nullptr) {
+			return;
+		}
+		if (StateToggle != nullptr) {
+			StateToggle->set_state(aLocal ? comment_state_toggle::state::local : comment_state_toggle::state::draft);
+		}
+		const auto changed = LocalChosen != aLocal;
+		LocalChosen        = aLocal;
+		// Local's foot: Delete and Save, and the sentence. Draft's is today's.
+		if (Publish != nullptr && ReviewAction != nullptr && SplitAction != nullptr) {
+			ReviewAction->setVisible(!aLocal && ConvertWords.isEmpty());
+			if (aLocal) {
+				Publish->hide();
+				SplitAction->hide();
+			} else {
+				Publish->setVisible(ConvertWords.isEmpty());
+				SplitAction->hide();
+			}
+		}
+		if (ConvertAction != nullptr && aLocal) {
+			ConvertAction->hide();
+		}
+		// In a thread: Save in Send's place.
+		if (ReviewAction == nullptr && Publish != nullptr) {
+			Publish->setVisible(!aLocal);
+		}
+		if (SaveLocal != nullptr) {
+			SaveLocal->setVisible(aLocal);
+		}
+		if (LocalWords != nullptr) {
+			LocalWords->setVisible(aLocal);
+		}
+		if (!aLocal) {
+			fit_draft_actions();
+		}
+		if (changed && aDispatch && Action) {
+			Action(aLocal ? card_action::compose_local : card_action::compose_draft);
+		}
+		if (changed && HeightChanged) {
+			HeightChanged();
+		}
+	}
+
 	auto open_thread_card::primary_action() const noexcept -> card_action
 	{
+		if (LocalChosen) {
+			return card_action::save_local;
+		}
 		switch (Review) {
 		case draft_review_state::none:
 		case draft_review_state::in_progress: return card_action::review_draft;
@@ -2849,11 +3528,8 @@ namespace bpr::qt {
 											  ? QStringLiteral("Takes this comment out of your review and posts it to the pull request now, on its own.")
 											  : QStringLiteral("Posts this one comment to the pull request now, on its own. No review is submitted."));
 		ReviewAction->setAccessibleName(ReviewAction->text());
-		if (auto* const privacy = static_cast<state_label*>(Privacy); privacy != nullptr) {
-			const auto reviewing = Review != draft_review_state::none;
-			privacy->set_text(reviewing ? QStringLiteral("Pending until you finish the review") : QStringLiteral("Private until you publish"));
-			privacy->show_whole_or_glyph(reviewing ? QStringLiteral("Only you see your review's comments until you finish the review.")
-												   : QStringLiteral("Only you see this draft until you publish it."));
+		if (StateDraft != nullptr) {
+			StateDraft->setAccessibleName(comment_state_words(false, true, Review == draft_review_state::pending));
 		}
 		Publish->updateGeometry();
 		ReviewAction->updateGeometry();
@@ -2861,7 +3537,7 @@ namespace bpr::qt {
 
 	void open_thread_card::fit_draft_actions()
 	{
-		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr || !ConvertWords.isEmpty()) {
+		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr || !ConvertWords.isEmpty() || LocalChosen) {
 			return;
 		}
 		// Room for the lock, Delete and both pills side by side, or the
@@ -2933,6 +3609,9 @@ namespace bpr::qt {
 		}
 		Replying = aReplying;
 		ReplyField->setVisible(!aReplying);
+		if (DraftReplyState != nullptr) {
+			DraftReplyState->setVisible(!aReplying && DraftReplyId.has_value() && !ReplyField->draft_words().isEmpty());
+		}
 		Editor->setVisible(aReplying);
 		refresh_reply_controls();
 		if (HeightChanged) {
@@ -2953,6 +3632,9 @@ namespace bpr::qt {
 		const auto ours = aReply.has_value() && aReply->Thread == Id;
 		Publishable     = ours && aReply->Publishable;
 		ReplyBox->setReadOnly(ours && !aReply->Editable);
+		if (Enhance != nullptr) {
+			Enhance->refresh();
+		}
 
 		if (ours && ReplyBox->toPlainText() != aReply->Body) {
 			// The draft editor's text arrives; a caret at the end keeps typing
@@ -2983,6 +3665,9 @@ namespace bpr::qt {
 		const auto written = ReplyBox != nullptr && (CodeChange || !ReplyBox->toPlainText().trimmed().isEmpty());
 		if (Publish != nullptr && ReplyBox != nullptr) {
 			Publish->setEnabled(Publishable && written);
+		}
+		if (SaveLocal != nullptr && ReplyBox != nullptr && ReviewAction == nullptr) {
+			SaveLocal->setEnabled(written);
 		}
 		// [[BPR-1345]]. A review takes a comment with words; closing a
 		// pending one is always possible.
@@ -3051,7 +3736,8 @@ namespace bpr::qt {
 			auto* const column = new QVBoxLayout{ EditPanel };
 			column->setContentsMargins(12, 11, 12, 11);
 			column->setSpacing(7);
-			auto* const hint = new QLabel{ QStringLiteral("Markdown. Nothing is sent to GitHub until you save."), EditPanel };
+			EditPanel->setAccessibleName(aEdit->Local ? QStringLiteral("Edit your local comment") : QStringLiteral("Edit your comment"));
+			auto* const hint = new QLabel{ aEdit->Local ? QStringLiteral("Only on this computer. Never sent.") : QStringLiteral("Markdown. Nothing is sent to GitHub until you save."), EditPanel };
 			hint->setObjectName(QStringLiteral("threadCommentEditHint"));
 			hint->setWordWrap(true);
 			hint->setTextFormat(Qt::PlainText);
@@ -3094,7 +3780,7 @@ namespace bpr::qt {
 			controls->addWidget(cancel);
 			auto* const save = new note_button{ note_button::kind::primary, QStringLiteral("Save"), EditPanel };
 			save->setObjectName(QStringLiteral("threadCommentEditSave"));
-			save->setToolTip(QStringLiteral("Save your comment to GitHub  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			save->setToolTip((aEdit->Local ? QStringLiteral("Save it only on this computer  %1") : QStringLiteral("Save your comment to GitHub  %1")).arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 			save->set_style(Style);
 			EditSaveButton = save;
 			controls->addWidget(save);
@@ -3195,6 +3881,26 @@ namespace bpr::qt {
 	auto open_thread_card::resolve_conversation() const noexcept -> QAbstractButton*
 	{
 		return ResolveConversation;
+	}
+
+	void open_thread_card::present_unsent_reply(const thread_card& aCard)
+	{
+		if (ReplyField == nullptr || DraftReplyState == nullptr) {
+			return;
+		}
+		const auto words = aCard.UnsentReplyDraft.has_value() ? aCard.UnsentReplyBody.simplified() : QString{ };
+		DraftReplyId     = words.isEmpty() ? std::nullopt : aCard.UnsentReplyDraft;
+		ReplyField->set_draft_words(words);
+		ReplyField->setText(aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"));
+		ReplyField->setToolTip(words.isEmpty() ? QStringLiteral("Reply  R") : QStringLiteral("Your draft reply, not sent  R"));
+		ReplyField->setAccessibleName(words.isEmpty() ? QStringLiteral("Reply") : QStringLiteral("Draft reply, not sent: %1").arg(words));
+		const auto shown = !Replying && DraftReplyId.has_value();
+		if (DraftReplyState->isVisibleTo(this) != shown) {
+			DraftReplyState->setVisible(shown);
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		}
 	}
 
 	void open_thread_card::present_read_state(const thread_card& aCard)

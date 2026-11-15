@@ -11,12 +11,12 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "conversation_glyphs.hpp"
 #include "github_presentation_text.hpp"
@@ -493,7 +493,11 @@ namespace bpr::qt {
 	void workbench_window::refresh_home_open()
 	{
 		auto open = home_row_open{ };
-		if (HomeOpen.has_value() && HomeOpen->State.has_value()) {
+		// [[BPR-2048]]. Too large to open is said on Home's card, with what was
+		// too large and Open on GitHub; the row says nothing of it twice.
+		const auto tooLarge = HomeOpen.has_value() && HomeOpen->State.has_value() && HomeOpen->State->Phase == core::home_open_phase::failed
+			&& HomeOpen->State->Reason == core::github_reason_code::response_too_large;
+		if (HomeOpen.has_value() && HomeOpen->State.has_value() && !tooLarge) {
 			const auto& state = *HomeOpen->State;
 			open.Identity     = QStringLiteral("%1/%2#%3")
 									.arg(QString::fromStdString(state.Repository.Owner), QString::fromStdString(state.Repository.Name))
@@ -754,7 +758,11 @@ namespace bpr::qt {
 			append(AcceptFileButton);
 			append(ReviewControlsButton);
 			// [[BPR-1815]]. The view controls, as they sit.
-			append(barPresenter(OnePaneAction));
+			// Owner, 2026-11-12: the view picker's segments, as they sit.
+			if (ReviewViewPicker != nullptr) {
+				append(ReviewViewPicker->segment(review_view::two_panes));
+				append(ReviewViewPicker->segment(review_view::one_pane));
+			}
 			append(barPresenter(HeaderSourceAction));
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));
@@ -832,17 +840,13 @@ namespace bpr::qt {
 		append(ComparisonSurface->detail_pane());
 		append(Drawers[1].Panel->rail());
 		// [[BPR-1134]]. The tray's tabs, then the Comments tab's tool and its
-		// conversation; the Notes tab's stops follow.
+		// conversation.
 		append(TrayTabs);
-		append(NextNewCommentButton);
+		append(PreviousCommentButton);
+		append(NextCommentButton);
 		append(PreviousDefectButton);
 		append(NextDefectButton);
 		append(Drawers[1].Panel->focus_stop());
-		if (PrivateNotes != nullptr) {
-			// [[BPR-1592]]. The notes, then the open note's field.
-			append(PrivateNotes);
-			append(PrivateNotes->body_editor());
-		}
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
 		}
@@ -1080,7 +1084,7 @@ namespace bpr::qt {
 		// as far down as its number fits, taking whatever the title row's other
 		// items leave (see update_strip_identity). With nothing open there is
 		// nothing to identify, and the label takes no width.
-		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || (LocalCycleShown && !showing_home()));
+		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || ((LocalCycleShown || LocalDraftShown) && !showing_home()));
 		// [[BPR-1338]]. Open on GitHub goes with an accepted GitHub pull
 		// request's name, never a local cycle's, and is measured with it below.
 		// It is shown only where it acts: nothing in the title row reads as
@@ -1293,15 +1297,10 @@ namespace bpr::qt {
 		case QEvent::ThemeChange:
 		case QEvent::DevicePixelRatioChange:
 			refresh_toolbar_icons();
-			// [[BPR-1592]]. The Agent tab's spark and the Notes tools follow
-			// the theme.
+			// [[BPR-1592]]. The Agent tab's spark follows the theme.
 			if (TrayTabs != nullptr && TrayTabs->count() > tray_findings_tab) {
 				TrayTabs->setTabIcon(tray_findings_tab, drawer_icon(drawer_glyph::agent, palette()));
 				fit_tray_tabs(true);
-			}
-			if (PrivateNotes != nullptr) {
-				PrivateNotes->new_line_action()->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-				PrivateNotes->elsewhere_action()->setIcon(drawer_icon(drawer_glyph::pull_request, palette()));
 			}
 			// [[BPR-1255]]. A font, style or theme can move the review bar's
 			// yielded width, and with it the window's floor.
@@ -1345,6 +1344,24 @@ namespace bpr::qt {
 			return;
 		}
 		const auto id = static_cast<core::workbench_command_id>(aIndex);
+		// A local draft steps through its own files and the viewer's changes.
+		if (LocalDraftShown) {
+			if (current_modality() != review_modality::review) {
+				choose_modality(review_modality::review);
+			}
+			const auto direction = id == core::workbench_command_id::previous_change || id == core::workbench_command_id::first_change || id == core::workbench_command_id::previous_file
+				? core::change_navigation_direction::previous
+				: core::change_navigation_direction::next;
+			if (aIndex < file_navigation_entries) {
+				step_local_file(id == core::workbench_command_id::next_file);
+			} else if (id == core::workbench_command_id::first_change || id == core::workbench_command_id::last_change) {
+				static_cast<void>(ComparisonSurface->navigate_outermost_change(direction));
+			} else {
+				static_cast<void>(ComparisonSurface->navigate_change(direction, core::change_navigation_policy::stop));
+			}
+			focus_review_navigation(id);
+			return;
+		}
 		if (const auto offered = command(id); !offered || !offered->Enabled) {
 			return;
 		}
@@ -1525,6 +1542,30 @@ namespace bpr::qt {
 			QueueFollowDispatch(application::queue_follow_intent{ .Ref = *ref, .Title = OpenQueueTitle, .Follow = !followed });
 			// The check mark is the queue's to decide.
 			update_pull_request_queue_actions();
+		});
+		// [[BPR-2049]]. The row's Seen, from the pull request itself: offered
+		// while my approval stands and commits followed it.
+		SeenPullRequest = PullRequestMenu->addAction(QStringLiteral("Mark New Commits &Seen"));
+		SeenPullRequest->setObjectName(QStringLiteral("seenPullRequestAction"));
+		SeenPullRequest->setEnabled(false);
+		connect(SeenPullRequest, &QAction::triggered, this, [this] {
+			const auto ref  = open_queue_ref();
+			const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
+			if (item) {
+				dispatch_home_followup(*item);
+			}
+			update_pull_request_queue_actions();
+		});
+		// RFC-BPR-0116 ([[BPR-2073]]). Beside Seen: asks the agent what the
+		// commits since my review changed. Offered only while there are some
+		// and the code I reviewed can be read.
+		WhatChangedPullRequest = PullRequestMenu->addAction(QStringLiteral("What &Changed Since My Review"));
+		WhatChangedPullRequest->setObjectName(QStringLiteral("whatChangedPullRequestAction"));
+		WhatChangedPullRequest->setEnabled(false);
+		connect(WhatChangedPullRequest, &QAction::triggered, this, [this] {
+			if (WhatChangedDispatch) {
+				WhatChangedDispatch();
+			}
 		});
 		SavePullRequestRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));
 		SavePullRequestRepository->setObjectName(QStringLiteral("savePullRequestRepositoryAction"));

@@ -118,10 +118,10 @@ namespace bpr::core {
 		/// Copy: the answer, or the error's words and what the agent wrote
 		/// to its error stream, for a report.
 		bool Copy = false;
-		/// Save as note and Draft comment: only for an answer.
-		bool                SaveNote     = false;
-		bool                DraftComment = false;
-		agent_turn_recovery Recovery     = agent_turn_recovery::none;
+		/// RFC-BPR-0127. The one keep action, Draft comment or Keep local
+		/// (`decide_keep` chooses): only for an answer.
+		bool                Keep     = false;
+		agent_turn_recovery Recovery = agent_turn_recovery::none;
 		/// [[BPR-1876]]. The cause the error names is no longer true: it is
 		/// said as fixed since, not as how things stand.
 		bool FixedSince = false;
@@ -137,9 +137,9 @@ namespace bpr::core {
 
 	/// \brief The actions one ended turn offers.
 	///
-	/// \details An answer with text offers Copy, Save as note and Draft
-	/// comment and is not an error. Every other outcome is an error: it keeps
-	/// Copy when it has words, never offers Save as note or Draft comment,
+	/// \details An answer with text offers Copy and its one keep action and
+	/// is not an error. Every other outcome is an error: it keeps Copy when
+	/// it has words, never offers the keep action,
 	/// and, on the latest turn while nothing runs, offers one recovery: an
 	/// unreadable answer opens the agent's settings, and every other ending,
 	/// a start or workspace failure among them, resends. [[BPR-1876]]:

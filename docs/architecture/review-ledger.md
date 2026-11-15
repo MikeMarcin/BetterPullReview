@@ -138,12 +138,15 @@ a model" is true by construction rather than by convention.
 - **Delta** — `application::receipt_projection`, or
   `receipt_failure_publication` carrying exactly one of a core rejection or a
   store failure.
-- **Private records** — `application::local_note_record`, an optional exact
-  file/comparison attachment, one `core::git_commit_oid` last-reviewed head,
+- **Private records** — `application::local_comment_record` (RFC-BPR-0127: a
+  Local comment, what was a private note), an optional exact
+  file/comparison attachment with an optional line, range start and reply
+  thread, one `core::git_commit_oid` last-reviewed head,
   and `application::durable_defect_record` binding a local defect history to
   its file and ordinary GitHub conversation identity.
 - **Private observation** — `application::private_ledger_observation`, bounded
-  to 4,096 notes and 4,096 defects and ordered by stable record identity.
+  to 4,096 Local comments (`LocalComments`) and 4,096 defects and ordered by
+  stable record identity.
 
 Private writes and deletes are narrow store operations on those values. The
 application host validates them before the port, and the SQLite adapter repeats
@@ -224,6 +227,29 @@ turn's current revision; writes append reviewer revisions. Canonical thread
 updates invalidate the facade's CAS token as well. The mapping holds no text.
 Legacy attachments remain either absent or an exact file/comparison pair.
 
+Version 12 (RFC-BPR-0127, [[BPR-2157]]) makes every private note a Local
+comment. `private_local_comment` holds one row a comment, in columns, so each
+anchor fact is checked where it is kept. File identity and comparison are both
+present or both absent (absent is the pull request). The path, the line and its
+side exist only with a file. The blob exists only with a line, and the range
+start only on a line, above it. The reply thread is 1 to 1,024 bytes. The body
+is 1 to 65,536 bytes, the draft's bound, so Keep local never cuts a draft. A
+note's 16 KiB fits. A review keeps at most 4,096 Local comments, counted in the
+table and not against the 64 active drafts that `private_scope_state.drafts`
+counts. Revisions continue from `private_scope_state.note_revision`, so a
+migrated revision is never issued again.
+
+The migration runs inside the ledger's one migration transaction. Every note,
+in note order, becomes one row with its note identity (so a finding card's
+note reference still arrives), revision, exact bytes, attachment, path and
+line. Each note's own thread, which was the note, is then removed, unless an
+agent run or another record refers to it; such a thread stays as history.
+`private_legacy_note`, `private_note_path` and `private_note_line` are
+dropped. An interruption anywhere rolls the whole step back. The test is
+`sqlite_review_ledger_storage` against the schema 11 file the shipped code
+wrote (`tests/fixtures/review-ledger/v11-notes.sqlite`), interrupted at every
+statement. Drafts stay in `private_draft`. No comment is in both tables.
+
 Version 11 (RFC-BPR-0089 M2) adds `generated_mark`: one row per file the
 reviewer made a generated-file statement about in that review scope, keyed by
 `file_identity`, with `mark` (1 Show as normal, 2 Treat as generated) and
@@ -271,7 +297,7 @@ still pending.
 | `private_composition`, `private_composition_source` | Versioned composition and ordered exact source selection. |
 | `private_draft` | Existing draft state and exact target; linked drafts reference candidate bodies instead of duplicating them. |
 | `private_publication` | Local pending join and receipt correlation, including separate approved-prose and wire-body digests. |
-| `private_legacy_note` | Bodyless old-note mapping and original revision/CAS compatibility. |
+| `private_local_comment` | Schema 12 (RFC-BPR-0127). One Local comment a row: identity, revision, file and comparison, path, side and line, range start, blob, reply thread and exact body. Schema 7 to 11 kept notes as one-turn threads with `private_legacy_note`, `private_note_path` and `private_note_line`; schema 12 removes those three. |
 
 A write contains at most 256 records. New objects consume consecutive IDs from
 one scope frontier under `BEGIN IMMEDIATE`; edits carry expected versions.

@@ -29,7 +29,7 @@ namespace bpr::qt {
 	struct start_agent_intent
 	{
 		core::agent_profile_id                         Profile;
-		std::vector<application::local_note_id>        IncludedNotes;
+		std::vector<application::local_comment_id>     IncludedNotes;
 		std::optional<application::agent_draft_choice> IncludedDraft;
 		/// Whether the reviewer chose their own checkout for this invocation.
 		/// Carried on the intent rather than read from a setting, because
@@ -117,7 +117,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto offered_count() const noexcept -> std::size_t { return OfferedIds.size(); }
 		/// \brief Offers only opaque current private-context identities, unchecked.
 		void offer_private_context(
-			std::span<const application::local_note_id>    aNotes,
+			std::span<const application::local_comment_id> aNotes,
 			std::optional<application::agent_draft_choice> aDraft);
 
 		void offer(std::span<const core::agent_profile> aProfiles) override;
@@ -173,6 +173,21 @@ namespace bpr::qt {
 		/// reported running: its model, and its cost when the harness said.
 		[[nodiscard]] auto last_reported_model() const -> QString { return LastModel; }
 		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
+		/// \brief [[BPR-1999]]. The last run's cost, as the core accounted
+		/// it, and its conversation's total once known.
+		[[nodiscard]] auto last_turn_cost() const noexcept -> std::optional<core::agent_cost> { return LastTurnCost; }
+		/// \brief [[BPR-2005]]. What the running (or last) turn did, as its
+		/// runtime reported it, timed from `activity_started_ms`.
+		[[nodiscard]] auto activity() const noexcept -> const core::agent_turn_activity& { return Activity; }
+		[[nodiscard]] auto activity_started_ms() const noexcept -> qint64 { return ActivityStartedMs; }
+		/// \brief Whether the runtime reported anything the block shows.
+		[[nodiscard]] auto activity_reported() const noexcept -> bool { return ActivityReported; }
+		/// \brief [[BPR-2004]]. The text that arrived before a turn was
+		/// stopped or its runtime ended under its helpers: kept.
+		[[nodiscard]] auto kept_text() const -> QString { return KeptText; }
+		[[nodiscard]] auto last_failure() const noexcept -> std::optional<application::agent_protocol_failure> { return LastFailure; }
+		[[nodiscard]] auto unfinished_helpers() const -> const std::vector<std::string>& { return LastUnfinished; }
+		[[nodiscard]] auto last_session_cost() const noexcept -> std::optional<core::agent_cost> { return LastSessionCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		/// \brief [[BPR-1873]]. Whether the running or last run's workspace
@@ -234,6 +249,14 @@ namespace bpr::qt {
 		QString                                                 LastRefusal;
 		QString                                                 LastModel;
 		QString                                                 LastCost;
+		std::optional<core::agent_cost>                         LastTurnCost;
+		core::agent_turn_activity                               Activity;
+		qint64                                                  ActivityStartedMs = 0;
+		bool                                                    ActivityReported  = false;
+		QString                                                 KeptText;
+		std::optional<application::agent_protocol_failure>      LastFailure;
+		std::vector<std::string>                                LastUnfinished;
+		std::optional<core::agent_cost>                         LastSessionCost;
 		phase                                                   Phase = phase::idle;
 		std::vector<std::function<void()>>                      ProgressObservers;
 		void                                                    progressed();

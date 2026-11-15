@@ -273,6 +273,16 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 9.0, 12.0 }, QPointF{ 18.0, 12.0 });
 				aPainter.drawLine(QPointF{ 6.0, 15.0 }, QPointF{ 13.0, 15.0 });
 				break;
+			case strip_glyph::edit_file:
+				aPainter.drawRect(QRectF{ 3.0, 5.0, 18.0, 14.0 });
+				aPainter.drawLine(QPointF{ 6.0, 9.0 }, QPointF{ 11.0, 9.0 });
+				aPainter.drawLine(QPointF{ 6.0, 12.0 }, QPointF{ 9.0, 12.0 });
+				aPainter.drawLine(QPointF{ 6.0, 15.0 }, QPointF{ 10.0, 15.0 });
+				// The caret: an I-beam standing across the rows.
+				aPainter.drawLine(QPointF{ 15.0, 8.0 }, QPointF{ 15.0, 16.0 });
+				aPainter.drawLine(QPointF{ 13.5, 8.0 }, QPointF{ 16.5, 8.0 });
+				aPainter.drawLine(QPointF{ 13.5, 16.0 }, QPointF{ 16.5, 16.0 });
+				break;
 			case strip_glyph::header_source: {
 				// Two pages, each with its corner folded at the upper right.
 				const auto page = [&aPainter](const qreal aLeft) {
@@ -702,8 +712,14 @@ namespace bpr::qt {
 		if (firstAction == nullptr || lastAction == nullptr) {
 			return { };
 		}
-		// A hidden presenter keeps no geometry of its own, so a group whose
-		// end is hidden draws nothing rather than a rail to a stale place.
+		// [[BPR-2156]]. A hidden presenter keeps its last geometry, so a
+		// group with a hidden end draws no rail (the Edit view's progress
+		// track left one under nothing).
+		for (QAction* const action : { firstAction.data(), lastAction.data() }) {
+			if (const auto* const widget = widgetForAction(action); !action->isVisible() || widget == nullptr || widget->isHidden()) {
+				return { };
+			}
+		}
 		const auto first = actionGeometry(firstAction);
 		const auto last  = actionGeometry(lastAction);
 		if (first.isEmpty() || last.isEmpty() || first.left() >= last.right()) {

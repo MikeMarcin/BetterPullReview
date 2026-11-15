@@ -89,6 +89,19 @@ namespace bpr::application {
 		auto operator==(const markdown_in_app_link&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-2181]]. A read of a pull request answered 404 or refused
+	/// permission: the pull request is no longer readable under this authority.
+	struct github_pull_request_access_loss
+	{
+		core::host_profile_id     Profile;
+		core::github_account_id   Account;
+		core::github_access_mode  Mode{ };
+		core::repository_locator  Repository;
+		core::pull_request_number Number;
+
+		auto operator==(const github_pull_request_access_loss&) const -> bool = default;
+	};
+
 	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.
 	/// [[BPR-1447]]. With \p aBodyDigests, a fetched snapshot's feedback bodies
 	/// are digested on the provider's completion thread, before the snapshot
@@ -99,6 +112,10 @@ namespace bpr::application {
 	{
 	public:
 		using publication = std::function<void(const github_window_read_update&)>;
+		/// \brief [[BPR-2181]]. Told on the decision lane when a read of this
+		/// window answers 404 or refused permission. Opening another pull
+		/// request, closing one or retiring the window never tells it.
+		using access_loss_observer = std::function<void(const github_pull_request_access_loss&)>;
 		github_window_read_host(core::bpr_window_context     aWindow,
 								core::application_session_id aSession, github_pull_request_port& aReads,
 								decision_executor& aDecision, publication aPublication,
@@ -184,6 +201,22 @@ namespace bpr::application {
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
 		[[nodiscard]] auto window() const noexcept -> core::bpr_window_context;
 		[[nodiscard]] auto accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>&;
+		/// \brief [[BPR-2181]]. The accepted pull request's epoch handoff,
+		/// rewritten for another holder's application session and carrying
+		/// no smart-Git lease.
+		/// \details For `github_application_host`, which mints the holder's
+		/// lease and owns its revocation. Empty while closing, before a
+		/// snapshot is accepted, for this window's own session and for a zero
+		/// one.
+		[[nodiscard]] auto lend_epoch_handoff(core::application_session_id aHolder) -> std::optional<accepted_pull_request_handoff>;
+		/// \brief [[BPR-2181]]. Sets, or with an empty function clears, the
+		/// one observer of this window's lost access.
+		void observe_access_loss(access_loss_observer aObserver);
+		/// \brief [[BPR-2184]] (review N3). Counts what each merge brought in,
+		/// on the authority and account of the read that answered the
+		/// accepted snapshot; answers on the decision lane, with nothing when
+		/// there is no such read or the window is signed out.
+		void               count_merges(std::vector<github_merge_to_count> aMerges, github_merge_count_handler aDone);
 		[[nodiscard]] auto mutation_transport() const noexcept -> review_mutation_transport;
 		[[nodiscard]] auto rate_limits() const noexcept -> const github_rate_limit_state&;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;

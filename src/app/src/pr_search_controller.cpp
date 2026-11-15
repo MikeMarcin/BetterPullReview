@@ -13,6 +13,12 @@ namespace bpr::app {
 		, Execution{ aCorpus, aEngine }
 		, Host{ aDecisions, aEffects, Execution, *this }
 	{
+		attach();
+		RevealTimer.setInterval(10);
+		QObject::connect(&RevealTimer, &QTimer::timeout, [this] { try_reveal(); });
+	}
+	void pr_search_controller::attach()
+	{
 		Panel.Activate         = [this](auto aIndex) { activate(aIndex); };
 		Panel.ActivateInNewTab = [this](auto aIndex) { activate(aIndex, result_tab::new_tab); };
 		Panel.Select           = [this](auto aIndex) { static_cast<void>(Host.select_match(aIndex)); };
@@ -27,11 +33,12 @@ namespace bpr::app {
 				static_cast<void>(Host.select_match(*next));
 			}
 		};
-		RevealTimer.setInterval(10);
-		QObject::connect(&RevealTimer, &QTimer::timeout, [this] { try_reveal(); });
 	}
 	pr_search_controller::~pr_search_controller()
 	{
+		if (PanelGone) {
+			return;
+		}
 		Panel.Activate          = { };
 		Panel.ActivateInNewTab  = { };
 		Panel.Select            = { };
@@ -190,7 +197,9 @@ namespace bpr::app {
 	}
 	void pr_search_controller::shutdown()
 	{
-		Panel.cancel_pending();
+		if (!PanelGone) {
+			Panel.cancel_pending();
+		}
 		cancel_reveal();
 		Host.shutdown();
 	}
@@ -199,6 +208,9 @@ namespace bpr::app {
 	auto pr_search_controller::statistics() const -> application::source_search_statistics { return Execution.statistics(); }
 	void pr_search_controller::publish(const application::source_search_projection& aProjection)
 	{
+		if (PanelGone) {
+			return;
+		}
 		auto projection       = aProjection;
 		projection.Statistics = Execution.statistics();
 		Panel.set_snippet_font(Surface.right_pane()->font());
@@ -207,7 +219,7 @@ namespace bpr::app {
 			const auto right      = core::canonical_hex(projection.Scope->Comparison.Right.Commit);
 			const auto leftShort  = left.view().substr(0, 8);
 			const auto rightShort = right.view().substr(0, 8);
-			Panel.set_scope_labels(QStringLiteral("PR #%1  %2 → %3").arg(projection.Scope->Authority.Number.value()).arg(QString::fromUtf8(leftShort.data(), static_cast<qsizetype>(leftShort.size())), QString::fromUtf8(rightShort.data(), static_cast<qsizetype>(rightShort.size()))), QStringLiteral("Left %1\nRight %2").arg(QString::fromUtf8(left.view().data(), static_cast<qsizetype>(left.view().size())), QString::fromUtf8(right.view().data(), static_cast<qsizetype>(right.view().size()))));
+			Panel.set_scope_labels((ScopeName.isEmpty() ? QStringLiteral("PR #%1").arg(projection.Scope->Authority.Number.value()) : ScopeName) + QStringLiteral("  %1 → %2").arg(QString::fromUtf8(leftShort.data(), static_cast<qsizetype>(leftShort.size())), QString::fromUtf8(rightShort.data(), static_cast<qsizetype>(rightShort.size()))), QStringLiteral("Left %1\nRight %2").arg(QString::fromUtf8(left.view().data(), static_cast<qsizetype>(left.view().size())), QString::fromUtf8(right.view().data(), static_cast<qsizetype>(right.view().size()))));
 		}
 		Panel.present(projection);
 	}

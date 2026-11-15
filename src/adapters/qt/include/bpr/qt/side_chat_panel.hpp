@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_session.hpp"
 
 #include <QString>
@@ -93,6 +94,12 @@ namespace bpr::qt {
 		/// The scope shown when the reviewer sent it, not one resolved later.
 		core::agent_chat_scope Scope;
 		std::string            Text;
+		/// [[BPR-2002]]. The subject the core decided for this question, as
+		/// `set_question` gave it; none sends as `EntryPoint` always did.
+		std::optional<core::agent_question> Question;
+		/// RFC-BPR-0125 (AC09). For a suggested prompt sent as offered, the
+		/// only text its skill references are read from; none reads `Text`.
+		std::optional<std::string> SkillText;
 
 		auto operator<=>(const send_chat_message_intent&) const = default;
 	};
@@ -186,6 +193,10 @@ namespace bpr::qt {
 		side_chat_panel_statistics          Statistics;
 		side_chat_intent_dispatch           Dispatch;
 		std::optional<side_chat_projection> Shown;
+		/// [[BPR-2002]]. The question the next Send asks, decided by the core.
+		std::optional<core::agent_question> Question;
+		/// RFC-BPR-0125. What the next Send reads skills from, if not its text.
+		std::optional<std::string> SkillText;
 
 		QListWidget*    Replies            = nullptr;
 		QPlainTextEdit* ReplyBody          = nullptr;
@@ -238,6 +249,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto replies_list() const noexcept -> QListWidget*;
 		[[nodiscard]] auto promote_action() const noexcept -> QAction*;
 
+		/// \brief [[BPR-2002]]. The subject and entry point the next Send
+		/// carries, as the core decided them; none: the projection's entry
+		/// point, as before. Kept until replaced.
+		void               set_question(std::optional<core::agent_question> aQuestion);
+		[[nodiscard]] auto question() const noexcept -> const std::optional<core::agent_question>& { return Members.Question; }
+		/// \brief RFC-BPR-0125. What the next send reads skills from, as
+		/// `set_question` is given its subject; none reads its text.
+		void set_skill_text(std::optional<std::string> aSkillText);
+
 		/// \brief Adopts one accepted projection, and starts nothing.
 		void present(const side_chat_projection& aProjection);
 
@@ -277,6 +297,11 @@ namespace bpr::qt {
 			-> core::agent_observation_record;
 		[[nodiscard]] auto statistics() const noexcept
 			-> side_chat_panel_statistics;
+
+	protected:
+		/// \brief [[BPR-1999]]. Return in the composer sends and Shift+Return
+		/// starts a new line; an empty composer sends nothing.
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
 		void emit_private_context();

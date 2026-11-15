@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -39,6 +40,12 @@ namespace bpr::core {
 		document_tab_id         Id;
 		window_review_position  View;
 		document_tab_view_state State = document_tab_view_state::idle;
+		/// RFC-BPR-0128 ([[BPR-2166]]). A report's key: the tab shows an
+		/// agent's report, not a file. Empty for a file's tab. A report tab
+		/// never loads, takes no comparison and is not persisted (Q10).
+		std::string Report;
+
+		[[nodiscard]] auto report() const noexcept -> bool { return !Report.empty(); }
 
 		auto operator==(const document_tab&) const -> bool = default;
 	};
@@ -178,6 +185,16 @@ namespace bpr::core {
 		auto operator==(const set_window_comparison_intent&) const -> bool = default;
 	};
 
+	/// \brief RFC-BPR-0128 ([[BPR-2166]], owner Q8: "file tab is more
+	/// flexible"). A report card's Open: the report's tab, after the active
+	/// tab, made active; an open report's tab is activated again.
+	struct open_report_tab_intent
+	{
+		std::string Report;
+
+		auto operator==(const open_report_tab_intent&) const -> bool = default;
+	};
+
 	using document_tab_intent = std::variant<
 		open_in_active_tab_intent,
 		open_in_new_tab_intent,
@@ -189,7 +206,8 @@ namespace bpr::core {
 		return_tab_to_window_comparison_intent,
 		make_tab_comparison_window_intent,
 		select_tab_comparison_intent,
-		set_window_comparison_intent>;
+		set_window_comparison_intent,
+		open_report_tab_intent>;
 
 	/// \brief Why a tab gesture or observation changed nothing.
 	enum class document_tab_reason : std::uint8_t {
@@ -203,6 +221,9 @@ namespace bpr::core {
 		stale_view,
 		invalid_position,
 		invalid_restoration,
+		/// RFC-BPR-0128. A file's gesture named a report's tab, or a report's
+		/// key is empty.
+		report_tab,
 	};
 
 	/// \brief How the host's load of one tab's exact view ended.

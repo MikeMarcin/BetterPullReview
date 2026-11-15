@@ -49,6 +49,7 @@
 	#include <QFlags>
 	#include <QListView>
 	#include <QModelIndex>
+	#include <algorithm>
 	#include <atomic>
 	#include <chrono>
 	#include <condition_variable>
@@ -145,6 +146,84 @@ namespace bpr::app {
 		github_application& aApplication) -> std::function<void()>
 	{
 		return hold_fixture_effects(aApplication.Implementation->ReviewMutationEffects);
+	}
+
+	auto detail::github_application_fixture_access::hold_review_submission_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+		return hold_fixture_effects(aApplication.Implementation->ReviewSubmissionEffects);
+	}
+
+	auto detail::github_application_fixture_access::hold_author_git_lane(github_application& aApplication) -> std::function<void()>
+	{
+		auto* const drafts = aApplication.Implementation->DraftDesktop.get();
+		if (drafts == nullptr) {
+			return [] { };
+		}
+		return hold_fixture_effects(drafts->author_git_lane());
+	}
+
+	auto detail::github_application_fixture_access::seed_local_replies_for_look(github_application& aApplication, const std::string& aThread, const core::source_line_ref aLine) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		return owner != nullptr && owner->seed_local_replies_for_look(aThread, aLine);
+	}
+
+	auto detail::github_application_fixture_access::seed_local_comment(github_application& aApplication, const std::string& aBody, const bool aWholeFile) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		return owner != nullptr && owner->seed_local_comment(aBody, aWholeFile);
+	}
+
+	auto detail::github_application_fixture_access::hold_local_draft_publication_lane(github_application& aApplication) -> std::function<void()>
+	{
+		auto* const drafts = aApplication.Implementation->DraftDesktop.get();
+		auto* const lane   = drafts != nullptr ? drafts->publication_lane() : nullptr;
+		if (lane == nullptr) {
+			return { };
+		}
+		return hold_fixture_effects(*lane);
+	}
+
+	auto detail::github_application_fixture_access::hold_review_submission_lane(
+		github_application& aApplication) -> std::function<void()>
+	{
+		auto* const workflow = aApplication.Implementation->ReviewSubmission.get();
+		auto* const lane     = workflow != nullptr ? workflow->current_lane() : nullptr;
+		if (lane == nullptr) {
+			return [] { };
+		}
+		return hold_fixture_effects(*lane);
+	}
+
+	void detail::github_application_fixture_access::set_review_submission_wait_bound(github_application& aApplication, const std::chrono::milliseconds aBound)
+	{
+		if (auto* const workflow = aApplication.Implementation->ReviewSubmission.get(); workflow != nullptr) {
+			workflow->set_wait_bound(aBound);
+		}
+	}
+
+	auto detail::github_application_fixture_access::invalidate_current_authority(github_application& aApplication) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		if (owner == nullptr || !owner->LastAcceptedHandoff) {
+			return false;
+		}
+		const auto& handoff = *owner->LastAcceptedHandoff;
+		owner->invalidate(application::pull_request_authority_invalidation{
+			.ApplicationSession = handoff.ApplicationSession,
+			.Profile            = handoff.Profile,
+			.ProfileRevision    = handoff.ProfileRevision,
+			.Host               = handoff.Host,
+			.HostAuthority      = handoff.HostAuthority,
+			.Account            = handoff.Account,
+			.Viewer             = handoff.Viewer,
+			.Repository         = handoff.Repository,
+			.PullRequest        = handoff.PullRequest,
+			.IdentityGeneration = handoff.IdentityGeneration,
+			.Mode               = handoff.Mode,
+		});
+		return true;
 	}
 
 	auto detail::github_application_fixture_access::hold_agent_conversation_effects(
@@ -483,13 +562,13 @@ namespace bpr::app {
 		if (!state.AcceptedRevision.has_value()) {
 			return false;
 		}
-		const auto selected = application::local_note_record{
-			.Id   = application::local_note_id{ 246U },
-			.Note = { .Text = std::string{ aSelectedNote } },
+		const auto selected = application::local_comment_record{
+			.Id   = application::local_comment_id{ 246U },
+			.Body = std::string{ aSelectedNote },
 		};
-		const auto unselected = application::local_note_record{
-			.Id   = application::local_note_id{ 247U },
-			.Note = { .Text = std::string{ aUnselectedNote } },
+		const auto unselected = application::local_comment_record{
+			.Id   = application::local_comment_id{ 247U },
+			.Body = std::string{ aUnselectedNote },
 		};
 		auto       accepted = std::make_shared<std::size_t>(0U);
 		auto       answered = std::make_shared<std::optional<bool>>();
@@ -827,6 +906,58 @@ namespace bpr::app {
 		return evidence;
 	}
 	#endif
+	auto detail::github_application_fixture_access::fixture_agent_admits(const github_application& aApplication, const std::string& aExecutable) -> std::optional<std::string>
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		return implementation != nullptr ? implementation->fixture_agent_admission()(aExecutable) : std::nullopt;
+	#else
+		static_cast<void>(implementation);
+		static_cast<void>(aExecutable);
+		return std::nullopt;
+	#endif
+	}
+
+	auto detail::github_application_fixture_access::agent_session_key(const github_application& aApplication) -> std::string
+	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		if (const auto* const implementation = aApplication.Implementation.get(); implementation != nullptr) {
+			return implementation->ask_session_key();
+		}
+	#endif
+		static_cast<void>(aApplication);
+		return { };
+	}
+
+	auto detail::github_application_fixture_access::agent_session(const github_application& aApplication, const std::string& aSession) -> agent_session_evidence
+	{
+		auto evidence = agent_session_evidence{ };
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		const auto& profile = *aApplication.Profile;
+		if (profile.AgentQueue) {
+			if (const auto* const queue = profile.AgentQueue->queue(aSession); queue != nullptr) {
+				evidence.Queued = static_cast<std::size_t>(std::ranges::count(queue->Entries, core::queued_state::queued, &core::queued_entry::State));
+				evidence.Paused = queue->Paused;
+			}
+			evidence.Sending = profile.AgentQueue->sending(aSession).has_value();
+		}
+		if (profile.AgentRuntimes) {
+			if (const auto* const runtime = profile.AgentRuntimes->find(aSession); runtime != nullptr) {
+				evidence.Runtime   = true;
+				evidence.Running   = runtime->running();
+				evidence.Quiescent = runtime->is_quiescent();
+			}
+		}
+		if (const auto* const stack = profile.agent_stack(aSession); stack != nullptr) {
+			evidence.Launches = stack->invocations();
+		}
+	#else
+		static_cast<void>(aApplication);
+		static_cast<void>(aSession);
+	#endif
+		return evidence;
+	}
+
 	auto detail::github_application_fixture_access::agent_invocation_evidence(
 		const github_application& aApplication) noexcept
 		-> detail::agent_invocation_composition_evidence
@@ -836,6 +967,21 @@ namespace bpr::app {
 			return { };
 		}
 	#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2181]]. The Agent tab's turns run on the session's runtime,
+		// whose stack the profile owns: its launches and statistics count with
+		// the window's own, and its turn with the window's quiescence.
+		const auto* const stack  = implementation->presented_agent_stack();
+		auto              summed = implementation->AgentHost != nullptr ? implementation->AgentHost->statistics() : application::agent_invocation_host_statistics{ };
+		if (stack != nullptr) {
+			const auto own = stack->statistics();
+			summed.CoreDecisions += own.CoreDecisions;
+			summed.WorkspaceStarts += own.WorkspaceStarts;
+			summed.ProcessStarts += own.ProcessStarts;
+			summed.WorkspaceCleanups += own.WorkspaceCleanups;
+			summed.WorkspaceCleanupFailures += own.WorkspaceCleanupFailures;
+			summed.SessionAdmissions += own.SessionAdmissions;
+			summed.SessionAdmissionFailures += own.SessionAdmissionFailures;
+		}
 		return {
 			.AgentProcessLauncherComposed = implementation->AgentProcess != nullptr,
 			// [[BPR-1900]]. The tour session's runs are counted with the
@@ -844,14 +990,11 @@ namespace bpr::app {
 			= (implementation->AgentProcessProbe != nullptr
 				   ? implementation->AgentProcessProbe->invocations()
 				   : 0U)
-				+ (implementation->TourProcessProbe != nullptr ? implementation->TourProcessProbe->invocations() : 0U),
-			.HostComposed = implementation->AgentHost != nullptr,
-			.Quiescent    = (implementation->AgentHost == nullptr
-							 || implementation->AgentHost->is_quiescent())
-				&& (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent()),
-			.Statistics    = implementation->AgentHost != nullptr
-				? implementation->AgentHost->statistics()
-				: application::agent_invocation_host_statistics{ },
+				+ (implementation->TourProcessProbe != nullptr ? implementation->TourProcessProbe->invocations() : 0U)
+				+ (stack != nullptr ? stack->invocations() : 0U),
+			.HostComposed  = implementation->AgentHost != nullptr,
+			.Quiescent     = implementation->agent_turn_quiescent() && (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent()),
+			.Statistics    = summed,
 			.WorkspaceRoot = std::filesystem::path{ implementation->LastAgentWorkspacePath }.parent_path(),
 		};
 	#else

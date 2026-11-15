@@ -134,6 +134,11 @@ namespace bpr::application {
 			review_submission_execution_grant        Grant;
 			std::stop_source                         Stop;
 			std::string                              Key;
+			/// [[RFC-BPR-0105]]. Guarded by the host mutex: the effect began on
+			/// its lane, or it was abandoned before it could begin and its
+			/// terminal was already delivered.
+			bool Started   = false;
+			bool Abandoned = false;
 		};
 		review_submission_provider_factory   Factory;
 		review_submission_live_binding       Binding;
@@ -230,6 +235,78 @@ namespace bpr::application {
 				Projection.publish(aTerminal);
 			} catch (...) { }
 		}
+		/// [[RFC-BPR-0105]]. Marks the record started unless it was abandoned,
+		/// and tells the projection on the decision lane that it started.
+		auto begin(const std::shared_ptr<record>& aRecord) -> bool
+		{
+			{
+				std::scoped_lock lock{ Mutex };
+				if (aRecord->Abandoned) {
+					return false;
+				}
+				aRecord->Started = true;
+			}
+			auto self = shared_from_this();
+			try {
+				Decisions.post([self, aRecord] {
+					{
+						std::scoped_lock lock{ self->Mutex };
+						if (self->Active != aRecord) {
+							return;
+						}
+					}
+					try {
+						self->Projection.started(aRecord->Context);
+					} catch (...) { }
+				});
+			} catch (...) { }
+			return true;
+		}
+		/// [[BPR-1992]]. Consumes the grant for one write and, when it is
+		/// granted, tells the projection on the decision lane what GitHub has
+		/// confirmed before it.
+		auto authorize_child(const std::shared_ptr<record>& aRecord, const staged_publication_record& aChild) -> bool
+		{
+			if (!aRecord->Grant || !aRecord->Grant->consume_child(aChild)) {
+				return false;
+			}
+			auto self = shared_from_this();
+			try {
+				Decisions.post([self, aRecord, progress = aChild] {
+					{
+						std::scoped_lock lock{ self->Mutex };
+						if (self->Active != aRecord) {
+							return;
+						}
+					}
+					try {
+						self->Projection.progressed(aRecord->Context, progress);
+					} catch (...) { }
+				});
+			} catch (...) { }
+			return true;
+		}
+		/// [[RFC-BPR-0105]]. Ends accepted work that has not begun: it will
+		/// never run, and its one terminal (cancelled before any effect) is
+		/// delivered now.
+		auto abandon(const review_submission_host_context& aContext) -> bool
+		{
+			std::shared_ptr<record> abandoned;
+			{
+				std::scoped_lock lock{ Mutex };
+				if (!Active || Active->Context != aContext || Active->Started || Active->Abandoned) {
+					return false;
+				}
+				abandoned            = Active;
+				abandoned->Abandoned = true;
+				abandoned->Stop.request_stop();
+				if (abandoned->Grant) {
+					abandoned->Grant->revoke();
+				}
+			}
+			terminal(abandoned, refused(*abandoned, review_mutation_failure::cancelled, true));
+			return true;
+		}
 		void terminal(const std::shared_ptr<record>& aRecord, review_submission_host_terminal aTerminal)
 		{
 			auto self = shared_from_this();
@@ -280,7 +357,7 @@ namespace bpr::application {
 				return { aRecord->Context, std::move(pending) };
 			}
 			if (aRecord->Plan) {
-				auto result = aRecord->Operation == operation::save_conversation_reply ? provider->save_conversation_reply(*aRecord->Plan) : aRecord->Operation == operation::publish_tour ? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [grant = aRecord->Grant](const auto& aChild) { return grant && grant->consume_child(aChild); })
+				auto result = aRecord->Operation == operation::save_conversation_reply ? provider->save_conversation_reply(*aRecord->Plan) : aRecord->Operation == operation::publish_tour ? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [this, aRecord](const auto& aChild) { return authorize_child(aRecord, aChild); })
 																																														   : provider->reconcile_tour(*aRecord->Plan, aRecord->Stop.get_token());
 				if (result.Record && (!valid(*result.Record) || result.Record->Plan != *aRecord->Plan)) {
 					return refused(*aRecord, review_mutation_failure::unavailable, false);
@@ -417,6 +494,11 @@ namespace bpr::application {
 			auto self = shared_from_this();
 			try {
 				Effects.post([self, request] {
+					if (!self->begin(request)) {
+						// [[RFC-BPR-0105]]. Abandoned while it waited: its
+						// terminal was delivered then, and nothing is sent.
+						return;
+					}
 					auto outcome = refused(*request, review_mutation_failure::unavailable, false);
 					try {
 						outcome = self->perform(request);
@@ -455,6 +537,7 @@ namespace bpr::application {
 			}
 		}
 	}
+	auto review_submission_application_host::abandon(review_submission_host_context aContext) -> bool { return Implementation->abandon(aContext); }
 	void review_submission_application_host::shutdown() noexcept
 	{
 		std::scoped_lock lock{ Implementation->Mutex };

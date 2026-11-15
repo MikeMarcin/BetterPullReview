@@ -16,7 +16,7 @@ side chat is `tour_side_chat`.
 
 ## References (AC01, AC02)
 
-One core recogniser (`src/core/include/bpr/core/agent_reference.hpp`)
+One core recogniser ([agent_reference.hpp](../../src/core/include/bpr/core/agent_reference.hpp))
 replaces the Agent tab's Qt regular expressions. It is a closed scanner for
 the RFC's forms, not a general pattern engine, so no library question arose;
 RE2 stays approved for source matching only. It finds `path:12`, `path:12-34`,
@@ -76,7 +76,7 @@ figure on a resumed session is the session's running total, and a turn costs
 the difference of consecutive figures.
 
 The core holds both numbers (`account_agent_turn_cost`,
-`src/core/include/bpr/core/agent_cost.hpp`): a run that
+[agent_cost.hpp](../../src/core/include/bpr/core/agent_cost.hpp)): a run that
 resumed the runtime's session cost the difference from the conversation's
 last figure; with no earlier figure the turn shows none rather than the whole
 session's spend; a lower figure means the runtime counted again; a run that
@@ -269,3 +269,9 @@ ran a local draft discussion's two turns exactly as BPR builds them in one
 empty folder: the first told a word, the second resumed the first by the
 session it reported (`--resume`, still tool-free) and answered
 `CANARY_PASS: 'KUMQUAT' same_session=True` (two calls, $0.0013).
+
+### Owner look (attended session dfc73933e0b3fc4c218f4e46d3e90998, handed back 2026-11-12T22:47:20Z)
+
+- `BPR-2138-ask-more`: **Accept** (decision `658e5a46`, 2026-11-12T22:47:19Z)
+
+Host 6341 and root `bpr2138-ask-more-v001.kbc0nnpf` were removed after hand-back.

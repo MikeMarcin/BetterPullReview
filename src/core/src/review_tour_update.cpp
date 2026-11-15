@@ -1,4 +1,5 @@
 #include "bpr/core/review_tour_update.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <algorithm>
 #include <charconv>
 namespace bpr::core {
@@ -19,6 +20,19 @@ namespace bpr::core {
 			if (before != aDesired) {
 				aEdits.push_back({ aSpan, before, std::move(aDesired) });
 			}
+		}
+		/// [[BPR-1996]], RFC-BPR-0100. A published stop's narrative is its
+		/// text with references made permalinks. While the author's text is
+		/// still the text that was published (`DraftText`), the published
+		/// narrative stands for it; otherwise the author's text is new.
+		auto published_narrative(const tour_stop& aStop, std::string_view aRaw) -> std::string
+		{
+			if (aStop.Baseline && aStop.Baseline->DraftText && *aStop.Baseline->DraftText == aStop.Body) {
+				if (const auto mapped = map_tour_stop(aRaw); mapped.Narrative) {
+					return std::string{ aRaw.substr(mapped.Narrative->Begin, mapped.Narrative->End - mapped.Narrative->Begin) };
+				}
+			}
+			return aStop.Body;
 		}
 		auto patch_stop(std::string_view aRaw, std::string_view aTitle, std::string_view aNarrative, std::size_t aOrdinal, std::span<const tour_markdown_link> aNavigation, bool aPreserveNavigation = false) -> std::optional<std::string>
 		{
@@ -151,16 +165,35 @@ namespace bpr::core {
 			return { };
 		}
 		const auto footer = map_tour_markdown(span_text(raw, *mapping.Footer));
-		return patch_stop(raw, aStop.Title, aStop.Body, ordinal, footer.Links, true);
+		return patch_stop(raw, aStop.Title, published_narrative(aStop, raw), ordinal, footer.Links, true);
 	}
 	auto needs_tour_destination(const tour_stop& aStop) -> bool
 	{
 		const auto published = published_tour_destination(aStop);
 		return !aStop.Remote || (aStop.Mapping == tour_mapping::author_selected && aStop.Mapped && published != std::optional{ destination_of(*aStop.Mapped) });
 	}
+	auto tour_stop_text_edited(const tour_stop& aStop) -> bool
+	{
+		if (!aStop.Baseline) {
+			return false;
+		}
+		if (aStop.Baseline->DraftText) {
+			return *aStop.Baseline->DraftText != aStop.Body;
+		}
+		const auto& raw    = aStop.Baseline->Raw;
+		const auto  mapped = map_tour_stop(raw);
+		return mapped.Narrative ? trim(span_text(raw, *mapped.Narrative)) != trim(aStop.Body) : raw != aStop.Body;
+	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
 	{
-		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || std::ranges::any_of(aTour.Stops, [](const auto& aStop) { return aStop.Suggestion && aStop.Preparation != tour_preparation::ready; })) {
+		if (std::ranges::any_of(aTour.Stops, [&aTour](const auto& aStop) { return !tour_stop_accepted(aTour, aStop); })) {
+			return { };
+		}
+		return render_tour_update(aTour, aCreated);
+	}
+	auto render_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
+	{
+		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty()) {
 			return { };
 		}
 		std::vector<tour_markdown_link> entries;
@@ -192,7 +225,14 @@ namespace bpr::core {
 			if (i + 1 < entries.size()) {
 				navigation.push_back({ "Next", entries[i + 1].Destination });
 			}
-			auto narrative = stop.Body;
+			// [[BPR-1996]]. The narrative as it was published, references made
+			// permalinks, while the author's text is the text it came from.
+			auto narrative = created == aCreated.end() ? published_narrative(stop, baseline) : stop.Body;
+			if (created != aCreated.end()) {
+				if (const auto initial = map_tour_stop(created->InitialBody); initial.Narrative) {
+					narrative = std::string{ span_text(created->InitialBody, *initial.Narrative) };
+				}
+			}
 			if (created != aCreated.end() && stop.Remote) {
 				narrative += "\n\nReplaces [original discussion](" + stop.Remote->WebUrl + ").";
 			}

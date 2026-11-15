@@ -133,7 +133,7 @@ drawer's list and its column header ("Threads"), Discuss's counts and file
 scope, the Overview's counts, chips and Label key, Settings' Overview counts
 help, the queue's attention reason and the tour CLI's count summary. Internal
 names, persisted keys, fixture names and GitHub API terms keep
-`conversation`, and the Notes tab's "AI conversations" (agent chats) are a
+`conversation`, and the Agent tab's conversations (agent chats) are a
 different thing. Threads is added and
 Discuss is kept: the modalities are Overview, Review, Discuss and Threads, on
 `Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
@@ -2589,21 +2589,22 @@ this pill and the title-row badge are absent without a selected file or when
 that file has no unread threads, even if another file does ([[BPR-1511]]). The
 count follows the accepted unread policy regardless of the drawer's filters.
 Next new comment continues through unread threads across the pull request.
-[[BPR-1592]] (RFC-BPR-0085 D3). The Notes tab holds only private notes, as
-margin notes: each note hangs from its line beside the code and opens in place
-to write, drawn dashed with a lock, as a thread is; Up, Down, Return and Esc
-move, open and close, and N writes a note on the selected line (its tool sits
-on the tab row with the notes on the pull request). Notes on the pull request
-lead the top edge as a chip; notes on whole files and other files close the
-bottom edge; notes whose lines are above or below the code in view wait as line
-chips. A note whose line is not in the comparison shown follows the placed
-ones and says why. The gutter marks a noted line with a dashed cell, washed in
-the writing blue while its note is open. A note's main action is Save (⌘↩);
-its other is **Draft comment**, which copies it to a local draft at its own line
-(or, for a note without a line, at Comment's target); the note stays, and
-nothing is published until the existing explicit Publish. Esc on unsaved
-changes says so once and discards on the second press. Notes stays available
-with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
+RFC-BPR-0127 ([[BPR-2158]]). There is no Notes tab: the tray's tabs are
+Comments, Tour and Agent, and Overview's drawer has no Notes either. My **Local
+comments** (once private notes) are cards in Comments at their lines, after the
+published threads and before my draft, marked with the computer ("Only on this
+computer"); a Local reply sits inside its thread's card. Local comments on this
+whole file and on other files wait in two quiet chips beside the pull request
+link (**This file**, **Other files**), and those on the pull request are counted
+on the link and drawn in Overview's Comments. In a drawer too narrow for their
+words the link and both chips keep only their glyphs and counts (one page for
+This file, two for Other files), their words staying their names and tooltips.
+N opens the composer on Local; its foot holds the Local/Draft state control,
+and Local is disabled, saying why, on a draft a submitted review holds or one
+being published. A line has one gutter mark naming everything on it. A Local
+comment's card offers Make draft (or Make draft on line N), Copy text, Delete
+(which asks first), edit in place, and, in its menu, Ask agent. Local comments
+need no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
 follows Tour, its spark beside its name. Its header (owner look v003, after the
 agent drawers' convention) is the session's title, the pull request's number
 and title, the head its session reads, and two icons: History (Clear session,
@@ -2621,14 +2622,16 @@ turn's finding cards, one quiet line while the agent works ("● Claude Code is
 thinking, 0:05.") and how the turn ended (who answered, in how long, the
 model it reported, the cost when the harness said, and the findings that turn
 brought; in italics when it stopped), and a footer of Copy (the whole reply
-as Markdown), Save as note and the reply's time (near words, the whole time
-on hover). Once a reply is saved as a note, its Save as note is **Go to
-note**, which opens that note in Notes (owner look v004). A turn that ended
+as Markdown), its one keep action (RFC-BPR-0127: **Draft comment** where its
+thread or selected lines take a draft, **Keep local** otherwise) and the
+reply's time (near words, the whole time on hover). Once kept, the action is
+**Go to draft** or **Go to comment**, which opens what it made in Comments
+(owner look v004). A turn that ended
 without an answer (unreadable, exited, did not start, no workspace, stopped,
 out of time, set aside) is an error ([[BPR-1847]], owner 2026-11-03): its
 card is drawn in the danger look the stopped banner uses, it keeps Copy (the
 error's words and what the agent wrote to its error stream) and never offers
-Save as note or Draft comment. The thread's latest error, while nothing runs,
+the keep action. The thread's latest error, while nothing runs,
 offers one way back: **Agent settings…** for an answer this app cannot read,
 and **Resend** for any other ending, a start or workspace failure among
 them ([[BPR-1876]]; owner look v001 named it Resend, since a message is not
@@ -2689,14 +2692,16 @@ be pressed, while it is open ([[BPR-1877]]). A setup finished before, whose chec
 have not run since the application started, counts as finished. A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
-**Add as draft comment** makes a private draft at its lines from the
+**Draft comment** makes a private draft at its lines from the
 suggested comment, opening with the Conventional Comments label the agent
 wrote already chosen in the label control ([[BPR-1861]]; an answer's
-**Draft comment** does the same, and no label is invented), **Save as note** a private note on them, and **Dismiss**
-rules it out; the card then says Drafted, Saved as a private note, or
-Dismissed with **Undo**, and a refusal says why (for another file: open it,
-then try again). A reply offers **Save as note** for the whole of it, or the
-part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
+**Draft comment** does the same, and no label is invented); a card whose
+line no draft can take (past its file's end, or a file the pull request does
+not change) offers **Keep local** in its place, a Local comment on the file
+or the pull request (RFC-BPR-0127), and **Dismiss** rules it out; the card
+then says Drafted, Kept local (with **Go to comment**), or Dismissed with
+**Undo**, and a refusal says why (for another file: open it, then try
+again). A reply's keep action takes the whole of it, or the part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
 shown whole as a code block after the reply, never as loose text
 ([[BPR-1861]]). Findings
 delivered with no turn come after the thread, as cards of their own. The question field
@@ -3310,7 +3315,7 @@ layout, so nothing under it moves.
 
 | Look | When | What the pane shows |
 |---|---|---|
-| Placeholder | A first load, before 400 ms | Faint bars in the content's own shape (rows, prose, code beside a gutter, name and value pairs), with the words line held empty above them. A load faster than this never flashes a spinner. |
+| Placeholder | A first load, before 400 ms | Faint bars in the content's own shape (rows, prose, code beside a gutter, name and value pairs, thread cards, people), with the words line held empty above them. A load faster than this never flashes a spinner. |
 | Loading | A first load, from 400 ms | The turning mark and one line naming what loads ("Loading the file list: 2 files reported…") above the placeholders. |
 | Slow | Any wait, from 6 s | A second line saying what the read still waits on, from its own progress ("Still waiting for GitHub: the changed files, 3 pages so far."). |
 | Quiet | Content on screen and more coming, before 400 ms | The content exactly as it is. A refresh's own control has already answered the gesture ([[BPR-1575]]). |
@@ -3332,6 +3337,22 @@ not announced. A line that already says its wait in words, such as the
 Updates line's readiness, carries the turning mark alone
 (`qt::pending_mark`) in a place its words always keep.
 
+[[BPR-2180]] (the owner, 2026-11-14: "Hey can we do more graphics like the main
+pane loading for other parts that are loading in?") added two shapes and one
+option, and adds no shimmer or other motion:
+
+- **Thread cards** (`cards`): a faint outlined card per thread, as the
+  Comments drawer draws one, with the feedback rail at its left, the author's
+  face, a name and an age on its first line, and two lines of what was said
+  under the name.
+- **People** (`people`): where the place is one line high, three faces in a
+  row and the line beside them; where it is taller, a roster with a face, a
+  name and the person's standing on each row.
+- **Words beside**: a pane whose heading already says its wait ("Loading
+  pending comments…") draws its placeholders in the words' place and no words
+  of its own. Assistive technology still hears them, and a failure is still
+  said in place.
+
 Where it applies:
 
 - **Overview**, section by section. Opening a pull request (and opening
@@ -3342,11 +3363,35 @@ Where it applies:
   shows one placeholder row per file GitHub reported and says how many; the
   side column waits for the accepted review; the comment counts by file are
   the last part and are said as partial. The files say once, politely, when
-  the Overview is ready.
+  the Overview is ready. [[BPR-2180]] (the owner, rejecting People alone on
+  2026-11-14: "It feels like there should be more that one section on the
+  status drawer with separate loading."): the side column is never covered
+  whole. Each section stands in its place under its heading from the first
+  answer and waits over its own body in its own shape: Needs attention as
+  pairs until the merge state arrives, My review as pairs until the accepted
+  review, Checks as rows until the check results, and People as faces (its
+  roster as faces and names) until the reviewers. The column's plate at its
+  foot names what is still coming.
 - **The comparison panes**: code placeholders while a file comparison loads,
   then "Colouring syntax…" as partial until its classification is adopted or
   fails. The status above the panes still says the outcome.
-- **The Files drawer, the Comments drawer and Threads**: rows while the first read runs.
+- **The Files drawer**: rows while the first read runs. [[BPR-2180]]: once
+  the Overview lists the files GitHub reported, the drawer lists the same
+  files by path, readable, and its plate says "Files open once the review has
+  loaded…"; the accepted review's rows replace them. A file clicked among them
+  is remembered ("Opening a.cpp once the review has loaded…"), the comparison
+  pane waits for it at once in the shape of code, and it opens when the
+  review lists it. A read that ends with no review takes its reported files
+  back. Which parts a first read has shown is the read lane's decision
+  (`core::github_loading_readiness`), published by the read host; each pane
+  maps its own part. **The Comments drawer
+  (and Discuss, which shows the same panel) and Threads**: thread cards while
+  the first read runs ([[BPR-2180]]).
+- **The private tour**: stop cards under its head while it loads
+  ([[BPR-2180]]).
+- **Finish review**: while its pending comments are read, their place is held
+  under the "Loading pending comments…" heading with three comment rows, words
+  beside ([[BPR-2180]]).
 - **The repositories drawer and Home's list**: rows while the queue restores;
   on Home, "Finding my pull requests in 2 saved repositories…" while personal
   discovery runs with nothing listed yet, refreshing over the rows already
@@ -3358,7 +3403,9 @@ Where it applies:
   plate at the review's foot, "Refreshing comments and checks…", until the
   refresh ends. A refresh whose head moved keeps the veil to the end.
 - **The Updates line**: the turning mark before its loading and preparation
-  words.
+  words. **The status bar's line** carries the same mark while it says the
+  pull request's read or its comparisons being prepared; its words keep the
+  mark's place whether it turns or not ([[BPR-2180]]).
 - **Markdown images**: the reserved plate holds the still turning mark before
   the alternative text while the image loads.
 

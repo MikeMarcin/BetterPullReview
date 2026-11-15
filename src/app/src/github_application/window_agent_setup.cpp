@@ -1,17 +1,33 @@
 #include "github_application/window_composition.hpp"
 
+#include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/local_comment.hpp"
 #include "bpr/core/note_placement.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
+#include "bpr/qt/agent_configuration_dialogs.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDesktopServices>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QLocale>
 #include <QObject>
+#include <QStandardPaths>
 #include <QTextStream>
+#include <QTimer>
+#include <QUrl>
+#include <filesystem>
 
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <limits>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -46,7 +62,7 @@ namespace bpr::app {
 	auto github_application::implementation::agent_idle() const -> bool
 	{
 #if defined(BPR_AGENT_INTEGRATIONS)
-		return AgentHost && AgentHost->is_quiescent();
+		return AgentHost && agent_turn_quiescent();
 #else
 		return false;
 #endif
@@ -97,6 +113,73 @@ namespace bpr::app {
 		};
 	}
 
+	#if defined(BPR_BUILD_TESTING)
+	/// [[BPR-2177]] (owner, 2026-11-14). The folders this run named for its
+	/// agents: the fixture agent's, each executable a course set, and each
+	/// search path. A program named `claude` or `codex` elsewhere (the person's
+	/// own) is refused; in a person's session, so is any program elsewhere.
+	auto github_application::implementation::fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>
+	{
+		auto folders = std::vector<std::filesystem::path>{ };
+		#if defined(BPR_FIXTURE_AGENT_DIRECTORY)
+		folders.emplace_back(BPR_FIXTURE_AGENT_DIRECTORY);
+		#endif
+		for (const auto& executable : { ClaudeAgentExecutable, CodexAgentExecutable, ExternalAgentExecutable }) {
+			if (executable) {
+				folders.push_back(executable->parent_path());
+			}
+		}
+		for (const auto& search : { ClaudeSearch, CodexSearch }) {
+			if (!search) {
+				continue;
+			}
+			auto        start = std::size_t{ 0 };
+			const auto& path  = search->PathVariable;
+			while (start <= path.size()) {
+				const auto end = std::min(path.find_first_of(":;", start), path.size());
+				if (end > start) {
+					folders.emplace_back(path.substr(start, end - start));
+				}
+				start = end + 1U;
+			}
+		}
+		for (auto& folder : folders) {
+			auto error = std::error_code{ };
+			if (auto canonical = std::filesystem::weakly_canonical(folder, error); !error) {
+				folder = std::move(canonical);
+			}
+		}
+		return [allowed = std::move(folders), person = FixtureAgentSession](const std::string& aExecutable) -> std::optional<std::string> {
+			const auto program = std::filesystem::path{ aExecutable };
+			const auto stem    = program.stem().string();
+			const auto agent   = stem == "claude" || stem == "codex";
+			if (!agent && !person) {
+				return aExecutable;
+			}
+			if (!program.is_absolute()) {
+				// A bare name starts only from a folder this run named, never
+				// from the PATH the process inherited.
+				for (const auto& folder : allowed) {
+					auto error = std::error_code{ };
+					if (const auto candidate = folder / program; std::filesystem::is_regular_file(candidate, error)) {
+						return candidate.string();
+					}
+				}
+				return std::nullopt;
+			}
+			auto error = std::error_code{ };
+			auto where = std::filesystem::weakly_canonical(program, error).parent_path();
+			if (error) {
+				where = program.parent_path();
+			}
+			if (std::ranges::find(allowed, where) != allowed.end()) {
+				return aExecutable;
+			}
+			return std::nullopt;
+		};
+	}
+	#endif
+
 	void github_application::implementation::resume_card_open()
 	{
 		if (Closing || Window == nullptr || !PendingCardOpen) {
@@ -128,9 +211,10 @@ namespace bpr::app {
 		QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
 	}
 
-	/// [[BPR-1753]], owner decision 2026-10-23. A private note from
-	/// the Agent tab: on one line of the shown comparison when `aLine`
-	/// names one, otherwise on the review. It belongs to the review's
+	/// [[BPR-1753]], owner decision 2026-10-23. A Local comment from the
+	/// Agent tab (RFC-BPR-0127): on one line of the shown comparison when
+	/// `aLine` names one; on the whole file when `aPath` names the file
+	/// shown; otherwise on the pull request. It belongs to the review's
 	/// private state, not to any agent session.
 	void github_application::implementation::save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone)
 	{
@@ -143,9 +227,9 @@ namespace bpr::app {
 			answer(false, QStringLiteral("no review is open"));
 			return;
 		}
-		auto note      = application::local_note_record{ };
-		note.Id        = next_private_note_id();
-		note.Note.Text = std::move(aText);
+		// The store gives the note its identity ([[BPR-2187]]).
+		auto note = application::local_comment_record{ };
+		note.Body = std::move(aText);
 		if (aLine) {
 			const auto        attachment = current_note_attachment();
 			const auto* const surface    = Window->comparison_surface();
@@ -161,22 +245,33 @@ namespace bpr::app {
 			if (!aPath.empty() && aPath.size() <= application::maximum_note_path_bytes) {
 				note.FilePath = std::move(aPath);
 			}
+		} else if (!aPath.empty()) {
+			// RFC-BPR-0127. The whole file, which must be the one shown.
+			const auto attachment = current_note_attachment();
+			if (!attachment || !SelectedDiffPublication || SelectedDiffPublication->Request.File.PresentationPath != aPath || aPath.size() > application::maximum_note_path_bytes) {
+				answer(false, QStringLiteral("the file is not open"));
+				return;
+			}
+			note.Attachment = *attachment;
+			note.FilePath   = std::move(aPath);
 		}
-		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+		ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 									  if (!aStored) {
 										  answer(false, QString::fromUtf8(application::name(aStored.error().Reason).data(), static_cast<qsizetype>(application::name(aStored.error().Reason).size())));
 										  return;
 									  }
 									  refresh_agent_private_context_choices();
-									  // Owner look v004: Go to note opens the note made.
+									  // Owner look v004: Go to comment opens the comment made.
 									  answer(true, { }, aStored->Id.value());
 								  }));
 	}
 
-	/// [[BPR-1753]], owner decision 2026-10-23. Add as draft comment,
-	/// Save as note and Dismiss on one card. A draft and a note are made
-	/// only at lines of the file on screen; for another file the card says
-	/// to open it first. Nothing is published.
+	/// [[BPR-1753]], owner decision 2026-10-23. The keep action and
+	/// Dismiss on one card. A draft is made only at lines of the file on
+	/// screen; another file is opened first. RFC-BPR-0127: Keep local, where
+	/// no line takes a draft, keeps a Local comment on the finding's file
+	/// (opened first) or, for a file the pull request does not change, on
+	/// the pull request. Nothing is published.
 	void github_application::implementation::act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport)
 	{
 		auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
@@ -187,10 +282,28 @@ namespace bpr::app {
 				tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy, aNote);
 			}
 		};
+		CardRefusalGone = false;
 		if (Closing || tab == nullptr) {
 			return;
 		}
-		const auto& finding = aRequest.Finding;
+		const auto& finding   = aRequest.Finding;
+		const auto  keepLocal = aRequest.Action == qt::agent_finding_card_action::keep_local;
+		const auto  keepText  = [&finding] {
+			auto text = finding.Claim;
+			if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
+				text += "\n\n" + *finding.SuggestedComment;
+			}
+			return text;
+		};
+		const auto kept = [state](const bool aKept, const QString& aWhy, const std::uint64_t aNote) {
+			state(aKept ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aKept ? QString{ } : QStringLiteral("Not kept: %1.").arg(aWhy), aNote);
+		};
+		if (keepLocal && WindowRead != nullptr && WindowRead->accepted_snapshot()
+			&& core::decide_keep({ .ThreadReply = false, .LineTakesDraft = false, .FileInPullRequest = std::ranges::any_of(WindowRead->accepted_snapshot()->Files, [&finding](const auto& aFile) { return aFile.Path == finding.Path; }) }).Local
+				== core::keep_local_place::pull_request) {
+			save_agent_note(keepText(), std::nullopt, { }, kept);
+			return;
+		}
 		if (aRequest.Action == qt::agent_finding_card_action::dismiss || aRequest.Action == qt::agent_finding_card_action::undo_dismiss) {
 			// A restored card's delivery is not the finding host's to act on.
 			if (aRequest.Action == qt::agent_finding_card_action::dismiss && FindingHost != nullptr && !core::is_restored_finding_session(aRequest.Session)) {
@@ -209,6 +322,7 @@ namespace bpr::app {
 		// then the draft or note is made at its line.
 		if (!onScreen) {
 			if (!Window->open_file_in_review(QString::fromStdString(finding.Path))) {
+				CardRefusalGone = true;
 				state(qt::agent_finding_card_state::refused, QStringLiteral("%1 is not in this pull request at its current head, so there is no line to put it on.").arg(QString::fromStdString(finding.Path)));
 				return;
 			}
@@ -217,25 +331,20 @@ namespace bpr::app {
 			QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
 			return;
 		}
+		if (keepLocal) {
+			save_agent_note(keepText(), std::nullopt, finding.Path, kept);
+			return;
+		}
 		// The line must be one the file has at the current head.
 		const auto& shownAlignment = surface->current_result()->Alignment;
 		const auto  lineCount      = side == core::diff_side::left ? shownAlignment.LeftLineCount : shownAlignment.RightLineCount;
 		if (finding.Lines.Begin >= lineCount) {
+			CardRefusalGone = true;
 			state(qt::agent_finding_card_state::refused,
 				  QStringLiteral("Line %1 is not in %2 at the current head, so nothing was made.").arg(finding.Lines.Begin + 1U).arg(QString::fromStdString(finding.Path)));
 			return;
 		}
 		const auto at = core::source_line_ref{ .Comparison = surface->current_result()->Alignment.Digest, .Side = side, .Line = finding.Lines.Begin };
-		if (aRequest.Action == qt::agent_finding_card_action::save_note) {
-			auto text = finding.Claim;
-			if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
-				text += "\n\n" + *finding.SuggestedComment;
-			}
-			save_agent_note(std::move(text), std::pair{ side, finding.Lines.Begin }, finding.Path, [state](const bool aSaved, const QString& aWhy, const std::uint64_t aNote) {
-				state(aSaved ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aSaved ? QString{ } : QStringLiteral("Not saved: %1.").arg(aWhy), aNote);
-			});
-			return;
-		}
 		// [[BPR-1861]]. The draft opens with the Conventional Comments
 		// label the agent wrote already in the label control.
 		const auto text    = core::read_agent_comment_suggestion(finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim).Body;
@@ -250,8 +359,171 @@ namespace bpr::app {
 		PendingNotePromotion = pending_note_promotion{ .Text = text, .At = at, .Refused = std::move(refused), .Done = std::move(done) };
 		if (!surface->select_conversation_line(at.Side, at.Line)) {
 			PendingNotePromotion.reset();
+			CardRefusalGone = true;
 			state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
 		}
+	}
+
+	/// [[BPR-2061]]. Whether a finding's lines can take a draft now: its
+	/// file is in the pull request at the current head and, when that file is
+	/// the one on screen, its first line is in it. A file not on screen is
+	/// opened when its turn comes, and a line found gone then is counted so.
+	auto github_application::implementation::agent_finding_placeable(const core::agent_finding& aFinding) const -> bool
+	{
+		if (Closing || Window == nullptr || WindowRead == nullptr || !WindowRead->accepted_snapshot()) {
+			return false;
+		}
+		const auto& files = WindowRead->accepted_snapshot()->Files;
+		if (std::ranges::none_of(files, [&aFinding](const auto& aFile) { return aFile.Path == aFinding.Path; })) {
+			return false;
+		}
+		const auto* const surface  = Window->comparison_surface();
+		const auto        onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == aFinding.Path && surface != nullptr && surface->current_result() != nullptr
+			&& surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+		if (!onScreen) {
+			return true;
+		}
+		const auto  side      = aFinding.Anchor.Line ? aFinding.Anchor.Line->Side : core::diff_side::right;
+		const auto& alignment = surface->current_result()->Alignment;
+		return aFinding.Lines.Begin < (side == core::diff_side::left ? alignment.LeftLineCount : alignment.RightLineCount);
+	}
+
+	/// [[BPR-2061]], owner 2026-11-10: "Can we get a draft all suggested
+	/// comments from an agent response with several." Each card is drafted
+	/// in turn through `act_on_agent_card`, exactly as its own Add as draft
+	/// comment does, so a batch makes the drafts a reviewer pressing each
+	/// card would. Nothing is published.
+	void github_application::implementation::draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone)
+	{
+		if (Closing || Window == nullptr || DraftAllRun) {
+			if (aDone) {
+				auto outcome = aRequest.Planned;
+				for (std::size_t index = 0U; index < aRequest.Cards.size(); ++index) {
+					outcome = core::settle_draft_all(outcome, core::draft_all_result::refused);
+				}
+				aDone(outcome, false);
+			}
+			return;
+		}
+		DraftAllRun = draft_all_run{ .Batch = aRequest.Batch, .Queue = std::move(aRequest.Cards), .Outcome = aRequest.Planned, .Done = std::move(aDone) };
+		next_draft_all_card();
+	}
+
+	void github_application::implementation::next_draft_all_card()
+	{
+		if (!DraftAllRun) {
+			return;
+		}
+		auto* const tab = Window != nullptr ? Window->agent_tab() : nullptr;
+		if (Closing || tab == nullptr || DraftAllRun->Next >= DraftAllRun->Queue.size()) {
+			auto run = std::move(*DraftAllRun);
+			DraftAllRun.reset();
+			for (; run.Next < run.Queue.size(); ++run.Next) {
+				run.Outcome = core::settle_draft_all(run.Outcome, core::draft_all_result::refused);
+			}
+			const auto undoable = !run.Made.empty();
+			if (undoable) {
+				DraftAllBatches[run.Batch] = std::move(run.Made);
+			}
+			// Drafting opened each line's draft in Comments; the reply that
+			// says what was drafted is shown again.
+			if (tab != nullptr && !Closing && Window->open_agent_action() != nullptr) {
+				Window->open_agent_action()->trigger();
+			}
+			if (run.Done) {
+				run.Done(run.Outcome, undoable);
+			}
+			return;
+		}
+		const auto serial   = ++DraftAllSerial;
+		DraftAllRun->Serial = serial;
+		const auto request  = DraftAllRun->Queue[DraftAllRun->Next];
+		// A card whose draft never settles (its line's editor never opened)
+		// is given up after a while, so the batch still ends and says so.
+		QTimer::singleShot(20'000, Window.get(), [this, serial] { settle_draft_all_card(serial, core::draft_all_result::refused); });
+		act_on_agent_card(request, [this, tab, serial, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+			if (Closing) {
+				return;
+			}
+			const auto gone = CardRefusalGone;
+			tab->present_finding_card_state(session, ordinal, aState, aWhy, aNote);
+			if (aState == qt::agent_finding_card_state::drafted) {
+				if (DraftAllRun && DraftAllRun->Serial == serial && ReviewDraft) {
+					DraftAllRun->Made.push_back({ .Session = session, .Ordinal = ordinal, .Draft = ReviewDraft->Id, .Revision = ReviewDraftRevision });
+				}
+				settle_draft_all_card(serial, core::draft_all_result::drafted);
+			} else if (aState == qt::agent_finding_card_state::refused) {
+				// A line found gone is not offered again.
+				if (gone) {
+					tab->mark_finding_gone(session, ordinal);
+				}
+				settle_draft_all_card(serial, gone ? core::draft_all_result::not_in_diff : core::draft_all_result::refused);
+			}
+		});
+	}
+
+	void github_application::implementation::settle_draft_all_card(const std::uint64_t aSerial, const core::draft_all_result aResult)
+	{
+		if (!DraftAllRun || DraftAllRun->Serial != aSerial) {
+			return;
+		}
+		DraftAllRun->Serial  = 0U;
+		DraftAllRun->Outcome = core::settle_draft_all(DraftAllRun->Outcome, aResult);
+		++DraftAllRun->Next;
+		// The next card starts once this one's draft has settled its editor.
+		QTimer::singleShot(0, Window.get(), [this] { next_draft_all_card(); });
+	}
+
+	/// [[BPR-2061]]. One Undo removes the batch: each draft it made that is
+	/// still at the revision it was made at, and still a draft, is discarded
+	/// in one write and its card is open again. A draft edited since is kept.
+	void github_application::implementation::undo_draft_all(const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone)
+	{
+		const auto found = DraftAllBatches.find(aBatch);
+		if (Closing || !SharedDrafts || found == DraftAllBatches.end()) {
+			if (aDone) {
+				aDone(0U, 0U);
+			}
+			return;
+		}
+		auto made = std::move(found->second);
+		DraftAllBatches.erase(found);
+		auto commands = std::vector<core::revisioned_review_draft_command>{ };
+		auto removed  = std::vector<draft_all_made>{ };
+		auto kept     = std::size_t{ 0U };
+		for (const auto& draft : made) {
+			const auto read = SharedDrafts->read(DraftConsumer, draft.Draft);
+			if (!read.Accepted || read.Accepted->Revision != draft.Revision || read.Accepted->Draft.State != core::review_draft_state::drafting) {
+				++kept;
+				continue;
+			}
+			auto command             = core::revisioned_review_draft_command{ };
+			command.Command          = core::review_draft_command{ .Id = draft.Draft, .Kind = core::review_draft_command_kind::discard };
+			command.ExpectedRevision = draft.Revision;
+			command.Scope            = read.Accepted->Scope;
+			commands.push_back(std::move(command));
+			removed.push_back(draft);
+		}
+		if (commands.empty()) {
+			if (aDone) {
+				aDone(0U, kept);
+			}
+			return;
+		}
+		change_review_drafts(std::move(commands), [this, gone = std::move(removed), kept, done = std::move(aDone)](const bool aChanged) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (aChanged) {
+				for (const auto& draft : gone) {
+					Window->agent_tab()->present_finding_card_state(draft.Session, draft.Ordinal, qt::agent_finding_card_state::open);
+				}
+				leave_deleted_draft();
+			}
+			if (done) {
+				done(aChanged ? gone.size() : 0U, aChanged ? kept : kept + gone.size());
+			}
+		});
 	}
 
 	namespace {
@@ -316,6 +588,33 @@ namespace bpr::app {
 									  .Note     = aChange.Note });
 	}
 
+	auto github_application::implementation::named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>
+	{
+		if (!PromptTurnNames) {
+			return aTurns;
+		}
+		for (auto& turn : aTurns) {
+			if (turn.Name.isEmpty()) {
+				if (const auto name = PromptTurnNames->names().recall(turn.Question.toStdString())) {
+					turn.Name = QString::fromStdString(*name);
+				}
+			}
+		}
+		return aTurns;
+	}
+
+	void github_application::implementation::present_remembered_turn_names()
+	{
+		if (Closing || Window == nullptr || Window->agent_tab() == nullptr || Window->agent_tab()->state() == qt::agent_tab_state::working) {
+			return;
+		}
+		auto* const tab   = Window->agent_tab();
+		const auto  shown = tab->thread_turns();
+		if (auto named = named_turns(shown); named != shown) {
+			tab->present_thread(named);
+		}
+	}
+
 	void github_application::implementation::present_remembered_finding_cards()
 	{
 		if (Closing || Window == nullptr || !AgentFindingCards) {
@@ -350,6 +649,16 @@ namespace bpr::app {
 				}
 			}
 		}
+	#if defined(BPR_BUILD_TESTING)
+		// [[BPR-2177]], look ask-v002: the picker took the first agent it
+		// offered (Codex, which nothing answered) before the setup had chosen.
+		// A person's session on a tests-on build offers the fixture agent
+		// alone, Claude's protocol first.
+		if (FixtureAgentSession) {
+			std::erase_if(offered, [](const core::agent_profile& aProfile) { return !aProfile.DisplayName.starts_with("Fixture agent"); });
+			std::ranges::stable_partition(offered, [](const core::agent_profile& aProfile) { return aProfile.Id == core::claude_stream_json_profile_id; });
+		}
+	#endif
 		return offered;
 	}
 
@@ -425,7 +734,9 @@ namespace bpr::app {
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
-		tab->present_thread(turns);
+		tab->present_thread(named_turns(std::move(turns)));
+		// [[BPR-1999]]. The conversation's cost, kept with its history.
+		tab->present_session_cost(aView.SessionCost);
 		present_agent_pull_request();
 	}
 
@@ -466,6 +777,10 @@ namespace bpr::app {
 		}
 		AgentConversation->open(
 			{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = current_conversation_agent() });
+		// [[BPR-2007]]; re-review N3, N4. This pull request's folders, as
+		// the store and the disk have them; another's stay known.
+		derive_agent_scratch();
+		present_run_settings();
 	}
 
 	/// Owner look v004. The Agent tab's header names the pull request, and
@@ -506,6 +821,31 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
 			return;
 		}
+		// RFC-BPR-0127. Ask agent on my own unsent comment, Local or Draft:
+		// one path, as a saved note was asked about.
+		if (const auto& draft = qt::conversation_cards_view::draft_identity(); aIdentity == draft) {
+			if (ReviewDraft) {
+				ask_agent_about_draft(*ReviewDraft);
+			}
+			return;
+		} else if (aIdentity.starts_with(draft + ":")) {
+			auto       id     = std::uint64_t{ 0U };
+			const auto digits = std::string_view{ aIdentity }.substr(draft.size() + 1U);
+			if (const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), id); error == std::errc{ } && end == digits.data() + digits.size()) {
+				const auto drafts = saved_draft_values();
+				if (const auto found = std::ranges::find(drafts, core::review_draft_id{ id }, &core::review_comment_draft::Id); found != drafts.end()) {
+					ask_agent_about_draft(*found);
+				}
+			}
+			return;
+		}
+		if (const auto local = qt::conversation_cards_view::local_comment_of(aIdentity)) {
+			const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_comment_id{ *local }, &application::local_comment_record::Id);
+			if (found != AcceptedPrivateNotes.end()) {
+				ask_agent_about_note(*found);
+			}
+			return;
+		}
 		const auto* const thread = accepted_thread(aIdentity);
 		if (thread == nullptr) {
 			return;
@@ -527,6 +867,8 @@ namespace bpr::app {
 			.Text    = QStringLiteral("%1, %2").arg(where, count == 1U ? QStringLiteral("1 comment") : QStringLiteral("%1 comments").arg(count)),
 			.Detail  = QStringLiteral("The agent gets this conversation's comments and the lines it is on, as the head has them. Nothing is published."),
 			.Replies = thread->ViewerReplyPermission != application::github_permission_state::denied,
+			// RFC-BPR-0116. Its prompts offer Was this addressed? when it is.
+			.Addressed = ReturningReview.Threads.contains(aIdentity),
 		};
 		Window->agent_tab()->set_conversation_chip(std::move(chip));
 		Window->open_agent_question();
@@ -535,7 +877,7 @@ namespace bpr::app {
 	/// [[BPR-1773]]. Ask agent on a saved private note: as a thread's,
 	/// but the note's words reach the agent only as the copy saved in
 	/// Private history when the question is sent.
-	void github_application::implementation::ask_agent_about_note(const application::local_note_record& aNote)
+	void github_application::implementation::ask_agent_about_note(const application::local_comment_record& aNote)
 	{
 		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
 			return;
@@ -548,20 +890,74 @@ namespace bpr::app {
 		}
 		Window->agent_tab()->set_conversation_chip(qt::agent_conversation_chip{
 			.Key     = AskedConversation->Identity,
-			.Text    = QStringLiteral("Your note on %1").arg(where),
-			.Detail  = QStringLiteral("When you ask, the note is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
+			.Text    = QStringLiteral("Your local comment on %1").arg(where),
+			.Detail  = QStringLiteral("When you ask, the comment is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
 			.Replies = false,
 		});
 		Window->open_agent_question();
 	}
 
-	auto github_application::implementation::asked_note() const -> const application::local_note_record*
+	/// RFC-BPR-0127. Ask agent on my draft, as on my Local comment: its
+	/// words reach the agent only as the copy saved in Private history when
+	/// the question is sent.
+	void github_application::implementation::ask_agent_about_draft(const core::review_comment_draft& aDraft)
+	{
+		if (Closing || Window == nullptr || !WindowRead->accepted_snapshot() || aDraft.shared()) {
+			return;
+		}
+		const auto path   = SelectedDiffPublication ? SelectedDiffPublication->Request.File.PresentationPath : std::string{ };
+		AskedConversation = asked_conversation{
+			.Identity    = "draft:" + std::to_string(aDraft.Id.value()),
+			.PullRequest = WindowRead->accepted_snapshot()->PullRequest.Number.value(),
+			.Draft       = aDraft.Id,
+			.DraftPath   = path,
+			.DraftLine   = path.empty() || aDraft.ReplyToThread ? std::nullopt : std::optional{ std::pair{ aDraft.Anchor.Side, aDraft.Anchor.Line + 1U } },
+		};
+		auto where = path.empty() ? QStringLiteral("this pull request") : QString::fromStdString(path);
+		if (AskedConversation->DraftLine) {
+			where = QStringLiteral("%1 line %2").arg(where).arg(AskedConversation->DraftLine->second);
+		}
+		Window->agent_tab()->set_conversation_chip(qt::agent_conversation_chip{
+			.Key     = AskedConversation->Identity,
+			.Text    = QStringLiteral("Your draft on %1").arg(where),
+			.Detail  = QStringLiteral("When you ask, the comment is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
+			.Replies = false,
+		});
+		Window->open_agent_question();
+	}
+
+	auto github_application::implementation::asked_note() const -> const application::local_comment_record*
 	{
 		if (!AskedConversation || !AskedConversation->Note) {
 			return nullptr;
 		}
-		const auto found = std::ranges::find(AcceptedPrivateNotes, *AskedConversation->Note, &application::local_note_record::Id);
+		const auto found = std::ranges::find(AcceptedPrivateNotes, *AskedConversation->Note, &application::local_comment_record::Id);
 		return found == AcceptedPrivateNotes.end() ? nullptr : &*found;
+	}
+
+	auto github_application::implementation::own_comment_asked() const -> std::optional<asked_own_comment>
+	{
+		if (!AskedConversation) {
+			return std::nullopt;
+		}
+		if (const auto* const note = asked_note(); note != nullptr) {
+			auto own = asked_own_comment{ .Body = note->Body, .Path = note->FilePath.value_or(std::string{ }) };
+			if (note->Attachment && note->Attachment->Line && note->FilePath) {
+				own.Line = std::pair{ note->Attachment->Line->Side, note->Attachment->Line->Line + 1U };
+			}
+			return own;
+		}
+		if (AskedConversation->Draft) {
+			const auto drafts = saved_draft_values();
+			const auto found  = std::ranges::find(drafts, *AskedConversation->Draft, &core::review_comment_draft::Id);
+			if (found != drafts.end() && !found->shared()) {
+				return asked_own_comment{ .Body = found->Body, .Path = AskedConversation->DraftPath, .Line = AskedConversation->DraftLine };
+			}
+			if (ReviewDraft && ReviewDraft->Id == *AskedConversation->Draft && !ReviewDraft->shared()) {
+				return asked_own_comment{ .Body = ReviewDraft->Body, .Path = AskedConversation->DraftPath, .Line = AskedConversation->DraftLine };
+			}
+		}
+		return std::nullopt;
 	}
 
 	/// [[BPR-1773]], owner look 2026-10-27. Where a question sent now
@@ -571,7 +967,7 @@ namespace bpr::app {
 	auto github_application::implementation::decide_answer_draft() -> qt::agent_answer_draft_target
 	{
 		auto       draft  = agent_answer_draft{ };
-		const auto thread = AskedConversation && !AskedConversation->Note && AskedConversation->Replies;
+		const auto thread = AskedConversation && !AskedConversation->Note && !AskedConversation->Draft && AskedConversation->Replies;
 		auto       lines  = false;
 		if (!thread && !Closing && Window != nullptr && SelectedDiffPublication && !Window->showing_overview()) {
 			if (const auto* const surface = Window->comparison_surface(); surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key) {
@@ -585,7 +981,10 @@ namespace bpr::app {
 			}
 		}
 		draft.Place = core::answer_draft_place_for(thread, lines);
-		auto tip    = QString{ };
+		// RFC-BPR-0127. The answer's one keep action: a draft where its
+		// thread or lines take one, else Keep local on the pull request.
+		const auto keep = core::decide_keep({ .ThreadReply = thread, .LineTakesDraft = lines, .FileInPullRequest = false });
+		auto       tip  = QString{ };
 		switch (draft.Place) {
 		case core::answer_draft_place::thread_reply:
 			draft.Thread = AskedConversation->Identity;
@@ -603,7 +1002,7 @@ namespace bpr::app {
 		}
 		auto key = "answer-draft:" + std::to_string(++NextAgentAnswerDraft);
 		AgentAnswerDrafts.insert_or_assign(key, std::move(draft));
-		return { .Key = std::move(key), .Tip = tip };
+		return { .Key = std::move(key), .Tip = tip, .Local = keep.Kind == core::keep_kind::local };
 	}
 
 	/// [[BPR-1773]]. Draft comment on an answer: a thread's reply, as
@@ -712,18 +1111,18 @@ namespace bpr::app {
 		if (!AskedConversation || Window == nullptr) {
 			return std::nullopt;
 		}
-		if (AskedConversation->Note) {
-			const auto* const note = asked_note();
-			if (note == nullptr) {
+		if (AskedConversation->Note || AskedConversation->Draft) {
+			const auto own = own_comment_asked();
+			if (!own) {
 				return std::nullopt;
 			}
-			auto input = core::conversation_input{ .Subject = core::conversation_subject::private_note, .Path = note->FilePath.value_or(std::string{ }) };
-			if (note->Attachment && note->Attachment->Line && note->FilePath) {
-				const auto line       = note->Attachment->Line->Line + 1U;
-				const auto side       = note->Attachment->Line->Side;
+			auto input = core::conversation_input{ .Subject = core::conversation_subject::private_note, .Path = own->Path };
+			if (own->Line && !own->Path.empty()) {
+				const auto line       = own->Line->second;
+				const auto side       = own->Line->first;
 				input.Line            = line;
 				constexpr auto around = 6U;
-				if (const auto lines = Window->compared_lines(*note->FilePath, side, line > around ? line - around : 1U, line + around); lines && !lines->second.empty()) {
+				if (const auto lines = Window->compared_lines(own->Path, side, line > around ? line - around : 1U, line + around); lines && !lines->second.empty()) {
 					input.Excerpt = core::conversation_excerpt{ .FirstLine = lines->first, .Lines = lines->second, .AnchorFirst = line, .AnchorLast = line, .Before = side == core::diff_side::left };
 				}
 			}
@@ -789,7 +1188,11 @@ namespace bpr::app {
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
-		Window->agent_tab()->present_thread(shown);
+		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
+		if (aView.Loaded) {
+			// [[BPR-2181]]. Turns the session's runtime ran with no window join it.
+			adopt_unshown_turns();
+		}
 		present_agent_pull_request();
 		// [[BPR-1823]], owner ruling 2026-10-29: opening a pull request
 		// never switches the picker to the agent it was last asked with.
@@ -1064,11 +1467,23 @@ namespace bpr::app {
 		tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 			return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
 		});
+		// [[BPR-2007]]. The footer picker's grant item and Open scratch folder.
+		tab->run_settings_source()->ToggleScratch = [this](const std::uint64_t aProfile, const bool aOn) { toggle_agent_scratch(aProfile, aOn); };
+		tab->run_settings_source()->OpenScratch   = [this](const std::uint64_t aProfile) { open_agent_scratch(aProfile); };
+		tab->run_settings_source()->ToggleBuilds  = [this](const std::uint64_t aProfile, const bool aOn) { toggle_agent_builds(aProfile, aOn); };
 		// [[BPR-1753]], owner decision (b). Each turn that ends is
 		// kept for the pull request, and Clear session keeps none.
 		tab->set_thread_observer([this](std::vector<qt::agent_thread_turn> aTurns) {
 			if (Closing || !AgentConversation) {
 				return;
+			}
+			// RFC-BPR-0125 (AC07). Each suggested prompt's turn keeps its name.
+			if (PromptTurnNames) {
+				for (const auto& turn : aTurns) {
+					if (!turn.Name.isEmpty()) {
+						PromptTurnNames->remember({ .Asked = turn.Question.toStdString(), .Name = turn.Name.toStdString() });
+					}
+				}
 			}
 			auto kept = std::vector<application::agent_conversation_turn>{ };
 			kept.reserve(aTurns.size());
@@ -1080,12 +1495,18 @@ namespace bpr::app {
 			}
 		});
 		// Owner decision 2026-10-23 ("Yep build it like that"): a card's
-		// three actions, and Save as note on a plain reply. Each makes a
-		// private draft or note in the review, never part of a session.
+		// actions, and a plain reply's one keep action (RFC-BPR-0127). Each
+		// makes a private draft or Local comment in the review, never part
+		// of a session.
 		// Owner decision 2026-10-23: switching agents shows that agent's own
 		// conversation about the open pull request.
 		QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 		tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
+		// [[BPR-2061]]. Draft all and its Undo, and whether a suggestion's
+		// lines are still in the pull request.
+		tab->set_draft_all_dispatch([this](qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone) { draft_all_agent_cards(std::move(aRequest), std::move(aDone)); },
+									[this](const std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone) { undo_draft_all(aBatch, std::move(aDone)); });
+		tab->set_finding_placeability([this](const core::agent_finding& aFinding) { return agent_finding_placeable(aFinding); });
 		tab->set_finding_card_observer([this](const qt::agent_finding_card_change& aChange) { remember_finding_card(aChange); });
 		tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
 		// [[BPR-1773]]. Ask agent on a thread attaches it; the chip's
@@ -1093,22 +1514,39 @@ namespace bpr::app {
 		// comment writes it as a private draft where core places it when
 		// it was asked, and Go to draft opens that draft.
 		Window->set_conversation_ask_dispatch([this](const std::string& aIdentity) { ask_agent_about_thread(aIdentity); });
+		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). The returning questions:
+		// a thread's Was this addressed?, the Pull Request menu's What
+		// changed since my review, and Ask more on either's answer.
+		Window->set_conversation_addressed_dispatch([this](const std::string& aIdentity) { ask_was_addressed(aIdentity); });
+		Window->set_what_changed_dispatch([this] { ask_what_changed(); });
+		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file and its card.
+		bind_explain_file();
+		// RFC-BPR-0128 ([[BPR-2164]]). The Ask controls and menus.
+		bind_quick_ask();
+		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on a draft comment.
+		bind_suggest_change();
+		tab->set_ask_more_dispatch([this](const QString& aQuestion, const QString& aAnswer) {
+			AskMoreSeed = std::pair{ aQuestion.toStdString(), aAnswer.toStdString() };
+		});
 		tab->set_conversation_dismiss([this] { dismiss_asked_conversation(); });
 		tab->set_answer_draft_target([this] { return decide_answer_draft(); });
 		tab->set_answer_draft_dispatch([this](const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone) { draft_agent_answer(aKey, aText, std::move(aDone)); });
 		tab->set_draft_navigation([this](const std::string& aKey) { go_to_agent_answer_draft(aKey); });
-		// Owner look v004. Go to note; the files and lines a question or an
+		// Owner look v004. Go to comment; the files and lines a question or an
 		// answer names open in Review; the suggestions' toggle is kept.
 		tab->set_note_navigation([this](const std::uint64_t aNote) {
 			if (!Closing && Window != nullptr) {
 				Window->go_to_private_note(aNote);
 			}
 		});
+		// [[BPR-1998]]. The changed files the core's recogniser resolves to;
+		// this application cannot show an unchanged file at a line, so such a
+		// reference is not a link.
 		tab->set_line_links(
-			[this](const QString& aPath) -> std::optional<QString> { return Closing || Window == nullptr ? std::nullopt : Window->review_file_named(aPath); },
-			[this](const QString& aPath, const std::uint32_t aLine, const bool aBefore) {
+			[this] { return core::agent_reference_files{ .Changed = Closing || Window == nullptr ? std::vector<std::string>{ } : Window->review_changed_files() }; },
+			[this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) {
 				if (!Closing && Window != nullptr) {
-					static_cast<void>(Window->go_to_file_line(aPath, aLine, aBefore));
+					static_cast<void>(Window->go_to_file_line(aPath, aFirst, aBefore, aLast));
 				}
 			});
 		// Owner look v006. The agent shown is asked what its harness
@@ -1171,8 +1609,28 @@ namespace bpr::app {
 		});
 		// Owner decision (a). The suggested prompts name the open file and
 		// the selected lines, one-based.
+		// RFC-BPR-0125. The suggested prompts are the shipped set until the
+		// profile's store holds the reviewer's own (milestone 3).
+		tab->present_prompt_macros(core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { })));
 		tab->set_suggestion_context([this] {
 			auto context = qt::agent_suggestion_context{ };
+			// RFC-BPR-0125. The names a suggested prompt may fill in and the
+			// facts its conditions read, from what the window already holds.
+			// Whether the author is me and whether checks fail are not
+			// gathered yet: unknown, which no condition holds for.
+			if (!Closing && WindowRead != nullptr && WindowRead->accepted_snapshot() && AgentReview) {
+				const auto& record      = WindowRead->accepted_snapshot()->PullRequest;
+				auto        pullRequest = core::prompt_pull_request{ };
+				pullRequest.Number      = AgentReview->Number.value();
+				pullRequest.Title       = record.Title;
+				pullRequest.Url         = "https://" + AgentReview->Hostname + "/" + AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name + "/pull/" + std::to_string(AgentReview->Number.value());
+				pullRequest.Author      = record.Author ? record.Author->Login : std::string{ };
+				pullRequest.Base        = record.BaseRef;
+				pullRequest.Head        = record.HeadRef;
+				context.PullRequest     = std::move(pullRequest);
+				context.Repository      = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
+				context.Draft           = record.Draft;
+			}
 			// [[BPR-1781]]. Asked on Overview, a question is about the pull
 			// request: no open file, no lines.
 			if (Closing || Window == nullptr || !SelectedDiffPublication || Window->showing_overview()) {
@@ -1286,6 +1744,19 @@ namespace bpr::app {
 			// the setup's Stop.
 			.Check     = [this] { check_agent_from_settings(); },
 			.StopCheck = [this] { stop_agent_setup_check(); },
+			// [[BPR-2051]]. The roster's Check all and a row's own check.
+			.CheckAll =
+				[this] {
+					if (!Closing && AgentSetup) {
+						AgentSetup->check_all();
+					}
+				},
+			.CheckEntry =
+				[this](const std::uint32_t aId) {
+					if (!Closing && AgentSetup) {
+						AgentSetup->check_entry(aId);
+					}
+				},
 			.Reset =
 				[this] {
 					if (!Closing && Window != nullptr) {
@@ -1317,7 +1788,18 @@ namespace bpr::app {
 						AgentSetup->move_agent(aId, aDelta);
 					}
 				},
-			.SetRunLimit = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetRunLimit         = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetFollowUpSteer    = [this](const bool aSteer) {
+                if (!Closing && AgentSetup) {
+                    AgentSetup->set_follow_up_steer(aSteer);
+                } },
+			.SetScratchPolicy    = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
+				const auto taken = !Closing && AgentSetup && AgentSetup->set_scratch_policy(aLimitMiB, aKeepDays);
+				present_run_settings();
+				return taken; },
+			.ClearScratch        = [this] { clear_agent_scratch(std::nullopt, true); },
+			.ImportConfiguration = [this] { import_agent_configuration(); },
+			.ExportConfiguration = [this] { export_agent_configuration(); },
 			.SetProgram =
 				[this](const core::setup_agent aAgent, std::string aPath) {
 					if (Closing || !AgentSetup) {
@@ -1443,6 +1925,16 @@ namespace bpr::app {
 			return;
 		}
 		const auto setup = AgentSetup->projection();
+		// Owner look e97c6a3d: scratch folders unused past the kept days go,
+		// once a session, before the first question can use one.
+		if (!ScratchSwept && !AgentScratchRoot.empty()) {
+			ScratchSwept = true;
+			if (setup.Preferences.ScratchKeepDays != 0U) {
+				const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				clear_agent_scratch(now - static_cast<std::int64_t>(setup.Preferences.ScratchKeepDays) * 86400, false);
+			}
+			present_scratch_usage();
+		}
 		// [[BPR-1753]], owner amendment 2026-10-23. One per added
 		// agent, from its entry; its protocol says which settings apply.
 		auto shown = std::vector<qt::agent_run_settings>{ };
@@ -1450,10 +1942,11 @@ namespace bpr::app {
 			auto settings    = qt::agent_run_settings{ };
 			settings.Profile = core::entry_profile_id(entry).value();
 			settings.Agent   = QString::fromStdString(entry.Name);
-			auto program     = entry.Program.empty() ? (entry.Preset == core::setup_agent::codex ? QStringLiteral("the codex found on this computer") : QStringLiteral("the claude found on this computer"))
-													 : QString::fromStdString(entry.Program);
+			// Owner look e97c6a3d: the program setup found goes unsaid; a
+			// program or arguments of the reviewer's own are named.
+			auto program = QString::fromStdString(entry.Program);
 			for (const auto& argument : entry.Arguments) {
-				program += QStringLiteral(" ") + QString::fromStdString(argument);
+				program += (program.isEmpty() ? QString{ } : QStringLiteral(" ")) + QString::fromStdString(argument);
 			}
 			settings.Program = program;
 			settings.Model   = entry.Model;
@@ -1491,6 +1984,46 @@ namespace bpr::app {
 				break;
 			}
 			}
+			// [[BPR-2139]]. Said in the tooltip when the agent's MCP servers load.
+			settings.McpOn = entry.McpServers == core::agent_mcp_servers::own && core::entry_settings_program(entry.Protocol).has_value();
+			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
+			// (owner look e97c6a3d, review findings 4 to 6). The two toggles,
+			// decided from the facts the launch is decided from.
+			if (const auto grantProgram = core::entry_settings_program(entry.Protocol); grantProgram && AgentReview) {
+				const auto* const own    = Window->agent_panel()->existing_checkout_action();
+				const auto        grant  = agent_grant_for(entry, own != nullptr && own->isChecked());
+				settings.GrantApplies    = grant.Applies;
+				settings.ScratchText     = QString::fromStdString(core::agent_scratch_toggle_text(grant));
+				settings.ScratchOn       = core::agent_scratch_toggle_checked(grant);
+				settings.ScratchEnabled  = core::agent_scratch_toggle_enabled(grant);
+				settings.ScratchTip      = QString::fromStdString(core::agent_scratch_tooltip(grant, grantProgram, setup.Preferences.ScratchLimitMiB));
+				settings.BuildsOn        = core::agent_builds_toggle_checked(grant);
+				settings.BuildsEnabled   = core::agent_builds_toggle_enabled(grant);
+				settings.BuildsTip       = QString::fromStdString(core::agent_builds_tooltip(grant, grantProgram));
+				const auto keyed         = grant_key(entry.Id);
+				settings.ScratchOpenable = keyed && AgentScratchFolders.contains(*keyed);
+			}
+			// Owner look e97c6a3d ("I'm not even sure if type /MODEL or type
+			// /EFFORT is true in general with custom agents"). The question
+			// field's /model and /effort set what BetterPullReview passes; they
+			// are said to work only for an agent that runs the claude or codex
+			// it names (no program of its own, or one of those by name) and
+			// whose own arguments do not set the model or effort already.
+			if (const auto runtime = core::entry_settings_program(entry.Protocol); runtime) {
+				const auto name       = std::filesystem::path{ entry.Program }.filename().string();
+				const auto runsItself = entry.Program.empty() || name == (*runtime == core::agent_program::codex ? "codex" : "claude");
+				const auto sets       = [&entry](const std::initializer_list<std::string_view> aKeys) {
+					return std::ranges::any_of(entry.Arguments, [&aKeys](const std::string& aArgument) {
+						return std::ranges::any_of(aKeys, [&aArgument](const std::string_view aKey) { return aArgument == aKey || aArgument.starts_with(std::string{ aKey } + "=") || aArgument.find(aKey) != std::string::npos; });
+					});
+				};
+				if (runsItself && !sets({ "--model", "-m", "model=" }) && !std::ranges::contains(entry.Arguments, std::string{ "-m" })) {
+					settings.ModelHint = QStringLiteral("Or type /model NAME in the Agent tab's question field.");
+				}
+				if (runsItself && !sets({ "--effort", "model_reasoning_effort" })) {
+					settings.EffortHint = QStringLiteral("Or type /effort LEVEL in the Agent tab's question field.");
+				}
+			}
 			const auto choosable     = core::entry_settings_program(entry.Protocol).has_value();
 			settings.ModelChoosable  = choosable;
 			settings.EffortChoosable = choosable;
@@ -1509,9 +2042,15 @@ namespace bpr::app {
 			const auto found = std::ranges::find_if(setup.State.Rows, [aAgent](const core::agent_setup_row& aRow) { return aRow.Agent == aAgent; });
 			return found == setup.State.Rows.end() ? QString{ } : QString::fromStdString(found->Path);
 		};
+		// [[BPR-2177]], look ask-v003: the footer names a tests-on build's
+		// fixture agent as the setup does.
+		const auto named = [&setup](const core::setup_agent aAgent, const QString& aPlain) {
+			const auto found = setup.Names.find(aAgent);
+			return found == setup.Names.end() ? aPlain : QString::fromStdString(found->second);
+		};
 		auto claude            = qt::agent_run_settings{ };
 		claude.Profile         = core::claude_stream_json_profile_id.value();
-		claude.Agent           = QStringLiteral("Claude Code");
+		claude.Agent           = named(core::setup_agent::claude_code, QStringLiteral("Claude Code"));
 		claude.Program         = program(core::setup_agent::claude_code);
 		claude.ModelChoosable  = true;
 		claude.EffortChoosable = true;
@@ -1520,7 +2059,7 @@ namespace bpr::app {
 		claude.Models          = claude_models();
 		claude.Efforts         = core::known_agent_efforts(core::agent_program::claude);
 		auto codex             = qt::agent_run_settings{ };
-		codex.Agent            = QStringLiteral("Codex");
+		codex.Agent            = named(core::setup_agent::codex, QStringLiteral("Codex"));
 		codex.Program          = program(core::setup_agent::codex);
 		codex.ModelChoosable   = true;
 		codex.EffortChoosable  = true;
@@ -1633,6 +2172,7 @@ namespace bpr::app {
 			ClaudeWrapperSource->set({ });
 		}
 		Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
+		Window->agent_tab()->set_follow_up_steer(aProjection.Preferences.FollowUpSteer);
 		Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
 		// [[BPR-1823]], owner ruling 2026-10-29. The saved agent is the
 		// first pick only; a setup update never moves the reviewer's
@@ -1650,6 +2190,437 @@ namespace bpr::app {
 			CycleDesktop->prefer_send_profile(saved);
 		}
 		observe_conversation_agent();
+	#if defined(BPR_BUILD_TESTING)
+		// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed
+		// to have a mack agent for testing now?"). A person's session on a
+		// tests-on build opens with the fixture agent set up: its Check runs
+		// once, by itself, as soon as a review gives it a workspace to make.
+		if (FixtureAgentSession && !FixtureSetupChecked && AgentReview && aProjection.Step == core::setup_step::check && !aProjection.Checking
+			&& aProjection.State.AgentCheck.State == core::setup_check_state::not_run && aProjection.State.WorkspaceCheck.State == core::setup_check_state::not_run) {
+			FixtureSetupChecked = true;
+			QTimer::singleShot(0, Window.get(), [this] { check_agent_setup(true); });
+		}
+	#endif
+	}
+
+	auto github_application::implementation::grant_key(const std::uint32_t aAgent) const -> std::optional<application::agent_conversation_key>
+	{
+		if (!AgentReview) {
+			return std::nullopt;
+		}
+		return application::agent_conversation_key{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = aAgent };
+	}
+
+	auto github_application::implementation::agent_grant_for(const core::agent_entry& aEntry, const bool aOwnCheckout) const -> core::agent_grant
+	{
+		auto facts          = core::agent_grant_facts{ };
+		facts.Program       = core::entry_settings_program(aEntry.Protocol);
+		facts.ScratchStarts = aEntry.ScratchStarts;
+		facts.Builds        = aEntry.BuildsAndTests;
+		facts.OwnCheckout   = aOwnCheckout;
+		// Review finding 4: what the launch can carry. A folder is made
+		// only under a root a rule can name (never on Windows); a folder
+		// full at its last turn's end is full until it is measured again.
+		facts.ScratchPlace = !AgentScratchRoot.empty();
+		facts.Refusal      = agent_grant_refusal_for(aEntry);
+		// Re-review N3: by pull request and agent, so another pull request's
+		// full folder is not this one's, and a restart reads it from disk.
+		if (const auto key = grant_key(aEntry.Id); key) {
+			if (const auto full = AgentScratchFull.find(*key); full != AgentScratchFull.end()) {
+				facts.ScratchFull = full->second;
+			}
+			facts.ScratchUnmade = AgentScratchUnmade.contains(*key);
+			if (AgentConversationStore) {
+				facts.ScratchChoice = AgentConversationStore->load_scratch_choice(*key);
+				facts.BuildAnswer   = AgentConversationStore->load_build_answer(*key);
+			}
+		}
+		return core::resolve_agent_grant(facts);
+	}
+
+	void github_application::implementation::toggle_agent_scratch(const std::uint64_t aProfile, const bool aOn)
+	{
+		if (Closing || !AgentSetup || !AgentConversationStore) {
+			return;
+		}
+		const auto  agents = AgentSetup->projection().Preferences.Agents;
+		const auto* entry  = core::entry_of_profile(agents, core::agent_profile_id{ aProfile });
+		const auto  key    = entry != nullptr ? grant_key(entry->Id) : std::nullopt;
+		// RFC-BPR-0104 AC09. Kept for this pull request and agent; the agent's
+		// starting state is not touched. The next turn takes it.
+		if (key && !AgentConversationStore->store_scratch_choice(*key, aOn)) {
+			Window->agent_panel()->refuse("The scratch folder choice could not be saved.");
+		}
+		present_run_settings();
+	}
+
+	void github_application::implementation::toggle_agent_builds(const std::uint64_t aProfile, const bool aOn)
+	{
+		if (Closing || !AgentSetup || !AgentConversationStore) {
+			return;
+		}
+		const auto  agents = AgentSetup->projection().Preferences.Agents;
+		const auto* entry  = core::entry_of_profile(agents, core::agent_profile_id{ aProfile });
+		const auto  key    = entry != nullptr ? grant_key(entry->Id) : std::nullopt;
+		// Owner look e97c6a3d: the toggle is this pull request's answer to
+		// the build question (one answer per pull request, as the question
+		// keeps it); its tooltip says what building does. The next turn
+		// takes it.
+		if (key && !AgentConversationStore->store_build_answer(*key, aOn)) {
+			Window->agent_panel()->refuse("The build and test choice could not be saved.");
+		}
+		present_run_settings();
+	}
+
+	auto github_application::implementation::agent_grant_refusal_for(const core::agent_entry& aEntry) const -> std::optional<core::agent_grant_refusal>
+	{
+		if (core::entry_settings_program(aEntry.Protocol) != core::agent_program::codex) {
+			return std::nullopt;
+		}
+		// Review finding 1 (2026-11-11). BPR's Codex profile replaces the
+		// configured one and asks for no approval, so it is passed only where
+		// the reviewer's own configuration (the user's and a managed one) has
+		// no permissions profile and does not ask before commands.
+		// Re-review N1b, N1d: the files the launched Codex reads. BPR passes
+		// it its home and no `CODEX_HOME`, so its configuration is the home's
+		// `.codex` (on Unix `QDir::homePath()` is that home, falling back as
+		// Codex does), whatever `CODEX_HOME` BPR itself was started with; and
+		// the system's and the managed file.
+		const auto paths      = core::codex_configuration_paths(QDir::homePath().toStdString());
+		auto       texts      = std::vector<std::string>{ };
+		auto       unreadable = !paths.has_value();
+		for (const auto& path : paths.value_or(std::vector<std::string>{ })) {
+			auto file = QFile{ QString::fromStdString(path) };
+			if (!file.exists()) {
+				continue;
+			}
+			if (file.size() > 1024 * 1024 || !file.open(QIODevice::ReadOnly)) {
+				unreadable = true;
+				continue;
+			}
+			texts.push_back(file.readAll().toStdString());
+		}
+		auto views = std::vector<std::string_view>{ texts.begin(), texts.end() };
+		return core::codex_grant_refusal(views, unreadable, aEntry.Arguments);
+	}
+
+	void github_application::implementation::derive_agent_scratch()
+	{
+		if (Closing || !AgentSetup || !AgentConversationStore || AgentScratchRoot.empty()) {
+			return;
+		}
+		const auto setup = AgentSetup->projection();
+		const auto limit = core::agent_scratch_limit_bytes(setup.Preferences.ScratchLimitMiB);
+		for (const auto& entry : setup.Preferences.Agents) {
+			const auto key = grant_key(entry.Id);
+			if (!key) {
+				continue;
+			}
+			const auto name = AgentConversationStore->load_scratch_folder(*key);
+			if (!name || !application::valid_agent_scratch_key(*name)) {
+				continue;
+			}
+			const auto folder = AgentScratchRoot / *name;
+			auto       error  = std::error_code{ };
+			const auto status = std::filesystem::symlink_status(folder, error);
+			if (error || !std::filesystem::is_directory(status)) {
+				AgentScratchFolders.erase(*key);
+				AgentScratchFull.erase(*key);
+				continue;
+			}
+			AgentScratchFolders[*key] = folder.string();
+			AgentScratchFull[*key]    = application::agent_scratch_full(application::list_agent_scratch_folder(folder), limit);
+		}
+	}
+
+	void github_application::implementation::present_scratch_usage(const QString& aSaid)
+	{
+		if (Closing || Window == nullptr || Window->agent_programs() == nullptr) {
+			return;
+		}
+		if (AgentScratchRoot.empty()) {
+			Window->agent_programs()->present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, aSaid);
+			return;
+		}
+		auto       bytes = std::uint64_t{ 0U };
+		const auto all   = application::survey_agent_scratch_root(AgentScratchRoot);
+		for (const auto& entry : all) {
+			bytes += entry.Bytes;
+		}
+		Window->agent_programs()->present_scratch_usage(std::pair{ bytes, all.size() }, aSaid);
+	}
+
+	void github_application::implementation::clear_agent_scratch(const std::optional<std::int64_t> aBeforeSeconds, const bool aSay)
+	{
+		if (Closing || AgentScratchRoot.empty()) {
+			return;
+		}
+		// Never under a running question: its folder could be any of them.
+		if (AgentHost && !AgentHost->is_quiescent()) {
+			if (aSay) {
+				present_scratch_usage(QStringLiteral("Stop the agent's question first."));
+			}
+			return;
+		}
+		// Re-review N4: the open pull request's folders stay, by its
+		// identity (read from the store when it opened, so after a restart
+		// or a switch too); the others go.
+		const auto isOpen = [this](const application::agent_conversation_key& aKey) {
+			const auto here = grant_key(aKey.Agent);
+			return here && *here == aKey;
+		};
+		auto keep = std::vector<std::string>{ };
+		for (const auto& [key, folder] : AgentScratchFolders) {
+			if (isOpen(key)) {
+				keep.push_back(std::filesystem::path{ folder }.filename().string());
+			}
+		}
+		const auto cleanup = application::remove_agent_scratch_folders(AgentScratchRoot, aBeforeSeconds, keep);
+		std::erase_if(AgentScratchFolders, [&](const auto& aEntry) { return !isOpen(aEntry.first) && !std::filesystem::exists(std::filesystem::path{ aEntry.second }); });
+		if (!aBeforeSeconds) {
+			std::erase_if(AgentScratchFull, [&](const auto& aEntry) { return !isOpen(aEntry.first); });
+		}
+		if (aSay) {
+			auto said = cleanup.Removed == 0U ? QStringLiteral("Nothing to clear.")
+											  : QStringLiteral("Cleared %1 from %2 %3.").arg(QLocale{ }.formattedDataSize(static_cast<qint64>(cleanup.Bytes))).arg(cleanup.Removed).arg(cleanup.Removed == 1U ? QStringLiteral("folder") : QStringLiteral("folders"));
+			if (cleanup.Failed != 0U) {
+				said += QStringLiteral(" %1 could not be removed.").arg(cleanup.Failed);
+			}
+			present_scratch_usage(said);
+			present_run_settings();
+		}
+	}
+
+	void github_application::implementation::open_agent_scratch(const std::uint64_t aProfile)
+	{
+		const auto* const entry = AgentSetup ? core::entry_of_profile(AgentSetup->projection().Preferences.Agents, core::agent_profile_id{ aProfile }) : nullptr;
+		const auto        key   = entry != nullptr ? grant_key(entry->Id) : std::nullopt;
+		const auto        found = key ? AgentScratchFolders.find(*key) : AgentScratchFolders.end();
+		if (Closing || found == AgentScratchFolders.end()) {
+			return;
+		}
+		QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(found->second)));
+	}
+
+	void github_application::implementation::note_agent_scratch(const core::agent_profile_id aProfile, const application::agent_run_result& aResult)
+	{
+		if (Closing) {
+			return;
+		}
+		// RFC-BPR-0104 as amended 2026-11-11: a turn that filled its folder
+		// was stopped; the reviewer is told why, and the toggle says full.
+		if (aResult.ScratchOverflowed && Window != nullptr) {
+			const auto limit = AgentSetup ? AgentSetup->projection().Preferences.ScratchLimitMiB : core::default_agent_scratch_limit_mib;
+			Window->agent_panel()->refuse("Stopped: the agent's scratch folder reached its limit of " + std::to_string(limit) + " MiB. Open it to make room, clear it in Settings, or raise the limit there.");
+		}
+		// Re-review N3: the result belongs to the pull request the turn was
+		// granted in, which may no longer be the open one.
+		const auto* const entry = AgentSetup ? core::entry_of_profile(AgentSetup->projection().Preferences.Agents, aProfile) : nullptr;
+		const auto        key   = entry != nullptr && AgentScratchTurn && AgentScratchTurn->Agent == entry->Id ? AgentScratchTurn : std::nullopt;
+		if (!key || (!aResult.Grant && !aResult.ScratchUnmade)) {
+			present_run_settings();
+			return;
+		}
+		if (aResult.ScratchUnmade) {
+			AgentScratchUnmade.insert(*key);
+		} else if (aResult.Grant && !aResult.Grant->ScratchFolder.empty()) {
+			AgentScratchUnmade.erase(*key);
+			AgentScratchFull[*key] = aResult.ScratchFull;
+			present_scratch_usage();
+		}
+		if (!aResult.ScratchFolder.empty()) {
+			AgentScratchFolders[*key] = aResult.ScratchFolder;
+			if (AgentConversationStore) {
+				static_cast<void>(AgentConversationStore->store_scratch_folder(*key, std::filesystem::path{ aResult.ScratchFolder }.filename().string()));
+			}
+		}
+		present_run_settings();
+	}
+
+	auto github_application::implementation::grant_agent_turn(application::agent_invocation_request& aInvocation) -> bool
+	{
+		if (!AgentSetup || aInvocation.WritingOnly || aInvocation.ReadOnlyTools) {
+			return true;
+		}
+		const auto  agents = AgentSetup->projection().Preferences.Agents;
+		const auto* entry  = core::entry_of_profile(agents, aInvocation.Profile);
+		if (entry == nullptr) {
+			return true;
+		}
+		auto grant = agent_grant_for(*entry, aInvocation.ExistingCheckoutChosen);
+		// RFC-BPR-0104 AC04. Asked once per pull request, before the first
+		// turn that would build; declining leaves reading and scripting.
+		if (core::build_question_due(grant)) {
+			const auto asked  = grant_key(entry->Id);
+			const auto answer = AskBuildQuestion ? AskBuildQuestion() : qt::ask_build_question(Window.get());
+			// Review finding 7: the question is modal, and the window may
+			// close or move to another pull request while it is open. The
+			// turn goes only to the pull request it was asked in.
+			if (!answer || Closing || !AgentSetup || grant_key(entry->Id) != asked) {
+				return false;
+			}
+			if (asked && AgentConversationStore) {
+				static_cast<void>(AgentConversationStore->store_build_answer(*asked, *answer));
+			}
+			grant.Builds = *answer ? core::agent_builds_state::allowed : core::agent_builds_state::declined;
+			present_run_settings();
+		}
+		aInvocation.ScratchFolder   = core::scratch_granted(grant);
+		aInvocation.BuildsAndTests  = core::builds_granted(grant);
+		AgentScratchTurn            = grant_key(entry->Id);
+		aInvocation.ScratchLimitMiB = AgentSetup->projection().Preferences.ScratchLimitMiB;
+		return true;
+	}
+
+	namespace {
+		[[nodiscard]] auto configuration_count(const std::size_t aCount, const bool aAgents) -> QString
+		{
+			if (aAgents) {
+				return aCount == 1U ? QObject::tr("1 agent") : QObject::tr("%1 agents").arg(aCount);
+			}
+			return aCount == 1U ? QObject::tr("1 prompt") : QObject::tr("%1 prompts").arg(aCount);
+		}
+	}
+
+	// [[BPR-2016]], [[BPR-2017]], RFC-BPR-0107. Export configuration…: the
+	// stored snapshot, the dialog's choice, then the bytes written where the
+	// reviewer chose. Nothing else is read or run.
+	void github_application::implementation::export_agent_configuration()
+	{
+		if (Closing || !AgentConfiguration || Window == nullptr) {
+			return;
+		}
+		AgentConfiguration->snapshot([this](std::optional<application::agent_configuration_snapshot> aSnapshot) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!aSnapshot) {
+				Window->agent_programs()->present_exchange(QObject::tr("The agent settings could not be read, so nothing was exported."));
+				return;
+			}
+			auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
+			for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
+				unsaved[index] = Window->writing_hooks()->has_unsaved(static_cast<core::writing_hook>(index));
+			}
+			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
+																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(),
+																			Window->agent_programs()->window() };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->set_file_chooser([dialog] {
+	#if defined(BPR_BUILD_TESTING)
+				// The attended look's own check names the file; a person is asked.
+				if (const auto forced = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE"); !forced.isEmpty()) {
+					return forced;
+				}
+	#endif
+				const auto folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+				return QFileDialog::getSaveFileName(dialog, QObject::tr("Export configuration"), folder + QStringLiteral("/agents.bpr-config.json"), QObject::tr("Agent configuration (*.json)"));
+			});
+			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] {
+				if (Closing || !AgentConfiguration) {
+					return;
+				}
+				const auto agents  = dialog->agents().size();
+				const auto prompts = dialog->prompts().size();
+				const auto path    = dialog->chosen_path();
+				AgentConfiguration->write(path.toStdString(), dialog->bytes(), [this, agents, prompts, path](const bool aWritten) {
+					if (!Closing && Window != nullptr) {
+						Window->agent_programs()->present_exchange(aWritten ? QObject::tr("Exported %1 and %2 to %3.").arg(configuration_count(agents, true), configuration_count(prompts, false), QFileInfo{ path }.fileName())
+																			: QObject::tr("%1 could not be written. Nothing was exported.").arg(QFileInfo{ path }.fileName()));
+					}
+				});
+			});
+			dialog->open();
+		});
+	}
+
+	// Import configuration…: the file is read and decoded against what the
+	// profile holds now; the dialog decides; one all-or-nothing application;
+	// then the hosts read back what was stored. No agent is checked or run.
+	void github_application::implementation::import_agent_configuration()
+	{
+		if (Closing || !AgentConfiguration || Window == nullptr) {
+			return;
+		}
+		auto path = QString{ };
+	#if defined(BPR_BUILD_TESTING)
+		path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+	#endif
+		if (path.isEmpty()) {
+			path = QFileDialog::getOpenFileName(Window->agent_programs()->window(), QObject::tr("Import configuration"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+												QObject::tr("Agent configuration (*.json);;All files (*)"));
+		}
+		if (path.isEmpty()) {
+			return;
+		}
+		AgentConfiguration->read(path.toStdString(), [this, path](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!aPreview) {
+				Window->agent_programs()->present_exchange(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
+																					: QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
+				return;
+			}
+			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog };
+			for (const auto& row : AgentSetup ? AgentSetup->projection().State.Rows : std::vector<core::agent_setup_row>{ }) {
+				if (!row.Path.empty()) {
+					facts.Found.push_back(row.Agent);
+				}
+			}
+			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), Window->agent_programs()->window() };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->set_program_chooser([dialog](const QString& aHint) {
+	#if defined(BPR_BUILD_TESTING)
+				if (const auto forced = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_PROGRAM"); !forced.isEmpty()) {
+					return forced;
+				}
+	#endif
+				return QFileDialog::getOpenFileName(dialog, QObject::tr("Choose the program for %1").arg(aHint.isEmpty() ? QObject::tr("this agent") : aHint));
+			});
+			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] { apply_agent_configuration(*dialog); });
+			dialog->open();
+		});
+	}
+
+	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog)
+	{
+		if (Closing || !AgentConfiguration || Window == nullptr) {
+			return;
+		}
+		if (Profile->WorkbenchPreferences->is_busy()) {
+			Window->agent_programs()->present_exchange(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
+			return;
+		}
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, agents = aDialog.agent_choices().size(), prompts = aDialog.prompt_choices().size()](application::agent_configuration_host::applied aApplied) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!aApplied) {
+				Window->agent_programs()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(core::stable_name(aApplied.error().Refusal).data())));
+				return;
+			}
+			switch (aApplied->first) {
+			case application::agent_configuration_outcome::applied:
+				// The stores hold the result; the hosts read it back.
+				static_cast<void>(Profile->WorkbenchPreferences->adopt_writing_hooks(aApplied->second.Hooks));
+				if (AgentSetup) {
+					AgentSetup->load();
+				}
+				if (ReviewSkill) {
+					ReviewSkill->load();
+				}
+				Window->agent_programs()->present_exchange((agents > 0U ? QObject::tr("Imported %1 and %2. Check a new agent before you ask it anything.") : QObject::tr("Imported %1 and %2."))
+															   .arg(configuration_count(agents, true), configuration_count(prompts, false)));
+				break;
+			case application::agent_configuration_outcome::changed_since:
+				Window->agent_programs()->present_exchange(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
+				break;
+			case application::agent_configuration_outcome::storage_failed:
+				Window->agent_programs()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
+				break;
+			}
+		});
 	}
 #endif
 }

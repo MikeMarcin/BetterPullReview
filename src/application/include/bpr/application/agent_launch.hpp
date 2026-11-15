@@ -4,15 +4,20 @@
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/application/review_ledger_port.hpp"
+#include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/agent_cost.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
+#include <algorithm>
 #include <array>
 #include <compare>
 #include <cstddef>
@@ -21,6 +26,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -74,7 +80,7 @@ namespace bpr::application {
 		private_ledger_observation                       Private;
 		std::optional<core::supplement_semantic_context> Selection;
 		std::optional<agent_draft_observation>           CurrentDraft;
-		std::vector<local_note_id>                       IncludedNotes;
+		std::vector<local_comment_id>                    IncludedNotes;
 		std::optional<agent_draft_choice>                IncludedDraft;
 		/// What the reviewer typed for this turn, when this is a chat turn.
 		///
@@ -120,6 +126,18 @@ namespace bpr::application {
 		/// is about, already within its bounds (`core::bound_conversation`);
 		/// absent for every other launch.
 		std::optional<core::supplement_conversation> Conversation;
+		/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). A returning question's
+		/// material, up front: both revisions and the change between them,
+		/// or a thread's lines then and now. Absent for every other launch.
+		std::optional<core::supplement_returning> Returning;
+		/// RFC-BPR-0117 ([[BPR-2076]]). Explain this file's material, up
+		/// front: the file's change and its text at the head. Absent for
+		/// every other launch.
+		std::optional<core::supplement_explain> Explain;
+		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change's material, up
+		/// front: the draft's lines, its words and the lines around them.
+		/// Absent for every other launch.
+		std::optional<core::supplement_suggest_change> SuggestChange;
 		/// [[BPR-1916]]. Skills the prompt named, carried inline
 		/// (`application::inline_skills`); empty for every launch that named
 		/// none.
@@ -131,6 +149,11 @@ namespace bpr::application {
 		/// `core::maximum_tour_prompt_bytes`), not in `ChatMessage`, whose
 		/// bound is for what a reviewer types. Empty for every other launch.
 		std::string TourPrompt;
+		/// [[BPR-2002]], RFC-BPR-0102. What a chat question is about, as the
+		/// core decided it, and where the reviewer is looking, named as such.
+		/// Absent for every launch that is not a chat question.
+		std::optional<core::supplement_subject>    Subject;
+		std::optional<core::supplement_looking_at> LookingAt;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};
@@ -164,6 +187,10 @@ namespace bpr::application {
 		/// [[BPR-1935]]. A read-only tour run ([[BPR-1900]]): the only launch
 		/// a tour prompt is admitted on, and one that must carry one.
 		read_only_tour,
+		/// [[BPR-2141]]. A tool-free tour run whose context is up front (a
+		/// fresh Draft Tour, field draft or outline): its prompt, the pull
+		/// request's diff in it, travels in the tour prompt's carrier too.
+		tool_free_tour,
 	};
 
 	/// \brief Builds context only from caller-supplied bounded observations.
@@ -203,6 +230,83 @@ namespace bpr::application {
 	/// \brief Host admission snapshot and explicit settings for one invocation.
 	/// The host persists AdmittedRun before dispatch; the builder verifies correlation,
 	/// never allocates identities. Legacy callers omit it until durable host integration.
+	/// \brief [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The allowances one
+	/// Agent tab turn launches with: the narrow write and run allowance in
+	/// its scratch folder, and building and testing in its disposable
+	/// checkout. Never with a writing or read-only run.
+	struct agent_launch_grant
+	{
+		/// The session's scratch folder, absolute; empty: none.
+		std::string ScratchFolder;
+		/// The folder was full when the turn started: the agent is told its
+		/// path and why, may run what is there, and may not write there.
+		bool ScratchFull = false;
+		/// The disposable checkout the agent may build and test in; empty: none.
+		std::string BuildWorkspace;
+		/// The folder's limit as set, for the agent's instruction.
+		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
+
+		auto operator<=>(const agent_launch_grant&) const = default;
+	};
+
+	/// \brief [[BPR-2007]]. Whether a path can be named in a grant: absolute,
+	/// with no space, control character, parenthesis or comma, which a
+	/// Claude permission rule cannot carry, and (review finding 8) no glob
+	/// character, which would widen the rule it is named in.
+	[[nodiscard]] inline auto valid_agent_grant_path(const std::string_view aPath) noexcept -> bool
+	{
+		if (aPath.empty() || aPath.size() > 1024U || aPath.front() != '/') {
+			return false;
+		}
+		for (const auto character : aPath) {
+			if (static_cast<unsigned char>(character) <= 0x20U || character == 0x7F || character == '(' || character == ')' || character == ',' || character == '"' || character == '\\'
+				|| character == '*' || character == '?' || character == '[' || character == ']' || character == '{' || character == '}') {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/// \brief [[BPR-2008]]. Whether a disposable checkout can be named in a
+	/// grant: absolute, with no control character, quote or backslash. Only
+	/// Codex's profile names it, so a space is allowed.
+	[[nodiscard]] inline auto valid_agent_build_path(const std::string_view aPath) noexcept -> bool
+	{
+		if (aPath.empty() || aPath.size() > 4096U || aPath.front() != '/') {
+			return false;
+		}
+		return std::ranges::none_of(aPath, [](const char aCharacter) { return static_cast<unsigned char>(aCharacter) < 0x20U || aCharacter == 0x7F || aCharacter == '"' || aCharacter == '\\'; });
+	}
+
+	/// \brief The name of the Codex permissions profile a granted launch defines.
+	inline constexpr std::string_view codex_grant_profile = "betterpullreview_grant";
+
+	/// \brief [[BPR-2008]]. The build and test programs Claude may run when
+	/// builds are granted, each as a `Bash(NAME:*)` rule. Every one of them
+	/// runs the pull request's own code; the question says so.
+	inline constexpr std::array<std::string_view, 22> claude_build_programs = {
+		"cmake", "ctest", "make", "ninja", "meson", "bazel", "npm", "npx", "pnpm", "yarn", "cargo",
+		"go", "gradle", "./gradlew", "mvn", "dotnet", "swift", "xcodebuild", "pytest", "python3 -m pytest", "tox", "just"
+	};
+	/// \brief [[BPR-2007]]. The interpreters Claude may run a scratch file
+	/// with, each as `Bash(NAME FOLDER/*)`. Review finding 2 (2026-11-11):
+	/// nothing runs a file directly and nothing changes a mode, since
+	/// `Bash(FOLDER/*)` matched `FOLDER/../../usr/bin/touch WORKSPACE/x` and
+	/// `chmod +x FOLDER/*` matched `chmod +x FOLDER/a WORKSPACE/file`.
+	inline constexpr std::array<std::string_view, 5> claude_scratch_runners = {
+		"python3", "python", "node", "ruby", "perl"
+	};
+	/// \brief Review finding 2. A Claude run granted a scratch folder is
+	/// denied running any runner with a parent step in a path, so a runner
+	/// rule cannot reach a file outside the folder (`python3 FOLDER/../x.py`).
+	/// A deny rule wins over every allow rule, the reviewer's own included,
+	/// for that run. Re-review N5 (2026-11-11): it names the runners, so it
+	/// never denies a build program's `cmake ../..` (Claude Code 2.1.319, live).
+	[[nodiscard]] inline auto claude_grant_denial(const std::string_view aRunner) -> std::string
+	{
+		return "Bash(" + std::string{ aRunner } + " */..*)";
+	}
+
 	struct agent_launch_options
 	{
 		core::agent_setting_facts                 Requested;
@@ -216,7 +320,68 @@ namespace bpr::application {
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. Strict unless a custom profile opted out.
 		agent_run_checks RunChecks = agent_run_checks::strict;
+		/// [[BPR-2007]], [[BPR-2008]]. None launches exactly as before.
+		std::optional<agent_launch_grant> Grant;
+		/// RFC-BPR-0104, third review round (F1). The disposable checkout BPR
+		/// made from the pull request, as the turn runs in it, as its
+		/// canonical path and as the system names the opened folder
+		/// (`agent_checkout_spellings`); empty for the reviewer's own checkout. Its own
+		/// agent settings are the pull request's, so they are never loaded:
+		/// Claude Code reads only the user's settings (`--setting-sources
+		/// user`), and Codex is told the checkout is an untrusted project
+		/// (`codex_untrusted_project_argument`). A grant that names the
+		/// checkout, or any Codex grant, needs it.
+		std::vector<std::string> PullRequestCheckout;
+		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). The launch path,
+		/// whose session mode the launch keeps: a fresh path saves no
+		/// session and never resumes one.
+		core::agent_run_path Path = core::agent_run_path::agent_tab;
+		/// [[BPR-2139]], RFC-BPR-0104. The agent's MCP servers setting; a
+		/// fresh path keeps MCP off whatever it says.
+		core::agent_mcp_servers McpServers = core::agent_mcp_servers::off;
+		/// [[BPR-2140]], RFC-BPR-0107. A built-in prompt's instructions, kept
+		/// apart from the run's material: Claude's inline
+		/// `--append-system-prompt`, Codex `exec`'s `developer_instructions`,
+		/// or pasted at the start of the message (`Instructions` says
+		/// message, the App Server, or past `maximum_system_prompt_argument_bytes`).
+		std::string                      SystemInstructions;
+		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
 	};
+
+	/// \brief [[BPR-2140]]. How a launch delivered its instructions, as the
+	/// launch request records it.
+	enum class agent_instructions_route : std::uint8_t {
+		none,
+		system_prompt,
+		pasted,
+	};
+
+	/// \brief [[BPR-2142]], RFC-BPR-0104 (wrapper tests, 2026-11-11). The
+	/// Claude options that take several values. Each comes before `-p` and is
+	/// followed by another option, so none can take a prompt as its value.
+	inline constexpr std::array<std::string_view, 7> claude_variadic_options = {
+		"--add-dir", "--allowedTools", "--allowed-tools", "--disallowedTools", "--disallowed-tools", "--tools", "--mcp-config"
+	};
+
+	/// \brief [[BPR-2139]]. What an MCP-off Claude launch carries when no
+	/// restriction already does.
+	inline constexpr std::array<std::string_view, 3> claude_mcp_off_arguments = { "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})" };
+
+	/// \brief RFC-BPR-0104, third review round (F1). The `-c` value that
+	/// makes Codex treat each checkout path as an untrusted project for the
+	/// run. Codex merges it into the reviewer's `projects` table: it
+	/// overrides the entries for these paths and leaves the others (fourth
+	/// review, 2026-11-11), so every spelling Codex may key the checkout by
+	/// must be named (`agent_checkout_spellings`). Established 2026-11-11
+	/// against Codex 0.167.0: without it, a turn whose working folder is
+	/// writable (a build grant, or the reviewer's own `workspace-write` mode
+	/// under `exec`) writes `trust_level = "trusted"`
+	/// for the checkout into the reviewer's `~/.codex/config.toml` and loads
+	/// the checkout's `.codex/config.toml`, whose `mcp_servers` then run
+	/// outside the sandbox. Untrusted, the checkout's configuration, hooks
+	/// and rules are not loaded and nothing is written. Codex matches the
+	/// kernel's path for its working folder, so the host passes that too.
+	[[nodiscard]] auto codex_untrusted_project_argument(std::span<const std::string> aCheckout) -> std::string;
 
 	/// \brief Effect-lane source claim, released after the private input write or refusal.
 	class agent_input_claim
@@ -263,10 +428,21 @@ namespace bpr::application {
 		/// program and fixed arguments are found for its slot.
 		core::agent_profile_id Profile;
 		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
+		/// [[BPR-2007]], [[BPR-2008]]. The grant the turn launched with.
+		std::optional<agent_launch_grant> Grant;
 		/// [[BPR-1900]]. The decoder admits only read-only tool uses.
 		bool ReadOnlyTools = false;
+		/// [[BPR-2138]]. The launch path; a fresh one is never resumed.
+		core::agent_run_path Path = core::agent_run_path::agent_tab;
+		/// [[BPR-2140]]. Where the instructions went.
+		agent_instructions_route InstructionsRoute = agent_instructions_route::none;
 		/// [[BPR-1918]]. How the decoder treats what a wrapper can trip.
 		agent_run_checks RunChecks = agent_run_checks::strict;
+		/// [[BPR-2004]], RFC-BPR-0103. The sink is told what the agent is
+		/// doing and that frames arrive (`agent_stream_kind::activity` and
+		/// `heartbeat`), for a running block. Off, it hears answer text
+		/// only. The turn's helpers are tracked either way.
+		bool ReportActivity = false;
 		/// Durable host identity; empty keeps the one-shot protocol contract.
 		std::string NativeConversation;
 		/// Exact backend handle, never a most-recent lookup or diagnostic field.
@@ -404,7 +580,8 @@ namespace bpr::application {
 	/// session is continued only by a harness that can (`--resume`); nothing
 	/// else is added to what the profile already launches with.
 	[[nodiscard]] auto build_round_launch(const core::agent_profile& aProfile, std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
-										  const environment_reader& aParent) -> std::expected<agent_launch_request, agent_launch_failure>;
+										  const environment_reader& aParent, core::agent_mcp_servers aMcpServers = core::agent_mcp_servers::off)
+		-> std::expected<agent_launch_request, agent_launch_failure>;
 
 	/// \brief Configures one native turn or an exact-ID reconnect without replay.
 	[[nodiscard]] auto prepare_native_agent_turn(agent_launch_request aRequest, bool aConnected)
@@ -571,17 +748,22 @@ namespace bpr::application {
 		/// network, an MCP tool, or a shell command that is not a plain
 		/// read-only pipeline). The run ends there.
 		tool_refused,
+		/// [[BPR-2004]], RFC-BPR-0103. The runtime ended (it exited, or
+		/// closed its output) while helpers it reported were still running.
+		/// What arrived is kept; `agent_run_result::UnfinishedHelpers`
+		/// names them.
+		helpers_unfinished,
 	};
 
 	/// \brief The number of declared protocol failures.
 	///
 	/// \details Exists so a sweep over the causes can be exhaustive rather than
 	/// a sample: a new failure that nothing distinguishes fails the count.
-	inline constexpr std::size_t agent_protocol_failure_count = 16U;
+	inline constexpr std::size_t agent_protocol_failure_count = 17U;
 
 	static_assert(
 		static_cast<std::size_t>(
-			agent_protocol_failure::tool_refused)
+			agent_protocol_failure::helpers_unfinished)
 				+ 1U
 			== agent_protocol_failure_count,
 		"agent_protocol_failure_count must cover every declared failure");
@@ -628,6 +810,10 @@ namespace bpr::application {
 		/// (`relaxed_check_name`), never what tripped it. Counted for the
 		/// diagnostic.
 		check_relaxed,
+		/// [[BPR-2004]], RFC-BPR-0103. What the agent or one of its helpers
+		/// is doing, in `Activity`. For the running block only: never the
+		/// answer.
+		activity,
 	};
 
 	struct agent_protocol_event
@@ -636,6 +822,8 @@ namespace bpr::application {
 		std::string               Text;
 		std::string               Item;
 		bool                      CompleteItem = true;
+		/// Set for `activity` only.
+		std::optional<core::agent_activity_update> Activity;
 
 		auto operator<=>(const agent_protocol_event&) const = default;
 	};
@@ -744,6 +932,30 @@ namespace bpr::application {
 		-> std::expected<std::string, agent_protocol_failure>;
 
 	/// \brief Incrementally decodes one selected protocol's stdout frames.
+	/// \brief [[BPR-2004]], RFC-BPR-0103. What a decoder knows of a turn's
+	/// helpers: the sub-agents and background tasks its runtime reported.
+	struct agent_helper_tracking
+	{
+		/// Helpers still running: the runtime's identity and description.
+		std::vector<std::pair<std::string, std::string>> Running;
+		/// Every helper identity reported this turn, ended or not, with the
+		/// identity its frames name it by (Claude: the `tool_use` that
+		/// started it; Codex App Server: its own thread).
+		std::vector<std::pair<std::string, std::string>> Known;
+		/// Claude: a helper reported back since the agent last began a part
+		/// of the turn (`system/init`). Claude answers each report in a part
+		/// of its own, so the turn goes on until that part's result.
+		bool NotifiedSinceInit = false;
+		/// Claude: a later part of the turn began after text was written; its
+		/// first text starts a new paragraph of the answer.
+		bool                     SeparateNext = false;
+		core::agent_helper_tally Tally;
+		/// Frame types read past, first seen first, at most sixteen.
+		std::vector<std::string> ReadPast;
+
+		auto operator<=>(const agent_helper_tracking&) const = default;
+	};
+
 	class agent_protocol_decoder final
 	{
 	public:
@@ -758,6 +970,9 @@ namespace bpr::application {
 		[[nodiscard]] auto native_handle() const noexcept -> const std::string&;
 		void               expect_native_handle(std::string aHandle) { ExpectedNativeHandle = std::move(aHandle); }
 		void               expect_response(std::uint64_t aTurn) { NativeTurn = aTurn; }
+		/// \brief [[BPR-2004]]. Whether `activity` events are returned; off,
+		/// they are dropped where they are decoded.
+		void report_activity(bool aReport) noexcept { ReportActivity = aReport; }
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -780,6 +995,9 @@ namespace bpr::application {
 
 		/// \brief [[BPR-1827]]. Every standard-output byte pushed so far.
 		[[nodiscard]] auto pushed_bytes() const noexcept -> std::size_t { return TotalBytes; }
+
+		/// \brief [[BPR-2004]]. The turn's helpers as reported so far.
+		[[nodiscard]] auto helpers() const noexcept -> const agent_helper_tracking& { return Helpers; }
 
 	private:
 		[[nodiscard]] auto retain_output(std::vector<agent_protocol_event>&) -> bool;
@@ -804,6 +1022,8 @@ namespace bpr::application {
 		/// what it was asked, named once the result says what Claude did.
 		std::vector<std::pair<std::string, std::string>> HeldTools;
 		std::string                                      Pending;
+		agent_helper_tracking                            Helpers;
+		bool                                             ReportActivity   = false;
 		std::size_t                                      TotalBytes       = 0U;
 		bool                                             Failed           = false;
 		std::uint8_t                                     Phase            = 0U;
@@ -838,18 +1058,34 @@ namespace bpr::application {
 	};
 
 	[[nodiscard]] auto name(agent_run_outcome aOutcome) noexcept -> std::string_view;
+	/// \brief [[BPR-2142]], RFC-BPR-0103. What a run that ended on a failed
+	/// sign-in says (`agent_protocol_failure::not_signed_in`).
+	inline constexpr std::string_view agent_sign_in_failure_words
+		= "The agent isn't signed in, or its wrapper couldn't get a sign-in token. Sign in again in a terminal, or try again later.";
 	/// \brief [[BPR-1847]]. How a turn that ran to this outcome ended, in the
 	/// thread's own vocabulary.
 	[[nodiscard]] auto turn_outcome(agent_run_outcome aOutcome) noexcept -> core::agent_turn_outcome;
 	/// \brief [[BPR-1827]]. The failure's stable name, for logs and diagnostics.
 	[[nodiscard]] auto name(agent_protocol_failure aFailure) noexcept -> std::string_view;
 
+	/// \brief [[BPR-2004]]. What one stream event carries.
+	enum class agent_stream_kind : std::uint8_t {
+		/// Answer text, in `Text`.
+		text,
+		/// What the agent or a helper is doing, in `Activity`.
+		activity,
+		/// A frame arrived and said nothing shown: "last activity" restarts.
+		heartbeat,
+	};
+
 	struct agent_stream_event
 	{
-		core::agent_session_id Session;
-		std::uint64_t          Sequence = 0U;
-		std::string            Text;
-		core::agent_run_id     Run;
+		core::agent_session_id                     Session;
+		std::uint64_t                              Sequence = 0U;
+		std::string                                Text;
+		core::agent_run_id                         Run;
+		agent_stream_kind                          Kind = agent_stream_kind::text;
+		std::optional<core::agent_activity_update> Activity;
 
 		auto operator<=>(const agent_stream_event&) const = default;
 	};
@@ -880,6 +1116,11 @@ namespace bpr::application {
 		/// [[BPR-1753]]. The turn's cost as the harness reported it, a
 		/// decimal of US dollars; absent when it reported none.
 		std::optional<std::string> ReportedCostUsd;
+		/// [[BPR-1999]], RFC-BPR-0101. What this turn cost, as the core
+		/// accounted the reported figure, and its conversation's total once
+		/// known; absent when the runtime reported none.
+		std::optional<core::agent_cost> TurnCost;
+		std::optional<core::agent_cost> SessionCost;
 		/// [[BPR-1891]]. The plugins a writing run's Claude reported
 		/// loading, as `plugins_reported` carries them; empty when none.
 		std::string ReportedPlugins;
@@ -916,6 +1157,31 @@ namespace bpr::application {
 		std::string Conversation;
 		/// Process-local supervised connection identity, for lifecycle observations.
 		std::uint64_t NativeProcess = 0U;
+		/// [[BPR-2004]], RFC-BPR-0103. The helpers the runtime reported, by
+		/// how they ended; those still running when the turn ended are
+		/// abandoned.
+		core::agent_helper_tally Helpers;
+		/// The descriptions of the helpers still running when the runtime
+		/// ended, for `helpers_unfinished`; at most eight.
+		std::vector<std::string> UnfinishedHelpers;
+		/// The longest time between two frames from the runtime.
+		std::uint64_t LongestSilenceMs = 0U;
+		/// The frame types the decoder read past, comma separated, bounded.
+		std::string ReadPast;
+		/// [[BPR-2007]], RFC-BPR-0104. The turn's scratch folder, when it
+		/// had one, and the files it left new or changed there, relative to
+		/// it, at most `core::maximum_agent_activity_listed`.
+		std::string              ScratchFolder;
+		std::vector<std::string> ScratchFiles;
+		/// The grant the turn launched with.
+		std::optional<agent_launch_grant> Grant;
+		/// RFC-BPR-0104 as amended 2026-11-11. The folder was at or past its
+		/// limit when the turn ended, and the turn was stopped for passing it.
+		bool ScratchFull       = false;
+		bool ScratchOverflowed = false;
+		/// Re-review N3 (2026-11-11). The turn asked for a scratch folder
+		/// and none could be made or named, so it had none.
+		bool ScratchUnmade = false;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

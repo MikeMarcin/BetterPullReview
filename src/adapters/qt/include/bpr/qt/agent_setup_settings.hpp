@@ -13,13 +13,17 @@
 
 #include <QWidget>
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class QCheckBox;
 class QComboBox;
+class QHBoxLayout;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -56,6 +60,10 @@ namespace bpr::qt {
 			/// through the same host as Check it works.
 			std::function<void()> Check;
 			std::function<void()> StopCheck;
+			/// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"). Check
+			/// all, and one agent's check from its row's menu.
+			std::function<void()>              CheckAll;
+			std::function<void(std::uint32_t)> CheckEntry;
 			/// Owner look v006: Reset agents…, which asks before it clears.
 			std::function<void()>                          Reset;
 			std::function<void(core::agent_entry, answer)> Add;
@@ -65,6 +73,18 @@ namespace bpr::qt {
 			/// Owner decision 2026-10-23: the run time limit in minutes, 0 for
 			/// none. Answers whether it was taken.
 			std::function<bool(std::uint32_t)> SetRunLimit;
+			/// RFC-BPR-0126 Q4/Q5: Queue (false) or Steer for a follow-up.
+			std::function<void(bool)> SetFollowUpSteer;
+			/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d): the
+			/// scratch folder limit in MiB and the days an unused folder is
+			/// kept (0: until cleared), answering whether they were taken;
+			/// Clear scratch folders now.
+			std::function<bool(std::uint32_t, std::uint32_t)> SetScratchPolicy;
+			std::function<void()>                             ClearScratch;
+			/// [[BPR-2017]], RFC-BPR-0107. Import configuration… and
+			/// Export configuration…, which open their dialogs.
+			std::function<void()> ImportConfiguration;
+			std::function<void()> ExportConfiguration;
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
@@ -92,12 +112,29 @@ namespace bpr::qt {
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
 		[[nodiscard]] auto run_limit_toggle() const noexcept -> QCheckBox* { return RunLimitOn; }
 		[[nodiscard]] auto run_limit_minutes() const noexcept -> QSpinBox* { return RunLimit; }
+		/// \brief What the scratch folders hold now: bytes and folders; none
+		/// while unmeasured. A cleanup's answer is said beside it.
+		void               present_scratch_usage(std::optional<std::pair<std::uint64_t, std::size_t>> aUsage, const QString& aSaid = { });
+		[[nodiscard]] auto scratch_limit() const noexcept -> QSpinBox* { return ScratchLimit; }
+		[[nodiscard]] auto scratch_keep_toggle() const noexcept -> QCheckBox* { return ScratchKeepOn; }
+		[[nodiscard]] auto scratch_keep_days() const noexcept -> QSpinBox* { return ScratchKeepDays; }
+		[[nodiscard]] auto scratch_usage() const noexcept -> QLabel* { return ScratchUsage; }
+		[[nodiscard]] auto scratch_clear_button() const noexcept -> QPushButton* { return ScratchClear; }
+		/// \brief [[BPR-2017]]. The share row's buttons, and what the last
+		/// import or export did, said under them.
+		[[nodiscard]] auto import_button() const noexcept -> QPushButton* { return ImportButton; }
+		[[nodiscard]] auto export_button() const noexcept -> QPushButton* { return ExportButton; }
+		void               present_exchange(const QString& aSaid);
+		[[nodiscard]] auto exchange_note() const noexcept -> QLabel* { return ExchangeNote; }
 
 		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
 		/// disabled with its reason; its rows, a failure's words and remedy,
 		/// and its details, all on the page.
 		void               present_check(const agent_check_presentation& aCheck);
 		[[nodiscard]] auto check_button() const noexcept -> QPushButton* { return CheckButton; }
+		/// \brief [[BPR-2051]]. A roster row as read aloud and as tests read
+		/// it: the agent's name, its line under the name, and its state.
+		[[nodiscard]] auto roster_row_text(int aRow) const -> QString;
 		[[nodiscard]] auto stop_check_button() const noexcept -> QPushButton* { return StopCheckButton; }
 		/// The line beside the button: what the check does, what runs, or why
 		/// it cannot run.
@@ -112,7 +149,7 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
-		void                                    build_check(QVBoxLayout& aColumn);
+		void                                    build_check(QVBoxLayout& aColumn, QHBoxLayout& aRow);
 		std::optional<agent_check_presentation> ShownCheck;
 		QPushButton*                            CheckButton     = nullptr;
 		QPushButton*                            StopCheckButton = nullptr;
@@ -137,16 +174,34 @@ namespace bpr::qt {
 		agent_entry_editor                      Editor;
 		std::vector<core::agent_entry>          Agents;
 		std::vector<core::agent_detection>      Found;
-		QListWidget*                            List         = nullptr;
-		QPushButton*                            AddButton    = nullptr;
-		QPushButton*                            EditButton   = nullptr;
-		QPushButton*                            RemoveButton = nullptr;
-		QPushButton*                            UpButton     = nullptr;
-		QPushButton*                            DownButton   = nullptr;
-		QLabel*                                 Status       = nullptr;
-		QCheckBox*                              RunLimitOn   = nullptr;
-		QSpinBox*                               RunLimit     = nullptr;
-		void                                    send_run_limit();
+		/// [[BPR-2051]]. The kept checks, the agent a check runs on now, and
+		/// the roster's rows drawn from them.
+		std::vector<application::agent_entry_check_record> Kept;
+		std::optional<std::uint32_t>                       Checking;
+		void                                               present_roster();
+		void                                               say(const QString& aText);
+		void                                               open_row_menu(const QPoint& aAt);
+		QListWidget*                                       List            = nullptr;
+		QPushButton*                                       AddButton       = nullptr;
+		QPushButton*                                       EditButton      = nullptr;
+		QPushButton*                                       RemoveButton    = nullptr;
+		QPushButton*                                       UpButton        = nullptr;
+		QPushButton*                                       DownButton      = nullptr;
+		QLabel*                                            Status          = nullptr;
+		QCheckBox*                                         RunLimitOn      = nullptr;
+		QToolButton*                                       FollowUpQueue   = nullptr;
+		QToolButton*                                       FollowUpSteer   = nullptr;
+		QSpinBox*                                          RunLimit        = nullptr;
+		QSpinBox*                                          ScratchLimit    = nullptr;
+		QCheckBox*                                         ScratchKeepOn   = nullptr;
+		QSpinBox*                                          ScratchKeepDays = nullptr;
+		QLabel*                                            ScratchUsage    = nullptr;
+		QPushButton*                                       ScratchClear    = nullptr;
+		QPushButton*                                       ImportButton    = nullptr;
+		QPushButton*                                       ExportButton    = nullptr;
+		QLabel*                                            ExchangeNote    = nullptr;
+		void                                               send_scratch_policy();
+		void                                               send_run_limit();
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D2). Settings ›

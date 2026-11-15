@@ -58,6 +58,37 @@ namespace bpr::core {
 			}
 			return wording;
 		}
+
+		/// [[BPR-2048]]. Too large to read here: what was too large, and the
+		/// place it can still be reviewed. The owner, 2026-11-10: "We probably
+		/// need something better for recovery. Possibly suggesting opening it
+		/// on GitHub."
+		[[nodiscard]] auto too_large(const pull_request_refusal& aRefusal) -> pull_request_refusal_wording
+		{
+			auto what = std::string{ };
+			switch (aRefusal.Limit) {
+			case github_response_limit::files:
+				what = "It changes more files than BetterPullReview can read: GitHub lists at most 3,000 of a pull request's files.";
+				break;
+			case github_response_limit::commits:
+				what = "It has more commits than BetterPullReview reads safely.";
+				break;
+			case github_response_limit::conversation:
+				what = "Its reviews and comments are more than BetterPullReview reads safely.";
+				break;
+			case github_response_limit::checks:
+				what = "Its checks are more than BetterPullReview reads safely.";
+				break;
+			case github_response_limit::unknown:
+				what = "Part of it is larger than BetterPullReview reads safely.";
+				break;
+			}
+			return {
+				.Heading     = named(aRefusal) + " is too large to open here",
+				.Explanation = what + " GitHub shows all of it.",
+				.Actions     = { pull_request_refusal_action::open_on_github, pull_request_refusal_action::retry },
+			};
+		}
 	}
 
 	auto word_pull_request_refusal(
@@ -65,6 +96,9 @@ namespace bpr::core {
 		const pull_request_refusal_context& aContext)
 		-> std::optional<pull_request_refusal_wording>
 	{
+		if (aRefusal.Reason == github_reason_code::response_too_large) {
+			return too_large(aRefusal);
+		}
 		if (aRefusal.Reason != github_reason_code::permission_denied) {
 			return std::nullopt;
 		}
@@ -86,6 +120,10 @@ namespace bpr::core {
 			return "Use GitHub CLI";
 		case pull_request_refusal_action::use_another_account:
 			return "Use another account";
+		case pull_request_refusal_action::open_on_github:
+			return "Open on GitHub";
+		case pull_request_refusal_action::retry:
+			return "Retry";
 		}
 		return "Sign in";
 	}
@@ -99,6 +137,10 @@ namespace bpr::core {
 			return "Checks the active authenticated hosts in your installed gh after you choose it.";
 		case pull_request_refusal_action::use_another_account:
 			return "Opens the sign-in dialog, where this server's account can be signed out and another signed in.";
+		case pull_request_refusal_action::open_on_github:
+			return "Opens the pull request in your browser.";
+		case pull_request_refusal_action::retry:
+			return "Asks GitHub for the pull request again.";
 		}
 		return "Opens the sign-in dialog and begins a device sign-in.";
 	}

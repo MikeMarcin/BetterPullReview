@@ -71,6 +71,8 @@ namespace bpr::core {
 		bool Resolved = false;
 		/// Never filtered out: the open thread, one holding my unsent reply.
 		bool Kept = false;
+		/// [[BPR-2171]]. Its author is a bot, as `author_is_bot` decided.
+		bool Bot = false;
 
 		auto operator==(const timeline_item&) const -> bool = default;
 	};
@@ -82,6 +84,18 @@ namespace bpr::core {
 		bool UnresolvedOnly = false;
 		/// [[BPR-1089]]. Exactly these comments, by identity.
 		std::optional<std::set<std::string>> Listed;
+		/// [[BPR-2171]]. Name each file once, on a `file` row over its
+		/// threads, rather than leaving the file to each thread.
+		bool Files = false;
+		/// [[BPR-2171]]. With `Files`, a file's resolved threads fold into a
+		/// count on its row. A thread with a post I have not read, and a
+		/// kept one, never fold.
+		bool FoldResolved = false;
+		/// [[BPR-2171]]. Runs of bot comments fold to one `bots` row. A kept
+		/// comment never folds and ends the run.
+		bool FoldBots = false;
+		/// [[BPR-2171]]. The folds opened by hand, by their rows' `Fold` key.
+		std::set<std::string> Unfolded;
 
 		auto operator==(const timeline_filters&) const -> bool = default;
 	};
@@ -97,6 +111,12 @@ namespace bpr::core {
 		/// A comment in its own right: a pull request comment, a review's
 		/// overall body, or an inline thread.
 		comment,
+		/// [[BPR-2171]]. A file, named once over its threads that follow, with
+		/// how many resolved threads it folds.
+		file,
+		/// [[BPR-2171]]. A run of bot comments folded to one row: how many,
+		/// and whose.
+		bots,
 	};
 
 	/// \brief One row of the timeline.
@@ -116,6 +136,20 @@ namespace bpr::core {
 		timeline_verdict Verdict = timeline_verdict::none;
 		/// A comment row's item kind.
 		timeline_item_kind Item = timeline_item_kind::pull_request_comment;
+		/// [[BPR-2171]]. A file row's path.
+		std::string Path;
+		/// [[BPR-2171]]. What a file or bots row folds: its key, the same
+		/// across arrangements while its first member stays; empty when the
+		/// row folds nothing and cannot.
+		std::string Fold;
+		/// [[BPR-2171]]. Whether the fold is open (its members are listed
+		/// after it) or closed (they are not listed).
+		bool Open = false;
+		/// [[BPR-2171]]. The comments the fold holds, in order: listed after
+		/// the row when it is open, left out when it is closed.
+		std::vector<std::string> Members;
+		/// [[BPR-2171]]. A bots row's authors, each once, in order.
+		std::vector<std::string> Authors;
 
 		auto operator==(const timeline_row&) const -> bool = default;
 	};
@@ -133,6 +167,9 @@ namespace bpr::core {
 		std::size_t Unread = 0U;
 		/// Verdict rows.
 		std::size_t Verdicts = 0U;
+		/// [[BPR-2171]]. Comments held in a closed fold: not listed and not
+		/// counted in `Comments`.
+		std::size_t Folded = 0U;
 
 		auto operator==(const conversation_timeline&) const -> bool = default;
 	};
@@ -170,6 +207,15 @@ namespace bpr::core {
 	/// Filters act on comment rows only; a kept item is never filtered out.
 	/// While any filter is on, verdict rows are left out (they are not
 	/// comments), and a bundle shows its line only over comments still shown.
+	///
+	/// [[BPR-2171]]. With `Files`, threads that follow one another on one
+	/// file (in a bundle, or lone threads in a row) take one `file` row before
+	/// them. With `FoldResolved`, that row holds the file's resolved threads
+	/// and lists them only when its fold is in `Unfolded`; a file whose every
+	/// thread is folded keeps its row. With `FoldBots`, units in a row whose
+	/// author is a bot (a comment, a lone thread, or a bundle by its review's
+	/// author) take one `bots` row and are listed only when it is unfolded.
+	/// Folding never hides what a filter shows on its own: it acts after them.
 	[[nodiscard]] auto arrange_conversation_timeline(std::span<const timeline_item> aItems, const timeline_filters& aFilters = { })
 		-> conversation_timeline;
 

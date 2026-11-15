@@ -99,12 +99,3 @@ fails (`FIXTURE_AGENT_SILENT`) unless the Fixture agent answers it as a report
   new course `application_fixture_agent_every_ask` press every ask a look
   offers (17) at the next push and require every turn answered; the course
   fails with the owner's exact line against the old fixture agent.
-
-## Progress: an agent entry for the fixture session (2026-11-15)
-
-- For BPR-2153 (`claude/native-steering`): a person's session on a tests-on
-  build now adds the fixture agent as a person's setup adds Claude Code, a
-  saved entry named "Fixture agent", preferred, so its Agent tab turns keep
-  a native session as a person's do (before, they ran on the built-in Claude
-  profile with no entry and none was kept). The fixture agent as `claude` is
-  a kept stream-JSON connection that can be steered; see BPR-2153.

@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -225,6 +226,12 @@ namespace {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::agent_workspace_failure::cancelled };
 			}
+			// RFC-BPR-0104 fourth review: a launch names the checkout by
+			// every spelling, so the made checkout exists, as a real one does.
+			if (MakeWorkspace) {
+				auto ignored = std::error_code{ };
+				std::filesystem::create_directories(WorkspacePath, ignored);
+			}
 			// [[BPR-1262]]. The nested workspace names its type: braced without
 			// it, an aggregate holding a std::string is the shape GCC 15
 			// destroys twice when a later member throws ([[BPR-0816]]).
@@ -232,7 +239,7 @@ namespace {
 				.Workspace = application::prepared_workspace{
 					.Policy         = core::agent_workspace_policy::disposable_review_workspace,
 					.PinnedHead     = aRequest.Session.Binding.HeadOid,
-					.Path           = "/tmp/bpr-agent-owned/exact-head",
+					.Path           = WorkspacePath,
 					.BorrowsHistory = BorrowsHistory,
 					.Shallow        = Shallow,
 				},
@@ -294,6 +301,8 @@ namespace {
 		std::vector<application::owned_agent_workspace>                     CleanupAttempts;
 		std::function<void()>                                               AfterMaterialization;
 		std::optional<application::agent_workspace_error>                   MaterializationFailure;
+		std::string                                                         WorkspacePath   = "/tmp/bpr-agent-owned/exact-head";
+		bool                                                                MakeWorkspace   = true;
 		bool                                                                FailNextCleanup = false;
 		bool                                                                BorrowsHistory  = false;
 		application::agent_workspace_unavailable_reason                     InspectReason   = application::agent_workspace_unavailable_reason::retained_unavailable;
@@ -331,6 +340,7 @@ namespace {
 			if (aSink) {
 				aSink(event);
 			}
+			StopAfterEvent = aStop.stop_requested();
 			return {
 				.Session        = aRequest.Session,
 				.Outcome        = application::agent_run_outcome::success,
@@ -352,6 +362,7 @@ namespace {
 		std::size_t                                      Cancels           = 0U;
 		int                                              LastTimeout       = 0;
 		bool                                             LastStopRequested = false;
+		bool                                             StopAfterEvent    = false;
 		std::optional<application::agent_launch_request> LastRequest;
 		std::function<void()>                            AfterStart;
 		/// What a completed turn returned, as the shared loop decoded it.
@@ -399,21 +410,30 @@ namespace {
 			return std::vector<core::conversation_receipt>{ };
 		}
 
-		[[nodiscard]] auto store_note(const application::local_note_record&           aNote,
-									  std::optional<application::local_note_revision> aExpectedRevision = std::nullopt)
-			-> std::expected<application::local_note_record, application::local_note_failure> override
+		[[nodiscard]] auto store_local_comment(const application::local_comment_record&           aNote,
+											   std::optional<application::local_comment_revision> aExpectedRevision = std::nullopt)
+			-> std::expected<application::local_comment_record, application::local_comment_failure> override
 		{
-			Touched.emplace_back("store_note");
+			Touched.emplace_back("store_local_comment");
 			if (Refusal.has_value()) {
-				return std::unexpected(application::local_note_failure{ .Reason = *Refusal });
+				return std::unexpected(application::local_comment_failure{ .Reason = *Refusal });
 			}
-			const auto found = std::ranges::find(Notes, aNote.Id, &application::local_note_record::Id);
+			const auto found = std::ranges::find(Notes, aNote.Id, &application::local_comment_record::Id);
 			if ((found == Notes.end() && aExpectedRevision) || (found != Notes.end() && (!aExpectedRevision || found->Revision != *aExpectedRevision))) {
-				return std::unexpected(application::local_note_failure{ .Reason  = application::ledger_store_failure::conflict,
-																		.Current = found == Notes.end() ? std::nullopt : std::optional{ *found } });
+				return std::unexpected(application::local_comment_failure{ .Reason  = application::ledger_store_failure::conflict,
+																		   .Current = found == Notes.end() ? std::nullopt : std::optional{ *found } });
 			}
 			auto accepted     = aNote;
-			accepted.Revision = application::local_note_revision{ NextNoteRevision++ };
+			accepted.Revision = application::local_comment_revision{ NextNoteRevision++ };
+			// As the durable store ([[BPR-2183]]): a new note without an
+			// identity takes the next free one.
+			if (!aExpectedRevision && accepted.Id.value() == 0U) {
+				auto last = std::uint64_t{ 0U };
+				for (const auto& note : Notes) {
+					last = std::max(last, note.Id.value());
+				}
+				accepted.Id = application::local_comment_id{ last + 1U };
+			}
 			if (found == Notes.end()) {
 				Notes.push_back(accepted);
 			} else {
@@ -422,14 +442,14 @@ namespace {
 			return accepted;
 		}
 
-		[[nodiscard]] auto erase_note(application::local_note_id aNote, application::local_note_revision aExpectedRevision)
-			-> std::expected<void, application::local_note_failure> override
+		[[nodiscard]] auto erase_local_comment(application::local_comment_id aNote, application::local_comment_revision aExpectedRevision)
+			-> std::expected<void, application::local_comment_failure> override
 		{
-			Touched.emplace_back("erase_note");
-			const auto found = std::ranges::find(Notes, aNote, &application::local_note_record::Id);
+			Touched.emplace_back("erase_local_comment");
+			const auto found = std::ranges::find(Notes, aNote, &application::local_comment_record::Id);
 			if (found == Notes.end() || found->Revision != aExpectedRevision) {
-				return std::unexpected(application::local_note_failure{ .Reason  = application::ledger_store_failure::conflict,
-																		.Current = found == Notes.end() ? std::nullopt : std::optional{ *found } });
+				return std::unexpected(application::local_comment_failure{ .Reason  = application::ledger_store_failure::conflict,
+																		   .Current = found == Notes.end() ? std::nullopt : std::optional{ *found } });
 			}
 			Notes.erase(found);
 			return { };
@@ -503,7 +523,7 @@ namespace {
 		}
 
 		std::vector<std::string>                         Touched;
-		std::vector<application::local_note_record>      Notes;
+		std::vector<application::local_comment_record>   Notes;
 		std::uint64_t                                    NextNoteRevision = 1U;
 		std::optional<application::ledger_store_failure> Refusal;
 	};
@@ -867,7 +887,7 @@ namespace {
 			binding(core::git_host_id{ 1U }));
 		auto invalid = request(
 			core::git_host_id{ 1U }, core::external_terminal_profile_id);
-		invalid.Context.IncludedNotes = { application::local_note_id{ 99U } };
+		invalid.Context.IncludedNotes = { application::local_comment_id{ 99U } };
 		test.Host.dispatch(std::move(invalid));
 		expect(
 			test.Sessions.AdmissionAttempts == 0U
@@ -1753,8 +1773,8 @@ namespace {
 			"the promoted finding is one the frozen snapshot anchors");
 		const auto stored = application::store_promoted_finding(
 			store,
-			application::local_note_id{ 7U },
-			application::local_note_attachment{
+			application::local_comment_id{ 7U },
+			application::local_comment_attachment{
 				.File       = opaque<core::file_identity>(4U),
 				.Comparison = opaque<core::file_comparison_digest>(5U),
 			},
@@ -1764,19 +1784,35 @@ namespace {
 				.Choice  = core::agent_finding_promotion_choice::private_note,
 			});
 		expect(
-			stored.has_value() && stored->Id == application::local_note_id{ 7U }
-				&& stored->Revision == application::local_note_revision{ 1U }
-				&& stored->Note.Text == finding.Claim,
+			stored.has_value() && stored->Id == application::local_comment_id{ 7U }
+				&& stored->Revision == application::local_comment_revision{ 1U }
+				&& stored->Body == finding.Claim,
 			"a promoted note carries the claim verbatim into the durable record");
 		expect(
-			store.Touched.size() == 1U && store.Touched.front() == "store_note"
+			store.Touched.size() == 1U && store.Touched.front() == "store_local_comment"
 				&& store.Notes.size() == 1U,
-			"agent output reaches store_note and no other durable authority");
+			"agent output reaches store_local_comment and no other durable authority");
+
+		// [[BPR-2187]]. Promotion names no identity: the store chooses the
+		// next free one, not a window's snapshot.
+		const auto unnamed = application::store_promoted_finding(
+			store,
+			application::local_comment_id{ },
+			std::nullopt,
+			core::agent_finding_promotion_request{
+				.Finding = finding,
+				.Verdict = verdict,
+				.Choice  = core::agent_finding_promotion_choice::private_note,
+			});
+		expect(
+			unnamed.has_value() && unnamed->Id == application::local_comment_id{ 8U }
+				&& store.Notes.size() == 2U,
+			"an unnamed promoted note takes the store's next identity");
 
 		auto       elsewhere = ledger_store_spy{ };
 		const auto refused   = application::store_promoted_finding(
 			elsewhere,
-			application::local_note_id{ 8U },
+			application::local_comment_id{ 8U },
 			std::nullopt,
 			core::agent_finding_promotion_request{
 				.Finding = finding,
@@ -1792,7 +1828,7 @@ namespace {
 		const auto missing    = returned_finding("src/nobody-named-this.cpp");
 		const auto refusal    = application::store_promoted_finding(
 			unanchored,
-			application::local_note_id{ 9U },
+			application::local_comment_id{ 9U },
 			std::nullopt,
 			core::agent_finding_promotion_request{
 				.Finding = missing,
@@ -1935,6 +1971,146 @@ namespace {
 }
 
 namespace {
+	/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC01, AC03, AC04, AC06. The
+	/// host makes the turn's scratch folder, launches with its grant, reports
+	/// what the turn wrote there and removes a turn's own folder; builds are
+	/// granted only in the disposable checkout; a tour run takes nothing.
+	void test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn()
+	{
+		const auto root    = tests::make_scratch_directory("bpr-agent-scratch-host");
+		auto       cleanup = tests::scratch_guard{ root };
+		auto       test    = harness{ };
+		test.Host.set_scratch_root(root / "scratch");
+		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.ScratchFolder       = true;
+		input.BuildsAndTests      = true;
+		auto folder               = std::filesystem::path{ };
+		test.Processes.AfterStart = [&] {
+			const auto& launch = *test.Processes.LastRequest;
+			if (launch.Grant) {
+				folder = launch.Grant->ScratchFolder;
+				std::ofstream{ folder / "count.py" } << "print(3)\n";
+			}
+		};
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		const auto& launch = *test.Processes.LastRequest;
+		expect(launch.Grant && launch.Grant->ScratchFolder.starts_with((root / "scratch").string()) && launch.Grant->BuildWorkspace == launch.WorkingDirectory,
+			   "the launch carries the folder under the root and the disposable checkout to build in");
+		expect(std::ranges::contains(launch.Arguments, std::string{ "--add-dir" }) && std::ranges::contains(launch.Arguments, std::string{ "Bash(cmake:*)" }), "as Claude's arguments");
+		const auto& finished = test.Projection.Finished.back();
+		expect(finished.ScratchFiles == std::vector<std::string>{ "count.py" } && finished.Grant == launch.Grant, "the result lists what the turn wrote there");
+		expect(!folder.empty() && !std::filesystem::exists(folder), "a turn's own folder goes when the turn ends");
+		// Third review round F1 (2026-11-11): the pull request's own
+		// `.claude` settings are never loaded in the checkout BPR made.
+		expect(!std::ranges::search(launch.Arguments, std::vector<std::string>{ "--setting-sources", "user" }).empty(), "Claude reads only the user's settings in the pull request's checkout");
+
+		// F1: Codex there is told the checkout, by its path and its canonical
+		// path, is an untrusted project; and builds there with it.
+		auto codexBuild    = input;
+		codexBuild.Profile = core::codex_jsonl_profile_id;
+		test.Host.dispatch(codexBuild);
+		test.settle();
+		{
+			const auto& codex = *test.Processes.LastRequest;
+			// The fake workspace may not exist on disk: then its path is all.
+			auto       failed    = std::error_code{ };
+			const auto resolved  = std::filesystem::canonical(std::filesystem::path{ codex.WorkingDirectory }, failed);
+			const auto canonical = failed ? codex.WorkingDirectory : resolved.string();
+			const auto untrusted = std::ranges::find_if(codex.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("projects={"); });
+			expect(untrusted != codex.Arguments.end() && untrusted->find("\"" + codex.WorkingDirectory + "\"={trust_level=\"untrusted\"}") != std::string::npos
+					   && untrusted->find("\"" + canonical + "\"={trust_level=\"untrusted\"}") != std::string::npos && codex.Grant && codex.Grant->BuildWorkspace == codex.WorkingDirectory,
+				   "Codex in the pull request's checkout: untrusted by both paths, and the build grant names it");
+		}
+
+		// Fourth review, item 1 (2026-11-11): a made checkout that cannot be
+		// resolved is never launched in (it failed open: only its path was
+		// named).
+		{
+			const auto starts             = test.Processes.Starts;
+			test.Workspaces.WorkspacePath = (root / "never-made").string();
+			test.Workspaces.MakeWorkspace = false;
+			test.Host.dispatch(codexBuild);
+			test.settle();
+			expect(test.Processes.Starts == starts && !test.Projection.Finished.empty() && test.Projection.Finished.back().Outcome == application::agent_run_outcome::failed_to_start,
+				   "a checkout that cannot be resolved refuses the launch");
+			test.Workspaces.WorkspacePath = "/tmp/bpr-agent-owned/exact-head";
+			test.Workspaces.MakeWorkspace = true;
+		}
+
+		// The reviewer's own checkout: no build allowance, whatever was asked.
+		auto own                   = input;
+		own.ExistingCheckoutChosen = true;
+		own.ExistingCheckout       = application::checkout_observation{ .Path = (root / "mine").string(), .Cleanliness = application::checkout_cleanliness::clean };
+		std::filesystem::create_directories(root / "mine");
+		test.Host.dispatch(own);
+		test.settle();
+		expect(test.Processes.LastRequest->Grant && test.Processes.LastRequest->Grant->BuildWorkspace.empty() && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "Bash(cmake:*)" }),
+			   "AC04: never in the reviewer's own checkout");
+		expect(!std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--setting-sources" }), "the reviewer's own checkout keeps their project settings");
+
+		// Re-review N1a (2026-11-11): Codex in the reviewer's own checkout
+		// reads that checkout's trusted settings, which BPR's would replace;
+		// the host passes it nothing there, whatever was asked.
+		auto codexOwn     = own;
+		codexOwn.Profile  = core::codex_jsonl_profile_id;
+		const auto starts = test.Processes.Starts;
+		test.Host.dispatch(codexOwn);
+		test.settle();
+		expect(test.Processes.Starts == starts + 1U && std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--json" }) && !test.Processes.LastRequest->Grant
+				   && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "default_permissions=\"betterpullreview_grant\"" }),
+			   "Codex in the reviewer's own checkout: no grant");
+		expect(std::ranges::none_of(test.Processes.LastRequest->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("projects="); }), "and their own project trust");
+
+		// Off: exactly as before.
+		auto off           = input;
+		off.ScratchFolder  = false;
+		off.BuildsAndTests = false;
+		test.Host.dispatch(off);
+		test.settle();
+		expect(!test.Processes.LastRequest->Grant && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--add-dir" }), "off: no allowance");
+
+		// Owner look e97c6a3d (2026-11-11): the limit is a setting, and a
+		// turn that passes it during the turn is stopped after that step.
+		auto bounded              = input;
+		bounded.BuildsAndTests    = false;
+		bounded.ScratchLimitMiB   = 16U;
+		test.Processes.AfterStart = [&] {
+			const auto& started = *test.Processes.LastRequest;
+			if (started.Grant) {
+				auto big = std::ofstream{ std::filesystem::path{ started.Grant->ScratchFolder } / "big.bin", std::ios::binary };
+				big.seekp(static_cast<std::streamoff>(core::agent_scratch_limit_bytes(16U)));
+				big.put('\0');
+			}
+		};
+		test.Host.dispatch(bounded);
+		test.settle();
+		expect(test.Processes.LastRequest->Grant && test.Processes.LastRequest->Grant->ScratchLimitMiB == 16U && !test.Processes.LastRequest->Grant->ScratchFull, "the turn starts below its 16 MiB limit");
+		expect(test.Processes.StopAfterEvent, "the step that passed it stops the turn");
+		expect(test.Projection.Finished.back().ScratchOverflowed && test.Projection.Finished.back().ScratchFull, "and the result says why");
+		test.Processes.AfterStart     = { };
+		test.Processes.StopAfterEvent = false;
+		test.Host.dispatch(off);
+		test.settle();
+		expect(!test.Processes.StopAfterEvent, "a turn without a folder is never stopped for one");
+
+		// Re-review N3: a folder that cannot be made is said in the result,
+		// so the picker does not show it as granted.
+		auto unmade           = input;
+		unmade.BuildsAndTests = false;
+		std::ofstream{ root / "not-a-folder" } << "x";
+		test.Host.set_scratch_root(root / "not-a-folder");
+		test.Host.dispatch(unmade);
+		test.settle();
+		expect(!test.Processes.LastRequest->Grant && test.Projection.Finished.back().ScratchUnmade, "an unmade folder: no grant, and the result says so");
+		test.Host.set_scratch_root(root / "scratch");
+		test.Host.dispatch(unmade);
+		test.settle();
+		expect(test.Processes.LastRequest->Grant && !test.Projection.Finished.back().ScratchUnmade, "the next turn makes it");
+	}
+
 	void test_tour_history_keeps_the_terminal_answer_item()
 	{
 		auto test                 = harness{ };
@@ -2256,6 +2432,7 @@ auto main(const int aCount, char** aArguments) -> int
 	native_storage_failures_remain_private();
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();
+	test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn();
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();
 	test_session_admission_answers_later_and_admits_one_turn();

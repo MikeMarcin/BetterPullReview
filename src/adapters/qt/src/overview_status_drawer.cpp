@@ -64,7 +64,6 @@ namespace bpr::qt {
 			case overview_drawer_tab::status:   return QObject::tr("Status");
 			case overview_drawer_tab::commits:  return QObject::tr("Commits");
 			case overview_drawer_tab::comments: return QObject::tr("Comments");
-			case overview_drawer_tab::notes:    return QObject::tr("Notes");
 			case overview_drawer_tab::tour:     return QObject::tr("Tour");
 			case overview_drawer_tab::agent:    return QObject::tr("Agent");
 			}
@@ -77,7 +76,6 @@ namespace bpr::qt {
 			case overview_drawer_tab::status:   return QObject::tr("Where this pull request stands and your part in its review");
 			case overview_drawer_tab::commits:  return QObject::tr("The pull request's commits; show or hide them to filter the files");
 			case overview_drawer_tab::comments: return QObject::tr("The pull request's conversation: its comments and reviews, newest last, and a new comment");
-			case overview_drawer_tab::notes:    return QObject::tr("Your private notes on this pull request. Nothing here is published.");
 			case overview_drawer_tab::tour:     return QObject::tr("The pull request's review tour; write and follow it in Review");
 			case overview_drawer_tab::agent:    return QObject::tr("Agent conversations about this pull request. Nothing here is published.");
 			}
@@ -144,15 +142,13 @@ namespace bpr::qt {
 		Pages->addWidget(Commits);
 		CommentsHolder = make_holder(Pages, QStringLiteral("overviewCommentsHolder"));
 		Pages->addWidget(CommentsHolder);
-		NotesHolder = make_holder(Pages, QStringLiteral("overviewNotesHolder"));
-		Pages->addWidget(NotesHolder);
 		TourSummary = new overview_tour_summary{ Pages };
 		Pages->addWidget(TourSummary);
 		AgentHolder = make_holder(Pages, QStringLiteral("overviewAgentHolder"));
 		Pages->addWidget(AgentHolder);
 		set_tour_tab_shown(false);
 		connect(Tabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
-			Pages->setCurrentIndex(aIndex);
+			show_page(aIndex);
 			fit_tabs();
 			if (TabObserver && aIndex >= 0) {
 				TabObserver(static_cast<overview_drawer_tab>(aIndex));
@@ -175,6 +171,42 @@ namespace bpr::qt {
 		}
 	}
 
+	void overview_status_drawer::show_page(const int aIndex)
+	{
+		if (aIndex == index_of(overview_drawer_tab::status) && StatusPage != nullptr) {
+			Pages->setCurrentWidget(StatusPage);
+		} else {
+			Pages->setCurrentIndex(aIndex);
+		}
+	}
+
+	void overview_status_drawer::set_status_page(QWidget* const aPage)
+	{
+		if (StatusPage == aPage) {
+			return;
+		}
+		if (StatusPage != nullptr) {
+			Pages->removeWidget(StatusPage);
+			StatusPage->hide();
+		}
+		StatusPage = aPage;
+		if (StatusPage != nullptr) {
+			Pages->addWidget(StatusPage);
+		}
+		const auto commits = index_of(overview_drawer_tab::commits);
+		if (StatusPage != nullptr && Tabs->currentIndex() == commits) {
+			Tabs->setCurrentIndex(index_of(overview_drawer_tab::status));
+		}
+		Tabs->setTabVisible(commits, StatusPage == nullptr);
+		show_page(Tabs->currentIndex());
+		fit_tabs();
+	}
+
+	auto overview_status_drawer::status_page() const noexcept -> QWidget*
+	{
+		return StatusPage;
+	}
+
 	void overview_status_drawer::show_tab(const overview_drawer_tab aTab)
 	{
 		if (aTab == overview_drawer_tab::tour && !tour_tab_shown()) {
@@ -195,7 +227,6 @@ namespace bpr::qt {
 	{
 		switch (aTab) {
 		case overview_drawer_tab::comments: return CommentsHolder;
-		case overview_drawer_tab::notes:    return NotesHolder;
 		case overview_drawer_tab::agent:    return AgentHolder;
 		case overview_drawer_tab::status:
 		case overview_drawer_tab::commits:
@@ -220,6 +251,30 @@ namespace bpr::qt {
 		}
 		Tabs->setTabVisible(tour, aShown);
 		fit_tabs();
+	}
+
+	void overview_status_drawer::set_conversation_tabs_shown(const bool aShown)
+	{
+		auto changed = false;
+		for (const auto tab : { overview_drawer_tab::comments, overview_drawer_tab::agent }) {
+			const auto index = index_of(tab);
+			if (Tabs->isTabVisible(index) == aShown) {
+				continue;
+			}
+			if (!aShown && Tabs->currentIndex() == index) {
+				Tabs->setCurrentIndex(index_of(overview_drawer_tab::status));
+			}
+			Tabs->setTabVisible(index, aShown);
+			changed = true;
+		}
+		if (changed) {
+			fit_tabs();
+		}
+	}
+
+	auto overview_status_drawer::conversation_tabs_shown() const -> bool
+	{
+		return Tabs->isTabVisible(index_of(overview_drawer_tab::comments));
 	}
 
 	auto overview_status_drawer::tour_tab_shown() const -> bool
@@ -269,7 +324,6 @@ namespace bpr::qt {
 			case overview_drawer_tab::status:   return strip_icon(strip_glyph::review_details, palette());
 			case overview_drawer_tab::commits:  return drawer_icon(drawer_glyph::pull_request, palette());
 			case overview_drawer_tab::comments: return conversation_icon(conversation_glyph::comment, palette());
-			case overview_drawer_tab::notes:    return drawer_icon(drawer_glyph::page, palette());
 			case overview_drawer_tab::tour:     return drawer_icon(drawer_glyph::tour, palette());
 			case overview_drawer_tab::agent:    return drawer_icon(drawer_glyph::agent, palette());
 			}

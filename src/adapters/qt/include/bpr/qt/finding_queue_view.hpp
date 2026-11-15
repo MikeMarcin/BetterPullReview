@@ -38,6 +38,8 @@ namespace bpr::qt {
 	/// can see that a finding did not land before asking for anything.
 	/// Disabling an action on the anchor state would move that decision into a
 	/// widget, and a widget that answered it could disagree with the core.
+	/// RFC-BPR-0127: of Draft comment and Keep local, the one shown is
+	/// `core::decide_keep`'s choice, not this widget's.
 	enum class finding_queue_action : std::uint8_t {
 		/// Show the code the finding claims to be about. Changes nothing.
 		open_evidence,
@@ -48,8 +50,8 @@ namespace bpr::qt {
 		convert_to_draft_comment,
 		/// Promote it onto a local defect, on the same terms.
 		convert_to_draft_defect,
-		/// Keep it as the reviewer's own private note.
-		add_to_private_notes,
+		/// RFC-BPR-0127. Keep it as the reviewer's own Local comment.
+		keep_local,
 		/// Rule it out. This produces no artifact, which is why it is not a
 		/// promotion choice in `core::agent_finding_promotion_choice`.
 		dismiss,

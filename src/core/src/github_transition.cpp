@@ -528,7 +528,8 @@ namespace bpr::core {
 		[[nodiscard]] auto pull_request_failed(
 			github_state&                       aState,
 			const pull_request_request_context& aContext,
-			const github_failure                aFailure) -> github_transition_output
+			const github_failure                aFailure,
+			const github_response_limit         aLimit) -> github_transition_output
 		{
 			if (!current_pull_request(aState, aContext)) {
 				return reject(github_reason_code::stale_completion);
@@ -550,6 +551,7 @@ namespace bpr::core {
 						: refused_connection::account,
 					.Repository = aContext.Repository,
 					.Number     = aContext.Number,
+					.Limit      = aFailure == github_failure::response_too_large ? aLimit : github_response_limit::unknown,
 				};
 			}
 			publish_commands(aState, output);
@@ -698,7 +700,8 @@ namespace bpr::core {
 					return pull_request_failed(
 						aState,
 						aTypedEvent.Context,
-						aTypedEvent.Failure);
+						aTypedEvent.Failure,
+						aTypedEvent.Limit);
 				} else {
 					return pull_request_cancelled(aState, aTypedEvent.Context);
 				}

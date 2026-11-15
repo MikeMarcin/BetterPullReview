@@ -21,9 +21,7 @@
 
 #include <algorithm>
 
-#if !defined(BPR_BUILD_TESTING)
-	#include "live_review_submission_provider.hpp"
-#endif
+#include "live_review_submission_provider.hpp"
 #if defined(BPR_BUILD_TESTING)
 	#include "review_submission_fixture.hpp"
 #endif
@@ -41,7 +39,7 @@ namespace bpr::app {
 			return;
 		}
 #if defined(BPR_BUILD_TESTING)
-		if (!Fixture) {
+		if (!Fixture && !DesignatedLivePublication) {
 			ReviewSubmission->invalidate(QStringLiteral("This window is read-only. Open a fixture to try review composition, or use a configured publishing build for your pull request."));
 			if (TourPublication) {
 				TourPublication->invalidate();
@@ -70,38 +68,64 @@ namespace bpr::app {
 		auto configuration = adapters::sqlite::review_mutation_recovery_configuration{
 			.StorageRoot = ApplicationDataRoot, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
 		};
-#if defined(BPR_BUILD_TESTING)
-		auto factory = [configuration, binding, server = ReviewSubmissionServer]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
-			auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
-			if (!store) {
-				return std::unexpected(application::review_mutation_failure::unavailable);
-			}
-			return detail::make_review_submission_fixture_provider(server, std::move(*store), binding);
-		};
-#else
-		auto acceptedLease = WindowRead->mutation_transport();
-		if (!acceptedLease) {
-			ReviewSubmission->invalidate(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
+		const auto invalidate_all = [this](const QString& aWhy) {
+			ReviewSubmission->invalidate(aWhy);
 			if (TourPublication) {
 				TourPublication->invalidate();
 				if (ConversationReply) {
 					ConversationReply->invalidate();
 				}
 			}
+		};
+		// The shipped publishing connection. A tests-enabled build composes it
+		// only for the agent-run live course, and only for BPR-Test.
+		const auto live_factory = [&]() -> std::optional<application::review_submission_provider_factory> {
+			auto acceptedLease = WindowRead->mutation_transport();
+			if (!acceptedLease) {
+				invalidate_all(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
+				return std::nullopt;
+			}
+			// [[BPR-1540]]. Why a submission stays unknown reaches the diagnostics log.
+			return application::review_submission_provider_factory{ [configuration, binding, lease = std::move(acceptedLease), log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+				if (!store) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store), log);
+				if (!provider) {
+					return std::unexpected(provider.error());
+				}
+				return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
+			} };
+		};
+#if defined(BPR_BUILD_TESTING)
+		const auto designatedLive = !Fixture && DesignatedLivePublication;
+		if (designatedLive && !designated_live_publication_target(binding.Target)) {
+			invalidate_all(QStringLiteral("This test build publishes only to MikeMarcin/BPR-Test. Open a pull request there to publish."));
 			return;
 		}
-		// [[BPR-1540]]. Why a submission stays unknown reaches the diagnostics log.
-		auto factory = [configuration, binding, lease = std::move(acceptedLease), log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
-			auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
-			if (!store) {
-				return std::unexpected(application::review_mutation_failure::unavailable);
+		auto factory = application::review_submission_provider_factory{ };
+		if (designatedLive) {
+			auto live = live_factory();
+			if (!live) {
+				return;
 			}
-			auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store), log);
-			if (!provider) {
-				return std::unexpected(provider.error());
-			}
-			return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
-		};
+			factory = std::move(*live);
+		} else {
+			factory = [configuration, binding, server = ReviewSubmissionServer]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+				if (!store) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				return detail::make_review_submission_fixture_provider(server, std::move(*store), binding);
+			};
+		}
+#else
+		auto live = live_factory();
+		if (!live) {
+			return;
+		}
+		auto factory = std::move(*live);
 #endif
 		if (TourPublication) {
 #if defined(BPR_BUILD_TESTING)
@@ -118,10 +142,18 @@ namespace bpr::app {
 				}
 				return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description, log);
 			};
-			if (ConversationReply) {
-				ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory, insights_capture(aHandoff));
+			if (designatedLive) {
+				// As a shipped build: the publishing connection, qualified.
+				if (ConversationReply) {
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, factory, insights_capture(aHandoff));
+				}
+				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true, insights_capture(aHandoff));
+			} else {
+				if (ConversationReply) {
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory, insights_capture(aHandoff));
+				}
+				TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified, insights_capture(aHandoff));
 			}
-			TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified, insights_capture(aHandoff));
 #else
 			// [[BPR-1222]]. Live publication is on (owner amendment 2026-10-09);
 			// Publish still asks the write confirmation and spends a one-use grant.
@@ -179,8 +211,12 @@ namespace bpr::app {
 		auto replies = core::decide_reply_drafts(drafts, reply_threads());
 		Window->present_saved_drafts(std::move(drafts), std::move(replies));
 		publish_review_comments(saved);
+		present_draft_roster();
 		// [[BPR-1733]]. A carried or deleted suggestion leaves its note.
 		present_moved_suggestions();
+		// RFC-BPR-0127. Make draft on a Local comment is decided against the
+		// drafts standing now.
+		present_local_comments();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1862]]. An agent turn whose draft was deleted, by any
 		// route, offers Draft comment again.
@@ -662,6 +698,99 @@ namespace bpr::app {
 			return false;
 		}
 		return editor->change_pending(std::move(mark));
+	}
+
+	/// [[BPR-2092]]. Where the shown draft is written: the file shown, and,
+	/// when Start a review would take it at its own line now, the head it
+	/// would be marked at, decided exactly as Start a review decides it.
+	auto github_application::implementation::shown_draft_place(const std::string& aBody) const -> std::optional<core::review_draft_place>
+	{
+		if (Closing || Window == nullptr || !ReviewDraft || !SelectedDiffPublication || !SharedDrafts
+			|| core::comparison_digest(SelectedDiffPublication->Key) != ReviewDraft->Anchor.Comparison || core::thread_bound_anchor(ReviewDraft->Anchor)) {
+			return std::nullopt;
+		}
+		auto       place   = core::review_draft_place{ .Path = shown_right_path(), .ReviewHead = std::nullopt };
+		const auto written = std::ranges::any_of(aBody, [](const char aValue) { return aValue != ' ' && aValue != '\t' && aValue != '\r' && aValue != '\n' && aValue != '\v' && aValue != '\f'; });
+		if (written && !ReviewDraft->ReplyToThread && SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine == ReviewDraft->Anchor && ReviewMutationHost != nullptr) {
+			auto request               = application::review_mutation_publication_request{ };
+			request.Proposal.Draft     = ReviewDraft->Id;
+			request.Proposal.Anchor    = ReviewDraft->Anchor;
+			request.Proposal.Body      = aBody;
+			request.Proposal.StartLine = ReviewDraft->StartLine;
+			request.Selection          = *SelectedSemanticSelection;
+			request.SelectedDiff       = *SelectedDiffPublication;
+			const auto& filtered       = Window->filtered_comment_placement();
+			const auto  fileComment    = filtered && filtered->Selection == request.Selection.PreferredLine && filtered->Target.Placement == core::filtered_comment_placement::file_comment;
+			if (const auto destination = fileComment ? std::nullopt : std::optional{ ReviewMutationHost->comment_destination(request) };
+				destination && *destination && !(*destination)->RemoteLine && (*destination)->Commit == SharedDrafts->authority().Target.ExpectedHead) {
+				place.Path       = (*destination)->Path;
+				place.ReviewHead = (*destination)->Commit;
+			}
+		}
+		return core::valid(place) ? std::optional{ std::move(place) } : std::nullopt;
+	}
+
+	/// [[BPR-2092]]. The roster of every unsent draft: the saved drafts, the
+	/// comparisons this window has shown, and the threads' files.
+	auto github_application::implementation::draft_roster() const -> core::draft_roster
+	{
+		if (!SharedDrafts) {
+			return { };
+		}
+		const auto saved   = SharedDrafts->recovery_snapshot();
+		auto       shown   = std::vector<std::pair<core::file_comparison_digest, std::string>>{ };
+		auto       threads = std::vector<std::pair<std::string, std::string>>{ };
+		for (const auto& comparison : ShownComparisons) {
+			shown.emplace_back(comparison.Digest, comparison.Path);
+		}
+		if (WindowRead && WindowRead->accepted_snapshot()) {
+			for (const auto& thread : WindowRead->accepted_snapshot()->ReviewThreads) {
+				if (!thread.Path.empty()) {
+					threads.emplace_back(std::string{ thread.Thread.value() }, thread.Path);
+				}
+			}
+		}
+		return core::project_draft_roster(saved, { .Head = SharedDrafts->authority().Target.ExpectedHead, .Shown = shown, .Threads = threads });
+	}
+
+	void github_application::implementation::present_draft_roster()
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		Window->present_draft_roster(draft_roster());
+	}
+
+	/// [[BPR-2094]]. Add, or Add all, from Finish your review: each chosen
+	/// draft a review can take is marked as the core plans it, in one write.
+	void github_application::implementation::add_drafts_to_review(const std::vector<core::review_draft_id>& aDrafts)
+	{
+		auto commands = core::plan_add_to_review(draft_roster(), aDrafts);
+		change_review_drafts(std::move(commands), [](bool) { });
+	}
+
+	/// [[BPR-2094]]. Leave out, from Finish your review: the draft leaves the
+	/// review and stays saved, at the revision it was listed at.
+	void github_application::implementation::leave_drafts_out_of_review(const std::vector<core::review_draft_id>& aDrafts)
+	{
+		if (Closing || !SharedDrafts) {
+			return;
+		}
+		auto commands = std::vector<core::revisioned_review_draft_command>{ };
+		for (const auto& id : aDrafts) {
+			const auto read = SharedDrafts->read(DraftConsumer, id);
+			if (!read.Accepted || !core::pending_in_review(read.Accepted->Draft)) {
+				continue;
+			}
+			commands.push_back(core::revisioned_review_draft_command{
+				.Command          = { .Id = id, .Kind = core::review_draft_command_kind::edit, .Body = read.Accepted->Draft.Body },
+				.ExpectedRevision = read.Accepted->Revision,
+				.Scope            = read.Accepted->Scope,
+				.ChangePending    = true,
+				.Pending          = std::nullopt,
+			});
+		}
+		change_review_drafts(std::move(commands), [](bool) { });
 	}
 
 	/// [[BPR-1345]]. Changes several drafts in one durable write, then

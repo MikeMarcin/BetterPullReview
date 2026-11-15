@@ -106,7 +106,9 @@ namespace {
 		return {
 			"state/v1/review-ledger.sqlite3", "state/v1/review-ledger.sqlite3-wal", "state/v1/review-tours.sqlite3",
 			"state/v1/review-cycles.sqlite3", "state/v1/review-mutation-recovery.sqlite3",
-			"publication-git-v1/publication/v1/sha1.git/HEAD"
+			"publication-git-v1/publication/v1/sha1.git/HEAD",
+			// RFC-BPR-0108 AC07. Local PR drafts and their reader's store.
+			"state/v1/local-drafts.sqlite3", "local-draft-git-v1/publication/v1/sha1.git/HEAD"
 		};
 	}
 	auto saved_source_files() -> std::set<std::string>
@@ -341,7 +343,7 @@ namespace {
 			copied.insert(item.path().filename().string());
 			expect(read(item.path()) == before.at("state/v1/" + item.path().filename().string()), "each copy holds the removed bytes");
 		}
-		expect(copied == std::set<std::string>{ "review-ledger.sqlite3", "review-ledger.sqlite3-wal", "review-tours.sqlite3", "review-cycles.sqlite3", "review-mutation-recovery.sqlite3" },
+		expect(copied == std::set<std::string>{ "review-ledger.sqlite3", "review-ledger.sqlite3-wal", "review-tours.sqlite3", "review-cycles.sqlite3", "review-mutation-recovery.sqlite3", "local-drafts.sqlite3" },
 			   "the copy holds exactly the removed review stores");
 #if !defined(_WIN32)
 		expect((fs::status(folder).permissions() & (fs::perms::group_all | fs::perms::others_all)) == fs::perms::none, "the copy is private");

@@ -1,10 +1,14 @@
 #include "bpr/qt/overview_tour_summary.hpp"
 
+#include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 #include "github_presentation_text.hpp"
 
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
@@ -33,13 +37,13 @@ namespace bpr::qt {
 			return dark(aPalette) ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
 		}
 
-		[[nodiscard]] auto readiness_words(const core::tour_preparation aPreparation) -> QString
+		/// [[BPR-2014]], RFC-BPR-0106. Review's words for a stop, as for a file.
+		[[nodiscard]] auto readiness_words(const core::tour_acceptance_state aState) -> QString
 		{
-			switch (aPreparation) {
-			case core::tour_preparation::ready:           return QObject::tr("Ready");
-			case core::tour_preparation::needs_attention: return QObject::tr("Needs attention");
-			case core::tour_preparation::suggested:       return QObject::tr("Suggested");
-			case core::tour_preparation::editing:         return QObject::tr("Editing");
+			switch (aState) {
+			case core::tour_acceptance_state::accepted:     return QObject::tr("Accepted");
+			case core::tour_acceptance_state::changed:      return QObject::tr("Changed since accepted");
+			case core::tour_acceptance_state::not_accepted: return QObject::tr("Not accepted yet");
 			}
 			return { };
 		}
@@ -63,11 +67,11 @@ namespace bpr::qt {
 				setMinimumHeight(ring_size + 8);
 			}
 
-			int                    Number      = 1;
-			bool                   First       = false;
-			bool                   Last        = false;
-			bool                   Writer      = true;
-			core::tour_preparation Preparation = core::tour_preparation::editing;
+			int                         Number     = 1;
+			bool                        First      = false;
+			bool                        Last       = false;
+			bool                        Writer     = true;
+			core::tour_acceptance_state Acceptance = core::tour_acceptance_state::not_accepted;
 
 		protected:
 			void paintEvent(QPaintEvent*) override
@@ -76,7 +80,6 @@ namespace bpr::qt {
 				painter.setRenderHint(QPainter::Antialiasing);
 				const auto amber  = route_amber(palette());
 				const auto base   = palette().color(QPalette::Active, QPalette::Base);
-				const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
 				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
 				const auto centre = QPointF{ width() / 2.0, 4.0 + ring_size / 2.0 };
 				const auto ring   = QRectF{ centre.x() - ring_size / 2.0, centre.y() - ring_size / 2.0, static_cast<qreal>(ring_size), static_cast<qreal>(ring_size) };
@@ -94,9 +97,9 @@ namespace bpr::qt {
 				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
 				painter.setFont(small);
 				const auto number = QString::number(Number);
-				// A reader's route has no readiness: every ring is amber.
-				const auto preparation = Writer ? Preparation : core::tour_preparation::editing;
-				if (preparation == core::tour_preparation::ready) {
+				// A reader's route has no acceptance: every ring is amber.
+				const auto accepted = Writer && Acceptance == core::tour_acceptance_state::accepted;
+				if (accepted) {
 					painter.setPen(QPen{ route_green(palette()), 1.6 });
 					painter.setBrush(base);
 					painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
@@ -108,14 +111,6 @@ namespace bpr::qt {
 					painter.drawPath(tick);
 					return;
 				}
-				if (preparation == core::tour_preparation::suggested) {
-					painter.setPen(QPen{ faint, 1.4, Qt::DashLine });
-					painter.setBrush(base);
-					painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
-					painter.setPen(faint);
-					painter.drawText(ring, Qt::AlignCenter, number);
-					return;
-				}
 				painter.setPen(QPen{ amber, 1.6 });
 				painter.setBrush(base);
 				painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
@@ -123,7 +118,7 @@ namespace bpr::qt {
 				painter.setPen(QColor::fromRgbF(static_cast<float>(ink.redF() * keep + amber.redF() * (1.0 - keep)), static_cast<float>(ink.greenF() * keep + amber.greenF() * (1.0 - keep)),
 												static_cast<float>(ink.blueF() * keep + amber.blueF() * (1.0 - keep))));
 				painter.drawText(ring, Qt::AlignCenter, number);
-				if (preparation == core::tour_preparation::needs_attention) {
+				if (Writer && Acceptance == core::tour_acceptance_state::changed) {
 					auto       warn = QPainterPath{ };
 					const auto x    = ring.right() - 3.0;
 					const auto y    = ring.top() - 2.0;
@@ -135,6 +130,67 @@ namespace bpr::qt {
 					painter.setBrush(amber);
 					painter.drawPath(warn);
 				}
+			}
+		};
+
+		/// \brief [[BPR-1993]]. A stop row that opens its stop: a click, or
+		/// Return or Space with the keyboard on it.
+		class stop_row_widget final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+			std::function<void()> Open;
+			bool                  Opens = false;
+
+		protected:
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				if (Opens && Open && aEvent->button() == Qt::LeftButton && rect().contains(aEvent->position().toPoint())) {
+					Open();
+					return;
+				}
+				QWidget::mouseReleaseEvent(aEvent);
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (Opens && Open && (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter || aEvent->key() == Qt::Key_Space)) {
+					Open();
+					return;
+				}
+				QWidget::keyPressEvent(aEvent);
+			}
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				if (!Opens || !(underMouse() || hasFocus())) {
+					return;
+				}
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing);
+				auto wash = palette().color(QPalette::Active, QPalette::Highlight);
+				wash.setAlphaF(hasFocus() ? 0.14F : 0.07F);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(wash);
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(ring_size + 6.0, 1.0, 0.0, -6.0), 6.0, 6.0);
+			}
+			void enterEvent(QEnterEvent* aEvent) override
+			{
+				QWidget::enterEvent(aEvent);
+				update();
+			}
+			void leaveEvent(QEvent* aEvent) override
+			{
+				QWidget::leaveEvent(aEvent);
+				update();
+			}
+			void focusInEvent(QFocusEvent* aEvent) override
+			{
+				QWidget::focusInEvent(aEvent);
+				update();
+			}
+			void focusOutEvent(QFocusEvent* aEvent) override
+			{
+				QWidget::focusOutEvent(aEvent);
+				update();
 			}
 		};
 
@@ -178,14 +234,33 @@ namespace bpr::qt {
 		State = prose(page, QStringLiteral("overviewTourState"));
 		State->setForegroundRole(QPalette::PlaceholderText);
 		column->addWidget(State);
+		// [[BPR-1993]]. A writer's state line and actions are the Tour tab
+		// head's, so publishing, updating or a stopped publication is seen
+		// and acted on here too.
+		Head = new tour_head_bar{ QStringLiteral("overviewTourHead"), page };
+		Head->layout()->setContentsMargins(0, 0, 0, 4);
+		Head->set_dispatch([this](const core::tour_head_action aAction) {
+			if (HeadDispatch) {
+				HeadDispatch(aAction);
+			}
+		});
+		column->addWidget(Head);
 		Invitation = prose(page, QStringLiteral("overviewTourInvitation"));
 		Invitation->setText(tr("Walk your reviewers through this change: the problem, your solution, and a route through the code, stop by stop. It stays private until you publish it."));
 		column->addWidget(Invitation);
 		column->addSpacing(6);
-		ProblemHeading  = heading(tr("Problem"), page, QStringLiteral("overviewTourProblemHeading"));
-		Problem         = prose(page, QStringLiteral("overviewTourProblem"));
+		ProblemHeading = heading(tr("Problem"), page, QStringLiteral("overviewTourProblemHeading"));
+		// [[BPR-1993]]. Tour text is authored as Markdown and read so, as the
+		// Tour tab reads it.
+		Problem = new markdown_body_view{ page };
+		Problem->setObjectName(QStringLiteral("overviewTourProblem"));
+		Problem->setAccessibleName(tr("Problem"));
+		Problem->set_empty_body_text(tr("Not written yet"));
 		SolutionHeading = heading(tr("Solution"), page, QStringLiteral("overviewTourSolutionHeading"));
-		Solution        = prose(page, QStringLiteral("overviewTourSolution"));
+		Solution        = new markdown_body_view{ page };
+		Solution->setObjectName(QStringLiteral("overviewTourSolution"));
+		Solution->setAccessibleName(tr("Solution"));
+		Solution->set_empty_body_text(tr("Not written yet"));
 		column->addWidget(ProblemHeading);
 		column->addWidget(Problem);
 		column->addSpacing(8);
@@ -221,42 +296,70 @@ namespace bpr::qt {
 		present({ });
 	}
 
+	void overview_tour_summary::set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate)
+	{
+		ReferenceFiles    = std::move(aFiles);
+		ReferenceNavigate = std::move(aNavigate);
+		for (auto* const view : { Problem, Solution }) {
+			view->set_link_dispatch([this](const std::string& aLink) { static_cast<void>(follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate)); });
+		}
+	}
 	void overview_tour_summary::set_dispatch(gesture_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
 	}
 
-	void overview_tour_summary::present(const core::overview_tour& aTour)
+	void overview_tour_summary::set_stop_dispatch(std::function<void(core::tour_stop_id)> aDispatch)
+	{
+		StopDispatch = std::move(aDispatch);
+	}
+
+	void overview_tour_summary::set_head_dispatch(std::function<void(core::tour_head_action)> aDispatch)
+	{
+		HeadDispatch = std::move(aDispatch);
+	}
+
+	void overview_tour_summary::open_row(const std::size_t aIndex)
+	{
+		if (aIndex < Shown.Stops.size() && StopDispatch && (Shown.Kind == core::overview_tour_kind::writer || Shown.Imported)) {
+			StopDispatch(Shown.Stops[aIndex].Id);
+		}
+	}
+
+	void overview_tour_summary::present(const core::overview_tour& aTour, const core::tour_head& aHead)
 	{
 		const auto sameRoute = Rows.size() == aTour.Stops.size()
 			&& std::ranges::equal(Shown.Stops, aTour.Stops, [](const auto& aLeft, const auto& aRight) { return aLeft.Id == aRight.Id; });
 		Shown              = aTour;
+		ShownHead          = aHead;
 		const auto kind    = Shown.Kind;
 		const auto writer  = kind == core::overview_tour_kind::writer;
 		const auto reader  = kind == core::overview_tour_kind::reader;
 		const auto touring = writer || reader;
+		// A writer with a head reads it in the head's words; otherwise the line.
+		const auto headed = writer && aHead.State != core::tour_head_state::none;
+		Head->present(headed ? aHead : core::tour_head{ });
 		State->setText(writer       ? (Shown.Published ? tr("Published on the pull request. Changes stay private until you update the tour.")
 													   : tr("A private draft. Nothing is published until you publish the tour."))
 						   : reader ? tr("A published tour of this pull request. Follow it stop by stop in Review.")
 									: QString{ });
-		State->setVisible(touring);
+		State->setVisible(touring && !headed);
 		Invitation->setVisible(kind == core::overview_tour_kind::prepare);
 		// A writer sees an empty field as still to write; a reader sees only
 		// what was written.
-		const auto field = [writer](QLabel* aHeading, QLabel* aBody, const std::string& aValue) {
+		const auto field = [this, writer](QLabel* aHeading, markdown_body_view* aBody, const std::string& aValue, const char* aKey) {
 			const auto empty = aValue.empty();
-			aBody->setText(empty ? tr("Not written yet") : text(aValue));
-			aBody->setForegroundRole(empty ? QPalette::PlaceholderText : QPalette::WindowText);
+			aBody->set_body(ReferenceFiles && ReferenceNavigate ? tour_markdown_with_references(aValue, ReferenceFiles(), { }) : aValue, std::string{ "overview-tour-" } + aKey);
 			const auto shown = writer || !empty;
 			aHeading->setVisible(shown);
 			aBody->setVisible(shown);
 		};
 		if (touring) {
-			field(ProblemHeading, Problem, Shown.Problem);
-			field(SolutionHeading, Solution, Shown.Solution);
+			field(ProblemHeading, Problem, Shown.Problem, "problem");
+			field(SolutionHeading, Solution, Shown.Solution, "solution");
 		} else {
-			for (auto* const label : { ProblemHeading, Problem, SolutionHeading, Solution }) {
-				label->hide();
+			for (auto* const part : std::initializer_list<QWidget*>{ ProblemHeading, Problem, SolutionHeading, Solution }) {
+				part->hide();
 			}
 		}
 		const auto count = static_cast<int>(Shown.Stops.size());
@@ -287,8 +390,10 @@ namespace bpr::qt {
 		}
 		Rows.clear();
 		for (std::size_t index = 0U; index < Shown.Stops.size(); ++index) {
-			auto row = stop_row{ };
-			row.Row  = new QWidget{ Route };
+			auto        row    = stop_row{ };
+			auto* const opener = new stop_row_widget{ Route };
+			opener->Open       = [this, index] { open_row(index); };
+			row.Row            = opener;
 			row.Row->setObjectName(QStringLiteral("overviewTourStop"));
 			auto* const line = new QHBoxLayout{ row.Row };
 			line->setContentsMargins(0, 0, 0, 0);
@@ -303,6 +408,14 @@ namespace bpr::qt {
 			font.setWeight(QFont::DemiBold);
 			row.Title->setFont(font);
 			words->addWidget(row.Title);
+			// [[BPR-1993]]. Where the stop is and what it says first.
+			row.Place = new QLabel{ row.Row };
+			row.Place->setObjectName(QStringLiteral("overviewTourStopPlace"));
+			detail::set_plain_text_label(row.Place);
+			row.Place->setForegroundRole(QPalette::PlaceholderText);
+			words->addWidget(row.Place);
+			row.Lead = prose(row.Row, QStringLiteral("overviewTourStopLead"));
+			words->addWidget(row.Lead);
 			row.Readiness = new QLabel{ row.Row };
 			row.Readiness->setObjectName(QStringLiteral("overviewTourStopReadiness"));
 			detail::set_plain_text_label(row.Readiness);
@@ -321,19 +434,33 @@ namespace bpr::qt {
 	{
 		const auto writer = Shown.Kind == core::overview_tour_kind::writer;
 		for (std::size_t index = 0U; index < Rows.size() && index < Shown.Stops.size(); ++index) {
-			const auto& stop  = Shown.Stops[index];
-			auto&       row   = Rows[index];
-			auto* const ring  = static_cast<route_ring*>(row.Ring);
-			ring->Number      = static_cast<int>(index) + 1;
-			ring->First       = index == 0U;
-			ring->Last        = index + 1U == Rows.size();
-			ring->Writer      = writer;
-			ring->Preparation = stop.Preparation;
+			const auto& stop = Shown.Stops[index];
+			auto&       row  = Rows[index];
+			auto* const ring = static_cast<route_ring*>(row.Ring);
+			ring->Number     = static_cast<int>(index) + 1;
+			ring->First      = index == 0U;
+			ring->Last       = index + 1U == Rows.size();
+			ring->Writer     = writer;
+			ring->Acceptance = stop.Acceptance;
 			ring->update();
 			const auto title = stop.Title.empty() ? tr("Untitled stop") : text(stop.Title);
 			row.Title->setText(title);
+			const auto file  = text(stop.Path).section(QLatin1Char{ '/' }, -1);
+			const auto place = stop.Path.empty() ? QString{ } : stop.FirstLine == stop.LastLine ? tr("%1, line %2").arg(file).arg(stop.FirstLine)
+																								: tr("%1, lines %2\u2013%3").arg(file).arg(stop.FirstLine).arg(stop.LastLine);
+			row.Place->setText(place);
+			row.Place->setToolTip(text(stop.Path));
+			row.Place->setVisible(!place.isEmpty());
+			row.Lead->setText(text(stop.Lead));
+			row.Lead->setVisible(!stop.Lead.empty());
+			auto* const opener = static_cast<stop_row_widget*>(row.Row);
+			opener->Opens      = writer || Shown.Imported;
+			opener->setFocusPolicy(opener->Opens ? Qt::StrongFocus : Qt::NoFocus);
+			opener->setCursor(opener->Opens ? Qt::PointingHandCursor : Qt::ArrowCursor);
+			opener->setToolTip(opener->Opens ? tr("Open this stop in Review") : QString{ });
+			opener->setAttribute(Qt::WA_Hover, opener->Opens);
 			row.Title->setForegroundRole(stop.Title.empty() ? QPalette::PlaceholderText : QPalette::WindowText);
-			const auto readiness = writer ? readiness_words(stop.Preparation) : QString{ };
+			const auto readiness = writer ? readiness_words(stop.Acceptance) : QString{ };
 			row.Readiness->setText(readiness);
 			row.Readiness->setVisible(writer);
 			row.Row->setAccessibleName(writer ? tr("Stop %1, %2, %3").arg(index + 1U).arg(title, readiness) : tr("Stop %1, %2").arg(index + 1U).arg(title));
@@ -347,10 +474,10 @@ namespace bpr::qt {
 		// change redraws them.
 		for (std::size_t index = 0U; index < Rows.size() && index < Shown.Stops.size(); ++index) {
 			auto       colours = Rows[index].Readiness->palette();
-			const auto prep    = Shown.Stops[index].Preparation;
-			const auto colour  = prep == core::tour_preparation::ready ? route_green(palette())
-				: prep == core::tour_preparation::needs_attention      ? route_amber(palette())
-																	   : palette().color(QPalette::PlaceholderText);
+			const auto state   = Shown.Stops[index].Acceptance;
+			const auto colour  = state == core::tour_acceptance_state::accepted ? route_green(palette())
+				: state == core::tour_acceptance_state::changed                 ? route_amber(palette())
+																				: palette().color(QPalette::PlaceholderText);
 			colours.setColor(QPalette::WindowText, colour);
 			Rows[index].Readiness->setPalette(colours);
 		}
@@ -361,6 +488,24 @@ namespace bpr::qt {
 		auto result = QStringList{ };
 		for (const auto& row : Rows) {
 			result.push_back(row.Title->text());
+		}
+		return result;
+	}
+
+	auto overview_tour_summary::stop_places() const -> QStringList
+	{
+		auto result = QStringList{ };
+		for (const auto& row : Rows) {
+			result.push_back(row.Place->text());
+		}
+		return result;
+	}
+
+	auto overview_tour_summary::stop_leads() const -> QStringList
+	{
+		auto result = QStringList{ };
+		for (const auto& row : Rows) {
+			result.push_back(row.Lead->text());
 		}
 		return result;
 	}

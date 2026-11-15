@@ -82,6 +82,10 @@ namespace bpr::qt {
 		/// [[BPR-1815]]. Go to header/source: two pages side by side, each
 		/// with its folded corner, and an arrow headed both ways between them.
 		header_source,
+		/// RFC-BPR-0113 as amended 2026-11-12. Edit: the one-pane frame with
+		/// a text caret standing in its rows, the view picker's third view in
+		/// author state. Not a pencil: the bar's pencil is Compose review.
+		edit_file,
 		/// Return to the review: an arrow that turns back on itself, the
 		/// Home button's face while Home shows over an open review.
 		return_to_review,

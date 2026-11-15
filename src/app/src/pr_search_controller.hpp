@@ -21,6 +21,12 @@ namespace bpr::app {
 		using reveal_validator = std::function<bool(const core::source_search_scope&, core::file_identity, const std::string&, const core::source_match_location&)>;
 		pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab);
 		~pr_search_controller() override;
+		/// \brief Takes the panel's result gestures, when another controller had them.
+		void attach();
+		/// \brief The panel is gone with its window: nothing touches it again.
+		void abandon_panel() noexcept { PanelGone = true; }
+		/// \brief What the scope is called in the panel; a pull request's number when empty.
+		void               set_scope_name(QString aName) { ScopeName = std::move(aName); }
 		void               open();
 		void               dispatch(qt::source_find_gesture aGesture);
 		void               navigate(core::change_navigation_direction aDirection);
@@ -58,6 +64,8 @@ namespace bpr::app {
 			core::source_match_location          Location;
 		};
 		std::optional<reveal> Pending;
+		bool                  PanelGone = false;
+		QString               ScopeName;
 		QTimer                RevealTimer;
 		std::uint64_t         ReadingGeneration = 0U;
 		void                  try_reveal();

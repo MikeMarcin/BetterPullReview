@@ -879,13 +879,27 @@ namespace {
 			const auto drawer = tests::ink_raster(*view.viewport());
 			const auto name   = [&](const QModelIndex& aIndex, const QFont& aFont) {
 				const auto rect = view.visualRect(aIndex);
-				return QRect{ rect.left() + 4, rect.top(), QFontMetrics{ aFont }.horizontalAdvance(aIndex.data().toString()), rect.height() };
+				// [[BPR-2156]]. A folder's name follows its folder icon, where a
+				// file's follows its mark.
+				return QRect{ rect.left() + 4 + qt::files_tree_delegate::name_inset, rect.top(), QFontMetrics{ aFont }.horizontalAdvance(aIndex.data().toString()), rect.height() };
 			};
 			for (auto row = 0; row < tree->rowCount(); ++row) {
 				const auto index = tree->index(row, 0);
 				if (index.data(qt::files_tree_model::folder_role).toBool()) {
 					const auto area = name(index, bold);
 					expect(ink_in(drawer, area, folderInk) > 8, "a drawer folder's name is drawn in Overview's folder ink");
+					// [[BPR-2156]]. The style's folder icon in the slot before it.
+					const auto rect       = view.visualRect(index);
+					const auto slot       = QRect{ rect.left() + 4, rect.top(), qt::files_tree_delegate::name_inset - 1, rect.height() };
+					const auto background = view.viewport()->palette().color(QPalette::Active, QPalette::Base);
+					const auto ratio      = drawer.devicePixelRatio();
+					auto       drawn      = 0;
+					for (auto y = static_cast<int>(slot.top() * ratio); y < static_cast<int>((slot.bottom() + 1) * ratio) && y < drawer.height(); ++y) {
+						for (auto x = static_cast<int>(slot.left() * ratio); x < static_cast<int>((slot.right() + 1) * ratio) && x < drawer.width(); ++x) {
+							drawn += drawer.pixelColor(x, y).rgb() != background.rgb() ? 1 : 0;
+						}
+					}
+					expect(drawn > 20, "a drawer folder shows the style's folder icon before its name");
 					expect(ink_in(drawer, area, fileInk) == 0, "a drawer folder's name is not drawn in the file ink");
 					++checked;
 				}
@@ -903,7 +917,21 @@ namespace {
 				if (!folder.data(qt::overview_file_model::folder_role).toBool()) {
 					continue;
 				}
-				const auto cell         = files->visualRect(folder.siblingAtColumn(qt::overview_file_model::file_column));
+				// [[BPR-2156]]. The path after the style's folder icon: the icon
+				// keeps the platform's own colours, whatever the profile's ink.
+				const auto whole = files->visualRect(folder.siblingAtColumn(qt::overview_file_model::file_column));
+				const auto cell  = whole.adjusted(22, 0, 0, 0);
+				{
+					const auto ratio      = overviewImage.devicePixelRatio();
+					const auto background = overviewImage.pixelColor(static_cast<int>((whole.right() - 2) * ratio), static_cast<int>((whole.top() + 2) * ratio));
+					auto       drawn      = 0;
+					for (auto y = static_cast<int>(whole.top() * ratio); y < static_cast<int>((whole.bottom() + 1) * ratio) && y < overviewImage.height(); ++y) {
+						for (auto x = static_cast<int>(whole.left() * ratio); x < static_cast<int>((whole.left() + 20) * ratio) && x < overviewImage.width(); ++x) {
+							drawn += overviewImage.pixelColor(x, y).rgb() != background.rgb() ? 1 : 0;
+						}
+					}
+					expect(drawn > 20, "Overview's folder row shows the style's folder icon before its path");
+				}
 				const auto folderPixels = ink_in(overviewImage, cell, folderInk);
 				const auto filePixels   = ink_in(overviewImage, cell, fileInk);
 				if (folderPixels <= 8 || filePixels != 0) {

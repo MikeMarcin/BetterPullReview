@@ -3,15 +3,23 @@
 #include "../support/diagnostic_files.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/enhance_control.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "private_data_root.hpp"
@@ -20,6 +28,7 @@
 
 #include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -96,7 +105,8 @@ namespace {
 	/// setup ([[BPR-1881]]). As a person does: the Tour tab, once shown, lets
 	/// the setup look for agents; it finds only the course's stub `claude`
 	/// and chooses it, and the review holds every file, so no clone is asked
-	/// for ([[BPR-1879]]). The Tour tab's Set up the agent opens the setup at
+	/// for ([[BPR-1879]]). The setup opens (from the footer's state,
+	/// [[BPR-2051]]) at
 	/// Check it works, Check runs the stub's `auth status --json` and
 	/// `--version` and makes the workspace, and the Tour tab is shown again.
 	void agent_ready(qt::workbench_window& aWindow)
@@ -105,8 +115,10 @@ namespace {
 		const auto ready  = [&editor] { return editor.agent_readiness() == qt::agent_setup_readiness::ready; };
 		wait([&editor] { return editor.agent_readiness() != qt::agent_setup_readiness::checking; }, "the agent setup looks for agents once the Tour tab shows");
 		if (!ready()) {
-			expect(editor.agent_setup_call()->isVisible(), "the unfinished setup is offered from the Tour tab");
-			editor.findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+			// [[BPR-2051]]: the window's footer says setup is missing; the
+			// setup it leads to is the Agent tab's, at Check it works.
+			expect(!aWindow.agent_footer_widget()->picker()->attention().isEmpty() || aWindow.agent_footer_widget()->picker()->isHidden(), "the unfinished setup is the footer's state");
+			aWindow.open_agent_setup();
 			const auto check = [&aWindow] {
 				auto* const button = aWindow.agent_setup()->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"));
 				return button != nullptr && button->isVisible() && button->isEnabled() ? button : nullptr;
@@ -123,7 +135,7 @@ namespace {
 		} else {
 			std::cout << "agent-setup:already-ready\n";
 		}
-		expect(editor.isVisible() && !editor.agent_setup_call()->isVisible(), "a finished setup leaves the Tour tab no call to set up the agent");
+		expect(editor.isVisible() && aWindow.agent_footer_widget()->picker()->attention().isEmpty(), "a finished setup leaves the footer nothing to ask");
 	}
 	/// A pointer click on the description's link to `aTarget`, as a reader
 	/// makes it on the rendered text.
@@ -201,8 +213,10 @@ namespace {
 		projection.Draft                  = draft;
 		draft->Stops.resize(1);
 		draft->Stops.front().Title = "A stop";
-		const std::array states{ core::tour_preparation::editing, core::tour_preparation::ready, core::tour_preparation::suggested, core::tour_preparation::needs_attention };
-		const std::array labels{ QStringLiteral("Editing"), QStringLiteral("Ready"), QStringLiteral("Suggested / unvisited"), QStringLiteral("Needs attention") };
+		// [[BPR-2014]]. The ring's states are acceptance: not yet, accepted,
+		// and changed since accepted (here, moved to other lines).
+		const std::array states{ core::tour_acceptance_state::not_accepted, core::tour_acceptance_state::accepted, core::tour_acceptance_state::changed };
+		const std::array labels{ QStringLiteral("Not accepted yet"), QStringLiteral("Accepted"), QStringLiteral("Changed since accepted") };
 		QImage           sheet{ 480, 576, QImage::Format_ARGB32_Premultiplied };
 		sheet.fill(Qt::transparent);
 		QPainter sheetPainter{ &sheet };
@@ -217,9 +231,17 @@ namespace {
 				palette.setColor(QPalette::HighlightedText, background);
 			}
 			for (int selected = 0; selected < 2; ++selected) {
-				std::array<QImage, 4> shapes;
+				std::array<QImage, 3> shapes;
 				for (std::size_t state = 0; state < states.size(); ++state) {
-					draft->Stops.front().Preparation = states[state];
+					auto& stop = draft->Stops.front();
+					stop.Acceptance.reset();
+					if (states[state] != core::tour_acceptance_state::not_accepted) {
+						stop.Acceptance = core::accept_tour_stop(*draft, stop, { });
+					}
+					if (states[state] == core::tour_acceptance_state::changed) {
+						stop.Acceptance->Destination->FirstLine += 1U;
+					}
+					expect(core::decide_tour_stop_acceptance(*draft, stop).State == states[state], "the fixture stop is in the state drawn");
 					probe.present(projection);
 					auto*      list  = probe.outline();
 					const auto index = list->model()->index(0, 0);
@@ -242,7 +264,7 @@ namespace {
 					painter.end();
 					shapes[state] = row;
 
-					sheetPainter.drawImage(QRect{ selected * 240, (theme * 4 + static_cast<int>(state)) * 48, 240, 48 }, row);
+					sheetPainter.drawImage(QRect{ selected * 240, (theme * 3 + static_cast<int>(state)) * 48, 240, 48 }, row);
 				}
 				for (std::size_t first = 0; first < shapes.size(); ++first) {
 					for (std::size_t second = first + 1; second < shapes.size(); ++second) {
@@ -252,7 +274,7 @@ namespace {
 							}
 							std::cerr << "icon equality: theme=" << theme << " selected=" << selected << " states=" << first << "," << second << '\n';
 						}
-						expect(shapes[first] != shapes[second], "preparation states retain distinct painted shapes with identical title and monochrome colors");
+						expect(shapes[first] != shapes[second], "acceptance states retain distinct painted shapes with identical title and monochrome colors");
 					}
 				}
 			}
@@ -492,7 +514,9 @@ auto main(int argc, char** argv) -> int
 	// takes its stub away again once the setup has finished.
 	const auto defaultCourse = argc > 1 && !std::string_view{ argv[1] }.starts_with("--");
 	auto       stubAgent     = std::filesystem::path{ };
-	if (argc > 2 && (std::string_view{ argv[1] } == "--writing" || wrapperCourse)) {
+	// [[BPR-2051]]. The Enhance course runs on the same stub as the writing course.
+	const auto enhanceCourse = argc > 2 && std::string_view{ argv[1] } == "--enhance";
+	if (argc > 2 && (std::string_view{ argv[1] } == "--writing" || wrapperCourse || enhanceCourse)) {
 		stubAgent = argv[2];
 	} else if (const auto configured = qEnvironmentVariable("BPR_TOUR_COURSE_CLAUDE"); defaultCourse && !configured.isEmpty()) {
 		stubAgent = app::native_filesystem_path(configured);
@@ -508,7 +532,7 @@ auto main(int argc, char** argv) -> int
 	auto make = [&] {
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
-		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--tour-link" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
+		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--tour-link" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse || enhanceCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && (std::string_view{ argv[1] } == "--writing" || enhanceCourse) ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
 		// [[BPR-1894]]. The default course offers the built-in Claude on its
 		// stub, as the writing course and BPR-1881's tour-authoring look do:
 		// with nothing offered the Agent tab counts as not set up.
@@ -782,20 +806,10 @@ auto main(int argc, char** argv) -> int
 				expect(*editor.shown().Draft == before, "a Settings test changes no draft");
 			}
 
-			// 10. Outline: private proposals only.
+			// 10. [[BPR-2013]]. Suggest an outline left the application.
 			editor.show_stops();
-			select_range(window, core::diff_side::right, 3, 4);
-			{
-				const auto before = *editor.shown().Draft;
-				infer(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")));
-				auto* suggestions = editor.findChild<QListWidget*>(QStringLiteral("tourSuggestedOutline"));
-				auto  proposals   = QStringList{ };
-				for (int row = 0; row < suggestions->count(); ++row) {
-					proposals.append(suggestions->item(row)->text());
-				}
-				report("outline", { { QStringLiteral("proposals"), proposals.join(QStringLiteral("\n---\n")) }, { QStringLiteral("draft_unchanged"), *editor.shown().Draft == before } });
-				expect(*editor.shown().Draft == before, "outline changes no body");
-			}
+			report("outline", { { QStringLiteral("offered"), editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) != nullptr } });
+			expect(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) == nullptr, "no Suggest an outline");
 
 			// 11. Codex: writing refuses before any process starts.
 			editor.show_problem();
@@ -859,11 +873,10 @@ auto main(int argc, char** argv) -> int
 			// so the request below finds none.
 			std::filesystem::remove(claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string()));
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
-			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			saved(editor);
-			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
+			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;editor.request_field_writing(core::writing_hook::problem);wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
 			const auto select = [&] {auto cursor=prose->textCursor();cursor.setPosition(3);cursor.setPosition(7,QTextCursor::KeepAnchor);prose->setTextCursor(cursor); };
 			const auto edit   = [&](const char* aWhat) {
 				agents->agent_list()->setCurrentRow(0);
@@ -873,7 +886,7 @@ auto main(int argc, char** argv) -> int
 			select();
 			const auto captured = *prose->capture();
 			const auto before   = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			wait([&] { return status->text() == QStringLiteral("Assistance did not complete; your text is unchanged.") && access::agent_invocation_evidence(*application).Quiescent; },
 				 "the request with no claude found ends");
 			expect(prose->raw() == captured.Raw && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == before,
@@ -937,6 +950,163 @@ auto main(int argc, char** argv) -> int
 			std::cout << "review-tour-writing-wrapper:pass\n";
 			return EXIT_SUCCESS;
 		}
+		// [[BPR-2051]]. Enhance on a draft comment and a private note, through
+		// the real composition and the stub claude: each press runs the
+		// writing operation a stop's Enhance uses, with its surface's own
+		// prompt; the answer is a suggestion beside the text, applied only by
+		// Use suggestion; nothing reaches GitHub. `--enhance STUB --attended`
+		// stops with a draft comment and a note written, for the owner's look.
+		if (enhanceCourse) {
+			const auto attended       = argc > 3 && std::string_view{ argv[3] } == "--attended";
+			const auto mutationBefore = access::review_mutation_evidence(*application);
+			auto*      panel          = window.agent_panel();
+			auto*      selector       = panel->profile_selector();
+			select_file(window, "review.cpp");
+			wait([&] { return selector->count() > 0; }, "agent offerings follow accepted source");
+			const auto claude = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value()));
+			expect(claude >= 0, "existing Claude profile offered");
+			selector->setCurrentIndex(claude);
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
+			window.open_review_tour();
+			editor.show_problem();
+			agent_ready(window);
+			// A draft comment on a line of the head.
+			window.tray_tabs()->setCurrentIndex(0);
+			wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, 2U); }, "a head line is selected");
+			wait([&] { return window.comment_action()->isEnabled(); }, "Comment is offered on it");
+			window.comment_action()->trigger();
+			auto* const cards = window.conversation_panel()->cards();
+			wait([&] { return cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible() && !cards->draft_editor()->isReadOnly(); }, "Comment opens a draft in the drawer");
+			const auto original = QStringLiteral("nit: this could maybe be simpler i think, the loop does the same thing twice?");
+			cards->draft_editor()->setPlainText(original);
+			wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Body == original.toStdString(); }, "the draft comment is kept locally");
+			wait([&] { return cards->enhance_control() != nullptr && cards->enhance_control()->isVisible() && cards->enhance_control()->isEnabled(); }, "the draft offers Enhance");
+			expect(qt::agent_run_control(*cards->enhance_control()) && cards->enhance_control()->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(window.palette()), "Enhance wears the Agent accent");
+			// The note: RFC-BPR-0127, a Local comment written in the composer (N).
+			const auto writeNote = [&] {
+				window.close_drawer_composer(false);
+				wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, 3U); }, "another head line is selected");
+				window.local_comment_action()->trigger();
+				wait([&] { return cards->writing_draft() && window.composing_local() && cards->draft_editor() != nullptr && !cards->draft_editor()->isReadOnly(); }, "N opens the composer on Local");
+				cards->draft_editor()->setPlainText(QStringLiteral("check the cache invalidation here, looks like it might be missing the delete path?? ask about tests"));
+				wait([&] { return cards->enhance_control() != nullptr && cards->enhance_control()->isVisible() && cards->enhance_control()->isEnabled(); }, "the Local comment offers Enhance");
+				return cards;
+			};
+			if (attended) {
+				auto* const notes = writeNote();
+				static_cast<void>(notes);
+				window.tray_tabs()->setCurrentIndex(0);
+				window.resize(1440, 960);
+				window.setWindowTitle(QStringLiteral("Enhance on a draft comment and a note — synthetic data — close to finish"));
+				QApplication::setQuitOnLastWindowClosed(true);
+				window.set_profile_management_dispatch({ }, { }, [] { QApplication::quit(); });
+				QTimer::singleShot(60 * 60 * 1000, &qtApplication, &QApplication::quit);
+				std::cout << "review-tour-enhance-attended:ready qpa=" << QApplication::platformName().toStdString() << '\n'
+						  << std::flush;
+				const auto result = QApplication::exec();
+				shutdown(*application);
+				return result;
+			}
+			const auto launched = [&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations; };
+			const auto ran      = [&](std::size_t aBefore, const char* aWhat) { wait([&] { return launched() > aBefore && access::agent_invocation_evidence(*application).Quiescent; }, aWhat); };
+			auto       before   = launched();
+			cards->enhance_control()->click();
+			ran(before, "the comment's Enhance runs the writing agent once");
+			if (!e2e::wait_until_plain([&] { return !cards->enhance_panel()->suggestion_text().isEmpty(); }, e2e::default_queue_budget)) {
+				std::cerr << "enhance notice: " << cards->enhance_panel()->notice_text().toStdString() << '\n';
+				throw std::runtime_error{ "a suggestion comes back" };
+			}
+			expect(cards->enhance_panel()->suggestion_text() == QStringLiteral("Nit: the loop does the same work twice. Could it run once?") && cards->draft_editor()->toPlainText() == original && window.review_editor()->shown_draft()->Body == original.toStdString(),
+				   "the suggestion is shown beside the comment; the comment is unchanged");
+			if (argc > 3) {
+				expect(window.grab().save(QString::fromLocal8Bit(argv[3]) + QStringLiteral("-comment.png")), "comment render saved");
+			}
+			cards->enhance_panel()->discard_button()->click();
+			QApplication::processEvents();
+			expect(cards->enhance_panel()->isHidden() && cards->draft_editor()->toPlainText() == original, "Discard keeps the comment as written");
+			before = launched();
+			cards->enhance_control()->click();
+			ran(before, "Enhance again");
+			wait([&] { return !cards->enhance_panel()->suggestion_text().isEmpty() && cards->enhance_panel()->use_button()->isEnabled(); }, "the second suggestion can be used");
+			cards->enhance_panel()->use_button()->click();
+			wait([&] { return window.review_editor()->shown_draft() && QString::fromStdString(window.review_editor()->shown_draft()->Body) == QStringLiteral("Nit: the loop does the same work twice. Could it run once?"); }, "Use puts the suggestion in the draft, kept locally");
+			cards->draft_editor()->undo();
+			wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Body == original.toStdString(); }, "one Undo restores the comment");
+			// A selection is enhanced alone.
+			{
+				auto cursor = cards->draft_editor()->textCursor();
+				cursor.setPosition(5);
+				cursor.setPosition(24, QTextCursor::KeepAnchor);
+				cards->draft_editor()->setTextCursor(cursor);
+				before = launched();
+				cards->enhance_control()->click();
+				ran(before, "Enhance on a selection");
+				wait([&] { return !cards->enhance_panel()->suggestion_text().isEmpty(); }, "the selection's suggestion");
+				cards->enhance_panel()->use_button()->click();
+				const auto expected = original.left(5) + cards->enhance_panel()->suggestion_text() + original.mid(24);
+				static_cast<void>(expected);
+				wait([&] { const auto text = cards->draft_editor()->toPlainText(); return text.startsWith(QStringLiteral("nit: Rewritten")) && text.endsWith(original.mid(24)); }, "only the selection is rewritten");
+				cards->draft_editor()->undo();
+				wait([&] { return cards->draft_editor()->toPlainText() == original; }, "and Undo restores it");
+			}
+			// The comment's prompt is the one saved in Settings, and a run
+			// keeps the prompt saved when it was pressed: a save while it runs
+			// neither changes nor discards it.
+			{
+				auto* const hooks  = window.writing_hooks();
+				auto* const text   = hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions"));
+				auto* const save   = hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave"));
+				auto* const source = hooks->findChild<QLabel*>(QStringLiteral("writingHookSource"));
+				hooks->select_hook(core::writing_hook::enhance_writing);
+				text->setPlainText(QStringLiteral("TEAM_PROMPT_CANARY WAIT_CANARY Keep it short."));
+				save->click();
+				wait([&] { return source->text().contains(QStringLiteral("Changed from built-in")); }, "the Enhance writing prompt is saved");
+				before = launched();
+				cards->enhance_control()->click();
+				wait([&] { return launched() > before; }, "Enhance runs with the saved prompt");
+				text->setPlainText(QStringLiteral("Changed while it ran."));
+				save->click();
+				ran(before, "the run finishes");
+				wait([&] { return !cards->enhance_panel()->suggestion_text().isEmpty(); }, "its suggestion arrives");
+				expect(cards->enhance_panel()->suggestion_text() == QStringLiteral("Team voice applied."), "the run used the prompt saved when Enhance was pressed, and a save meanwhile did not discard it");
+				cards->enhance_panel()->discard_button()->click();
+				hooks->findChild<QPushButton*>(QStringLiteral("writingHookReset"))->click();
+				wait([&] { return source->text().startsWith(QStringLiteral("Built-in")); }, "Reset to built-in restores the shipped prompt");
+			}
+			// The note.
+			auto* const notes = writeNote();
+			const auto  saved = notes->draft_editor()->toPlainText();
+			auto* const noted = notes->enhance_panel();
+			before            = launched();
+			notes->enhance_control()->click();
+			ran(before, "the Local comment's Enhance runs");
+			wait([&] { return !noted->suggestion_text().isEmpty(); }, "the Local comment's suggestion comes back");
+			expect(notes->draft_editor()->toPlainText() == saved, "the Local comment is unchanged by the suggestion");
+			noted->use_button()->click();
+			QApplication::processEvents();
+			expect(notes->draft_editor()->toPlainText().startsWith(QStringLiteral("Check cache invalidation:")) && notes->local_comments().empty(),
+				   "Use puts it in the Local comment to save; nothing is saved until Save");
+			window.close_drawer_composer(true);
+			QApplication::processEvents();
+			// Each prompt in Settings, with its built-in and its restore.
+			auto* const hooks = window.writing_hooks();
+			for (const auto& [hook, title] : std::array{ std::pair{ core::writing_hook::enhance_writing, "Enhance writing" }, std::pair{ core::writing_hook::enhance_stop, "Enhance a stop" } }) {
+				hooks->select_hook(hook);
+				QApplication::processEvents();
+				expect(hooks->findChild<QLabel*>(QStringLiteral("writingHookTitle"))->text() == QString::fromUtf8(title) && hooks->findChild<QPushButton*>(QStringLiteral("writingHookReset")) != nullptr,
+					   "each Enhance prompt is in Built-in prompts with its restore");
+			}
+			const auto mutationAfter = access::review_mutation_evidence(*application);
+			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies
+					   && mutationAfter.Resolutions == mutationBefore.Resolutions,
+				   "Enhance writes nothing to GitHub");
+			if (argc > 3) {
+				expect(window.grab().save(QString::fromLocal8Bit(argv[3]) + QStringLiteral("-end.png")), "render saved");
+			}
+			shutdown(*application);
+			std::cout << "review-tour-enhance:pass\n";
+			return EXIT_SUCCESS;
+		}
 		if (argc > 2 && std::string_view{ argv[1] } == "--writing") {
 			const auto mutationBefore = access::review_mutation_evidence(*application);
 			auto*      panel          = window.agent_panel();
@@ -953,11 +1123,33 @@ auto main(int argc, char** argv) -> int
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
 			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			expect(!prose->raw().empty(), "recovery gesture accepted");
 			saved(editor);
 			expect(prose->raw() == "\r\n**Keep raw** problem.\r\n\r\n" && status->text().contains("Recovered") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "empty description section recovered exactly before inference");
-			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
+			// [[BPR-1995]], RFC-BPR-0100 AC05, as amended by [[BPR-2138]]
+			// (RFC-BPR-0101 AC11, owner 2026-11-12). Enhance on a selection is
+			// a fresh update of that passage: no turn of the Problem's side
+			// chat and no native session; nothing is written until the author
+			// accepts its proposal.
+			{
+				const auto shownBefore = editor.side_chat()->current();
+				saved(editor);
+				auto selection = prose->textCursor();
+				selection.setPosition(3);
+				selection.setPosition(7, QTextCursor::KeepAnchor);
+				prose->setTextCursor(selection);
+				const auto rawBefore  = prose->raw();
+				const auto runsBefore = editor.tour_agent()->session().Runs.size();
+				magic->click();
+				wait([&] { const auto& runs = editor.tour_agent()->session().Runs; return runs.size() > runsBefore && runs.back().State != core::tour_agent_run_state::running && access::agent_invocation_evidence(*application).Quiescent; }, "the Enhance turn ends");
+				const auto& last = editor.tour_agent()->session().Runs.back();
+				expect(last.Request == core::tour_agent_request::ask && last.Update && last.Fresh && last.Passage && last.Passage->Field == core::tour_passage_field::problem && last.Thread.Kind == core::tour_thread_kind::problem
+						   && editor.side_chat()->current() == shownBefore && prose->raw() == rawBefore && editor.shown().Draft->Problem == rawBefore,
+					   "Enhance on a selection is a fresh update of the Problem's passage, leaves its side chat as it was, and changes nothing by itself");
+				std::cout << "review-tour-enhance-in-chat: passage=\"" << last.Passage->Text << "\" state=" << static_cast<int>(last.State) << '\n';
+			}
+			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;editor.request_field_writing(core::writing_hook::problem);wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
 			auto       cursor = prose->textCursor();
 			cursor.setPosition(3);
 			cursor.setPosition(7, QTextCursor::KeepAnchor);
@@ -1035,7 +1227,7 @@ auto main(int argc, char** argv) -> int
 			expect(prose->raw() == "INSUFFICIENT_CANARY" && status->text().contains("More context"), "insufficient context remains private and unchanged");
 			set("WAIT_CANARY");
 			const auto before = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			wait([&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations > before; }, "delayed child starts");
 			prose->insertPlainText(QStringLiteral(" newer"));
 			saved(editor);
@@ -1043,7 +1235,7 @@ auto main(int argc, char** argv) -> int
 			expect(prose->raw() == "WAIT_CANARY newer", "late result cannot overwrite local edit");
 			set("WAIT_CANARY");
 			const auto leavingCalls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			wait([&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations > leavingCalls; }, "leaving request starts");
 			editor.show_stops();
 			wait([&] { return access::agent_invocation_evidence(*application).Quiescent; }, "leaving request drains");
@@ -1092,85 +1284,46 @@ auto main(int argc, char** argv) -> int
 			wait([&] {const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>testCalls && evidence.Quiescent; }, "explicit Settings test process completed");
 			expect(*editor.shown().Draft == beforeTest && hooks->findChild<QLabel*>(QStringLiteral("writingHookStatus"))->text().contains("Hook test completed"), "hook test displays private result and changes no draft");
 
-			// Outline delivery reuses the real restricted process, local store and structural history.
+			// [[BPR-2013]], RFC-BPR-0106 AC07. Suggest an outline left the
+			// application; Draft the tour is the one way to ask for a route.
 			editor.show_stops();
-			select_range(window, core::diff_side::right, 3, 4);
-			const auto beforeOutline = *editor.shown().Draft;
-			const auto outlineCalls  = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline"))->click();
-			wait([&] { const auto evidence = access::agent_invocation_evidence(*application); return evidence.AgentProcessLauncherInvocations > outlineCalls && evidence.Quiescent; }, "outline process finishes");
-			auto* suggestions = editor.findChild<QListWidget*>(QStringLiteral("tourSuggestedOutline"));
-			expect(suggestions->count() == 2 && *editor.shown().Draft == beforeOutline, "outline returns private proposals without changing any body");
-			if (argc > 3) {
-				QApplication::processEvents();
-				expect(window.grab().save(QString::fromLocal8Bit(argv[3])), "render actual outline proposals with current source");
-			}
-			editor.findChild<QPushButton*>(QStringLiteral("tourInsertOutline"))->click();
-			saved(editor);
-			expect(editor.shown().Draft->Stops.size() == beforeOutline.Stops.size() + 2 && editor.selected_stop()->Body.empty() && editor.selected_stop()->Suggestion && !editor.selected_stop()->Suggestion->Visited && editor.selected_stop()->Preparation == core::tour_preparation::suggested, "one insertion creates empty unvisited skeletons");
-			editor.trigger(qt::tour_editor_action::undo_structure);
-			saved(editor);
-			expect(editor.shown().Draft->Stops == beforeOutline.Stops, "one structural undo removes every inserted skeleton");
-			editor.trigger(qt::tour_editor_action::redo_structure);
-			saved(editor);
-			expect(editor.shown().Draft->Stops.size() == beforeOutline.Stops.size() + 2 && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == outlineCalls + 1, "outline redo restores bytes without inference");
-			const auto generatedRow = static_cast<int>(beforeOutline.Stops.size());
-			editor.outline()->setCurrentRow(generatedRow, QItemSelectionModel::ClearAndSelect);
-			editor.trigger(qt::tour_editor_action::navigate_stop);
-			saved(editor);
-			expect(editor.selected_stop()->Suggestion->Visited && editor.selected_stop()->Body.empty() && editor.selected_stop()->Preparation != core::tour_preparation::ready, "visible placeholder visit cannot acknowledge later prose");
-			const auto generatedId  = editor.selected_stop()->Id;
+			expect(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) == nullptr && editor.findChild<QListWidget*>(QStringLiteral("tourSuggestedOutline")) == nullptr && editor.findChild<QPushButton*>(QStringLiteral("tourInsertOutline")) == nullptr, "no Suggest an outline and no Insert outline");
+			// [[BPR-2014]], RFC-BPR-0106 AC03. Agent-written text is not
+			// accepted; a hidden Accept accepts nothing; Accept on the current
+			// stop accepts it and moves nowhere; a later change is not accepted.
+			const auto generatedId = editor.selected_stop()->Id;
+			const auto accepted    = [&] {
+				const auto found = std::ranges::find(editor.shown().Draft->Stops, generatedId, &core::tour_stop::Id);
+				return found != editor.shown().Draft->Stops.end() && core::tour_stop_accepted(*editor.shown().Draft, *found);
+			};
 			const auto commentCalls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"))->click();
-			wait([&] { const auto evidence = access::agent_invocation_evidence(*application); return evidence.AgentProcessLauncherInvocations > commentCalls && evidence.Quiescent; }, "explicit generated-stop comment finishes");
-			saved(editor);
-			expect(editor.selected_stop()->Body == "Evidence-backed draft." && editor.selected_stop()->Preparation != core::tour_preparation::ready, "one explicit comment invocation remains unready");
-			QWidget background;
-			background.show();
-			background.activateWindow();
-			QApplication::processEvents();
-			expect(!window.isActiveWindow(), "another foreground surface is observed");
-			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
-			expect(editor.selected_stop()->Preparation != core::tour_preparation::ready, "background stop cannot be completed by a stale button event");
-			background.close();
-			window.activateWindow();
-			QApplication::processEvents();
+			if (editor.stop_view().Mode == core::tour_stop_view_mode::edit) {
+				editor.finish_stop_edit();
+				saved(editor);
+			}
+			expect(!accepted(), "the agent's explanation is not accepted by being written");
 			editor.show_problem();
-			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
-			expect(editor.selected_stop()->Preparation != core::tour_preparation::ready, "hidden stop button cannot complete generated prose");
+			editor.accept_button()->click();
+			expect(!accepted(), "a hidden Accept accepts nothing");
 			editor.show_stops();
-			select_range(window, core::diff_side::right, 1, 2);
-			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
-			expect(editor.selected_stop()->Preparation != core::tour_preparation::ready, "another visible range cannot complete the captured generated stop");
 			editor.trigger(qt::tour_editor_action::navigate_stop);
-			window.findChild<QScrollArea*>(QStringLiteral("workbenchTourScroll"))->ensureWidgetVisible(write(editor));
 			QApplication::processEvents();
-			expect(editor.writing_visible(core::writing_hook::comment) && window.comparison_surface()->source_line_visible(core::diff_side::right, 3), "completion shows current editor and selected source line");
-			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
+			expect(editor.accept_button()->isVisible() && !editor.accept_reason()->isVisible(), "the stop offers Accept, with nothing beside it");
+			editor.accept_button()->click();
 			saved(editor);
-			auto generated = std::ranges::find(editor.shown().Draft->Stops, generatedId, &core::tour_stop::Id);
-			expect(generated != editor.shown().Draft->Stops.end() && generated->Preparation == core::tour_preparation::ready, "explicit current visible completion marks only that stop Ready");
-			expect(editor.selected_stop()->Id != generatedId && !editor.selected_stop()->Original && editor.selected_stop()->Preparation != core::tour_preparation::ready, "Ready and next navigates without generation or bulk completion");
-			editor.stop_body()->insertPlainText(QStringLiteral("Manual unresolved explanation"));
-			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
-			expect(editor.selected_stop()->Preparation != core::tour_preparation::ready, "source-unavailable suggestion cannot be Ready even with manual text");
+			expect(accepted() && editor.selected_stop()->Id == generatedId && !editor.accept_button()->isVisible(), "Accept accepts the current stop and moves nowhere");
+			write(editor)->insertPlainText(QStringLiteral(" revised"));
 			saved(editor);
-			editor.outline()->setCurrentRow(generatedRow, QItemSelectionModel::ClearAndSelect);
-			editor.trigger(qt::tour_editor_action::navigate_stop);
-			write(editor);
-			editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"))->click();
-			wait([&] { const auto evidence = access::agent_invocation_evidence(*application); return evidence.AgentProcessLauncherInvocations == commentCalls + 2 && evidence.Quiescent; }, "explicit regeneration finishes");
+			expect(!accepted(), "changed text is not accepted while it is written");
+			editor.save_stop_edit();
 			saved(editor);
-			expect(editor.selected_stop()->Body == "Evidence-backed draft." && editor.selected_stop()->Preparation != core::tour_preparation::ready, "equal regenerated text still needs fresh explicit completion");
-			editor.stop_body()->insertPlainText(QStringLiteral(" revised"));
-			saved(editor);
-			expect(editor.selected_stop()->Preparation != core::tour_preparation::ready, "changed current generated text invalidates acknowledgement");
-			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == commentCalls + 2, "visits, completion, selection, typing and undo never dispatch extra inference");
+			expect(accepted(), "Save accepts it");
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == commentCalls, "accepting, typing and saving dispatch no inference");
 
 			editor.show_problem();
 			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value())));
 			const auto beforeUnsupported = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
-			magic->click();
+			editor.request_field_writing(core::writing_hook::problem);
 			expect(status->text().contains("no qualified") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == beforeUnsupported, "unqualified protocol fails closed before process start");
 			const auto mutationAfter = access::review_mutation_evidence(*application);
 			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions, "all writing responses leave remote mutation counters unchanged");
@@ -1178,12 +1331,13 @@ auto main(int argc, char** argv) -> int
 			application.reset();
 			// [[BPR-1891]]. The plugin run's agent.run line names the plugin
 			// by source, and no line names the path the init frame carried.
+			// [[BPR-2004]] added the diagnosis fields that follow them.
 			// The application is gone, so this reports here rather than
 			// through the handler below, which reads its window.
 			if (const auto log = bpr::tests::read_diagnostic_logs(*dataRoot);
-				log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin\"") == std::string::npos
-				|| log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin memory=on\"") == std::string::npos
-				|| log.find("stderr_bytes=0 thinking=on\"") == std::string::npos
+				log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin longest_silence_ms=") == std::string::npos
+				|| log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin memory=on longest_silence_ms=") == std::string::npos
+				|| log.find("stderr_bytes=0 thinking=on longest_silence_ms=") == std::string::npos
 				|| log.find("/fixture/") != std::string::npos || log.find("THOUGHT_") != std::string::npos) {
 				std::cerr << "review-tour-composition:fail the run's diagnostics name the plugins, memory=on and thinking=on its Claude reported, without a path or thinking content\n";
 				return EXIT_FAILURE;
@@ -1255,10 +1409,10 @@ auto main(int argc, char** argv) -> int
 			expect(editor.shown().Draft->Stops[0].Destination && !editor.shown().Draft->Stops[0].Original && editor.shown().Draft->Stops[1].Destination, "native and file-permalink imported destinations retain source without a fabricated comparison");
 			editor.show_stops();
 			editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
-			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			editor.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link
 			wait([&] {const auto* surface=window.comparison_surface();return surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("secondary.cpp") && surface->selected_source_range() && surface->selected_source_range()->first.Line==1 && surface->selected_source_range()->second.Line==3; }, "native imported multiline stop navigates exact admitted commit/path/range");
 			editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
-			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			editor.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link
 			wait([&] {const auto* surface=window.comparison_surface();return surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp") && surface->selected_source_range() && surface->selected_source_range()->first.Line==1 && surface->selected_source_range()->second.Line==3; }, "file-level fallback range navigates canonical pinned source");
 			editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
 			{
@@ -1277,7 +1431,7 @@ auto main(int argc, char** argv) -> int
 			const auto historical = editor.shown().Draft->Stops[2];
 			editor.show_stops();
 			editor.outline()->setCurrentRow(2, QItemSelectionModel::ClearAndSelect);
-			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			editor.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link
 			expect(*editor.selected_stop() == historical && editor.findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().contains(QStringLiteral("unavailable")), "unavailable historical/unchanged source keeps its explanation without selecting a nearby changed line");
 			editor.show_problem();
 			const auto baseline = *editor.shown().Draft->ProblemBaseline;
@@ -1301,7 +1455,7 @@ auto main(int argc, char** argv) -> int
 				editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
 				window.open_overview_tab(qt::overview_drawer_tab::tour);
 				summary->action()->click();
-				wait([&] {const auto* surface=window.comparison_surface();return !window.showing_overview() && window.tray_tabs()->currentIndex()==2 && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp"); }, "Continue in Review opens Review's Tour tab at the stop it was on");
+				wait([&] {const auto* surface=window.comparison_surface();return !window.showing_overview() && window.tray_tabs()->currentIndex()==1 && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp"); }, "Continue in Review opens Review's Tour tab at the stop it was on");
 				// Start tour, as a reader's button asks it: the tour in the
 				// window opens at its first stop.
 				window.open_overview_tab(qt::overview_drawer_tab::tour);
@@ -1333,7 +1487,7 @@ auto main(int argc, char** argv) -> int
 			auto& route    = *reopened.tour_editor();
 			route.show_stops();
 			route.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
-			route.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			route.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link
 			wait([&] { return reopened.comparison_surface()->current_context()
 						   && reopened.comparison_surface()->current_context()->Key.File == core::file_identity_of("secondary.cpp")
 						   && access::review_ledger_settled(*application); }, "reopened tour's exact source and receipt observation settle");
@@ -1343,7 +1497,7 @@ auto main(int argc, char** argv) -> int
 				const auto releaseLedger = access::hold_review_ledger_effects(*application);
 				const auto releaseOnExit = qScopeGuard(releaseLedger);
 				route.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
-				route.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+				route.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link
 				wait([&] { return reopened.comparison_surface()->current_context()
 							   && reopened.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp")
 							   && reopened.comparison_surface()->current_semantic_index(); }, "tour source is shown while its material receipt answer is held");
@@ -1510,7 +1664,18 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp") && window.comparison_surface()->selected_source_range() && window.comparison_surface()->selected_source_range()->first.Line == 2U; }, "outline returns to first stop source");
 		expect(editor.stop_body()->toPlainText() == QStringLiteral("First thought.\n\nSecond thought."), "stop text and native document survive excursions");
 		const auto beforeSplit = *editor.selected_stop();
-		expect(!editor.findChild<QAction*>(QStringLiteral("tourSplit")) && arrange->actions().size() == 5 && !arrange->actions().contains(editor.findChild<QAction*>(QStringLiteral("tourUndo"))) && !arrange->actions().contains(editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))), "context menu contains only insert, duplicate, merge, retarget and remove");
+		// [[BPR-2013]], RFC-BPR-0106: the stop's context menu holds the route's
+		// operations and Mark not accepted; Use selected lines is the edit's.
+		{
+			auto names = QStringList{ };
+			for (auto* const item : arrange->actions()) {
+				if (!item->isSeparator()) {
+					names << item->objectName();
+				}
+			}
+			expect(!editor.findChild<QAction*>(QStringLiteral("tourSplit")) && names == QStringList{ QStringLiteral("tourMenuEdit"), QStringLiteral("tourMenuChat"), QStringLiteral("tourInsertAfter"), QStringLiteral("tourDuplicate"), QStringLiteral("tourMerge"), QStringLiteral("tourMoveUp"), QStringLiteral("tourMoveDown"), QStringLiteral("tourMarkNotAccepted"), QStringLiteral("tourRemove") },
+				   "context menu: Edit, side chat, insert, duplicate, merge, move up and down, Mark not accepted and remove");
+		}
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		key(editor.outline(), QKeyCombination{ Qt::ShiftModifier, Qt::Key_Down });
 		expect(editor.outline()->selectedItems().size() == 2 && editor.findChild<QAction*>(QStringLiteral("tourMerge"))->isEnabled(), "Shift+Down selects adjacent stops and enables Merge");
@@ -1545,10 +1710,14 @@ auto main(int argc, char** argv) -> int
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		select_file(window, "secondary.cpp");
 		expect(editor.selected_stop()->Id == firstId && editor.stop_body()->toPlainText().toStdString() == beforeSplit.Body, "normal file excursion retains the tour stop and editor");
-		editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+		editor.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link
 		wait([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp") && window.comparison_surface()->selected_source_range() && window.comparison_surface()->selected_source_range()->second.Line == 4U; }, "Return to tour restores exact source range after normal file excursion");
-		editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
-		wait([&] { return editor.shown().Draft->Stops.front().Preparation == core::tour_preparation::ready && editor.selected_stop()->Id == thirdId; }, "Ready, next marks authored stop Ready and follows conceptual order");
+		// [[BPR-2014]]. Accept (once Ready, next) accepts the authored stop and
+		// moves nowhere; the route's next row follows conceptual order.
+		editor.accept_stop(editor.selected_stop()->Id);
+		wait([&] { return core::tour_stop_accepted(*editor.shown().Draft, editor.shown().Draft->Stops.front()) && editor.selected_stop()->Id == firstId; }, "Accept accepts the authored stop and stays on it");
+		editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+		wait([&] { return editor.selected_stop()->Id == thirdId; }, "the next row follows conceptual order");
 		saved(editor);
 		const auto beforeInsert = editor.shown().Draft->Stops;
 		select_file(window, "secondary.cpp");

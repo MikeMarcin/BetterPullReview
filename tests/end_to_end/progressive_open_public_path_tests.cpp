@@ -235,7 +235,9 @@ try {
 			mark(times.Checks, checksVisible, clock);
 			const auto* merge = overview->findChild<QLabel*>(QStringLiteral("overviewMergeState"));
 			mark(times.Merge, merge != nullptr && !merge->text().isEmpty() && overview->status_section(qt::overview_status_section::attention)->isVisibleTo(window), clock);
-			mark(times.People, overview->status_section(qt::overview_status_section::people)->isVisibleTo(window), clock);
+			// [[BPR-2180]]. The section stands in its place from the first
+			// answer; the people have arrived when it no longer waits.
+			mark(times.People, overview->status_section(qt::overview_status_section::people)->isVisibleTo(window) && !overview->pending_veils().People->busy(), clock);
 			if (!statusReleased && statusHeld && (checksVisible || clock.elapsed() > 15'000)) {
 				const auto partial = overview->pending_veils().Side->look() == core::pending_look::partial;
 				if (!checksVisible || !partial) {
@@ -331,7 +333,7 @@ try {
 			expect(overview->projection()->Progress.FilesReadiness == readiness::ready && overview->projection()->Progress.NotesReadiness == readiness::loading,
 				   "file progress becomes ready before independent private records");
 			expect(overview->value_label(qt::overview_value::files_read)->text() == QStringLiteral("0 of 2")
-					   && overview->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("Loading…"),
+					   && overview->value_label(qt::overview_value::local_comments)->text() == QStringLiteral("Loading…"),
 				   "only the completed local input presents its value");
 			if (!renderDirectory.isEmpty() && aIdentity == first) {
 				QApplication::processEvents();

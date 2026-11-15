@@ -14,6 +14,7 @@
 #include <QWidget>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
@@ -23,9 +24,11 @@
 
 class QAbstractButton;
 class QAction;
+class QBoxLayout;
 class QLabel;
 class QMenu;
 class QPlainTextEdit;
+class QSpacerItem;
 class QTextEdit;
 class QToolButton;
 class QVBoxLayout;
@@ -52,6 +55,13 @@ namespace bpr::qt {
 		auto    operator==(const review_submission_preflight_reference&) const -> bool = default;
 	};
 	/// \brief Safe, decided presentation; no provider, request or execution authority.
+	/// \brief [[RFC-BPR-0105]]. Where a pressed submission is before
+	/// GitHub answers: waiting to start (with what it waits for) or sending.
+	enum class review_submission_phase : std::uint8_t {
+		none,
+		waiting,
+		sending,
+	};
 	struct review_submission_editor_projection
 	{
 		std::optional<core::review_submission_draft> Draft;
@@ -68,6 +78,13 @@ namespace bpr::qt {
 		/// [[BPR-1541]]. Why a submitted review is still unknown, as the last
 		/// Check status or the attempt's record left it; none otherwise.
 		std::optional<core::review_submission_unknown_notice> Unknown;
+		/// [[RFC-BPR-0105]]. A pressed submission waiting to start, and what
+		/// it waits for in plain words, or sending.
+		review_submission_phase Phase = review_submission_phase::none;
+		QString                 Waiting;
+		/// [[RFC-BPR-0105]]. The last submission ended not published and the
+		/// same verdict can be submitted again.
+		bool Retry = false;
 	};
 	/// \brief [[BPR-1541]]. The line the page shows under "Review status is
 	/// unknown": what happened and what to do, in the reviewer's words, with
@@ -129,6 +146,10 @@ namespace bpr::qt {
 		/// why, what is safe, and Check status. Hidden otherwise.
 		[[nodiscard]] auto waiting_panel() const noexcept -> QWidget*;
 		[[nodiscard]] auto waiting_title_label() const noexcept -> QLabel*;
+		/// [[RFC-BPR-0105]]. The thin running line shown while sending.
+		[[nodiscard]] auto sending_progress() const noexcept -> QWidget*;
+		/// [[RFC-BPR-0105]]. Submits the verdict that was not published again.
+		[[nodiscard]] auto retry_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto waiting_assurance_label() const noexcept -> QLabel*;
 		/// \brief Check status's button, in the panel.
 		[[nodiscard]] auto reconcile_button() const noexcept -> QToolButton*;
@@ -141,7 +162,12 @@ namespace bpr::qt {
 		void set_context(const QString& aContext);
 		/// \brief [[BPR-1590]] v002. In the sheet beside the code, one faint
 		/// line under the box says a row shows its line behind the sheet.
-		void               set_reveal_hint(bool aShown);
+		void set_reveal_hint(bool aShown);
+		/// \brief [[BPR-2175]] (the owner's option D). The comments on the
+		/// left and the summary with its verdicts on the right, each comment
+		/// in full up to four lines; or today's one column.
+		void               set_two_columns(bool aTwo);
+		[[nodiscard]] auto two_columns() const noexcept -> bool;
 		[[nodiscard]] auto context_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1345]]. One row per carried comment, hidden with none.
 		/// \details v002: a row is a button that goes to its comment, beside
@@ -248,6 +274,53 @@ namespace bpr::qt {
 		/// Inspect all retained inline comments, including earlier revisions.
 		void set_saved_comments_reveal(std::function<void()>);
 
+		/// \brief [[BPR-2094]]. One of my drafts the review does not carry, as
+		/// the core's roster lists it.
+		struct outside_draft
+		{
+			core::review_draft_id        Id;
+			QString                      Path;
+			core::diff_side              Side = core::diff_side::right;
+			std::uint32_t                Line = 0U;
+			std::optional<std::uint32_t> StartLine;
+			QString                      Body;
+			/// The review can take it: its row offers Add.
+			bool Addable = false;
+			/// Why it cannot, when it cannot.
+			QString Why;
+			/// A reply bound to its thread: no line to name.
+			bool Reply = false;
+
+			auto operator==(const outside_draft&) const -> bool = default;
+		};
+		/// \brief [[BPR-2094]]. "N drafts aren't in this review", under the
+		/// pending comments, each with its file and lines; none hides it.
+		/// Nothing is added unless a row's Add or Add all is pressed.
+		void               set_outside_drafts(std::vector<outside_draft> aDrafts);
+		[[nodiscard]] auto outside_drafts() const noexcept -> const std::vector<outside_draft>&;
+		/// \brief [[BPR-2094]]. Add and Add all ask for these drafts to join the
+		/// review; a row's click goes to its draft.
+		void set_outside_dispatch(std::function<void(std::vector<core::review_draft_id>)> aAdd, std::function<void(const outside_draft&)> aOpen);
+		/// \brief [[BPR-2094]]. A pending row's Leave out: the draft leaves the
+		/// review and stays saved.
+		void               set_pending_leave_out(std::function<void(const core::review_submission_comment&)> aLeaveOut);
+		[[nodiscard]] auto outside_list() const noexcept -> QWidget*;
+		[[nodiscard]] auto outside_heading() const noexcept -> QLabel*;
+		[[nodiscard]] auto outside_add_all() const noexcept -> QToolButton*;
+		/// \brief The rows' words, in order: "renderer.cpp, line 431: …".
+		[[nodiscard]] auto outside_rows() const -> QStringList;
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). Keep Local in a not-in-review
+		/// row's menu: the draft becomes a Local comment and leaves the list.
+		void set_outside_keep_local(std::function<void(const outside_draft&)> aKeepLocal);
+		/// \brief RFC-BPR-0127 ([[BPR-2159]]). One quiet line, "N local
+		/// comments stay on this computer", with Show; absent at zero. A Local
+		/// comment is never pending and never "not in this review".
+		void               set_local_count(std::size_t aCount);
+		void               set_local_show(std::function<void()> aShow);
+		[[nodiscard]] auto local_line() const noexcept -> QWidget*;
+		[[nodiscard]] auto local_line_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto local_show_button() const noexcept -> QToolButton*;
+
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 
@@ -258,21 +331,40 @@ namespace bpr::qt {
 
 	protected:
 	private:
-		void                                                                                            present_preflight(const review_submission_editor_projection& aProjection);
-		void                                                                                            present_pending();
-		void                                                                                            present_verdicts();
-		void                                                                                            submit_as(core::review_disposition aDisposition);
-		void                                                                                            confirm_discard();
-		void                                                                                            discard_now();
-		void                                                                                            confirm_delete(const core::review_submission_comment& aComment);
-		void                                                                                            emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
-		void                                                                                            emit_operation(review_submission_editor_operation aOperation);
-		void                                                                                            pick_pending(std::size_t aIndex, Qt::KeyboardModifiers aModifiers);
-		void                                                                                            step_pending(std::size_t aIndex, bool aDown, bool aExtend);
-		void                                                                                            select_all_pending();
-		void                                                                                            restyle_pending_selection();
-		void                                                                                            prepare_pending_menu(std::size_t aIndex);
-		std::function<void()>                                                                           SavedCommentsReveal;
+		void                  present_preflight(const review_submission_editor_projection& aProjection);
+		void                  present_pending();
+		void                  present_outside();
+		void                  present_verdicts();
+		void                  submit_as(core::review_disposition aDisposition);
+		void                  confirm_discard();
+		void                  discard_now();
+		void                  confirm_delete(const core::review_submission_comment& aComment);
+		void                  emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
+		void                  emit_operation(review_submission_editor_operation aOperation);
+		void                  pick_pending(std::size_t aIndex, Qt::KeyboardModifiers aModifiers);
+		void                  step_pending(std::size_t aIndex, bool aDown, bool aExtend);
+		void                  select_all_pending();
+		void                  restyle_pending_selection();
+		void                  prepare_pending_menu(std::size_t aIndex);
+		std::function<void()> SavedCommentsReveal;
+		/// [[BPR-2094]].
+		std::vector<outside_draft>                                                                      OutsideDrafts;
+		std::vector<outside_draft>                                                                      OutsideListed;
+		QStringList                                                                                     OutsideRowWords;
+		std::function<void(std::vector<core::review_draft_id>)>                                         OutsideAdd;
+		std::function<void(const outside_draft&)>                                                       OutsideOpen;
+		std::function<void(const core::review_submission_comment&)>                                     PendingLeaveOut;
+		QWidget*                                                                                        Outside        = nullptr;
+		QWidget*                                                                                        OutsideRule    = nullptr;
+		QLabel*                                                                                         OutsideHeading = nullptr;
+		QToolButton*                                                                                    OutsideAddAll  = nullptr;
+		std::function<void(const outside_draft&)>                                                       OutsideKeepLocal;
+		std::function<void()>                                                                           LocalShow;
+		std::size_t                                                                                     LocalCount      = 0U;
+		QWidget*                                                                                        LocalLine       = nullptr;
+		QLabel*                                                                                         LocalLabel      = nullptr;
+		QToolButton*                                                                                    LocalShowButton = nullptr;
+		QVBoxLayout*                                                                                    OutsideRows     = nullptr;
 		QString                                                                                         LastAnnouncement;
 		review_submission_editor_dispatch                                                               Dispatch;
 		std::optional<core::review_submission_draft>                                                    Draft;
@@ -304,6 +396,8 @@ namespace bpr::qt {
 		QLabel*                                                     WaitingTitle    = nullptr;
 		QLabel*                                                     WaitingFallback = nullptr;
 		QLabel*                                                     WaitingAssure   = nullptr;
+		QWidget*                                                    Sending         = nullptr;
+		QToolButton*                                                RetryButton     = nullptr;
 		QLabel*                                                     DraftState      = nullptr;
 		QLabel*                                                     Title           = nullptr;
 		QLabel*                                                     Purpose         = nullptr;
@@ -311,11 +405,17 @@ namespace bpr::qt {
 		QVBoxLayout*                                                PendingRows     = nullptr;
 		QLabel*                                                     Carries         = nullptr;
 		/// [[BPR-1590]] v002. The pull request line, the box's heading and its rules.
-		QLabel*                                      Context         = nullptr;
-		QWidget*                                     Heading         = nullptr;
-		QWidget*                                     HeadingRule     = nullptr;
-		QWidget*                                     SummaryRule     = nullptr;
-		QLabel*                                      RevealHint      = nullptr;
+		QLabel*                                      Context     = nullptr;
+		QWidget*                                     Heading     = nullptr;
+		QWidget*                                     HeadingRule = nullptr;
+		QWidget*                                     SummaryRule = nullptr;
+		QLabel*                                      RevealHint  = nullptr;
+		QBoxLayout*                                  Columns     = nullptr;
+		QVBoxLayout*                                 LeftColumn  = nullptr;
+		QVBoxLayout*                                 RightColumn = nullptr;
+		QSpacerItem*                                 LeftSpace   = nullptr;
+		bool                                         TwoColumns  = false;
+		void                                         align_pending_tools();
 		QLabel*                                      SummaryHeading  = nullptr;
 		bool                                         HintWanted      = false;
 		QToolButton*                                 Details         = nullptr;

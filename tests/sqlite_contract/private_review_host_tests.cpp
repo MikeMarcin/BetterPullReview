@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <mutex>
 #include <sqlite3.h>
 namespace {
 	using namespace bpr;
@@ -315,6 +316,31 @@ namespace {
 		expect(runs && runs->Runs.size() == 1 && runs->Runs.front().Outcome == private_run_outcome::failed && runs->Runs.front().Completion == private_revision_completion::incomplete,
 			   "the missing program is durably failed and incomplete rather than protocol failure");
 	}
+	/// [[BPR-2181]]. The Qt-free run boundary a window workflow and the
+	/// profile's agent runtime share: a turn runs through it durably, its
+	/// claim on its own connection, and a scope not open is refused.
+	void scoped_runs_without_a_panel()
+	{
+		fixture    f;
+		std::mutex gate;
+		auto       open = true;
+		auto       runs = scoped_private_agent_runs{ gate, [&f, &open](const private_review_scope& aScope) {
+												  if (!open || aScope != f.Binding.Scope) {
+													  return scoped_private_agent_runs::scope_access{ };
+												  }
+												  return scoped_private_agent_runs::scope_access{ .Store = f.Store.get(), .Open = [config = f.Config](std::stop_token aStop) { return make_private_review_store(config, std::move(aStop)); } };
+											  } };
+		f.Host.reset();
+		f.Host = std::make_unique<agent_invocation_host>(f.Profiles, std::vector<agent_host_policy>{ built_in_agent_policy(f.Binding.Scope.Host, built_in_agent_host_kind::github_com) }, f.Scratch.path(), f.Sessions, f.Workspace, f.Process, [](const std::string&) -> std::optional<std::string> { return { }; }, f.Effects, f.Decisions, f.Projection, &runs);
+		f.Host->observe(application_session_id{ 1 }, f.Authority, f.Binding.Revision);
+		f.send(f.request());
+		const auto stored = f.Store->list_runs();
+		expect(f.Process.Starts == 1 && f.Projection.Errors.empty() && stored && stored->Runs.size() == 1 && stored->Runs.front().Outcome == private_run_outcome::succeeded,
+			   "a turn through the Qt-free boundary is admitted, claimed and finished durably");
+		open = false;
+		f.send(f.request("Again"));
+		expect(f.Process.Starts == 1 && f.Store->list_runs()->Runs.size() == 1, "a scope no lookup finds is refused before any process starts");
+	}
 	void refusals_and_lifecycle()
 	{
 		{
@@ -474,7 +500,7 @@ namespace {
 				input.PrivateRun->Sources.resize(257, input.PrivateRun->Sources.front());
 			}
 			if (mode == 6) {
-				input.Context.IncludedNotes = { local_note_id{ 1 } };
+				input.Context.IncludedNotes = { local_comment_id{ 1 } };
 			}
 			f.send(input);
 			expect(f.Process.Starts == 0, "unchecked/deleted/edited/duplicate/cross-review/overlimit source never launches");
@@ -918,6 +944,7 @@ int main()
 	note_press();
 	composition_and_ordering();
 	missing_program_is_a_failed_private_run();
+	scoped_runs_without_a_panel();
 	refusals_and_lifecycle();
 	source_refusals();
 	cancellation_wins_over_late_success();

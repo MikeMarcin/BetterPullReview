@@ -1,17 +1,22 @@
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
 #include "bpr/core/tour_steps.hpp"
+#include "bpr/core/tour_stop_acceptance.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/tour_publication_surfaces.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "waiting_panel.hpp"
@@ -64,7 +69,8 @@
 #include <vector>
 namespace bpr::qt {
 	namespace {
-		constexpr int preparation_role = Qt::UserRole + 1;
+		/// [[BPR-2014]]. The stop's `core::tour_acceptance_state`.
+		constexpr int acceptance_role = Qt::UserRole + 1;
 
 		/// \brief The outline's rows carry what the route draws of each stop.
 		constexpr int number_role  = Qt::UserRole + 2;
@@ -193,27 +199,6 @@ namespace bpr::qt {
 			static constexpr int mark_left = 12;
 			static constexpr int mark_size = 16;
 			QString              Text;
-		};
-
-		/// \brief [[BPR-1881]]. The call to action's ground: the window
-		/// washed with the agent accent, outlined in it.
-		class agent_setup_call_frame final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ground = palette().color(QPalette::Active, QPalette::Window);
-				const auto accent = agent_accent(palette());
-				const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				painter.setPen(QPen{ mixed(ground, accent, 0.5), 1.0 });
-				painter.setBrush(mixed(ground, accent, 0.08));
-				painter.drawRoundedRect(box, 6.0, 6.0);
-			}
 		};
 
 		/// The route's amber: where you read, as the drawers draw it.
@@ -726,7 +711,9 @@ namespace bpr::qt {
 		{
 			const auto size = chat_toggle_size(aFont, aTurns);
 			const auto top  = aRow.top() + 8 + (ring_size - size.height()) / 2;
-			return QRectF{ static_cast<qreal>(aRow.right() - 8 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
+			// The open card's own toggle sits 12 in from the right; the rows'
+			// share its edge, so no toggle shifts when a stop opens.
+			return QRectF{ static_cast<qreal>(aRow.right() + 1 - 12 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
 		}
 
 		/// \brief [[BPR-1593]]. RFC-BPR-0085 D4: each stop on the route, a
@@ -836,11 +823,11 @@ namespace bpr::qt {
 						}
 					}
 				}
-				// The ring: its readiness.
-				const auto preparation = static_cast<core::tour_preparation>(aIndex.data(preparation_role).toInt());
-				const auto ring        = QRectF{ ringCentre.x() - ring_size / 2.0, ringCentre.y() - ring_size / 2.0, static_cast<qreal>(ring_size), static_cast<qreal>(ring_size) };
-				const auto number      = aIndex.data(number_role).toString();
-				auto       small       = aOption.font;
+				// The ring: its acceptance.
+				const auto acceptance = static_cast<core::tour_acceptance_state>(aIndex.data(acceptance_role).toInt());
+				const auto ring       = QRectF{ ringCentre.x() - ring_size / 2.0, ringCentre.y() - ring_size / 2.0, static_cast<qreal>(ring_size), static_cast<qreal>(ring_size) };
+				const auto number     = aIndex.data(number_role).toString();
+				auto       small      = aOption.font;
 				small.setWeight(QFont::DemiBold);
 				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
 				aPainter->setFont(small);
@@ -852,18 +839,7 @@ namespace bpr::qt {
 					aPainter->setPen(grey);
 					aPainter->drawText(ring, Qt::AlignCenter, number);
 				}
-				switch (revision != 0 ? core::tour_preparation::suggested : preparation) {
-				case core::tour_preparation::suggested:
-					if (revision != 0) {
-						break;
-					}
-					aPainter->setPen(QPen{ faint, 1.4, Qt::DashLine });
-					aPainter->setBrush(base);
-					aPainter->drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
-					aPainter->setPen(faint);
-					aPainter->drawText(ring, Qt::AlignCenter, number);
-					break;
-				case core::tour_preparation::ready: {
+				if (revision == 0 && acceptance == core::tour_acceptance_state::accepted) {
 					const auto green = route_green(palette);
 					aPainter->setPen(QPen{ green, 1.6 });
 					aPainter->setBrush(base);
@@ -874,17 +850,16 @@ namespace bpr::qt {
 					tick.lineTo(ring.right() - 6.0, ring.center().y() - 3.0);
 					aPainter->setBrush(Qt::NoBrush);
 					aPainter->drawPath(tick);
-					break;
-				}
-				case core::tour_preparation::editing:
-				case core::tour_preparation::needs_attention:
+				} else if (revision == 0) {
+					// Not accepted yet, or changed since accepted: yellow.
 					aPainter->setPen(QPen{ amber, 1.6 });
 					aPainter->setBrush(current ? amber : base);
 					aPainter->drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
 					aPainter->setPen(current ? base : mixed(ink, amber, 0.35));
 					aPainter->drawText(ring, Qt::AlignCenter, number);
-					if (preparation == core::tour_preparation::needs_attention) {
-						// Needs attention: a warning on the ring, in any colours.
+					if (acceptance == core::tour_acceptance_state::changed) {
+						// Changed since accepted: a mark on the ring, so the
+						// two yellows differ in any colours.
 						auto       warn = QPainterPath{ };
 						const auto x    = ring.right() - 3.0;
 						const auto y    = ring.top() - 2.0;
@@ -896,7 +871,6 @@ namespace bpr::qt {
 						aPainter->setBrush(amber);
 						aPainter->drawPath(warn);
 					}
-					break;
 				}
 				// The current stop writes its own title, source and words, in its
 				// card over this row.
@@ -907,10 +881,6 @@ namespace bpr::qt {
 				// The title, and what is wrong with the stop, at the right.
 				auto title = aOption.font;
 				title.setWeight(QFont::DemiBold);
-				if (preparation == core::tour_preparation::suggested) {
-					title.setWeight(QFont::Normal);
-					title.setItalic(true);
-				}
 				// [[BPR-1930]]. A stop proposed for removal reads struck through.
 				title.setStrikeOut(revision == 1);
 				const auto left = rect.left() + text_left;
@@ -940,7 +910,7 @@ namespace bpr::qt {
 					aPainter->drawText(pill, Qt::AlignCenter, note);
 					right -= width + 8;
 				}
-				if (aIndex.data(attention_role).toBool() || preparation == core::tour_preparation::needs_attention) {
+				if (aIndex.data(attention_role).toBool()) {
 					const auto words        = QObject::tr("Lines changed");
 					const auto smallMetrics = QFontMetrics{ small };
 					const auto w            = smallMetrics.horizontalAdvance(words);
@@ -959,7 +929,7 @@ namespace bpr::qt {
 					right -= w + 20;
 				}
 				aPainter->setFont(title);
-				aPainter->setPen(preparation == core::tour_preparation::suggested || revision == 1 ? faint : ink);
+				aPainter->setPen(revision == 1 ? faint : ink);
 				const auto words = QFontMetrics{ title }.elidedText(aIndex.data(Qt::DisplayRole).toString(), Qt::ElideRight, std::max(10, right - left));
 				aPainter->drawText(QRect{ left, static_cast<int>(ring.top()), std::max(10, right - left), ring_size }, Qt::AlignLeft | Qt::AlignVCenter, words);
 				// Its source, in the code's figures.
@@ -1184,8 +1154,8 @@ namespace bpr::qt {
 				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
 				if (!Summary.isEmpty()) {
 					const auto left  = indent + nameWidth + 10;
-					auto       right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
-																												  : width() - 6;
+					auto       right = Change->isVisible() ? Change->x() - 6 : Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6
+																													: width() - 6;
 					right -= Proposed ? proposed_pill_width() + 6 : 0;
 					painter.setFont(font());
 					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
@@ -1196,8 +1166,8 @@ namespace bpr::qt {
 					// Grey, as a proposed stop's rail is, until it is accepted.
 					auto small = font();
 					small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
-					const auto right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
-																												  : width() - 6;
+					const auto right = Change->isVisible() ? Change->x() - 6 : Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6
+																													: width() - 6;
 					const auto pill  = QRectF{ static_cast<qreal>(right - proposed_pill_width()), (height() - QFontMetrics{ small }.height() - 4) / 2.0, static_cast<qreal>(proposed_pill_width()), QFontMetrics{ small }.height() + 4.0 };
 					const auto grey  = route_grey(palette());
 					painter.setPen(QPen{ grey, 1.0 });
@@ -1223,15 +1193,23 @@ namespace bpr::qt {
 		private:
 			void place_change()
 			{
-				const auto hint = Change->sizeHint();
-				Change->setGeometry(width() - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
+				// Owner on the live build, 2026-11-11: "Things are moving around
+				// as I click them". The chat toggle keeps one place, the right
+				// edge of the stops' own toggles, whatever the step's state;
+				// Change, when the step is done, sits to its left.
+				auto right = width() - chat_inset;
 				if (Chat != nullptr) {
-					const auto chat  = Chat->sizeHint();
-					const auto right = Change->isVisible() ? Change->x() - 6 : width();
+					const auto chat = Chat->sizeHint();
 					Chat->setGeometry(right - chat.width(), (height() - chat.height()) / 2, chat.width(), chat.height());
+					right = Chat->x() - 6;
 				}
+				const auto hint = Change->sizeHint();
+				Change->setGeometry(right - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
 			}
-			bool event(QEvent* aEvent) override
+			/// The stop card's inner margin, so every chat toggle on the route
+			/// shares one right edge.
+			static constexpr int chat_inset = 12;
+			bool                 event(QEvent* aEvent) override
 			{
 				// The toggle's count changes its width: it is placed again.
 				if (aEvent->type() == QEvent::LayoutRequest) {
@@ -1445,6 +1423,20 @@ namespace bpr::qt {
 			bool       DragFromHandle = false;
 			qulonglong Dragged        = 0;
 		};
+		/// \brief [[BPR-1991]]. The route between the head and the agent bar.
+		/// It asks no more width than the tab itself does (`minimumSizeHint`,
+		/// 280), as when the drawer's scroll area held the whole tab: a narrow
+		/// drawer narrows the route rather than scrolling it sideways.
+		class route_body final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				const auto natural = QWidget::minimumSizeHint();
+				return { std::min(natural.width(), 260), natural.height() };
+			}
+		};
 		auto paragraph(const QString& aText, QWidget* aParent) -> QLabel*
 		{
 			auto* label = new QLabel{ aText, aParent };
@@ -1627,51 +1619,41 @@ namespace bpr::qt {
 		// [[BPR-1593]]. RFC-BPR-0085 D4. One tour, two places: the route in
 		// the drawer (layout A) and the tour page (layout C). Every control
 		// is made once and moved between them, so both are the same tour.
-		auto* layout = new QVBoxLayout{ this };
+		// [[BPR-1991]]. RFC-BPR-0099, three bands: the head, which says where
+		// the tour stands and carries its one publication action; the route,
+		// the only part that scrolls; and the agent bar, at the bottom at
+		// every route length.
+		auto* const bands = new QVBoxLayout{ this };
+		bands->setContentsMargins(0, 0, 0, 0);
+		bands->setSpacing(0);
+		Head = new tour_head_bar{ QStringLiteral("tourHead"), this };
+		Head->set_dispatch([this](const core::tour_head_action aAction) { trigger_head(aAction); });
+		bands->addWidget(Head);
+		RouteScroll = new QScrollArea{ this };
+		// The name the drawer's own scroll area had, which the route now owns.
+		RouteScroll->setObjectName(QStringLiteral("workbenchTourScroll"));
+		RouteScroll->setWidgetResizable(true);
+		RouteScroll->setFrameShape(QFrame::NoFrame);
+		RouteScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		// The wheel and the route's own controls scroll it; the area itself
+		// takes no keyboard focus, as the drawer's did not inside the tab.
+		RouteScroll->setFocusPolicy(Qt::NoFocus);
+		auto* const routeBody = new route_body{ RouteScroll };
+		routeBody->setObjectName(QStringLiteral("tourRouteBody"));
+		auto* layout = new QVBoxLayout{ routeBody };
 		layout->setContentsMargins(0, 0, 0, 0);
 		layout->setSpacing(0);
+		RouteScroll->setWidget(routeBody);
+		bands->addWidget(RouteScroll, 1);
+		// [[BPR-2180]]. While the private tour loads, its place under the head
+		// waits as the stop cards it will show, in either mode.
+		auto* const veil = new pending_veil{ *this, pending_shape::cards, tr("Private tour"), RouteScroll };
+		veil->setObjectName(QStringLiteral("tourPendingVeil"));
+		veil->set_placeholder_count(4);
 
-		// [[BPR-1881]], owner 2026-11-06. While the agent is not set up, the
-		// tab's top says so, and one click shows the Agent tab's setup. The
-		// setup never opens by itself, here or there.
-		AgentSetupCall = new QWidget{ this };
-		AgentSetupCall->setObjectName(QStringLiteral("tourAgentSetupCall"));
-		auto* const callMargin = new QVBoxLayout{ AgentSetupCall };
-		callMargin->setContentsMargins(10, 8, 10, 0);
-		auto* const callFrame = new agent_setup_call_frame{ AgentSetupCall };
-		callMargin->addWidget(callFrame);
-		// Compact, so the tab's bottom bar keeps its place: what is missing
-		// and the button on one row, what still works under it.
-		auto* const callColumn = new QVBoxLayout{ callFrame };
-		callColumn->setContentsMargins(10, 7, 7, 8);
-		callColumn->setSpacing(2);
-		auto* const callRow = new QHBoxLayout{ };
-		callRow->setSpacing(8);
-		auto* const callTitle = new QLabel{ tr("Drafting help needs the agent."), callFrame };
-		callTitle->setObjectName(QStringLiteral("tourAgentSetupTitle"));
-		callTitle->setWordWrap(true);
-		auto callFont = callTitle->font();
-		callFont.setWeight(QFont::DemiBold);
-		callTitle->setFont(callFont);
-		callRow->addWidget(callTitle, 1);
-		AgentSetupButton = new quiet_push_button{ tr("Set up the agent"), callFrame };
-		AgentSetupButton->setObjectName(QStringLiteral("tourAgentSetupOpen"));
-		AgentSetupButton->setToolTip(tr("Opens the Agent tab at its setup: the agent, the repository, and a check that it works."));
-		callRow->addWidget(AgentSetupButton, 0, Qt::AlignVCenter);
-		callColumn->addLayout(callRow);
-		auto* const callText = new QLabel{ tr("You can still write the tour yourself."), callFrame };
-		callText->setObjectName(QStringLiteral("tourAgentSetupText"));
-		callText->setWordWrap(true);
-		callText->setTextFormat(Qt::PlainText);
-		callText->setForegroundRole(QPalette::PlaceholderText);
-		callColumn->addWidget(callText);
-		connect(AgentSetupButton, &QPushButton::clicked, this, [this] {
-			if (AgentSetupDispatch) {
-				AgentSetupDispatch();
-			}
-		});
-		AgentSetupCall->hide();
-		layout->addWidget(AgentSetupCall);
+		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): no band
+		// asks for setup here. The pull request window's footer says when the
+		// chosen agent needs setup and leads to Settings.
 
 		// [[BPR-1900]]. The tour's own agent session: Draft the tour, its
 		// proposal, and the transcript, which opens only when asked.
@@ -1681,6 +1663,12 @@ namespace bpr::qt {
 		SideChat = new tour_side_chat{ };
 		SideChat->setParent(this, Qt::Window);
 		SideChat->set_reveal_dispatch([this](const core::tour_thread& aThread) { reveal_part(aThread); });
+		// [[BPR-1995]], RFC-BPR-0100 AC04. Review each in the tour: the tour
+		// goes to the revision's first part still waiting, marked grey.
+		SideChat->set_review_dispatch([this](const core::tour_agent_run_id aRun) { review_revision(aRun); });
+		// [[BPR-2014]]. Accept on a stop's own proposal accepts that stop.
+		TourAgentPanel->set_own_accept_dispatch([this](const core::tour_stop_id aStop, const std::string& aText) { accept_proposed_stop_text(aStop, aText); });
+		SideChat->set_own_accept_dispatch([this](const core::tour_stop_id aStop, const std::string& aText) { accept_proposed_stop_text(aStop, aText); });
 		// [[BPR-1925]]. The tour marks the part under discussion and counts
 		// each part's chat as the chat changes.
 		SideChat->set_change_observer([this] { mark_side_chat(); });
@@ -1744,6 +1732,7 @@ namespace bpr::qt {
 		WritingStatus->setObjectName(QStringLiteral("tourWritingStatus"));
 		WritingStatus->setForegroundRole(QPalette::PlaceholderText);
 		notes->addWidget(WritingStatus);
+		WritingStatus->hide();
 		// [[BPR-1941]]. A running Draft Tour says what the agent is doing and
 		// for how long, with the Agent tab's live line.
 		DraftStatus = new agent_run_status_line{ Notices };
@@ -1908,6 +1897,46 @@ namespace bpr::qt {
 		heading.setWeight(QFont::DemiBold);
 		onGithub->setFont(heading);
 		publication->addWidget(onGithub);
+		// [[BPR-1992]]. A refusal or failure first, in the error role; then
+		// the form the plan chose, with the stops that forced it; then the
+		// steps, which advance as GitHub confirms each.
+		Banner = new tour_publication_banner_view{ PublicationPanel };
+		Banner->set_dispatch([this](const application::tour_publication_remedy aRemedy, const core::tour_stop_id aStop) { follow_remedy(aRemedy, aStop); });
+		publication->addWidget(Banner);
+		FormSentence = paragraph({ }, PublicationPanel);
+		FormSentence->setObjectName(QStringLiteral("tourPublicationForm"));
+		FormSentence->hide();
+		publication->addWidget(FormSentence);
+		KeepOneReview = new quiet_push_button{ tr("Keep it to one review instead"), PublicationPanel };
+		KeepOneReview->setObjectName(QStringLiteral("tourKeepOneReview"));
+		KeepOneReview->setToolTip(tr("Lists the stops to move onto lines this diff shows. Nothing changes until you move them."));
+		KeepOneReview->setCheckable(true);
+		KeepOneReview->hide();
+		publication->addWidget(KeepOneReview, 0, Qt::AlignLeft);
+		KeepOneReviewList = new QLabel{ PublicationPanel };
+		KeepOneReviewList->setObjectName(QStringLiteral("tourKeepOneReviewList"));
+		KeepOneReviewList->setWordWrap(true);
+		KeepOneReviewList->setTextFormat(Qt::RichText);
+		KeepOneReviewList->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		KeepOneReviewList->hide();
+		connect(KeepOneReviewList, &QLabel::linkActivated, this, [this](const QString& aLink) {
+			go_to_stop(core::tour_stop_id{ aLink.toULongLong() });
+		});
+		// Keep it to one review instead shows the stops to move and the moves
+		// each one has (Re-pin, Move to nearest change); nothing changes until
+		// the author uses one.
+		connect(KeepOneReview, &QPushButton::toggled, this, [this](const bool aShown) {
+			KeepOneReviewList->setVisible(aShown);
+			RepairList->setVisible(!ShownRepairs.empty() && (ShownPublication.Markdown.empty() || aShown));
+		});
+		publication->addWidget(KeepOneReviewList);
+		StepCount = paragraph({ }, PublicationPanel);
+		StepCount->setObjectName(QStringLiteral("tourPublicationStepCount"));
+		StepCount->hide();
+		publication->addWidget(StepCount);
+		StepList = new tour_step_list{ PublicationPanel };
+		StepList->hide();
+		publication->addWidget(StepList);
 		PublicationPreview = new markdown_body_view{ PublicationPanel };
 		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
 		PublicationPreview->setAccessibleName(tr("Captured publication plan"));
@@ -1976,7 +2005,8 @@ namespace bpr::qt {
 		repairScroll->setWidget(repairContents);
 		auto* const repairRows = new QVBoxLayout{ repairContents };
 		repairRows->setContentsMargins(0, 0, 0, 0);
-		publication->addWidget(RepairList);
+		// [[BPR-1992]]. Under Keep it to one review instead, the moves for each stop.
+		publication->insertWidget(publication->indexOf(KeepOneReviewList) + 1, RepairList);
 		RepairPreview = new QWidget{ PublicationPanel };
 		RepairPreview->setObjectName(QStringLiteral("tourRepairPreview"));
 		auto* const repairPreviewLayout = new QVBoxLayout{ RepairPreview };
@@ -2004,11 +2034,7 @@ namespace bpr::qt {
 		repairButtons->addStretch(1);
 		repairPreviewLayout->addLayout(repairButtons);
 		RepairPreview->hide();
-		publication->addWidget(RepairPreview);
-		PublicationMode = new QComboBox{ PublicationPanel };
-		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
-		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish a mixed tour (non-atomic)"), tr("Publish with compatibility comments (non-atomic)") });
-		publication->addWidget(PublicationMode);
+		publication->insertWidget(publication->indexOf(RepairList) + 1, RepairPreview);
 		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), PublicationPanel };
 		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
 		// [[BPR-1787]]. The brief is published in one place, the description
@@ -2050,34 +2076,11 @@ namespace bpr::qt {
 		StopTour->setToolTip(tr("Stop publication"));
 		recoverRow->addStretch(1);
 		publication->addLayout(recoverRow);
-		connect(PublicationMode, &QComboBox::currentIndexChanged, this, [this] { PublishTour->setEnabled(false); });
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
-		// [[BPR-1878]], owner looks v002 and v003 ("How hard is it to put the
-		// agent picker at the bottom like i asked for"): the tab ends as the
-		// Agent tab does, with its question field's bottom bar: the same
-		// margins, the same rounded field, the agent · model · effort pill on
-		// the right. The draft's state and Preview and publish sit just above
-		// it, so nothing is below the picker.
-		// [[BPR-1924]], owner look on BPR-1914 v004 ("this box around the
-		// model picker looks more like a text entry field than a
-		// dropdown/picker"). The Tour tab has nothing to type here, so the
-		// picker stands on the bar by itself, its right edge on Preview and
-		// publish's, with no field drawn round it.
-		AgentBar = new QWidget{ this };
-		AgentBar->setObjectName(QStringLiteral("tourAgentBar"));
-		auto* const barColumn = new QVBoxLayout{ AgentBar };
-		barColumn->setContentsMargins(10, 8, 10, 10);
-		AgentField = new QWidget{ AgentBar };
-		AgentField->setObjectName(QStringLiteral("tourAgentField"));
-		auto* const barRow = new QHBoxLayout{ AgentField };
-		barRow->setContentsMargins(0, 0, 0, 0);
-		barRow->setSpacing(2);
-		barRow->addStretch(1);
-		barColumn->addWidget(AgentField);
-		AgentBar->hide();
-		// The foot: the private draft's state, and Preview and publish.
+		// The foot: the private draft's save state. [[BPR-1991]]: Publish… is
+		// the head's; the bottom Preview and publish is gone.
 		Foot = new QWidget{ this };
 		Foot->setObjectName(QStringLiteral("tourFoot"));
 		auto* const footRow = new QHBoxLayout{ Foot };
@@ -2090,16 +2093,7 @@ namespace bpr::qt {
 		Status->setForegroundRole(QPalette::PlaceholderText);
 		Status->setAccessibleName(tr("Tour save status"));
 		footRow->addWidget(Status, 1);
-		FootState      = Status;
-		PreviewPublish = new QPushButton{ tr("Preview and publish"), Foot };
-		PreviewPublish->setObjectName(QStringLiteral("tourPreviewAndPublish"));
-		PreviewPublish->setToolTip(tr("Open the tour page with what GitHub will show. Nothing is sent until Publish."));
-		connect(PreviewPublish, &QPushButton::clicked, this, [this] {
-			if (ExpandDispatch) {
-				ExpandDispatch(true);
-			}
-		});
-		footRow->addWidget(PreviewPublish, 0, Qt::AlignTop);
+		FootState = Status;
 
 		// The route: the brief, then the stops, in the drawer.
 		RouteColumn = new QWidget{ this };
@@ -2143,8 +2137,7 @@ namespace bpr::qt {
 		rightColumn->addWidget(PublicationPanel, 1);
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
-		layout->addWidget(Foot);
-		layout->addWidget(AgentBar);
+		bands->addWidget(Foot);
 		restyle_agent_features();
 		refresh_agent_features();
 
@@ -2185,9 +2178,12 @@ namespace bpr::qt {
 		ApplyRepair->setFocus();
 		reveal_focus(RepairPreview);
 	}
-	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 2; }
-	auto review_tour_editor::mixed_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
 	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
+	void review_tour_editor::set_description_publication_default(const bool aOn)
+	{
+		const auto blocker = QSignalBlocker{ DescriptionEdit };
+		DescriptionEdit->setChecked(aOn);
+	}
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
 		if (ShownRepairs != aProjection.Repairs) {
@@ -2257,7 +2253,7 @@ namespace bpr::qt {
 				repairContents->layout()->addWidget(group);
 			}
 		}
-		RepairList->setVisible(!ShownRepairs.empty() && aProjection.Markdown.empty());
+		RepairList->setVisible(!ShownRepairs.empty() && (aProjection.Markdown.empty() || (KeepOneReview->isChecked() && !aProjection.KeepOneReview.empty())));
 		if (!Shown.Draft || Shown.Draft->Revision != PreviewRepairRevision || aProjection.Stop) {
 			RepairPreview->hide();
 		}
@@ -2274,20 +2270,41 @@ namespace bpr::qt {
 		// the status line steps aside, and nothing that would change what is
 		// being sent can be used meanwhile. Stop stays.
 		const auto publishing = aProjection.Phase == phase::publishing;
-		const auto attention  = aProjection.Phase == phase::attention;
-		WorkingTitle->setText(publishing ? tr("Publishing the tour to GitHub\u2026") : tr("Publishing didn't finish"));
-		auto stages = QStringList{ };
-		for (const auto& stage : aProjection.Stages) {
-			stages.push_back(QString::fromStdString(stage));
-		}
-		WorkingStages->setText(stages.isEmpty() ? QString{ } : tr("Sending, in order:") + QStringLiteral("\n") + stages.join(QStringLiteral("\n")));
-		WorkingStages->setVisible(publishing && !stages.isEmpty());
+		// [[BPR-1992]]. A refusal or failure is the banner, never the status
+		// line; while it runs, the waiting panel says so and the checklist
+		// advances step by step.
+		Banner->present(aProjection.Banner);
+		const auto banner = aProjection.Banner.has_value();
+		WorkingTitle->setText(tr("Publishing the tour to GitHub\u2026"));
+		WorkingStages->hide();
 		WorkingStatus->setText(status);
-		PublicationWorking->setVisible(publishing || attention);
+		PublicationWorking->setVisible(publishing);
 		PublicationWorking->setAccessibleName(WorkingTitle->text());
 		PublicationWorking->setAccessibleDescription(WorkingStatus->text());
 		PublicationStatus->setText(status);
-		PublicationStatus->setVisible(!publishing && !attention && !status.isEmpty());
+		PublicationStatus->setVisible(!publishing && !banner && !status.isEmpty());
+		FormSentence->setText(QString::fromStdString(aProjection.Form));
+		FormSentence->setVisible(!aProjection.Form.empty() && !publishing);
+		auto keep = QStringList{ };
+		for (const auto& [stop, title] : aProjection.KeepOneReview) {
+			keep.push_back(QStringLiteral("<a href=\"%1\">%2</a>").arg(stop.value()).arg(QString::fromStdString(title).toHtmlEscaped()));
+		}
+		KeepOneReviewList->setText(keep.isEmpty() ? QString{ } : tr("To keep one review, move these stops onto lines this diff shows, then preview again:") + QStringLiteral("<br/>") + keep.join(QStringLiteral("<br/>")));
+		KeepOneReview->setVisible(!keep.isEmpty() && !publishing);
+		if (keep.isEmpty() || publishing) {
+			KeepOneReview->setChecked(false);
+		}
+		KeepOneReviewList->setVisible(KeepOneReview->isVisibleTo(PublicationPanel) && KeepOneReview->isChecked());
+		const auto counted = aProjection.Total > 0U && (publishing || aProjection.Phase == phase::stopped);
+		StepCount->setText(counted ? tr("Step %1 of %2").arg(aProjection.Step).arg(aProjection.Total) : QString{ });
+		StepCount->setVisible(counted);
+		StepList->present(aProjection.Steps);
+		StepList->setVisible(!aProjection.Steps.empty());
+		ShownPublication = aProjection;
+		HeadProgress     = aProjection.Phase == phase::publishing ? core::tour_head_progress{ core::tour_publication_progress::publishing, aProjection.Step, aProjection.Total }
+			: aProjection.Phase == phase::stopped                 ? core::tour_head_progress{ core::tour_publication_progress::stopped, aProjection.Step, aProjection.Total }
+																  : core::tour_head_progress{ };
+		refresh_foot();
 		const auto link = QString::fromStdString(aProjection.Link);
 		PublicationLink->setText(link.isEmpty() ? QString{ } : tr("On GitHub: %1").arg(link));
 		PublicationLink->setVisible(aProjection.Phase == phase::published && !link.isEmpty());
@@ -2295,7 +2312,6 @@ namespace bpr::qt {
 																										 : tr("Publish tour"));
 		PublishTour->setEnabled(aProjection.Publish && !publishing);
 		PreparePublication->setEnabled(!publishing);
-		PublicationMode->setEnabled(!publishing);
 		DescriptionEdit->setEnabled(!publishing);
 		ResumeTour->setEnabled(aProjection.Resume);
 		ReconcileTour->setEnabled(aProjection.Reconcile);
@@ -2414,9 +2430,17 @@ namespace bpr::qt {
 		} else if (Shown.Failure) {
 			status = tr("Local save unavailable. Your edits remain in this window and are not yet durable. Retry the save.");
 		} else if (Shown.Draft) {
-			status = Shown.Saving ? tr("Saving locally…") : Shown.SavedRevision == Shown.Draft->Revision ? tr("Saved locally. Nothing published.")
-																										 : tr("Private draft. Nothing published.");
+			status = Shown.Saving ? tr("Saving locally…") : Shown.SavedRevision == Shown.Draft->Revision ? tr("Saved locally.")
+																										 : tr("Private draft.");
 		}
+		// Owner on the live build, 2026-11-11: "Things are moving around as I
+		// click them" and no stray status text in the panel. The routine save
+		// state (saving, saved, a private draft) is not said in the panel;
+		// the head says where the tour stands. The foot shows only what needs
+		// the reviewer: no pull request, a refusal, a conflict, a failed
+		// save, an import's notice. It also no longer said "Nothing
+		// published." while the tour was being published.
+		const auto routine = Shown.Draft && Shown.Refusal == core::tour_refusal::none && !Shown.Conflict && !Shown.Failure && Shown.Draft->ImportNotice.empty() && Shown.ImportNotice.empty();
 		if (Shown.Draft && !Shown.Draft->ImportNotice.empty()) {
 			status += " " + QString::fromStdString(Shown.Draft->ImportNotice);
 		}
@@ -2424,6 +2448,15 @@ namespace bpr::qt {
 			status += " " + QString::fromStdString(Shown.ImportNotice);
 		}
 		Status->setText(status);
+		Foot->setVisible(!routine && !Shown.Loading);
+		if (auto* const veil = pending_veil::find(*this, QStringLiteral("tourPendingVeil")); veil != nullptr) {
+			if (Shown.Loading) {
+				veil->present(core::pending_activity::loading, false, false,
+							  { .Loading = tr("Loading private tour…"), .Done = tr("Private tour loaded.") });
+			} else {
+				veil->present_ready();
+			}
+		}
 		QString changes = tr("No prior local tour version.");
 		if (Shown.Draft && Shown.Draft->HasPriorObservation) {
 			changes = tr("Changes at the last differing local website observation:");
@@ -2441,7 +2474,7 @@ namespace bpr::qt {
 		RevisionChanges->setText(changes);
 		NextChanged->setEnabled(Shown.Draft && !Shown.Draft->ObservedChanges.empty());
 		// [[BPR-1593]]. Said only when the website's tour differs.
-		RevisionChanges->setVisible(Shown.Draft && Shown.Draft->HasPriorObservation);
+		RevisionChanges->setVisible(Shown.Draft && Shown.Draft->HasPriorObservation && !Shown.Draft->ObservedChanges.empty());
 		NextChanged->setVisible(Shown.Draft && !Shown.Draft->ObservedChanges.empty());
 
 		Retry->setVisible(Shown.Failure.has_value() && !Shown.Conflict);
@@ -2450,6 +2483,7 @@ namespace bpr::qt {
 		KeepLocalConflict->setVisible(remoteConflict && !Shown.Conflict);
 		UseRemoteConflict->setVisible(remoteConflict && !Shown.Conflict);
 		Conflict->setVisible(static_cast<bool>(Shown.Conflict) || remoteConflict);
+		settle_notices();
 		if (remoteConflict && !Shown.Conflict) {
 			const auto& conflict = Shown.Draft->Conflicts.front();
 			update_text(Conflict, "Website conflict — saved versions\n\nBASELINE\n" + conflict.Baseline + "\n\nMY PROPOSAL\n" + conflict.Local + "\n\nWEBSITE\n" + conflict.Remote);
@@ -2536,8 +2570,22 @@ namespace bpr::qt {
 		case core::writing_hook::problem:  return Problem->isVisible();
 		case core::writing_hook::solution: return Solution->isVisible();
 		case core::writing_hook::comment:  return selected_stop() && Body->isVisible() && !Body->viewport()->visibleRegion().isEmpty();
-		case core::writing_hook::outline:  return Outline->isVisible();
-		case core::writing_hook::feedback: return false; // [[BPR-1090]] No tour field takes the feedback hook.
+		// [[BPR-2013]]. Suggest an outline left the application; the
+		// `bpr tour outline` commands keep the hook.
+		case core::writing_hook::outline: return false;
+		case core::writing_hook::feedback:
+			return false; // [[BPR-1090]] No tour field takes the feedback hook.
+		// [[BPR-2051]] The Enhance prompts are instructions, not tour fields.
+		case core::writing_hook::enhance_stop:
+		case core::writing_hook::enhance_writing:
+		case core::writing_hook::suggested_comment: // [[BPR-2059]] Not a tour field either.
+		case core::writing_hook::local_description: // RFC-BPR-0110 Nor the local-authoring prompts.
+		case core::writing_hook::local_discussion:      return false;
+		case core::writing_hook::local_commit_message:  return false;
+		case core::writing_hook::review_latest_upload:  // RFC-BPR-0116 Nor the returning questions.
+		case core::writing_hook::review_proposed_fix:   return false;
+		case core::writing_hook::review_explain_file:   return false; // RFC-BPR-0117 Nor Explain this file.
+		case core::writing_hook::review_suggest_change: return false; // RFC-BPR-0118 Nor Suggest the change.
 		}
 		return false;
 	}
@@ -2559,14 +2607,23 @@ namespace bpr::qt {
 			// buttons to just the '<symbol> Enhance' and leave the tooltips in
 			// place." The spark and one word; what it rewrites is in the
 			// tooltip, and the longer name still names the request.
+			// Owner look, 2026-11-10: the tooltip "much shorter and adapt to
+			// the context", in the words of every other Enhance.
+			// [[BPR-2014]], owner look 2026-11-11: "We also don't need the
+			// \"Enhance\" label if we're using the new enhance icon." The nib
+			// alone; its name is the accessible name and the tooltip's.
+			button->setProperty("enhanceOnly", false);
 			if (aEditor->textCursor().hasSelection()) {
-				button->setText(tr("Enhance"));
+				button->setText({ });
+				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", tr("Enhance selection"));
-				button->setToolTip(tr("Asks the drafting agent to rewrite only the selected text. Undo restores it."));
+				button->setToolTip(tr("Enhance the selection. The suggestion waits for you to accept it; only the selection changes."));
 			} else if (!core::writing_blank(aEditor->raw())) {
-				button->setText(tr("Enhance"));
+				button->setText({ });
+				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", whole);
-				button->setToolTip(tr("Asks the drafting agent to rewrite this whole field, keeping your meaning. Undo restores your text."));
+				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance the Problem. The suggestion waits for you to accept it.") : aHook == core::writing_hook::solution ? tr("Enhance the Solution. The suggestion waits for you to accept it.")
+																																														: tr("Enhance this stop. The suggestion waits for you to accept it."));
 			} else if (aHook == core::writing_hook::comment) {
 				button->setText(tr("Generate comment"));
 				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));
@@ -2584,6 +2641,7 @@ namespace bpr::qt {
 			if (AgentReadiness != agent_setup_readiness::ready) {
 				button->setToolTip(agent_unavailable_reason());
 			}
+			button->setAccessibleName(button->text().isEmpty() ? button->property("requestName").toString() : button->text());
 		};
 		AgentLabels.emplace_back(label);
 		// [[BPR-1914]] v003, owner 2026-11-06: "On each part I can pop open a
@@ -2647,10 +2705,29 @@ namespace bpr::qt {
 				}
 				return;
 			}
+			// [[BPR-1995]], RFC-BPR-0100 AC05, owner note 8. Enhance runs in
+			// the part's own conversation: it opens the part's side chat and
+			// sends its update turn in that session, with what the chat
+			// established and its read-only tools; a selection is rewritten
+			// alone. The result is a proposal in the chat; nothing is written
+			// to the tour until the author accepts it. The one-shot writing
+			// hooks stay for the `bpr tour` CLI and for an empty field's draft.
+			if (!aEditor->isReadOnly() && button->property("enhanceOnly").toBool() && !OneShotWriting) {
+				clear_agent_failure(aHook);
+				const auto chosen = aEditor->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n'));
+				if (auto subject = subject_about(aHook, chosen)) {
+					if (subject->Thread.Kind == core::tour_thread_kind::stop) {
+						trigger(tour_editor_action::navigate_stop);
+					}
+					// [[BPR-2138]]. A fresh run; its proposal waits on the part.
+					static_cast<void>(SideChat->enhance(subject->Thread, std::move(subject->Passage)));
+				}
+				return;
+			}
 			if (!aEditor->isReadOnly() && WritingRequest) {
 				// [[BPR-1892]]. Made again: the last failure no longer stands.
 				const auto named    = button->property("requestName").toString();
-				RequestNames[aHook] = button->text() == tr("Enhance") && !named.isEmpty() ? named : button->text();
+				RequestNames[aHook] = button->property("enhanceOnly").toBool() && !named.isEmpty() ? named : button->text();
 				clear_agent_failure(aHook);
 				if (auto captured = aEditor->capture()) {
 					WritingRequest(aHook, std::move(*captured));
@@ -2664,27 +2741,6 @@ namespace bpr::qt {
 			}
 		};
 		label();
-	}
-	void review_tour_editor::present_outline(const std::vector<core::tour_outline_entry>& aEntries)
-	{
-		SuggestedOutline->clear();
-		for (const auto& entry : aEntries) {
-			auto* item = new QListWidgetItem{ QString::fromStdString(entry.Title + "\n" + entry.Suggestion.Reason + (entry.Suggestion.Question.empty() ? "" : "\n" + entry.Suggestion.Question)), SuggestedOutline };
-			item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-			item->setCheckState(Qt::Checked);
-		}
-		SuggestedOutline->setVisible(!aEntries.empty());
-		InsertOutline->setVisible(!aEntries.empty());
-	}
-	auto review_tour_editor::retained_outline_entries() const -> std::vector<std::size_t>
-	{
-		std::vector<std::size_t> retained;
-		for (int row = 0; row < SuggestedOutline->count(); ++row) {
-			if (SuggestedOutline->item(row)->checkState() == Qt::Checked) {
-				retained.push_back(static_cast<std::size_t>(row));
-			}
-		}
-		return retained;
 	}
 	void review_tour_editor::show_problem()
 	{
@@ -2730,11 +2786,6 @@ namespace bpr::qt {
 			&& static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
 			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
 		}
-		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
-		// as the Agent tab's pill hides with none.
-		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
-			AgentBar->setVisible(AgentPicker->isVisibleTo(AgentBar));
-		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -2761,7 +2812,7 @@ namespace bpr::qt {
 					if (reading) {
 						begin_stop_edit();
 					} else if (finished) {
-						finish_stop_edit();
+						save_stop_edit();
 					} else {
 						cancel_stop_edit();
 					}
@@ -2789,7 +2840,26 @@ namespace bpr::qt {
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
-	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
+	void review_tour_editor::show_writing_notice(const QString& aText)
+	{
+		// Owner on the live build, 2026-11-11: no stray status text in the
+		// panel. What a writing request did is said once in the window's
+		// status line; the label keeps it for accessibility and is not shown.
+		WritingStatus->setText(aText);
+		if (NoticeDispatch && !aText.isEmpty()) {
+			NoticeDispatch(aText);
+		}
+	}
+	void review_tour_editor::set_notice_dispatch(std::function<void(const QString&)> aDispatch) { NoticeDispatch = std::move(aDispatch); }
+	void review_tour_editor::settle_notices()
+	{
+		// The notices band takes room only while one of its parts shows.
+		auto any = false;
+		for (auto* const part : Notices->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+			any = any || !part->isHidden();
+		}
+		Notices->setVisible(any);
+	}
 	auto review_tour_editor::add_failure_notice(const core::writing_hook aHook, QWidget* aParent) -> QWidget*
 	{
 		auto* const notice    = new failure_notice_card{ aParent };
@@ -2816,6 +2886,12 @@ namespace bpr::qt {
 		}
 	}
 	void review_tour_editor::set_agent_failure_dispatch(std::function<void()> aDispatch) { AgentFailureDispatch = std::move(aDispatch); }
+	void review_tour_editor::set_tour_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore)
+	{
+		TourAgentPanel->set_ask_more_dispatch(aAskMore);
+		SideChat->set_ask_more_dispatch(std::move(aAskMore));
+	}
+
 	void review_tour_editor::set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide, std::function<void(std::size_t)> aRelocate)
 	{
 		TourAgentPanel->set_relocate_dispatch(std::move(aRelocate));
@@ -3038,8 +3114,79 @@ namespace bpr::qt {
 		}
 		SideChat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id }, std::move(code));
 	}
+	void review_tour_editor::request_field_writing(const core::writing_hook aHook)
+	{
+		auto* const button = findChild<QPushButton*>(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
+																																									   : QStringLiteral("tourStopMagic"));
+		if (button == nullptr) {
+			return;
+		}
+		OneShotWriting = true;
+		button->click();
+		OneShotWriting = false;
+	}
+	auto review_tour_editor::shown_stop_body(const core::tour_stop& aStop) const -> std::string
+	{
+		if (!ReferenceFiles || !ReferenceNavigate) {
+			return aStop.Body;
+		}
+		return tour_markdown_with_references(aStop.Body, ReferenceFiles(), ReferencePermalink);
+	}
+	void review_tour_editor::set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate, tour_permalink_source aPermalink, std::function<void(const std::string&)> aOtherLink)
+	{
+		ReferenceFiles     = std::move(aFiles);
+		ReferenceNavigate  = std::move(aNavigate);
+		ReferencePermalink = std::move(aPermalink);
+		OtherLink          = std::move(aOtherLink);
+		// A reference opens its lines in Review; any other link goes where the
+		// window sends links.
+		StopReader->set_link_dispatch([this](const std::string& aLink) {
+			if (!follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate) && OtherLink) {
+				OtherLink(aLink);
+			}
+		});
+	}
+	void review_tour_editor::set_permalink_repository(std::optional<core::markdown_repository> aRepository) { StopReader->set_permalink_repository(std::move(aRepository)); }
+	void review_tour_editor::set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch) { StopReader->set_permalink_dispatch(std::move(aDispatch)); }
+	void review_tour_editor::apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet) { StopReader->apply_permalink_snippet(aSnippet); }
+	void review_tour_editor::review_revision(const core::tour_agent_run_id aRun)
+	{
+		if (!ShownProposal || !Shown.Draft) {
+			return;
+		}
+		const auto first = std::ranges::find_if(ShownProposal->Items, [aRun](const core::tour_proposal_item& aItem) { return aItem.Run == aRun && aItem.Decision == core::tour_proposal_decision::pending; });
+		if (first == ShownProposal->Items.end()) {
+			return;
+		}
+		ReviewedRun = aRun;
+		switch (first->Part) {
+		case core::tour_proposal_part::problem:  open_step(core::tour_step::problem); return;
+		case core::tour_proposal_part::solution: open_step(core::tour_step::solution); return;
+		case core::tour_proposal_part::stop:     {
+			show_stops();
+			if (ProposedStops != nullptr && ProposedStops->isVisible()) {
+				reveal_focus(ProposedStops);
+			}
+			return;
+		}
+		case core::tour_proposal_part::stop_text:
+		case core::tour_proposal_part::remove_stop:
+		case core::tour_proposal_part::split_stop:
+		case core::tour_proposal_part::merge_stops:
+		case core::tour_proposal_part::reorder:     {
+			const auto stop = first->StopId.value() != 0U ? first->StopId : first->Stops.empty() ? core::tour_stop_id{ }
+																								 : first->Stops.front();
+			show_stops();
+			if (stop.value() != 0U && std::ranges::find(Shown.Draft->Stops, stop, &core::tour_stop::Id) != Shown.Draft->Stops.end()) {
+				go_to_stop(stop);
+			}
+			return;
+		}
+		}
+	}
 	void review_tour_editor::present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal)
 	{
+		ShownProposal = aProposal;
 		// [[BPR-1930]]. A structural part names the stops by the tour's numbers.
 		TourAgentPanel->set_draft(Shown.Draft);
 		TourAgentPanel->present(aSession, aProposal);
@@ -3275,34 +3422,90 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::refresh_complete()
 	{
-		if (Complete == nullptr) {
+		if (Complete == nullptr || AcceptReason == nullptr) {
 			return;
 		}
 		const auto* const stop = selected_stop();
-		// [[BPR-1925]] v003, owner: "ready, next doesn't seem to do anything".
-		// It was refused: a stop is Ready only once its lines are confirmed in
-		// the code, and a stop the agent proposed has its lines as a place to
-		// look, not yet confirmed. Now it says so and waits, and Show in code
-		// leads until the lines are chosen with Use selected lines.
-		//
-		// [[BPR-1936]], owner 2026-11-08: "The (Ready, next) button seems
-		// vestigial now, it's always greyed out for me". It stays as the step
-		// that marks a stop Ready (publishing needs every outline-suggested
-		// stop marked Ready, and every stop's lines confirmed), but shows only
-		// when it can act: never a primary button that is always disabled.
-		// Unconfirmed lines are said on the location line instead, and Show
-		// in code leads; a stop already Ready needs no button, and while the
-		// stop is written Save is the card's one primary action.
-		const auto ready   = stop != nullptr && core::ready(*stop);
-		const auto writing = StopView.Mode == core::tour_stop_view_mode::edit;
-		const auto offered = ready && stop->Preparation != core::tour_preparation::ready && !ShowsStopProposal && !writing;
+		// [[BPR-2014]], RFC-BPR-0106. Accept shows only while the stop is
+		// yellow, at rest, with the one line that says why; an accepted stop
+		// asks for nothing. While the stop is written Save is the card's one
+		// primary action, and while its new text is proposed, the proposal's.
+		const auto writing  = StopView.Mode == core::tour_stop_view_mode::edit;
+		const auto decision = stop != nullptr && Shown.Draft ? core::decide_tour_stop_acceptance(*Shown.Draft, *stop) : core::tour_acceptance_decision{ };
+		const auto yellow   = stop != nullptr && Shown.Draft && !Shown.Draft->ReadOnly && decision.State != core::tour_acceptance_state::accepted;
+		const auto offered  = yellow && !ShowsStopProposal && !writing;
+		// Re-review finding 4: the core's own decision, with the changed files it would be given.
+		const auto need = stop != nullptr && Shown.Draft ? core::tour_stop_accept_need(*Shown.Draft, *stop, Shown.ChangedFiles) : core::tour_accept_need::lines;
+		const auto can  = need == core::tour_accept_need::nothing;
 		Complete->setVisible(offered);
-		Complete->setEnabled(ready);
+		Complete->setEnabled(can);
 		Complete->setDefault(offered);
-		if (ShowInCode != nullptr) {
-			ShowInCode->setDefault(!ready && !ShowsStopProposal && !writing);
+		AcceptReason->setVisible(false);
+		if (offered) {
+			auto reason = LocalWords && LocalWords->Reason ? LocalWords->Reason(stop->Id) : QString{ };
+			if (reason.isEmpty()) {
+				reason = acceptance_reason(decision);
+			}
+			if (!can) {
+				reason += (reason.isEmpty() ? QString{ } : QStringLiteral(" ")) + (need == core::tour_accept_need::title ? tr("Give it a title to accept it.") : need == core::tour_accept_need::explanation ? tr("Write its explanation to accept it.")
+																					   : need == core::tour_accept_need::lines_at_head                                                                       ? tr("Choose its lines again to accept it.")
+																					   : need == core::tour_accept_need::changed_files                                                                       ? tr("Accept it once the pull request's files load.")
+																																																			 : tr("Choose its lines to accept it."));
+			}
+			AcceptReason->setText(reason);
+			AcceptReason->setForegroundRole(QPalette::PlaceholderText);
+			AcceptReason->setVisible(!reason.isEmpty());
+			Complete->setAccessibleDescription(reason.isEmpty() ? tr("Accepts this stop as it is now.") : reason);
 		}
-		Complete->setToolTip(tr("Mark this stop ready and go to the next (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText)));
+		Complete->setToolTip(tr("Accept this stop as it is now (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText)));
+	}
+	void review_tour_editor::set_local_words(std::optional<tour_local_words> aWords)
+	{
+		LocalWords = std::move(aWords);
+		refresh_complete();
+		refresh_foot();
+	}
+	auto review_tour_editor::acceptance_reason(const core::tour_acceptance_decision& aDecision) const -> QString
+	{
+		using reason = core::tour_acceptance_reason;
+		switch (aDecision.Reason) {
+		// Owner look v002: "Not sure why it says \"Not accepted yet.\" next to
+		// accept. That feels pretty obvious." A stop never accepted needs no
+		// reason beside Accept; only a change since accepting does.
+		case reason::none:
+		case reason::not_accepted:
+		case reason::text_changed:      return { };
+		case reason::moved:             return tr("This stop was moved to other lines.");
+		case reason::lines_changed:     return tr("The code under this stop changed in the last push.");
+		case reason::lines_missing:     return tr("The lines under this stop are no longer in the pull request.");
+		case reason::reference_changed: return aDecision.Reference.empty() ? tr("Lines this stop links to changed.") : tr("%1, which this stop links to, changed.").arg(QString::fromStdString(aDecision.Reference));
+		case reason::reference_missing: return aDecision.Reference.empty() ? tr("Lines this stop links to are no longer in the pull request.") : tr("%1, which this stop links to, is no longer in the pull request.").arg(QString::fromStdString(aDecision.Reference));
+		case reason::unchecked:         return tr("The pull request has a new head; the code under this stop is not compared yet.");
+		}
+		return { };
+	}
+	void review_tour_editor::accept_stop(const core::tour_stop_id aStop)
+	{
+		if (!Dispatch || !Shown.Draft || Shown.Draft->ReadOnly || Shown.Loading || std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
+			return;
+		}
+		hold_scroll();
+		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::accept, .Stop = aStop });
+		if (Shown.Refusal == core::tour_refusal::incomplete) {
+			show_notice(tr("This stop needs a title, an explanation and lines before it can be accepted."));
+		}
+	}
+	void review_tour_editor::accept_proposed_stop_text(const core::tour_stop_id aStop, const std::string& aText)
+	{
+		// The proposal's Accept on the stop's own text accepts the stop once
+		// the tour holds that text; a proposal that could not apply accepts nothing.
+		if (!Shown.Draft) {
+			return;
+		}
+		const auto found = std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id);
+		if (found != Shown.Draft->Stops.end() && found->Body == aText) {
+			accept_stop(aStop);
+		}
 	}
 	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
@@ -3340,6 +3543,7 @@ namespace bpr::qt {
 		if (!RunningDraft) {
 			DraftStatus->settle({ }, true);
 			DraftStatus->hide();
+			settle_notices();
 			return;
 		}
 		auto shown = DraftLive.value_or(agent_run_status{ });
@@ -3348,6 +3552,7 @@ namespace bpr::qt {
 		}
 		DraftStatus->present(shown, DraftClock);
 		DraftStatus->show();
+		settle_notices();
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
 	{
@@ -3382,20 +3587,6 @@ namespace bpr::qt {
 		const auto* const notice = agent_failure_notice(aHook);
 		return notice != nullptr && !notice->isHidden() ? static_cast<const failure_notice_card*>(notice)->text() : QString{ };
 	}
-	void review_tour_editor::set_agent_picker(agent_run_settings_picker* aPicker)
-	{
-		if (aPicker == nullptr || AgentPicker == aPicker) {
-			return;
-		}
-		AgentPicker = aPicker;
-		aPicker->setParent(AgentField);
-		static_cast<QHBoxLayout*>(AgentField->layout())->addWidget(aPicker);
-		aPicker->installEventFilter(this);
-		aPicker->present();
-		AgentBar->setVisible(aPicker->isVisibleTo(AgentBar));
-		restyle_agent_features();
-	}
-	void review_tour_editor::set_agent_setup_dispatch(std::function<void()> aDispatch) { AgentSetupDispatch = std::move(aDispatch); }
 	void review_tour_editor::set_shown_observer(std::function<void()> aObserver) { ShownObserver = std::move(aObserver); }
 	void review_tour_editor::showEvent(QShowEvent* aEvent)
 	{
@@ -3420,7 +3611,7 @@ namespace bpr::qt {
 				features.push_back(button);
 			}
 		}
-		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(SuggestOutline), static_cast<QWidget*>(InsertOutline), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr), AgentField }) {
+		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr) }) {
 			if (widget != nullptr) {
 				features.push_back(widget);
 			}
@@ -3430,7 +3621,7 @@ namespace bpr::qt {
 	auto review_tour_editor::agent_unavailable_reason() const -> QString
 	{
 		return AgentReadiness == agent_setup_readiness::checking ? tr("Waiting for the agent setup to find your agents and check this repository.")
-																 : tr("Needs the agent, which is not set up yet. Use Set up the agent at the top of this tab.");
+																 : tr("Needs the agent, which is not set up yet. Agent settings… in the window's footer sets it up.");
 	}
 	void review_tour_editor::restyle_agent_features()
 	{
@@ -3438,75 +3629,66 @@ namespace bpr::qt {
 		// and the agent's spark beside its words, so the colour is never the
 		// only sign. Only the text roles are set: the rest follows the
 		// application's palette, and this runs again when it changes.
+		//
+		// [[BPR-2000]], RFC-BPR-0101: a control wears the accent exactly when
+		// pressing it starts an agent run (Enhance, a stop's Enhance, Suggest
+		// an outline, Draft the tour). Opening a chat, showing a run,
+		// inserting skeleton stops, the agent picker and Set up the agent are
+		// ordinary controls; the spark beside them still says agent.
 		const auto ground = palette();
+		auto       runs   = std::vector<QWidget*>{ StopMagic, TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr };
+		for (const char* const name : { "tourProblemMagic", "tourSolutionMagic" }) {
+			runs.push_back(findChild<QPushButton*>(QString::fromLatin1(name)));
+		}
 		for (auto* const feature : agent_features()) {
-			apply_agent_accent(*feature, ground);
+			if (std::ranges::find(runs, feature) != runs.end()) {
+				wear_agent_accent(*feature, ground);
+			} else {
+				wear_ordinary_roles(*feature);
+			}
 			if (auto* const button = qobject_cast<QPushButton*>(feature); button != nullptr) {
-				button->setIcon(drawer_icon(drawer_glyph::agent, button->palette()));
+				// The fields' Enhance wears the nib, as every Enhance does.
+				const auto writing = button->objectName().endsWith(QStringLiteral("Magic"));
+				button->setIcon(writing ? enhance_icon(button->palette()) : drawer_icon(drawer_glyph::agent, button->palette()));
 			}
 		}
 		for (const auto& [hook, notice] : FailureNotices) {
 			auto* const open = static_cast<failure_notice_card*>(notice)->Open;
-			apply_agent_accent(*open, ground);
+			wear_ordinary_roles(*open);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
 		SideChat->restyle(ground);
-		// [[BPR-1914]] v004, owner look v003: "The side chat buttons should be
-		// in the agent color."
+		// [[BPR-1914]] v004 had the side chat buttons in the agent colour;
+		// [[BPR-2000]]: opening a chat starts no run, so they are ordinary.
 		for (auto* const chat : ChatButtons) {
-			apply_agent_accent(*chat, ground);
+			wear_ordinary_roles(*chat);
 			chat->setIcon(side_chat_icon(chat->palette()));
 		}
 		if (TourAgentPanel != nullptr) {
 			TourAgentPanel->restyle(ground);
 			auto* const open = static_cast<failure_notice_card*>(DraftFailure)->Open;
-			apply_agent_accent(*open, ground);
+			wear_ordinary_roles(*open);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
-		}
-		if (AgentSetupButton != nullptr) {
-			apply_agent_accent(*AgentSetupButton, ground);
-			AgentSetupButton->setIcon(drawer_icon(drawer_glyph::agent, AgentSetupButton->palette()));
-			if (auto* const title = AgentSetupCall->findChild<QLabel*>(QStringLiteral("tourAgentSetupTitle")); title != nullptr) {
-				apply_agent_accent(*title, ground);
-			}
 		}
 	}
 	void review_tour_editor::refresh_agent_features()
 	{
 		const auto ready = AgentReadiness == agent_setup_readiness::ready;
-		AgentSetupCall->setVisible(AgentReadiness == agent_setup_readiness::unfinished);
-		// The agent bar keeps its picker usable: it chooses the agent the
-		// Agent tab chooses, and runs nothing.
 		for (auto* const feature : agent_features()) {
-			if (feature != AgentField) {
-				feature->setEnabled(ready);
-			}
+			feature->setEnabled(ready);
 		}
 		for (const auto& label : AgentLabels) {
 			label();
 		}
-		SuggestOutline->setToolTip(ready ? tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops.") : agent_unavailable_reason());
-		if (RunningHook == core::writing_hook::outline) {
-			SuggestOutline->setText(tr("Stop drafting"));
-			SuggestOutline->setToolTip(tr("Suggesting an outline in the background from the repository. Stop it; the tour is unchanged."));
-		} else {
-			SuggestOutline->setText(tr("Suggest an outline"));
-		}
 		TourAgentPanel->set_available(ready, agent_unavailable_reason());
 		SideChat->set_available(ready, agent_unavailable_reason());
-		InsertOutline->setToolTip(ready ? tr("Insert the checked suggestions as empty stops.") : agent_unavailable_reason());
 	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::hold_scroll()
 	{
 		// The scroll area the Tour tab sits in (the drawer's, or the page's).
-		QScrollArea* outer = nullptr;
-		for (auto* parent = parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-			if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr && scroll->widget() != nullptr && scroll->widget()->isAncestorOf(this)) {
-				outer = scroll;
-				break;
-			}
-		}
+		// [[BPR-1991]]: the route's own, between the head and the agent bar.
+		QScrollArea* const outer = RouteScroll;
 		if (outer == nullptr) {
 			return;
 		}
@@ -3552,10 +3734,6 @@ namespace bpr::qt {
 		if (Shown.Refusal == core::tour_refusal::bounds && aAction != tour_editor_action::retry_save && aAction != tour_editor_action::use_saved_copy && aAction != tour_editor_action::navigate_stop && aAction != tour_editor_action::navigate_related) {
 			show_notice(tr("Shorten the unsaved text or use native Undo before changing the tour. Your full text is retained."));
 			return;
-		}
-		if (aAction == tour_editor_action::suggest_outline) {
-			RequestNames[core::writing_hook::outline] = tr("Suggest an outline");
-			clear_agent_failure(core::writing_hook::outline);
 		}
 		// [[BPR-1914]] v004, owner look v003: "a single left-click to
 		// activate (1) but it scrolls almost all the way off the top of the
@@ -3626,9 +3804,19 @@ namespace bpr::qt {
 			connect(value, &QAction::triggered, this, aCallback);
 			return value;
 		};
-		action(tr("Insert after"), QStringLiteral("tourInsertAfter"), { }, [this] { trigger(tour_editor_action::insert_after); });
+		// [[BPR-2013]], RFC-BPR-0106. The stop's context menu: reading and
+		// talking first, then the route's operations, which are here and
+		// nowhere on the card, then Mark not accepted and Remove stop.
+		action(tr("Edit"), QStringLiteral("tourMenuEdit"), { }, [this] { begin_stop_edit(); });
+		action(tr("Open side chat about this stop"), QStringLiteral("tourMenuChat"), { }, [this] {
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
+				toggle_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id });
+			}
+		});
+		menu->addSeparator();
+		action(tr("Insert a stop after"), QStringLiteral("tourInsertAfter"), { }, [this] { trigger(tour_editor_action::insert_after); });
 		DuplicateStops = action(tr("Duplicate"), QStringLiteral("tourDuplicate"), shortcut_keys(shortcut_command::tour_duplicate), [this] { structural(core::tour_command_kind::duplicate); });
-		MergeStops     = action(tr("Merge"), QStringLiteral("tourMerge"), { }, [this] { structural(core::tour_command_kind::merge_next); });
+		MergeStops     = action(tr("Merge with next"), QStringLiteral("tourMerge"), { }, [this] { structural(core::tour_command_kind::merge_next); });
 		MergeStops->setToolTip(tr("Select two or more adjacent stops to merge in route order."));
 		// [[BPR-1241]]. Option-R (Alt+R) is the window's Compose review; a second claim
 		// on it in the same window is ambiguous and neither action would run. This
@@ -3637,7 +3825,17 @@ namespace bpr::qt {
 		auto* const retarget = action(tr("Use selected lines"), QStringLiteral("tourRetarget"), shortcut_keys(shortcut_command::tour_retarget), [this] { trigger(tour_editor_action::retarget_stop); });
 		retarget->setToolTip(tr("Point this stop at the lines selected in the comparison (%1). No code is copied or changed.").arg(retarget->shortcut().toString(QKeySequence::NativeText)));
 		menu->setToolTipsVisible(true);
-		RemoveStops         = action(tr("Remove"), QStringLiteral("tourRemove"), shortcut_keys(shortcut_command::tour_remove), [this] { structural(core::tour_command_kind::remove); });
+		// Use selected lines keeps its key; the card offers it while the stop is written.
+		menu->removeAction(retarget);
+		const auto moveSlot = menu->actions().size();
+		menu->addSeparator();
+		MarkNotAccepted = menu->addAction(tr("Mark not accepted"), this, [this] {
+			if (const auto* const stop = selected_stop(); stop != nullptr && Dispatch && Shown.Draft) {
+				Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::unaccept, .Stop = stop->Id });
+			}
+		});
+		MarkNotAccepted->setObjectName(QStringLiteral("tourMarkNotAccepted"));
+		RemoveStops         = action(tr("Remove stop"), QStringLiteral("tourRemove"), shortcut_keys(shortcut_command::tour_remove), [this] { structural(core::tour_command_kind::remove); });
 		const auto shortcut = [&](const QString& aName, const shortcut_command aKeys, QWidget* aOwner, auto aCallback) {
 			auto* value = new QAction{ aOwner };
 			value->setObjectName(aName);
@@ -3647,8 +3845,12 @@ namespace bpr::qt {
 			connect(value, &QAction::triggered, this, aCallback);
 			return value;
 		};
-		shortcut(QStringLiteral("tourMoveUp"), shortcut_command::tour_move_up, Outline, [this] { move_selection(-1); });
-		shortcut(QStringLiteral("tourMoveDown"), shortcut_command::tour_move_down, Outline, [this] { move_selection(1); });
+		// Move up and Move down: the route's own keys, in the stop's menu too.
+		auto* const moveUp   = shortcut(QStringLiteral("tourMoveUp"), shortcut_command::tour_move_up, Outline, [this] { move_selection(-1); });
+		auto* const moveDown = shortcut(QStringLiteral("tourMoveDown"), shortcut_command::tour_move_down, Outline, [this] { move_selection(1); });
+		moveUp->setText(tr("Move up"));
+		moveDown->setText(tr("Move down"));
+		menu->insertActions(menu->actions().value(static_cast<int>(moveSlot)), { moveUp, moveDown });
 		UndoStructure = shortcut(QStringLiteral("tourUndo"), shortcut_command::tour_undo, this, [this] { trigger(tour_editor_action::undo_structure); });
 		RedoStructure = shortcut(QStringLiteral("tourRedo"), shortcut_command::tour_redo, this, [this] { trigger(tour_editor_action::redo_structure); });
 		outline->Move = [this](std::size_t aPosition) { structural(core::tour_command_kind::move, aPosition); };
@@ -3689,7 +3891,8 @@ namespace bpr::qt {
 		Outline->setWordWrap(true);
 		Outline->setTextElideMode(Qt::ElideNone);
 
-		// Add a stop, or ask for an outline; the suggestions wait below.
+		// Add a stop. [[BPR-2013]], RFC-BPR-0106: Suggest an outline left the
+		// application; Draft the tour is the one way to ask for a route.
 		OutlineTools            = new QWidget{ this };
 		auto* const toolsColumn = new QVBoxLayout{ OutlineTools };
 		toolsColumn->setContentsMargins(0, 0, 0, 0);
@@ -3701,36 +3904,8 @@ namespace bpr::qt {
 		add->setToolTip(tr("Add a stop on the lines selected in the code"));
 		toolsRow->addWidget(add);
 		connect(add, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_stop); });
-		auto* suggest  = new quiet_push_button{ tr("Suggest an outline"), OutlineTools };
-		SuggestOutline = suggest;
-		suggest->setObjectName(QStringLiteral("tourSuggestOutline"));
-		suggest->setToolTip(tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops."));
-		toolsRow->addWidget(suggest);
 		toolsRow->addStretch(1);
 		toolsColumn->addLayout(toolsRow);
-		toolsColumn->addWidget(add_failure_notice(core::writing_hook::outline, OutlineTools));
-		connect(suggest, &QPushButton::clicked, this, [this] {
-			// [[BPR-1900]]. While it drafts in the background, it stops it.
-			if (RunningHook == core::writing_hook::outline) {
-				if (WritingCancel) {
-					WritingCancel();
-				}
-				return;
-			}
-			trigger(tour_editor_action::suggest_outline);
-		});
-		SuggestedOutline = new QListWidget{ OutlineTools };
-		SuggestedOutline->setObjectName(QStringLiteral("tourSuggestedOutline"));
-		SuggestedOutline->setAccessibleName(tr("Suggested skeletons; check the stops to insert"));
-		SuggestedOutline->setWordWrap(true);
-		SuggestedOutline->setTextElideMode(Qt::ElideNone);
-		SuggestedOutline->setMaximumHeight(140);
-		toolsColumn->addWidget(SuggestedOutline);
-		InsertOutline = new quiet_push_button{ tr("Insert selected skeleton stops"), OutlineTools };
-		InsertOutline->setObjectName(QStringLiteral("tourInsertOutline"));
-		toolsColumn->addWidget(InsertOutline, 0, Qt::AlignLeft);
-		connect(InsertOutline, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::insert_outline); });
-		present_outline({ });
 
 		// The stop, written in place: its title, its source, its explanation.
 		StopFields = new QWidget{ this };
@@ -3764,24 +3939,6 @@ namespace bpr::qt {
 		ReadTitle->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		ReadTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		titleRow->addWidget(ReadTitle, 1);
-		// [[BPR-1900]] follow-up, owner 2026-11-07: "Turn it into a
-		// badge/chip on the stop outside of the main stop comment content
-		// box ... Then click it I guess to ask to clear it in a second click".
-		// A stop whose explanation was written before the pull request's head
-		// moved wears one small amber chip by its title. It is the stop's
-		// state, never its text: nothing of it is published.
-		HeadChip = new QToolButton{ StopFields };
-		HeadChip->setObjectName(QStringLiteral("tourHeadChip"));
-		HeadChip->setText(tr("Head changed"));
-		HeadChip->setCheckable(true);
-		HeadChip->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		HeadChip->setCursor(Qt::PointingHandCursor);
-		HeadChip->setFocusPolicy(Qt::StrongFocus);
-		HeadChip->setAccessibleName(tr("Head changed"));
-		HeadChip->setToolTip(tr("The pull request's head moved since this explanation was written. Click to confirm it still holds, or edit it."));
-		HeadChip->setAccessibleDescription(HeadChip->toolTip());
-		HeadChip->hide();
-		titleRow->addWidget(HeadChip, 0, Qt::AlignTop);
 		// [[BPR-1936]]. No state word beside the title: the ring says Ready,
 		// Suggested or Needs attention, and written or read, the title keeps
 		// the row.
@@ -3799,6 +3956,14 @@ namespace bpr::qt {
 		EditStop->setAccessibleName(tr("Edit stop"));
 		EditStop->setToolTip(tr("Edit the stop's title and explanation (Return)"));
 		titleRow->addWidget(EditStop, 0, Qt::AlignTop);
+		// Hidden while the stop is edited, the pencil keeps its room: the
+		// title, the chat toggle and everything under them stay where they
+		// were (owner on the live build, 2026-11-11).
+		{
+			auto keep = EditStop->sizePolicy();
+			keep.setRetainSizeWhenHidden(true);
+			EditStop->setSizePolicy(keep);
+		}
 		connect(EditStop, &QToolButton::clicked, this, [this] { begin_stop_edit(); });
 		// [[BPR-1936]], owner: "Maybe there needs to be another way to remove
 		// a stop like trash can button." The comments' trash; it removes this
@@ -3837,50 +4002,15 @@ namespace bpr::qt {
 		});
 		StopTitleRow = titleRow;
 		fields->addLayout(titleRow);
-		// The chip's second step, in place under the title: the question, then
-		// Confirm (the stop's explanation holds at this head) and Edit.
-		HeadConfirm = new QWidget{ StopFields };
-		HeadConfirm->setObjectName(QStringLiteral("tourHeadConfirm"));
-		{
-			auto* const row = new QHBoxLayout{ HeadConfirm };
-			row->setContentsMargins(0, 0, 0, 0);
-			row->setSpacing(8);
-			HeadQuestion = new QLabel{ HeadConfirm };
-			HeadQuestion->setObjectName(QStringLiteral("tourHeadQuestion"));
-			HeadQuestion->setWordWrap(true);
-			HeadQuestion->setTextFormat(Qt::PlainText);
-			HeadQuestion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-			row->addWidget(HeadQuestion, 1);
-			HeadConfirmYes = new quiet_push_button{ tr("Confirm"), HeadConfirm };
-			HeadConfirmYes->setObjectName(QStringLiteral("tourHeadConfirmYes"));
-			HeadConfirmYes->setAccessibleName(tr("Confirm the explanation still holds"));
-			row->addWidget(HeadConfirmYes, 0, Qt::AlignTop);
-			HeadEdit = new quiet_push_button{ tr("Edit"), HeadConfirm };
-			HeadEdit->setObjectName(QStringLiteral("tourHeadEdit"));
-			HeadEdit->setAccessibleName(tr("Edit the explanation"));
-			row->addWidget(HeadEdit, 0, Qt::AlignTop);
-		}
-		HeadConfirm->hide();
-		fields->addWidget(HeadConfirm);
-		connect(HeadChip, &QToolButton::toggled, this, [this](const bool aOpen) {
-			if (const auto* const stop = selected_stop(); stop != nullptr) {
-				HeadConfirm->setVisible(aOpen);
-				present_head_chip(*stop);
-			}
-		});
-		connect(HeadConfirmYes, &QPushButton::clicked, this, [this] {
-			if (const auto* const stop = selected_stop(); stop != nullptr) {
-				reaffirm_stop(stop->Id);
-			}
-		});
-		connect(HeadEdit, &QPushButton::clicked, this, [this] {
-			HeadChip->setChecked(false);
-			begin_stop_edit();
-			Body->setFocus(Qt::OtherFocusReason);
-		});
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
 		Source->setFont(code_font_of(font()));
+		// [[BPR-2013]], RFC-BPR-0106. The stop's file and lines are a link
+		// that reveals its lines again after the code was scrolled elsewhere.
+		Source->setTextFormat(Qt::RichText);
+		Source->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		Source->setAccessibleDescription(tr("Shows the stop's lines in the code"));
+		connect(Source, &QLabel::linkActivated, this, [this] { trigger(tour_editor_action::navigate_stop); });
 		fields->addWidget(Source);
 		Related = new QListWidget{ StopFields };
 		Related->setObjectName(QStringLiteral("tourRelatedSources"));
@@ -3959,13 +4089,23 @@ namespace bpr::qt {
 		UseLines->setObjectName(QStringLiteral("tourUseSelectedLines"));
 		UseLines->setCursor(Qt::PointingHandCursor);
 		UseLines->setAccessibleName(tr("Use the lines selected in the code"));
-		UseLines->setToolTip(retarget->toolTip());
+		UseLines->setToolTip(tr("Select lines in the code first. This stop then shows those lines instead (%1). No code is copied or changed.").arg(retarget->shortcut().toString(QKeySequence::NativeText)));
 		connect(UseLines, &QPushButton::clicked, this, [retarget] { retarget->trigger(); });
 		sources->addWidget(UseLines);
-		Retarget               = retarget;
-		auto* const addRelated = button(tr("Related source"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
-		addRelated->setToolTip(tr("Link the lines selected in the code as related source"));
-		auto* const removeRelated = button(tr("Remove link"), QStringLiteral("tourRemoveRelated"), sources, [this] {
+		Retarget = retarget;
+		// Owner look v002 of the editing tools: "I don't understand what these
+		// do or how to use these at all." Each says what it does to the stop,
+		// in the words of the hint under them, and its tooltip how to use it.
+		// Owner on the live build, 2026-11-11 ("buttons packed in like a clown
+		// car"): the two ways to use the code's selection are one kind of
+		// control, quiet links side by side; Enhance is the row's one button.
+		QPushButton* const addRelated = new step_change{ tr("Link selected lines"), StopFields };
+		addRelated->setObjectName(QStringLiteral("tourAddRelated"));
+		addRelated->setCursor(Qt::PointingHandCursor);
+		sources->addWidget(addRelated);
+		connect(addRelated, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_related); });
+		addRelated->setToolTip(tr("Select lines in the code first. They are added under Linked code: other code the reader can open from this stop."));
+		auto* const removeRelated = button(tr("Unlink"), QStringLiteral("tourRemoveRelated"), sources, [this] {
 			if (!selected_related() || !Dispatch || Shown.Refusal == core::tour_refusal::bounds) {
 				return;
 			}
@@ -3986,16 +4126,13 @@ namespace bpr::qt {
 		more->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		more->setAutoRaise(true);
 		more->setCursor(Qt::ArrowCursor);
-		more->setToolTip(tr("More: related source, insert, duplicate, merge, remove"));
+		more->setToolTip(tr("More ways to change this stop's code"));
 		more->setAccessibleName(tr("More stop actions"));
 		auto* const moreMenu = new QMenu{ more };
 		moreMenu->setObjectName(QStringLiteral("tourStopMoreMenu"));
-		moreMenu->addAction(tr("Related source"), addRelated, &QPushButton::click);
-		moreMenu->addAction(tr("Remove related link"), removeRelated, &QPushButton::click);
-		moreMenu->addSeparator();
-		for (auto* const item : menu->actions()) {
-			moreMenu->addAction(item);
-		}
+		moreMenu->setToolTipsVisible(true);
+		moreMenu->addAction(tr("Link selected lines"), addRelated, &QPushButton::click)->setToolTip(addRelated->toolTip());
+		moreMenu->addAction(tr("Unlink the chosen linked code"), removeRelated, &QPushButton::click)->setToolTip(tr("Choose a line under Linked code first."));
 		connect(more, &QToolButton::clicked, moreMenu, [more, moreMenu] { moreMenu->popup(more->mapToGlobal(QPoint{ 0, more->height() })); });
 		sources->addWidget(more);
 		AddRelated    = addRelated;
@@ -4003,29 +4140,35 @@ namespace bpr::qt {
 		MoreButton    = more;
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
+		// [[BPR-2014]], owner look 2026-11-11 (session 5ea0ce22, `1d39ba1e`):
+		// "That text at the bottom is a giant waste of space. No one can or
+		// wants to read that." No hint under the tools: each says what it
+		// does, and its tooltip how.
 		fields->addWidget(add_failure_notice(core::writing_hook::comment, StopFields));
-		// [[BPR-1914]] v003. The read stop's own menu opens its side chat.
+		// [[BPR-1914]] v003. The read stop's own menu opens its side chat,
+		// with the selected words; [[BPR-2013]] then the stop's context menu.
 		StopReader->set_context_menu_builder([this](QMenu& aMenu) {
 			aMenu.addSeparator();
 			aMenu.addAction(tr("Open side chat about this stop"), this, [this] {
 				const auto text = StopReader->rendered_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
 				open_side_chat_about(core::writing_hook::comment, text);
 			});
-			// [[BPR-1936]]. The read stop's menu removes it too.
 			aMenu.addSeparator();
-			auto* const remove = aMenu.addAction(tr("Remove stop"), this, [this] {
-				if (const auto* const stop = selected_stop(); stop != nullptr) {
-					remove_stop(stop->Id);
+			update_stop_actions();
+			for (auto* const item : StopMenu != nullptr ? StopMenu->actions() : QList<QAction*>{ }) {
+				if (item->objectName() != QStringLiteral("tourMenuChat")) {
+					aMenu.addAction(item);
 				}
-			});
-			remove->setObjectName(QStringLiteral("tourReaderRemove"));
-			remove->setEnabled(RemoveStop != nullptr && RemoveStop->isEnabled());
+			}
 		});
 		StopActions->yield(UseLines, false);
-		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
+		// Owner look v002: Link selected lines is named in the hint, so it is
+		// on the row in the route too while there is room; More keeps it after.
+		StopActions->yield(addRelated, true);
 		StopActions->yield(removeRelated, false);
 		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this](const int aRow) { StopActions->want(RemoveRelated, aRow >= 0 && Mode == tour_editor_mode::page); });
-		Related->setToolTip(tr("Double-click a related source to inspect it. Show in code restores this stop."));
+		Related->setToolTip(tr("Linked code. Double-click one to open it; choose one, then Unlink, to remove it. The stop's file and lines bring its own lines back."));
+		removeRelated->setToolTip(tr("Removes the linked code chosen in the list above. The code itself is not changed."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
 		// The foot: its row, and the trash's question under it, as one item,
 		// so a proposal placed before the foot never comes between them.
@@ -4036,13 +4179,22 @@ namespace bpr::qt {
 		auto* nav = new QHBoxLayout;
 		nav->setSpacing(6);
 		foot->addLayout(nav);
-		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
-		ShowInCode               = returnToTour;
-		StopFieldsLayout         = fields;
-		returnToTour->setToolTip(tr("Show the stop's lines in the code"));
-		// v003. Show in code keeps its place; the trash is right of it.
+		// [[BPR-2013]], RFC-BPR-0106. No Show in code: arriving at a stop
+		// shows its code, and its file-and-lines line is the way back. At
+		// rest the foot holds only Accept, with its one-line reason, while
+		// the stop is yellow; written, the trash at the left, Cancel and Save.
+		StopFieldsLayout = fields;
 		RemoveStop->setParent(StopFields);
 		nav->addWidget(RemoveStop);
+		AcceptReason = new QLabel{ StopFields };
+		AcceptReason->setObjectName(QStringLiteral("tourAcceptReason"));
+		AcceptReason->setWordWrap(true);
+		AcceptReason->setTextFormat(Qt::PlainText);
+		AcceptReason->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		AcceptReason->hide();
+		// The reason takes the row's room; the stretch keeps the written
+		// stop's Cancel and Save at the right when the reason is hidden.
+		nav->addWidget(AcceptReason, 100);
 		nav->addStretch(1);
 		RemoveConfirm = new QWidget{ StopFields };
 		RemoveConfirm->setObjectName(QStringLiteral("tourStopRemoveConfirm"));
@@ -4088,39 +4240,47 @@ namespace bpr::qt {
 		// description the pencil goes away and we get cancel / save at the
 		// bottom". The description editor's foot: Cancel, then Save, the
 		// default, at the card's bottom right while the stop is written.
-		CancelStop = new quiet_push_button{ tr("Cancel"), StopFields };
+		// Owner look v002: "Cancel is like a different size to save, looks
+		// weird" and "It's kind of weird that save turns it green. Maybe save
+		// should just be accept then." Both are the platform's own push
+		// button, one width; the default one says what it does: it keeps the
+		// edit and accepts the stop.
+		CancelStop = new QPushButton{ tr("Cancel"), StopFields };
 		CancelStop->setObjectName(QStringLiteral("tourStopCancel"));
 		CancelStop->setAccessibleDescription(tr("Puts the title and explanation back as they were when you began editing."));
 		CancelStop->setToolTip(tr("Undo this edit's text changes (Esc)"));
 		nav->addWidget(CancelStop);
 		connect(CancelStop, &QPushButton::clicked, this, [this] { cancel_stop_edit(); });
-		SaveStop = new QPushButton{ tr("Save"), StopFields };
+		SaveStop = new QPushButton{ tr("Accept"), StopFields };
 		SaveStop->setObjectName(QStringLiteral("tourStopSave"));
-		SaveStop->setAccessibleDescription(tr("Closes the editor. The stop is kept in your private tour draft; nothing is sent to GitHub."));
-		SaveStop->setToolTip(tr("Save (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		SaveStop->setAccessibleName(tr("Accept the edited stop"));
+		SaveStop->setAccessibleDescription(tr("Keeps your edit in your private tour draft and accepts the stop. Nothing is sent to GitHub."));
+		SaveStop->setToolTip(tr("Keep this edit and accept the stop (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 		nav->addWidget(SaveStop);
-		connect(SaveStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
-		auto* complete = new QPushButton{ tr("Ready, next"), StopFields };
-		complete->setObjectName(QStringLiteral("tourComplete"));
+		{
+			const auto width = std::max(CancelStop->sizeHint().width(), SaveStop->sizeHint().width());
+			CancelStop->setMinimumWidth(width);
+			SaveStop->setMinimumWidth(width);
+		}
+		connect(SaveStop, &QPushButton::clicked, this, [this] { save_stop_edit(); });
+		// [[BPR-2014]], RFC-BPR-0106. Accept, the files' word: it accepts
+		// this stop as it is now (its text, its lines and the code at every
+		// reference in its text) and moves nowhere. It keeps Ready, next's key.
+		auto* complete = new QPushButton{ tr("Accept"), StopFields };
+		complete->setObjectName(QStringLiteral("tourAccept"));
 		complete->setDefault(true);
 		complete->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
-		complete->setToolTip(tr("Mark this stop ready and go to the next (%1)").arg(complete->shortcut().toString(QKeySequence::NativeText)));
-		nav->addWidget(complete);
+		complete->setToolTip(tr("Accept this stop as it is now (%1)").arg(complete->shortcut().toString(QKeySequence::NativeText)));
+		nav->addWidget(complete, 0, Qt::AlignTop);
 		Complete = complete;
-		// [[BPR-1925]] v003. Marking a stop Ready is the host's to apply: the
-		// move to the next stop waits until this stop shows as Ready (see
-		// `place_stop_card`), instead of looking before the host answered.
 		connect(complete, &QPushButton::clicked, this, [this] {
-			const auto* const stop = selected_stop();
-			if (stop == nullptr) {
+			// An act on the stop on screen: a hidden Accept accepts nothing.
+			if (!Complete->isVisibleTo(this) || !isVisible()) {
 				return;
 			}
-			if (stop->Preparation == core::tour_preparation::ready) {
-				next_stop(1);
-				return;
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
+				accept_stop(stop->Id);
 			}
-			AdvanceFrom = stop->Id;
-			structural(core::tour_command_kind::complete);
 		});
 		connect(Title, &QPlainTextEdit::textChanged, this, [this] { edit_stop(); });
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
@@ -4256,17 +4416,19 @@ namespace bpr::qt {
 			} else if (found != row) {
 				Outline->insertItem(row, Outline->takeItem(found));
 			}
-			auto*      item  = Outline->item(row);
-			const auto state = stop.Preparation == core::tour_preparation::ready ? tr("Ready") : stop.Preparation == core::tour_preparation::needs_attention ? tr("Needs attention")
-				: stop.Preparation == core::tour_preparation::suggested                                                                                      ? tr("Suggested / unvisited")
-																																							 : tr("Editing");
-			const auto title = stop.Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop.Title);
+			auto* item = Outline->item(row);
+			// [[BPR-2014]], RFC-BPR-0106. The ring is the stop's acceptance, in
+			// Review's words for a file: green Accepted, yellow otherwise.
+			const auto acceptance = core::decide_tour_stop_acceptance(*Shown.Draft, stop).State;
+			const auto state      = acceptance == core::tour_acceptance_state::accepted ? tr("Accepted") : acceptance == core::tour_acceptance_state::changed ? tr("Changed since accepted")
+																																							  : tr("Not accepted yet");
+			const auto title      = stop.Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop.Title);
 			// [[BPR-1593]]. The route draws the number in its ring; the row's
 			// text stays "N. Title" for whoever reads it as text.
-			item->setText(tr("%1. %2").arg(row + 1).arg(stop.Preparation == core::tour_preparation::suggested ? tr("Suggested: %1").arg(title) : title));
-			item->setData(Qt::DisplayRole, stop.Preparation == core::tour_preparation::suggested ? tr("Suggested: %1").arg(title) : title);
+			item->setText(tr("%1. %2").arg(row + 1).arg(title));
+			item->setData(Qt::DisplayRole, title);
 			item->setData(number_role, QString::number(row + 1));
-			item->setData(preparation_role, static_cast<int>(stop.Preparation));
+			item->setData(acceptance_role, static_cast<int>(acceptance));
 			const auto* const range = stop.Mapping == core::tour_mapping::author_selected && stop.Mapped ? &*stop.Mapped : stop.Original ? &*stop.Original
 				: stop.Mapped                                                                                                            ? &*stop.Mapped
 																																		 : nullptr;
@@ -4283,7 +4445,7 @@ namespace bpr::qt {
 			item->setData(source_role, where);
 			auto words = QString::fromStdString(stop.Body).simplified();
 			item->setData(excerpt_role, words.left(240));
-			item->setData(attention_role, core::project_tour_stop_status(*Shown.Draft, stop).SourceAttention);
+			item->setData(attention_role, false);
 			item->setData(current_role, false);
 			const auto spoken = tr("%1. %2. %3").arg(row + 1).arg(title, state);
 			item->setData(Qt::AccessibleTextRole, spoken);
@@ -4323,11 +4485,6 @@ namespace bpr::qt {
 		}
 		update_stop_actions();
 		const bool changed = Editing != stop->Id;
-		if (changed && HeadChip->isChecked()) {
-			// Another stop's card: its chip opens closed.
-			const QSignalBlocker quiet{ HeadChip };
-			HeadChip->setChecked(false);
-		}
 		if (changed) {
 			auto& document = BodyDocuments[stop->Id];
 			if (!document) {
@@ -4371,7 +4528,7 @@ namespace bpr::qt {
 		} else if (stop->Destination) {
 			StopReader->set_inline_code_selector(stop->Destination->Path);
 		}
-		StopReader->set_body(stop->Body, "tour-stop-" + std::to_string(stop->Id.value()));
+		StopReader->set_body(shown_stop_body(*stop), "tour-stop-" + std::to_string(stop->Id.value()));
 		view_stop(core::tour_stop_view_event::open);
 		// [[BPR-1783]]. A stop with no title yet, a new one above all, takes
 		// the keyboard in its title; Tab goes on to the body.
@@ -4394,6 +4551,11 @@ namespace bpr::qt {
 		if (stop->Mapped) {
 			Source->setText(Source->text() + tr("\nProposed mapping: ") + label(*stop->Mapped));
 		}
+		if (LocalWords && LocalWords->Source) {
+			if (const auto words = LocalWords->Source(stop->Id); !words.isEmpty()) {
+				Source->setText(words);
+			}
+		}
 		const auto mapping = stop->Mapping == core::tour_mapping::exact_original ? tr("Exact original") : stop->Mapping == core::tour_mapping::unchanged_material ? tr("Moved with unchanged selected material")
 			: stop->Mapping == core::tour_mapping::changed_material                                                                                               ? tr("Changed material")
 			: stop->Mapping == core::tour_mapping::ambiguous                                                                                                      ? tr("Ambiguous")
@@ -4401,13 +4563,6 @@ namespace bpr::qt {
 			: stop->Mapping == core::tour_mapping::author_selected                                                                                                ? tr("Author-selected replacement")
 																																								  : tr("Source unavailable");
 		Source->setText(Source->text() + "\n" + mapping);
-		if (stop->Suggestion) {
-			const auto& suggestion = *stop->Suggestion;
-			Source->setText(Source->text() + tr("\nPrivate outline reason: ") + QString::fromStdString(suggestion.Reason));
-			if (!suggestion.Question.empty()) {
-				Source->setText(Source->text() + tr("\nAuthor question: ") + QString::fromStdString(suggestion.Question));
-			}
-		}
 		const auto sourceStatus = core::project_tour_stop_status(*Shown.Draft, *stop);
 		if (sourceStatus.SourceAttention) {
 			Source->setText(Source->text() + tr("\nSource needs attention; retained source evidence is shown above."));
@@ -4415,25 +4570,12 @@ namespace bpr::qt {
 		// [[BPR-1593]]. The source in the code's figures; what it means, on
 		// request, and said only when something needs doing.
 		{
-			const auto details   = Source->text();
-			const auto attention = sourceStatus.SourceAttention;
+			const auto details = Source->text();
 			Source->setToolTip(details);
-			auto chip = Outline->item(row)->data(source_role).toString();
-			if (chip.isEmpty()) {
-				chip = tr("Source unavailable — your text remains editable.");
-			}
-			if (attention) {
-				chip += QStringLiteral("  ·  ") + tr("Source needs attention");
-			}
-			// [[BPR-1936]]. Lines the agent proposed are a place to look until
-			// the author confirms them; publishing needs them confirmed. Said
-			// here, by the lines, rather than by a button that cannot act.
-			if (!sourceStatus.ConfirmedLines) {
-				chip += QStringLiteral("  ·  ") + tr("Lines not confirmed");
-				Source->setToolTip(details + tr("\n\nTo confirm them: Show in code, select the lines, then edit the stop and choose Use selected lines."));
-			}
-			Source->setText(chip);
-			present_head_chip(*stop);
+			const auto chip = Outline->item(row)->data(source_role).toString();
+			SourceChip      = chip;
+			paint_source_link();
+			Source->setAccessibleName(chip.isEmpty() ? tr("Source unavailable") : tr("%1, show its lines in the code").arg(chip));
 			StopHeading->setText(tr("Stop %1 of %2").arg(row + 1).arg(Outline->count()));
 			Previous->setEnabled(row > 0);
 			Next->setEnabled(row + 1 < Outline->count());
@@ -4508,6 +4650,11 @@ namespace bpr::qt {
 			ConfirmingStop = { };
 		}
 		SaveStop->setDefault(writing);
+		// [[BPR-2013]], RFC-BPR-0106. At rest a stop is for reading and going:
+		// what changes it (Use selected lines, Enhance, its related sources)
+		// is offered only while it is written.
+		StopActions->setVisible(writing);
+		Related->setVisible(writing && Related->count() > 0);
 		StopActions->want(UseLines, writing);
 		if (Retarget != nullptr) {
 			// The route's and More's menus offer it only while written too.
@@ -4552,10 +4699,39 @@ namespace bpr::qt {
 			EditStop->setFocus(Qt::OtherFocusReason);
 		}
 		const bool wasReading = StopView.Mode == core::tour_stop_view_mode::read;
+		// [[BPR-1914]] v004. The pencil keeps the tour where it was while the
+		// card grows the fields only an edit shows ([[BPR-2013]]).
+		hold_scroll();
 		view_stop(core::tour_stop_view_event::begin_edit);
 		place_stop_card();
 		if (wasReading && StopView.Mode == core::tour_stop_view_mode::edit && !Title->hasFocus() && !Body->hasFocus()) {
 			(selected_stop()->Title.empty() ? static_cast<QWidget*>(Title) : static_cast<QWidget*>(Body))->setFocus(Qt::OtherFocusReason);
+		}
+	}
+	void review_tour_editor::paint_source_link()
+	{
+		// [[BPR-2013]]. The file and lines, as a link in the theme's readable
+		// link colour, that brings the stop's lines back.
+		if (SourceChip.isEmpty()) {
+			Source->setText(tr("Source unavailable — your text remains editable.").toHtmlEscaped());
+			return;
+		}
+		Source->setText(QStringLiteral("<a href=\"stop\" style=\"color:%1;\">%2</a>").arg(readable_link_colour(palette()).name(), SourceChip.toHtmlEscaped()));
+	}
+	void review_tour_editor::save_stop_edit()
+	{
+		const auto* const stop = selected_stop();
+		if (stop == nullptr) {
+			return;
+		}
+		const auto id = stop->Id;
+		finish_stop_edit();
+		// [[BPR-2014]], RFC-BPR-0106. Save accepts the stop: the edit is the
+		// author's, made with its code on screen.
+		if (StopView.Mode == core::tour_stop_view_mode::read && Shown.Refusal == core::tour_refusal::none) {
+			if (const auto* const now = selected_stop(); now != nullptr && now->Id == id && Shown.Draft && !core::tour_stop_accepted(*Shown.Draft, *now) && core::tour_stop_accept_need(*Shown.Draft, *now, Shown.ChangedFiles) == core::tour_accept_need::nothing) {
+				accept_stop(id);
+			}
 		}
 	}
 	void review_tour_editor::finish_stop_edit()
@@ -4640,55 +4816,6 @@ namespace bpr::qt {
 			select_stops(selection);
 		}
 	}
-	/// [[BPR-1900]] follow-up. Marks `aStop`'s explanation current at the
-	/// observed head; a refusal is said on the card in plain words.
-	void review_tour_editor::reaffirm_stop(const core::tour_stop_id aStop)
-	{
-		if (!Dispatch || !Shown.Draft || std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
-			return;
-		}
-		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::reaffirm, .Stop = aStop });
-		if (Shown.Refusal != core::tour_refusal::none) {
-			HeadChip->setChecked(true);
-			HeadConfirm->show();
-			HeadQuestion->setText(Shown.Refusal == core::tour_refusal::incomplete ? tr("This explanation can't be confirmed yet: it needs a title, an explanation and lines confirmed in the code.")
-																				  : tr("The tour changed before this could be confirmed. Nothing changed; try again."));
-		}
-	}
-	/// [[BPR-1900]] follow-up. The chip shows while the stop's explanation
-	/// was written at another head than the one the tour observes. Open, it
-	/// asks whether the explanation still holds; where confirming can't apply
-	/// yet it says what is missing; the card's own Show in code and Use selected
-	/// lines are the way to it.
-	void review_tour_editor::present_head_chip(const core::tour_stop& aStop)
-	{
-		const auto stale = Shown.Draft && Shown.Draft->ObservedHead && aStop.ReaffirmedHead != Shown.Draft->ObservedHead;
-		if (!stale) {
-			const QSignalBlocker quiet{ HeadChip };
-			HeadChip->setChecked(false);
-			HeadChip->hide();
-			HeadConfirm->hide();
-			return;
-		}
-		const auto dark  = palette().color(QPalette::Window).lightness() < 128;
-		const auto amber = builtin_attention_color(dark ? core::appearance_variant::dark : core::appearance_variant::light, attention_tone::needs_me);
-		auto       wash  = amber;
-		wash.setAlphaF(dark ? 0.18F : 0.12F);
-		auto open = amber;
-		open.setAlphaF(dark ? 0.30F : 0.22F);
-		HeadChip->setStyleSheet(QStringLiteral("QToolButton#tourHeadChip { color: %1; background: %2; border: 1px solid %1; border-radius: 9px; padding: 0px 8px; }"
-											   "QToolButton#tourHeadChip:checked { background: %3; }"
-											   "QToolButton#tourHeadChip:focus { border-width: 2px; padding: 0px 7px; }")
-									.arg(amber.name(QColor::HexArgb), wash.name(QColor::HexArgb), open.name(QColor::HexArgb)));
-		HeadChip->show();
-		const auto need = core::reaffirm_need(aStop);
-		HeadQuestion->setText(need == core::tour_reaffirm_need::title                 ? tr("The head moved. Give this stop a title, then confirm its explanation.")
-								  : need == core::tour_reaffirm_need::explanation     ? tr("The head moved. Write this stop's explanation, then confirm it.")
-								  : need == core::tour_reaffirm_need::confirmed_lines ? tr("The head moved, and this stop's lines aren't confirmed yet. Show it in the code, select its lines, then Use selected lines.")
-																					  : tr("The head moved since you wrote this. Still accurate?"));
-		HeadConfirmYes->setVisible(need == core::tour_reaffirm_need::nothing);
-		HeadConfirm->setVisible(HeadChip->isChecked());
-	}
 	auto review_tour_editor::selected_stops() const -> std::vector<core::tour_stop_id>
 	{
 		std::vector<core::tour_stop_id> result;
@@ -4757,8 +4884,8 @@ namespace bpr::qt {
 			const auto index   = (start + offset) % stops.size();
 			const bool changed = std::ranges::any_of(Shown.Draft->ObservedChanges, [&](const auto& aChange) { return aChange.Stop == stops[index].Id && aChange.Kind != core::tour_change_kind::removed; });
 			if (changed) {
-				show_stops();
-				Outline->setCurrentRow(static_cast<int>(index), QItemSelectionModel::ClearAndSelect);
+				// [[BPR-2013]]. go_to_stop shows its code even when it is current.
+				go_to_stop(stops[index].Id);
 				return;
 			}
 		}
@@ -4820,7 +4947,7 @@ namespace bpr::qt {
 			Outline->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 			RouteColumn->show();
 			PageColumns->hide();
-			PreviewPublish->show();
+			RouteScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 			if (auto* const previewPage = Roadmap->widget(Roadmap->count() - 1); previewPage != nullptr && Preview->parentWidget() != previewPage) {
 				static_cast<QVBoxLayout*>(previewPage->layout())->addWidget(Preview, 1);
 				Preview->show();
@@ -4841,6 +4968,9 @@ namespace bpr::qt {
 				BriefHosts[field]->layout()->addWidget(BriefPanels[field]);
 			}
 			StopsSlot->hide();
+			// [[BPR-1991]]. The page's columns scroll themselves; the page
+			// fits the main pane as it did before the route had its own area.
+			RouteScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			static_cast<QVBoxLayout*>(StopsHost->layout())->insertWidget(2, StopFields, 0);
 			StopFields->show();
 			Outline->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -4849,7 +4979,6 @@ namespace bpr::qt {
 			Outline->setMaximumHeight(QWIDGETSIZE_MAX);
 			RouteColumn->hide();
 			PageColumns->show();
-			PreviewPublish->hide();
 			static_cast<QVBoxLayout*>(PublicationPanel->layout())->insertWidget(1, Preview, 1);
 			Preview->setVisible(PublicationPreview->isHidden());
 			refresh_preview();
@@ -4860,9 +4989,9 @@ namespace bpr::qt {
 			}
 		}
 		StopHeader->setVisible(aMode == tour_editor_mode::page);
-		// The route keeps Related source behind More; the page has room.
+		// Link selected lines is on the row in both places while there is room.
 		if (StopActions != nullptr) {
-			StopActions->want(AddRelated, aMode == tour_editor_mode::page);
+			StopActions->want(AddRelated, true);
 			StopActions->want(RemoveRelated, aMode == tour_editor_mode::page && Related->currentRow() >= 0);
 		}
 		fit_page_columns();
@@ -4961,21 +5090,6 @@ namespace bpr::qt {
 	{
 		place_stop_card_now();
 		place_stop_text_proposal();
-		// [[BPR-1925]] v003. Ready, next: once the host shows this stop Ready,
-		// go on.
-		if (AdvanceFrom) {
-			const auto* const stop = selected_stop();
-			if (stop != nullptr && stop->Id == *AdvanceFrom && stop->Preparation == core::tour_preparation::ready) {
-				AdvanceFrom.reset();
-				// After the presentation that showed it Ready, which takes no
-				// change of stop while it is applied.
-				QTimer::singleShot(0, this, [this] { next_stop(1); });
-				return;
-			}
-			if (stop == nullptr || stop->Id != *AdvanceFrom || Shown.Refusal != core::tour_refusal::none) {
-				AdvanceFrom.reset();
-			}
-		}
 		// [[BPR-1925]]. While a stop's chat is beside the tour, going to
 		// another stop brings that stop's chat: the chat follows the route.
 		// The keyboard stays where the reviewer put it.
@@ -5051,7 +5165,10 @@ namespace bpr::qt {
 			static_cast<stop_card*>(card)->Menu = [this](const QPoint& aAt) { popup_stop_menu(aAt); };
 			auto* const column                  = new QVBoxLayout{ card };
 			column->setContentsMargins(text_left - 6, 10, 12, 10);
-			column->addWidget(StopFields);
+			// Owner on the live build, 2026-11-11: "Things are moving around
+			// as I click them". Top-aligned, so the fields never ride on the
+			// card's spare height when Edit opens them.
+			column->addWidget(StopFields, 0, Qt::AlignTop);
 			StopFields->show();
 			Outline->setItemWidget(item, card);
 		}
@@ -5104,6 +5221,11 @@ namespace bpr::qt {
 		CollapsedStop      = collapsing ? Selected : core::tour_stop_id{ };
 		place_stop_card();
 		Outline->viewport()->update();
+		// [[BPR-2013]], RFC-BPR-0106. Choosing the row that is already
+		// current opens its stop and shows its code, like any other arrival.
+		if (!collapsing) {
+			trigger(tour_editor_action::navigate_stop);
+		}
 		if (collapsing && refocus) {
 			Outline->setFocus(Qt::OtherFocusReason);
 		} else if (!collapsing && Outline->hasFocus()) {
@@ -5159,7 +5281,66 @@ namespace bpr::qt {
 
 	void review_tour_editor::refresh_foot()
 	{
-		PreviewPublish->setEnabled(Shown.Draft != nullptr && !Shown.Loading);
+		// [[BPR-1991]]. The head: where the tour stands, from the draft and
+		// the publication's progress, the same decision Overview shows.
+		auto head = core::decide_tour_head(Shown.Loading ? nullptr : Shown.Draft.get(), HeadProgress);
+		// RFC-BPR-0110 X04: a local tour's head states its stops and how many
+		// are still to accept, with no Publish; creating the pull request
+		// belongs to the window's Create Draft PR….
+		if (LocalWords) {
+			head.Actions.clear();
+			head.PublishDisabled = false;
+		}
+		if (head == Head->shown()) {
+			return;
+		}
+		Head->present(head);
+		if (HeadObserver) {
+			HeadObserver();
+		}
+	}
+	auto review_tour_editor::head() const -> const core::tour_head&
+	{
+		return Head->shown();
+	}
+	void review_tour_editor::set_head_observer(std::function<void()> aObserver)
+	{
+		HeadObserver = std::move(aObserver);
+	}
+	void review_tour_editor::trigger_head(const core::tour_head_action aAction)
+	{
+		switch (aAction) {
+		case core::tour_head_action::publish:
+		case core::tour_head_action::update:
+			// The tour page with its preview already computed.
+			if (ExpandDispatch) {
+				ExpandDispatch(true);
+			}
+			trigger(tour_editor_action::preview_publication);
+			return;
+		case core::tour_head_action::details:
+			if (ExpandDispatch) {
+				ExpandDispatch(true);
+			}
+			return;
+		case core::tour_head_action::resume:    trigger(tour_editor_action::resume_publication); return;
+		case core::tour_head_action::on_github: trigger(tour_editor_action::open_published); return;
+		}
+	}
+	void review_tour_editor::follow_remedy(const application::tour_publication_remedy aRemedy, const core::tour_stop_id aStop)
+	{
+		using remedy = application::tour_publication_remedy;
+		switch (aRemedy) {
+		case remedy::resume:        trigger(tour_editor_action::resume_publication); return;
+		case remedy::check_status:  trigger(tour_editor_action::reconcile_publication); return;
+		case remedy::preview_again: trigger(tour_editor_action::preview_publication); return;
+		case remedy::move_stops:
+			if (aStop.value() != 0U) {
+				go_to_stop(aStop);
+			}
+			return;
+		case remedy::other_connection: trigger(tour_editor_action::choose_connection); return;
+		}
 	}
 
 	void review_tour_editor::resizeEvent(QResizeEvent* aEvent)
@@ -5289,6 +5470,9 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::PaletteChange) {
 			Source->setFont(code_font_of(font()));
 			Related->setFont(code_font_of(font()));
+			if (Source != nullptr && Source->text().startsWith(QStringLiteral("<a "))) {
+				paint_source_link();
+			}
 			apply_reader_code_font();
 			place_stop_card();
 		}
@@ -5301,10 +5485,7 @@ namespace bpr::qt {
 			}
 			EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 			restyle_remove_confirm();
-			// The Head changed chip's amber follows the theme.
-			if (const auto* const stop = selected_stop(); stop != nullptr) {
-				present_head_chip(*stop);
-			}
+			refresh_complete();
 		}
 	}
 

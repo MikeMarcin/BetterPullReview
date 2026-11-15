@@ -2033,6 +2033,30 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# RFC-BPR-0128 (review, 2026-11-14). A report's page loads no resource.
+bpr_add_executable(test_better_pull_review_agent_report_view_tests agent_report_view_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_report_view_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_agent_report_view_tests)
+bpr_enable_warnings(test_better_pull_review_agent_report_view_tests)
+bpr_add_network_isolated_test(NAME qt_agent_report_view COMMAND test_better_pull_review_agent_report_view_tests)
+set_tests_properties(qt_agent_report_view PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "AGENT_REPORT_VIEW_OK"
+    TIMEOUT 60
+)
+
+# [[BPR-2171]]. A closed note's preview: words, block tokens, ellipsis.
+bpr_add_executable(test_better_pull_review_conversation_preview_tests conversation_preview_tests.cpp)
+target_link_libraries(test_better_pull_review_conversation_preview_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_conversation_preview_tests)
+bpr_enable_warnings(test_better_pull_review_conversation_preview_tests)
+bpr_add_network_isolated_test(NAME qt_conversation_preview COMMAND test_better_pull_review_conversation_preview_tests)
+set_tests_properties(qt_conversation_preview PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "CONVERSATION_PREVIEW_OK"
+    TIMEOUT 60
+)
+
 # [[BPR-1543]]. GitHub parity: comments, line breaks, alerts and footnotes,
 # compared with GitHub's own rendering of each fixture.
 bpr_add_executable(test_better_pull_review_markdown_github_tests markdown_github_tests.cpp)
@@ -2113,12 +2137,13 @@ set_tests_properties(qt_discuss_comment_bodies PROPERTIES
 bpr_add_network_isolated_test(NAME qt_public_preview_conversation COMMAND test_better_pull_review_qt_anonymous_public_preview_tests --conversation-only)
 set_tests_properties(qt_public_preview_conversation PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0" TIMEOUT 30)
 
-bpr_add_executable(test_better_pull_review_qt_private_notes_panel_tests private_notes_panel_tests.cpp)
-target_link_libraries(test_better_pull_review_qt_private_notes_panel_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_qt_private_notes_panel_tests)
-bpr_enable_warnings(test_better_pull_review_qt_private_notes_panel_tests)
-bpr_add_network_isolated_test(NAME qt_private_notes_panel COMMAND test_better_pull_review_qt_private_notes_panel_tests)
-set_tests_properties(qt_private_notes_panel PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "private-notes-panel-tests:pass" TIMEOUT 30)
+# [[BPR-2051]]. Enhance on a draft comment and a note.
+bpr_add_executable(test_enhance_control enhance_control_tests.cpp)
+target_link_libraries(test_enhance_control PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_enhance_control)
+bpr_enable_warnings(test_enhance_control)
+bpr_add_network_isolated_test(NAME qt_enhance_control COMMAND test_enhance_control)
+set_tests_properties(qt_enhance_control PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 30)
 
 bpr_add_executable(test_scoped_prose_editor scoped_prose_editor_tests.cpp)
 target_link_libraries(test_scoped_prose_editor PRIVATE BetterPullReview::AdapterQt)
@@ -2146,12 +2171,12 @@ bpr_enable_hardening(test_review_tour_agent_help)
 bpr_enable_warnings(test_review_tour_agent_help)
 bpr_add_network_isolated_test(NAME qt_review_tour_agent_help COMMAND test_review_tour_agent_help)
 set_tests_properties(qt_review_tour_agent_help PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-agent-help:pass" TIMEOUT 30)
-bpr_add_executable(test_agent_picker_wrap agent_picker_wrap_tests.cpp) # [[BPR-1924]]
-target_link_libraries(test_agent_picker_wrap PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_agent_picker_wrap)
-bpr_enable_warnings(test_agent_picker_wrap)
-bpr_add_network_isolated_test(NAME qt_agent_picker_wrap COMMAND test_agent_picker_wrap)
-set_tests_properties(qt_agent_picker_wrap PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-picker-wrap:pass" TIMEOUT 120)
+bpr_add_executable(test_agent_footer agent_footer_tests.cpp) # [[BPR-2051]]: the picker left the drawers for the window's footer
+target_link_libraries(test_agent_footer PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_footer)
+bpr_enable_warnings(test_agent_footer)
+bpr_add_network_isolated_test(NAME qt_agent_footer COMMAND test_agent_footer)
+set_tests_properties(qt_agent_footer PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-footer:pass" TIMEOUT 60)
 # Owner request 2026-11-12: Tab inserts the highlighted `/skill` completion.
 bpr_add_executable(test_skill_completion_keys skill_completion_keys_tests.cpp)
 target_link_libraries(test_skill_completion_keys PRIVATE BetterPullReview::AdapterQt)
@@ -2178,6 +2203,20 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_agent_finding_cards_restart)
     bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
     set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
+    # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
+    bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
+    target_link_libraries(test_prompt_macro_chips PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite)
+    bpr_enable_hardening(test_prompt_macro_chips)
+    bpr_enable_warnings(test_prompt_macro_chips)
+    bpr_add_network_isolated_test(NAME qt_prompt_macro_chips COMMAND test_prompt_macro_chips)
+    set_tests_properties(qt_prompt_macro_chips PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "prompt-macro-chips:pass" TIMEOUT 60)
+    # [[BPR-2179]]. Settings › Prompts: Surfaces above the Prompt library.
+    bpr_add_executable(test_prompts_page prompts_page_tests.cpp)
+    target_link_libraries(test_prompts_page PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_prompts_page)
+    bpr_enable_warnings(test_prompts_page)
+    bpr_add_network_isolated_test(NAME qt_prompts_page COMMAND test_prompts_page)
+    set_tests_properties(qt_prompts_page PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "prompts-page:pass" TIMEOUT 60)
 endif()
 bpr_add_executable(test_review_tour_agent_setup_call review_tour_agent_setup_call_tests.cpp) # [[BPR-1881]]
 target_link_libraries(test_review_tour_agent_setup_call PRIVATE BetterPullReview::AdapterQt)
@@ -2203,12 +2242,15 @@ bpr_enable_hardening(test_review_tour_stop_view)
 bpr_enable_warnings(test_review_tour_stop_view)
 bpr_add_network_isolated_test(NAME qt_review_tour_stop_view COMMAND test_review_tour_stop_view)
 set_tests_properties(qt_review_tour_stop_view PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-stop-view:pass" TIMEOUT 30)
-bpr_add_executable(test_review_tour_reaffirm review_tour_reaffirm_tests.cpp) # [[BPR-1900]] follow-up
-target_link_libraries(test_review_tour_reaffirm PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_review_tour_reaffirm)
-bpr_enable_warnings(test_review_tour_reaffirm)
-bpr_add_network_isolated_test(NAME qt_review_tour_reaffirm COMMAND test_review_tour_reaffirm)
-set_tests_properties(qt_review_tour_reaffirm PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-reaffirm:pass" TIMEOUT 30)
+# [[BPR-2013]], [[BPR-2014]], RFC-BPR-0106. The stop at rest and edited, its
+# ring and Accept, and every way of arriving at it. Replaces the Head changed
+# chip's test (BPR-1900 follow-up), whose chip this retires.
+bpr_add_executable(test_tour_stop_acceptance_card tour_stop_acceptance_card_tests.cpp)
+target_link_libraries(test_tour_stop_acceptance_card PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_tour_stop_acceptance_card)
+bpr_enable_warnings(test_tour_stop_acceptance_card)
+bpr_add_network_isolated_test(NAME qt_tour_stop_acceptance_card COMMAND test_tour_stop_acceptance_card)
+set_tests_properties(qt_tour_stop_acceptance_card PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-stop-card:pass" TIMEOUT 60)
 
 bpr_add_executable(test_private_review_panel private_review_panel_tests.cpp)
 target_link_libraries(test_private_review_panel PRIVATE BetterPullReview::AdapterQt)
@@ -2777,6 +2819,13 @@ set_tests_properties(qt_pull_request_activity_notifications PROPERTIES
     PASS_REGULAR_EXPRESSION "pull-request-activity-notifications:pass"
     TIMEOUT 60
 )
+# [[BPR-2005]], RFC-BPR-0103. The running block, its helpers, the quiet notice and the folded line.
+bpr_add_executable(test_agent_activity_view agent_activity_view_tests.cpp)
+target_link_libraries(test_agent_activity_view PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_activity_view)
+bpr_enable_warnings(test_agent_activity_view)
+bpr_add_network_isolated_test(NAME qt_agent_activity_view COMMAND test_agent_activity_view)
+set_tests_properties(qt_agent_activity_view PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-activity-view:pass" TIMEOUT 30)
 # [[BPR-1914]] v003, [[BPR-1919]]. Side chats on the tour's parts, and the agent's code highlighted.
 bpr_add_executable(test_tour_side_chat tour_side_chat_tests.cpp)
 target_link_libraries(test_tour_side_chat PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)
@@ -2804,3 +2853,78 @@ bpr_enable_hardening(test_tour_stop_card_cleanup)
 bpr_enable_warnings(test_tour_stop_card_cleanup)
 bpr_add_network_isolated_test(NAME qt_tour_stop_card_cleanup COMMAND test_tour_stop_card_cleanup)
 set_tests_properties(qt_tour_stop_card_cleanup PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-stop-card-cleanup:pass" TIMEOUT 60)
+# [[BPR-2017]], RFC-BPR-0107. Import configuration… and Export configuration….
+bpr_add_executable(test_agent_configuration_dialogs agent_configuration_dialogs_tests.cpp)
+target_link_libraries(test_agent_configuration_dialogs PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_configuration_dialogs)
+bpr_enable_warnings(test_agent_configuration_dialogs)
+bpr_add_network_isolated_test(NAME qt_agent_configuration_dialogs COMMAND test_agent_configuration_dialogs)
+set_tests_properties(qt_agent_configuration_dialogs PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-configuration-dialogs:pass" TIMEOUT 60)
+
+
+# The owner's look in a render (owner, 2026-11-10: "some kind of theme
+# disparity ... between what I see and your offscreen renders"). On macOS every
+# Qt test executable of this directory carries native_look_startup.cpp, so a
+# render made under BPR_NATIVE_LOOK=1 on Cocoa is painted by QMacStyle in the
+# asked appearance with no window on screen. Without the variable it does
+# nothing.
+if(APPLE)
+    bpr_add_executable(test_native_look native_look_tests.cpp)
+    target_link_libraries(test_native_look PRIVATE Qt6::Widgets)
+    bpr_enable_hardening(test_native_look)
+    bpr_enable_warnings(test_native_look)
+    foreach(scheme IN ITEMS light dark)
+        bpr_add_network_isolated_test(NAME qt_native_look_${scheme} COMMAND test_native_look)
+        set_tests_properties(qt_native_look_${scheme} PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1;BPR_NATIVE_LOOK=1;BPR_NATIVE_LOOK_SCHEME=${scheme}"
+            PASS_REGULAR_EXPRESSION "native-look:pass"
+            TIMEOUT 30)
+    endforeach()
+    get_property(bpr_qt_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(bpr_qt_test_target IN LISTS bpr_qt_test_targets)
+        get_target_property(bpr_qt_test_type "${bpr_qt_test_target}" TYPE)
+        get_target_property(bpr_qt_test_links "${bpr_qt_test_target}" LINK_LIBRARIES)
+        # Only an executable that already links Qt Widgets, directly or
+        # through the Qt adapter: a helper such as the agent canary links
+        # nothing on purpose, and the launch and process-wrapper courses link
+        # Qt Core alone, which has no QApplication to start.
+        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE" AND "${bpr_qt_test_links}" MATCHES "Qt6::Widgets|AdapterQt")
+            target_sources("${bpr_qt_test_target}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/native_look_startup.cpp")
+        endif()
+    endforeach()
+endif()
+
+
+# RFC-BPR-0117 ([[BPR-2076]]). Explain this file's card, at the supported scales.
+bpr_add_executable(test_explain_file_card explain_file_card_tests.cpp)
+target_link_libraries(test_explain_file_card PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_explain_file_card)
+bpr_enable_warnings(test_explain_file_card)
+foreach(bpr_explain_scale IN ITEMS 100 150 200)
+    math(EXPR bpr_explain_whole "${bpr_explain_scale} / 100")
+    math(EXPR bpr_explain_fraction "(${bpr_explain_scale} % 100) / 10")
+    bpr_add_network_isolated_test(NAME qt_explain_file_card_scale_${bpr_explain_scale} COMMAND test_explain_file_card)
+    set_tests_properties(qt_explain_file_card_scale_${bpr_explain_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_explain_whole}.${bpr_explain_fraction}"
+        PASS_REGULAR_EXPRESSION "explain-file-card:pass" TIMEOUT 60)
+endforeach()
+# RFC-BPR-0108, 0113 and 0114 as amended (owner, 2026-11-13): the agent's
+# commit-message nib beside Commit in the agent accent (an accent inventory of
+# Local Changes), short tooltips on the draft's additions, the additions in the
+# pull request window's own slots, and Home's one selection with Escape.
+bpr_add_executable(test_local_draft_window local_draft_window_tests.cpp)
+target_link_libraries(test_local_draft_window PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_local_draft_window)
+bpr_enable_warnings(test_local_draft_window)
+bpr_add_network_isolated_test(NAME qt_local_draft_window COMMAND test_local_draft_window)
+set_tests_properties(qt_local_draft_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "local-draft-window:pass" TIMEOUT 120)
+# RFC-BPR-0128, owner look ask-v001. An Ask row: plain click asks (queued),
+# Shift+click drafts, right click opens the row's own menu.
+bpr_add_executable(test_better_pull_review_qt_ask_menu_tests ask_menu_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_ask_menu_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_ask_menu_tests)
+bpr_enable_warnings(test_better_pull_review_qt_ask_menu_tests)
+bpr_add_network_isolated_test(NAME qt_ask_menu COMMAND test_better_pull_review_qt_ask_menu_tests)
+set_tests_properties(qt_ask_menu PROPERTIES PASS_REGULAR_EXPRESSION "ask-menu-tests:pass")

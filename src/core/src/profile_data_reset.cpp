@@ -17,10 +17,12 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "agent-setup" }, area::settings },
 			std::pair{ std::string_view{ "window-restoration" }, area::settings },
 			std::pair{ std::string_view{ "view-filters" }, area::settings },
+			std::pair{ std::string_view{ "discuss" }, area::settings },
 			std::pair{ std::string_view{ "pull-request-activity" }, area::settings },
 			std::pair{ std::string_view{ "review-ledger" }, area::review_data },
 			std::pair{ std::string_view{ "review-tours" }, area::review_data },
 			std::pair{ std::string_view{ "review-cycles" }, area::review_data },
+			std::pair{ std::string_view{ "local-drafts" }, area::review_data },
 			std::pair{ std::string_view{ "review-mutation-recovery" }, area::review_data },
 			std::pair{ std::string_view{ "review-queue" }, area::saved_sources },
 			std::pair{ std::string_view{ "insights" }, area::statistics },
@@ -41,6 +43,7 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "quarantine" }, area::caches },
 			std::pair{ std::string_view{ "mcp-snapshot" }, area::caches },
 			std::pair{ std::string_view{ "publication-git-v1" }, area::review_data },
+			std::pair{ std::string_view{ "local-draft-git-v1" }, area::review_data },
 		};
 
 		constexpr std::array names{

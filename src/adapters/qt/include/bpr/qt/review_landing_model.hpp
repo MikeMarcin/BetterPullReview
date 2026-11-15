@@ -52,6 +52,19 @@ namespace bpr::qt {
 	/// means approved, so "Approved" is never produced.
 	[[nodiscard]] auto home_reason_word(core::attention_bucket aBucket) -> QString;
 
+	/// \brief [[RFC-BPR-0098]]. The word a next move leads its row with:
+	/// "Returned", "Ready", "Failing" and the rest of the decision table's.
+	[[nodiscard]] auto home_move_word(core::authored_next_move aMove) -> QString;
+
+	/// \brief [[RFC-BPR-0098]]. The word a row leads with: its next move's for
+	/// a pull request of mine, otherwise its bucket's, or "Blocked" for a
+	/// quiet row whose merge is blocked.
+	[[nodiscard]] auto home_row_word(const core::queue_item& aItem) -> QString;
+
+	/// \brief [[RFC-BPR-0098]]. The tone a pull request of mine says its
+	/// next move in; none for a row that is not mine.
+	[[nodiscard]] auto home_move_tone(const core::queue_item& aItem) -> std::optional<int>;
+
 	/// \brief [[BPR-0776]]. "owner/name#123" for a queue row.
 	[[nodiscard]] auto home_identity(const core::queue_item& aItem) -> QString;
 
@@ -70,7 +83,9 @@ namespace bpr::qt {
 	/// \brief [[BPR-0776]]. A collapsed state panel's one-line summary of its rows.
 	///
 	/// \details "2 requested, 1 changed; 4 new comments", "1 of mine", "3
-	/// followed". Empty for a state with no row.
+	/// followed". Empty for a state with no row. [[RFC-BPR-0098]]. My pull
+	/// requests counts what came back and what can merge, "2 returned, 1
+	/// ready to merge", leaving out a zero count.
 	[[nodiscard]] auto home_state_summary(home_group aGroup, std::span<const core::queue_item> aRows) -> QString;
 
 	/// \brief [[BPR-0776]]. Recently viewed's collapsed summary: "2 viewed; 1 saved reading".

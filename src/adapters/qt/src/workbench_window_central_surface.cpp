@@ -1,4 +1,5 @@
 #include "bpr/core/file_progress_mark.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
@@ -17,7 +18,6 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
-#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -99,6 +99,7 @@
 #include <QStatusBar>
 #include <QString>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBlock>
@@ -240,6 +241,48 @@ namespace bpr::qt {
 			QTimer* Turn  = nullptr;
 			int     Frame = 0;
 		};
+
+		/// Home variant 1 (owner, 2026-11-12): one 26 px line per local draft
+		/// in Home's row grid: a quiet bar, the word Local draft where a row's
+		/// reason goes, the title, repository and branch, and the time.
+		class home_draft_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex&) const -> QSize override { return { aOption.rect.width(), 26 }; }
+
+			void paint(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				option.text.clear();
+				// Native selection and focus painting stay the style's.
+				option.widget->style()->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
+				aPainter->save();
+				const auto& colours = option.palette;
+				auto        quiet   = colours.color(QPalette::WindowText);
+				quiet.setAlpha(150);
+				const auto rect = option.rect;
+				aPainter->fillRect(QRect{ rect.left(), rect.top() + 4, 3, rect.height() - 8 }, colours.color(QPalette::Mid));
+				auto bold = option.font;
+				bold.setWeight(QFont::DemiBold);
+				aPainter->setFont(bold);
+				aPainter->setPen(quiet);
+				aPainter->drawText(QRect{ rect.left() + 16, rect.top(), 110, rect.height() }, Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("Local draft"));
+				auto       x     = rect.left() + 126;
+				const auto title = aIndex.data(Qt::UserRole + 10).toString();
+				aPainter->setPen(colours.color(QPalette::WindowText));
+				aPainter->drawText(QRect{ x, rect.top(), rect.width() - x, rect.height() }, Qt::AlignVCenter | Qt::AlignLeft, title);
+				x += QFontMetrics{ bold }.horizontalAdvance(title) + 10;
+				aPainter->setFont(option.font);
+				aPainter->setPen(quiet);
+				const auto where = QStringLiteral("%1  ⎇ %2").arg(aIndex.data(Qt::UserRole + 11).toString(), aIndex.data(Qt::UserRole + 12).toString());
+				aPainter->drawText(QRect{ x, rect.top(), std::max(0, rect.right() - x - 90), rect.height() }, Qt::AlignVCenter | Qt::AlignLeft, where);
+				aPainter->drawText(QRect{ rect.right() - 90, rect.top(), 82, rect.height() }, Qt::AlignVCenter | Qt::AlignRight, aIndex.data(Qt::UserRole + 13).toString());
+				aPainter->restore();
+			}
+		};
 	}
 
 	void workbench_window::build_central_surface()
@@ -288,6 +331,15 @@ namespace bpr::qt {
 			comparing->setAutoRaise(true);
 			comparing->setParent(ReviewBar);
 			ReviewBar->insertWidget(FilePositionAction, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
+			// RFC-BPR-0128 ([[BPR-2164]]), option 1C. The review bar's Ask,
+			// beside the comparison: the pull request's quick asks, then the
+			// open file's, then the open thread's (Q2).
+			ReviewAskButton = new ask_menu_button{ ReviewBar };
+			ReviewAskButton->setObjectName(QStringLiteral("reviewAskButton"));
+			ReviewAskButton->setAccessibleName(tr("Ask about this pull request"));
+			ReviewAskButton->set_filler([this](QMenu& aMenu) { fill_quick_ask(aMenu, ask_request(core::quick_ask_anchor::review_bar)); });
+			ReviewAskButton->hide();
+			ReviewBar->insertWidget(FilePositionAction, ReviewAskButton)->setObjectName(QStringLiteral("reviewBarAskAction"));
 			ReviewBar->insertWidget(FilePositionAction, new strip_divider{ ReviewBar })
 				->setObjectName(QStringLiteral("reviewBarComparisonDividerAction"));
 			if (auto* const menu = comparing->menu(); menu != nullptr) {
@@ -387,11 +439,45 @@ namespace bpr::qt {
 			}
 		});
 		comparisonColumn->addWidget(DocumentTabs);
+		// RFC-BPR-0128 ([[BPR-2164]]), Q3. The file header's Ask, where Explain
+		// this file stood: an ordinary control (its glyph in the Agent accent,
+		// because its rows start runs), before the plus; and Ask in each tab's
+		// menu, the tab's file's quick asks, in Explain This File's place.
+		FileAskButton = new ask_menu_button{ DocumentTabs };
+		FileAskButton->setObjectName(QStringLiteral("fileAskButton"));
+		FileAskButton->setAccessibleName(tr("Ask about this file"));
+		FileAskButton->setToolTip(tr("Ask about this file"));
+		// Look ask-v005: on the active file's tab, smaller than the tab.
+		FileAskButton->set_compact(document_tab_strip::height_pixels - 8);
+		// Look ask-v006: the comments' button.
+		FileAskButton->wear_comment_look();
+		FileAskButton->setEnabled(false);
+		FileAskButton->set_filler([this](QMenu& aMenu) { fill_quick_ask(aMenu, ask_request(core::quick_ask_anchor::file)); });
+		ExplainFileButton = FileAskButton;
+		DocumentTabs->set_active_tab_control(FileAskButton);
+		DocumentTabs->set_menu_extension([this](const document_tab_presentation& aTab, QMenu& aMenu) {
+			if (!QuickAskSource || aTab.Path.isEmpty()) {
+				return;
+			}
+			auto* const ask = aMenu.addMenu(tr("Ask"));
+			ask->setObjectName(QStringLiteral("documentTabAskMenu"));
+			ask->menuAction()->setObjectName(QStringLiteral("documentTabAsk"));
+			auto request = ask_request(core::quick_ask_anchor::file);
+			request.File = aTab.Path;
+			fill_quick_ask(*ask, request);
+		});
+		// RFC-BPR-0128 ([[BPR-2166]]). A report tab shows the agent's report
+		// in the comparison's place, its outline beside it.
+		ReportView = new agent_report_view{ ComparisonPage };
+		ReportView->hide();
+		ExplainCard = new explain_file_card{ ComparisonPage };
+		comparisonColumn->addWidget(ExplainCard);
 		// RFC-BPR-0089 M3. Over a split file's diff, its per-commit diffs; it
 		// takes no room while hidden, so every other diff keeps its geometry.
 		SplitStrip = new split_diff_strip{ ComparisonPage };
 		comparisonColumn->addWidget(SplitStrip);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
+		comparisonColumn->addWidget(ReportView, 1);
 		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
 			update_go_to_line_action();
@@ -408,6 +494,11 @@ namespace bpr::qt {
 												&& (!result || result->Alignment.Content != core::diff_content_state::text));
 		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
+		// [[BPR-2093]]. A drafts chip lists the row's drafts in Threads.
+		OverviewPage->set_drafts_dispatch([this](const QString& aPath) { static_cast<void>(show_drafts_in_threads(aPath)); });
+		// RFC-BPR-0127 ([[BPR-2159]]). A Local chip: Threads on Local, at the
+		// row's first.
+		OverviewPage->set_local_dispatch([this](const QString& aPath) { static_cast<void>(show_state_in_threads(finder_state::local, aPath)); });
 		// [[BPR-1588]]. Status's tab row carries Open on GitHub too.
 		if (OpenOnGithubAction != nullptr) {
 			OverviewPage->set_open_on_github_action(OpenOnGithubAction);
@@ -639,6 +730,22 @@ namespace bpr::qt {
 					return;
 				}
 				switch (aAction) {
+				case card_action::make_draft:
+				case card_action::keep_local:
+				case card_action::delete_local:
+				case card_action::copy_local:
+				case card_action::save_local:
+				case card_action::open_local_elsewhere:
+				case card_action::edit_local:
+					// RFC-BPR-0127 ([[BPR-2158]]). The composition moves it.
+					dispatch_comment_state(aAction, aIdentity);
+					break;
+				case card_action::compose_local:
+				case card_action::compose_draft:
+					// RFC-BPR-0127. The composer's state control: its foot is the
+					// card's; the window keeps the choice while it is written.
+					ComposeLocal = aAction == card_action::compose_local;
+					break;
 				case card_action::keep_reply_as_comment:
 				case card_action::discard_reply:
 					act_on_kept_reply(aAction, aIdentity);
@@ -663,6 +770,14 @@ namespace bpr::qt {
 					break;
 				case card_action::carry_suggestion:
 					carry_moved_suggestion(aIdentity);
+					break;
+				case card_action::suggest_change:
+				case card_action::keep_suggested_change:
+				case card_action::discard_suggested_change:
+				case card_action::undo_suggested_change:
+				case card_action::close_suggested_change:
+					// RFC-BPR-0118. Suggest the change on the drawer draft.
+					act_on_agent_suggestion(aAction);
 					break;
 				case card_action::copy_change:
 					// [[BPR-1733]]. The note copied the change itself.
@@ -762,6 +877,11 @@ namespace bpr::qt {
 				case card_action::ask_agent:
 					if (ConversationAskDispatch) {
 						ConversationAskDispatch(aIdentity);
+					}
+					break;
+				case card_action::was_addressed:
+					if (ConversationAddressedDispatch) {
+						ConversationAddressedDispatch(aIdentity);
 					}
 					break;
 				case card_action::show_line:
@@ -1004,6 +1124,27 @@ namespace bpr::qt {
 		NextNewCommentButton->setAccessibleName(QStringLiteral("Next new comment"));
 		NextNewCommentButton->setAccessibleDescription(QStringLiteral(
 			"Reveal the next thread with a post newer than what you have read"));
+		// Owner look v002 ([[BPR-2158]]). Previous and Next comment replace
+		// Next new comment on the tab row; Next new keeps its key and menu.
+		NextNewCommentButton->hide();
+		for (auto& [button, action, glyph, name] : std::array{
+				 std::tuple{ &PreviousCommentButton, PreviousCommentAction, conversation_glyph::up, QStringLiteral("workbenchPreviousCommentButton") },
+				 std::tuple{ &NextCommentButton, NextCommentAction, conversation_glyph::down, QStringLiteral("workbenchNextCommentButton") },
+			 }) {
+			auto* const step = new quiet_tool_button{ commentsContents };
+			step->set_tinted(true);
+			step->setObjectName(name);
+			step->setDefaultAction(action);
+			action->setIcon(conversation_icon(glyph, palette()));
+			step->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			step->setAutoRaise(true);
+			step->setIconSize(QSize{ 16, 16 });
+			step->setFocusPolicy(Qt::StrongFocus);
+			step->setAccessibleName(action->text());
+			step->setAccessibleDescription(button == &PreviousCommentButton ? QStringLiteral("Open the comment before this one, or the previous file's last")
+																			: QStringLiteral("Open the comment after this one, or the next file's first"));
+			*button = step;
+		}
 		DefectRow = new QWidget{ commentsContents };
 		DefectRow->setObjectName(QStringLiteral("workbenchDefectRow"));
 		auto* const commentsTools = new QHBoxLayout{ DefectRow };
@@ -1099,9 +1240,28 @@ namespace bpr::qt {
 		ThreadsPage->setMinimumSize(1, 1);
 		CentreStack->addWidget(ThreadsPage);
 		Finder->set_pick_dispatch([this](const finder_location& aLocation, const core::workbench_thread_destination aDestination) {
+			// [[BPR-2092]]. A saved draft's row goes to the draft.
+			if (aLocation.Thread.starts_with(finder_saved_draft_prefix)) {
+				static_cast<void>(open_roster_draft(core::review_draft_id{ std::stoull(aLocation.Thread.substr(finder_saved_draft_prefix.size())) }));
+				return;
+			}
+			// RFC-BPR-0127 ([[BPR-2159]]). A Local row goes to its card.
+			if (aLocation.Thread.starts_with(finder_local_prefix)) {
+				open_local_from_threads(std::stoull(aLocation.Thread.substr(finder_local_prefix.size())), false);
+				return;
+			}
 			static_cast<void>(open_thread_from_threads(aLocation.Thread, aLocation.Post, aDestination));
 		});
 		Finder->set_leave_dispatch([this] { leave_threads(); });
+		// RFC-BPR-0127 ([[BPR-2159]]). The row menu's Make Draft and Keep
+		// Local.
+		Finder->set_move_dispatch([this](const std::uint64_t aId, const bool aKeepLocal) {
+			if (aKeepLocal) {
+				keep_listed_draft_local(core::review_draft_id{ aId });
+			} else {
+				open_local_from_threads(aId, true);
+			}
+		});
 		// [[BPR-1582]]. The row menu's Mark as read is the card's Mark read.
 		Finder->set_read_dispatch([this](const std::string& aThread, const bool aRead) {
 			if (aRead && ConversationReadDispatch) {
@@ -1194,7 +1354,9 @@ namespace bpr::qt {
 		// whatever the modality shows; Expand makes it the focused page in
 		// Discuss, whose Restore brings the sheet back. The composer is one
 		// widget, lent to whichever is open.
-		ReviewSheet = new compose_review_sheet{ ReviewSurface };
+		// [[BPR-2175]]. The lightbox is the window's own child: it dims the
+		// whole window below its title row, whatever the modality shows.
+		ReviewSheet = new compose_review_sheet{ this };
 		ReviewSheet->scroll()->viewport()->setBackgroundRole(QPalette::Base);
 		{
 			const auto expandKey = shortcut_key(shortcut_command::draft_to_discuss).toString(QKeySequence::NativeText);
@@ -1271,6 +1433,24 @@ namespace bpr::qt {
 		ReviewSubmissionEditor->set_pending_open([this](const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination) {
 			open_pending_comment(aComment, aDestination);
 		});
+		// [[BPR-2094]]. Drafts not in the review: Add and Add all, a row's
+		// click, and a pending row's Leave out.
+		ReviewSubmissionEditor->set_outside_dispatch(
+			[this](std::vector<core::review_draft_id> aDrafts) {
+				if (DraftReviewDispatch) {
+					DraftReviewDispatch(std::move(aDrafts), true);
+				}
+			},
+			[this](const review_submission_editor::outside_draft& aDraft) { static_cast<void>(open_roster_draft(aDraft.Id)); });
+		// RFC-BPR-0127 ([[BPR-2159]]). Keep Local on a not-in-review row, and
+		// the Local line's Show.
+		ReviewSubmissionEditor->set_outside_keep_local([this](const review_submission_editor::outside_draft& aDraft) { keep_listed_draft_local(aDraft.Id); });
+		ReviewSubmissionEditor->set_local_show([this] { static_cast<void>(show_state_in_threads(finder_state::local, QString{ })); });
+		ReviewSubmissionEditor->set_pending_leave_out([this](const core::review_submission_comment& aComment) {
+			if (DraftReviewDispatch) {
+				DraftReviewDispatch({ aComment.Draft }, false);
+			}
+		});
 		ReviewSubmissionEditor->set_pending_delete([this](const core::review_submission_comment& aComment) {
 			if (PendingCommentDeleteDispatch) {
 				PendingCommentDeleteDispatch(aComment.Draft, aComment.DraftRevision);
@@ -1341,16 +1521,6 @@ namespace bpr::qt {
 			close_review_composition();
 			static_cast<void>(reveal_conversation(aIdentity));
 		});
-		// [[BPR-1592]]. RFC-BPR-0085 D3: Notes is the private notes at their
-		// lines, and nothing else. The agent's panels move, unchanged, to the
-		// provisional Agent tab with the private history and its purpose.
-		auto* const notesPage       = new QWidget{ Drawers[1].Panel };
-		auto* const notesPageLayout = new QVBoxLayout{ notesPage };
-		notesPageLayout->setContentsMargins(0, 0, 0, 0);
-		NotesHome    = notesPage;
-		PrivateNotes = new private_notes_panel{ notesPage };
-		notesPageLayout->addWidget(PrivateNotes, 1);
-		wire_private_notes();
 		// [[BPR-1781]]. The agent's page is a body in a home: Overview's
 		// drawer borrows the body, whole, while Overview shows.
 		AgentHome = new QWidget{ Drawers[1].Panel };
@@ -1397,7 +1567,7 @@ namespace bpr::qt {
 		// seventh finding action cannot be declared and then never offered.
 		//
 		// BPR-0506. Stacked rather than in a row. Six buttons whose longest
-		// label is *Convert to local draft comment* need more width than any
+		// label was *Convert to local draft comment* needed more width than any
 		// drawer a reviewer is likely to give this column, and the drawer
 		// deliberately does not scroll sideways, so a row put the last two
 		// actions somewhere no gesture reaches. A column cannot clip: each
@@ -1414,10 +1584,15 @@ namespace bpr::qt {
 				continue;
 			}
 			const auto         kind   = static_cast<finding_queue_action>(index);
-			QToolButton* const button = kind == finding_queue_action::open_evidence || kind == finding_queue_action::ask_follow_up || kind == finding_queue_action::add_to_private_notes
+			QToolButton* const button = kind == finding_queue_action::open_evidence || kind == finding_queue_action::ask_follow_up || kind == finding_queue_action::keep_local
 				? static_cast<QToolButton*>(new quiet_tool_button{ conversationContents })
 				: new QToolButton{ conversationContents };
 			button->setDefaultAction(action);
+			// Owner look v005: the keep pair wears the state control's
+			// glyphs; their words stay beside them in this list.
+			if (kind == finding_queue_action::keep_local || kind == finding_queue_action::convert_to_draft_comment) {
+				button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			}
 			findingActions->addWidget(button);
 		}
 		findingsLayout->addLayout(findingActions);
@@ -1487,11 +1662,11 @@ namespace bpr::qt {
 		notesPurpose->hide();
 		privateTabs->hide();
 
-		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
-		// and Tour. The drawer still
-		// opens on Comments. Choosing Notes is RFC-BPR-0031's explicit move
-		// into the AI tools, the action that cues compare_glance in the corner; it
-		// dispatches no agent or review action and never opens the drawer.
+		// [[BPR-1134]]. The tray's header is its tabs: Comments, Tour and
+		// Agent. The drawer still opens on Comments. Choosing Agent is
+		// RFC-BPR-0031's explicit move into the AI tools, the action that cues
+		// compare_glance in the corner; it dispatches no agent or review action
+		// and never opens the drawer.
 		auto* const conversationShell       = new QWidget{ Drawers[1].Panel };
 		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
 		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
@@ -1500,17 +1675,17 @@ namespace bpr::qt {
 		TrayTabs->setObjectName(QStringLiteral("workbenchTrayTabs"));
 		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
 		TrayTabs->setAccessibleDescription(QStringLiteral(
-			"Comments, Notes and Tour. Notes and tour preparation are private until explicitly published."));
+			"Comments, Tour and Agent. Local comments and tour preparation are never sent until you choose to."));
 		configure_drawer_tabs(*TrayTabs);
 		// [[BPR-1594]]. The Agent keeps its spark beside its name.
 		// [[BPR-1684]]: fit_tray_tabs gives each tab its face, glyph
 		// and tooltip for the width the row has.
+		// RFC-BPR-0127 ([[BPR-2158]]). Comments absorbs Notes: the tray's tabs
+		// are Comments, Tour and Agent; Local comments are cards in Comments.
 		TrayTabs->addTab(tr("Comments"));
-		TrayTabs->addTab(tr("Notes"));
 		TrayTabs->addTab(tr("Tour"));
 		TrayTabs->addTab(drawer_icon(drawer_glyph::agent, palette()), tr("Agent"));
 		TrayTabs->setAccessibleTabName(tray_comments_tab, tr("Comments"));
-		TrayTabs->setAccessibleTabName(tray_notes_tab, tr("Notes"));
 		TrayTabs->setAccessibleTabName(tray_tour_tab, tr("Tour"));
 		TrayTabs->setAccessibleTabName(tray_findings_tab, tr("Agent"));
 		// [[BPR-1684]]. The count is the tab's button only while it
@@ -1526,7 +1701,6 @@ namespace bpr::qt {
 		TrayPages = new QStackedWidget{ conversationShell };
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
-		TrayPages->addWidget(notesPage);
 		// [[BPR-1593]]. The Tour tab is the route; its editor moves to the tour
 		// page on Expand and back on Back to the code, so it sits in a holder.
 		TourHolder = new QWidget{ conversationShell };
@@ -1545,11 +1719,17 @@ namespace bpr::qt {
 		TourChatSplit = new QSplitter{ Qt::Horizontal, conversationShell };
 		TourChatSplit->setObjectName(QStringLiteral("workbenchTourChatSplit"));
 		TourChatSplit->setChildrenCollapsible(false);
-		TourChatSplit->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
+		// [[BPR-1991]]. The tab's head and agent bar stay put; the editor
+		// scrolls its own route between them.
+		TourChatSplit->addWidget(TourHolder);
 		auto* const chat = TourEditor->side_chat();
-		// [[BPR-1934]]. An empty chat's suggested prompts, from the
-		// application's one list.
-		chat->set_prompt_source(&application::tour_chat_prompts);
+		// [[BPR-1934]], RFC-BPR-0125. The chats' suggested prompts are the
+		// core's offers from the shipped set, until the host gives the
+		// profile's own.
+		chat->set_prompt_macros(core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { })));
+		// [[BPR-1998]]. Its replies' references open as the Agent tab's do.
+		chat->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
+								  [this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); });
 		TourChatSplit->addWidget(chat);
 		TourChatSplit->setStretchFactor(0, 9);
 		TourChatSplit->setStretchFactor(1, 11);
@@ -1571,38 +1751,26 @@ namespace bpr::qt {
 		// [[BPR-1887]]. Navigation belongs with the tools, outside the
 		// viewport where a note can hang from any code line.
 		commentsToolsRow->addWidget(ConversationPanel->cards()->pull_request_comments_chip(), 0, Qt::AlignVCenter);
+		// RFC-BPR-0127 ("Where a Local comment can be"). Beside it, my Local
+		// comments on this whole file and on other files, each when there are
+		// any.
+		commentsToolsRow->addWidget(ConversationPanel->cards()->local_file_chip(), 0, Qt::AlignVCenter);
+		commentsToolsRow->addWidget(ConversationPanel->cards()->local_elsewhere_chip(), 0, Qt::AlignVCenter);
 		commentsToolsRow->addSpacing(4);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
-		commentsToolsRow->addWidget(NextNewCommentButton);
-		// [[BPR-1592]]. The Notes tab's tools: a new note on the selected line
-		// (N), and the notes on the pull request.
-		NotesTools = new QWidget{ CommentsTools->parentWidget() };
-		NotesTools->setObjectName(QStringLiteral("workbenchNotesTools"));
-		auto* const notesToolsRow = new QHBoxLayout{ NotesTools };
-		notesToolsRow->setContentsMargins(0, 0, 0, 0);
-		notesToolsRow->setSpacing(1);
-		PrivateNotes->new_line_action()->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-		PrivateNotes->elsewhere_action()->setIcon(drawer_icon(drawer_glyph::pull_request, palette()));
-		auto* const newNote = make_drawer_tool(NotesTools, PrivateNotes->new_line_action()->icon(), PrivateNotes->new_line_action()->toolTip(), QStringLiteral("workbenchNewNoteTool"));
-		newNote->setDefaultAction(PrivateNotes->new_line_action());
-		newNote->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		notesToolsRow->addWidget(newNote);
-		auto* const elsewhere = make_drawer_tool(NotesTools, drawer_icon(drawer_glyph::pull_request, palette()), PrivateNotes->elsewhere_action()->text(), QStringLiteral("workbenchNotesElsewhereTool"));
-		elsewhere->setDefaultAction(PrivateNotes->elsewhere_action());
-		elsewhere->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		notesToolsRow->addWidget(elsewhere);
-		NotesTools->hide();
-		// [[BPR-1593]]. The Tour tab's tools: Add stop, and Expand to the
-		// tour page.
+		PreviousCommentButton->setParent(CommentsTools);
+		NextCommentButton->setParent(CommentsTools);
+		commentsToolsRow->addWidget(PreviousCommentButton);
+		commentsToolsRow->addWidget(NextCommentButton);
+		// [[BPR-1593]]. The Tour tab's tools: Expand to the tour page.
+		// [[BPR-2176]]: Add stop left; Option-Shift-T, the Pull Request menu
+		// and the code menu add a stop.
 		TourTools = new QWidget{ CommentsTools->parentWidget() };
 		TourTools->setObjectName(QStringLiteral("workbenchTourTools"));
 		auto* const tourToolsRow = new QHBoxLayout{ TourTools };
 		tourToolsRow->setContentsMargins(0, 0, 0, 0);
 		tourToolsRow->setSpacing(1);
-		auto* const addStop = make_drawer_tool(TourTools, conversation_icon(conversation_glyph::comment, palette()), tr("Add a stop on the selected lines"), QStringLiteral("workbenchAddTourStopTool"));
-		connect(addStop, &QToolButton::clicked, this, [this] { TourEditor->trigger(tour_editor_action::add_stop); });
-		tourToolsRow->addWidget(addStop);
 		auto* const expandTour = make_drawer_tool(TourTools, conversation_icon(conversation_glyph::maximize, palette()), tr("Expand to the tour page"), QStringLiteral("workbenchExpandTourTool"));
 		connect(expandTour, &QToolButton::clicked, this, [this] { open_tour_page(false); });
 		tourToolsRow->addWidget(expandTour);
@@ -1612,14 +1780,22 @@ namespace bpr::qt {
 		trayToolsRow->setContentsMargins(0, 0, 0, 0);
 		trayToolsRow->setSpacing(0);
 		CommentsTools->setParent(trayTools);
-		NotesTools->setParent(trayTools);
 		TourTools->setParent(trayTools);
 		trayToolsRow->addWidget(CommentsTools);
-		trayToolsRow->addWidget(NotesTools);
 		trayToolsRow->addWidget(TourTools);
 		trayHeader->set_parts(TrayTabs, trayTools);
+		// RFC-BPR-0127. Where even their own row is too narrow for the
+		// tools' words (the link and the Local comment chips beside it), the
+		// chips keep their glyphs and counts.
+		trayHeader->set_fit([this, trayTools](const int aWidth) {
+			if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+				return;
+			}
+			auto* const cards = ConversationPanel->cards();
+			cards->set_edge_chips_compact(trayTools->sizeHint().width() + cards->edge_chips_saving() > aWidth);
+		});
 		// [[BPR-1592]] [[BPR-1684]]. RFC-BPR-0085 D5: where the names do
-		// not fit the tabs go compact, so four tabs never scroll.
+		// not fit the tabs go compact, so the tabs never scroll.
 		trayHeader->installEventFilter(this);
 		TrayHeader = trayHeader;
 		fit_tray_tabs(true);
@@ -1635,11 +1811,7 @@ namespace bpr::qt {
 			// [[BPR-1684]]. A compact row names the open tab.
 			fit_tray_tabs();
 			CommentsTools->setVisible(aIndex == tray_comments_tab);
-			NotesTools->setVisible(aIndex == tray_notes_tab);
 			TourTools->setVisible(aIndex == tray_tour_tab);
-			if (aIndex == tray_notes_tab && PrivateNotes != nullptr) {
-				PrivateNotes->refresh_geometry();
-			}
 			apply_thread_marks();
 			// [[BPR-1925]]. The chat goes with the Tour tab; the drawer holds
 			// both while it shows and narrows again on the other tabs.
@@ -1657,12 +1829,24 @@ namespace bpr::qt {
 		// tray has, borrowed while Overview shows, and the tour's summary.
 		if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
 			drawer->tour_summary()->set_dispatch([this](const overview_tour_gesture aGesture) { follow_overview_tour(aGesture); });
+			// [[BPR-1996]]. The Problem's and the Solution's references open their lines in Review.
+			drawer->tour_summary()->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
+														[this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); });
+			// [[BPR-1993]]. A stop row opens its stop in Review; the head's
+			// actions do what the Tour tab head's do.
+			drawer->tour_summary()->set_stop_dispatch([this](const core::tour_stop_id aStop) {
+				open_review_tour();
+				TourEditor->go_to_stop(aStop);
+			});
+			drawer->tour_summary()->set_head_dispatch([this](const core::tour_head_action aAction) {
+				if (aAction == core::tour_head_action::resume) {
+					open_review_tour();
+				}
+				TourEditor->trigger_head(aAction);
+			});
 			drawer->set_tab_observer([this](const overview_drawer_tab aTab) {
 				if (!ConversationTabsLent) {
 					return;
-				}
-				if (aTab == overview_drawer_tab::notes && PrivateNotes != nullptr) {
-					PrivateNotes->refresh_geometry();
 				}
 				if (aTab == overview_drawer_tab::agent && AgentTab != nullptr) {
 					AgentTab->refresh();
@@ -1671,6 +1855,19 @@ namespace bpr::qt {
 			});
 		}
 		ConversationPanel->cards()->set_pull_request_link_dispatch([this](const std::string& aIdentity) { open_pull_request_conversation(aIdentity); });
+		// RFC-BPR-0127. My Local comment edited in place: saved only on this
+		// computer, by the composition, at the revision editing began from.
+		ConversationPanel->cards()->set_local_edit_dispatch([this](const std::uint64_t aId, const std::uint64_t aRevision, const std::string& aBody) {
+			auto gesture     = comment_state_gesture{ };
+			gesture.Action   = card_action::edit_local;
+			gesture.Identity = conversation_cards_view::local_comment_identity(aId);
+			gesture.Local    = aId;
+			gesture.Revision = aRevision;
+			gesture.Body     = aBody;
+			if (CommentStateDispatch) {
+				CommentStateDispatch(gesture);
+			}
+		});
 		// [[BPR-1781]]. The new comment goes the way a reply does: a private
 		// draft first, posted only by its Send, by the composition.
 		ConversationPanel->set_new_comment_dispatch([this](const core::conversation_reply_action aAction, const QString& aText) {
@@ -1682,6 +1879,7 @@ namespace bpr::qt {
 			refresh_overview_tour();
 			refresh_tour_open_offer();
 		});
+		TourEditor->set_head_observer([this] { refresh_overview_tour(); });
 		// [[BPR-1806]]. A published tour stop's Open in tour.
 		ConversationPanel->cards()->set_tour_open_dispatch([this](const std::string& aPost, const core::published_tour_stop& aStop) {
 			if (TourStopDispatch) {
@@ -1789,6 +1987,8 @@ namespace bpr::qt {
 			openRow->setContentsMargins(24, 16, 24, 0);
 			openRow->setSpacing(12);
 			openRow->addWidget(openFrame, 1);
+			// Home variant 1: Prepare Pull Request… stands in the Open row.
+			HomePrepareSlot = openRow;
 			homeColumn->addLayout(openRow);
 			HomeOpenRow = openRow;
 			// A refusal belongs beside what was refused. Silence on Return was
@@ -2013,9 +2213,68 @@ namespace bpr::qt {
 			connect(HomeRecentRemoveAction, &QAction::triggered, this, [this] {
 				remove_recent_review(HomeRecentList->currentRow());
 			});
+			// RFC-BPR-0108. The author entry leads Home, above its sections
+			// (X01): Prepare pull request… and the local drafts In preparation.
+			// It needs no account, so it stays whether or not one is signed in.
+			HomeAuthor = new QWidget{ HomePage };
+			HomeAuthor->setObjectName(QStringLiteral("homeAuthor"));
+			HomeAuthor->setAccessibleName(QStringLiteral("Prepare a pull request"));
+			HomeAuthor->setContentsMargins(24, 4, 24, 4);
+			HomeAuthor->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+			auto* const authorColumn = new QVBoxLayout{ HomeAuthor };
+			authorColumn->setContentsMargins(0, 0, 0, 0);
+			authorColumn->setSpacing(4);
+			HomePrepare = new QPushButton{ QStringLiteral("Prepare Pull Request…"), HomePage };
+			HomePrepare->setObjectName(QStringLiteral("homePrepareButton"));
+			HomePrepare->setToolTip(QStringLiteral("Choose a Git worktree to see the pull request its branch proposes. No account, push or agent needed"));
+			HomePrepare->setEnabled(false);
+			if (HomePrepareSlot != nullptr) {
+				HomePrepareSlot->addWidget(HomePrepare, 0, Qt::AlignVCenter);
+				// The Open field gives the button its room, so Home's
+				// narrowest width is what it was before the button joined.
+				HomeOpenBar->setMinimumWidth(std::max(0, HomeOpenBar->minimumSizeHint().width() - HomePrepare->sizeHint().width() - 12));
+			}
+			// Home variant 1: no band and no visible title. Each local draft is
+			// one line in Home's row grid, first on the page; In preparation is
+			// the group's accessible name.
+			HomeDrafts = new QWidget{ HomeAuthor };
+			HomeDrafts->setObjectName(QStringLiteral("homeInPreparation"));
+			HomeDrafts->setAccessibleName(QStringLiteral("In preparation"));
+			auto* const draftsColumn = new QVBoxLayout{ HomeDrafts };
+			draftsColumn->setContentsMargins(0, 2, 0, 0);
+			draftsColumn->setSpacing(0);
+			HomeDraftsList = new QListWidget{ HomeDrafts };
+			HomeDraftsList->setObjectName(QStringLiteral("homeInPreparationList"));
+			HomeDraftsList->setAccessibleName(QStringLiteral("In preparation"));
+			HomeDraftsList->setAccessibleDescription(home_open_description());
+			HomeDraftsList->installEventFilter(this);
+			HomeDraftsList->setFrameShape(QFrame::NoFrame);
+			HomeDraftsList->setItemDelegate(new home_draft_delegate{ HomeDraftsList });
+			HomeDraftsList->setUniformItemSizes(true);
+			HomeDraftsList->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+			HomeDraftsList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			HomeDraftsList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+			auto draftsPalette = HomeDraftsList->palette();
+			draftsPalette.setColor(QPalette::Base, draftsPalette.color(QPalette::Window));
+			HomeDraftsList->setPalette(draftsPalette);
+			draftsColumn->addWidget(HomeDraftsList);
+			HomeDrafts->hide();
+			authorColumn->addWidget(HomeDrafts);
+			homeColumn->addWidget(HomeAuthor);
+			connect(HomePrepare, &QPushButton::clicked, this, [this] {
+				if (PrepareDispatch) {
+					PrepareDispatch();
+				}
+			});
+			connect(HomeDraftsList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* const aItem) {
+				resume_home_draft(aItem == nullptr ? -1 : HomeDraftsList->row(aItem));
+			});
+
 			// [[BPR-1157]]. Review Cycles beside the pull request ways in: Open
 			// Project and the cycles this profile keeps, most recent first. It
 			// needs no account, so it stays whether or not one is signed in.
+			// RFC-BPR-0108 moves it below Home's sections, compact and
+			// secondary; File > Open Project… is unchanged.
 			HomeCycles = new QWidget{ HomePage };
 			HomeCycles->setObjectName(QStringLiteral("homeReviewCycles"));
 			HomeCycles->setAccessibleName(QStringLiteral("Review Cycles"));
@@ -2025,9 +2284,6 @@ namespace bpr::qt {
 			auto* const cyclesHeader = new QHBoxLayout{ };
 			auto* const cyclesTitle  = new QLabel{ QStringLiteral("Review Cycles"), HomeCycles };
 			cyclesTitle->setObjectName(QStringLiteral("homeReviewCyclesTitle"));
-			auto cyclesFont = cyclesTitle->font();
-			cyclesFont.setWeight(QFont::DemiBold);
-			cyclesTitle->setFont(cyclesFont);
 			cyclesHeader->addWidget(cyclesTitle);
 			cyclesHeader->addStretch(1);
 			auto* const openProject = new quiet_tool_button{ HomeCycles };
@@ -2044,10 +2300,9 @@ namespace bpr::qt {
 			// because on macOS it is an item view's editing key.
 			HomeCyclesList->setAccessibleDescription(home_open_description());
 			HomeCyclesList->installEventFilter(this);
-			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 5 + 8);
+			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 3 + 8);
 			HomeCyclesList->hide();
 			cyclesColumn->addWidget(HomeCyclesList);
-			homeColumn->addWidget(HomeCycles);
 			connect(openProject, &QToolButton::clicked, this, [this] {
 				if (OpenProjectAction != nullptr) {
 					OpenProjectAction->trigger();
@@ -2070,6 +2325,7 @@ namespace bpr::qt {
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
 			}
+			homeColumn->addWidget(HomeCycles);
 			// [[BPR-1200]]. With no list to fill it, Home's slack is a fill below
 			// the last thing shown, as the accepted board puts it under the
 			// first-launch card, so a refusal or a load in progress is said

@@ -86,6 +86,7 @@ agent and publishing a finished result as a new pull request.
 | [Review Tours](docs/development/review-tours.md) | Writing, previewing and publishing a guided review |
 | [Private review](docs/ux/private-review-workflow.md) | Local conversations, drafts and their publication boundaries |
 | [Review Cycles CLI](docs/development/cycle-cli.md) | Working with local review rounds through `bpr cycle` |
+| [Local PR drafts CLI](docs/development/draft-cli.md) | Handing a worktree to a local PR draft with `bpr draft open` |
 | [Storage and removal](docs/development/storage-and-diagnostics.md) | Local data, diagnostics, profile purge and uninstall |
 | [Application updates](docs/development/application-updates.md) | Updates and recovery on eligible macOS installations |
 | [Security overview](docs/security/corporate-security-overview.md) | Network access, credentials, subprocesses and AI boundaries |

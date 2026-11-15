@@ -118,7 +118,7 @@ namespace bpr::app::detail {
 			case 3:
 				if (window.comparison_surface()->current_semantic_index() && !window.comparison_surface()->geometry_pending()) {
 					if (window.comparison_surface()->select_conversation_line(core::diff_side::right, 1)) {
-						window.tray_tabs()->setCurrentIndex(1);
+						window.tray_tabs()->setCurrentIndex(2);
 						QObject::connect(window.conversation_model(), &QAbstractItemModel::modelReset, &window, [aCourse] { ++aCourse->SharedResets; });
 						++aCourse->Stage;
 					}

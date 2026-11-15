@@ -5,6 +5,7 @@
 #include <QPalette>
 
 #include <cstdint>
+#include <optional>
 
 class QWidget;
 
@@ -35,7 +36,27 @@ namespace bpr::qt {
 	/// 30° from both the link, focus and unread blue (212°) and the violet
 	/// that means fixed and merged (261°); green would read as added or
 	/// accepted, and amber is the tour's route.
+	///
+	/// [[BPR-2000]], RFC-BPR-0101: the accent is the Agent accent role of the
+	/// appearance on screen (Appearance › Colours), which the application
+	/// gives `set_agent_accent`; until it does, the shipped Light or Dark
+	/// value by `aPalette`'s window. No surface keeps a fixed value.
 	[[nodiscard]] auto agent_accent(const QPalette& aPalette) -> QColor;
+
+	/// \brief [[BPR-2000]]. The Agent accent of the appearance on screen;
+	/// none returns to the shipped values. Answers whether it changed.
+	auto set_agent_accent(std::optional<QColor> aAccent) -> bool;
+
+	/// \brief [[BPR-2000]], RFC-BPR-0101. A control that starts or continues
+	/// an agent run: it wears the accent (`apply_agent_accent`) and says so
+	/// (`agent_run_control`), so an inventory can find every one. Any other
+	/// control uses the ordinary button roles.
+	void wear_agent_accent(QWidget& aControl, const QPalette& aGround);
+	/// \brief The control was marked by `wear_agent_accent`.
+	[[nodiscard]] auto agent_run_control(const QWidget& aControl) -> bool;
+	/// \brief Takes the accent off a control that no longer starts a run
+	/// (Stop, while Send is Stop), back to the ordinary roles.
+	void wear_ordinary_roles(QWidget& aControl);
 
 	/// \brief [[BPR-1881]]. The accent as a disabled control's words: the
 	/// accent faded toward the window, so a disabled agent control still

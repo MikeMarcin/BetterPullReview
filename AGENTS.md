@@ -100,6 +100,27 @@ network, or process effects.
   and packs under `pull-requests`), so a freeze runs no
   `scripts/build_*_fixture.py`; a fixture that must be generated goes through
   `--generate`. Helpers a look launches are `--target`s and `--argument`s.
+  A look that must reach live GitHub freezes with `--live`: a tests-off
+  build, no fixture, its own profile home inside the root (the owner signs
+  in there; their own profile is untouched), and a `--check` that refuses a
+  tests-on image, runs the self-test and starts it offscreen on a scratch
+  home.
+  A freeze takes the lane's clean HEAD; any other commit needs
+  `--not-head-because REASON`. Paste its `SESSION_LINE:` (the frozen commit
+  and subject) into every candidate's content, so the owner sees what they
+  are judging.
+- Looks never spend the owner's agent usage (owner, 2026-11-14: "why am I
+  wasting a ton of money just seeing how buttons and UI flow works"). A
+  tests-on look runs the fixture agent (`tests/support/fixture_agent_main.cpp`,
+  "Fixture agent" in the picker), never an installed Claude Code or Codex; its
+  launcher's `--check` refuses an image that could start one. Only a
+  `freeze --live` build runs a real agent, and only when the look is about the
+  agent itself.
+- Freeze a look with a fixture that already holds the surface under review,
+  and open the build on it: a look at a tour serves a pull request with a
+  tour. The owner, accepting the tour-publishing look on 2026-11-10: "It's
+  weird that you didn't set it up to load a fixture that included a tour to
+  look at."
 - Never copy authenticated attended-review or wizard URLs into tracked files.
   Record the session ID, external state directory and lifecycle status instead;
   keep credential-bearing URLs in the external session state.
@@ -199,5 +220,33 @@ otherwise, naming the version they found and the interpreter they found it at.
 On macOS `/usr/bin/python3` is older than that, so `python3` must resolve to a
 newer interpreter. Run a gate without a pipe: `| tail` reports the pipe's exit
 status, not the gate's.
+
+### Build jobserver
+
+Several agents build on one Mac at once, and full-width builds side by side
+have run it out of memory. One machine-wide GNU make jobserver caps them all.
+Start it once per login; `start` is idempotent and `stop` signals only the pid
+its own pidfile names:
+
+```sh
+python3 scripts/build_jobserver.py start     # 40 tokens; --tokens N to change
+python3 scripts/build_jobserver.py status
+python3 scripts/build_jobserver.py stop
+```
+
+- Every `cmake --build --preset dev` joins it: the dev preset's
+  `CMAKE_MAKE_PROGRAM` is `scripts/jobserver_ninja.py`, which hands Ninja the
+  FIFO and drops `-j` (Ninja ignores a jobserver whenever `-j` is given). All
+  builds together then run at most N jobs; one build may use all N, and when
+  every token is in use a build waits for one.
+- With no server, or a stale FIFO from a killed one, the same build runs at
+  the preset's `-j 8`. It never fails or waits for a missing server.
+- One build per tree: the wrapper locks `.bpr-build.lock` in the build
+  directory, so a second build of the same tree prints whom it waits for and
+  runs after the first (two Ninjas in one tree corrupt its static archives).
+  Builds of different trees still run side by side on the shared tokens.
+- A tree configured before the wrapper joins after one `cmake --preset dev`.
+- Never build wider than `-j 8`, and never run `ninja` directly in a shared
+  tree with a larger `-j`: a bare `ninja` outside the wrapper does not join.
 
 Before RFC closeout, run the documentation gate and focused acceptance/public-path checks. At pack or milestone integration, normally run one integration-focused pass; full relevant tests and critical review are appropriate when scope warrants them. Application-wide builds, exhaustive matrices, hermetic replay, repeated reviews and manual approvals are not defaults. Reuse unchanged passing evidence.

@@ -1,5 +1,6 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -24,6 +25,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -559,6 +561,13 @@ namespace {
 		view.set_feed(true);
 		view.set_scope(qt::cards_scope::whole_pull_request);
 		QApplication::processEvents();
+		// [[BPR-2171]]. A file's read, resolved threads fold into its row,
+		// and still count; opened, the row lists them.
+		const auto folded = std::ranges::find_if(view.timeline_lines(), [](const qt::timeline_line& aLine) { return !aLine.Fold.empty() && !aLine.Open; });
+		expect(view.cards().size() == 2U && view.thread_count() == 3U && folded != view.timeline_lines().end() && folded->Path == QStringLiteral("src/a.cpp") && folded->Folded == 1U,
+			   "Discuss folds the read, resolved thread into its file's row, still counted");
+		view.toggle_fold(folded->Fold);
+		QApplication::processEvents();
 		expect(view.feed() && view.cards().size() == 3U
 				   && view.cards()[0].Id == "t-resolved" && view.cards()[2].Id == "t-open"
 				   && std::ranges::none_of(view.cards(), &qt::thread_card::Placed),
@@ -583,21 +592,30 @@ namespace {
 		button(view, "threadShowLine")->click();
 		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::mark_read, "t-open" }, { qt::card_action::open_in_code, "t-open" } },
 			   "in Discuss the line button opens the thread in the code");
-		// [[BPR-1773]]. An open review thread offers Ask agent, in its
-		// header and its menu; either only names the thread to the host.
-		expect(button(view, "threadAskAgent") != nullptr && button(view, "threadAskAgent")->toolTip() == QStringLiteral("Ask agent about this conversation"),
-			   "an open review thread offers Ask agent about this conversation");
-		button(view, "threadAskAgent")->click();
-		expect(actions.back() == std::pair{ qt::card_action::ask_agent, std::string{ "t-open" } }, "the header's Ask agent names the thread to the host");
+		// RFC-BPR-0128 ([[BPR-2164]]). Ask agent left the header: the open
+		// thread's Ask stands where a reply is written, and the thread's menu
+		// has one Ask item, both filled by the window with the thread's quick
+		// asks.
+		expect(button(view, "threadAskAgent") == nullptr && button(view, "threadWasAddressed") == nullptr, "the header has no agent controls");
+		expect(button(view, "threadAsk") == nullptr, "no Ask until the window fills its menu");
 		{
+			auto filled = std::vector<std::string>{ };
+			view.set_ask_menu_filler([&filled](QMenu& aMenu, const QString& aThread, const QString& aTitle) {
+				filled.push_back(aThread.toStdString());
+				aMenu.addAction(aTitle);
+			});
+			auto* const ask = static_cast<qt::ask_menu_button*>(button(view, "threadAsk"));
+			expect(ask != nullptr && ask->text() == QStringLiteral("Ask") && !ask->accessibleName().isEmpty(), "the open thread has Ask at its reply row");
+			ask->refresh_menu();
+			expect(filled == std::vector<std::string>{ "t-open" } && !ask->menu()->actions().isEmpty() && ask->menu()->actions().front()->text() == QStringLiteral("Thread on line 9"),
+				   "its menu is the window's, for this thread");
 			auto* const menu = view.thread_menu("t-open");
-			auto* const ask  = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) : nullptr;
-			expect(ask != nullptr && ask->isEnabled() && ask->text() == QStringLiteral("Ask agent about this conversation"), "the thread's menu offers it too");
-			if (ask != nullptr) {
-				ask->trigger();
-			}
-			expect(actions.back() == std::pair{ qt::card_action::ask_agent, std::string{ "t-open" } } && actions.size() == 4U, "and it names the same thread, once");
+			auto* const item = menu != nullptr ? menu->findChild<QMenu*>(QStringLiteral("threadAskMenu")) : nullptr;
+			expect(item != nullptr && filled.size() == 2U && filled.back() == "t-open", "the thread's menu has one Ask item, filled for the thread");
+			expect(menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) == nullptr && menu->findChild<QAction*>(QStringLiteral("threadWasAddressedAction")) == nullptr,
+				   "the agent items it replaces are gone");
 			delete menu;
+			view.set_ask_menu_filler({ });
 		}
 		view.set_resolution_offered(true);
 		QApplication::processEvents();
@@ -1068,6 +1086,502 @@ namespace {
 		expect(view.measurements() == measurements + 1000U, "a third width measures its notes afresh");
 	}
 
+	/// \brief RFC-BPR-0127 ([[BPR-2158]]) AC02, AC14. On a line with a
+	/// published thread, my Local reply in it, my draft reply in it and my
+	/// Local comment on the line: the thread's card holds the published posts
+	/// then the Local reply, the Local comment is its own card after it, the
+	/// line has one gutter mark naming everything on it, and each state is
+	/// said in words. A Local card offers Make draft and Delete; the composer's
+	/// state control turns its foot to Save, and ⌘↩ saves it as Local.
+	auto test_local_comments_share_a_line() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 22U ? std::optional{ 200 } : aLine == 40U ? std::optional{ 480 }
+																																							   : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 22U);
+		auto post = reply("c-1", "review-thread:T1", "tbutler", "issue: begin_frame() can hand back the frame still on screen.");
+		post.Line = 22U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		auto       answer     = core::review_comment_draft{ .Id = core::review_draft_id{ 5U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 21U }, .Body = "Thanks. Does begin_frame() skip it after forget()?" };
+		answer.ReplyToThread  = "T1";
+		view.set_draft(std::nullopt, comparison);
+		view.set_saved_drafts({ answer }, { core::reply_draft_decision{ .Draft = answer.Id, .Thread = "T1", .Standing = core::reply_draft_standing::answerable, .Sendable = true } });
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 7U, .Revision = 1U, .Body = QStringLiteral("Check retained() after a resize."), .ReplyToThread = std::string{ "T1" } },
+			qt::local_comment_card{ .Id = 8U, .Revision = 1U, .Body = QStringLiteral("Height is not clamped here."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 22U, .MakeDraft = QStringLiteral("Make draft") },
+			qt::local_comment_card{ .Id = 9U, .Revision = 1U, .Body = QStringLiteral("Written on another head."), .Notice = QStringLiteral("Outdated: the code it was written on has changed."), .MakeDraftWhy = QStringLiteral("Select a line in the code to make it a draft there.") },
+		});
+		QApplication::processEvents();
+		const auto& cards  = view.cards();
+		const auto  thread = std::ranges::find(cards, std::string{ "review-thread:T1" }, &qt::thread_card::Id);
+		const auto  local  = std::ranges::find(cards, std::string{ "local:8" }, &qt::thread_card::Id);
+		const auto  stale  = std::ranges::find(cards, std::string{ "local:9" }, &qt::thread_card::Id);
+		expect(thread != cards.end() && thread->Posts.size() == 2U && !thread->Posts.front().Local && thread->Posts.back().Local && thread->Posts.back().Name.contains(QStringLiteral("local reply"))
+				   && thread->LocalReplies == 1U && thread->UnsentReply == core::reply_draft_standing::answerable,
+			   "AC02: the thread's card holds its published post, then my Local reply; my draft reply is its unsent reply");
+		expect(local != cards.end() && local->Local && local->Draft && local->Line == std::optional{ 22U } && local > thread, "my Local comment on the line is its own card, after the published thread");
+		expect(stale != cards.end() && stale->Outdated && !stale->Line && stale->Notice.startsWith(QStringLiteral("Outdated")), "AC06: one this comparison does not place is drawn after the placed cards, with its reason, at no line");
+		const auto marks = view.line_marks(core::diff_side::right);
+		std::cout << "LOCAL_LINE_MARKS " << marks.size() << (marks.empty() ? std::string{ } : " " + marks.front().Description.toStdString()) << '\n';
+		expect(marks.size() == 1U && marks.front().Line == 21U && !marks.front().Draft && marks.front().Description == QStringLiteral("Line 22: 1 thread, 2 local comments, 1 draft reply"),
+			   "AC02: one gutter mark on the line, the thread's, naming everything on it");
+		expect(qt::comment_state_words(true, false, false) == QStringLiteral("Local comment, only on this computer") && qt::comment_state_words(false, true, false) == QStringLiteral("Draft, not in your review")
+				   && qt::comment_state_words(false, true, true) == QStringLiteral("Draft, in your review"),
+			   "AC14: each state in words");
+
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		view.open_thread("local:8");
+		QApplication::processEvents();
+		auto* const state = view.open_card() != nullptr ? view.open_card()->findChild<QWidget*>(QStringLiteral("threadLocalState")) : nullptr;
+		auto* const make  = button(view, "threadMakeDraft");
+		expect(state != nullptr && state->accessibleName() == QStringLiteral("Local comment, only on this computer") && state->toolTip() == QStringLiteral("Only on this computer"),
+			   "AC14: the open Local card says its state, with the computer's tooltip");
+		expect(make != nullptr && make->isEnabled() && make->text() == QStringLiteral("Make draft") && make->focusPolicy() != Qt::NoFocus, "Make draft is offered and reachable by keyboard");
+		make->click();
+		auto* const remove = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadDeleteLocal"));
+		expect(remove != nullptr, "Delete is offered");
+		remove->click();
+		expect(actions.size() == 2U && actions[0] == std::pair{ qt::card_action::make_draft, std::string{ "local:8" } } && actions[1] == std::pair{ qt::card_action::delete_local, std::string{ "local:8" } },
+			   "Make draft and Delete go to the window by the card's identity; nothing is published");
+		view.open_thread("local:9");
+		QApplication::processEvents();
+		expect(button(view, "threadMakeDraft") != nullptr && !button(view, "threadMakeDraft")->isEnabled() && button(view, "threadMakeDraft")->property("draftRefused").toBool()
+				   && button(view, "threadMakeDraft")->toolTip() == QStringLiteral("Select a line in the code to make it a draft there."),
+			   "AC06: an outdated one offers Make draft only with a line selected, and says so");
+	}
+
+	/// \brief RFC-BPR-0127 ([[BPR-2158]]) AC06, AC14. Where a Local comment
+	/// can be: one on the pull request is counted on the pull request link and
+	/// drawn on Overview's Comments tab; one on the whole file is the file
+	/// chip's and drawn after the placed cards; one on another file is the
+	/// Other files chip's, whose menu goes to it. None is drawn at a line.
+	/// A Local comment is edited in place and saved only on this computer;
+	/// my Local reply in a thread offers Make draft, Copy text and Delete; the
+	/// reply field's state control is Local and Reply, and Local's ⌘↩ saves.
+	auto test_local_comments_edges_and_editing() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 700);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 22U ? std::optional{ 200 } : aLine == 40U ? std::optional{ 480 }
+																																							   : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 22U);
+		view.adopt({ root });
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(std::nullopt, comparison);
+		auto links = std::vector<std::string>{ };
+		view.set_pull_request_link_dispatch([&links](const std::string& aId) { links.push_back(aId); });
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 1U, .Revision = 1U, .Body = QStringLiteral("Ask about the release note."), .MakeDraftWhy = QStringLiteral("Select a line in the code to make it a draft there."), .Place = qt::local_comment_place::pull_request },
+			qt::local_comment_card{ .Id = 2U, .Revision = 1U, .Body = QStringLiteral("This whole file wants a test."), .MakeDraftWhy = QStringLiteral("Select a line in the code to make it a draft there."), .Place = qt::local_comment_place::whole_file },
+			qt::local_comment_card{ .Id = 3U, .Revision = 1U, .Body = QStringLiteral("Check the caller here."), .Place = qt::local_comment_place::other_file, .Path = QStringLiteral("src/b.cpp"), .PathLine = 12U },
+			qt::local_comment_card{ .Id = 4U, .Revision = 1U, .Body = QStringLiteral("And this one."), .Place = qt::local_comment_place::other_file, .Path = QStringLiteral("src/c.cpp") },
+			qt::local_comment_card{ .Id = 7U, .Revision = 1U, .Body = QStringLiteral("Check retained() after a resize."), .ReplyToThread = std::string{ "T1" }, .MakeDraft = QStringLiteral("Make draft") },
+			qt::local_comment_card{ .Id = 8U, .Revision = 3U, .Body = QStringLiteral("Height is not clamped here."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 22U, .MakeDraft = QStringLiteral("Make draft") },
+		});
+		QApplication::processEvents();
+		const auto& cards = view.cards();
+		const auto  has   = [&cards](const char* aId) { return std::ranges::find(cards, std::string{ aId }, &qt::thread_card::Id) != cards.end(); };
+		const auto  whole = std::ranges::find(cards, std::string{ "local:2" }, &qt::thread_card::Id);
+		expect(!has("local:1") && !has("local:3") && !has("local:4") && whole != cards.end() && !whole->Line && whole->Notice == QStringLiteral("On this whole file, not on a line."),
+			   "AC06: beside the code only this file's are drawn, the whole file's after the placed cards at no line");
+		auto* const file      = view.local_file_chip();
+		auto* const elsewhere = view.local_elsewhere_chip();
+		auto* const pull      = view.pull_request_comments_chip();
+		std::cout << "LOCAL_EDGE_CHIPS " << file->accessibleName().toStdString() << " | " << elsewhere->accessibleName().toStdString() << " | " << pull->accessibleName().toStdString() << '\n';
+		expect(file->isVisible() && file->accessibleName() == QStringLiteral("This file: 1 local comment, only on this computer"), "AC06, AC14: the file's chip counts its Local comment, in words");
+		expect(elsewhere->isVisible() && elsewhere->accessibleName() == QStringLiteral("Other files: 2 local comments, only on this computer") && elsewhere->focusPolicy() != Qt::NoFocus,
+			   "AC06, AC14: the Other files chip counts theirs, and is reachable by keyboard");
+		expect(pull->accessibleName().endsWith(QStringLiteral(", 1 local comment")), "AC06: the pull request link counts my Local comment on the pull request");
+		file->click();
+		QApplication::processEvents();
+		expect(view.open_thread_id() == "local:2", "the file's chip opens its comment");
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		elsewhere->click();
+		QApplication::processEvents();
+		auto* const menu = view.local_elsewhere_menu();
+		expect(menu != nullptr && menu->actions().size() == 2U && menu->actions().front()->text().startsWith(QStringLiteral("src/b.cpp:12")), "the Other files chip lists them, each with its file and line");
+		menu->actions().front()->trigger();
+		menu->close();
+		QApplication::processEvents();
+		expect(!actions.empty() && actions.back() == std::pair{ qt::card_action::open_local_elsewhere, std::string{ "local:3" } }, "choosing one goes to its file, then its line");
+
+		// Edited in place: saved only on this computer, at its revision.
+		auto edits = std::vector<std::tuple<std::uint64_t, std::uint64_t, std::string>>{ };
+		view.set_local_edit_dispatch([&edits](const std::uint64_t aId, const std::uint64_t aRevision, const std::string& aBody) { edits.emplace_back(aId, aRevision, aBody); });
+		expect(view.comment_editable("local:8") && view.begin_comment_edit("local:8"), "my Local comment is editable in place");
+		QApplication::processEvents();
+		auto* const editor = view.comment_editor();
+		expect(editor != nullptr && view.open_card()->findChild<QLabel*>(QStringLiteral("threadCommentEditHint")) != nullptr
+				   && view.open_card()->findChild<QLabel*>(QStringLiteral("threadCommentEditHint"))->text() == QStringLiteral("Only on this computer. Never sent."),
+			   "its editor says it is only on this computer");
+		editor->setPlainText(QStringLiteral("Height is not clamped; width is."));
+		QApplication::processEvents();
+		view.comment_edit_save_button()->click();
+		QApplication::processEvents();
+		expect(edits.size() == 1U && edits.front() == std::tuple{ std::uint64_t{ 8U }, std::uint64_t{ 3U }, std::string{ "Height is not clamped; width is." } },
+			   "Save gives its identity, its revision and the words; nothing is sent");
+		auto saved                                                                       = view.local_comments();
+		std::ranges::find(saved, std::uint64_t{ 8U }, &qt::local_comment_card::Id)->Body = QStringLiteral("Height is not clamped; width is.");
+		view.set_local_comments(std::move(saved));
+		QApplication::processEvents();
+		expect(!view.comment_editing().has_value(), "the stored words end the edit");
+
+		// My Local reply in the thread: its own actions, by its identity.
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const make = button(view, "threadLocalReplyMakeDraft");
+		auto* const drop = button(view, "threadLocalReplyDelete");
+		expect(make != nullptr && make->isEnabled() && drop != nullptr && button(view, "threadLocalReplyCopy") != nullptr, "my Local reply offers Make draft, Copy text and Delete");
+		make->click();
+		drop->click();
+		expect(actions.size() >= 2U && actions[actions.size() - 2U] == std::pair{ qt::card_action::make_draft, std::string{ "local:7" } }
+				   && actions.back() == std::pair{ qt::card_action::delete_local, std::string{ "local:7" } },
+			   "they go to the window by the reply's identity");
+
+		// The reply field's state control: Local and Reply.
+		view.begin_reply("review-thread:T1");
+		QApplication::processEvents();
+		auto* const localState = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadReplyStateLocal"));
+		auto* const replyState = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadReplyStateReply"));
+		auto* const saveLocal  = button(view, "threadReplySaveLocal");
+		auto* const send       = button(view, "threadReplyPublish");
+		expect(localState != nullptr && replyState != nullptr && replyState->isChecked() && saveLocal != nullptr && !saveLocal->isVisibleTo(view.open_card()) && send->isVisibleTo(view.open_card()),
+			   "Reply opens on Reply, with Send");
+		localState->click();
+		QApplication::processEvents();
+		expect(localState->isChecked() && saveLocal->isVisibleTo(view.open_card()) && !send->isVisibleTo(view.open_card()) && localState->focusPolicy() != Qt::NoFocus,
+			   "Local: Save in Send's place, reachable by keyboard");
+		view.reply_editor()->setPlainText(QStringLiteral("Only for me."));
+		QApplication::processEvents();
+		auto submit = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QApplication::sendEvent(view.reply_editor(), &submit);
+		QApplication::processEvents();
+		expect(actions.back() == std::pair{ qt::card_action::save_local, std::string{ "review-thread:T1" } } && view.reply_editor() == nullptr, "⌘↩ saves it as a Local reply and folds the field");
+
+		// On Overview's Comments tab: my Local comment on the pull request.
+		view.show_pull_request_comments(true);
+		QApplication::processEvents();
+		const auto pr = std::ranges::find(view.cards(), std::string{ "local:1" }, &qt::thread_card::Id);
+		expect(pr != view.cards().end() && pr->Notice == QStringLiteral("On the pull request. Only on this computer.") && !has("local:8") && !file->isVisible() && !elsewhere->isVisible(),
+			   "AC06: Overview's Comments tab draws my Local comment on the pull request, and nothing at a line");
+		view.show_pull_request_comments(false);
+	}
+
+	/// \brief RFC-BPR-0127 ([[BPR-2158]]) AC01, AC14. The composer's state
+	/// control: Draft chosen for a comment; Local turns its foot to Save and
+	/// the sentence, ⌘↩ saves it as Local, and Draft brings today's row back.
+	/// N's preset (`draft_composer_presentation::Local`) opens it on Local.
+	/// \brief Owner look v002 ([[BPR-2158]]), rejected. A new comment's
+	/// composer on a line above the drawer's top is whole in view, its notch
+	/// still at its line, while an open published thread keeps hanging at
+	/// its line. My Local reply's tooltip sits right under its tag; no
+	/// control in the open card anchors a tooltip to a large area, which is
+	/// how a tooltip ends up far from what it names. Make draft, when it is
+	/// not offered, says why in words under it.
+	auto test_look_v002_rework() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.show();
+		QApplication::processEvents();
+		auto lineY = std::map<std::uint32_t, int>{ { 5U, -40 }, { 22U, 200 } };
+		view.set_line_locator([&lineY](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			const auto found = lineY.find(aLine);
+			return found == lineY.end() ? std::nullopt : std::optional{ found->second };
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 22U);
+		auto post = reply("c-1", "review-thread:T1", "tbutler", "issue: begin_frame() can hand back the frame still on screen.");
+		post.Line = 22U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 4U } }, comparison);
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && view.open_card() != nullptr && view.open_card()->geometry().top() >= 0,
+			   "a new comment's composer on a line above the drawer's top is whole in view (top " + std::to_string(view.open_card() != nullptr ? view.open_card()->geometry().top() : -999) + ")");
+		view.end_draft();
+		view.set_draft(std::nullopt, comparison);
+		QApplication::processEvents();
+		lineY[22U] = -40;
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		expect(view.open_card() != nullptr && view.open_card()->geometry().top() < 0, "negative control: an open published thread still hangs at its line, above the top");
+		lineY[22U] = 200;
+		view.close_thread();
+
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 7U, .Revision = 1U, .Body = QStringLiteral("Check retained() after a resize."), .ReplyToThread = std::string{ "T1" }, .MakeDraftWhy = QStringLiteral("Can't make a draft: your draft reply in this thread is already open. A thread holds one draft reply of yours; send or delete it first.") },
+			qt::local_comment_card{ .Id = 8U, .Revision = 1U, .Body = QStringLiteral("Height is not clamped here."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 22U, .MakeDraftWhy = QStringLiteral("Can't make a draft: your draft on this line already stands. A line holds one draft of yours; publish or delete it first."), .Path = QStringLiteral("src/a.cpp") },
+		});
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const card = view.open_card();
+		expect(card != nullptr, "the thread with my Local reply is open");
+		// The guard: no widget of the open card anchors a tooltip to a large
+		// area, the bug the owner has seen again and again.
+		const auto offenders = [card] {
+			auto found = QStringList{ };
+			for (auto* const widget : card->findChildren<QWidget*>()) {
+				if (!widget->isVisibleTo(card) || widget->height() <= 40) {
+					continue;
+				}
+				if (const auto target = qt::standard_tooltip_target(*widget, widget->rect().center()); target.has_value() && target->Anchor.height() > 40) {
+					found.push_back(QStringLiteral("%1 '%2' (%3 px): %4").arg(QString::fromLatin1(widget->metaObject()->className()), widget->objectName()).arg(target->Anchor.height()).arg(target->Text));
+				}
+			}
+			return found;
+		};
+		const auto bad = offenders();
+		expect(bad.isEmpty(), "no tooltip in the open card is anchored to a large area: " + bad.join(QStringLiteral("; ")).toStdString());
+		const auto posts = card->findChildren<QWidget*>(QStringLiteral("threadPost"));
+		const auto local = std::ranges::find_if(posts, [](const QWidget* aPost) { return aPost->accessibleDescription() == qt::comment_state_words(true, false, false); });
+		expect(local != posts.end() && (*local)->height() > 40, "my Local reply is a post of the thread");
+		(*local)->setToolTip(QStringLiteral("negative control"));
+		expect(!offenders().isEmpty(), "negative control: a tooltip on the whole post is caught");
+		(*local)->setToolTip(QString{ });
+		// Its tag's tooltip, right under the tag.
+		auto shown = false;
+		for (auto x = 0; x < (*local)->width() && !shown; x += 4) {
+			const auto point = QPoint{ x, 14 };
+			QHelpEvent help{ QEvent::ToolTip, point, (*local)->mapToGlobal(point) };
+			QApplication::sendEvent(*local, &help);
+			if (const auto* const tip = qobject_cast<const QLabel*>(qt::anchored_tooltip()); tip != nullptr && tip->text().startsWith(QStringLiteral("Only on this computer"))) {
+				const auto gap = tip->geometry().top() - (*local)->mapToGlobal(point).y();
+				expect(gap > 0 && gap <= 24, "the Local reply's tooltip sits right under its tag (" + std::to_string(gap) + " px below the pointer)");
+				shown = true;
+			}
+		}
+		qt::hide_anchored_tooltip();
+		expect(shown, "pointing at \"Local reply\" shows what it means");
+		// Owner look v003 ("just the tooltip is enough"): a refused Draft is
+		// the struck pencil, disabled, its reason in its tooltip alone.
+		auto* const replyMake = card->findChild<QAbstractButton*>(QStringLiteral("threadLocalReplyMakeDraft"));
+		expect(replyMake != nullptr && !replyMake->isEnabled() && replyMake->property("draftRefused").toBool() && replyMake->toolTip().contains(QStringLiteral("draft reply in this thread"))
+				   && card->findChild<QLabel*>(QStringLiteral("threadLocalReplyMakeDraftWhy")) == nullptr,
+			   "a Local reply's refused Draft says why in its tooltip alone");
+		view.open_thread("local:8");
+		QApplication::processEvents();
+		expect(!button(view, "threadMakeDraft")->isEnabled() && button(view, "threadMakeDraft")->property("draftRefused").toBool() && button(view, "threadMakeDraft")->toolTip().contains(QStringLiteral("draft on this line"))
+				   && view.open_card()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy")) == nullptr,
+			   "a Local comment's refused Draft says why in its tooltip alone");
+		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
+	}
+
+	/// \brief [[BPR-2173]]. The owner, on look v007 of RFC-BPR-0127: "going
+	/// from image 2 and clicking the bottom comment gives image 1". A tall
+	/// thread is open at its line and the drawer is scrolled down to the
+	/// card under it; opening that card closes the tall thread, and the
+	/// drawer kept its scroll, so the opened card was cut at the top with
+	/// empty drawer under it. The opened card is whole in view, its top
+	/// clear of the edge chips, and nothing but drawer past the end of the
+	/// notes is left under it.
+	auto test_opening_the_card_below_an_open_thread_shows_it_whole() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 520);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 6U ? std::optional{ 100 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto forest = std::vector<conversation>{ thread("review-thread:T1", "src/a.cpp", 6U) };
+		for (auto index = 0; index < 6; ++index) {
+			auto post = reply("c-" + std::to_string(index), "review-thread:T1", "tbutler",
+							  "issue (blocking): draw_scene() runs before the clear finishes on the second view, and the depth buffer is shared by both views.");
+			post.Line = 6U;
+			forest.push_back(std::move(post));
+		}
+		view.adopt(forest);
+		const auto comparison = core::file_comparison_digest{ };
+		// The comparison shown, which places my Local comment at its line.
+		view.set_draft(std::nullopt, comparison);
+		view.set_local_comments({
+			qt::local_comment_card{ .Id = 8U, .Revision = 1U, .Body = QStringLiteral("Height is not clamped here. Re-check once the swap chain change lands."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 6U, .Path = QStringLiteral("src/a.cpp") },
+		});
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const bar = view.verticalScrollBar();
+		expect(view.open_card() != nullptr && view.open_card()->height() > view.viewport()->height(), "the open thread is taller than the drawer");
+		// Scrolled until the Local comment under the thread is in view, as
+		// in the owner's image 2.
+		const auto below = std::ranges::find(view.cards(), std::string{ "local:8" }, &qt::thread_card::Id);
+		expect(below != view.cards().end(), "my Local comment hangs under the thread");
+		bar->setValue(std::min(bar->maximum(), below->Rect.bottom() + 8 - view.viewport()->height()));
+		QApplication::processEvents();
+		const auto scrolled = bar->value();
+		expect(scrolled > 0, "the drawer is scrolled down to the card under the thread");
+		view.open_thread("local:8");
+		QApplication::processEvents();
+		auto* const card = view.open_card();
+		expect(card != nullptr && view.open_thread_id() == "local:8", "the Local comment is open");
+		const auto top = card != nullptr ? card->geometry().top() : -999;
+		expect(top >= 30, "the opened card's top is in view, clear of the edge chips (top " + std::to_string(top) + ", scroll " + std::to_string(bar->value()) + ")");
+		expect(card != nullptr && card->geometry().bottom() <= view.viewport()->height(), "the opened card is whole in view");
+		const auto lowest = std::ranges::max(view.cards(), { }, [](const qt::thread_card& aCard) { return aCard.Rect.bottom(); }).Rect.bottom();
+		expect(lowest - bar->value() >= view.viewport()->height() - 40 || bar->value() == 0,
+			   "no stretch of empty drawer under the opened card (notes end at " + std::to_string(lowest - bar->value()) + " of " + std::to_string(view.viewport()->height()) + ")");
+	}
+
+	/// \brief Owner look v005 ("There's a lot of overlap on the UX here").
+	/// The agent drafted a long comment on a line GitHub may not place: the
+	/// composer's notice arrived after it was laid out, the card kept its
+	/// old height, and the label chip and Enhance were drawn over the text.
+	/// Every row of the composer stands clear of the next.
+	auto test_composer_notice_keeps_rows_apart() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(300, 900);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 1U ? std::optional{ 40 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		const auto body       = std::string{ "The budget is reset on every call, because the counter is restored before the check runs, so the budget is effectively unbounded. "
+											 "Consider moving the reset into `begin_request` instead:\n\n```cpp\nvoid Renderer::begin_request() {\n    frame_budget_.reset();\n}\n```\n\n"
+											 "This keeps per-frame work bounded while still giving each request a fresh budget." };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = body }, comparison);
+		QApplication::processEvents();
+		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; })->Id;
+		view.open_thread(draftId);
+		QApplication::processEvents();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		QApplication::processEvents();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1"), .Notice = QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.") });
+		for (auto spin = 0; spin < 50; ++spin) {
+			QApplication::processEvents();
+			QThread::msleep(4);
+		}
+		auto* const card   = view.open_card();
+		auto* const text   = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftText")) : nullptr;
+		auto* const labels = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftLabels")) : nullptr;
+		auto* const status = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftStatus")) : nullptr;
+		expect(text != nullptr && labels != nullptr && status != nullptr && status->isVisibleTo(card), "the composer shows its field, its tools and the notice");
+		const auto bottomOf = [card](QWidget* aWidget) { return aWidget->mapTo(card, QPoint{ 0, aWidget->height() }).y(); };
+		const auto topOf    = [card](QWidget* aWidget) { return aWidget->mapTo(card, QPoint{ 0, 0 }).y(); };
+		std::cout << "composer rows: text " << topOf(text) << "-" << bottomOf(text) << " labels " << topOf(labels) << "-" << bottomOf(labels) << " status " << topOf(status) << "-" << bottomOf(status) << '\n';
+		expect(bottomOf(text) <= topOf(labels) && bottomOf(labels) <= topOf(status), "the field, its tool row and the notice do not overlap");
+		expect(text->height() >= text->minimumSizeHint().height() && labels->height() >= labels->minimumSizeHint().height(), "nothing is squeezed below its own minimum");
+		expect(card->findChild<QWidget*>(QStringLiteral("threadMaximizeDraft")) != nullptr && card->findChild<QWidget*>(QStringLiteral("conversationShowInDiscuss")) == nullptr,
+			   "the draft being written has one way to Discuss, not two of the same glyph");
+	}
+
+	/// \brief [[BPR-2172]]. The owner, on look v007 of RFC-BPR-0127: "Can
+	/// we make this warning take less space, maybe it's just a warning sign
+	/// on the row above and expands a disclosure on click". Where the
+	/// comment may go is a warning mark beside the label chip; pressing it
+	/// (or Space on it) shows the sentence under the row, and again hides
+	/// it. A notice about the publication itself keeps its lines.
+	auto test_placement_notice_is_a_warning_mark() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 900);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 1U ? std::optional{ 40 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		const auto body       = std::string{ "Height is not clamped here." };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = body }, comparison);
+		QApplication::processEvents();
+		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; })->Id;
+		view.open_thread(draftId);
+		const auto settle = [] {
+			for (auto spin = 0; spin < 30; ++spin) {
+				QApplication::processEvents();
+				QThread::msleep(2);
+			}
+		};
+		const auto words = QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.");
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle();
+		const auto plain = view.open_card()->height();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1"), .Notice = words, .NoticeFolds = true });
+		settle();
+		auto* const card   = view.open_card();
+		auto* const mark   = card->findChild<QToolButton*>(QStringLiteral("threadDraftNoticeMark"));
+		auto* const labels = card->findChild<QWidget*>(QStringLiteral("threadDraftLabels"));
+		auto* const status = card->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
+		expect(mark != nullptr && mark->isVisibleTo(card) && status != nullptr && !status->isVisibleTo(card), "the placement notice is a warning mark, its sentence closed");
+		expect(std::abs(mark->mapTo(card, mark->rect().center()).y() - labels->mapTo(card, labels->rect().center()).y()) <= 4, "the mark sits in the tool row, beside the label chip");
+		expect(card->height() <= plain + 2, "the composer does not grow for it (" + std::to_string(card->height()) + " against " + std::to_string(plain) + ")");
+		expect(mark->accessibleName() == QStringLiteral("Placement warning") && mark->accessibleDescription() == words && !mark->toolTip().isEmpty(),
+			   "the mark is named for assistive technology, its sentence its description");
+		mark->click();
+		settle();
+		expect(status->isVisibleTo(card) && status->text() == words && view.open_card()->height() > plain + 10, "pressing it discloses the sentence under the row");
+		expect(mark->accessibleName() == QStringLiteral("Placement warning, shown"), "and its name says the sentence is shown");
+		mark->setFocus();
+		auto space = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(mark, &space);
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(mark, &release);
+		settle();
+		expect(!status->isVisibleTo(card) && !mark->isChecked(), "Space on the mark closes it again");
+		// What the last Publish came to is not folded.
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = false, .Lines = QStringLiteral("Line 1"), .Notice = QStringLiteral("Publishing your comment to GitHub…") });
+		settle();
+		expect(!mark->isVisibleTo(card) && status->isVisibleTo(card) && status->text() == QStringLiteral("Publishing your comment to GitHub…"), "a publication notice keeps its lines, and no mark");
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle();
+		expect(!mark->isVisibleTo(card) && !status->isVisibleTo(card), "with no notice there is neither");
+	}
+
+	auto test_composer_state_control() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 640);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 31U ? std::optional{ 200 } : std::nullopt; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 30U }, .Body = "Height is not clamped here." }, comparison);
+		QApplication::processEvents();
+		auto actions = std::vector<qt::card_action>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string&) { actions.push_back(aAction); });
+		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft && aCard.Line == std::optional{ 31U }; })->Id;
+		view.open_thread(draftId);
+		QApplication::processEvents();
+		const auto present = [&view](const bool aLocal) {
+			view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("Height is not clamped here."), .Publishable = true, .Lines = QStringLiteral("Line 31"), .Local = aLocal });
+			QApplication::processEvents();
+		};
+		present(false);
+		auto* const local = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadStateLocal"));
+		auto* const draft = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadStateDraft"));
+		auto* const save  = button(view, "threadSaveLocal");
+		const auto  shown = [&view](const char* aName) { return button(view, aName) != nullptr && button(view, aName)->isVisibleTo(view.open_card()); };
+		expect(local != nullptr && draft != nullptr && save != nullptr && draft->isChecked() && !local->isChecked() && shown("threadReviewDraft") && !shown("threadSaveLocal"),
+			   "Comment… opens the composer on Draft, with today's row");
+		local->click();
+		QApplication::processEvents();
+		auto* const words = view.open_card()->findChild<QLabel*>(QStringLiteral("threadLocalWords"));
+		expect(local->isChecked() && !draft->isChecked() && shown("threadSaveLocal") && !shown("threadReviewDraft") && !shown("threadPublishDraft") && words != nullptr
+				   && words->isVisibleTo(view.open_card()) && words->text() == QStringLiteral("Only on this computer. Never sent.") && actions.back() == qt::card_action::compose_local,
+			   "Local: Delete and Save, the sentence, and nothing that sends");
+		QKeyEvent key{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QApplication::sendEvent(view.draft_editor(), &key);
+		expect(actions.back() == qt::card_action::save_local, "⌘↩ saves it as Local");
+		draft->click();
+		QApplication::processEvents();
+		expect(draft->isChecked() && shown("threadReviewDraft") && !shown("threadSaveLocal") && actions.back() == qt::card_action::compose_draft, "Draft brings today's row back");
+		present(true);
+		expect(local->isChecked() && shown("threadSaveLocal"), "AC01: N's preset opens the composer on Local");
+	}
+
 	/// \brief [[BPR-1345]]. Start a review, as the frames draw it: with no
 	/// review in progress the composer offers Add single comment (today's
 	/// Publish) and Start a review; while one is, Add review comment is the
@@ -1126,8 +1640,10 @@ namespace {
 			view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("nit: scale could be constexpr."), .Publishable = true, .Lines = QStringLiteral("Line 40"), .Review = aReview });
 			QApplication::processEvents();
 		};
-		const auto  words   = [&view](const char* aName) { return button(view, aName) != nullptr ? button(view, aName)->text() : QString{ }; };
-		auto* const privacy = view.open_card()->findChild<QWidget*>(QStringLiteral("threadDraftPrivacy"));
+		const auto words = [&view](const char* aName) { return button(view, aName) != nullptr ? button(view, aName)->text() : QString{ }; };
+		// RFC-BPR-0127 ([[BPR-2158]]): the state control stands where the
+		// privacy note stood; its Draft segment says where the draft stands.
+		auto* const privacy = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadStateDraft"));
 		const auto  press   = [&view](const Qt::KeyboardModifiers aModifiers = Qt::ControlModifier, const int aKey = Qt::Key_Return) {
 			QKeyEvent key{ QEvent::KeyPress, aKey, aModifiers };
 			QApplication::sendEvent(view.draft_editor(), &key);
@@ -1144,8 +1660,15 @@ namespace {
 				   && button(view, "threadPublishDraft")->toolTip() == QStringLiteral("Post this one comment to the pull request now  %1").arg(single)
 				   && button(view, "threadReviewDraft")->toolTip() == QStringLiteral("Keep this comment pending in a review you finish later  %1").arg(main)
 				   && anchored(button(view, "threadPublishDraft")) && anchored(button(view, "threadReviewDraft"))
-				   && button(view, "threadReviewDraft")->isEnabled() && privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish"),
+				   && button(view, "threadReviewDraft")->isEnabled() && privacy != nullptr && privacy->isChecked() && privacy->accessibleName() == QStringLiteral("Draft, not in your review"),
 			   "with no review in progress: Add single comment with ⌘⇧↩ and Start a review with ⌘↩, each named in its anchored tooltip");
+		// [[BPR-1999]], RFC-BPR-0101 AC03. A comment composer is not a chat:
+		// Return alone starts a line and publishes or keeps nothing.
+		{
+			const auto before = actions.size();
+			press(Qt::NoModifier);
+			expect(actions.size() == before, "Return alone in a comment composer neither sends nor keeps it");
+		}
 		press();
 		expect(actions.back() == qt::card_action::review_draft, "⌘↩ is Start a review, the default (owner: \"Start a review, add to review should be the default for cmd+enter\")");
 		press(Qt::ControlModifier | Qt::ShiftModifier);
@@ -1160,7 +1683,7 @@ namespace {
 		present(qt::draft_review_state::in_progress);
 		expect(words("threadPublishDraft") == QStringLiteral("Add single comment") && words("threadReviewDraft") == QStringLiteral("Add review comment")
 				   && button(view, "threadReviewDraft")->toolTip().endsWith(main) && button(view, "threadPublishDraft")->toolTip().endsWith(single)
-				   && privacy->accessibleName() == QStringLiteral("Pending until you finish the review"),
+				   && privacy->accessibleName() == QStringLiteral("Draft, not in your review"),
 			   "while a review is in progress Add review comment is the main action, with ⌘↩, and the note says the review is pending");
 		press();
 		expect(actions.back() == qt::card_action::review_draft, "and ⌘↩ adds the comment to the review");
@@ -2457,7 +2980,9 @@ namespace {
 			   "the review's line carries its verdict and who gave it");
 		expect(view.open_card()->findChild<QLabel*>(QStringLiteral("conversationReviewVerdict")) == nullptr, "the review's body is a comment, without the verdict repeated");
 		const auto path = std::ranges::find(lines, file.Id, &qt::timeline_line::Id);
-		expect(path != lines.end() && path->Kind == qt::timeline_line::kind::path && path->Path == QStringLiteral("src/a.cpp:9"), "the thread the review carried shows its path and line");
+		expect(path != lines.end() && path->Kind == qt::timeline_line::kind::path && path->Path == QStringLiteral("src/a.cpp")
+				   && std::ranges::find(view.cards(), file.Id, &qt::thread_card::Id)->Line == 9U,
+			   "the thread the review carried shows under its file ([[BPR-2171]]: named once), its line on the thread");
 		const auto at    = path->Rect.translated(0, -view.verticalScrollBar()->value()).center();
 		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ at }, view.viewport()->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(view.viewport(), &press);
@@ -2672,7 +3197,16 @@ namespace {
 		expect(button(view, "threadResolveConversation") != nullptr && button(view, "threadResolveConversation")->isEnabled(), "GitHub's answer settles it");
 		view.close_thread();
 		QApplication::processEvents();
-		expect(!view.closed_meta(view.cards().front()).Resolved.isEmpty(), "closed, the resolved thread is one line with the green check");
+		// [[BPR-2171]]. Closed and read, the resolved thread folds into its
+		// file's row in Discuss; opened, the row lists it.
+		if (view.cards().empty()) {
+			const auto fold = std::ranges::find_if(view.timeline_lines(), [](const qt::timeline_line& aLine) { return !aLine.Fold.empty() && !aLine.Open; });
+			expect(fold != view.timeline_lines().end() && fold->Folded == 1U, "closed and read, the resolved thread folds into its file's row");
+			const auto key = fold->Fold;
+			view.toggle_fold(key);
+			QApplication::processEvents();
+		}
+		expect(!view.cards().empty() && !view.closed_meta(view.cards().front()).Resolved.isEmpty(), "closed, the resolved thread is one line with the green check");
 		view.present_thread_resolutions({ { "review-thread:T1", qt::thread_resolution_presentation{ .Resolved = false } } });
 		QApplication::processEvents();
 		expect(view.closed_meta(view.cards().front()).Resolved.isEmpty() && !view.cards().front().Resolved, "reopened, it loses the check");
@@ -2903,7 +3437,7 @@ namespace {
 				auto* const published = view.open_card() == nullptr ? nullptr : view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
 				expect(published != nullptr && published->text() == QStringLiteral("10"), name + ": the open thread shows its line");
 				statesRead(*view.open_card(), *published, name + " thread", floor);
-				toolsRead(*view.open_card(), { QStringLiteral("threadResolve"), QStringLiteral("threadAskAgent"), QStringLiteral("threadMarkRead"), QStringLiteral("threadMore"), QStringLiteral("threadClose") },
+				toolsRead(*view.open_card(), { QStringLiteral("threadResolve"), QStringLiteral("threadMarkRead"), QStringLiteral("threadMore"), QStringLiteral("threadClose") },
 						  name + " thread", indicator);
 				auto* const markRead = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadMarkRead"));
 				expect(markRead != nullptr && markRead->isEnabled(), name + ": a thread with a new post can be marked read");
@@ -2969,9 +3503,9 @@ namespace {
 					writing->clearFocus();
 				}
 				statesRead(*view.open_card(), *writing, name + " draft", floor);
-				// The draft's Show in Discuss and Maximize (expand), Close
-				// (collapse), and the composer's Delete.
-				toolsRead(*view.open_card(), { QStringLiteral("conversationShowInDiscuss"), QStringLiteral("threadMaximizeDraft"), QStringLiteral("threadClose"), QStringLiteral("threadDeleteDraft") },
+				// The draft's Maximize (expand; owner look v005: one way to
+				// Discuss, not two), Close (collapse), and the composer's Delete.
+				toolsRead(*view.open_card(), { QStringLiteral("threadMaximizeDraft"), QStringLiteral("threadClose"), QStringLiteral("threadDeleteDraft") },
 						  name + " draft", indicator);
 				if (!aDirectory.isEmpty()) {
 					auto* const trash = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
@@ -3142,10 +3676,10 @@ namespace {
 			const auto fresh    = std::vector<std::pair<kind, std::string>>{ { kind::fresh, "" } };
 			const auto expected = std::vector<std::pair<kind, std::string>>{
 				{ kind::bundle, "review:dos" },
-				{ kind::path, "Client/AppCore/include/AppCore/Instance.h:18" },
+				{ kind::path, "Client/AppCore/include/AppCore/Instance.h" },
 			};
 			const auto tail = std::vector<std::pair<kind, std::string>>{
-				{ kind::path, "Client/AppCore/src/Instance.cpp:42" },
+				{ kind::path, "Client/AppCore/src/Instance.cpp" },
 				{ kind::verdict, "review:csw" },
 				{ kind::verdict, "review:sau" },
 			};
@@ -3154,7 +3688,7 @@ namespace {
 				whole.insert(whole.end(), fresh.begin(), fresh.end());
 			}
 			whole.insert(whole.end(), tail.begin(), tail.end());
-			expect(lines == whole, where + "one quiet line over the bundle, each thread under its path and line, the approvals as compact lines, and nothing for the body-less Commented reviews");
+			expect(lines == whole, where + "one quiet line over the bundle, each thread under its file, the approvals as compact lines, and nothing for the body-less Commented reviews");
 			const auto& bundle = view.timeline_lines().front();
 			expect(bundle.Author == QStringLiteral("dosullivan") && bundle.Verdict.isEmpty() && !bundle.When.isEmpty(), where + "a Commented bundle names who and when, and no verdict");
 			const auto& approval = view.timeline_lines()[discuss ? 3U : 4U];
@@ -3514,6 +4048,13 @@ auto main(int argc, char** argv) -> int
 	test_discuss_post_menus_open_the_exact_comment_in_review();
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
 	test_start_a_review_in_the_composer();
+	test_local_comments_share_a_line();
+	test_local_comments_edges_and_editing();
+	test_composer_state_control();
+	test_composer_notice_keeps_rows_apart();
+	test_placement_notice_is_a_warning_mark();
+	test_look_v002_rework();
+	test_opening_the_card_below_an_open_thread_shows_it_whole();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_controls();

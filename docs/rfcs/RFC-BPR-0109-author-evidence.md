@@ -23,13 +23,14 @@ RFC. RFC-BPR-0110, 0111 and 0112 record the matching amendments; the
 longer carries the `author-evidence` milestone; its cards are Blocked
 (`owner-deferred`).
 
-The implementation built on the 0.5.0 lane was removed from the product
-there: the Evidence area, `bpr draft open --evidence`,
+The implementation described in the record below was removed from the
+product on the 0.5.0 lane: the Evidence area, `bpr draft open --evidence`,
 the stored evidence record and its artifacts (a stored draft that still
 holds them is migrated forward and they are dropped), agent proposals of
 claims and planned checks, citations from tour stops and selected evidence
-in previews and the publication plan. The design text and criteria are kept here, and the lane's implementation
-record and verification ledger are kept with the lane; reactivating this RFC needs a new
+in previews and the publication plan. The design text, criteria and the
+[verification ledger](../verification/RFC-BPR-0109.md) are kept as the
+record of what was built and judged; reactivating this RFC needs a new
 owner decision and a new design pass, not a restore of the removed code.
 
 ## Problem and grounded current behavior
@@ -164,6 +165,45 @@ this RFC says.
 - **AC05:** Imported oversized/malformed records, missing artifacts, cancellation and stale completions produce recoverable outcomes without partial accepted records, secret-store reads, command execution or false current evidence.
 - **AC06:** The public preparation flow supports accepting or rejecting proposed claims and checks and retaining unresolved questions, with no agent run started by this RFC; evidence is selectable for later description and tour use without exposing unselected private history.
 - **AC07:** A test result produced by an Agent tab agent under its build allowance can enter the evidence record only as an imported, reported result bound to the material it tested; no path labels it observed.
+
+## Implementation record
+
+Removed from the product by the 2026-11-12 deferral above; kept as history.
+Milestone `author-evidence`; evidence in the
+[verification ledger](../verification/RFC-BPR-0109.md). Decisions made within
+the behaviour above, for the owner to see:
+
+- **Where it lives.** The evidence is part of the local draft's record
+  (`core/local_draft_evidence.hpp`), so it is versioned, resumed, discarded
+  and reset with the draft. A copied artifact is a SHA-256 blob object in the
+  draft's store, pinned to it.
+- **Classes.** A result is `reported` and nothing else; the stored form and
+  the import both refuse `observed`. A check with no result is planned. A
+  claim has no verified state: its row counts passing, failing, unsettled,
+  to-recheck, unbound and planned results of its accepted checks.
+- **Binding.** A result binds to the latest candidate whose commit and
+  included working files (paths and contents) are exactly the material it
+  names; a commit alone never binds a candidate with working files. Currency
+  for a later candidate: carried when the result recorded its inputs and
+  every input path is unchanged against the same base; otherwise recheck.
+- **Thresholds.** 256 claims, 256 checks, 1024 results, 256 questions, 256
+  imports per draft; 16 KiB per text, 32 earlier wordings per claim, 32
+  artifacts per result, 16 MiB per artifact and 64 MiB per import, 16 MiB per
+  document. Over a bound is refused, nothing is evicted.
+- **Import.** One `bpr.evidence-import` version 1 document
+  ([format](../development/draft-cli.md#evidence-rfc-bpr-0109)), chosen with
+  the Evidence area's Import… or `bpr draft open --evidence FILE`. Artifact
+  paths are read beneath the document's folder through the read-only
+  workspace port without following links; links are kept, never fetched. The
+  same document twice is refused as a duplicate.
+- **Surface.** The draft page has Changes and Evidence; each draft opens on
+  Changes. Evidence is one tree (claims, their checks, their results;
+  questions), a Use column for the selection, a detail pane that states what
+  each method's result can speak for, an artifact list, one fixed row of
+  commands and one status line.
+- **Selection.** `selected_evidence` gives a later description or tour only
+  accepted, selected claims (without earlier wordings), selected results of
+  accepted checks with those checks, and selected accepted questions.
 
 ## Proposed delivery
 

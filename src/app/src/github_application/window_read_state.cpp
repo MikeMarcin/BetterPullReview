@@ -78,7 +78,6 @@ namespace bpr::app {
 		const auto state = ReviewLedgerHost->unread_conversations(threads);
 		if (!state.has_value()) {
 			ReadStateCache.reset();
-			NotePaths.reset();
 			DefectThreadNames.reset();
 			request_conversation_receipts();
 			return std::nullopt;
@@ -161,7 +160,6 @@ namespace bpr::app {
 		const auto state = ReviewLedgerHost->unread_conversations(std::span{ &cache.Threads[aThread], 1U });
 		if (!state.has_value()) {
 			ReadStateCache.reset();
-			NotePaths.reset();
 			DefectThreadNames.reset();
 			return std::nullopt;
 		}
@@ -638,6 +636,10 @@ namespace bpr::app {
 								   !context.Receipts.empty());
 		}
 		Window->publish(*PublishedOverview);
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// RFC-BPR-0116. What the returning questions offer follows the read.
+		refresh_returning_review();
+#endif
 	}
 
 	/// \brief [[BPR-1841]]. The threads the viewer resolved or reopened

@@ -307,8 +307,12 @@ namespace bpr::qt {
 				Age                 = aIndex.data(home_row_role::age).toString();
 				Comments            = aIndex.data(home_row_role::comments).toString();
 				// [[BPR-1365]]. The review this window has open says so in a word.
-				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
-				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
+				Tag = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
+				// RFC-BPR-0108 (X02, X03). Draft is GitHub's; a row prepared
+				// here says so in the same chip, so it stays one row.
+				const auto prepared = aIndex.data(home_row_role::local_preparation).toBool();
+				Draft               = aIndex.data(home_row_role::draft).toBool() ? (prepared ? QStringLiteral("Draft, prepared here") : QStringLiteral("Draft"))
+																				 : (prepared ? QStringLiteral("Prepared here") : QString{ });
 				// [[BPR-1718]]. My verdict leads the second line in a chip.
 				Verdict      = aIndex.data(home_row_role::verdict).toString();
 				VerdictState = static_cast<core::my_review_verdict>(aIndex.data(home_row_role::verdict_state).toInt());
@@ -667,7 +671,20 @@ namespace bpr::qt {
 			.Failure         = aProfile.color(core::appearance_role::state_defect),
 			.Added           = aProfile.color(core::appearance_role::state_accepted),
 			.Removed         = aProfile.color(core::appearance_role::state_defect),
+			.Confirmed       = aProfile.color(core::appearance_role::state_accepted),
 		};
+	}
+
+	auto home_state_colours::for_tone(const home_row_tone aTone) const -> QColor
+	{
+		switch (aTone) {
+		case home_row_tone::needs_me:          return NeedsMe;
+		case home_row_tone::waiting_on_others: return WaitingOnOthers;
+		case home_row_tone::confirmed:         return Confirmed;
+		case home_row_tone::error:             return Failure;
+		case home_row_tone::my_pull_requests:  break;
+		}
+		return MyPullRequests;
 	}
 
 	auto mix_colour(const QColor& aTone, const QColor& aGround, const qreal aStrength) -> QColor
@@ -840,6 +857,13 @@ namespace bpr::qt {
 		const auto state = aIndex.data(home_row_role::state);
 		if (!state.isValid()) {
 			return { };
+		}
+		// [[RFC-BPR-0098]]. A pull request of mine is coloured by its move.
+		if (const auto tone = aIndex.data(home_row_role::tone); tone.isValid()) {
+			const auto toned = tone.toInt();
+			if (toned >= static_cast<int>(home_row_tone::needs_me) && toned <= static_cast<int>(home_row_tone::error)) {
+				return Colours.for_tone(static_cast<home_row_tone>(toned));
+			}
 		}
 		const auto value = state.toInt();
 		if (value < static_cast<int>(home_group::needs_you) || value > static_cast<int>(home_group::following)) {

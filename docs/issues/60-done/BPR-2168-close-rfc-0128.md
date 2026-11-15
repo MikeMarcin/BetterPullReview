@@ -57,7 +57,7 @@ Reconcile the amended RFCs (RFC-BPR-0116, 0117, 0118, 0119, 0125) with what was 
 
 [[BPR-2166]] and [[BPR-2167]] are Done; look report-templates-v004 was
 accepted. RFC-BPR-0128 is Auto-Verified, its index entry closed and its
-verification summary (on claude/v0-5-0-prerelease-targets-52265d) written.
+[verification summary](../../verification/RFC-BPR-0128.md) written.
 
 ## Correction (2026-11-14)
 
@@ -72,5 +72,5 @@ unenforced. Fixed:
   against the old page.
 - The gate is green again.
 
-Details are in RFC-BPR-0128's verification (on claude/v0-5-0-prerelease-targets-52265d).
+Details are in [RFC-BPR-0128's verification](../../verification/RFC-BPR-0128.md).
 

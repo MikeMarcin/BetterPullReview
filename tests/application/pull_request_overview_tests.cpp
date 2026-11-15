@@ -278,11 +278,11 @@ namespace {
 			receipt("Engine/Renderer/HairStrandsLighting.cpp", core::file_read_state::seen),
 			receipt("Engine/Renderer/HairStrandsVoxelization.cpp", core::file_read_state::read),
 		};
-		auto note       = application::local_note_record{ };
-		note.Note.File  = core::file_identity_of("Engine/Renderer/HairStrandsVoxelization.cpp");
-		note.Note.Text  = "Re-read the atomic move";
+		auto note       = application::local_comment_record{ };
+		note.Attachment = application::local_comment_attachment{ .File = core::file_identity_of("Engine/Renderer/HairStrandsVoxelization.cpp"), .Comparison = { } };
+		note.Body       = "Re-read the atomic move";
 		context.Private = application::private_ledger_observation{
-			.Notes            = { note },
+			.LocalComments    = { note },
 			.LastReviewedHead = commit('c'),
 		};
 		context.Updates         = { update(3, 'd'), update(1, 'b'), update(2, 'c'), update(4, 'e') };
@@ -301,10 +301,8 @@ namespace {
 			   "an unresolved change set is unknown, never unchanged");
 		expect(row_named(projection, "README.md").Read == std::optional{ core::file_read_state::read }
 				   && row_named(projection, "Engine/Renderer/HairStrandsLighting.cpp").Read
-					   == std::optional{ core::file_read_state::seen }
-				   && row_named(projection, "Engine/Renderer/HairStrandsVoxelization.cpp").Note
-					   == std::optional<std::string>{ "Re-read the atomic move" },
-			   "receipts and notes reach their rows");
+					   == std::optional{ core::file_read_state::seen },
+			   "receipts reach their rows");
 		expect(projection.Progress.FilesRead == 2U && projection.Progress.PrivateNotes == 1U
 				   && projection.Progress.DraftedComments == std::optional<std::size_t>{ 1U },
 			   "progress counts read files, notes and drafts");
@@ -333,11 +331,12 @@ namespace {
 		auto notesOnly = context;
 		notesOnly.Receipts.clear();
 		const auto noteProjection = application::project_pull_request_overview(snapshot(), notesOnly);
-		expect(row_named(noteProjection, "Engine/Renderer/HairStrandsVoxelization.cpp").Note
-					   == std::optional<std::string>{ "Re-read the atomic move" }
+		// RFC-BPR-0127 ([[BPR-2159]]). A Local comment is counted, not put
+		// on a row: Overview has no Note column.
+		expect(noteProjection.Progress.PrivateNotes == 1U
 				   && !row_named(noteProjection, "Engine/Renderer/HairStrandsVoxelization.cpp").Read
 				   && noteProjection.Progress.FilesRead == 0U,
-			   "a private note reaches its exact row without a receipt population");
+			   "a Local comment is counted without a receipt population");
 
 		// The head I reviewed is the head: nothing changed since.
 		context.Head = commit('c');

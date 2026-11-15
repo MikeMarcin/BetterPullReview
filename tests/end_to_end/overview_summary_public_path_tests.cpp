@@ -8,6 +8,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
@@ -502,8 +503,16 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return reader->original_body() == body; }, "long body reappears through accepted refresh");
 	window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "Command-2 from the Overview enters Review");
+	// The owner, 2026-11-13: "the other mode's drawers aren't being closed
+	// when going to overview." On a pull request the core closes them with
+	// the choice: Review's Files drawer and its tray, with the Tour tab open.
+	window.tray_tabs()->setCurrentIndex(1);
+	wait_for([&] { return window.files_drawer()->state() == core::workbench_drawer_state::expanded && window.conversations_drawer()->state() == core::workbench_drawer_state::expanded && window.tour_editor()->isVisible(); },
+			 "Review shows its Files drawer and its tray on the Tour tab");
 	window.modality()->action(qt::review_modality::overview)->trigger();
 	settle();
+	wait_for([&] { return window.files_drawer()->state() == core::workbench_drawer_state::collapsed && window.conversations_drawer()->state() == core::workbench_drawer_state::collapsed && !window.tour_editor()->isVisible(); },
+			 "Overview closes Review's drawers and its Tour tab");
 	const auto actualFile = page->file_model()->index_for_path(QString::fromStdString(page->projection()->Files.front().Path));
 	expect(actualFile.isValid(), "accepted file model exposes a file under its folder");
 	page->files_view()->setCurrentIndex(actualFile);

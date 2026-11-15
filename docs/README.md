@@ -11,6 +11,7 @@ start. This index lists the rest of the documentation, grouped by who it is for.
 | [Private review](ux/private-review-workflow.md) | Local conversations, drafts and what publishing sends to GitHub |
 | [Review Cycles workflow](ux/review-cycles-workflow.md) | Reviewing a local folder, file or checkout across rounds |
 | [Review Cycles CLI](development/cycle-cli.md) | Working with local review rounds through `bpr cycle` |
+| [Local PR drafts CLI](development/draft-cli.md) | Handing a worktree to a local PR draft with `bpr draft open` |
 | [Review Tours](development/review-tours.md) | Writing, previewing and publishing a guided review |
 | [Source-line comments](development/source-line-comments.md) | Commenting on changed and unchanged lines of a pull request's text files |
 | [Storage and removal](development/storage-and-diagnostics.md) | Local data, diagnostics, profile purge and uninstall |

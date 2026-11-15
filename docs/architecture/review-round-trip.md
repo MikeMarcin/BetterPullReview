@@ -735,6 +735,22 @@ typed fake server and real SQLite. Each provider/store opens and closes on the
 whole-review effect worker. Authentication invalidation retires this workflow
 independently of the file-review ledger.
 
+[[RFC-BPR-0105]] gives each whole-review host its own effect lane, created with
+the host and destroyed once the host is quiescent and the lane idle. Tour
+publication and conversation replies keep the profile's shared publication
+lane, so neither they nor another pull request's review work can wait in front
+of a submission. A new host waits only for a retired host of the same review
+identity, whose record its discovery must see. The host tells the projection
+when accepted work begins (`started`) and can `abandon` accepted work that has
+not begun: its one terminal (cancelled, nothing sent) is posted at once and the
+queued effect becomes a no-op. The workflow states every pressed submission as
+waiting (with its subject), sending, published or not published; a wait to
+start is bounded by `core::review_submission_wait_bound` (20 seconds), after
+which the attempt is abandoned and ends not published with Retry. An answer
+for the submission still shown is settled even from a retired host. Each
+request, wait, send, dropped completion and ending is a `review_submit_*`
+operation line with its `submit_subject`.
+
 Read-only discovery/reconciliation need no new publication grant and cannot
 select a submit effect. Discovery validates every recovered request's stable
 actor/PR scope before publishing the bounded list. Provider results with stale
