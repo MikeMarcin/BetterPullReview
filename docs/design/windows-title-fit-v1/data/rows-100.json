@@ -1,0 +1,3850 @@
+{
+    "environment": {
+        "application_font_family": "Segoe UI",
+        "application_font_points": 13.5,
+        "device_pixel_ratio": 1,
+        "families": [
+            {
+                "family": "Arial",
+                "styles": [
+                    "Regular",
+                    "Italic",
+                    "Bold",
+                    "Bold Italic",
+                    "Black"
+                ]
+            },
+            {
+                "family": "Arial Black",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift",
+                "styles": [
+                    "Regular",
+                    "SemiLight",
+                    "Light",
+                    "SemiBold",
+                    "SemiCondensed",
+                    "SemiLight SemiCondensed",
+                    "Light SemiCondensed",
+                    "SemiBold SemiCondensed",
+                    "Bold",
+                    "Bold SemiCondensed",
+                    "Condensed",
+                    "SemiLight Condensed",
+                    "Light Condensed",
+                    "SemiBold Condensed",
+                    "Bold Condensed"
+                ]
+            },
+            {
+                "family": "Bahnschrift Condensed",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Bahnschrift Light",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift Light Condensed",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift Light SemiCondensed",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiBold",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiBold Condensed",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiBold SemiCondensed",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiCondensed",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiLight",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiLight Condensed",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Bahnschrift SemiLight SemiCondensed",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe Fluent Icons",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe MDL2 Assets",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe Print",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Segoe Script",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Segoe UI",
+                "styles": [
+                    "Regular",
+                    "Semilight",
+                    "Light",
+                    "Semibold",
+                    "Italic",
+                    "Semilight Italic",
+                    "Light Italic",
+                    "Bold",
+                    "Semibold Italic",
+                    "Bold Italic",
+                    "Black",
+                    "Black Italic"
+                ]
+            },
+            {
+                "family": "Segoe UI Black",
+                "styles": [
+                    "Regular",
+                    "Italic"
+                ]
+            },
+            {
+                "family": "Segoe UI Emoji",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Historic",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Light",
+                "styles": [
+                    "Regular",
+                    "Italic"
+                ]
+            },
+            {
+                "family": "Segoe UI Semibold",
+                "styles": [
+                    "Regular",
+                    "Italic"
+                ]
+            },
+            {
+                "family": "Segoe UI Semilight",
+                "styles": [
+                    "Regular",
+                    "Italic"
+                ]
+            },
+            {
+                "family": "Segoe UI Symbol",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable",
+                "styles": [
+                    "Small",
+                    "Text",
+                    "Display",
+                    "Small Semilight",
+                    "Text Semilight",
+                    "Display Semilight",
+                    "Small Light",
+                    "Text Light",
+                    "Display Light",
+                    "Small Semibold",
+                    "Text Semibold",
+                    "Display Semibold",
+                    "Small Bold",
+                    "Text Bold",
+                    "Display Bold"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Display",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Display Light",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Display Semibold",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Display Semilight",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Small",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Small Light",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Small Semibold",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Small Semilight",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Text",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Text Light",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Text Semibold",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Segoe UI Variable Text Semilight",
+                "styles": [
+                    "Regular"
+                ]
+            },
+            {
+                "family": "Tahoma",
+                "styles": [
+                    "Regular",
+                    "Bold"
+                ]
+            }
+        ],
+        "general_font_family": "Segoe UI",
+        "general_font_pixel_size": 18,
+        "general_font_points": 13.5,
+        "general_font_resolved": "Segoe UI",
+        "general_font_weight": 400,
+        "kernel": "10.0.26200",
+        "logical_dpi": 96,
+        "mode_keys": [
+            "Ctrl+1",
+            "Ctrl+2",
+            "Ctrl+3",
+            "Ctrl+4",
+            "Ctrl+5"
+        ],
+        "os": "Windows 11 Version 25H2",
+        "platform": "windows",
+        "qt": "6.12.0",
+        "row_font_family": "Segoe UI",
+        "row_font_pixel_size": 12,
+        "row_font_points": 9,
+        "screen": "1024x768",
+        "style": "windows11"
+    },
+    "parity": [
+        {
+            "application_control": 413,
+            "application_four_segments": 403,
+            "form": "names and keys",
+            "harness_five_control": 507,
+            "harness_four_segments": 403
+        },
+        {
+            "application_control": 257,
+            "application_four_segments": 247,
+            "form": "names",
+            "harness_five_control": 312,
+            "harness_four_segments": 247
+        },
+        {
+            "application_control": 164,
+            "application_four_segments": 154,
+            "form": "three-letter prefixes",
+            "harness_five_control": 205,
+            "harness_four_segments": 154
+        }
+    ],
+    "rows": [
+        {
+            "asked": 1261,
+            "file": "shipped-1280-dark@100.png",
+            "form": "names",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Spare",
+                    "w": 19,
+                    "x": 671
+                },
+                {
+                    "name": "Modes",
+                    "w": 257,
+                    "x": 694
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "shipped",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1352,
+            "file": "shipped-1366-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 428,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 572
+                },
+                {
+                    "name": "Spare",
+                    "w": 14,
+                    "x": 606
+                },
+                {
+                    "name": "Modes",
+                    "w": 413,
+                    "x": 624
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "shipped",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1417,
+            "file": "shipped-1600-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Spare",
+                    "w": 183,
+                    "x": 671
+                },
+                {
+                    "name": "Modes",
+                    "w": 413,
+                    "x": 858
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "shipped",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1067,
+            "file": "today-1280-dark@100.png",
+            "form": "names",
+            "identity_form": "repository and number",
+            "identity_text": "engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 75,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 219
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 253
+                },
+                {
+                    "name": "Spare",
+                    "w": 213,
+                    "x": 422
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 639
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "today",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1328,
+            "file": "today-1366-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "owner/repository and number",
+            "identity_text": "bpr-fixtures/engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 141,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 285
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 319
+                },
+                {
+                    "name": "Spare",
+                    "w": 38,
+                    "x": 488
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 530
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "today",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1584,
+            "file": "today-1600-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap t…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 397,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 541
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 575
+                },
+                {
+                    "name": "Spare",
+                    "w": 16,
+                    "x": 744
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 764
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "today",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1041,
+            "file": "a-type-1280-dark@100.png",
+            "form": "names",
+            "identity_form": "repository and number",
+            "identity_text": "engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 70,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 214
+                },
+                {
+                    "name": "Branch",
+                    "w": 159,
+                    "x": 248
+                },
+                {
+                    "name": "Spare",
+                    "w": 239,
+                    "x": 411
+                },
+                {
+                    "name": "Modes",
+                    "w": 297,
+                    "x": 654
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "a-type",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 462,
+            "width": 1280
+        },
+        {
+            "asked": 1352,
+            "file": "a-type-1366-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search re…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 213,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 357
+                },
+                {
+                    "name": "Branch",
+                    "w": 159,
+                    "x": 391
+                },
+                {
+                    "name": "Spare",
+                    "w": 14,
+                    "x": 554
+                },
+                {
+                    "name": "Modes",
+                    "w": 465,
+                    "x": 572
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "a-type",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 462,
+            "width": 1366
+        },
+        {
+            "asked": 1585,
+            "file": "a-type-1600-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 446,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 590
+                },
+                {
+                    "name": "Branch",
+                    "w": 159,
+                    "x": 624
+                },
+                {
+                    "name": "Spare",
+                    "w": 15,
+                    "x": 787
+                },
+                {
+                    "name": "Modes",
+                    "w": 465,
+                    "x": 806
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "a-type",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 462,
+            "width": 1600
+        },
+        {
+            "asked": 1264,
+            "file": "b-keys-1280-dark@100.png",
+            "form": "names",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by …",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 272,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 416
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 450
+                },
+                {
+                    "name": "Spare",
+                    "w": 16,
+                    "x": 619
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 639
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "b-keys",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1353,
+            "file": "b-keys-1366-dark@100.png",
+            "form": "names",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality an…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 361,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 505
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 539
+                },
+                {
+                    "name": "Spare",
+                    "w": 13,
+                    "x": 708
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 725
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "b-keys",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1485,
+            "file": "b-keys-1600-dark@100.png",
+            "form": "names",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 671
+                },
+                {
+                    "name": "Spare",
+                    "w": 115,
+                    "x": 840
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 959
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "b-keys",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1267,
+            "file": "c-icons-1280-dark@100.png",
+            "form": "icons, the current mode named",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 390,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 534
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 568
+                },
+                {
+                    "name": "Spare",
+                    "w": 13,
+                    "x": 737
+                },
+                {
+                    "name": "Modes",
+                    "w": 197,
+                    "x": 754
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "c-icons",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1350,
+            "file": "c-icons-1366-dark@100.png",
+            "form": "icons, the current mode named",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 473,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 617
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 651
+                },
+                {
+                    "name": "Spare",
+                    "w": 16,
+                    "x": 820
+                },
+                {
+                    "name": "Modes",
+                    "w": 197,
+                    "x": 840
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "c-icons",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1585,
+            "file": "c-icons-1600-dark@100.png",
+            "form": "icons and names",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 671
+                },
+                {
+                    "name": "Spare",
+                    "w": 15,
+                    "x": 840
+                },
+                {
+                    "name": "Modes",
+                    "w": 412,
+                    "x": 859
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "c-icons",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1067,
+            "file": "d-number-1280-dark@100.png",
+            "form": "names",
+            "identity_form": "repository and number",
+            "identity_text": "engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 75,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 219
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 253
+                },
+                {
+                    "name": "Spare",
+                    "w": 213,
+                    "x": 422
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 639
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "d-number",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1328,
+            "file": "d-number-1366-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "owner/repository and number",
+            "identity_text": "bpr-fixtures/engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 141,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 285
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 319
+                },
+                {
+                    "name": "Spare",
+                    "w": 38,
+                    "x": 488
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 530
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "d-number",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1328,
+            "file": "d-number-1600-dark@100.png",
+            "form": "names and keys",
+            "identity_form": "owner/repository and number",
+            "identity_text": "bpr-fixtures/engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 141,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 285
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 319
+                },
+                {
+                    "name": "Spare",
+                    "w": 272,
+                    "x": 488
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 764
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "d-number",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "dark",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1261,
+            "file": "shipped-1280-light@100.png",
+            "form": "names",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Spare",
+                    "w": 19,
+                    "x": 671
+                },
+                {
+                    "name": "Modes",
+                    "w": 257,
+                    "x": 694
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "shipped",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1352,
+            "file": "shipped-1366-light@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 428,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 572
+                },
+                {
+                    "name": "Spare",
+                    "w": 14,
+                    "x": 606
+                },
+                {
+                    "name": "Modes",
+                    "w": 413,
+                    "x": 624
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "shipped",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1417,
+            "file": "shipped-1600-light@100.png",
+            "form": "names and keys",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Spare",
+                    "w": 183,
+                    "x": 671
+                },
+                {
+                    "name": "Modes",
+                    "w": 413,
+                    "x": 858
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "shipped",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1067,
+            "file": "today-1280-light@100.png",
+            "form": "names",
+            "identity_form": "repository and number",
+            "identity_text": "engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 75,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 219
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 253
+                },
+                {
+                    "name": "Spare",
+                    "w": 213,
+                    "x": 422
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 639
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "today",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1328,
+            "file": "today-1366-light@100.png",
+            "form": "names and keys",
+            "identity_form": "owner/repository and number",
+            "identity_text": "bpr-fixtures/engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 141,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 285
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 319
+                },
+                {
+                    "name": "Spare",
+                    "w": 38,
+                    "x": 488
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 530
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "today",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1584,
+            "file": "today-1600-light@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap t…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 397,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 541
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 575
+                },
+                {
+                    "name": "Spare",
+                    "w": 16,
+                    "x": 744
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 764
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "today",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1041,
+            "file": "a-type-1280-light@100.png",
+            "form": "names",
+            "identity_form": "repository and number",
+            "identity_text": "engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 70,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 214
+                },
+                {
+                    "name": "Branch",
+                    "w": 159,
+                    "x": 248
+                },
+                {
+                    "name": "Spare",
+                    "w": 239,
+                    "x": 411
+                },
+                {
+                    "name": "Modes",
+                    "w": 297,
+                    "x": 654
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "a-type",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 462,
+            "width": 1280
+        },
+        {
+            "asked": 1352,
+            "file": "a-type-1366-light@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search re…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 213,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 357
+                },
+                {
+                    "name": "Branch",
+                    "w": 159,
+                    "x": 391
+                },
+                {
+                    "name": "Spare",
+                    "w": 14,
+                    "x": 554
+                },
+                {
+                    "name": "Modes",
+                    "w": 465,
+                    "x": 572
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "a-type",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 462,
+            "width": 1366
+        },
+        {
+            "asked": 1585,
+            "file": "a-type-1600-light@100.png",
+            "form": "names and keys",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 446,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 590
+                },
+                {
+                    "name": "Branch",
+                    "w": 159,
+                    "x": 624
+                },
+                {
+                    "name": "Spare",
+                    "w": 15,
+                    "x": 787
+                },
+                {
+                    "name": "Modes",
+                    "w": 465,
+                    "x": 806
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "a-type",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 462,
+            "width": 1600
+        },
+        {
+            "asked": 1264,
+            "file": "b-keys-1280-light@100.png",
+            "form": "names",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by …",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 272,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 416
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 450
+                },
+                {
+                    "name": "Spare",
+                    "w": 16,
+                    "x": 619
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 639
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "b-keys",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1353,
+            "file": "b-keys-1366-light@100.png",
+            "form": "names",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality an…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 361,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 505
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 539
+                },
+                {
+                    "name": "Spare",
+                    "w": 13,
+                    "x": 708
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 725
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "b-keys",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1485,
+            "file": "b-keys-1600-light@100.png",
+            "form": "names",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 671
+                },
+                {
+                    "name": "Spare",
+                    "w": 115,
+                    "x": 840
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 959
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "b-keys",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1267,
+            "file": "c-icons-1280-light@100.png",
+            "form": "icons, the current mode named",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 390,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 534
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 568
+                },
+                {
+                    "name": "Spare",
+                    "w": 13,
+                    "x": 737
+                },
+                {
+                    "name": "Modes",
+                    "w": 197,
+                    "x": 754
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "c-icons",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1350,
+            "file": "c-icons-1366-light@100.png",
+            "form": "icons, the current mode named",
+            "identity_form": "title cut",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result…",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 473,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 617
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 651
+                },
+                {
+                    "name": "Spare",
+                    "w": 16,
+                    "x": 820
+                },
+                {
+                    "name": "Modes",
+                    "w": 197,
+                    "x": 840
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "c-icons",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1585,
+            "file": "c-icons-1600-light@100.png",
+            "form": "icons and names",
+            "identity_form": "whole title",
+            "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 493,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 637
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 671
+                },
+                {
+                    "name": "Spare",
+                    "w": 15,
+                    "x": 840
+                },
+                {
+                    "name": "Modes",
+                    "w": 412,
+                    "x": 859
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "c-icons",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1600
+        },
+        {
+            "asked": 1067,
+            "file": "d-number-1280-light@100.png",
+            "form": "names",
+            "identity_form": "repository and number",
+            "identity_text": "engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 75,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 219
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 253
+                },
+                {
+                    "name": "Spare",
+                    "w": 213,
+                    "x": 422
+                },
+                {
+                    "name": "Modes",
+                    "w": 312,
+                    "x": 639
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 955
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 989
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1023
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1057
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1074
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1108
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1142
+                }
+            ],
+            "option": "d-number",
+            "overflow": false,
+            "pixels": [
+                1280,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1280
+        },
+        {
+            "asked": 1328,
+            "file": "d-number-1366-light@100.png",
+            "form": "names and keys",
+            "identity_form": "owner/repository and number",
+            "identity_text": "bpr-fixtures/engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 141,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 285
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 319
+                },
+                {
+                    "name": "Spare",
+                    "w": 38,
+                    "x": 488
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 530
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1041
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1075
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1109
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1143
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1160
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1194
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1228
+                }
+            ],
+            "option": "d-number",
+            "overflow": false,
+            "pixels": [
+                1366,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1366
+        },
+        {
+            "asked": 1328,
+            "file": "d-number-1600-light@100.png",
+            "form": "names and keys",
+            "identity_form": "owner/repository and number",
+            "identity_text": "bpr-fixtures/engine  #214",
+            "items": [
+                {
+                    "name": "Menu",
+                    "w": 30,
+                    "x": 4
+                },
+                {
+                    "name": "Home",
+                    "w": 30,
+                    "x": 38
+                },
+                {
+                    "name": "Repositories",
+                    "w": 30,
+                    "x": 72
+                },
+                {
+                    "name": "Files",
+                    "w": 30,
+                    "x": 106
+                },
+                {
+                    "name": "Name",
+                    "w": 141,
+                    "x": 140
+                },
+                {
+                    "name": "Open on GitHub",
+                    "w": 30,
+                    "x": 285
+                },
+                {
+                    "name": "Branch",
+                    "w": 165,
+                    "x": 319
+                },
+                {
+                    "name": "Spare",
+                    "w": 272,
+                    "x": 488
+                },
+                {
+                    "name": "Modes",
+                    "w": 507,
+                    "x": 764
+                },
+                {
+                    "name": "Refresh",
+                    "w": 30,
+                    "x": 1275
+                },
+                {
+                    "name": "Comments",
+                    "w": 30,
+                    "x": 1309
+                },
+                {
+                    "name": "Hide drawers",
+                    "w": 30,
+                    "x": 1343
+                },
+                {
+                    "name": "Rule",
+                    "w": 13,
+                    "x": 1377
+                },
+                {
+                    "name": "Account",
+                    "w": 30,
+                    "x": 1394
+                },
+                {
+                    "name": "Settings",
+                    "w": 30,
+                    "x": 1428
+                },
+                {
+                    "name": "Caption buttons",
+                    "w": 134,
+                    "x": 1462
+                }
+            ],
+            "option": "d-number",
+            "overflow": false,
+            "pixels": [
+                1600,
+                30
+            ],
+            "theme": "light",
+            "whole_name": 493,
+            "width": 1600
+        }
+    ],
+    "title": "Rank search results by match quality and cap the list at result_limit"
+}
