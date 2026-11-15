@@ -840,6 +840,6 @@ Imported 2026-11-13; the owner accepted the design and all fourteen defaults, wi
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) | Ask: quick asks at three scopes, and long answers read in a file tab | In Progress | RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0116, RFC-BPR-0117, RFC-BPR-0125 |
+| [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) | Ask: quick asks at three scopes, and long answers read in a file tab | Auto-Verified | Closed 2026-11-14 by [BPR-2168](../issues/60-done/BPR-2168-close-rfc-0128.md): every criterion evidenced on the [ledger](../verification/RFC-BPR-0128.md), owner looks accepted through ask-v008 and report-templates-v004 (dressed reports, report colours in Appearance, the Agent tab's code boxes); Why did a check fail? has no row (RFC-BPR-0119 not built) |
 
 Written at import 2026-11-13 from the owner's Ask decisions: option 1C, quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab. Q1 to Q14 other than the host are open, each built as its default unless answered. No card started. [Import](assets/ask-v1.LIVE_IMPORT.md); [plan](plans/ask-v1/MILESTONES.md), three milestones; [chosen design](../design/ask-v1/README.md). Its amendments are recorded on RFC-BPR-0116, 0117, 0118, 0119 and 0125.

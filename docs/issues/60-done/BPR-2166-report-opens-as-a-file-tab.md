@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2166"
 title: "A long answer is a report card that opens as a file tab"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2164"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2163--BPR-2168--6bc64f9acd90.json","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"criteria":["AC06"],"origin":"imported 2026-11-13 from the owner's Ask design (docs/design/ask-v1); cards cut at import"}
+acceptance: [{"criterion":"AC06","outcome":"pass","revision":"bac5aab96","evidence":{"kind":"command","detail":"application_ask_report_public_path, application_fixture_agent_every_ask (ten reports dressed, menu sections, code boxes); owner Accept: report card and opened report (ask-v007), tab glyph (ask-v008), templates and colours (report-templates-v003), code blocks (report-templates-v004)"}}]
 ---
 
 # BPR-2166: A long answer is a report card that opens as a file tab
@@ -103,4 +104,4 @@ Asked in look report-templates-v003.
   code box (syntax colours, the code colours, Wrap, Copy, sideways scroll) with
   the numbered gutter kept, and its suggestions the Agent tab's Suggested
   change. Asked again in report-templates-v004.
-
+- report-templates-v004: the reports' code blocks **Accept** (no note). Done.

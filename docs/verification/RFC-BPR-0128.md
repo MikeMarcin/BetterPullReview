@@ -663,3 +663,34 @@ Done: a report's code blocks are the Agent tab's own.
 
 Courses: `application_fixture_agent_every_ask`, the markdown and Agent tab
 courses, `core_agent_report`, the ask, explain and returning courses.
+
+## Owner look report-templates-v004 (session `88881ba5bc37c606f7fc58498845b698`)
+
+Frozen from `bac5aab96`. Handed back 2026-11-14; the coordinator stopped the
+host and removed the root. Verdict, verbatim:
+
+- `RFC-BPR-0128-report-code-blocks`, **Accept** (no note).
+
+## Closeout summary (2026-11-14, [[BPR-2168]])
+
+Every criterion is evidenced on this ledger and the owner looks are
+answered:
+
+| Criterion | Evidence | Owner |
+|---|---|---|
+| AC01 | `application_ask_menu_public_path`, `qt_conversation_cards_view` | Ask style accepted (ask-v007) |
+| AC02 | `application_ask_menu_public_path`, `core_quick_ask` | Looks ask-v001 to ask-v004 |
+| AC03 | `core_quick_ask`, `application_ask_menu_public_path` | Looks ask-v001 to ask-v004 |
+| AC04 | `core_quick_ask`, `sqlite_agent_setup_storage`, `application_ask_menu_public_path` | The editor is [[BPR-2179]]'s Prompts page, accepted |
+| AC05 | `application_ask_addressed_public_path`, live installed-agent run (`7b3fe6eaa`) | Claim chips (ask-v002), Q5 as amended (ask-v008) |
+| AC06 | `application_ask_report_public_path`, `application_fixture_agent_every_ask` (ten reports dressed, every menu section reached, every code block the Agent tab's box) | Report card and opened report (ask-v007), tab glyph and Q5 (ask-v008), templates and colours (report-templates-v003), code blocks (report-templates-v004) |
+| AC07 | `core_agent_report`, `github_provider` (each merge's count by one compare), live compare on BPR-Test | Merged main line seen in the What changed reports |
+| AC08 | `application_ask_menu_public_path`, `application_ask_report_public_path` | |
+
+Owner answers: Q8 at import; Q5 amended (one ask for many threads, ask-v005,
+accepted ask-v008); Q1 to Q4, Q6, Q7 and Q9 to Q14 built as their defaults
+and shown in the looks without objection. Not built: Why did a check fail?
+(RFC-BPR-0119 is not built, so it has no row). Follow-ups left open: What
+could break and Review as editable System prompts in the Prompt library
+(shipped in the request brief today; the library is BPR-2179's).
+

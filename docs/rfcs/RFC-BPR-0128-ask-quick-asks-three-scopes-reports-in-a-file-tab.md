@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0128"
 title: "Ask: quick asks at three scopes, and long answers read in a file tab"
-status: "In Progress"
+status: "Auto-Verified"
 metadata: {"origin":"owner design session 2026-11-12 and 2026-11-13 (options 1A to 1C, 2a to 2c, then the Ask mockups); imported 2026-11-13","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"baseline":"f85b216ecc7d4a7df2c7c5c263a0cf8be1f3d93a","accepted_design":"docs/design/ask-v1/index.html","mandate":"owner, 2026-11-13: option 1C (the Ask menu), quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab; imported with cards and a plan, no card started"}
 depends_on: ["RFC-BPR-0101", "RFC-BPR-0102", "RFC-BPR-0116", "RFC-BPR-0117", "RFC-BPR-0125"]
 ---
@@ -236,3 +236,10 @@ Recorded in the [verification record](../verification/RFC-BPR-0128.md).
 - **AC06:** A long answer appears as a report card where it was asked; the card opens the report as a tab in the files' tab strip with an outline; while it is open the Agent tab, Tour tab and tour chat keep their places and accept input; a code reference opens that file's tab at the line and the report's tab returns to the report.
 - **AC07:** Wherever commits are listed, a merge of the base branch is one line with its commit count and whether it changed this pull request's files, and the other commits are grouped by area.
 - **AC08:** Every Ask control, menu row, claim chip and report tab is reachable and operable by keyboard alone and is named to assistive technology, including a greyed row's reason.
+
+## Closeout (2026-11-14)
+
+Closed by [BPR-2168](../issues/60-done/BPR-2168-close-rfc-0128.md): every
+criterion evidenced on the [verification record](../verification/RFC-BPR-0128.md),
+the owner's looks accepted through ask-v008 and report-templates-v004.
+
