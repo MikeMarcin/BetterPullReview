@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2167"
 title: "What changed is grouped by area, and a merge of main is one line"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2166"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2163--BPR-2168--6bc64f9acd90.json","milestone_plan":{"id":"ask-v1","path":"docs/rfcs/plans/ask-v1/milestone-plan.json"},"criteria":["AC07"],"origin":"imported 2026-11-13 from the owner's Ask design (docs/design/ask-v1); cards cut at import"}
+acceptance: [{"criterion":"AC07","outcome":"pass","revision":"38c727f03","evidence":{"kind":"command","detail":"core_agent_report, github_provider (test_merge_commits_count_what_they_brought); live compare check on BPR-Test 2026-11-14"}}]
 ---
 
 # BPR-2167: What changed is grouped by area, and a merge of main is one line
@@ -64,4 +65,4 @@ Core: commit listing folds a merge of the base branch (and a rebase onto it, Q11
   2, `behind_by` 1, `base_commit` the first parent and the url ending in the
   second parent, which is the shape the adapter checks. No branch or pull
   request was made.
-- The card stays in Backlog while [[BPR-2166]] is open (its dependency).
+- [[BPR-2166]] is Done (2026-11-14), so this card is Done.

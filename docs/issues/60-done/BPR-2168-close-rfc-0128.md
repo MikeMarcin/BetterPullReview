@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2168"
 title: "Verify and close RFC-BPR-0128"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2163", "BPR-2164", "BPR-2165", "BPR-2166", "BPR-2167"]
 closeout_for: ["RFC-BPR-0128"]
@@ -22,7 +22,7 @@ RFC base: `f85b216ecc7d4a7df2c7c5c263a0cf8be1f3d93a`.
 | **AC03:** A quick ask whose subject is absent is not listed, and one whose subject is present but cannot run is listed disabled with its reason as its tooltip and accessible description; building or filtering a menu makes no agent call. | Pass (dev): `core_quick_ask`, `application_ask_menu_public_path` | `bac5aab96` |
 | **AC04:** The macro editor's Quick ask checkbox and Thread, File and Pull request toggles are saved with the macro, a scope narrower than its subject cannot be set, and What changed, Was this addressed? and Explain this file each have a built-in row whose sent prompt is unchanged. | Pass (dev): `core_quick_ask`, `sqlite_agent_setup_storage`, `application_ask_menu_public_path`; macro editor now [[BPR-2179]]'s Prompts page | `bac5aab96` |
 | **AC05:** Was this addressed? runs on a thread I did not comment in, on each thread of a file and on every thread of the pull request; each claim appears as a chip in its thread's header without changing the drawer's layout height, its press shows the thread's lines at its baseline and now, and nothing is resolved, posted or published. | Pass (dev): `application_ask_addressed_public_path`, live installed-agent run (`7b3fe6eaa`); Q5 as amended owner-accepted (look ask-v008) | `bac5aab96` |
-| **AC06:** A long answer appears as a report card where it was asked; the card opens the report as a tab in the files' tab strip with an outline; while it is open the Agent tab, Tour tab and tour chat keep their places and accept input; a code reference opens that file's tab at the line and the report's tab returns to the report. | Pass (dev): `application_ask_report_public_path`, `application_fixture_agent_every_ask` (10 reports dressed, every menu section reached); report card, opened report, tab glyph, colours accepted; code blocks pending look report-templates-v004 | `bac5aab96` |
+| **AC06:** A long answer appears as a report card where it was asked; the card opens the report as a tab in the files' tab strip with an outline; while it is open the Agent tab, Tour tab and tour chat keep their places and accept input; a code reference opens that file's tab at the line and the report's tab returns to the report. | Pass (dev): `application_ask_report_public_path`, `application_fixture_agent_every_ask` (10 reports dressed, every menu section reached); report card, opened report, tab glyph, colours accepted; code blocks accepted in look report-templates-v004 | `bac5aab96` |
 | **AC07:** Wherever commits are listed, a merge of the base branch is one line with its commit count and whether it changed this pull request's files, and the other commits are grouped by area. | Pass (dev): `core_agent_report`, `github_provider` (merge count by compare), live compare check on BPR-Test | `38c727f03` |
 | **AC08:** Every Ask control, menu row, claim chip and report tab is reachable and operable by keyboard alone and is named to assistive technology, including a greyed row's reason. | Pass (dev): `application_ask_menu_public_path` (keyboard and names), `application_ask_report_public_path` (row and menu by keyboard) | `bac5aab96` |
 
@@ -52,4 +52,10 @@ Reconcile the amended RFCs (RFC-BPR-0116, 0117, 0118, 0119, 0125) with what was 
   ask-v008 and report-templates-v003 without objection.
 - Left for the close: the RFC's status and index entry, and the RFC's
   verification summary once v004 is answered.
+
+## Closed (2026-11-14)
+
+[[BPR-2166]] and [[BPR-2167]] are Done; look report-templates-v004 was
+accepted. RFC-BPR-0128 is Auto-Verified, its index entry closed and its
+verification summary (RFC-BPR-0128 verification on claude/v0-5-0-prerelease-targets-52265d) written.
 
