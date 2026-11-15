@@ -223,26 +223,31 @@ namespace bpr::application {
 
 	void agent_queue_host::agent_changed(const std::string& aSession) { drain(aSession); }
 
-	void agent_queue_host::retired(const std::string& aSession, const core::queue_pause aOutcome)
+	void agent_queue_host::retired(const std::string& aSession, const core::queued_finish aFinish)
 	{
 		const auto found = Sending.find(aSession);
 		if (found != Sending.end()) {
-			core::settle(Queues[aSession], found->second, aOutcome);
+			static_cast<void>(core::finish(Queues[aSession], found->second, aFinish));
 			Sending.erase(found);
 			commit(aSession);
 		}
 		drain(aSession);
 	}
 
-	void agent_queue_host::returned(const std::string& aSession)
+	void agent_queue_host::returned(const std::string& aSession) { retired(aSession, core::queued_finish::not_taken); }
+
+	auto agent_queue_host::discard(const std::string& aSession, const std::uint64_t aId, const std::optional<std::uint64_t> aSeen) -> core::queue_refusal
 	{
-		const auto found = Sending.find(aSession);
-		if (found != Sending.end()) {
-			static_cast<void>(core::return_unsent(Queues[aSession], found->second));
-			Sending.erase(found);
-			commit(aSession);
+		const auto found = Queues.find(aSession);
+		if (found == Queues.end()) {
+			return core::queue_refusal::unknown_entry;
 		}
-		drain(aSession);
+		const auto refused = core::discard_uncertain(found->second, aId, aSeen.value_or(found->second.Revision));
+		if (refused == core::queue_refusal::none) {
+			commit(aSession);
+			drain(aSession);
+		}
+		return refused;
 	}
 
 	auto agent_queue_host::subscribe(agent_queue_subscriber aSubscriber) -> std::uint64_t

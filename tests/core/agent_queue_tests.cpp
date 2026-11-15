@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace {
 	using namespace bpr::core;
@@ -109,8 +110,68 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// RFC-BPR-0126 AC02 ([[BPR-2181]] slice 3): the core maps how a run
+	/// ended to the queue's pause.
+	void test_finish_maps_to_pause()
+	{
+		using namespace bpr::core;
+		expect(pause_for(queued_finish::went) == queue_pause::none && pause_for(queued_finish::not_taken) == queue_pause::none && pause_for(queued_finish::failed) == queue_pause::failed
+				   && pause_for(queued_finish::usage_limit) == queue_pause::usage_limit && pause_for(queued_finish::stopped) == queue_pause::stopped,
+			   "each finish has its pause");
+		const auto run = [](const queued_finish aFinish) {
+			auto queue = agent_queue{ };
+			static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+			static_cast<void>(enqueue(queue, { .Label = "b", .Text = "b" }, queue.Revision));
+			const auto a = queue.Entries.front().Id;
+			static_cast<void>(mark_sending(queue, a));
+			const auto refused = finish(queue, a, aFinish);
+			return std::pair{ refused, queue };
+		};
+		const auto [failedRefusal, failed] = run(queued_finish::failed);
+		expect(failedRefusal == queue_refusal::none && failed.Paused == queue_pause::failed && failed.Entries.size() == 1U && failed.Entries.front().Input.Label == "b" && failed.Entries.front().State == queued_state::queued,
+			   "a failed run pauses the queue as failed, the second message still queued");
+		expect(run(queued_finish::usage_limit).second.Paused == queue_pause::usage_limit, "a usage limit pauses as usage limit");
+		expect(run(queued_finish::stopped).second.Paused == queue_pause::stopped, "Stop pauses as stopped");
+		const auto [wentRefusal, went] = run(queued_finish::went);
+		expect(wentRefusal == queue_refusal::none && went.Paused == queue_pause::none && went.Entries.size() == 1U, "a message that went leaves, unpaused");
+		const auto [notTakenRefusal, notTaken] = run(queued_finish::not_taken);
+		expect(notTakenRefusal == queue_refusal::none && notTaken.Paused == queue_pause::none && notTaken.Entries.size() == 2U && notTaken.Entries.front().State == queued_state::queued,
+			   "a message not taken goes back first, unpaused");
+
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		const auto a = queue.Entries.front().Id;
+		static_cast<void>(mark_sending(queue, a));
+		pause(queue, queue_pause::lost_access);
+		expect(finish(queue, a, queued_finish::stopped) == queue_refusal::none && queue.Paused == queue_pause::lost_access, "a pause in force keeps its reason");
+		expect(finish(queue, a, queued_finish::went) == queue_refusal::unknown_entry, "a settled entry is not finished twice");
+	}
+
+	/// RFC-BPR-0126 AC04 ([[BPR-2181]] slice 4): a message whose delivery is
+	/// not known after a crash can be discarded.
+	void test_discard_uncertain()
+	{
+		using namespace bpr::core;
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		static_cast<void>(enqueue(queue, { .Label = "b", .Text = "b" }, queue.Revision));
+		const auto a = queue.Entries.front().Id;
+		const auto b = queue.Entries.back().Id;
+		static_cast<void>(mark_sending(queue, a));
+		restore(queue);
+		expect(discard_uncertain(queue, b, queue.Revision) == queue_refusal::not_editable, "only an uncertain message is discarded this way");
+		expect(discard_uncertain(queue, a, queue.Revision - 1U) == queue_refusal::stale, "from an older revision nothing changes");
+		expect(discard_uncertain(queue, a, queue.Revision) == queue_refusal::none && queue.Entries.size() == 1U && queue.Entries.front().Id == b && queue.Paused == queue_pause::restarted,
+			   "discarded, it leaves; the queue stays paused");
+		expect(resume(queue, queue.Revision) == queue_refusal::none && next_release(queue, queue_agent::idle) == b, "and Resume goes on with the next");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_finish_maps_to_pause();
+	test_discard_uncertain();
 	test_return_unsent();
 	test_order_and_release();
 	test_limits();

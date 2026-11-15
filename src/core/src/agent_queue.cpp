@@ -277,6 +277,67 @@ namespace bpr::core {
 		++aQueue.Revision;
 	}
 
+	auto stable_name(const queued_finish aFinish) noexcept -> std::string_view
+	{
+		switch (aFinish) {
+		case queued_finish::went:        return "went";
+		case queued_finish::failed:      return "failed";
+		case queued_finish::usage_limit: return "usage-limit";
+		case queued_finish::stopped:     return "stopped";
+		case queued_finish::not_taken:   return "not-taken";
+		}
+		return "unknown";
+	}
+
+	auto pause_for(const queued_finish aFinish) noexcept -> queue_pause
+	{
+		switch (aFinish) {
+		case queued_finish::went:
+		case queued_finish::not_taken:   return queue_pause::none;
+		case queued_finish::failed:      return queue_pause::failed;
+		case queued_finish::usage_limit: return queue_pause::usage_limit;
+		case queued_finish::stopped:     return queue_pause::stopped;
+		}
+		return queue_pause::failed;
+	}
+
+	auto finish(agent_queue& aQueue, const std::uint64_t aId, const queued_finish aFinish) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::sending) {
+			return queue_refusal::not_editable;
+		}
+		if (aFinish == queued_finish::not_taken) {
+			return return_unsent(aQueue, aId);
+		}
+		aQueue.Entries.erase(found);
+		if (aQueue.Paused == queue_pause::none) {
+			aQueue.Paused = pause_for(aFinish);
+		}
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto discard_uncertain(agent_queue& aQueue, const std::uint64_t aId, const std::uint64_t aFrom) -> queue_refusal
+	{
+		if (aFrom != aQueue.Revision) {
+			return queue_refusal::stale;
+		}
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::delivery_unknown) {
+			return queue_refusal::not_editable;
+		}
+		aQueue.Entries.erase(found);
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
 	void restore(agent_queue& aQueue)
 	{
 		for (auto& entry : aQueue.Entries) {

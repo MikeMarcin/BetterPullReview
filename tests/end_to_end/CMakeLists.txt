@@ -5555,30 +5555,30 @@ target_link_libraries(test_agent_queue_windows_public_path PRIVATE BetterPullRev
 target_compile_definitions(test_agent_queue_windows_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_agent_queue_windows_public_path)
 bpr_enable_warnings(test_agent_queue_windows_public_path)
-add_dependencies(test_agent_queue_windows_public_path test_scoped_writing_agent)
+add_dependencies(test_agent_queue_windows_public_path bpr_fixture_agent)
 bpr_add_network_isolated_test(NAME application_agent_queue_windows_public_path
     WINDOWS_UNCONTAINED
-    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>")
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>")
 set_tests_properties(application_agent_queue_windows_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-windows:pass")
 # [[BPR-2181]]. A run that ends while a second window still loads the pull
 # request retires, and the session's queue goes on.
 bpr_add_network_isolated_test(NAME application_agent_queue_second_window_loading_public_path
     WINDOWS_UNCONTAINED
-    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --second-window-loading)
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --second-window-loading)
 set_tests_properties(application_agent_queue_second_window_loading_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-second-window-loading:pass")
 # [[BPR-2181]] AC01. Two messages queued behind a running one, the session's
 # window closed: the profile's runtime runs every turn; reopened, each shows once.
 bpr_add_network_isolated_test(NAME application_agent_queue_close_runs_on_public_path
     WINDOWS_UNCONTAINED
-    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --close-runs-on)
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --close-runs-on)
 set_tests_properties(application_agent_queue_close_runs_on_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-close-runs-on:pass")
 # [[BPR-2181]] AC04. A queue left at quit is read back from disk on relaunch,
 # paused because the app restarted.
 bpr_add_network_isolated_test(NAME application_agent_queue_restart_public_path
     WINDOWS_UNCONTAINED
-    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --restart)
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --restart)
 set_tests_properties(application_agent_queue_restart_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-restart:pass")

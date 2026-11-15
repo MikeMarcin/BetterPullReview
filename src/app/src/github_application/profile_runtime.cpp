@@ -515,7 +515,12 @@ namespace bpr::app {
 		dependencies.Runner       = &AgentRunner;
 		dependencies.DecisionLane = &DecisionLane;
 		dependencies.Runs         = [](const std::string& aSession) { return aSession.starts_with("agent-tab:"); };
-		dependencies.Compose      = [this](const std::string& aSession, application::agent_invocation_projection_port& aProjection, std::function<void()> aRetired) -> std::unique_ptr<application::review_agent_turn_port> {
+		// A turn no window saw joins its conversation on disk, so a quit
+		// before any window attaches loses none.
+		AgentConversationStore           = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
+		dependencies.Conversations       = AgentConversationStore.get();
+		dependencies.ConversationEffects = &WorkbenchEffects;
+		dependencies.Compose             = [this](const std::string& aSession, application::agent_invocation_projection_port& aProjection, std::function<void()> aRetired) -> std::unique_ptr<application::review_agent_turn_port> {
 			const auto seed = AgentRuntimeSeeds.find(aSession);
 			if (seed == AgentRuntimeSeeds.end() || Closing) {
 				return nullptr;
@@ -540,7 +545,11 @@ namespace bpr::app {
 			// the queue is told then that the session's agent may take a turn.
 			auto ready = [this, aSession, alive = std::weak_ptr<application::review_agent_runtimes>{ AgentRuntimes }] {
 				DecisionLane.post([this, aSession, alive] {
-					if (!alive.expired() && !Closing && AgentQueue) {
+					if (const auto runtimes = alive.lock(); runtimes && !Closing && AgentQueue) {
+						// A turn sent before the review was accepted starts now.
+						if (auto* const runtime = runtimes->find(aSession); runtime != nullptr) {
+							runtime->ready();
+						}
 						AgentQueue->agent_changed(aSession);
 					}
 				});

@@ -113,14 +113,18 @@ namespace bpr::application {
 		/// running turn; sent, it leaves the queue; otherwise it goes next and
 		/// the result says why.
 		[[nodiscard]] auto steer(const std::string& aSession, std::uint64_t aId, std::optional<std::uint64_t> aSeen = std::nullopt) -> agent_queue_steer_result;
+		/// \brief RFC-BPR-0126 AC04. Discard on a message whose delivery is not
+		/// known: it leaves the queue (core `discard_uncertain`).
+		[[nodiscard]] auto discard(const std::string& aSession, std::uint64_t aId, std::optional<std::uint64_t> aSeen = std::nullopt) -> core::queue_refusal;
 
 		// Events from the runner.
 		/// \brief What the session's agent can take may have changed: the
 		/// host releases its next message if it can.
 		void agent_changed(const std::string& aSession);
 		/// \brief The run of the turn the host started for `aSession` retired
-		/// with `aOutcome` (none: it went; otherwise the queue pauses for it).
-		void retired(const std::string& aSession, core::queue_pause aOutcome);
+		/// and ended as `aFinish`: the core decides what it does to the
+		/// message and whether what remains pauses (RFC-BPR-0126 AC02).
+		void retired(const std::string& aSession, core::queued_finish aFinish);
 		/// \brief The run of the turn the host started for `aSession` retired
 		/// without the agent taking its message (a window close stopped it):
 		/// the message goes back first, the queue is not paused (Q10), and

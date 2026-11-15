@@ -20,9 +20,13 @@
 /// keeps the profile open): every turn still runs with no window showing the
 /// session; reopened, the pull request's Agent tab shows each turn once.
 ///
-/// `--restart` ([[BPR-2181]] AC04): a message queued and the app quit; on
-/// relaunch the queue is read back from disk, paused because the app
-/// restarted, and nothing runs until the reviewer resumes it.
+/// `--restart` ([[BPR-2181]] AC01, AC04): first, two messages queued behind
+/// a running one and the session's only window closed (another, on Home,
+/// keeps the profile open): the turns run with no window, the app quits
+/// before any window shows the session again, and on relaunch the pull
+/// request's Agent tab shows each turn once, in order. Then a message queued
+/// and the app quit; on relaunch the queue is read back from disk, paused
+/// because the app restarted, and nothing runs until the reviewer resumes it.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -283,9 +287,50 @@ auto main(int argc, char** argv) -> int
 			return EXIT_SUCCESS;
 		}
 		if (restart) {
-			const auto  session = access::agent_session_key(*owner);
-			auto* const ask     = first->review_ask_button();
-			const auto  path    = QStringLiteral("src/engine/renderer.cpp");
+			const auto session = access::agent_session_key(*owner);
+			expect(!session.empty(), "the first window shows the pull request's Agent-tab session");
+			// [[BPR-2181]] AC01. Turns no window saw, then a quit before any
+			// window shows the session again.
+			{
+				first->findChild<QAction*>(QStringLiteral("newBprWindowAction"))->trigger();
+				wait([&] { return owner->windows().size() == 2U; }, "New Window opens a second window");
+				const auto contexts = owner->windows();
+				auto*      home     = owner->window(contexts.front() == firstContext ? contexts.back() : contexts.front());
+				type_and_return(*first, QStringLiteral("Asked before the quit"));
+				wait([&] { return first->agent_tab()->state() == qt::agent_tab_state::working; }, "the first message runs: " + first->agent_panel()->status_text().toStdString());
+				type_and_return(*first, QStringLiteral("Queued before the quit"));
+				type_and_return(*first, QStringLiteral("Last before the quit"));
+				expect(rows_of(*first).contains(QStringLiteral("Queued before the quit")) && rows_of(*first).contains(QStringLiteral("Last before the quit")),
+					   "two messages wait behind it: " + rows_of(*first).join(QLatin1Char('|')).toStdString());
+				first->close();
+				wait([&] { return owner->windows().size() == 1U; }, "the session's only window closes");
+				const auto drained = e2e::wait_until_plain([&] {
+					const auto now = access::agent_session(*owner, session);
+					return now.Queued == 0U && !now.Sending && now.Quiescent;
+				},
+														   e2e::extended_agent_budget);
+				expect(drained, "the turns run with no window showing the session");
+				quit(*home);
+				start();
+				first = owner->window(owner->windows().front());
+				first->resize(1440, 960);
+				open_review(*first, "the relaunched pull request");
+				agent_ready(*first);
+				const auto once = [&] {
+					const auto asked = questions_of(*first->agent_tab());
+					return asked.count(QStringLiteral("Asked before the quit")) == 1 && asked.count(QStringLiteral("Queued before the quit")) == 1 && asked.count(QStringLiteral("Last before the quit")) == 1;
+				};
+				if (!e2e::wait_until_plain(once, e2e::extended_agent_budget)) {
+					throw std::runtime_error{ "after the quit, the Agent tab shows each turn once: " + questions_of(*first->agent_tab()).join(QLatin1Char('|')).toStdString() };
+				}
+				const auto asked = questions_of(*first->agent_tab());
+				expect(asked.indexOf(QStringLiteral("Asked before the quit")) < asked.indexOf(QStringLiteral("Queued before the quit"))
+						   && asked.indexOf(QStringLiteral("Queued before the quit")) < asked.indexOf(QStringLiteral("Last before the quit")),
+					   "in the order they were sent: " + asked.join(QLatin1Char('|')).toStdString());
+			}
+			auto* const ask   = first->review_ask_button();
+			const auto  turns = first->agent_tab()->turn_count();
+			const auto  path  = QStringLiteral("src/engine/renderer.cpp");
 			wait([&] { return first->go_to_file_line(path, 12U, false) && first->active_document_path() == path; }, "the file opens");
 			for (auto times = 0; times < 2; ++times) {
 				ask->refresh_menu();
@@ -295,12 +340,20 @@ auto main(int argc, char** argv) -> int
 				QApplication::processEvents();
 			}
 			wait([&] { return first->agent_tab()->queue_list()->isVisible(); }, "a waiting message shows in the pending list");
+			// The first goes once the relaunched session's agent is ready.
+			wait([&] { return access::agent_session(*owner, session).Sending; }, "the first ask runs");
 			auto* const list  = first->agent_tab()->queue_list();
 			auto* const pause = list->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume"));
 			expect(pause != nullptr, "the queue offers Pause");
 			pause->click();
 			QApplication::processEvents();
-			wait([&] { return first->agent_tab()->turn_count() > 0U && first->agent_tab()->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*owner).Quiescent && !access::agent_session(*owner, session).Sending; }, "the running ask finishes");
+			if (!e2e::wait_until_plain([&] { return first->agent_tab()->turn_count() > turns && first->agent_tab()->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*owner).Quiescent && !access::agent_session(*owner, session).Sending; },
+									   e2e::extended_agent_budget)) {
+				const auto now = access::agent_session(*owner, session);
+				throw std::runtime_error{ "the running ask finishes: turns=" + std::to_string(first->agent_tab()->turn_count()) + " before=" + std::to_string(turns) + " working=" + std::to_string(first->agent_tab()->state() == qt::agent_tab_state::working ? 1 : 0)
+										  + " quiescent=" + std::to_string(access::agent_invocation_evidence(*owner).Quiescent ? 1 : 0) + " sending=" + std::to_string(now.Sending ? 1 : 0) + " queued=" + std::to_string(now.Queued)
+										  + " paused=" + std::string{ core::stable_name(now.Paused) } + " status=" + first->agent_panel()->status_text().toStdString() };
+			}
 			type_and_return(*first, QStringLiteral("Kept across the restart"));
 			expect(rows_of(*first).contains(QStringLiteral("Kept across the restart")), "typed, it waits: " + rows_of(*first).join(QLatin1Char('|')).toStdString());
 			const auto waiting = rows_of(*first);

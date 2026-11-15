@@ -448,6 +448,11 @@ namespace bpr::app {
 	{
 		auto* const runtime = agent_runtime();
 		if (runtime == nullptr) {
+			// [[BPR-2181]]. Until the session has a runtime (no accepted
+			// review yet), the window's own host runs the turn. Retiring this
+			// fallback waits on the runtime's readiness gating the tab, on the
+			// fixture holds reaching the runtime's host, and on a kept older
+			// revision reaching the runtime (see the card, 2026-11-15).
 			AgentHost->dispatch(std::move(aRequest));
 			return true;
 		}
@@ -457,7 +462,7 @@ namespace bpr::app {
 		snapshot.Context.ChatMessage.clear();
 		snapshot.Context.Skills.clear();
 		snapshot.NativeQuestion.clear();
-		runtime->adopt(application::review_agent_snapshot{ .Request = std::move(snapshot) });
+		runtime->adopt(application::review_agent_snapshot{ .Request = std::move(snapshot), .Conversation = AgentConversation ? AgentConversation->projection().Key : std::nullopt });
 		if (!runtime->dispatch(std::move(aRequest))) {
 			Window->agent_panel()->refuse(runtime->running() ? "The agent is still answering. Nothing was sent." : "The agent isn't ready for this pull request yet. Nothing was sent.");
 			return false;

@@ -14,7 +14,7 @@ namespace bpr::application {
 
 	void agent_session_runner::withdraw(const std::uint64_t aRuntime) { Runtimes.erase(aRuntime); }
 
-	void agent_session_runner::retired(const std::uint64_t aRuntime, const std::string& aSession, const core::queue_pause aOutcome)
+	void agent_session_runner::retired(const std::uint64_t aRuntime, const std::string& aSession, const core::queued_finish aFinish)
 	{
 		const auto found = Running.find(aSession);
 		if (found == Running.end() || found->second != aRuntime) {
@@ -22,7 +22,7 @@ namespace bpr::application {
 		}
 		Running.erase(found);
 		if (Host != nullptr) {
-			Host->retired(aSession, aOutcome);
+			Host->retired(aSession, aFinish);
 		}
 	}
 

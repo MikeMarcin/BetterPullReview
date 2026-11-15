@@ -9,6 +9,7 @@
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_queue_host.hpp"
 #include "bpr/application/agent_session_runner.hpp"
 #include "bpr/application/agent_workspace.hpp"
@@ -356,6 +357,10 @@ namespace bpr::app {
 		/// commands, and closing one neither pauses nor hands a queue over.
 		/// Made by the first window that asks; it outlives every window.
 		std::unique_ptr<application::agent_queue_store_port> AgentQueueStore;
+		/// [[BPR-2181]]. The profile's own connection to the conversation
+		/// store, where a runtime writes a turn no window saw (on the
+		/// workbench lane, where windows read and write their conversations).
+		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
 		/// [[BPR-2181]]. The agent runtimes the queue host starts turns on.
 		application::agent_session_runner               AgentRunner;
 		std::unique_ptr<application::agent_queue_host>  AgentQueue;

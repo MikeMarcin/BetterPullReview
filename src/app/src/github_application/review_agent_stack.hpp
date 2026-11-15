@@ -114,6 +114,7 @@ namespace bpr::app {
 		[[nodiscard]] auto is_quiescent() const -> bool override;
 		void               shutdown() override;
 		[[nodiscard]] auto authorized() const -> bool override;
+		[[nodiscard]] auto accepting() const -> bool override;
 
 		// agent_session_catalog_port, over the stack's own ledger host.
 		void admit(const application::agent_session_admission&                                                aAdmission,

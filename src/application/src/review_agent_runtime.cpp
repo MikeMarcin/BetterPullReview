@@ -1,9 +1,45 @@
 #include "bpr/application/review_agent_runtime.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <utility>
 
 namespace bpr::application {
+	namespace {
+		/// [[BPR-2181]]. A turn no window saw, added to the end of its pull
+		/// request's stored conversation (the oldest going first past the
+		/// bound), so it outlives a quit. A store that cannot be read is left
+		/// alone: the turn is still kept in memory for the next window.
+		void keep_unshown_turn(agent_conversation_store_port& aStore, const agent_conversation_key& aConversation, const agent_conversation_turn& aTurn)
+		{
+			auto turns = aStore.load(aConversation);
+			if (!turns) {
+				return;
+			}
+			turns->push_back(aTurn);
+			if (turns->size() > maximum_conversation_turns) {
+				turns->erase(turns->begin(), turns->begin() + static_cast<std::ptrdiff_t>(turns->size() - maximum_conversation_turns));
+			}
+			static_cast<void>(aStore.store(aConversation, *turns));
+		}
+	} // namespace
+
+	auto queued_finish_of(const agent_run_result& aResult) noexcept -> core::queued_finish
+	{
+		switch (aResult.Outcome) {
+		case agent_run_outcome::success:
+		case agent_run_outcome::stale_result:            return core::queued_finish::went;
+		case agent_run_outcome::cancelled:               return core::queued_finish::stopped;
+		case agent_run_outcome::private_storage_failure:
+		case agent_run_outcome::failed_to_start:
+		case agent_run_outcome::workspace_unavailable:
+		case agent_run_outcome::nonzero_exit:
+		case agent_run_outcome::protocol_failure:
+		case agent_run_outcome::timeout:                 return core::queued_finish::failed;
+		}
+		return core::queued_finish::failed;
+	}
+
 	review_agent_runtime::review_agent_runtime(std::string aSession)
 		: Session(std::move(aSession))
 	{ }
@@ -72,21 +108,49 @@ namespace bpr::application {
 
 	auto review_agent_runtime::dispatch(agent_invocation_request aRequest) -> bool
 	{
-		if (Turns == nullptr || Running || !Turns->is_quiescent() || !Turns->authorized()) {
+		if (Turns == nullptr || Running || !Turns->is_quiescent() || (!Turns->authorized() && !Turns->accepting())) {
 			return false;
 		}
 		Running   = true;
 		TurnShown = presented();
+		Finished.reset();
 		// [[BPR-2181]]. A native session's turn is kept in its native history,
 		// the transcript a window shows it from; only another is kept here.
 		TurnNative = !aRequest.NativeAgentIdentity.empty();
 		Turn       = agent_conversation_turn{ .Asked = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion };
+		if (!Turns->authorized()) {
+			// The window said ready before the runtime's review was accepted:
+			// the turn waits for that rather than being refused.
+			Waiting = std::move(aRequest);
+			return true;
+		}
 		Turns->dispatch(std::move(aRequest));
 		return true;
 	}
 
+	void review_agent_runtime::ready()
+	{
+		if (!Waiting || Turns == nullptr || !Turns->authorized()) {
+			return;
+		}
+		auto request = std::move(*Waiting);
+		Waiting.reset();
+		Turns->dispatch(std::move(request));
+	}
+
 	void review_agent_runtime::cancel()
 	{
+		if (Waiting) {
+			// A turn that never started stops here, as stopped.
+			Waiting.reset();
+			Turn.reset();
+			Finished = core::queued_finish::stopped;
+			Running  = false;
+			if (Done) {
+				Done();
+			}
+			return;
+		}
 		if (Turns != nullptr) {
 			Turns->cancel();
 		}
@@ -107,10 +171,13 @@ namespace bpr::application {
 
 	auto review_agent_runtime::running() const -> bool { return Running; }
 
+	auto review_agent_runtime::last_finish() const -> core::queued_finish { return Finished.value_or(core::queued_finish::failed); }
+
 	auto review_agent_runtime::is_quiescent() const -> bool { return !Running && (Turns == nullptr || Turns->is_quiescent()); }
 
 	void review_agent_runtime::shutdown()
 	{
+		Waiting.reset();
 		if (Turns != nullptr) {
 			Turns->shutdown();
 		}
@@ -119,6 +186,8 @@ namespace bpr::application {
 	auto review_agent_runtime::unshown_turns() const -> const std::vector<agent_conversation_turn>& { return Unshown; }
 
 	void review_agent_runtime::forget_unshown() { Unshown.clear(); }
+
+	void review_agent_runtime::on_unshown(std::function<void(const agent_conversation_key&, const agent_conversation_turn&)> aKeep) { Keep = std::move(aKeep); }
 
 	auto review_agent_runtime::session() const -> const std::string& { return Session; }
 
@@ -164,6 +233,9 @@ namespace bpr::application {
 
 	void review_agent_runtime::finish(const agent_invocation_projection_identity& aIdentity, const agent_run_result& aResult)
 	{
+		if (Running) {
+			Finished = queued_finish_of(aResult);
+		}
 		if (Turn) {
 			Turn->Ending  = std::string{ name(aResult.Outcome) };
 			Turn->Outcome = turn_outcome(aResult.Outcome);
@@ -175,6 +247,9 @@ namespace bpr::application {
 			// (c) A turn no window saw to its end is kept for the next one,
 			// unless its native history keeps it: each turn has one transcript.
 			if ((!TurnShown || !presented()) && !TurnNative) {
+				if (Keep && Snapshot && Snapshot->Conversation) {
+					Keep(*Snapshot->Conversation, *Turn);
+				}
 				Unshown.push_back(std::move(*Turn));
 				if (Unshown.size() > maximum_unshown_turns) {
 					Unshown.erase(Unshown.begin());
@@ -272,6 +347,11 @@ namespace bpr::application {
 		}
 		made.bind(std::move(turns));
 		made.on_retired([this, aSession] { retired(aSession); });
+		if (Dependencies.Conversations != nullptr && Dependencies.ConversationEffects != nullptr) {
+			made.on_unshown([store = Dependencies.Conversations, effects = Dependencies.ConversationEffects](const agent_conversation_key& aConversation, const agent_conversation_turn& aTurn) {
+				effects->post([store, aConversation, aTurn] { keep_unshown_turn(*store, aConversation, aTurn); });
+			});
+		}
 		Runtimes.emplace(aSession, std::move(runtime));
 		return &made;
 	}
@@ -390,7 +470,8 @@ namespace bpr::application {
 		// The run the queue host started settles its message; a turn a window
 		// sent directly frees the session for the queue's next.
 		if (Dependencies.Runner != nullptr && Offered && Dependencies.Runner->running(aSession) == Offered) {
-			Dependencies.Runner->retired(*Offered, aSession, core::queue_pause::none);
+			const auto* const runtime = find(aSession);
+			Dependencies.Runner->retired(*Offered, aSession, runtime != nullptr ? runtime->last_finish() : core::queued_finish::failed);
 		} else if (Dependencies.Queue != nullptr) {
 			Dependencies.Queue->agent_changed(aSession);
 		}

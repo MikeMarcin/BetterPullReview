@@ -1875,7 +1875,7 @@ namespace bpr::app {
 			TourQueueSending = false;
 			QTimer::singleShot(0, Window->tour_editor(), [this, key = tour_queue_key()] {
 				if (!Closing && AgentRuntime) {
-					AgentRunner.retired(*AgentRuntime, key, core::queue_pause::none);
+					AgentRunner.retired(*AgentRuntime, key, core::queued_finish::went);
 				}
 			});
 		}
@@ -1914,7 +1914,7 @@ namespace bpr::app {
 			return;
 		}
 		if (std::exchange(TourQueueAnswered, false) && std::exchange(TourQueueSending, false)) {
-			AgentRunner.retired(*AgentRuntime, key, core::queue_pause::none);
+			AgentRunner.retired(*AgentRuntime, key, core::queued_finish::went);
 			return;
 		}
 		drain_tour_queue();

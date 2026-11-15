@@ -58,7 +58,7 @@ namespace {
 			return SteerWhy;
 		}
 		/// The run retires: its own event, given to the host.
-		void retire(application::agent_queue_host& aHost, const std::string& aSession, const core::queue_pause aOutcome = core::queue_pause::none)
+		void retire(application::agent_queue_host& aHost, const std::string& aSession, const core::queued_finish aOutcome = core::queued_finish::went)
 		{
 			States[aSession] = core::queue_agent::idle;
 			aHost.retired(aSession, aOutcome);
@@ -106,7 +106,7 @@ namespace {
 		expect(agents.Ran.size() == 3U && host.queue(session)->Entries.empty() && host.queue(session)->Paused == core::queue_pause::none, "the queue drains in order with no window");
 		static_cast<void>(host.enqueue(session, typed("four")));
 		static_cast<void>(host.enqueue(session, typed("five")));
-		agents.retire(host, session, core::queue_pause::usage_limit);
+		agents.retire(host, session, core::queued_finish::usage_limit);
 		expect(host.queue(session)->Paused == core::queue_pause::usage_limit && agents.Ran.size() == 4U, "a run that retired on a usage limit pauses what remains");
 	}
 
@@ -229,6 +229,32 @@ namespace {
 
 	/// [[BPR-2181]] (AC05). With a lane, a queue's writes run on it, in the
 	/// order the queue changed, and not where it changed.
+	/// RFC-BPR-0126 AC04 ([[BPR-2181]] slice 4). A message that was sending
+	/// when the app stopped is uncertain after the restart; Discard removes it
+	/// (a core transition), the change is stored, and Resume goes on.
+	void test_discard_an_uncertain_message_after_a_crash()
+	{
+		auto store  = memory_store{ };
+		auto agents = runner{ };
+		{
+			auto host = application::agent_queue_host{ { .Store = &store, .Runner = &agents } };
+			static_cast<void>(host.enqueue("s", typed("was sending")));
+			agents.States["s"] = core::queue_agent::busy;
+			static_cast<void>(host.enqueue("s", typed("waits")));
+			expect(host.sending("s").has_value(), "the first message is sending when the app stops");
+		}
+		agents.States["s"] = core::queue_agent::idle;
+		auto host          = application::agent_queue_host{ { .Store = &store, .Runner = &agents } };
+		host.load();
+		const auto* queue = host.queue("s");
+		expect(queue->Paused == core::queue_pause::restarted && queue->Entries.front().State == core::queued_state::delivery_unknown && host.resume("s") == core::queue_refusal::not_editable,
+			   "after the crash the message is uncertain and Resume is refused");
+		const auto uncertain = queue->Entries.front().Id;
+		expect(host.discard("s", queue->Entries.back().Id) == core::queue_refusal::not_editable, "a queued message is not discarded as uncertain");
+		expect(host.discard("s", uncertain) == core::queue_refusal::none && host.queue("s")->Entries.size() == 1U && store.Kept["s"].Entries.size() == 1U, "Discard removes it, and the store keeps that");
+		expect(host.resume("s") == core::queue_refusal::none && agents.Ran.size() == 2U && agents.Ran.back() == "s:waits", "Resume sends what was waiting");
+	}
+
 	void test_writes_run_on_the_effect_lane()
 	{
 		auto store         = memory_store{ };
@@ -250,6 +276,7 @@ auto main() -> int
 	test_windows_show_and_edit_one_queue();
 	test_steer();
 	test_restored_refused_and_limits();
+	test_discard_an_uncertain_message_after_a_crash();
 	test_writes_run_on_the_effect_lane();
 	std::cout << "agent-queue-host-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -156,6 +156,37 @@ namespace bpr::core {
 	/// \brief The turn `aId` started finished: sent and settled, it leaves
 	/// the queue. A failure, Stop or usage limit pauses what remains.
 	void settle(agent_queue& aQueue, std::uint64_t aId, queue_pause aOutcome);
+
+	/// \brief RFC-BPR-0126 AC02 ([[BPR-2181]] slice 3). How the run a
+	/// released message started ended, as the queue reads it.
+	enum class queued_finish : std::uint8_t {
+		/// The agent took the message and the run ended (answered or set aside).
+		went,
+		/// The run failed: it did not start, exited with an error, wrote
+		/// what cannot be read, ran out of time, or was refused.
+		failed,
+		/// The agent's usage limit stopped it.
+		usage_limit,
+		/// The reviewer stopped it (Stop or Stop all).
+		stopped,
+		/// The run never took the message.
+		not_taken,
+	};
+	[[nodiscard]] auto stable_name(queued_finish aFinish) noexcept -> std::string_view;
+	/// \brief The pause a finish puts on what remains: none when the message
+	/// went or was not taken; otherwise its own reason.
+	[[nodiscard]] auto pause_for(queued_finish aFinish) noexcept -> queue_pause;
+	/// \brief The run started for the sending entry `aId` finished: a message
+	/// not taken goes back first, unpaused (`return_unsent`); any other leaves
+	/// the queue, and a failure, usage limit or Stop pauses what remains. A
+	/// pause already in force (the reviewer's, a lost access) keeps its reason.
+	/// Nothing changes for an entry that is not sending.
+	[[nodiscard]] auto finish(agent_queue& aQueue, std::uint64_t aId, queued_finish aFinish) -> queue_refusal;
+	/// \brief RFC-BPR-0126 AC04. Discard on a message whose delivery is not
+	/// known (a crash while it was sending): it leaves the queue, and the
+	/// queue stays paused until the reviewer resumes it. Refused from an older
+	/// revision, for an unknown entry, or for one that is not uncertain.
+	[[nodiscard]] auto discard_uncertain(agent_queue& aQueue, std::uint64_t aId, std::uint64_t aFrom) -> queue_refusal;
 	/// \brief A restored queue opens paused; a sending entry becomes
 	/// uncertain.
 	void restore(agent_queue& aQueue);

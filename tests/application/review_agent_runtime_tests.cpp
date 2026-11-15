@@ -10,12 +10,14 @@
 
 #include "bpr/application/review_agent_runtime.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <deque>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -57,13 +59,20 @@ namespace {
 		std::size_t                                        Cancels    = 0U;
 		bool                                               Shutdown   = false;
 		bool                                               Authorized = true;
+		bool                                               Accepting  = false;
 
-		void answer(const std::string& aText)
+		void answer(const std::string& aText, const application::agent_run_outcome aOutcome = application::agent_run_outcome::success)
 		{
 			const auto identity = application::agent_invocation_projection_identity{ };
 			Projection->admit(identity);
 			Projection->stream(identity, application::agent_stream_event{ .Text = aText });
-			Projection->finish(identity, application::agent_run_result{ .Outcome = application::agent_run_outcome::success });
+			Projection->finish(identity, application::agent_run_result{ .Outcome = aOutcome });
+			Running = false;
+			Retired();
+		}
+		/// The machinery refused the turn before it started: no finish.
+		void refuse()
+		{
 			Running = false;
 			Retired();
 		}
@@ -84,6 +93,7 @@ namespace {
 		[[nodiscard]] auto is_quiescent() const -> bool override { return !Machinery.Running; }
 		void               shutdown() override { Machinery.Shutdown = true; }
 		[[nodiscard]] auto authorized() const -> bool override { return Machinery.Authorized; }
+		[[nodiscard]] auto accepting() const -> bool override { return Machinery.Accepting; }
 
 	private:
 		agent_machinery& Machinery;
@@ -105,9 +115,48 @@ namespace {
 		std::size_t Finished = 0U;
 	};
 
+	/// The workbench lane the profile writes conversations on.
+	class manual_effects final : public application::effect_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
+		void drain()
+		{
+			while (!Tasks.empty()) {
+				auto task = std::move(Tasks.front());
+				Tasks.pop_front();
+				task();
+			}
+		}
+		std::deque<std::function<void()>> Tasks;
+	};
+
+	/// The profile's conversation store, as the next launch reads it.
+	class memory_conversations final : public application::agent_conversation_store_port
+	{
+	public:
+		[[nodiscard]] auto load(const application::agent_conversation_key& aKey) -> std::optional<std::vector<application::agent_conversation_turn>> override
+		{
+			const auto found = Turns.find(aKey);
+			return found == Turns.end() ? std::vector<application::agent_conversation_turn>{ } : found->second;
+		}
+		[[nodiscard]] auto store(const application::agent_conversation_key& aKey, const std::vector<application::agent_conversation_turn>& aTurns) -> bool override
+		{
+			Turns[aKey] = aTurns;
+			return true;
+		}
+		[[nodiscard]] auto load_agent(const application::agent_conversation_key&) -> std::optional<std::uint32_t> override { return std::nullopt; }
+		[[nodiscard]] auto store_agent(const application::agent_conversation_key&) -> bool override { return true; }
+		[[nodiscard]] auto forget_agents() -> bool override { return true; }
+
+		std::map<application::agent_conversation_key, std::vector<application::agent_conversation_turn>> Turns;
+	};
+
 	struct profile
 	{
 		manual_lane                                         Lane;
+		manual_effects                                      Effects;
+		memory_conversations                                Conversations;
 		application::agent_session_runner                   Runner;
 		application::agent_queue_host                       Queue{ { .Runner = &Runner } };
 		std::map<std::string, agent_machinery>              Machinery;
@@ -127,7 +176,9 @@ namespace {
 					machinery.Retired    = std::move(aRetired);
 					return std::make_unique<turn_port>(machinery);
 				},
-				.Runs = [](const std::string& aSession) { return aSession.starts_with("agent-tab:"); },
+				.Runs                = [](const std::string& aSession) { return aSession.starts_with("agent-tab:"); },
+				.Conversations       = &Conversations,
+				.ConversationEffects = &Effects,
 			});
 		}
 	};
@@ -193,6 +244,129 @@ namespace {
 		// With nothing left to do and no window, the runtime is let go.
 		app.Lane.drain();
 		expect(app.Runtimes->find(session) == nullptr, "an idle runtime no window shows is let go");
+	}
+
+	/// [[BPR-2181]]. A turn no window saw is written to its pull request's
+	/// conversation on the profile's lane, after what the conversation held,
+	/// so a quit before a window attaches loses none; a turn a window saw is
+	/// left to that window, and a native one to its native history.
+	void test_unshown_turns_are_written_to_the_conversation()
+	{
+		auto       app                        = profile{ };
+		const auto session                    = std::string{ "agent-tab:github.com/o/r#7" };
+		const auto conversation               = application::agent_conversation_key{ .Host = "github.com", .Owner = "o", .Name = "r", .Number = 7U, .Agent = 1U };
+		app.Conversations.Turns[conversation] = { { .Asked = "earlier", .Answered = "kept before" } };
+		auto* runtime                         = app.Runtimes->open(session);
+		auto  snapshot                        = review_snapshot();
+		snapshot.Conversation                 = conversation;
+		runtime->adopt(snapshot);
+
+		// Shown to a window: the window keeps it, nothing is written here.
+		auto       window         = shown_turns{ };
+		const auto presenter      = runtime->attach({ .Projection = &window, .Release = { } });
+		auto       shown          = snapshot.Request;
+		shown.Context.ChatMessage = "seen";
+		expect(runtime->dispatch(shown), "a window's turn goes through the runtime");
+		static_cast<void>(app.Queue.enqueue(session, typed("first")));
+		static_cast<void>(app.Queue.enqueue(session, typed("second")));
+		app.Machinery[session].answer("seen answer");
+		app.Lane.drain();
+		app.Effects.drain();
+		expect(app.Conversations.Turns[conversation].size() == 1U, "a turn a window saw is that window's to keep");
+		expect(app.Machinery[session].Requests.size() == 2U, "the first message runs next");
+
+		// The window closes mid-turn: that turn and the next, which no window
+		// saw end, are each written, in order.
+		app.Runtimes->detach(session, presenter);
+		app.Lane.drain();
+		app.Machinery[session].answer("one");
+		app.Lane.drain();
+		app.Machinery[session].answer("two");
+		app.Lane.drain();
+		expect(app.Conversations.Turns[conversation].size() == 1U, "nothing is written on the decision lane");
+		app.Effects.drain();
+		const auto& stored = app.Conversations.Turns[conversation];
+		expect(stored.size() == 3U && stored[0].Asked == "earlier" && stored[1].Asked == "first" && stored[1].Answered == "one" && stored[2].Asked == "second" && stored[2].Answered == "two",
+			   "each turn no window saw joins the stored conversation after what it held");
+
+		// A native turn is kept by its native history, not here.
+		auto native                = snapshot.Request;
+		native.NativeAgentIdentity = "agent:1";
+		native.NativeQuestion      = "native";
+		expect(runtime->dispatch(native), "a native turn runs with no window");
+		app.Machinery[session].answer("native answer");
+		app.Effects.drain();
+		expect(app.Conversations.Turns[conversation].size() == 3U, "a native turn is not written to the conversation");
+		app.Lane.drain();
+	}
+
+	/// RFC-BPR-0126 AC02, AC03 ([[BPR-2181]] slice 3). A run's finish carries
+	/// its outcome to the queue: a failure pauses it as failed and a Stop as
+	/// stopped, with what remains still queued; a turn its machinery refused
+	/// never leaves its message sending.
+	void test_a_run_finish_pauses_the_queue_with_its_reason()
+	{
+		const auto failing = [](const application::agent_run_outcome aOutcome, const core::queue_pause aPause, const std::string_view aWhat) {
+			auto       app     = profile{ };
+			const auto session = std::string{ "agent-tab:github.com/o/r#7" };
+			auto*      runtime = app.Runtimes->open(session);
+			runtime->adopt(review_snapshot());
+			static_cast<void>(app.Queue.enqueue(session, typed("first")));
+			static_cast<void>(app.Queue.enqueue(session, typed("second")));
+			expect(app.Machinery[session].Requests.size() == 1U, "the first message runs");
+			app.Machinery[session].answer("ended", aOutcome);
+			app.Lane.drain();
+			const auto* const queue = app.Queue.queue(session);
+			expect(queue->Paused == aPause && queue->Entries.size() == 1U && queue->Entries.front().Input.Text == "second" && queue->Entries.front().State == core::queued_state::queued
+					   && !app.Queue.sending(session) && app.Machinery[session].Requests.size() == 1U,
+				   aWhat);
+		};
+		failing(application::agent_run_outcome::nonzero_exit, core::queue_pause::failed, "a failing run leaves the queue paused as failed, the second message still queued");
+		failing(application::agent_run_outcome::protocol_failure, core::queue_pause::failed, "an unreadable answer pauses as failed");
+		failing(application::agent_run_outcome::cancelled, core::queue_pause::stopped, "Stop pauses as stopped");
+
+		auto       app     = profile{ };
+		const auto session = std::string{ "agent-tab:github.com/o/r#7" };
+		auto*      runtime = app.Runtimes->open(session);
+		runtime->adopt(review_snapshot());
+		static_cast<void>(app.Queue.enqueue(session, typed("first")));
+		static_cast<void>(app.Queue.enqueue(session, typed("second")));
+		app.Machinery[session].refuse();
+		app.Lane.drain();
+		expect(!app.Queue.sending(session) && app.Queue.queue(session)->Paused == core::queue_pause::failed && app.Queue.queue(session)->Entries.size() == 1U,
+			   "a turn refused before it started settles its message and pauses; nothing is left sending");
+		expect(application::queued_finish_of({ .Outcome = application::agent_run_outcome::stale_result }) == core::queued_finish::went, "an answer set aside went");
+	}
+
+	/// [[BPR-2181]]. A window may say ready before the runtime's review is
+	/// accepted: a turn sent then waits for it, and starts once the runtime
+	/// is ready; stopped while it waits, it ends as stopped.
+	void test_a_turn_sent_before_ready_waits_for_it()
+	{
+		auto       app     = profile{ };
+		const auto session = std::string{ "agent-tab:github.com/o/r#7" };
+		auto*      runtime = app.Runtimes->open(session);
+		runtime->adopt(review_snapshot());
+		app.Machinery[session].Authorized = false;
+		app.Machinery[session].Accepting  = true;
+		auto early                        = review_snapshot().Request;
+		early.Context.ChatMessage         = "sent early";
+		expect(runtime->dispatch(early) && runtime->running() && app.Machinery[session].Requests.empty(), "a turn sent before the review is accepted waits, and is not refused");
+		runtime->ready();
+		expect(app.Machinery[session].Requests.empty(), "it waits while the review is not accepted");
+		app.Machinery[session].Authorized = true;
+		app.Machinery[session].Accepting  = false;
+		runtime->ready();
+		expect(app.Machinery[session].Requests.size() == 1U && app.Machinery[session].Requests.front().Context.ChatMessage == "sent early", "once ready, it starts");
+		app.Machinery[session].answer("answered");
+		app.Lane.drain();
+		app.Machinery[session].Authorized = false;
+		expect(!runtime->dispatch(early), "with no authority lent at all, a turn is refused");
+		app.Machinery[session].Accepting = true;
+		expect(runtime->dispatch(early), "another waits while the review is accepted");
+		runtime->cancel();
+		expect(!runtime->running() && runtime->last_finish() == core::queued_finish::stopped && app.Machinery[session].Requests.size() == 1U, "stopped while it waits, it never starts");
+		app.Lane.drain();
 	}
 
 	void test_window_releases_and_runtime_stays_while_work_waits()
@@ -290,6 +464,9 @@ namespace {
 auto main() -> int
 {
 	test_zero_windows_drain_and_keep_the_transcript();
+	test_unshown_turns_are_written_to_the_conversation();
+	test_a_run_finish_pauses_the_queue_with_its_reason();
+	test_a_turn_sent_before_ready_waits_for_it();
 	test_window_releases_and_runtime_stays_while_work_waits();
 	test_shutdown_stops_every_runtime();
 	test_a_lost_authority_pauses_the_queue_and_starts_nothing();

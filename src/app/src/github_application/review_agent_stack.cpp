@@ -224,6 +224,10 @@ namespace bpr::app {
 
 	auto review_agent_stack::authorized() const -> bool { return !Closing && Lease.live() && Observed.has_value(); }
 
+	/// Lent, and the epoch host has not yet accepted the review: a window may
+	/// already say ready, so its turn waits for `observe_review`.
+	auto review_agent_stack::accepting() const -> bool { return !Closing && Lease.live() && !Observed.has_value(); }
+
 	void review_agent_stack::admit(const application::agent_session_admission&                                                aAdmission,
 								   std::function<void(std::expected<core::agent_session, application::ledger_store_failure>)> aDone)
 	{

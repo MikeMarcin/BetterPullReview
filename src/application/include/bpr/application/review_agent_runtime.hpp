@@ -46,6 +46,10 @@ namespace bpr::application {
 		/// under (the lease the profile lent it) is live. No turn starts
 		/// without it.
 		[[nodiscard]] virtual auto authorized() const -> bool = 0;
+		/// \brief [[BPR-2181]]. A live authority was lent and the machinery
+		/// is still accepting the review it names: `authorized` follows
+		/// shortly, so a turn sent now waits rather than being refused.
+		[[nodiscard]] virtual auto accepting() const -> bool { return false; }
 	};
 
 	/// \brief The review a runtime builds a released message's request from:
@@ -55,6 +59,9 @@ namespace bpr::application {
 	struct review_agent_snapshot
 	{
 		agent_invocation_request Request;
+		/// [[BPR-2181]]. The pull request's conversation the Agent tab keeps
+		/// this agent's turns in: where a turn no window saw is written.
+		std::optional<agent_conversation_key> Conversation;
 
 		auto operator<=>(const review_agent_snapshot&) const = default;
 	};
@@ -75,6 +82,12 @@ namespace bpr::application {
 
 		[[nodiscard]] auto releases() const -> bool { return Release && (!Ready || Ready()); }
 	};
+
+	/// \brief RFC-BPR-0126 AC02 ([[BPR-2181]] slice 3). How a released
+	/// message's run ended, as the queue reads it: answered or set aside, it
+	/// went; cancelled, it was stopped; any other ending failed. The core maps
+	/// that to the queue's pause (`core::pause_for`).
+	[[nodiscard]] auto queued_finish_of(const agent_run_result& aResult) noexcept -> core::queued_finish;
 
 	/// \brief Bounds the turns a runtime keeps while no window shows them.
 	inline constexpr std::size_t maximum_unshown_turns = maximum_conversation_turns;
@@ -106,15 +119,22 @@ namespace bpr::application {
 		/// releases, otherwise built from the snapshot. Whether a turn started.
 		[[nodiscard]] auto release(const core::queued_entry& aEntry) -> bool;
 		/// \brief (d) A turn the window composed, sent through the runtime.
-		/// Refused while a turn runs and while the review's authority is not
-		/// live.
+		/// Refused while a turn runs or with no live authority. Sent while the
+		/// lent review is still being accepted, it waits for that (`ready`) as
+		/// the session's running turn, rather than being refused.
 		[[nodiscard]] auto dispatch(agent_invocation_request aRequest) -> bool;
-		void               cancel();
+		/// \brief [[BPR-2181]]. The runtime's machinery accepted the review
+		/// and may run a turn: a turn that waited for it starts.
+		void ready();
+		void cancel();
 		/// \brief The run of the runtime's turn retired (its machinery is
 		/// quiescent again): the runtime is free, and `aDone` is told.
 		void               retired();
 		void               on_retired(std::function<void()> aDone);
 		[[nodiscard]] auto running() const -> bool;
+		/// \brief How the last turn's run ended: `failed` when it retired with
+		/// no finish (its machinery refused it before it started).
+		[[nodiscard]] auto last_finish() const -> core::queued_finish;
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		void               shutdown();
 
@@ -124,6 +144,10 @@ namespace bpr::application {
 		/// their one transcript, and they stay until `forget_unshown`.
 		[[nodiscard]] auto unshown_turns() const -> const std::vector<agent_conversation_turn>&;
 		void               forget_unshown();
+		/// \brief [[BPR-2181]]. Where a turn no window saw is also written, so
+		/// a quit before a window attaches loses none: given the snapshot's
+		/// conversation and the turn. Set once, by the registry.
+		void on_unshown(std::function<void(const agent_conversation_key& aConversation, const agent_conversation_turn& aTurn)> aKeep);
 
 		[[nodiscard]] auto session() const -> const std::string&;
 
@@ -154,10 +178,14 @@ namespace bpr::application {
 		bool                                            Running       = false;
 		/// The running turn's question and its answer so far.
 		std::optional<agent_conversation_turn> Turn;
-		bool                                   TurnShown  = false;
-		bool                                   TurnNative = false;
-		std::vector<agent_conversation_turn>   Unshown;
-		std::function<void()>                  Done;
+		bool                                   TurnShown = false;
+		std::optional<core::queued_finish>     Finished;
+		/// A turn sent before the machinery was authorized, waiting for it.
+		std::optional<agent_invocation_request>                                            Waiting;
+		bool                                                                               TurnNative = false;
+		std::vector<agent_conversation_turn>                                               Unshown;
+		std::function<void()>                                                              Done;
+		std::function<void(const agent_conversation_key&, const agent_conversation_turn&)> Keep;
 	};
 
 	struct review_agent_runtime_dependencies
@@ -176,6 +204,12 @@ namespace bpr::application {
 		/// Whether a session is one the registry runs (the Agent tab's, not a
 		/// tour's, which a window still runs until slice 6).
 		std::function<bool(const std::string& aSession)> Runs;
+		/// [[BPR-2181]]. Optional: the profile's conversation store, where a
+		/// turn no window saw joins its pull request's conversation, and the
+		/// serial lane those writes run on, off the decision lane. Without
+		/// both, such a turn lives only until a window takes it.
+		agent_conversation_store_port* Conversations       = nullptr;
+		effect_executor*               ConversationEffects = nullptr;
 	};
 
 	/// \brief The profile's runtimes, one per review session.
