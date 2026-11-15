@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2192"
 title: "Three courses broken since the account-setup merge (75ab1e0fa): Enhance, the tour link and the tour CLI stop"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"BPR-2181 second round, 2026-11-15: failing at the lane and at its parent 4bb44f28f in a scratch worktree; coordinator asked for a bisect and a card","related_cards":["BPR-2181","BPR-2051","BPR-2122","BPR-2076","BPR-2013"],"reservation":"docs/issues/_reservations/BPR-2192--BPR-2193--222f766917c9.json"}
+acceptance: [{"criterion": "AC01", "outcome": "pass", "revision": "b10435495", "evidence": {"kind": "command", "detail": "ctest --preset dev --repeat until-fail:5 at b10435495 (lane db204d4ae plus the fix): application_enhance_comment_note_public_path 5/5, application_review_tour_link_public_path 5/5, application_review_tour_cli_ordinary_stop 5/5. Neighbours once: qt_enhance_control, application_review_tour_composition_public_path, application_review_tour_cold_import_public_path, application_review_submission_cli_ordinary, application_review_tour_cli_ordinary_native pass. Enhance was a product fault (fixed); the tour link and CLI stop courses were stale (changed to the current design), reasons in the Resolution section."}}]
 ---
 
 # BPR-2192: Three courses broken since the account-setup merge (75ab1e0fa): Enhance, the tour link and the tour CLI stop
@@ -59,3 +60,28 @@ Explain this file work.
 
 - **AC01:** each of the three courses passes, or is changed to the product's
   current behaviour with the reason on this card.
+
+## Resolution
+
+- **Enhance on a Local comment (product fault, fixed).** Since BPR-2158
+  retired the Notes panel, a Local comment is written in the drawer's
+  composer, whose Enhance was built once as `enhance_surface::comment`. A
+  Local comment's Enhance therefore told the agent it was "A draft comment or
+  reply on the pull request, which its author will read", so the reviewer got
+  a rewrite addressed to the author for text nobody else reads. The course saw
+  the comment's answer come back for the note. The composer's Enhance binding
+  now asks as a note while Local is chosen (and as its own surface again on
+  Draft), for both the comment and the reply composer
+  (`enhance_binding::ask_as`, set in `open_thread_card::choose_local`). The
+  button and panel keep their words. `qt_enhance_control` covers the switch.
+- **Tour link (course stale).** The course clicked `tourReturn` (Show in
+  code), which BPR-2013 removed; it now uses the stop's file-and-lines link
+  (`tour_editor_action::navigate_stop`), as the other tour courses do since
+  BPR-2013. The button was not brought back.
+- **CLI ordinary stop (course stale).** Restarted after the account was
+  consented to in the setup, the application restores that account by itself
+  (establishing, then ready) and asks nothing. The course opened the account
+  setup again, which replaced its driver with one that never pressed Connect,
+  so its count of consents read zero. It now leaves a restoring session alone
+  and keeps the first consent; the check that no read question opened is
+  unchanged.
