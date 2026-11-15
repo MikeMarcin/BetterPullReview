@@ -15,7 +15,8 @@ depends_on: ["BPR-2032", "BPR-2033", "BPR-2034"]
 Authoritative requirements: [RFC-BPR-0112](../../rfcs/RFC-BPR-0112-optional-workflow-extensions.md)
 (AC07's native author workbench, AC09's accent), as the owner reshaped the
 author's workbench in the accepted design
-[local-draft-workflow-v2](../../design/local-draft-workflow-v2/README.md)
+`local-draft-workflow-v2` (`docs/design/local-draft-workflow-v2/README.md`
+on the lane, merged from `claude/local-draft-workflow-mockups` at `042e035a9`)
 (session `273f0aafcc76fd284605b51649bbdbdf`, Accepted 2026-11-15, all six
 recommended defaults; note: "we got rid of the notes tab so not sure why the
 mockup shows it", so Revise's drawer has no Notes tab). Filed under
