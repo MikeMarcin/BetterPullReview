@@ -5,6 +5,18 @@
 - The core owns explicit-invocation legality, Git-host/provider policy, selected context scope, revision binding, staleness, and finding-promotion decisions.
 - The host owns executable/workspace/process/session/protocol lifecycle, environment policy, context-supplement construction, cancellation, and typed result events.
 - The Qt adapter owns visible provider/scope disclosure, explicit commands, approvals, streaming chat/findings, and error presentation.
+- RFC-BPR-0128 (Ask and reports) keeps that split. The core decides which
+  quick asks an Ask menu lists and why a row is greyed (`core::decide_quick_asks`),
+  whether an answer is a report and how it reads by the report convention
+  (`core::report_card_of`, `core::dress_report`), the claims a several-thread
+  Was this addressed? answer carries (`core::read_addressed_claims`), and a
+  commit listing's folded merges (`core::fold_commit_listing`). The host builds
+  the asks' material, reads each merge's commit count through the GitHub
+  provider's compare, and carries the report shape in the request
+  (`brief.report_format`, the returning and Explain prompts). The Qt adapter
+  draws the Ask controls and menus, the report card and the report's tab (a
+  page of Qt rich text with the Agent tab's code boxes), in the theme's report
+  colours.
 
 ## Principle
 

@@ -6,6 +6,25 @@ The functional core decides whether an explicit AI action is legal, what local c
 
 ## Entry points
 
+- **Ask** (RFC-BPR-0128): one Ask control at three anchors, the review bar,
+  the open file's tab and the open thread's foot beside Reply, and one Ask
+  item in a thread's and a file tab's right-click menus. Each menu lists the
+  quick asks of its scope (a suggested prompt with Quick ask ticked and a
+  Thread, File or Pull request scope), decided when it opens: a quick ask
+  whose subject is absent is not listed, and one that cannot run yet is
+  greyed with its reason. Custom question… opens the Agent tab on the
+  subject and sends nothing; Edit Quick Asks… opens Settings at the prompts.
+  The agent controls these replace (Ask agent and Was this addressed? in a
+  thread's header, Explain this file in the file's header) are gone.
+- Reports (RFC-BPR-0128): an answer that is a report (What changed since my
+  review, Explain this file and Was this addressed? about several threads
+  always; any other by its shape) is a card where it was asked, its summary
+  and an attachment row, and opens as a tab in the files' tab strip. The
+  tab draws a report that keeps to its template (docs/design/report-templates-v1)
+  as a page: verdict rules, a tally, places that open the code, the Agent
+  tab's code boxes and Suggested change with Add as draft comment, in the
+  theme's report colours (Settings › Appearance › Reports). A floating menu
+  lists its sections; View source and Copy source keep the Markdown.
 - Ask about selection
 - Analyze current file: **Explain this file** (RFC-BPR-0117, [[BPR-2076]]).
   Its subject is the file open in Review, never a selection: the control at
@@ -15,6 +34,8 @@ The functional core decides whether an explicit AI action is legal, what local c
   card under the file's header, its references links, with Keep local (a
   Local comment on the file whose first line names the agent), Continue in
   Agent tab and Dismiss, and is a turn in the Agent tab's history either way.
+  RFC-BPR-0128 amends both: Explain this file is a quick ask in the file's
+  Ask and the file tab's menu, and its answer is a report card and report.
 - Analyze latest upload: **What changed since my review**
   (RFC-BPR-0116, [[BPR-2073]]). Offered when the pull request has commits
   newer than the reviewer's last submitted review or Seen, in the Pull
@@ -28,7 +49,12 @@ The functional core decides whether an explicit AI action is legal, what local c
   than the reviewer's last comment there, on the thread and among its
   conversation's prompts. The answer leads with Addressed, Partly, Not
   addressed or Cannot tell and is shown as the agent's claim: it resolves,
-  verifies and posts nothing.
+  verifies and posts nothing. RFC-BPR-0128 amends it: it is offered on any
+  review thread once the head is past the commit the thread started on, and
+  on a file and the pull request as one ask carrying every thread, answered
+  as a report with a claim a thread; each claim is a chip in its thread's
+  header. A merge of the base branch in What changed is one line with its
+  commit count.
 - Workshop comment
 - Run AI review
 - Open full agent session
