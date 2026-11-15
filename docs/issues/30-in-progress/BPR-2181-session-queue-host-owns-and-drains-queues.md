@@ -110,12 +110,23 @@ slice 1.
    `private_review_workflow` delegates to it), the boundary fix the
    architecture asks for. The app composition landed (`32946c58e`): the
    Agent tab's turns run on the profile's runtimes, a close detaches, and
-   turns no window saw join the session's conversation. Open: a durable
-   transcript for those turns across a quit (see Evidence).
+   turns no window saw join the session's conversation. Those turns are
+   now written to the profile's own conversation store as they end, so a
+   quit before a window reattaches loses none (see Evidence, 2026-11-15).
+   Retiring the window's own fallback host for turns waits on three
+   things the Evidence names (the fixture holds and a kept older
+   revision reaching the runtime's stack).
 3. AC02, AC03, AC12: typed finish and admission with run id; core
-   outcome-to-pause mapping; failure and usage-limit courses.
+   outcome-to-pause mapping; failure and usage-limit courses. Started
+   2026-11-15: the typed finish and the core mapping landed, with the
+   failure and Stop pauses and a refused turn that never stays sending.
+   Open: decoding the usage limit (Claude's `"error":"rate_limit"`
+   assistant frame, which the fixture agent writes), the admission's run
+   id, AC12, and the public courses on the fixture agent.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
-   store refusal; store writes on the effect path.
+   store refusal; store writes on the effect path. Started 2026-11-15:
+   Discard is a core transition and a host command. Open: the Agent tab's
+   Discard control and its public course, and the store refusal.
 5. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
    runner state; core queue-versus-send; Stop all on the host.
 6. AC13, AC11: facts assembled outside widgets, decided expansions carried by
@@ -304,3 +315,95 @@ slice 1.
   because windows still run their own agent hosts until the composition
   lands. Rechecked 2026-11-14 at `9c7672579`: nothing composed changed, so
   that evidence stands.
+- **Regression, `application_native_agent_sessions` (2026-11-15):** it
+  failed for two reasons. (1) From `b8c371613` (BPR-2140 and BPR-2141; its
+  parent `b8e2adeac` passes, both built in a scratch worktree), the agent
+  canary missed the tour schema, which now travels in
+  `--append-system-prompt`, and a tool-free Draft Tour run refused the
+  canary's tool list and tool result. The fixture was wrong, not the
+  product: the canary reads the appended system prompt and answers a
+  tool-free run with no tools (recorded on [[BPR-2140]]). (2) Slice 2
+  (`32946c58e`) broke `native-current-generation`: the runtime's host ran
+  the native turn, so the window's host kept the history it had last read,
+  and the history menu never showed the new turn. A turn's finish now tells
+  the window's host (`agent_invocation_host::native_history_changed`), and
+  the next look reads the store again. The course passes.
+- **AC01 (durable transcript, 2026-11-15):** the profile has its own
+  conversation store connection (`github_profile_runtime::AgentConversationStore`).
+  A runtime writes each turn no window saw end, and no native history
+  keeps, to the end of its pull request's stored conversation, on the
+  workbench lane where windows read and write theirs
+  (`review_agent_runtime::on_unshown`; the snapshot a window adopts names
+  the conversation). A window that attaches skips a turn it already holds,
+  so each shows once. Courses: `application_review_agent_runtime`
+  (`test_unshown_turns_are_written_to_the_conversation`: a turn a window
+  saw is not written, the turn running at the close and the next are, in
+  order, and a native one is not) and
+  `application_agent_queue_restart_public_path`, whose first part queues
+  two messages behind a running one, closes the session's only window,
+  lets the turns run, quits from the other window, relaunches, opens the
+  pull request and sees each turn once, in order. The queue courses now
+  run the fixture agent (`bpr_fixture_agent`): the writing stub they ran
+  before answered every Agent-tab turn with exit 3, which went unnoticed
+  until a failure paused the queue.
+- **Slice 2 regressions found and fixed (2026-11-15):** the last round's
+  wider pass was wrong: at `121c32f58`, built from nothing in a scratch
+  worktree, 14 agent contract courses failed. Causes and fixes:
+  (1) A question sent right after opening a review was refused ("The agent
+  isn't ready for this pull request yet"), because the tab says ready once
+  the window's host observed the review, before the runtime's stack has
+  accepted the review lent to it. Now a turn sent while the lent review is
+  being accepted waits for it and starts when the stack is ready
+  (`review_agent_turn_port::accepting`, `review_agent_runtime::ready`); with
+  no authority lent at all it is still refused. Courses:
+  `application_review_agent_runtime`
+  (`test_a_turn_sent_before_ready_waits_for_it`), and on the public path
+  `application_agent_queue_close_runs_on_public_path` and the windows
+  course, which type at once after opening and were refused before. The
+  chat, finding, crash-recovery, suggest-change and agent-guard courses
+  pass again. (2) `application_agent_queue_restart_public_path` failed at
+  "the running ask finishes" on the lane tip: its quick ask was sent before
+  the relaunched runtime was ready, and the writing stub it ran failed
+  every Agent-tab turn. It runs the fixture agent, waits for the first ask
+  to be sending, and passes. (3) `open_file_in_review` dispatched a file
+  the review had only reported so far straight to the comparison, which
+  cannot be asked for it, so the comparison stayed on BPR-2180's code
+  skeleton. It now goes through the Files drawer's own selection, which
+  holds the file and opens it once the review lists it. Only courses call
+  it while a review loads (the product calls it for findings and quick
+  asks, after the review is accepted), so no reviewer saw it; course
+  `application_fixture_agent_guard_public_path`. The writing stub now
+  answers an Agent-tab chat turn (stream-JSON, not a writing launch), so
+  `application_ask_queue_public_path` goes on past its typed follow-ups
+  now that a failed run pauses the queue.
+  Still failing, and not from this round: `application_agent_invocation_composition_contract`,
+  `_staleness_contract` and `_cleanup_retry_contract` (the fixture holds
+  and a kept older revision on the runtime's stack),
+  `_workspace_diagnostic_contract` and
+  `application_agent_finding_dif_context_contract`; and
+  `application_pending_states_public_path` ("the clicked file arrives"),
+  which fails the same way with the 121c32f58 binary and with the runtime
+  attach compiled out (A/B), so it is not the runtime. The window's own
+  `AgentHost` fallback stays until the holds and the kept revision reach
+  the runtime's stack.
+- **AC02, AC03 (partial, slice 3, 2026-11-15):** `core::queued_finish`
+  (went, failed, usage limit, stopped, not taken), `core::pause_for` and
+  `core::finish`, which settles or returns the sending entry and keeps a
+  pause already in force (a lost access is not overwritten by the Stop that
+  follows it). The runtime reads its run's result
+  (`application::queued_finish_of`) and the registry hands that to the
+  runner, so `agent_queue_host::retired` takes the typed finish; a turn its
+  machinery refused before it started retires as failed and never stays
+  sending. Courses: `core_agent_queue` (`test_finish_maps_to_pause`) and
+  `application_review_agent_runtime`
+  (`test_a_run_finish_pauses_the_queue_with_its_reason`: a failing run, an
+  unreadable answer and a Stop each pause with their reason, the second
+  message still queued; a refused turn settles). The usage-limit decode and
+  the fixture-agent public courses are still open.
+- **AC04 (partial, slice 4, 2026-11-15):** `core::discard_uncertain` and
+  `agent_queue_host::discard`. Courses: `core_agent_queue`
+  (`test_discard_uncertain`) and `application_agent_queue_host`
+  (`test_discard_an_uncertain_message_after_a_crash`: a message sending at
+  the crash reads back uncertain, Resume is refused, Discard removes it and
+  the store keeps that, and Resume sends what waited). The Agent tab's
+  control is still open.

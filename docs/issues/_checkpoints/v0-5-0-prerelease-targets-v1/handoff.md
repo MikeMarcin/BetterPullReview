@@ -3846,3 +3846,73 @@ to), and look at `application_native_agent_sessions`'s
 own `AgentHost` still serves `restore_native`, `probe_workspace`, the
 offerings and the catalog. Retiring it is not required by AC01 and was
 not done.
+
+## BPR-2181: the native-sessions regression named and fixed; unseen turns are durable; slices 3 and 4 started (2026-11-15)
+
+Coordinator (2026-11-15): regression check first, then the transcript
+gap, slices 3 to 6, and retiring the window's fallback host, ending with a
+scratch build of HEAD.
+
+| Commit | What |
+|---|---|
+| `02922adba` | Canary reads `--append-system-prompt` and answers tool-free runs with no tools; `agent_invocation_host::native_history_changed`; note on BPR-2140 |
+| `2b38556f0` | Unseen turns written to the profile's conversation store; restart course extended; `core::queued_finish`, `pause_for`, `finish`, `discard_uncertain`; typed finish through host, runner and runtime; `agent_queue_host::discard`; a turn waits while the lent review is accepted (`accepting`, `ready`); queue courses on the fixture agent |
+| `124253364` | `open_file_in_review` through the Files drawer's selection; the writing stub answers Agent-tab chat turns |
+
+Regression, `application_native_agent_sessions`. Built in a scratch
+worktree: `7c8d39c54` fails at `tour-native-first-answer`, `b8c371613`
+fails the same way, its parent `b8e2adeac` passes. `b8c371613` (BPR-2140,
+BPR-2141) moved the tour's instructions into `--append-system-prompt` and
+made Draft Tour tool-free; the canary read the schema only from the
+message and listed tools in a tool-free run. The canary is fixed (recorded
+on BPR-2140). On the lane, slice 2 (`32946c58e`) also broke
+`native-current-generation` (the window's host kept stale native history
+after a runtime turn); fixed with `agent_invocation_host::native_history_changed`.
+The course passes on the dev tree.
+
+Transcript gap: closed. The profile's own conversation store takes each
+turn no window saw, on the workbench lane. The restart course's first
+part proves a quit before a window reattaches loses none.
+
+Slices 3 and 4, started: `core::queued_finish`, `pause_for`, `finish`,
+`discard_uncertain`; the host and runner take a typed finish; the runtime
+maps its run's result; a refused turn settles as failed; Discard on the
+host. A turn sent while the runtime is still accepting its lent review
+waits for it (`review_agent_turn_port::accepting`, `review_agent_runtime::ready`)
+instead of being refused.
+
+Coordinator's three regressions (relayed from the steering implementer):
+(1) the restart course passes; (2) a question sent before the runtime has
+accepted its lent review waits and then runs, no re-send needed; (3)
+`open_file_in_review` on a reported-only file now waits and opens
+(course-only; no BPR-2180 correction needed). The last round's "42 of 43
+pass" was wrong: at `121c32f58` (scratch, from nothing) 14 agent contract
+courses failed; most pass now.
+
+Verification on the dev tree at `124253364`'s code: `core_agent_queue`,
+`application_agent_queue_host`, `application_review_agent_runtime`,
+`application_native_agent_sessions`, `application_agent_queue_*` x4,
+`application_ask_*` x4, `application_prompt_macros_public_path`,
+`application_explain_file_public_path`, `application_suggest_change_public_path`,
+`application_agent_keep_action_public_path`,
+`application_fixture_agent_guard_public_path`, the chat contracts, the
+finding contracts but one, `application_agent_materialization_crash_recovery`
+and `application_progressive_open_public_path` pass. Still failing and
+not from this round: `application_agent_invocation_{composition,staleness,cleanup_retry,workspace_diagnostic}_contract`,
+`application_agent_finding_dif_context_contract` (fixture holds and a kept
+older revision on the runtime's stack) and
+`application_pending_states_public_path` ("the clicked file arrives";
+fails with the `121c32f58` binary and with the runtime attach compiled
+out). The window's fallback host stays until the holds and the kept
+revision reach the runtime's stack. Documentation gate passes.
+
+Next action: route the fixture effect holds and a kept older revision to
+the runtime's stack, then retire the window fallback; usage-limit decode
+and the fixture-agent public courses for AC02; the admission run id and
+AC12; Discard's control; slices 5 and 6. Look at
+`application_pending_states_public_path` with BPR-2180's owner.
+
+Not done this round: usage-limit decode (`"error":"rate_limit"`), the
+admission run id and AC12, Discard's control in the Agent tab, the store
+refusal (AC05), slices 5 and 6 (AC06, AC08, AC10, AC13, AC11, AC15,
+BPR-2184 N4 and N5).
