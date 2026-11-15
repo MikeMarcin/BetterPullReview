@@ -655,6 +655,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto entry_path() const -> std::optional<QString>;
 		/// \brief A file row activated: open it in Read.
 		void set_file_dispatch(overview_path_dispatch aDispatch);
+		/// \brief [[BPR-2180]]. A file row activated while the review it belongs
+		/// to still loads: the window goes to Review at once and waits for the
+		/// file there. Without one, the Overview remembers it itself.
+		void set_waiting_open_dispatch(overview_path_dispatch aDispatch);
 		/// \brief [[BPR-1589]]. How many threads have posts I have not read,
 		/// as Threads' Only new counts them; My review says so with Go to them.
 		void               set_new_threads(std::size_t aCount);
@@ -928,6 +932,7 @@ namespace bpr::qt {
 		std::function<void(const std::string&, const std::string&)>  CheckLinkDispatch;
 		overview_colours                                             Colours;
 		overview_path_dispatch                                       FileDispatch;
+		overview_path_dispatch                                       WaitingOpenDispatch;
 		overview_path_dispatch                                       CachedSourceDispatch;
 		bool                                                         Cached               = false;
 		std::size_t                                                  RequestRowBuilds     = 0U;

@@ -479,6 +479,18 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::wait_for_review_at(const QString& aPath)
+	{
+		// The reviewer's gesture moves the window now; only the file waits.
+		choose_modality(review_modality::review);
+		PendingReviewPath.clear();
+		ProvisionalOpen = aPath;
+		if (ComparisonSurface != nullptr) {
+			ComparisonSurface->hold_waiting(aPath);
+		}
+		update_pending_panes();
+	}
+
 	void workbench_window::open_provisional_file()
 	{
 		const auto path = std::exchange(ProvisionalOpen, QString{ });

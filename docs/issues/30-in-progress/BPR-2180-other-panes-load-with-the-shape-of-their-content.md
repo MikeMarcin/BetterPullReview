@@ -200,3 +200,45 @@ checked only the drawer's rows and veil, and the comparison veil's courses
   Frozen root `/Users/jaeger/bpr-2180-loading-shapes-v003.1rcim4tx` from
   1887d3281, same fixture and delays as v001 and v002. The v002 host is
   stopped, its candidates released, its root removed.
+
+## AC08 verdicts, look v003
+
+Session `856f3dec1b0b67a634a60a0ce3e586e0`, handed back at sequence 32
+(2026-11-15T10:34:36Z), both decisions by the human actor with a screenshot
+each, frozen build of 1887d3281:
+
+- `BPR-2180-diff-skeleton-v003`: Reject, "Kinda, it does show up now but
+  only for a split second. When I double click a file on overview I expect an
+  immediate transition to reciew with that loading view... right now it waits
+  until its basically fully loaded before switching to review."
+  (a8ff5c9d-7cff-4033-bdbd-37e8d102a6b9)
+- `BPR-2180-review-files-v003`: Accept, "Yes although I don't know why the
+  respositories drawer suddenly pops open after its done loading."
+  (f9b2b9dd-72cf-49c8-b555-82fe948e0d7e). AC09 is accepted; the drawer is a
+  bug to fix.
+
+Causes. A file activated on the Overview while the review loaded was kept by
+the Overview ([[BPR-1842]]'s pending open, "Opening game_loop.cpp when the
+review has loaded…"), which went to Review only once the review was
+accepted. And the window's layout restore waits until the workbench
+activates (when the review arrives); before this card the reviewer was on
+the Overview then, which refuses to open drawers, so the restore never
+showed. Entered Review during the load, the restore opened the Repositories
+drawer from a fresh profile's default layout over Review's own arrangement.
+
+## v004
+
+- A file activated on the Overview while its review loads goes to Review at
+  once (`set_waiting_open_dispatch` to the window's `wait_for_review_at`): the
+  comparison holds the file's wait in the shape of code, and the file opens
+  when the review lists it.
+- The workbench host's restore that waited for the workbench opens no drawer
+  over a Review the reviewer has already entered; it still decides the
+  drawers when the reviewer has not.
+- Courses: `application_progressive_open_public_path` and
+  `application_pending_states_public_path` (a double-click on an Overview
+  file under a read delay: Review is current within one turn of the event
+  loop and the code veil shows without a gap until the file arrives; the
+  repositories drawer is as it was when the load ends);
+  `application_workbench_host` (a late restore opens no drawer over Review
+  entered while loading, and still applies before Review is entered).

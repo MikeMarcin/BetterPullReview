@@ -366,6 +366,11 @@ namespace bpr::qt {
 		return text(*Projection->EntryPath);
 	}
 
+	void pull_request_overview_page::set_waiting_open_dispatch(overview_path_dispatch aDispatch)
+	{
+		WaitingOpenDispatch = std::move(aDispatch);
+	}
+
 	void pull_request_overview_page::set_file_dispatch(overview_path_dispatch aDispatch)
 	{
 		FileDispatch = std::move(aDispatch);

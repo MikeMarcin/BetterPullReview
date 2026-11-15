@@ -661,6 +661,11 @@ namespace bpr::qt {
 			FileDispatch(path);
 		} else if (Cached && !path.isEmpty() && CachedSourceDispatch) {
 			CachedSourceDispatch(path);
+		} else if (ObservedFiles && Loading && !path.isEmpty() && WaitingOpenDispatch) {
+			// [[BPR-2180]]. The owner, 2026-11-15: "When I double click a file
+			// on overview I expect an immediate transition to review with that
+			// loading view". The window goes to Review now and waits there.
+			WaitingOpenDispatch(path);
 		} else if (ObservedFiles && Loading && !path.isEmpty()) {
 			// [[BPR-1842]]. The file opens as soon as the review it belongs
 			// to is accepted; the plate says so meanwhile.

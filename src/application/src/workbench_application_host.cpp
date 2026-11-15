@@ -1999,9 +1999,16 @@ namespace bpr::application {
 				return;
 			}
 			RestorePending = false;
-			set_drawer(core::workbench_drawer::files, Layout.Files);
-			set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
-			set_drawer(core::workbench_drawer::repositories, Layout.Repositories);
+			// [[BPR-2180]]. The owner, 2026-11-15: "I don't know why the
+			// respositories drawer suddenly pops open after its done loading."
+			// A reviewer who entered Review while the pull request loaded has
+			// Review's arrangement already: a restore that waited for the
+			// workbench opens no drawer over it.
+			if (!State.ReviewEntered) {
+				set_drawer(core::workbench_drawer::files, Layout.Files);
+				set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
+				set_drawer(core::workbench_drawer::repositories, Layout.Repositories);
+			}
 			set_line_numbers(Layout.LineNumbers);
 			set_one_pane(Layout.OnePane);
 		}

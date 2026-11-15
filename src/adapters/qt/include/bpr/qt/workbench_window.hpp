@@ -2716,6 +2716,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-2180]]. Asks for the reported file the reviewer
 		/// clicked, now that a review lists the files; or takes its wait back.
 		void open_provisional_file();
+		/// \brief [[BPR-2180]]. A file asked for while its review still loads:
+		/// Review at once, the file's wait in the comparison, and the file
+		/// opened when the review lists it.
+		void wait_for_review_at(const QString& aPath);
 		/// \brief [[BPR-0775]]. Home's session line.
 		[[nodiscard]] auto home_session_line() const -> QString;
 		/// \brief Whether the session is signed in, with or without an account.

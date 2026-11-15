@@ -1527,6 +1527,11 @@ namespace bpr::qt {
 				}
 			});
 		}
+		// [[BPR-2180]]. A file asked for on the Overview while its review loads
+		// is waited for in Review, which the gesture opens at once.
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_waiting_open_dispatch([this](const QString& aPath) { wait_for_review_at(aPath); });
+		}
 		apply_pending_appearance();
 	}
 

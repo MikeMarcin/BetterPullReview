@@ -438,13 +438,37 @@ try {
 		}
 	}
 	expect(listed.isValid(), "the provisional list names a file");
-	emit table->activated(listed);
-	expect(!overview->pending_open().isEmpty() && overview->pending_veils().Files->busy()
-			   && overview->pending_veils().Files->words().Coming.startsWith(QStringLiteral("Opening ")),
-		   "the file waits for the review, and the plate says it will open");
-	wait_for([&] { return overview->projection().has_value(); }, "the review is accepted");
+	// [[BPR-2180]]. The owner, 2026-11-15: "When I double click a file on
+	// overview I expect an immediate transition to review with that loading
+	// view". Within one turn of the event loop Review is current and the
+	// comparison waits for that file in the shape of code, until it opens.
+	auto* const surface = window->comparison_surface();
+	const auto  path    = listed.data(qt::overview_file_model::path_role).toString();
+	emit        table->activated(listed);
+	QApplication::processEvents();
+	expect(window->current_modality() == qt::review_modality::review && !window->showing_overview(), "Review is current at once");
+	expect(surface->comparison_veil()->busy() && surface->comparison_veil()->shape() == qt::pending_shape::code && surface->waiting_path() == path,
+		   "the comparison waits for the file in the shape of code");
+	expect(overview->pending_open().isEmpty(), "the Overview keeps no open of its own");
+	const auto repositoriesShown = window->repositories_drawer()->isVisibleTo(window);
+	{
+		auto clock = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 90'000 && !(surface->current_context().has_value() && !surface->comparison_veil()->busy())) {
+			expect(surface->comparison_veil()->busy(), "the code veil shows until the file arrives");
+			QApplication::processEvents(QEventLoop::AllEvents, 10);
+			QThread::msleep(5);
+		}
+	}
+	expect(overview->projection().has_value(), "the review is accepted");
+	for (auto settled = QElapsedTimer{ }; !settled.isValid() || settled.elapsed() < 1'000;) {
+		if (!settled.isValid()) {
+			settled.start();
+		}
+		QApplication::processEvents(QEventLoop::AllEvents, 10);
+	}
+	expect(window->repositories_drawer()->isVisibleTo(window) == repositoriesShown, "no drawer opens by itself when the load ends");
 	delay->EveryReadMilliseconds = 0U;
-	auto* const surface          = window->comparison_surface();
 	wait_for([&] { return !window->showing_overview() && surface->current_result() != nullptr && surface->current_context().has_value(); }, "the waiting file opens once the review is accepted");
 	expect(overview->pending_open().isEmpty(), "nothing waits once it has opened");
 	wait_for([&] { return overview->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "reopened progress finishes loading");

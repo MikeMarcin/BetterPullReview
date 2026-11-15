@@ -1526,6 +1526,45 @@ namespace {
 		expect(harnessed.Settings->Stores == 0U, "restoring never writes back");
 	}
 
+	/// \brief [[BPR-2180]]. The owner, 2026-11-15: "I don't know why the
+	/// respositories drawer suddenly pops open after its done loading." A
+	/// window that opened on Overview and entered Review while its pull
+	/// request loaded has its drawers arranged by the reviewer; the layout
+	/// restored once the workbench activates opens none of them over it.
+	void test_a_late_restore_opens_no_drawer_over_review_entered_while_loading()
+	{
+		auto harnessed             = harness{ };
+		harnessed.Settings->Stored = { .Repositories = core::workbench_drawer_state::expanded };
+		harnessed.Host.restore();
+		harnessed.settle();
+		harnessed.Host.apply(core::set_workbench_modality_intent{ .Modality = core::workbench_modality::overview, .Entry = core::workbench_modality_entry::enter });
+		harnessed.Host.apply(core::set_workbench_modality_intent{ .Modality = core::workbench_modality::review, .Entry = core::workbench_modality_entry::choose });
+		harnessed.settle();
+		harnessed.Observations.Files = { file(1U) };
+		harnessed.Host.observe(authority());
+		harnessed.settle();
+		harnessed.Host.apply(core::set_workbench_modality_intent{ .Modality = core::workbench_modality::review, .Entry = core::workbench_modality_entry::enter });
+		harnessed.settle();
+		expect(harnessed.Host.state().Modality == core::workbench_modality::review
+				   && harnessed.Host.state().RepositoriesDrawer == core::workbench_drawer_state::collapsed,
+			   "the repositories drawer stays as Review arranged it when the review arrives");
+		expect(harnessed.Host.state().FilesDrawer == core::workbench_drawer_state::expanded, "and Review's own preset stands");
+	}
+
+	/// \brief [[BPR-2180]]. A layout restored on a window that is not yet in
+	/// Review still applies: the saved layout at launch decides the drawers.
+	void test_a_late_restore_still_applies_before_review_is_entered()
+	{
+		auto harnessed             = harness{ };
+		harnessed.Settings->Stored = { .Files = core::workbench_drawer_state::collapsed };
+		harnessed.Host.restore();
+		harnessed.settle();
+		harnessed.Observations.Files = { file(1U) };
+		harnessed.Host.observe(authority());
+		harnessed.settle();
+		expect(harnessed.Host.state().FilesDrawer == core::workbench_drawer_state::collapsed, "the saved layout decides the drawers at launch");
+	}
+
 	void test_layout_survives_a_restart()
 	{
 		auto durable = fake_settings{ };
@@ -2533,6 +2572,8 @@ auto main() -> int
 	test_cancellation_withholds_publication();
 	test_failed_and_inexact_observations();
 	test_restore_applies_when_the_workbench_activates();
+	test_a_late_restore_opens_no_drawer_over_review_entered_while_loading();
+	test_a_late_restore_still_applies_before_review_is_entered();
 	test_layout_survives_a_restart();
 	test_review_behaviour_persists_publishes_and_refuses_outside_the_vocabulary();
 	test_home_view_persists_publishes_and_refuses_outside_the_vocabulary();

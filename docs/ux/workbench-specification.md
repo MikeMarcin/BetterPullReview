@@ -3382,7 +3382,11 @@ Where it applies:
   is remembered ("Opening a.cpp once the review has loaded…"), the comparison
   pane waits for it at once in the shape of code, and it opens when the
   review lists it. A read that ends with no review takes its reported files
-  back. Which parts a first read has shown is the read lane's decision
+  back. A file activated on the Overview while the review loads goes to
+  Review at once, where the comparison waits for it in the shape of code
+  until it opens; no drawer opens by itself when the load ends (a layout
+  restored only once the workbench is active opens none over a Review the
+  reviewer has already entered). Which parts a first read has shown is the read lane's decision
   (`core::github_loading_readiness`), published by the read host; each pane
   maps its own part. **The Comments drawer
   (and Discuss, which shows the same panel) and Threads**: thread cards while
