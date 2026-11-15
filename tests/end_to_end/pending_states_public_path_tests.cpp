@@ -114,6 +114,35 @@ namespace {
 		QApplication::sendEvent(aView->viewport(), &release);
 	}
 
+	/// \brief [[BPR-2180]]. Waits until the comparison shows a file's result,
+	/// failing at once if the code veil lifts before then; true once it does.
+	/// \details The result is the arrival: the veil may stay as the partial
+	/// "Colouring syntax…" plate after it, which under load can outlast any
+	/// wait and is not the file failing to arrive.
+	[[nodiscard]] auto shows_file_without_gap(qt::diff_workbench& aComparison, const char* const aGap) -> bool
+	{
+		auto* const code  = aComparison.comparison_veil();
+		auto        clock = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 90'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 10);
+			if (aComparison.current_context().has_value() && aComparison.current_result() != nullptr) {
+				return true;
+			}
+			if (!code->busy()) {
+				std::cerr << "comparison at the gap, " << clock.elapsed() << " ms: waiting '" << aComparison.waiting_path().toStdString() << "' held '"
+						  << aComparison.held_waiting().toStdString() << "' context " << aComparison.current_context().has_value() << " result "
+						  << (aComparison.current_result() != nullptr) << " look " << static_cast<int>(code->look()) << '\n';
+			}
+			expect(code->busy(), aGap);
+			QThread::msleep(5);
+		}
+		std::cerr << "comparison after 90 s: waiting '" << aComparison.waiting_path().toStdString() << "' held '" << aComparison.held_waiting().toStdString()
+				  << "' context " << aComparison.current_context().has_value() << " result " << (aComparison.current_result() != nullptr) << " look "
+				  << static_cast<int>(code->look()) << '\n';
+		return false;
+	}
+
 	std::vector<QString>* Announcements = nullptr;
 
 	void capture(QAccessibleEvent* const aEvent)
@@ -302,21 +331,7 @@ try {
 		auto* const code       = comparison->comparison_veil();
 		expect(code->busy() && code->shape() == qt::pending_shape::code && comparison->waiting_path() == drawer->contents()->index(0, 0).data().toString(),
 			   "the comparison waits for the clicked file in the shape of code");
-		{
-			auto clock = QElapsedTimer{ };
-			clock.start();
-			auto arrived = false;
-			while (clock.elapsed() < 90'000) {
-				QApplication::processEvents(QEventLoop::AllEvents, 10);
-				arrived = comparison->current_context().has_value() && !code->busy();
-				if (arrived) {
-					break;
-				}
-				expect(code->busy(), "the code veil shows until the file arrives");
-				QThread::msleep(5);
-			}
-			expect(arrived, "the clicked file arrives");
-		}
+		expect(shows_file_without_gap(*comparison, "the code veil shows until the file arrives"), "the clicked file arrives");
 		expect(window->overview_page()->projection().has_value() && window->statistics().FileSelections > selections, "it opened once the review listed it");
 		expect(!files->busy() && !files->isVisible(), "the accepted review leaves the drawer with no veil");
 		// A read that is superseded and then fails opens no review: the files
@@ -390,14 +405,8 @@ try {
 		expect(!overview->projection().has_value(), "before the review has loaded");
 		const auto repositoriesShown = window->repositories_drawer()->isVisibleTo(window);
 		renders(QStringLiteral("overview-double-click-while-loading"));
-		auto clock = QElapsedTimer{ };
-		clock.start();
-		while (clock.elapsed() < 90'000 && !(comparison->current_context().has_value() && !code->busy())) {
-			expect(code->busy(), "the code veil shows until the double-clicked file arrives");
-			QApplication::processEvents(QEventLoop::AllEvents, 10);
-			QThread::msleep(5);
-		}
-		expect(comparison->current_context().has_value() && overview->projection().has_value(), "the double-clicked file arrives once the review has loaded");
+		expect(shows_file_without_gap(*comparison, "the code veil shows until the double-clicked file arrives") && overview->projection().has_value(),
+			   "the double-clicked file arrives once the review has loaded");
 		pause(1'000);
 		expect(window->repositories_drawer()->isVisibleTo(window) == repositoriesShown, "no drawer opens by itself when the load ends");
 		delay->Milliseconds     = 0U;

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2191"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A file clicked while its pull request loads can be selected but never compared (application_pending_states_public_path flake)",
+  "created": "2026-11-15T14:17:12.769187+00:00",
+  "base": "a9d9586bdca21463c122697b58b814ddb2fe2f80"
+}

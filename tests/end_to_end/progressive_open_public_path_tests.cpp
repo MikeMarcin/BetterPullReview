@@ -50,6 +50,35 @@
 namespace {
 	using namespace bpr;
 	using bpr::tests::expect;
+
+	/// \brief [[BPR-2180]]. Waits until the comparison shows a file's result,
+	/// failing at once if the code veil lifts before then; true once it does.
+	/// \details The result is the arrival: the veil may stay as the partial
+	/// "Colouring syntax…" plate after it, which under load can outlast any
+	/// wait and is not the file failing to arrive.
+	[[nodiscard]] auto shows_file_without_gap(qt::diff_workbench& aComparison, const char* const aGap) -> bool
+	{
+		auto* const code  = aComparison.comparison_veil();
+		auto        clock = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 90'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 10);
+			if (aComparison.current_context().has_value() && aComparison.current_result() != nullptr) {
+				return true;
+			}
+			if (!code->busy()) {
+				std::cerr << "comparison at the gap, " << clock.elapsed() << " ms: waiting '" << aComparison.waiting_path().toStdString() << "' held '"
+						  << aComparison.held_waiting().toStdString() << "' context " << aComparison.current_context().has_value() << " result "
+						  << (aComparison.current_result() != nullptr) << " look " << static_cast<int>(code->look()) << '\n';
+			}
+			expect(code->busy(), aGap);
+			QThread::msleep(5);
+		}
+		std::cerr << "comparison after 90 s: waiting '" << aComparison.waiting_path().toStdString() << "' held '" << aComparison.held_waiting().toStdString()
+				  << "' context " << aComparison.current_context().has_value() << " result " << (aComparison.current_result() != nullptr) << " look "
+				  << static_cast<int>(code->look()) << '\n';
+		return false;
+	}
 	using access = app::detail::github_application_fixture_access;
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const int aTimeoutMs = 60000)
@@ -451,15 +480,7 @@ try {
 		   "the comparison waits for the file in the shape of code");
 	expect(overview->pending_open().isEmpty(), "the Overview keeps no open of its own");
 	const auto repositoriesShown = window->repositories_drawer()->isVisibleTo(window);
-	{
-		auto clock = QElapsedTimer{ };
-		clock.start();
-		while (clock.elapsed() < 90'000 && !(surface->current_context().has_value() && !surface->comparison_veil()->busy())) {
-			expect(surface->comparison_veil()->busy(), "the code veil shows until the file arrives");
-			QApplication::processEvents(QEventLoop::AllEvents, 10);
-			QThread::msleep(5);
-		}
-	}
+	expect(shows_file_without_gap(*surface, "the code veil shows until the file arrives"), "the double-clicked file arrives");
 	expect(overview->projection().has_value(), "the review is accepted");
 	for (auto settled = QElapsedTimer{ }; !settled.isValid() || settled.elapsed() < 1'000;) {
 		if (!settled.isValid()) {
