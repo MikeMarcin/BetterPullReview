@@ -4094,3 +4094,37 @@ this card, identical at `cb4fdcb7e`: `qt_keyboard_shortcuts_scale_*`,
 
 Next action: none for BPR-2181. Mirror branch `claude/BPR-2181-main-mirror`
 holds the card move for main.
+
+## RFC-BPR-0112: workflow-companion-contract and workflow-effectful-actions (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `39a1d486e`, `ea396ede2` | Ready, claim BPR-2032 |
+| `affe49d2d` | Core: `workflow_configuration` (file version 2, item problems, revision, bindings, differences, apply), `workflow_action` (pinned draft workflow, bounded request/response, admission, honest check status, one publisher, handoff, reconciliation); the built-in route's `external_publisher` guard; `core_workflow` |
+| `dcb462ba1` | Storage, application, Qt Workflow area and Settings workflow import/export, app exchange files, the synthetic companion fixture, `application_local_draft_workflow_desktop_public_path`, `--attended-local-draft-workflow`, the companion contract doc; app pin resealed |
+| `001c08ad1` | The area names the selected context a handoff sent; the look script takes a relative root |
+| `bd50815ae`; `0e3c4bfc2`..`799743edb`; `f160e77b2`, `1e1583ef0` | BPR-2032 Done; BPR-2033 ready, claimed, Done; BPR-2034 ready, claimed, Done |
+| `27b419091`, `fcdd020a2`, `150d3eb8e` | BPR-2035 ready, claimed; ledger `docs/verification/RFC-BPR-0112.md` and checklist; parked `human-review` |
+
+Runs at `001c08ad1` (dev, Debug), 18 rows, all pass:
+`architecture_boundaries`, `test_network_isolation_manifest`,
+`core_{agent_configuration,local_draft,local_draft_tour,local_draft_publication,workflow}`,
+`sqlite_agent_configuration_storage`, `local_draft`, `local_draft_publication`,
+`qt_local_draft_window`, `qt_agent_configuration_dialogs`,
+`application_review_round_trip_composition_contract`,
+`application_local_draft_{,author_,tour_,publication_,workflow_}desktop_public_path`.
+Scratch worktree at `1e1583ef0`, core-only preset: `core_workflow`,
+`core_agent_configuration`, `core_local_draft_publication` 3/3. The freeze of
+`fcdd020a2` built the application in its own exported root and its
+launcher check reached `ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN`. Documentation
+gate OK. Not run: the whole suite, clang-tidy, Windows and Linux.
+
+Owner look filed and not waited on: session `e9336c1caf748712f3c1056a633c4792`,
+state `/Users/jaeger/.attended-review-state/workflow-v001-2026-11-15/state`,
+cursor 9, host PID 51673 (Tailscale child 51681), three candidates; root
+`/Users/jaeger/workflow-v001.xlei1v22`.
+
+Next action: when the session hands back, reconcile the three verdicts. On
+acceptance finish BPR-2035 and set RFC-BPR-0112 Auto-Verified; on a note,
+engineer it, freeze `workflow-v002` and ask again. Then remove the frozen
+root with `freeze_attended_build.py remove` and stop the host.
