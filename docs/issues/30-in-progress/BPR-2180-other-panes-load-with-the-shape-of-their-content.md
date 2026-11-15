@@ -40,13 +40,17 @@ the accepted pattern; it adds no shimmer and no new motion.
   draw its placeholders in the words' place.
 - AC02: The Comments drawer (and Discuss, which shows the same panel) and
   Threads wait as thread cards.
-- AC03: The Overview's People section waits as faces while reviewers are still
-  coming, after the title and files have shown.
+- AC03: The Overview's side column waits section by section: Needs
+  attention, My review, Checks and People each stand in their place under
+  their heading and wait in their own shape for their own part of the read
+  (amended after the owner's v001 rejection).
 - AC04: The private tour waits as stop cards under its head while it loads.
 - AC05: Finish review holds a place for its pending comments while they are
   read, with comment rows under its "Loading pending comments…" heading.
 - AC06: The status bar's line turns the pattern's mark while it says the pull
   request or its comparisons are loading.
+- AC09: Once the Overview lists the files GitHub reported, Review's Files
+  drawer lists them, uncovered (the owner's v001 note).
 - AC07: Qt and composed courses cover AC01 to AC06, with renders in Light and
   Dark; format, tidy and documentation gates pass.
 - AC08 (human): The owner accepts a frozen build opening a slow pull request,
@@ -94,3 +98,44 @@ read runs. Discuss shows the Comments panel itself, so it shares that veil.
   page delay 1200 ms, fixture agent only). The tour and Finish review read
   local storage and rarely stay on screen, so their candidates carry the
   course's offscreen renders from the same commit.
+
+## AC08 verdicts, look v001
+
+Session `fb9faa4cfc98dcf7ec58cb025cc4746f`, handed back at sequence 39
+(2026-11-15T04:05:25Z), every decision by the human actor, frozen build of
+209d124b6:
+
+- `BPR-2180-comments-cards`: Accept, with the note "It looks good but
+  something broke because going to review the file list should be loaded
+  becuase it's already loaded on overview but now we see loading there
+  instead of the file list." (decision aac1629b-21ec-4f6b-aa72-0c837d98f6a1)
+- `BPR-2180-finish-review`: Accept, no note (f5dbad1d-0b12-4181-b028-d5c88a47da66).
+- `BPR-2180-overview-people`: Reject, "It feels like there should be more that
+  one section on the status drawer with separate loading."
+  (45fc4513-a403-484f-a87b-098ff99e28df; an earlier Accept, a7e22b3d, was
+  replaced by it).
+- `BPR-2180-status-mark`: Accept, no note (12a65641-61a7-4807-a6ff-afcb61ceb005).
+- `BPR-2180-tour`: Accept, no note (9e42d3c3-ff91-4a8e-83b0-7c7aed742541).
+
+The Files note: while the Overview listed the files GitHub had reported
+([[BPR-1842]]), Review's Files drawer was still covered by its first-load
+veil. That veil asked only whether the accepted review had arrived, and the
+reported files went only to the Overview. Reproduced in
+`application_pending_states_public_path` (the drawer held rows under a
+`loading` veil). The rejection asks for each side-column section to wait
+separately in its own shape.
+
+## v002
+
+- The Files drawer lists the reported files once the Overview does (path rows,
+  as [[BPR-0668]] builds them) and says on its plate that they open once the
+  review has loaded; its veil no longer covers them.
+  `application_pending_states_public_path` goes Overview, then Review, and
+  fails if the Files veil covers the drawer once the Overview has the files,
+  or if the drawer is empty.
+- The side column waits per section (`overview_pending_veils::Merge`,
+  `MyReview`, `Checks`, `People`, `Roster`); the column-wide veil is only the
+  plate at its foot. `qt_pull_request_overview_page`, `qt_composed_github`
+  and `application_progressive_open_public_path` assertions that sections
+  stay hidden while loading now assert that they wait in place with nothing
+  of the previous pull request shown.
