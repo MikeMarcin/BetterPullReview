@@ -50,8 +50,8 @@ pixels of these and are in `data/`.
 | Four modes today, names and keys | 413 |
 | Four modes today, names only | 257 |
 | The five `Ctrl+N` hints | 195 |
-| Everything else that is fixed: menu, Home, two drawers, Open on GitHub, refresh, two drawer buttons, the rule, account, settings, caption buttons | 471 |
-| The branch chip `feature/search-results ↑2` | 161 |
+| Everything else that is fixed, with the row's spacing: menu, Home, two drawers, Open on GitHub, refresh, two drawer buttons, the rule, account, settings, caption buttons | 515 |
+| The branch chip `feature/search-results ↑2` | 165 |
 | `bpr-fixtures/engine  #214 Search results` | 216 |
 | `bpr-fixtures/engine  #214` and the long title | 493 |
 
