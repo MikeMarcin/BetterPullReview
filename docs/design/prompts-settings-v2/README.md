@@ -1,7 +1,7 @@
 # Prompts in Settings, round 2: one prompt in several places
 
 Mockups for
-[BPR-2179](../../issues/30-in-progress/BPR-2179-prompts-settings-section.md),
+[BPR-2179](../../issues/60-done/BPR-2179-prompts-settings-section.md),
 2026-11-14, after the owner rejected layouts A, B and C (look ask-v005) and
 the grill round settled the model. Nothing here is built, and no direction is
 chosen yet.

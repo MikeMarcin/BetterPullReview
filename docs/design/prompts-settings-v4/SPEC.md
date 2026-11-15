@@ -1,7 +1,7 @@
 # Prompts in Settings: build spec
 
 For the implementer of
-[BPR-2179](../../issues/30-in-progress/BPR-2179-prompts-settings-section.md).
+[BPR-2179](../../issues/60-done/BPR-2179-prompts-settings-section.md).
 The layout is the one drawn in this folder
 ([all repositories](png/v4-app-light.png),
 [a repository](png/v4-repo-light.png)), with the owner's change from look

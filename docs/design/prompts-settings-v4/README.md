@@ -1,7 +1,7 @@
 # Prompts in Settings, round 4: surfaces over the library, on one page
 
 Mockups for
-[BPR-2179](../../issues/30-in-progress/BPR-2179-prompts-settings-section.md),
+[BPR-2179](../../issues/60-done/BPR-2179-prompts-settings-section.md),
 2026-11-14. In round 3
 ([prompts-settings-v3](../prompts-settings-v3/README.md)) the owner took
 "Two pages" as closest and asked for two changes:
