@@ -257,9 +257,13 @@ namespace bpr::adapters::git {
 				return url.empty() ? std::optional<std::string>{ } : std::optional{ url };
 			}
 
+			/// A path is staged as itself: `pages/[id].tsx` never also stages
+			/// `pages/i.tsx`. The option, not `GIT_LITERAL_PATHSPECS` in
+			/// `author_environment`, so commit and push hooks, which inherit
+			/// that environment, keep the author's own pathspec rules.
 			auto stage_paths(const std::string& aWorktree, const std::vector<std::string>& aPaths, std::stop_token aStop) -> author_git_result<void> override
 			{
-				auto arguments = std::vector<std::string>{ "add", "--all", "--" };
+				auto arguments = std::vector<std::string>{ "--literal-pathspecs", "add", "--all", "--" };
 				arguments.insert(arguments.end(), aPaths.begin(), aPaths.end());
 				return expect_success(launch(aWorktree, arguments, { }, 1024U * 1024U, Deadlines.Read, aStop));
 			}
@@ -270,7 +274,8 @@ namespace bpr::adapters::git {
 				if (!head) {
 					return std::unexpected{ head.error() };
 				}
-				auto arguments = head->ExitCode == 0 ? std::vector<std::string>{ "restore", "--staged", "--" } : std::vector<std::string>{ "rm", "--cached", "-r", "-q", "--ignore-unmatch", "--" };
+				auto arguments = head->ExitCode == 0 ? std::vector<std::string>{ "--literal-pathspecs", "restore", "--staged", "--" }
+													 : std::vector<std::string>{ "--literal-pathspecs", "rm", "--cached", "-r", "-q", "--ignore-unmatch", "--" };
 				arguments.insert(arguments.end(), aPaths.begin(), aPaths.end());
 				return expect_success(launch(aWorktree, arguments, { }, 1024U * 1024U, Deadlines.Read, aStop));
 			}
@@ -322,23 +327,23 @@ namespace bpr::adapters::git {
 
 			auto push(const core::local_push_command& aCommand, std::stop_token aStop) -> author_git_result<void> override
 			{
-				// The command is the one the push line shows; it is checked again here.
-				const auto& arguments = aCommand.Arguments;
-				const auto  forced    = std::ranges::any_of(arguments, [](const std::string& aArgument) {
-					return aArgument.starts_with('+') || aArgument.find("force") != std::string::npos || aArgument == "--tags" || aArgument == "--delete" || aArgument == "-d"
-						|| aArgument == "-f" || aArgument == "--mirror" || aArgument == "--all" || aArgument == "--prune";
-				});
-				if (arguments.empty() || arguments.front() != "push" || forced) {
+				// The command is the one the push line shows. It runs only when it
+				// is exactly what the core builds for its directory, URL and
+				// branch: never forced, no tags, no delete, one plain branch.
+				// Words inside the URL or branch ("salesforce", "enforce")
+				// are not options and do not refuse it.
+				if (const auto rebuilt = core::make_push_command(aCommand.Directory, aCommand.Url, aCommand.Branch); !rebuilt || *rebuilt != aCommand) {
 					return std::unexpected{ failure(author_git_failure::malformed) };
 				}
-				return expect_success(launch(aCommand.Directory, arguments, { }, 1024U * 1024U, Deadlines.Hooks, aStop, true));
+				return expect_success(launch(aCommand.Directory, aCommand.Arguments, { }, 1024U * 1024U, Deadlines.Hooks, aStop, true));
 			}
 
 		private:
-			/// Reads take no optional lock and run no fsmonitor.
+			/// Reads take no optional lock and run no fsmonitor, and a path is
+			/// that path, never a pattern or magic.
 			[[nodiscard]] static auto read_flags(std::vector<std::string> aArguments) -> std::vector<std::string>
 			{
-				aArguments.insert(aArguments.begin(), { "--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.quotepath=false" });
+				aArguments.insert(aArguments.begin(), { "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "core.quotepath=false" });
 				return aArguments;
 			}
 

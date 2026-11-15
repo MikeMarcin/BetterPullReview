@@ -10,6 +10,7 @@
 #include "bpr/core/local_changes.hpp"
 #include "product_diff.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -180,9 +181,24 @@ namespace {
 		expect(command->Arguments == std::vector<std::string>{ "push", "--no-follow-tags", "git@github.com:owner/repo.git", "refs/heads/fix/port-parsing:refs/heads/fix/port-parsing" },
 			   "the push names the branch on both sides, never forced");
 		expect(command->Text == "git push --no-follow-tags git@github.com:owner/repo.git refs/heads/fix/port-parsing:refs/heads/fix/port-parsing", "the shown command is the run one");
-		for (const auto& argument : command->Arguments) {
-			expect(argument.find("force") == std::string::npos && !argument.starts_with('+') && argument != "--tags" && argument != "--delete", "no force, delete or tags");
-		}
+		// The only option is --no-follow-tags; nothing else is option-shaped
+		// and the refspec has no leading +, so nothing forces, deletes or
+		// sends tags.
+		const auto noForce = [](const core::local_push_command& aCommand) {
+			return std::ranges::count_if(aCommand.Arguments, [](const std::string& aArgument) { return aArgument.starts_with('-'); }) == 1
+				&& aCommand.Arguments[1] == "--no-follow-tags" && !aCommand.Arguments.back().starts_with('+');
+		};
+		expect(noForce(*command), "no force, delete or tags");
+		// Words that contain "force" in a URL or branch are not options.
+		const auto enforce = core::make_push_command("/work/repo", "git@github.com:salesforce/repo.git", "fix/enforce-limits");
+		expect(enforce.has_value() && noForce(*enforce), "a URL and a branch containing \"force\" push");
+		expect(enforce->Arguments
+				   == std::vector<std::string>{ "push", "--no-follow-tags", "git@github.com:salesforce/repo.git", "refs/heads/fix/enforce-limits:refs/heads/fix/enforce-limits" },
+			   "the URL and branch are passed as they are");
+		expect(core::make_push_command("/w", "https://example.invalid/force/forced.git", "force").has_value(), "a branch named force pushes");
+		const auto plus = core::make_push_command("/w", "https://x/y.git", "+main");
+		expect(!plus || noForce(*plus), "a branch beginning with + never makes a forcing refspec");
+		expect(!core::make_push_command("/w", "--force", "main"), "--force for a URL is refused");
 		expect(!core::make_push_command("/w", "-oProxy", "b"), "an option for a URL is refused");
 		expect(!core::make_push_command("/w", "https://x/y.git", "-b"), "an option for a branch is refused");
 		expect(!core::make_push_command("/w", "https://x/y.git", "a..b"), "a malformed branch is refused");

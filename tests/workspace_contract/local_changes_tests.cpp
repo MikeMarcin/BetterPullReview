@@ -33,7 +33,10 @@
 /// rule and exact bytes; the agent's commit message from the staged diff; and
 /// (RFC-BPR-0114 AC06) a push whose pre-push hook hangs, stopped by the author
 /// and timed out by its bound: each kills the hook, says why, reads GitHub
-/// again and repeats nothing.
+/// again and repeats nothing. [[BPR-2182]]: a URL and branch containing
+/// "force" push while an added option or `+` refspec launches nothing, and
+/// Stage and Unstage take bracketed, starred, questioned and `:`-led paths
+/// literally.
 
 namespace {
 	using namespace bpr;
@@ -390,6 +393,74 @@ namespace {
 		std::cout << "stopped-and-timed-out-pushes:pass\n";
 	}
 
+	/// [[BPR-2182]]. A URL and a branch containing "force" push: the runner
+	/// refuses only a command the core would not build, such as one with
+	/// `--force` or a `+` refspec added, and those launch nothing.
+	void force_words_push(const git_runner& aGit, const std::filesystem::path& aRoot, const std::filesystem::path& aGitExecutable)
+	{
+		const auto hosted = aRoot / "salesforce-enforce.git";
+		const auto work   = aRoot / "enforce-work";
+		aGit(aRoot, { "init", "--quiet", "--bare", "-b", "main", hosted.string() });
+		std::filesystem::create_directories(work);
+		aGit(work, { "init", "--quiet", "-b", "fix/enforce-limits" });
+		commit_file(aGit, work, "limits.txt", "enforce\n", "Enforce limits");
+		const auto head    = aGit.output(work, { "rev-parse", "HEAD" }, aRoot / "enforce-head.txt");
+		auto       author  = adapters::git::make_installed_author_git(aGitExecutable);
+		const auto command = core::make_push_command(work.string(), hosted.string(), "fix/enforce-limits");
+		expect(command.has_value(), "the core builds the push for a URL and branch containing \"force\"");
+		const auto branch = [&] { return aGit.output(hosted, { "for-each-ref", "--format=%(objectname)", "refs/heads/fix/enforce-limits" }, aRoot / "enforce-ref.txt"); };
+
+		auto forced = *command;
+		forced.Arguments.insert(forced.Arguments.begin() + 1, "--force");
+		const auto refusedForce = author->push(forced, { });
+		expect(!refusedForce && refusedForce.error().Failure == application::author_git_failure::malformed, "an added --force is refused");
+		auto plus              = *command;
+		plus.Arguments.back()  = "+" + plus.Arguments.back();
+		const auto refusedPlus = author->push(plus, { });
+		expect(!refusedPlus && refusedPlus.error().Failure == application::author_git_failure::malformed, "a + refspec is refused");
+		expect(branch().empty(), "a refused push launches nothing");
+
+		const auto pushed = author->push(*command, { });
+		expect(pushed.has_value(), "the push to salesforce-enforce.git on fix/enforce-limits ran");
+		expect(branch() == head, "the hosted branch is the head");
+		std::cout << "force-words-push:pass\n";
+	}
+
+	/// [[BPR-2182]]. Stage and Unstage take a path as itself: brackets, `*`,
+	/// `?` and a leading `:` are never a pattern or pathspec magic, on a
+	/// branch with commits and on an unborn one.
+	void literal_paths(const git_runner& aGit, const std::filesystem::path& aRoot, const std::filesystem::path& aGitExecutable)
+	{
+		const auto special = std::vector<std::string>{ "pages/[id].tsx", "a*.txt", "q?.txt", ":top.txt" };
+		const auto plain   = std::vector<std::string>{ "pages/i.tsx", "pages/d.tsx", "ab.txt", "qz.txt", "top.txt" };
+		auto       author  = adapters::git::make_installed_author_git(aGitExecutable);
+		for (const auto born : { true, false }) {
+			const auto work = aRoot / (born ? "literal-born" : "literal-unborn");
+			std::filesystem::create_directories(work);
+			aGit(work, { "init", "--quiet", "-b", "main" });
+			if (born) {
+				commit_file(aGit, work, "README", "readme\n", "Initial");
+			}
+			for (const auto& path : special) {
+				write_file(work / path, path + "\n");
+			}
+			for (const auto& path : plain) {
+				write_file(work / path, path + "\n");
+			}
+			const auto staged = [&] {
+				auto text = aGit.output(work, { "-c", "core.quotepath=false", "diff", "--cached", "--name-only" }, aRoot / "literal-staged.txt");
+				std::ranges::replace(text, '\n', ',');
+				return text;
+			};
+			expect(author->stage_paths(work.string(), special, { }).has_value(), "Stage runs");
+			expect(staged() == ":top.txt,a*.txt,pages/[id].tsx,q?.txt", born ? "only the named paths are staged" : "only the named paths are staged on an unborn branch");
+			expect(author->stage_paths(work.string(), plain, { }).has_value(), "the others stage too");
+			expect(author->unstage_paths(work.string(), special, { }).has_value(), "Unstage runs");
+			expect(staged() == "ab.txt,pages/d.tsx,pages/i.tsx,qz.txt,top.txt", born ? "only the named paths are unstaged" : "only the named paths are unstaged on an unborn branch");
+		}
+		std::cout << "literal-paths:pass\n";
+	}
+
 	void save_and_agent(course& aCourse)
 	{
 		const auto file = aCourse.Work / "src" / "crlf.txt";
@@ -537,6 +608,8 @@ auto main(int argc, char** argv) -> int
 	declined(c);
 	c.Host->shutdown();
 	stopped_and_timed_out_pushes(*git, root, std::filesystem::path{ argv[2] });
+	force_words_push(*git, root, std::filesystem::path{ argv[2] });
+	literal_paths(*git, root, std::filesystem::path{ argv[2] });
 	std::cout << "local-changes:pass\n";
 #endif
 	return EXIT_SUCCESS;
