@@ -264,3 +264,28 @@ Session `94bb2efb55eacc7dbef4067095dc4d14`, handed back at sequence 11
   (16552fbb-e20a-487a-a55d-7c64281a9255).
 
 The v004 host is stopped, its candidates released, its root removed.
+
+## Correction, 2026-11-15: a file clicked during the load can stay waiting
+
+After closeout, `application_pending_states_public_path` was reported failing
+at "the clicked file arrives", a step this card added. It is intermittent,
+and this card's: in a clean scratch worktree it failed once and passed once
+at 2af8e7665 and passed three times out of three at the lane tip 9b0451225,
+so no later commit broke it. About 60% of the runs measured passed.
+
+A failing run's comparison still holds the clicked file 90 s later with no
+comparison asked for. Temporary logging shows the window's ask lands (the
+workbench's cursor moves onto the file) and the composition then never starts
+the selected diff. Window-side changes (asking only once the workbench is
+active, on its own event-loop turn, and again until the cursor is on the
+file) did not clearly improve the rate and were not committed. What remains
+is carded as [[BPR-2191]], with the measurements, the log and the best
+hypothesis.
+
+Committed: the course now takes the file as arrived when the comparison shows
+its result (the veil may stay as the partial "Colouring syntax…" plate after
+it), still failing at once if the code veil lifts first, and prints the
+comparison's state at a gap or a timeout. The double-click step and
+`application_progressive_open_public_path` share the helper. The acceptance
+records above are unchanged; the owner's accepted behaviour stands, with this
+intermittent fault in it.
