@@ -1,10 +1,9 @@
 #include "bpr/application/prompt_macro_host.hpp"
 
-#include "bpr/core/prompt_surfaces.hpp"
-
-#include <algorithm>
 #include <atomic>
 #include <deque>
+#include <random>
+#include <string_view>
 #include <utility>
 
 namespace bpr::application {
@@ -134,27 +133,37 @@ namespace bpr::application {
 		host.next();
 	}
 
-	void prompt_macro_host::save(core::prompt_macro_differences aDifferences)
+	void prompt_macro_host::save(core::prompt_macro_differences aDifferences, const std::uint64_t aFrom, std::function<void(prompt_macro_write)> aSettled)
 	{
 		auto& host = *Implementation;
 		if (host.Closing) {
 			return;
 		}
-		host.Waiting.push_back([weak = std::weak_ptr{ Implementation }, differences = std::move(aDifferences)]() mutable {
+		host.Waiting.push_back([weak = std::weak_ptr{ Implementation }, differences = std::move(aDifferences), aFrom, settled = std::move(aSettled)]() mutable {
 			const auto self = weak.lock();
 			if (!self) {
 				return;
 			}
+			const auto settle = [self](const std::function<void(prompt_macro_write)>& aSettle, const prompt_macro_write aWrite) {
+				self->Projection.LastWrite = aWrite;
+				if (aSettle) {
+					try {
+						aSettle(aWrite);
+					} catch (...) { }
+				}
+			};
 			if (!self->Projection.Readable) {
-				self->Projection.LastWrite = prompt_macro_write::failed;
+				settle(settled, prompt_macro_write::failed);
 				self->tell();
 				self->finish();
 				return;
 			}
-			const auto from = self->Projection.Revision;
-			self->off_lane([store = self->Dependencies.Store, differences, from] { return store != nullptr ? store->store(differences, from) : prompt_macro_write::failed; },
-						   [self](std::optional<prompt_macro_write> aWrite) {
-							   self->Projection.LastWrite = aWrite.value_or(prompt_macro_write::failed);
+			// Review N1: the revision the edits came from, not the one the
+			// projection holds now; the store refuses a write over another
+			// window's as stale.
+			self->off_lane([store = self->Dependencies.Store, differences, aFrom] { return store != nullptr ? store->store(differences, aFrom) : prompt_macro_write::failed; },
+						   [self, settle, told = std::move(settled)](std::optional<prompt_macro_write> aWrite) {
+							   settle(told, aWrite.value_or(prompt_macro_write::failed));
 							   // Read back what the store holds now: the write, or
 							   // another window's.
 							   self->off_lane([store = self->Dependencies.Store] { return store != nullptr ? store->load() : std::nullopt; },
@@ -168,6 +177,20 @@ namespace bpr::application {
 		host.next();
 	}
 
+	auto prompt_macro_host::mint_identity() const -> std::string
+	{
+		if (Implementation->Dependencies.MintIdentity) {
+			return "own." + Implementation->Dependencies.MintIdentity();
+		}
+		auto           random   = std::random_device{ };
+		auto           identity = std::string{ "own." };
+		constexpr auto digits   = std::string_view{ "0123456789abcdef" };
+		for (auto index = 0U; index < 32U; ++index) {
+			identity += digits[random() & 15U];
+		}
+		return identity;
+	}
+
 	auto prompt_macro_host::projection() const noexcept -> const prompt_macro_projection& { return Implementation->Projection; }
 
 	auto prompt_macro_host::differences() const noexcept -> const core::prompt_macro_differences& { return Implementation->Differences; }
@@ -176,56 +199,4 @@ namespace bpr::application {
 
 	auto prompt_macro_host::is_quiescent() const noexcept -> bool { return Implementation->Outstanding.load() == 0U; }
 
-	auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited) -> core::prompt_macro_differences
-	{
-		auto differences = core::prompt_macro_differences{ };
-		for (const auto& macro : aEdited) {
-			if (!macro.BuiltIn) {
-				differences.Own.push_back(macro);
-				continue;
-			}
-			const auto shipped = std::ranges::find(aShipped, macro.Id, [](const core::prompt_builtin& aBuiltin) -> const std::string& { return aBuiltin.Macro.Id; });
-			if (shipped == aShipped.end()) {
-				continue;
-			}
-			auto change = core::prompt_builtin_change{ .Id = macro.Id };
-			if (macro.Body != shipped->Macro.Body) {
-				change.Body           = macro.Body;
-				change.WrittenAgainst = shipped->Revision;
-			}
-			if (macro.On != shipped->Macro.On) {
-				change.On = macro.On;
-			}
-			if (change.Body || change.On) {
-				differences.Changes.push_back(std::move(change));
-			}
-		}
-		// A place's order is kept only where it is not what the merge makes
-		// without one.
-		const auto unordered = core::merge_prompt_macros(aShipped, { .Changes = differences.Changes, .Own = differences.Own }).macros();
-		for (auto place = std::size_t{ 0 }; place < core::prompt_place_count; ++place) {
-			const auto here = static_cast<core::prompt_place>(place);
-			const auto ids  = [here](const std::vector<core::prompt_macro>& aMacros) {
-				auto result = std::vector<std::string>{ };
-				for (const auto& macro : aMacros) {
-					if (macro.Place == here) {
-						result.push_back(macro.Id);
-					}
-				}
-				return result;
-			};
-			if (auto edited = ids(aEdited); edited != ids(unordered)) {
-				differences.Orders.push_back({ .Place = here, .Ids = std::move(edited) });
-			}
-		}
-		return differences;
-	}
-
-	auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited, const core::prompt_surfaces& aSurfaces)
-		-> core::prompt_macro_differences
-	{
-		auto differences     = prompt_macro_differences_of(aShipped, aEdited);
-		differences.Surfaces = core::prompt_surface_changes_of(aEdited, aSurfaces);
-		return differences;
-	}
 } // namespace bpr::application

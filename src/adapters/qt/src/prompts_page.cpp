@@ -40,7 +40,6 @@
 #include <QStyledItemDelegate>
 #include <QTimer>
 #include <QToolButton>
-#include <QUuid>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -462,15 +461,11 @@ namespace bpr::qt {
 
 	prompts_page::prompts_page(QWidget* const aParent)
 		: QWidget{ aParent }
-		, Shipped{ core::shipped_prompt_macros() }
+		, Editor{ core::make_prompt_editor(core::shipped_prompt_macros()) }
+		, View{ core::prompt_edit_view(Editor) }
 	{
 		setObjectName(QStringLiteral("promptsPage"));
 		setAccessibleName(tr("Prompts"));
-		Projection.Set = core::merge_prompt_macros(Shipped, { });
-		Library        = Projection.Set.macros();
-		Surfaces       = Projection.Set.Surfaces;
-		AppLibrary     = Library;
-		AppSurfaces    = Surfaces;
 
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
@@ -504,7 +499,10 @@ namespace bpr::qt {
 		Typing = new QTimer{ this };
 		Typing->setSingleShot(true);
 		Typing->setInterval(450);
-		connect(Typing, &QTimer::timeout, this, [this] { flush(); });
+		connect(Typing, &QTimer::timeout, this, [this] {
+			core::end_prompt_typing(Editor);
+			flush();
+		});
 
 		rebuild_surfaces();
 		rebuild_library();
@@ -992,7 +990,9 @@ namespace bpr::qt {
 			connect(button, &QToolButton::clicked, this, [this, button] {
 				const auto match = button == MatchAny ? core::prompt_match::any : button == MatchNone ? core::prompt_match::none
 																									  : core::prompt_match::all;
-				edit_selected([match](core::prompt_macro& aMacro) { aMacro.Body.Match = match; });
+				if (Selected && !Filling) {
+					static_cast<void>(applied(core::set_prompt_group_match(Editor, *Selected, { }, match)));
+				}
 			});
 		}
 		connect(conditionMenu, &QMenu::aboutToShow, this, [this, conditionMenu] {
@@ -1008,7 +1008,7 @@ namespace bpr::qt {
 			if (!Selected) {
 				return;
 			}
-			if (Repository.empty()) {
+			if (Editor.Repository.empty()) {
 				reset_to_default(*Selected);
 			} else {
 				use_app_wide(*Selected);
@@ -1035,202 +1035,118 @@ namespace bpr::qt {
 
 	void prompts_page::present(const application::prompt_macro_projection& aProjection)
 	{
-		Projection = aProjection;
-		InFlight   = false;
-		if (!Dirty) {
-			AppLibrary  = aProjection.Set.macros();
-			AppSurfaces = aProjection.Set.Surfaces;
-			Layers      = aProjection.Set.Repositories;
-			adopt_layer();
+		// [[BPR-2185]] (review N1): the core decides whether the projection
+		// replaces what is shown; waiting edits and a write in flight keep it.
+		if (core::adopt_prompt_projection(Editor, aProjection.Set, aProjection.Revision, aProjection.Readable, aProjection.Loaded)) {
+			View = core::prompt_edit_view(Editor);
 			set_repositories(Repositories);
 			if (Selected && find(*Selected) == nullptr) {
 				Selected.reset();
+				SelectedPlacement.reset();
 			}
-			rebuild_surfaces();
-			rebuild_library();
-			refresh_editor();
-		}
-		if (aProjection.LastWrite == application::prompt_macro_write::failed) {
-			Status->setText(tr("Your prompts couldn't be saved. The last change is kept here; it saves with the next one."));
-		} else if (aProjection.LastWrite == application::prompt_macro_write::stale) {
-			Status->setText(tr("Another window changed your prompts first; this page shows theirs."));
-		} else if (!aProjection.Readable && aProjection.Loaded) {
-			Status->setText(tr("Your prompts can't be read, so the built-ins are shown and changes aren't saved."));
+			refresh_all();
 		} else {
-			Status->clear();
+			set_repositories(Repositories);
 		}
-		if (Dirty && !Typing->isActive()) {
-			flush();
-		}
-		SavedLabel->setText(Dirty || InFlight ? tr("Saving…") : tr("Saved"));
+		show_status();
+		flush();
 	}
 
-	void prompts_page::set_save_dispatch(save_dispatch aDispatch) { Save = std::move(aDispatch); }
+	void prompts_page::set_save_dispatch(save_dispatch aDispatch)
+	{
+		Save = std::move(aDispatch);
+		flush();
+	}
+
+	void prompts_page::settle_save(const core::prompt_save_outcome aOutcome)
+	{
+		core::settle_prompt_save(Editor, aOutcome);
+		show_status();
+		flush();
+	}
+
+	void prompts_page::set_identity_source(identity_source aSource) { Identities = std::move(aSource); }
+
+	void prompts_page::show_status()
+	{
+		switch (Editor.Notice) {
+		case core::prompt_edit_notice::save_failed: Status->setText(tr("Your prompts couldn't be saved. The last change is kept here; it saves with the next one.")); break;
+		case core::prompt_edit_notice::save_stale:  Status->setText(tr("Another window changed your prompts first; this page shows theirs.")); break;
+		case core::prompt_edit_notice::unreadable:  Status->setText(tr("Your prompts can't be read, so the built-ins are shown and changes aren't saved.")); break;
+		case core::prompt_edit_notice::none:
+			if (Refusal.isEmpty()) {
+				Status->clear();
+			}
+			break;
+		}
+		SavedLabel->setText(core::prompt_edits_saving(Editor) ? tr("Saving…") : Editor.Held ? tr("Not saved")
+																							: tr("Saved"));
+	}
 
 	void prompts_page::set_repositories(const QStringList& aRepositories)
 	{
 		Repositories = aRepositories;
 		auto listed  = aRepositories;
-		for (const auto& layer : Layers) {
+		for (const auto& layer : Editor.Document.Layers) {
 			if (!listed.contains(QString::fromStdString(layer.Repository), Qt::CaseInsensitive)) {
 				listed << QString::fromStdString(layer.Repository);
 			}
 		}
-		if (!Repository.empty() && !listed.contains(QString::fromStdString(Repository), Qt::CaseInsensitive)) {
-			listed << QString::fromStdString(Repository);
+		const auto& repository = Editor.Repository;
+		if (!repository.empty() && !listed.contains(QString::fromStdString(repository), Qt::CaseInsensitive)) {
+			listed << QString::fromStdString(repository);
 		}
 		listed.sort(Qt::CaseInsensitive);
 		const auto blocker = QSignalBlocker{ PromptsFor };
 		PromptsFor->clear();
 		PromptsFor->addItem(tr("All repositories"));
 		PromptsFor->addItems(listed);
-		PromptsFor->setCurrentIndex(Repository.empty() ? 0 : std::max(0, PromptsFor->findText(QString::fromStdString(Repository))));
+		PromptsFor->setCurrentIndex(repository.empty() ? 0 : std::max(0, PromptsFor->findText(QString::fromStdString(repository))));
 	}
 
 	void prompts_page::choose_repository(const std::string& aRepository)
 	{
-		if (aRepository == Repository) {
+		Typing->stop();
+		core::end_prompt_typing(Editor);
+		flush();
+		if (!core::choose_prompt_repository(Editor, aRepository)) {
 			return;
 		}
-		Typing->stop();
-		flush();
-		Repository = aRepository;
+		View = core::prompt_edit_view(Editor);
 		set_repositories(Repositories);
-		adopt_layer();
 		if (Selected && find(*Selected) == nullptr) {
 			Selected.reset();
 		}
 		SelectedPlacement.reset();
 		// A teal edge says the edits are this repository's.
 		const auto teal = override_colour(palette());
-		RepositoryMark->setVisible(!Repository.empty());
+		RepositoryMark->setVisible(!aRepository.empty());
 		auto mark = RepositoryMark->palette();
 		mark.setColor(QPalette::WindowText, teal);
 		RepositoryMark->setPalette(mark);
-		Caption->setText(Repository.empty() ? tr("Where prompts appear, in order. Drag a prompt up from the library, or right-click it and choose Add to.")
-											: tr("%1 starts from your prompts for all repositories. Changes here apply to its pull requests only.").arg(QString::fromStdString(Repository)));
-		ChangedHere->setVisible(!Repository.empty());
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-	}
-
-	void prompts_page::adopt_layer()
-	{
-		const auto layer = std::ranges::find(Layers, Repository, &core::prompt_repository_layer::Repository);
-		if (Repository.empty() || layer == Layers.end()) {
-			Library  = AppLibrary;
-			Surfaces = AppSurfaces;
-			return;
-		}
-		auto layered = core::apply_repository_layer(AppLibrary, AppSurfaces, *layer);
-		Library      = std::move(layered.Library);
-		Surfaces     = std::move(layered.Surfaces);
-	}
-
-	auto prompts_page::app_entry(const std::string& aId) const -> const core::prompt_macro*
-	{
-		const auto found = std::ranges::find(AppLibrary, aId, &core::prompt_macro::Id);
-		return found == AppLibrary.end() ? nullptr : &*found;
-	}
-
-	auto prompts_page::differs_here(const core::prompt_macro& aMacro) const -> bool
-	{
-		if (Repository.empty()) {
-			return false;
-		}
-		const auto* const app = app_entry(aMacro.Id);
-		return app == nullptr || app->Body != aMacro.Body || app->On != aMacro.On;
+		Caption->setText(aRepository.empty() ? tr("Where prompts appear, in order. Drag a prompt up from the library, or right-click it and choose Add to.")
+											 : tr("%1 starts from your prompts for all repositories. Changes here apply to its pull requests only.").arg(QString::fromStdString(aRepository)));
+		ChangedHere->setVisible(!aRepository.empty());
+		refresh_all();
 	}
 
 	auto prompts_page::here_count() const -> int
 	{
-		return static_cast<int>(std::ranges::count_if(Library, [this](const core::prompt_macro& aMacro) { return differs_here(aMacro); }));
+		return static_cast<int>(std::ranges::count_if(View.Library, [this](const core::prompt_macro& aMacro) { return core::prompt_standing_of(Editor, aMacro).differs_here(); }));
 	}
 
-	void prompts_page::use_app_wide(const std::string& aId)
-	{
-		auto* const       macro = find(aId);
-		const auto* const app   = app_entry(aId);
-		if (macro == nullptr || app == nullptr || Repository.empty() || (macro->Body == app->Body && macro->On == app->On)) {
-			return;
-		}
-		macro->Body = app->Body;
-		macro->On   = app->On;
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-	}
+	void prompts_page::use_app_wide(const std::string& aId) { static_cast<void>(applied(core::use_app_wide_prompt(Editor, aId))); }
 
 	void prompts_page::use_app_wide_field(const std::string& aId, const QString& aField)
 	{
-		auto* const       macro = find(aId);
-		const auto* const app   = app_entry(aId);
-		if (macro == nullptr || app == nullptr || Repository.empty()) {
-			return;
+		if (const auto field = core::find_prompt_field(aField.toStdString())) {
+			static_cast<void>(applied(core::use_app_wide_field(Editor, aId, *field)));
 		}
-		if (aField == QStringLiteral("name")) {
-			macro->Body.Name = app->Body.Name;
-		} else if (aField == QStringLiteral("text")) {
-			macro->Body.Template = app->Body.Template;
-		} else if (aField == QStringLiteral("answer")) {
-			macro->Body.Kind = app->Body.Kind;
-		} else if (aField == QStringLiteral("conditions")) {
-			macro->Body.Conditions = app->Body.Conditions;
-			macro->Body.Match      = app->Body.Match;
-		} else if (aField == QStringLiteral("on")) {
-			macro->On = app->On;
-		}
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
 	}
 
-	void prompts_page::revert_placement(const std::string& aId, const prompt_surface aSurface)
-	{
-		if (Repository.empty()) {
-			return;
-		}
-		const auto& app  = AppSurfaces.Lists.at(index(aSurface));
-		auto&       here = Surfaces.Lists.at(index(aSurface));
-		const auto  was  = std::ranges::find(app, aId);
-		if (was == app.end()) {
-			std::erase(here, aId);
-		} else if (std::ranges::find(here, aId) == here.end()) {
-			// Back where it is app-wide, after the placements before it there.
-			auto at = std::size_t{ 0 };
-			for (auto before = app.begin(); before != was; ++before) {
-				if (const auto found = std::ranges::find(here, *before); found != here.end()) {
-					at = static_cast<std::size_t>(found - here.begin()) + 1U;
-				}
-			}
-			here.insert(here.begin() + static_cast<std::ptrdiff_t>(std::min(at, here.size())), aId);
-		}
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-	}
+	void prompts_page::revert_placement(const std::string& aId, const prompt_surface aSurface) { static_cast<void>(applied(core::revert_prompt_placement(Editor, aId, aSurface))); }
 
-	void prompts_page::revert_order(const prompt_surface aSurface)
-	{
-		const auto layer = std::ranges::find(Layers, Repository, &core::prompt_repository_layer::Repository);
-		if (Repository.empty() || layer == Layers.end()) {
-			return;
-		}
-		auto change = std::ranges::find(layer->Surfaces, aSurface, &core::prompt_repository_surface::Surface);
-		if (change == layer->Surfaces.end() || !change->Order) {
-			return;
-		}
-		auto unordered                     = *layer;
-		auto reverted                      = std::ranges::find(unordered.Surfaces, aSurface, &core::prompt_repository_surface::Surface);
-		reverted->Order                    = std::nullopt;
-		Surfaces.Lists.at(index(aSurface)) = core::apply_repository_layer(AppLibrary, AppSurfaces, unordered).Surfaces.Lists.at(index(aSurface));
-		rebuild_surfaces();
-		changed();
-	}
+	void prompts_page::revert_order(const prompt_surface aSurface) { static_cast<void>(applied(core::revert_prompt_order(Editor, aSurface))); }
 
 	void prompts_page::set_changed_here(const bool aOnly)
 	{
@@ -1253,63 +1169,67 @@ namespace bpr::qt {
 		}
 	}
 
-	void prompts_page::changed(const bool aTyping)
+	auto prompts_page::applied(const core::prompt_edit_outcome& aOutcome, const bool aTyping) -> bool
 	{
-		// What is edited goes to its layer: app-wide, or this repository's.
-		if (Repository.empty()) {
-			AppLibrary  = Library;
-			AppSurfaces = Surfaces;
-		} else {
-			auto layer = core::repository_layer_of(AppLibrary, AppSurfaces, { .Library = Library, .Surfaces = Surfaces }, Repository);
-			std::erase_if(Layers, [this](const core::prompt_repository_layer& aLayer) { return aLayer.Repository == Repository; });
-			if (layer != core::prompt_repository_layer{ .Repository = Repository }) {
-				Layers.push_back(std::move(layer));
-				std::ranges::sort(Layers, { }, &core::prompt_repository_layer::Repository);
+		if (aOutcome.Refusal != core::prompt_edit_refusal::none) {
+			auto words = QString{ };
+			if (aOutcome.Refusal == core::prompt_edit_refusal::placement) {
+				const auto reason = core::placement_reason(aOutcome.Placement);
+				words             = QString::fromUtf8(reason.data(), static_cast<qsizetype>(reason.size()));
+			} else if (aOutcome.Refusal == core::prompt_edit_refusal::library_full) {
+				words = tr("Your library holds %1 prompts. Delete one to add another.").arg(core::maximum_prompt_macros);
 			}
+			if (!words.isEmpty()) {
+				Refusal = words;
+				Status->setText(Refusal);
+			}
+			return false;
 		}
-		Dirty = true;
-		SavedLabel->setText(tr("Saving…"));
+		Refusal.clear();
+		if (!aOutcome.Changed) {
+			return false;
+		}
+		View = core::prompt_edit_view(Editor);
+		if (Selected && find(*Selected) == nullptr) {
+			Selected.reset();
+			SelectedPlacement.reset();
+		}
+		refresh_all();
+		// A run of typing saves when it pauses; anything else at once.
 		if (aTyping) {
 			Typing->start();
-			return;
+		} else {
+			Typing->stop();
 		}
-		Typing->stop();
+		show_status();
 		flush();
+		return true;
+	}
+
+	void prompts_page::refresh_all()
+	{
+		rebuild_surfaces();
+		rebuild_library();
+		refresh_editor();
 	}
 
 	void prompts_page::flush()
 	{
-		// One write at a time, each from the revision the last one made.
-		if (!Dirty || InFlight || !Save) {
+		// One write at a time, each from the revision its edits came from;
+		// the core says when one is due.
+		if (!Save || Typing->isActive()) {
 			return;
 		}
-		Dirty    = false;
-		InFlight = true;
-		Save(AppLibrary, AppSurfaces, Layers);
-	}
-
-	auto prompts_page::find(const std::string& aId) -> core::prompt_macro*
-	{
-		const auto found = std::ranges::find(Library, aId, &core::prompt_macro::Id);
-		return found == Library.end() ? nullptr : &*found;
+		if (auto request = core::next_prompt_save(Editor)) {
+			Save(std::move(*request));
+		}
+		show_status();
 	}
 
 	auto prompts_page::find(const std::string& aId) const -> const core::prompt_macro*
 	{
-		const auto found = std::ranges::find(Library, aId, &core::prompt_macro::Id);
-		return found == Library.end() ? nullptr : &*found;
-	}
-
-	auto prompts_page::shipped(const std::string& aId) const -> const core::prompt_macro*
-	{
-		const auto found = std::ranges::find_if(Shipped, [&aId](const core::prompt_builtin& aBuiltin) { return aBuiltin.Macro.Id == aId; });
-		return found == Shipped.end() ? nullptr : &found->Macro;
-	}
-
-	auto prompts_page::differs_from_shipped(const core::prompt_macro& aMacro) const -> bool
-	{
-		const auto* const original = shipped(aMacro.Id);
-		return original != nullptr && original->Body != aMacro.Body;
+		const auto found = std::ranges::find(View.Library, aId, &core::prompt_macro::Id);
+		return found == View.Library.end() ? nullptr : &*found;
 	}
 
 	auto prompts_page::refusal(const std::string& aId, const prompt_surface aSurface) const -> core::placement_refusal
@@ -1320,102 +1240,68 @@ namespace bpr::qt {
 
 	auto prompts_page::place(const std::string& aId, const prompt_surface aSurface, const std::optional<std::size_t> aAt) -> core::placement_refusal
 	{
-		const auto refused = core::place(Surfaces, Library, aId, aSurface, aAt);
-		if (refused != core::placement_refusal::none) {
-			Refusal = QString::fromUtf8(core::placement_reason(refused).data(), static_cast<qsizetype>(core::placement_reason(refused).size()));
-			Status->setText(Refusal);
-			return refused;
+		const auto outcome = core::place_prompt(Editor, aId, aSurface, aAt);
+		if (outcome.Refusal == core::prompt_edit_refusal::none) {
+			Selected = aId;
+			SelectedSystem.reset();
 		}
-		Refusal.clear();
-		Selected = aId;
-		SelectedSystem.reset();
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-		return refused;
+		if (!applied(outcome) && outcome.Refusal == core::prompt_edit_refusal::none) {
+			refresh_all();
+		}
+		return outcome.Placement;
 	}
 
-	auto prompts_page::drop(const std::string& aId, const std::optional<prompt_surface> aFrom, const prompt_surface aTo, std::size_t aAt, const bool aCopy) -> core::placement_refusal
+	auto prompts_page::drop(const std::string& aId, const std::optional<prompt_surface> aFrom, const prompt_surface aTo, const std::size_t aAt, const bool aCopy) -> core::placement_refusal
 	{
-		if (aFrom && *aFrom == aTo) {
-			// Within a surface: the drop line counts the row being moved.
-			const auto& list = Surfaces.Lists.at(index(aTo));
-			if (const auto found = std::ranges::find(list, aId); found != list.end() && static_cast<std::size_t>(found - list.begin()) < aAt) {
-				--aAt;
-			}
+		const auto outcome = core::drop_prompt(Editor, aId, aFrom, aTo, aAt, aCopy);
+		if (outcome.Refusal == core::prompt_edit_refusal::none) {
+			Selected = aId;
+			SelectedSystem.reset();
+			SelectedPlacement.reset();
 		}
-		const auto refused = core::place(Surfaces, Library, aId, aTo, aAt);
-		if (refused != core::placement_refusal::none) {
-			Refusal = QString::fromUtf8(core::placement_reason(refused).data(), static_cast<qsizetype>(core::placement_reason(refused).size()));
-			Status->setText(Refusal);
-			return refused;
+		if (!applied(outcome) && outcome.Refusal == core::prompt_edit_refusal::none) {
+			refresh_all();
 		}
-		if (aFrom && *aFrom != aTo && !aCopy) {
-			static_cast<void>(core::remove_placement(Surfaces, aId, *aFrom));
-		}
-		Selected = aId;
-		SelectedSystem.reset();
-		SelectedPlacement.reset();
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-		return refused;
+		return outcome.Placement;
 	}
 
 	void prompts_page::remove(const std::string& aId, const prompt_surface aSurface)
 	{
-		if (core::remove_placement(Surfaces, aId, aSurface) != core::placement_refusal::none) {
-			return;
+		const auto outcome = core::unplace_prompt(Editor, aId, aSurface);
+		if (outcome.Changed) {
+			SelectedPlacement.reset();
 		}
-		SelectedPlacement.reset();
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
+		static_cast<void>(applied(outcome));
 	}
 
 	void prompts_page::move(const std::string& aId, const prompt_surface aSurface, const int aBy)
 	{
-		if (core::move_placement(Surfaces, aId, aSurface, aBy) != core::placement_refusal::none) {
-			return;
+		const auto outcome = core::move_prompt(Editor, aId, aSurface, aBy);
+		if (outcome.Changed) {
+			const auto  view   = core::prompt_edit_view(Editor);
+			const auto& placed = view.Surfaces.Lists.at(index(aSurface));
+			SelectedPlacement  = std::pair{ aSurface, static_cast<std::size_t>(std::ranges::find(placed, aId) - placed.begin()) };
 		}
-		const auto& list  = Surfaces.Lists.at(index(aSurface));
-		const auto  found = std::ranges::find(list, aId);
-		SelectedPlacement = std::pair{ aSurface, static_cast<std::size_t>(found - list.begin()) };
-		rebuild_surfaces();
-		changed();
+		static_cast<void>(applied(outcome));
 		Lists.at(index(aSurface))->setFocus(Qt::OtherFocusReason);
 	}
 
-	void prompts_page::set_on(const std::string& aId, const bool aOn)
-	{
-		auto* const macro = find(aId);
-		if (macro == nullptr || macro->On == aOn) {
-			return;
-		}
-		macro->On = aOn;
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-	}
+	void prompts_page::set_on(const std::string& aId, const bool aOn) { static_cast<void>(applied(core::set_prompt_on(Editor, aId, aOn))); }
 
 	auto prompts_page::new_prompt() -> std::string
 	{
-		auto macro      = core::prompt_macro{ .Id = "own." + QUuid::createUuid().toString(QUuid::Id128).toStdString(), .Place = core::prompt_place::agent_tab };
-		macro.Body.Name = tr("New prompt").toStdString();
-		Library.push_back(macro);
-		Selected = macro.Id;
+		// [[BPR-2185]] (review N2): the host mints the identity.
+		const auto id = Identities ? Identities() : std::string{ };
+		if (!applied(core::add_prompt(Editor, id, tr("New prompt").toStdString()))) {
+			return { };
+		}
+		Selected = id;
 		SelectedSystem.reset();
 		set_filter(prompt_library_filter::all);
-		rebuild_surfaces();
-		refresh_editor();
-		changed();
+		refresh_all();
 		Name->setFocus(Qt::OtherFocusReason);
 		Name->selectAll();
-		return macro.Id;
+		return id;
 	}
 
 	auto prompts_page::duplicate(const std::string& aId) -> std::optional<std::string>
@@ -1424,51 +1310,31 @@ namespace bpr::qt {
 		if (original == nullptr) {
 			return std::nullopt;
 		}
-		auto copy      = *original;
-		copy.Id        = "own." + QUuid::createUuid().toString(QUuid::Id128).toStdString();
-		copy.BuiltIn   = false;
-		copy.Action    = core::prompt_action::none;
-		copy.Surface   = std::nullopt;
-		copy.Body.Name = tr("%1 copy").arg(QString::fromStdString(original->Body.Name)).toStdString();
-		if (copy.Body.Name.size() > core::maximum_prompt_name_bytes) {
-			copy.Body.Name.resize(core::maximum_prompt_name_bytes);
+		const auto id   = Identities ? Identities() : std::string{ };
+		const auto name = tr("%1 copy").arg(QString::fromStdString(original->Body.Name)).toStdString();
+		if (!applied(core::duplicate_prompt(Editor, aId, id, name))) {
+			return std::nullopt;
 		}
-		const auto id = copy.Id;
-		Library.push_back(std::move(copy));
 		Selected = id;
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
+		SelectedSystem.reset();
+		refresh_all();
 		Name->setFocus(Qt::OtherFocusReason);
 		Name->selectAll();
 		return id;
 	}
 
-	void prompts_page::reset_to_default(const std::string& aId)
-	{
-		auto* const       macro    = find(aId);
-		const auto* const original = shipped(aId);
-		if (macro == nullptr || original == nullptr || macro->Body == original->Body) {
-			return;
-		}
-		macro->Body = original->Body;
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-	}
+	void prompts_page::reset_to_default(const std::string& aId) { static_cast<void>(applied(core::reset_prompt(Editor, aId))); }
 
 	auto prompts_page::delete_prompt(const std::string& aId, const bool aConfirm) -> bool
 	{
 		const auto* const macro = find(aId);
 		// In a repository only its own can be deleted; an app-wide prompt is
-		// turned off there.
-		if (macro == nullptr || macro->BuiltIn || (!Repository.empty() && app_entry(aId) != nullptr)) {
+		// turned off there. The core refuses the rest; asking first is ours.
+		if (macro == nullptr || macro->BuiltIn || (!Editor.Repository.empty() && !core::prompt_standing_of(Editor, *macro).OnlyHere)) {
 			return false;
 		}
 		if (aConfirm) {
-			const auto on    = core::surfaces_of(Surfaces, aId);
+			const auto on    = core::surfaces_of(View.Surfaces, aId);
 			auto       names = QStringList{ };
 			for (const auto surface : on) {
 				names << prompt_surface_name(surface);
@@ -1483,17 +1349,12 @@ namespace bpr::qt {
 				return false;
 			}
 		}
-		for (auto& list : Surfaces.Lists) {
-			std::erase(list, aId);
+		const auto outcome = core::delete_prompt(Editor, aId);
+		if (outcome.Changed) {
+			Selected.reset();
+			SelectedPlacement.reset();
 		}
-		std::erase_if(Library, [&aId](const core::prompt_macro& aMacro) { return aMacro.Id == aId; });
-		Selected.reset();
-		SelectedPlacement.reset();
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-		return true;
+		return applied(outcome);
 	}
 
 	auto prompts_page::restore_built_ins(const bool aConfirm) -> bool
@@ -1508,29 +1369,9 @@ namespace bpr::qt {
 				return false;
 			}
 		}
-		auto builtIns = std::vector<core::prompt_macro>{ };
-		for (const auto& builtin : Shipped) {
-			builtIns.push_back(builtin.Macro);
-			if (auto* const macro = find(builtin.Macro.Id); macro != nullptr) {
-				macro->Body = builtin.Macro.Body;
-				macro->On   = builtin.Macro.On;
-			}
-		}
-		auto restored = core::shipped_surfaces(builtIns);
-		for (std::size_t surface = 0U; surface < core::prompt_surface_count; ++surface) {
-			for (const auto& id : Surfaces.Lists.at(surface)) {
-				const auto* const macro = find(id);
-				if (macro != nullptr && !macro->BuiltIn) {
-					restored.Lists.at(surface).push_back(id);
-				}
-			}
-		}
-		Surfaces = std::move(restored);
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed();
-		return true;
+		const auto outcome = core::restore_built_in_prompts(Editor);
+		static_cast<void>(applied(outcome));
+		return outcome.Refusal == core::prompt_edit_refusal::none;
 	}
 
 	void prompts_page::set_filter(const prompt_library_filter aFilter)
@@ -1547,59 +1388,39 @@ namespace bpr::qt {
 		if (Filling || !Selected) {
 			return;
 		}
-		auto* const macro = find(*Selected);
+		const auto* const macro = find(*Selected);
 		if (macro == nullptr) {
 			return;
 		}
-		const auto before = *macro;
-		aEdit(*macro);
-		if (*macro == before) {
-			return;
-		}
-		const auto typing = macro->Body.Name != before.Body.Name || macro->Body.Template != before.Body.Template;
-		// Look prompts-v002 (owner: "It needs undo/redo to work"): each edit
-		// can be undone; a run of typing in one prompt is one step.
-		if (!(typing && UndoTyping && Typing->isActive() && !UndoSteps.empty() && UndoSteps.back().Id == before.Id)) {
-			UndoSteps.push_back(before);
-			if (UndoSteps.size() > 200U) {
-				UndoSteps.erase(UndoSteps.begin());
-			}
-		}
-		UndoTyping = typing;
-		RedoSteps.clear();
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
-		changed(typing);
+		auto edited = *macro;
+		aEdit(edited);
+		// A run of typing in the name or text is one undo step.
+		const auto typing = edited.Body.Name != macro->Body.Name || edited.Body.Template != macro->Body.Template;
+		static_cast<void>(applied(core::edit_prompt(Editor, edited, typing), typing));
 	}
 
-	auto prompts_page::undo() -> bool { return step_back(UndoSteps, RedoSteps); }
-
-	auto prompts_page::redo() -> bool { return step_back(RedoSteps, UndoSteps); }
-
-	auto prompts_page::step_back(std::vector<core::prompt_macro>& aFrom, std::vector<core::prompt_macro>& aTo) -> bool
+	auto prompts_page::undo() -> bool
 	{
-		while (!aFrom.empty()) {
-			auto step = std::move(aFrom.back());
-			aFrom.pop_back();
-			auto* const macro = find(step.Id);
-			if (macro == nullptr) {
-				continue;
-			}
-			aTo.push_back(*macro);
-			macro->Body = step.Body;
-			macro->On   = step.On;
-			UndoTyping  = false;
-			Selected    = step.Id;
+		Typing->stop();
+		const auto outcome = core::undo_prompt_edit(Editor);
+		if (outcome.Changed && outcome.Prompt) {
+			Selected = outcome.Prompt;
 			SelectedSystem.reset();
 			OpenConditions.clear();
-			rebuild_surfaces();
-			rebuild_library();
-			refresh_editor();
-			changed();
-			return true;
 		}
-		return false;
+		return applied(outcome);
+	}
+
+	auto prompts_page::redo() -> bool
+	{
+		Typing->stop();
+		const auto outcome = core::redo_prompt_edit(Editor);
+		if (outcome.Changed && outcome.Prompt) {
+			Selected = outcome.Prompt;
+			SelectedSystem.reset();
+			OpenConditions.clear();
+		}
+		return applied(outcome);
 	}
 
 	void prompts_page::select(const std::string& aId)
@@ -1609,9 +1430,7 @@ namespace bpr::qt {
 		}
 		Selected = aId;
 		SelectedSystem.reset();
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
+		refresh_all();
 	}
 
 	void prompts_page::select_system(const int aKey)
@@ -1622,9 +1441,7 @@ namespace bpr::qt {
 		if (System != nullptr) {
 			System->select_system(aKey);
 		}
-		rebuild_surfaces();
-		rebuild_library();
-		refresh_editor();
+		refresh_all();
 	}
 
 	auto prompts_page::selected() const -> std::optional<std::string> { return Selected; }
@@ -1636,14 +1453,14 @@ namespace bpr::qt {
 			&& !QString::fromStdString(aMacro.Body.Template).contains(needle, Qt::CaseInsensitive)) {
 			return false;
 		}
-		if (ChangedHereOnly && !Repository.empty() && !differs_here(aMacro)) {
+		if (ChangedHereOnly && !Editor.Repository.empty() && !core::prompt_standing_of(Editor, aMacro).differs_here()) {
 			return false;
 		}
 		switch (Filter) {
 		case prompt_library_filter::all:              return true;
 		case prompt_library_filter::built_in:         return aMacro.BuiltIn;
 		case prompt_library_filter::yours:            return !aMacro.BuiltIn;
-		case prompt_library_filter::not_on_a_surface: return core::surfaces_of(Surfaces, aMacro.Id).empty();
+		case prompt_library_filter::not_on_a_surface: return core::surfaces_of(View.Surfaces, aMacro.Id).empty();
 		case prompt_library_filter::system:           return false;
 		}
 		return true;
@@ -1664,26 +1481,25 @@ namespace bpr::qt {
 		};
 		QListWidgetItem* current = nullptr;
 		auto             any     = false;
-		for (const auto& macro : Library) {
+		for (const auto& macro : View.Library) {
 			if (!shown_in_library(macro)) {
 				continue;
 			}
-			any       = true;
-			auto tags = QStringList{ };
-			if (!Repository.empty() && app_entry(macro.Id) == nullptr) {
+			any                 = true;
+			auto       tags     = QStringList{ };
+			const auto standing = core::prompt_standing_of(Editor, macro);
+			if (standing.OnlyHere) {
 				tags << tr("Only here");
 			} else if (!macro.BuiltIn) {
 				tags << tr("Yours");
-			} else if (differs_from_shipped(macro)) {
+			} else if (standing.Edited) {
 				tags << tr("Edited");
 			}
-			if (const auto* const app = Repository.empty() ? nullptr : app_entry(macro.Id); app != nullptr) {
-				if (app->On != macro.On && !macro.On) {
-					tags << tr("Off here");
-				}
-				if (app->Body != macro.Body) {
-					tags << tr("Changed here");
-				}
+			if (standing.OffHere) {
+				tags << tr("Off here");
+			}
+			if (standing.ChangedHere) {
+				tags << tr("Changed here");
 			}
 			if (is_tour(macro)) {
 				tags << tr("Tour");
@@ -1753,14 +1569,16 @@ namespace bpr::qt {
 				continue;
 			}
 			list->clear();
-			const auto& ids = Surfaces.Lists.at(surface);
+			const auto& ids         = View.Surfaces.Lists.at(surface);
+			const auto  surfaceHere = core::prompt_surface_standing_of(Editor, static_cast<prompt_surface>(surface));
 			for (std::size_t row = 0U; row < ids.size(); ++row) {
 				const auto* const macro = find(ids[row]);
 				if (macro == nullptr) {
 					continue;
 				}
 				auto flags = 0;
-				if (!macro->Body.Conditions.empty()) {
+				// Review N3: nested groups are conditions too.
+				if (core::prompt_has_conditions(macro->Body)) {
 					flags |= has_conditions;
 				}
 				if (!macro->On) {
@@ -1774,17 +1592,17 @@ namespace bpr::qt {
 					flags |= here ? is_filled : is_outlined;
 				}
 				// In a repository: what it added, and what differs from app-wide.
-				const auto& app   = AppSurfaces.Lists.at(surface);
-				const auto  added = !Repository.empty() && std::ranges::find(app, macro->Id) == app.end();
-				auto        tag   = macro->On ? QString{ } : tr("Off");
+				const auto standing = core::prompt_standing_of(Editor, *macro);
+				const auto added    = std::ranges::find(surfaceHere.Added, macro->Id) != surfaceHere.Added.end();
+				auto       tag      = macro->On ? QString{ } : tr("Off");
 				if (added) {
 					tag = tr("Added here");
 					flags |= revertable;
-				} else if (const auto* const appMacro = Repository.empty() ? nullptr : app_entry(macro->Id); appMacro != nullptr && appMacro->On != macro->On && !macro->On) {
+				} else if (standing.OffHere) {
 					tag = tr("Off here");
 					flags |= is_override;
 				}
-				if (differs_here(*macro) && !added) {
+				if (standing.differs_here() && !added) {
 					flags |= is_override;
 				}
 				auto* const item = new QListWidgetItem{ QString::fromStdString(macro->Body.Name), list };
@@ -1798,12 +1616,8 @@ namespace bpr::qt {
 				}
 			}
 			// Removed here: the row stays, struck through, after the rest.
-			if (!Repository.empty()) {
-				for (const auto& id : AppSurfaces.Lists.at(surface)) {
-					const auto* const macro = find(id);
-					if (macro == nullptr || std::ranges::find(ids, id) != ids.end()) {
-						continue;
-					}
+			for (const auto& id : surfaceHere.Removed) {
+				if (const auto* const macro = find(id); macro != nullptr) {
 					auto* const item = new QListWidgetItem{ QString::fromStdString(macro->Body.Name), list };
 					item->setData(id_role, QString::fromStdString(id));
 					item->setData(flags_role, is_removed | revertable | (core::is_menu(static_cast<prompt_surface>(surface)) ? 0 : is_chip));
@@ -1814,13 +1628,7 @@ namespace bpr::qt {
 				}
 			}
 			if (auto* const order = OrderTags.at(surface); order != nullptr) {
-				const auto layer   = std::ranges::find(Layers, Repository, &core::prompt_repository_layer::Repository);
-				auto       ordered = false;
-				if (!Repository.empty() && layer != Layers.end()) {
-					const auto change = std::ranges::find(layer->Surfaces, static_cast<prompt_surface>(surface), &core::prompt_repository_surface::Surface);
-					ordered           = change != layer->Surfaces.end() && change->Order.has_value();
-				}
-				order->setVisible(ordered);
+				order->setVisible(surfaceHere.Ordered);
 				order->setText(tr("<span style=\"color:%1\">Order changed here</span> <a href=\"revert\">Revert</a>").arg(override_colour(palette()).name()));
 			}
 			list->fit();
@@ -1830,13 +1638,13 @@ namespace bpr::qt {
 
 	auto prompts_page::placement_name(const prompt_surface aSurface, const std::size_t aIndex) const -> QString
 	{
-		const auto& ids = Surfaces.Lists.at(index(aSurface));
+		const auto& ids = View.Surfaces.Lists.at(index(aSurface));
 		if (aIndex >= ids.size()) {
 			return { };
 		}
 		const auto* const macro = find(ids[aIndex]);
 		auto              name  = tr("%1, %2 of %3, %4").arg(prompt_surface_name(aSurface)).arg(aIndex + 1U).arg(ids.size()).arg(macro != nullptr ? QString::fromStdString(macro->Body.Name) : QString{ });
-		if (macro != nullptr && !macro->Body.Conditions.empty()) {
+		if (macro != nullptr && core::prompt_has_conditions(macro->Body)) {
 			name += tr(", has conditions");
 		}
 		if (macro != nullptr && !macro->On) {
@@ -1885,7 +1693,8 @@ namespace bpr::qt {
 			Name->setText(QString::fromStdString(macro->Body.Name));
 			Name->setCursorPosition(0);
 		}
-		BuiltInTag->setText(macro->BuiltIn ? (differs_from_shipped(*macro) ? tr("Built-in, edited") : tr("Built-in")) : tr("Yours"));
+		const auto standing = core::prompt_standing_of(Editor, *macro);
+		BuiltInTag->setText(macro->BuiltIn ? (standing.Edited ? tr("Built-in, edited") : tr("Built-in")) : tr("Yours"));
 		AsQuestion->setChecked(macro->Body.Kind == core::prompt_ask::question);
 		AsFindings->setChecked(macro->Body.Kind == core::prompt_ask::review);
 		MatchAll->setChecked(macro->Body.Match == core::prompt_match::all);
@@ -1893,7 +1702,7 @@ namespace bpr::qt {
 		MatchNone->setChecked(macro->Body.Match == core::prompt_match::none);
 		UnmetHide->setChecked(macro->Body.WhenUnmet == core::prompt_when_unmet::hide);
 		UnmetDisable->setChecked(macro->Body.WhenUnmet == core::prompt_when_unmet::disable);
-		WhenUnmetRow->setVisible(!macro->Body.Conditions.empty() || !macro->Body.Groups.empty());
+		WhenUnmetRow->setVisible(core::prompt_has_conditions(macro->Body));
 		const auto system = action_system_key(macro->Action);
 		ActionNote->setVisible(system.has_value());
 		Text->setVisible(!system.has_value());
@@ -1912,7 +1721,7 @@ namespace bpr::qt {
 		}
 		// Insert offers the variables its surfaces fill in: the first three
 		// as tokens, every one in its menu.
-		const auto  on           = core::surfaces_of(Surfaces, macro->Id);
+		const auto  on           = core::surfaces_of(View.Surfaces, macro->Id);
 		const auto  place        = on.empty() ? macro->Place : core::placed_on(*macro, on.front()).Place;
 		auto* const insertButton = new quiet_tool_button{ InsertRow };
 		insertButton->setObjectName(QStringLiteral("promptsInsert"));
@@ -1943,97 +1752,68 @@ namespace bpr::qt {
 		Bytes->setWordWrap(false);
 		insert->addWidget(Bytes);
 
-		UndoButton->setEnabled(!UndoSteps.empty());
-		RedoButton->setEnabled(!RedoSteps.empty());
-		AddCondition->setEnabled(macro->Body.Conditions.size() < core::maximum_prompt_conditions || macro->Body.Groups.size() < core::maximum_prompt_conditions);
-		AddCondition->setToolTip(macro->Body.Conditions.size() < core::maximum_prompt_conditions ? tr("Add a condition or a group") : tr("A list holds four conditions; put more in a group."));
+		UndoButton->setEnabled(!Editor.Undo.empty());
+		RedoButton->setEnabled(!Editor.Redo.empty());
+		const auto room = core::prompt_condition_room_of(*macro, { });
+		AddCondition->setEnabled(room.Condition || room.Group);
+		AddCondition->setToolTip(room.Crowded ? tr("A list holds four conditions; put more in a group.") : tr("Add a condition or a group"));
 		rebuild_conditions();
 
-		// Problems, as the prompt reads where it is placed.
+		// Problems, as the prompt reads where it is placed (review N3: in words).
 		auto problems = QStringList{ };
-		for (const auto surface : on) {
-			for (const auto& problem : core::validate_prompt_macro(core::placed_on(*macro, surface))) {
-				if (core::prompt_problem_blocks(problem.Problem)) {
-					problems << tr("On %1 it isn't offered: %2.").arg(prompt_surface_name(surface), QString::fromLatin1(core::stable_name(problem.Problem)));
-					break;
-				}
-			}
+		for (const auto& problem : core::prompt_placement_problems(*macro, View.Surfaces)) {
+			problems << tr("On %1 it isn't offered: %2.").arg(prompt_surface_name(problem.Surface), prompt_problem_words(problem.Problem));
 		}
 		Problems->setText(problems.join(QLatin1Char('\n')));
 		Duplicate->setEnabled(true);
-		if (Repository.empty()) {
+		if (Editor.Repository.empty()) {
 			Reset->setText(tr("Reset to default"));
 			Reset->setVisible(macro->BuiltIn);
-			Reset->setEnabled(macro->BuiltIn && differs_from_shipped(*macro));
+			Reset->setEnabled(macro->BuiltIn && standing.Edited);
 			Differs->hide();
 		} else {
-			const auto* const app = app_entry(macro->Id);
 			Reset->setText(tr("Use app-wide for this prompt"));
-			Reset->setVisible(app != nullptr);
-			Reset->setEnabled(app != nullptr && differs_here(*macro));
+			Reset->setVisible(!standing.OnlyHere);
+			Reset->setEnabled(!standing.OnlyHere && !standing.Differing.empty());
 			auto fields = QStringList{ };
-			if (app != nullptr) {
-				const auto link = [](const QString& aField, const QString& aWords) { return QStringLiteral("<a href=\"%1\">%2</a>").arg(aField, aWords); };
-				if (app->Body.Name != macro->Body.Name) {
-					fields << link(QStringLiteral("name"), tr("Use app-wide name"));
+			for (const auto field : standing.Differing) {
+				auto words = QString{ };
+				switch (field) {
+				case core::prompt_field::name:       words = tr("Use app-wide name"); break;
+				case core::prompt_field::text:       words = tr("Use app-wide text"); break;
+				case core::prompt_field::answer:     words = tr("Use app-wide Answer as"); break;
+				case core::prompt_field::conditions: words = tr("Use app-wide conditions"); break;
+				case core::prompt_field::on:         words = macro->On ? tr("Turn off, as app-wide") : tr("Turn on, as app-wide"); break;
 				}
-				if (app->Body.Template != macro->Body.Template) {
-					fields << link(QStringLiteral("text"), tr("Use app-wide text"));
-				}
-				if (app->Body.Kind != macro->Body.Kind) {
-					fields << link(QStringLiteral("answer"), tr("Use app-wide Answer as"));
-				}
-				if (app->Body.Conditions != macro->Body.Conditions || app->Body.Match != macro->Body.Match) {
-					fields << link(QStringLiteral("conditions"), tr("Use app-wide conditions"));
-				}
-				if (app->On != macro->On) {
-					fields << link(QStringLiteral("on"), app->On ? tr("Turn on, as app-wide") : tr("Turn off, as app-wide"));
-				}
+				fields << QStringLiteral("<a href=\"%1\">%2</a>").arg(QString::fromLatin1(core::stable_name(field)), words);
 			}
-			Differs->setVisible(!fields.isEmpty() || app == nullptr);
-			Differs->setText(app == nullptr ? tr("<span style=\"color:%1\">Only here.</span> Delete it to remove it.").arg(override_colour(palette()).name())
-											: tr("<span style=\"color:%1\">Differs from app-wide.</span> %2").arg(override_colour(palette()).name(), fields.join(QStringLiteral(" \u00B7 "))));
+			Differs->setVisible(!fields.isEmpty() || standing.OnlyHere);
+			Differs->setText(standing.OnlyHere ? tr("<span style=\"color:%1\">Only here.</span> Delete it to remove it.").arg(override_colour(palette()).name())
+											   : tr("<span style=\"color:%1\">Differs from app-wide.</span> %2").arg(override_colour(palette()).name(), fields.join(QStringLiteral(" \u00B7 "))));
 		}
 		OnSurfaces->setText(on.empty() ? tr("On no surface") : on.size() == 1U ? tr("On 1 surface, outlined above")
 																			   : tr("On %1 surfaces, outlined above").arg(on.size()));
-		SavedLabel->setText(Dirty || InFlight ? tr("Saving…") : tr("Saved"));
+		show_status();
 		Filling = false;
 	}
 
 	namespace {
-		/// One group of a prompt's tree, the list itself included.
-		struct group_ref
+		/// The group at `aPath` (indices into each level's groups), read
+		/// only; none when the path no longer names one.
+		[[nodiscard]] auto group_at(const core::prompt_macro_body& aBody, const core::prompt_condition_path& aPath) -> std::optional<core::prompt_condition_group>
 		{
-			core::prompt_match*                        Match      = nullptr;
-			std::vector<core::prompt_condition>*       Conditions = nullptr;
-			std::vector<core::prompt_condition_group>* Groups     = nullptr;
-		};
-
-		/// The group at `aPath` (indices into each level's groups); none when
-		/// the path no longer names one.
-		[[nodiscard]] auto group_at(core::prompt_macro_body& aBody, const std::vector<std::size_t>& aPath) -> std::optional<group_ref>
-		{
-			auto ref = group_ref{ .Match = &aBody.Match, .Conditions = &aBody.Conditions, .Groups = &aBody.Groups };
+			auto group = core::prompt_condition_group{ .Match = aBody.Match, .Conditions = aBody.Conditions, .Groups = aBody.Groups };
 			for (const auto at : aPath) {
-				if (at >= ref.Groups->size()) {
+				if (at >= group.Groups.size()) {
 					return std::nullopt;
 				}
-				auto& group = (*ref.Groups)[at];
-				ref         = { .Match = &group.Match, .Conditions = &group.Conditions, .Groups = &group.Groups };
+				auto inner = group.Groups[at];
+				group      = std::move(inner);
 			}
-			return ref;
+			return group;
 		}
 
-		[[nodiscard]] auto leaf_count(const std::vector<core::prompt_condition>& aConditions, const std::vector<core::prompt_condition_group>& aGroups) -> std::size_t
-		{
-			auto count = aConditions.size();
-			for (const auto& group : aGroups) {
-				count += leaf_count(group.Conditions, group.Groups);
-			}
-			return count;
-		}
-
-		[[nodiscard]] auto path_key(const std::vector<std::size_t>& aPath, const std::optional<std::size_t> aLeaf = std::nullopt) -> QString
+		[[nodiscard]] auto path_key(const core::prompt_condition_path& aPath, const std::optional<std::size_t> aLeaf = std::nullopt) -> QString
 		{
 			auto key = QStringLiteral("g");
 			for (const auto at : aPath) {
@@ -2053,63 +1833,63 @@ namespace bpr::qt {
 		}
 	} // namespace
 
-	void prompts_page::fill_condition_menu(QMenu& aMenu, const std::vector<std::size_t>& aPath)
+	void prompts_page::fill_condition_menu(QMenu& aMenu, const core::prompt_condition_path& aPath)
 	{
 		const auto* const macro = Selected ? find(*Selected) : nullptr;
 		if (macro == nullptr) {
 			return;
 		}
-		auto       body  = macro->Body;
-		const auto group = group_at(body, aPath);
-		if (!group) {
+		// Review N3: the core says what may be added here and which facts
+		// the prompt's chats hold.
+		const auto room = core::prompt_condition_room_of(*macro, aPath);
+		if (!room.Exists) {
 			return;
 		}
-		const auto full    = leaf_count(body.Conditions, body.Groups) >= core::maximum_prompt_condition_leaves;
-		const auto crowded = group->Conditions->size() >= core::maximum_prompt_conditions;
 		// Look prompts-v002 (owner: "I would reduce the option to just Group
 		// in the Add since its so easy to change between all/any/none"): Add
 		// offers a condition (a submenu) or a group.
 		auto* const conditions = aMenu.addMenu(tr("Condition"));
 		conditions->setObjectName(QStringLiteral("promptsAddConditionMenu"));
-		conditions->setEnabled(!full && !crowded);
+		conditions->setEnabled(room.Condition);
 		for (const auto& name : { tr("Pull request"), tr("File"), tr("Thread"), tr("Chat") }) {
-			conditions->addSection(name);
-			for (std::size_t fact = 0U; fact < core::prompt_fact_count; ++fact) {
-				const auto value = static_cast<core::prompt_fact>(fact);
-				if (prompt_fact_group(value) != name) {
+			auto titled = false;
+			for (const auto fact : room.Facts) {
+				if (prompt_fact_group(fact) != name) {
 					continue;
 				}
-				auto* const action = conditions->addAction(prompt_fact_name(value), this, [this, value, aPath] {
-					edit_selected([this, value, aPath](core::prompt_macro& aMacro) {
-						const auto into = group_at(aMacro.Body, aPath);
-						if (!into || into->Conditions->size() >= core::maximum_prompt_conditions || leaf_count(aMacro.Body.Conditions, aMacro.Body.Groups) >= core::maximum_prompt_condition_leaves) {
-							return;
-						}
-						auto condition = core::prompt_condition{ .Fact = value };
-						if (value == core::prompt_fact::path || value == core::prompt_fact::repository) {
-							condition.Patterns = { value == core::prompt_fact::path ? "src/**" : "owner/*" };
-						}
-						into->Conditions->push_back(std::move(condition));
+				if (!titled) {
+					conditions->addSection(name);
+					titled = true;
+				}
+				auto* const action = conditions->addAction(prompt_fact_name(fact), this, [this, fact, aPath] {
+					if (!Selected) {
+						return;
+					}
+					const auto id = *Selected;
+					if (applied(core::add_prompt_condition(Editor, id, aPath, fact))) {
 						// A row just added is open.
-						OpenConditions.insert(path_key(aPath, into->Conditions->size() - 1U));
-					});
+						if (const auto* const added = find(id); added != nullptr) {
+							if (const auto group = group_at(added->Body, aPath); group && !group->Conditions.empty()) {
+								OpenConditions.insert(path_key(aPath, group->Conditions.size() - 1U));
+								rebuild_conditions();
+							}
+						}
+					}
 				});
-				action->setEnabled(!full && !crowded);
+				action->setEnabled(room.Condition);
 			}
 		}
 		// Groups nest, as the owner's tag queries do; a new one is All of
 		// these, changed in its own box.
 		auto* const groupAction = aMenu.addAction(tr("Group"), this, [this, aPath] {
-			edit_selected([aPath](core::prompt_macro& aMacro) {
-				if (const auto into = group_at(aMacro.Body, aPath); into && into->Groups->size() < core::maximum_prompt_conditions && aPath.size() + 1U < core::maximum_prompt_condition_depth) {
-					into->Groups->push_back({ .Match = core::prompt_match::all });
-				}
-			});
+			if (Selected) {
+				static_cast<void>(applied(core::add_prompt_condition_group(Editor, *Selected, aPath)));
+			}
 		});
 		groupAction->setObjectName(QStringLiteral("promptsAddGroup"));
-		groupAction->setEnabled(aPath.size() + 1U < core::maximum_prompt_condition_depth && group->Groups->size() < core::maximum_prompt_conditions);
+		groupAction->setEnabled(room.Group);
 		aMenu.setToolTipsVisible(true);
-		if (full) {
+		if (room.Full) {
 			aMenu.setToolTip(tr("A prompt can have twelve conditions."));
 		}
 	}
@@ -2123,22 +1903,23 @@ namespace bpr::qt {
 		if (macro == nullptr) {
 			return;
 		}
-		if (macro->Body.Conditions.empty() && macro->Body.Groups.empty()) {
+		if (!core::prompt_has_conditions(macro->Body)) {
 			Conditions->addWidget(secondary(tr("None: it is offered wherever it is placed."), Conditions->parentWidget()));
 		}
-		auto body = macro->Body;
+		const auto body = macro->Body;
 		add_group_rows(*Conditions, body, { });
 	}
 
-	void prompts_page::add_group_rows(QVBoxLayout& aColumn, core::prompt_macro_body& aBody, const std::vector<std::size_t>& aPath)
+	void prompts_page::add_group_rows(QVBoxLayout& aColumn, const core::prompt_macro_body& aBody, const core::prompt_condition_path& aPath)
 	{
 		const auto group = group_at(aBody, aPath);
-		if (!group) {
+		if (!group || !Selected) {
 			return;
 		}
+		const auto  id     = *Selected;
 		auto* const parent = aColumn.parentWidget() != nullptr ? aColumn.parentWidget() : Conditions->parentWidget();
-		for (std::size_t at = 0U; at < group->Conditions->size(); ++at) {
-			const auto& condition = (*group->Conditions)[at];
+		for (std::size_t at = 0U; at < group->Conditions.size(); ++at) {
+			const auto& condition = group->Conditions[at];
 			const auto  key       = path_key(aPath, at);
 			const auto  open      = OpenConditions.contains(key);
 			auto* const row       = new QFrame{ parent };
@@ -2169,20 +1950,15 @@ namespace bpr::qt {
 				}
 				rebuild_conditions();
 			});
-			connect(removeButton, &QToolButton::clicked, this, [this, aPath, at] {
+			connect(removeButton, &QToolButton::clicked, this, [this, id, aPath, at] {
 				OpenConditions.clear();
-				edit_selected([aPath, at](core::prompt_macro& aMacro) {
-					if (const auto from = group_at(aMacro.Body, aPath); from && at < from->Conditions->size()) {
-						from->Conditions->erase(from->Conditions->begin() + static_cast<std::ptrdiff_t>(at));
-					}
-				});
+				static_cast<void>(applied(core::remove_prompt_condition(Editor, id, aPath, at)));
 			});
-			const auto edit = [this, aPath, at](const std::function<void(core::prompt_condition&)>& aChange) {
-				edit_selected([&aChange, aPath, at](core::prompt_macro& aMacro) {
-					if (const auto in = group_at(aMacro.Body, aPath); in && at < in->Conditions->size()) {
-						aChange((*in->Conditions)[at]);
-					}
-				});
+			// One condition changed: the core puts it back where it is.
+			const auto edit = [this, id, aPath, at, condition](const std::function<void(core::prompt_condition&)>& aChange) {
+				auto changed = condition;
+				aChange(changed);
+				static_cast<void>(applied(core::set_prompt_condition(Editor, id, aPath, at, std::move(changed))));
 			};
 			if (open) {
 				auto* const settings = new QHBoxLayout{ };
@@ -2236,10 +2012,10 @@ namespace bpr::qt {
 			aColumn.addWidget(row);
 		}
 		// Each nested group: a bordered box with its own match, add and remove.
-		for (std::size_t at = 0U; at < group->Groups->size(); ++at) {
+		for (std::size_t at = 0U; at < group->Groups.size(); ++at) {
 			auto path = aPath;
 			path.push_back(at);
-			const auto  match = (*group->Groups)[at].Match;
+			const auto  match = group->Groups[at].Match;
 			auto* const box   = new QFrame{ parent };
 			box->setObjectName(QStringLiteral("promptsConditionGroup-%1").arg(path_key(path)));
 			box->setFrameShape(QFrame::StyledPanel);
@@ -2258,13 +2034,7 @@ namespace bpr::qt {
 				button->setAccessibleName(match_words(choice));
 				button->setChecked(choice == match);
 				button->setObjectName(QStringLiteral("promptsGroupMatch-%1-%2").arg(path_key(path), QString::fromLatin1(core::stable_name(choice))));
-				connect(button, &QToolButton::clicked, this, [this, path, choice] {
-					edit_selected([path, choice](core::prompt_macro& aMacro) {
-						if (const auto in = group_at(aMacro.Body, path)) {
-							*in->Match = choice;
-						}
-					});
-				});
+				connect(button, &QToolButton::clicked, this, [this, id, path, choice] { static_cast<void>(applied(core::set_prompt_group_match(Editor, id, path, choice))); });
 				head->addWidget(button);
 			}
 			head->addStretch(1);
@@ -2283,17 +2053,13 @@ namespace bpr::qt {
 			remove->setObjectName(QStringLiteral("promptsRemoveGroup"));
 			remove->setAccessibleName(tr("Remove this group"));
 			remove->setToolTip(remove->accessibleName());
-			connect(remove, &QToolButton::clicked, this, [this, aPath, at] {
+			connect(remove, &QToolButton::clicked, this, [this, id, aPath, at] {
 				OpenConditions.clear();
-				edit_selected([aPath, at](core::prompt_macro& aMacro) {
-					if (const auto from = group_at(aMacro.Body, aPath); from && at < from->Groups->size()) {
-						from->Groups->erase(from->Groups->begin() + static_cast<std::ptrdiff_t>(at));
-					}
-				});
+				static_cast<void>(applied(core::remove_prompt_condition_group(Editor, id, aPath, at)));
 			});
 			head->addWidget(remove);
 			inner->addLayout(head);
-			if ((*group->Groups)[at].Conditions.empty() && (*group->Groups)[at].Groups.empty()) {
+			if (group->Groups[at].Conditions.empty() && group->Groups[at].Groups.empty()) {
 				inner->addWidget(secondary(tr("Empty: add a condition to it."), box));
 			}
 			add_group_rows(*inner, aBody, path);
@@ -2313,7 +2079,7 @@ namespace bpr::qt {
 		const auto group = [&](const QString& aTitle, const std::initializer_list<std::pair<prompt_surface, QString>> aSurfaces) {
 			aMenu.addSection(aTitle);
 			for (const auto& [surface, name] : aSurfaces) {
-				const auto  on      = std::ranges::find(Surfaces.Lists.at(index(surface)), aId) != Surfaces.Lists.at(index(surface)).end();
+				const auto  on      = std::ranges::find(View.Surfaces.Lists.at(index(surface)), aId) != View.Surfaces.Lists.at(index(surface)).end();
 				const auto  refused = refusal(aId, surface);
 				auto* const action  = aMenu.addAction(name);
 				action->setObjectName(QStringLiteral("promptsAddTo-%1").arg(QString::fromLatin1(core::stable_name(surface))));
@@ -2351,7 +2117,7 @@ namespace bpr::qt {
 		fill_add_to(*aMenu.addMenu(tr("Add to")), aId);
 		aMenu.addAction(tr("Duplicate"), this, [this, aId] { static_cast<void>(duplicate(aId)); });
 		aMenu.addAction(macro->On ? tr("Turn Off") : tr("Turn On"), this, [this, aId, on = macro->On] { set_on(aId, !on); });
-		if (macro->BuiltIn && differs_from_shipped(*macro)) {
+		if (macro->BuiltIn && core::prompt_standing_of(Editor, *macro).Edited) {
 			aMenu.addAction(tr("Reset to Default"), this, [this, aId] { reset_to_default(aId); });
 		}
 		if (!macro->BuiltIn) {

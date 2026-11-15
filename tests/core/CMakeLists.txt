@@ -1841,6 +1841,14 @@ bpr_enable_hardening(test_better_pull_review_prompt_macro_core_tests)
 bpr_enable_warnings(test_better_pull_review_prompt_macro_core_tests)
 bpr_add_network_isolated_test(NAME core_prompt_macro COMMAND test_better_pull_review_prompt_macro_core_tests)
 set_tests_properties(core_prompt_macro PROPERTIES PASS_REGULAR_EXPRESSION "prompt-macro-tests:pass")
+# [[BPR-2185]]. Settings › Prompts as a core reducer: the save protocol,
+# undo over every edit, the library's bound and the full differences.
+bpr_add_executable(test_better_pull_review_prompt_editor_core_tests prompt_editor_tests.cpp)
+target_link_libraries(test_better_pull_review_prompt_editor_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_prompt_editor_core_tests)
+bpr_enable_warnings(test_better_pull_review_prompt_editor_core_tests)
+bpr_add_network_isolated_test(NAME core_prompt_editor COMMAND test_better_pull_review_prompt_editor_core_tests)
+set_tests_properties(core_prompt_editor PROPERTIES PASS_REGULAR_EXPRESSION "prompt-editor-tests:pass")
 # RFC-BPR-0107 and RFC-BPR-0125: agent_configuration.hpp and prompt_macro.hpp
 # compile together (prompt_kind and prompt_ask stay distinct).
 bpr_add_executable(test_better_pull_review_prompt_headers_together_tests prompt_headers_together_tests.cpp)

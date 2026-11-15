@@ -17,8 +17,11 @@ namespace bpr::qt {
 	/// Thread or Chat.
 	[[nodiscard]] auto prompt_fact_group(core::prompt_fact aFact) -> QString;
 	/// \brief Why a greyed Ask menu row cannot run yet, for its tooltip and
-	/// accessible description; empty for a condition of the hides kind.
+	/// accessible description: the words for `core::prompt_unmet_reading_of`.
 	[[nodiscard]] auto prompt_condition_reason(const core::prompt_condition& aCondition) -> QString;
+	/// \brief [[BPR-2185]]. A blocking problem in words, for "On <surface>
+	/// it isn't offered: <words>."
+	[[nodiscard]] auto prompt_problem_words(core::prompt_problem aProblem) -> QString;
 	/// \brief The one line an open condition row says about being unmet.
 	[[nodiscard]] auto prompt_condition_unmet_line(const core::prompt_condition& aCondition) -> QString;
 	/// \brief "Pull request menu", "Thread chips", "Tour stop".

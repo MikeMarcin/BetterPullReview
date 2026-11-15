@@ -52,30 +52,62 @@ namespace bpr::qt {
 	auto prompt_condition_reason(const core::prompt_condition& aCondition) -> QString
 	{
 		using enum core::prompt_fact;
-		const auto negated = aCondition.Negated;
-		switch (aCondition.Fact) {
-		case author_is_me:            return negated ? QObject::tr("This is your pull request.") : QObject::tr("This is not your pull request.");
-		case draft:                   return negated ? QObject::tr("This pull request is a draft.") : QObject::tr("This pull request is not a draft.");
-		case checks_failing:          return negated ? QObject::tr("A check has failed.") : QObject::tr("No check has failed.");
-		case pushes_since_review:     return negated ? QObject::tr("Commits followed your review.") : QObject::tr("No commits since your review.");
-		case file_unresolved_threads: return negated ? QObject::tr("This file has unresolved threads.") : QObject::tr("No unresolved threads on this file.");
-		case file_unreviewed:         return negated ? QObject::tr("You haven't reviewed this file yet.") : QObject::tr("You have already reviewed this file.");
-		case thread_unresolved:       return negated ? QObject::tr("This thread is unresolved.") : QObject::tr("This thread is resolved.");
+		// [[BPR-2185]] (review N3): the core says what the unmet condition
+		// says about the window; these are its words.
+		const auto reading = core::prompt_unmet_reading_of(aCondition);
+		const auto present = reading.Present;
+		switch (reading.Fact) {
+		case author_is_me:            return present ? QObject::tr("This is your pull request.") : QObject::tr("This is not your pull request.");
+		case draft:                   return present ? QObject::tr("This pull request is a draft.") : QObject::tr("This pull request is not a draft.");
+		case checks_failing:          return present ? QObject::tr("A check has failed.") : QObject::tr("No check has failed.");
+		case pushes_since_review:     return present ? QObject::tr("Commits followed your review.") : QObject::tr("No commits since your review.");
+		case file_unresolved_threads: return present ? QObject::tr("This file has unresolved threads.") : QObject::tr("No unresolved threads on this file.");
+		case file_unreviewed:         return present ? QObject::tr("You haven't reviewed this file yet.") : QObject::tr("You have already reviewed this file.");
+		case thread_unresolved:       return present ? QObject::tr("This thread is unresolved.") : QObject::tr("This thread is resolved.");
 		case thread_activity:
-			switch (aCondition.Activity) {
-			case core::prompt_activity_value::replies: return QObject::tr("No replies since the comment.");
-			case core::prompt_activity_value::pushes:  return QObject::tr("No pushes since the comment.");
-			default:                                   return QObject::tr("No replies or pushes since the comment.");
+			switch (reading.Activity) {
+			case core::prompt_activity_value::replies: return present ? QObject::tr("Replies followed the comment.") : QObject::tr("No replies since the comment.");
+			case core::prompt_activity_value::pushes:  return present ? QObject::tr("Pushes followed the comment.") : QObject::tr("No pushes since the comment.");
+			default:                                   return present ? QObject::tr("Replies or pushes followed the comment.") : QObject::tr("No replies or pushes since the comment.");
 			}
-		case replies_since_mine: return negated ? QObject::tr("Someone replied after your comment.") : QObject::tr("No replies since your comment.");
+		case replies_since_mine: return present ? QObject::tr("Someone replied after your comment.") : QObject::tr("No replies since your comment.");
 		// [[BPR-2179]] look prompts-v003: any condition may be the reason a
 		// disabled row gives, so each has words.
-		case file_open:      return negated ? QObject::tr("A file is open.") : QObject::tr("No file is open.");
-		case path:           return negated ? QObject::tr("This file's path matches.") : QObject::tr("This file's path doesn't match.");
-		case selected_lines: return negated ? QObject::tr("Lines are selected.") : QObject::tr("No lines are selected.");
-		case repository:     return negated ? QObject::tr("This repository matches.") : QObject::tr("This repository doesn't match.");
-		case takes_replies:  return negated ? QObject::tr("This thread takes replies.") : QObject::tr("This thread takes no replies.");
-		case empty_chat:     return negated ? QObject::tr("The chat is empty.") : QObject::tr("The chat isn't empty.");
+		case file_open:      return present ? QObject::tr("A file is open.") : QObject::tr("No file is open.");
+		case path:           return present ? QObject::tr("This file's path matches.") : QObject::tr("This file's path doesn't match.");
+		case selected_lines: return present ? QObject::tr("Lines are selected.") : QObject::tr("No lines are selected.");
+		case repository:     return present ? QObject::tr("This repository matches.") : QObject::tr("This repository doesn't match.");
+		case takes_replies:  return present ? QObject::tr("This thread takes replies.") : QObject::tr("This thread takes no replies.");
+		case empty_chat:     return present ? QObject::tr("The chat is empty.") : QObject::tr("The chat isn't empty.");
+		}
+		return { };
+	}
+
+	auto prompt_problem_words(const core::prompt_problem aProblem) -> QString
+	{
+		using enum core::prompt_problem;
+		switch (aProblem) {
+		case no_name:                     return QObject::tr("it has no name");
+		case name_too_long:               return QObject::tr("its name is too long");
+		case name_not_one_line:           return QObject::tr("its name is more than one line");
+		case no_template:                 return QObject::tr("it has no text");
+		case template_too_long:           return QObject::tr("its text is too long");
+		case unknown_variable:            return QObject::tr("it uses a placeholder that doesn't exist");
+		case other_place_variable:        return QObject::tr("it uses a placeholder this surface can't fill");
+		case subject_not_for_place:       return QObject::tr("it asks about something this surface doesn't hold");
+		case kind_not_for_subject:        return QObject::tr("it answers as findings, which this surface can't");
+		case too_many_conditions:         return QObject::tr("it has too many conditions");
+		case fact_not_for_place:          return QObject::tr("a condition reads something this surface doesn't hold");
+		case no_patterns:                 return QObject::tr("a condition has no pattern");
+		case too_many_patterns:           return QObject::tr("a condition has too many patterns");
+		case pattern_too_long:            return QObject::tr("a pattern is too long");
+		case bad_pattern:                 return QObject::tr("a pattern can't match anything");
+		case conditions_contradict:       return QObject::tr("its conditions can't all hold");
+		case duplicate_name:              return QObject::tr("another prompt has its name");
+		case credential_prefix:           return QObject::tr("its text holds what looks like a credential");
+		case quick_ask_not_for_subject:   return QObject::tr("an Ask menu can't ask about what it is about");
+		case quick_ask_without_scope:     return QObject::tr("it is in no Ask menu's scope");
+		case scope_narrower_than_subject: return QObject::tr("its menu is narrower than what it asks about");
 		}
 		return { };
 	}

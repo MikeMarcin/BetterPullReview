@@ -599,7 +599,8 @@ namespace bpr::core {
 	{
 		std::optional<prompt_offer> Offer;
 		prompt_unmet                Unmet = prompt_unmet::off;
-		/// The failing condition's index, for `prompt_unmet::condition`.
+		/// The failing condition's place in the tree, for
+		/// `prompt_unmet::condition` (`prompt_conditions_outcome::Leaf`).
 		std::size_t Condition = 0U;
 
 		auto operator<=>(const prompt_evaluation&) const = default;
@@ -622,10 +623,35 @@ namespace bpr::core {
 		/// one (a true one under None, its polarity turned). None while
 		/// `Holds` or `Hides`.
 		std::optional<prompt_condition> Reason;
+		/// Review N5. While not holding, the place in the tree of the leaf
+		/// that is the reason, numbered as `validate_prompt_macro` numbers
+		/// them (the list's conditions, then each group depth first), whether
+		/// or not the prompt hides.
+		std::size_t Leaf = 0U;
 
 		auto operator<=>(const prompt_conditions_outcome&) const = default;
 	};
+	/// \brief Decides a prompt's conditions in three values: a leaf whose
+	/// fact is unknown is neither true nor false, so it satisfies no group
+	/// it would settle (None of an unknown condition does not hold).
 	[[nodiscard]] auto decide_prompt_conditions(const prompt_macro_body& aBody, const prompt_facts& aFacts) -> prompt_conditions_outcome;
+	/// \brief Review N3. Whether a prompt has any condition, in its list or a
+	/// nested group: what the "has conditions" mark reads.
+	[[nodiscard]] auto prompt_has_conditions(const prompt_macro_body& aBody) noexcept -> bool;
+
+	/// \brief Review N3. What an unmet condition says about the window: its
+	/// fact, and whether that fact is there (an unmet "is not" condition) or
+	/// not. The words for a disabled row's reason read this alone.
+	struct prompt_unmet_reading
+	{
+		prompt_fact Fact = prompt_fact::file_open;
+		/// The fact is there: an unmet "is not" condition.
+		bool                  Present  = false;
+		prompt_activity_value Activity = prompt_activity_value::replies_or_pushes;
+
+		auto operator<=>(const prompt_unmet_reading&) const = default;
+	};
+	[[nodiscard]] auto prompt_unmet_reading_of(const prompt_condition& aCondition) noexcept -> prompt_unmet_reading;
 
 	/// \brief Decides one macro against `aFacts`, whatever place `aFacts`
 	/// names: the caller chooses which macros a place considers.

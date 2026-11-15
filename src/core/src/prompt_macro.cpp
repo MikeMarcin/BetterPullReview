@@ -900,13 +900,17 @@ namespace bpr::core {
 	}
 
 	namespace {
-		/// One child of a group, decided: whether it holds, and the leaf a
-		/// disabled row names while it is unmet (or, under None, met).
+		/// One child of a group, decided: true, false or unknown (a fact the
+		/// window does not hold yet), and the leaf a disabled row names while
+		/// it is unmet (or, under None, met), with that leaf's place in the
+		/// tree.
 		struct child_outcome
 		{
-			bool                            Holds        = true;
+			std::optional<bool>             Value        = true;
 			std::optional<prompt_condition> ReasonUntrue = std::nullopt;
+			std::size_t                     UntrueLeaf   = 0U;
 			std::optional<prompt_condition> ReasonTrue   = std::nullopt;
+			std::size_t                     TrueLeaf     = 0U;
 		};
 
 		[[nodiscard]] auto turned(prompt_condition aCondition) -> prompt_condition
@@ -915,52 +919,83 @@ namespace bpr::core {
 			return aCondition;
 		}
 
-		[[nodiscard]] auto decide_group(prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts)
-			-> child_outcome;
+		/// [[BPR-2179]] review N5. A leaf is true when it holds, false when
+		/// its turned polarity holds, and unknown when neither does.
+		[[nodiscard]] auto leaf_value(const prompt_condition& aCondition, const prompt_facts& aFacts) -> std::optional<bool>
+		{
+			if (prompt_condition_holds(aCondition, aFacts)) {
+				return true;
+			}
+			if (prompt_condition_holds(turned(aCondition), aFacts)) {
+				return false;
+			}
+			return std::nullopt;
+		}
 
-		[[nodiscard]] auto children_of(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts)
+		[[nodiscard]] auto decide_group(prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts,
+										std::size_t& aNext) -> child_outcome;
+
+		/// The children in leaf order: the group's conditions, then each
+		/// nested group depth first, as `validate_prompt_macro` numbers them.
+		[[nodiscard]] auto children_of(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts, std::size_t& aNext)
 			-> std::vector<child_outcome>
 		{
 			auto children = std::vector<child_outcome>{ };
 			for (const auto& condition : aConditions) {
-				children.push_back({ .Holds = prompt_condition_holds(condition, aFacts), .ReasonUntrue = condition, .ReasonTrue = turned(condition) });
+				const auto leaf = aNext++;
+				children.push_back({ .Value = leaf_value(condition, aFacts), .ReasonUntrue = condition, .UntrueLeaf = leaf, .ReasonTrue = turned(condition), .TrueLeaf = leaf });
 			}
 			for (const auto& group : aGroups) {
-				children.push_back(decide_group(group.Match, group.Conditions, group.Groups, aFacts));
+				children.push_back(decide_group(group.Match, group.Conditions, group.Groups, aFacts, aNext));
 			}
 			return children;
 		}
 
-		auto decide_group(const prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts)
-			-> child_outcome
+		auto decide_group(const prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts,
+						  std::size_t& aNext) -> child_outcome
 		{
-			const auto children = children_of(aConditions, aGroups, aFacts);
+			const auto children = children_of(aConditions, aGroups, aFacts, aNext);
 			auto       outcome  = child_outcome{ };
-			const auto first    = [&children](const auto aPick) -> std::optional<prompt_condition> {
-				for (const auto& child : children) {
-					if (auto reason = aPick(child)) {
-						return reason;
-					}
+			const auto count    = [&children](const std::optional<bool> aValue) { return static_cast<std::size_t>(std::ranges::count(children, aValue, &child_outcome::Value)); };
+			const auto trues    = count(true);
+			const auto falses   = count(false);
+			/// The first child `aPick` accepts gives its untrue (or true) reason.
+			const auto untrue = [&children, &outcome](const auto aPick) {
+				const auto found = std::ranges::find_if(children, aPick);
+				if (found != children.end()) {
+					outcome.ReasonUntrue = found->ReasonUntrue;
+					outcome.UntrueLeaf   = found->UntrueLeaf;
 				}
-				return std::nullopt;
 			};
-			// Holds: under All every child, under Any one, under None none.
-			const auto holding = static_cast<std::size_t>(std::ranges::count_if(children, &child_outcome::Holds));
+			// Three-valued: unknown satisfies neither polarity, so a group
+			// with an unknown child and nothing to settle it is unknown too.
 			switch (aMatch) {
 			case prompt_match::all:
-				outcome.Holds        = holding == children.size();
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.Holds ? std::nullopt : aChild.ReasonUntrue; });
+				outcome.Value = falses > 0U ? std::optional{ false } : trues == children.size() ? std::optional{ true }
+																								: std::nullopt;
+				untrue([](const child_outcome& aChild) { return aChild.Value != true; });
 				break;
 			case prompt_match::any:
-				outcome.Holds        = children.empty() || holding > 0U;
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.ReasonUntrue; });
+				outcome.Value = children.empty() || trues > 0U ? std::optional{ true } : falses == children.size() ? std::optional{ false }
+																												   : std::nullopt;
+				untrue([](const child_outcome&) { return true; });
 				break;
-			case prompt_match::none:
-				outcome.Holds        = holding == 0U;
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.Holds ? aChild.ReasonTrue : std::nullopt; });
+			case prompt_match::none: {
+				outcome.Value = trues > 0U ? std::optional{ false } : falses == children.size() ? std::optional{ true }
+																								: std::nullopt;
+				// The first child not known untrue, its polarity turned.
+				const auto found = std::ranges::find_if(children, [](const child_outcome& aChild) { return aChild.Value != false; });
+				if (found != children.end()) {
+					outcome.ReasonUntrue = found->ReasonTrue;
+					outcome.UntrueLeaf   = found->TrueLeaf;
+				}
 				break;
 			}
-			outcome.ReasonTrue = first([](const child_outcome& aChild) { return aChild.ReasonTrue; });
+			}
+			if (!children.empty()) {
+				outcome.ReasonTrue = children.front().ReasonTrue;
+				outcome.TrueLeaf   = children.front().TrueLeaf;
+			}
 			return outcome;
 		}
 
@@ -989,13 +1024,21 @@ namespace bpr::core {
 		if (aBody.Conditions.empty() && aBody.Groups.empty()) {
 			return { };
 		}
-		const auto decided = decide_group(aBody.Match, aBody.Conditions, aBody.Groups, aFacts);
-		if (decided.Holds) {
+		auto       next    = std::size_t{ 0 };
+		const auto decided = decide_group(aBody.Match, aBody.Conditions, aBody.Groups, aFacts, next);
+		if (decided.Value == true) {
 			return { };
 		}
 		// [[BPR-2179]] look prompts-v003: the prompt says what its row does.
 		const auto hides = aBody.WhenUnmet == prompt_when_unmet::hide;
-		return { .Holds = false, .Hides = hides, .Reason = hides ? std::nullopt : decided.ReasonUntrue };
+		return { .Holds = false, .Hides = hides, .Reason = hides ? std::nullopt : decided.ReasonUntrue, .Leaf = decided.UntrueLeaf };
+	}
+
+	auto prompt_has_conditions(const prompt_macro_body& aBody) noexcept -> bool { return !aBody.Conditions.empty() || !aBody.Groups.empty(); }
+
+	auto prompt_unmet_reading_of(const prompt_condition& aCondition) noexcept -> prompt_unmet_reading
+	{
+		return { .Fact = aCondition.Fact, .Present = aCondition.Negated, .Activity = aCondition.Activity };
 	}
 
 	auto evaluate_prompt_macro(const prompt_macro& aMacro, const prompt_facts& aFacts) -> prompt_evaluation
@@ -1013,17 +1056,10 @@ namespace bpr::core {
 				return { .Unmet = need };
 			}
 		}
-		if (aMacro.Body.Match != prompt_match::all || !aMacro.Body.Groups.empty()) {
-			if (const auto decided = decide_prompt_conditions(aMacro.Body, aFacts); !decided.Holds) {
-				const auto at = decided.Reason ? std::ranges::find(aMacro.Body.Conditions, *decided.Reason) : aMacro.Body.Conditions.end();
-				return { .Unmet = prompt_unmet::condition, .Condition = at == aMacro.Body.Conditions.end() ? 0U : static_cast<std::size_t>(at - aMacro.Body.Conditions.begin()) };
-			}
-		} else {
-			for (auto index = std::size_t{ 0 }; index < aMacro.Body.Conditions.size(); ++index) {
-				if (!prompt_condition_holds(aMacro.Body.Conditions[index], aFacts)) {
-					return { .Unmet = prompt_unmet::condition, .Condition = index };
-				}
-			}
+		// Review N5: the failing leaf's index is its place in the tree,
+		// whatever the prompt does while unmet.
+		if (const auto decided = decide_prompt_conditions(aMacro.Body, aFacts); !decided.Holds) {
+			return { .Unmet = prompt_unmet::condition, .Condition = decided.Leaf };
 		}
 		auto label     = expand_prompt_template(name, aFacts);
 		auto expansion = expand_prompt_template(body, aFacts);
@@ -1165,7 +1201,9 @@ namespace bpr::core {
 			const auto walk   = [&](const auto& aSelf, const std::vector<prompt_condition_group>& aGroups, const std::size_t aDepth) -> void {
 				for (const auto& group : aGroups) {
 					deep = deep || aDepth >= maximum_prompt_condition_depth;
-					wide = wide || group.Conditions.size() > maximum_prompt_conditions;
+					// Review N5: each level holds four groups as well as
+					// four conditions.
+					wide = wide || group.Conditions.size() > maximum_prompt_conditions || group.Groups.size() > maximum_prompt_conditions;
 					for (const auto& condition : group.Conditions) {
 						validate_condition(problems, aMacro.Place, condition, leaves++);
 					}

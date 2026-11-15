@@ -1211,6 +1211,7 @@ namespace bpr::app {
 			*Window->comparison_surface(),
 			[this](const application::diff_publication& aPublication) {
 				ReviewSourceMaterial.reset();
+				AcceptedDiff = aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key ? aPublication.Result : nullptr;
 				if (aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key) {
 					ReviewSourceMaterial = application::review_mutation_source_material{
 						.Key        = aPublication.Context.Key,
@@ -1606,22 +1607,30 @@ namespace bpr::app {
 													   std::pair{ open.Id, core::prompt_surface::thread_menu }, std::pair{ open.Id, core::prompt_surface::thread_chips } }) {
 						static_cast<void>(core::place(surfaces, macros, id, surface));
 					}
-					PromptMacros->save(application::prompt_macro_differences_of(core::shipped_prompt_macros(), macros, surfaces));
+					auto document     = core::prompt_edit_document_of(aProjection.Set);
+					document.Library  = std::move(macros);
+					document.Surfaces = std::move(surfaces);
+					PromptMacros->save(core::prompt_macro_differences_of(core::shipped_prompt_macros(), document), aProjection.Revision);
 				}
 	#endif
 			};
 			PromptMacros = std::make_unique<application::prompt_macro_host>(std::move(dependencies));
 		}
 		PromptMacros->load();
-		// [[BPR-2179]]. Settings › Prompts saves the whole library with every
-		// surface; the host stores what differs from the shipped set.
-		Window->prompts()->set_save_dispatch([this](std::vector<core::prompt_macro> aMacros, core::prompt_surfaces aSurfaces, std::vector<core::prompt_repository_layer> aLayers) {
+		// [[BPR-2179]], [[BPR-2185]]. Settings › Prompts sends the save its
+		// core editor made: the differences and the revision they came from.
+		// The host writes them if the store is still there and says how it
+		// ended before it reads the store back; the host mints identities.
+		Window->prompts()->set_save_dispatch([this](core::prompt_save_request aRequest) {
 			if (!Closing && PromptMacros) {
-				auto differences         = application::prompt_macro_differences_of(core::shipped_prompt_macros(), aMacros, aSurfaces);
-				differences.Repositories = std::move(aLayers);
-				PromptMacros->save(std::move(differences));
+				PromptMacros->save(std::move(aRequest.Differences), aRequest.From, [this](const application::prompt_macro_write aWrite) {
+					if (!Closing && Window != nullptr) {
+						Window->prompts()->settle_save(aWrite);
+					}
+				});
 			}
 		});
+		Window->prompts()->set_identity_source([this] { return PromptMacros ? PromptMacros->mint_identity() : std::string{ }; });
 		QObject::connect(qGuiApp, &QGuiApplication::focusWindowChanged, Window.get(), [this](QWindow* const aFocus) {
 			if (!Closing && PromptMacros && Window && aFocus != nullptr && aFocus == Window->windowHandle()) {
 				PromptMacros->load();

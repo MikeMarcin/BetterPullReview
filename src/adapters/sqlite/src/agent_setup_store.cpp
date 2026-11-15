@@ -48,6 +48,54 @@ namespace bpr::adapters::sqlite {
 			std::unique_ptr<sqlite3, decltype(&sqlite3_close_v2)> Database{ nullptr, sqlite3_close_v2 };
 		};
 
+		/// [[BPR-2185]] (review N6). The longest condition text core's limits
+		/// allow, as `encode_conditions` writes it: each leaf a line of its
+		/// fact, polarity, value and patterns; each nested group its opening
+		/// and closing lines; the list's match and Hide it or Show it
+		/// disabled first.
+		constexpr std::size_t longest_condition_line = 1U + 23U + 1U + 3U + 1U + 7U + core::maximum_prompt_patterns * (1U + core::maximum_prompt_pattern_bytes);
+		constexpr std::size_t most_condition_groups  = core::maximum_prompt_conditions + core::maximum_prompt_conditions * core::maximum_prompt_conditions;
+		constexpr std::size_t longest_conditions     = 9U + core::maximum_prompt_condition_leaves * longest_condition_line + most_condition_groups * 9U;
+		/// The conditions column's bound: 8192 bytes held a flat list, not a
+		/// tree at core's limits.
+		constexpr std::size_t conditions_column_bytes = 16384U;
+		static_assert(longest_conditions <= conditions_column_bytes, "the conditions column holds a tree at core's limits");
+		static_assert(core::maximum_prompt_condition_depth == 3U && core::maximum_prompt_condition_leaves == 12U && core::maximum_prompt_patterns == 8U && core::maximum_prompt_pattern_bytes == 128U,
+					  "the bound above counts these limits");
+
+		constexpr auto prompt_macros_columns = std::string_view{
+			"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
+			"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
+			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
+			"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
+			"has_body INTEGER NOT NULL CHECK(has_body BETWEEN 0 AND 1),"
+			"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) <= 120),"
+			"template TEXT NOT NULL CHECK(length(CAST(template AS BLOB)) <= 8192),"
+			"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
+			"ask TEXT NOT NULL CHECK(length(CAST(ask AS BLOB)) <= 64),"
+			"conditions TEXT NOT NULL CHECK(length(CAST(conditions AS BLOB)) <= 16384),"
+			"quick INTEGER NOT NULL CHECK(quick BETWEEN 0 AND 1),"
+			"scopes INTEGER NOT NULL CHECK(scopes BETWEEN 0 AND 7),"
+			"on_state INTEGER CHECK(on_state IS NULL OR on_state BETWEEN 0 AND 1),"
+			"written_against INTEGER NOT NULL CHECK(written_against BETWEEN 0 AND 4294967295),"
+			"PRIMARY KEY(kind, id)"
+		};
+		constexpr auto prompt_repository_prompts_columns = std::string_view{
+			"repository TEXT NOT NULL CHECK(length(CAST(repository AS BLOB)) BETWEEN 1 AND 256),"
+			"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
+			"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
+			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
+			"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
+			"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
+			"name TEXT CHECK(name IS NULL OR length(CAST(name AS BLOB)) <= 120),"
+			"template TEXT CHECK(template IS NULL OR length(CAST(template AS BLOB)) <= 8192),"
+			"ask TEXT CHECK(ask IS NULL OR length(CAST(ask AS BLOB)) <= 64),"
+			"conditions TEXT CHECK(conditions IS NULL OR length(CAST(conditions AS BLOB)) <= 16384),"
+			"match TEXT CHECK(match IS NULL OR length(CAST(match AS BLOB)) <= 16),"
+			"on_state INTEGER CHECK(on_state IS NULL OR on_state BETWEEN 0 AND 1),"
+			"PRIMARY KEY(repository, kind, id)"
+		};
+
 		[[nodiscard]] auto open(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
 		{
 			if (!detail::sqlite_runtime_ready()) {
@@ -316,23 +364,7 @@ namespace bpr::adapters::sqlite {
 				// reviewer's own (`kind` 1), each place's order, and the set's
 				// revision. Names are stable names, so a row a newer build
 				// wrote is read as newer and kept.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS prompt_macros("
-									"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
-									"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
-									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
-									"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
-									"has_body INTEGER NOT NULL CHECK(has_body BETWEEN 0 AND 1),"
-									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) <= 120),"
-									"template TEXT NOT NULL CHECK(length(CAST(template AS BLOB)) <= 8192),"
-									"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
-									"ask TEXT NOT NULL CHECK(length(CAST(ask AS BLOB)) <= 64),"
-									"conditions TEXT NOT NULL CHECK(length(CAST(conditions AS BLOB)) <= 8192),"
-									"quick INTEGER NOT NULL CHECK(quick BETWEEN 0 AND 1),"
-									"scopes INTEGER NOT NULL CHECK(scopes BETWEEN 0 AND 7),"
-									"on_state INTEGER CHECK(on_state IS NULL OR on_state BETWEEN 0 AND 1),"
-									"written_against INTEGER NOT NULL CHECK(written_against BETWEEN 0 AND 4294967295),"
-									"PRIMARY KEY(kind, id)) STRICT")
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS prompt_macros(" } + std::string{ prompt_macros_columns } + ") STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_macro_orders("
 									"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) BETWEEN 1 AND 64),"
@@ -373,21 +405,7 @@ namespace bpr::adapters::sqlite {
 				// [[BPR-2179]]. A repository's prompts: an override of an
 				// app-wide prompt's fields (`kind` 0, a null field follows the
 				// app-wide one) or one of its own (`kind` 1).
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS prompt_repository_prompts("
-									"repository TEXT NOT NULL CHECK(length(CAST(repository AS BLOB)) BETWEEN 1 AND 256),"
-									"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
-									"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
-									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 63),"
-									"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
-									"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
-									"name TEXT CHECK(name IS NULL OR length(CAST(name AS BLOB)) <= 120),"
-									"template TEXT CHECK(template IS NULL OR length(CAST(template AS BLOB)) <= 8192),"
-									"ask TEXT CHECK(ask IS NULL OR length(CAST(ask AS BLOB)) <= 64),"
-									"conditions TEXT CHECK(conditions IS NULL OR length(CAST(conditions AS BLOB)) <= 8192),"
-									"match TEXT CHECK(match IS NULL OR length(CAST(match AS BLOB)) <= 16),"
-									"on_state INTEGER CHECK(on_state IS NULL OR on_state BETWEEN 0 AND 1),"
-									"PRIMARY KEY(repository, kind, id)) STRICT")
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS prompt_repository_prompts(" } + std::string{ prompt_repository_prompts_columns } + ") STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_macro_revision("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -430,6 +448,26 @@ namespace bpr::adapters::sqlite {
 				copy += table;
 				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, rename) || !detail::execute(db, statement("CREATE TABLE ", "(", definition) + ") STRICT")
 					|| !detail::execute(db, copy) || !detail::execute(db, statement("DROP TABLE narrow_", { }, { })) || !detail::execute(db, "COMMIT")) {
+					static_cast<void>(detail::execute(db, "ROLLBACK"));
+					return { };
+				}
+			}
+			// [[BPR-2185]] (review N6). A prompt table an earlier build made
+			// bounds its conditions at 8192 bytes; it is rebuilt with the
+			// wider bound and its rows, in one transaction.
+			for (const auto& [table, columns] : std::array{ std::pair{ std::string_view{ "prompt_macros" }, prompt_macros_columns },
+															std::pair{ std::string_view{ "prompt_repository_prompts" }, prompt_repository_prompts_columns } }) {
+				const auto name   = std::string{ table };
+				const auto narrow = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" + name + "' AND sql LIKE '%conditions AS BLOB)) <= 8192)%'");
+				if (!narrow) {
+					return { };
+				}
+				if (*narrow == 0) {
+					continue;
+				}
+				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, "ALTER TABLE " + name + " RENAME TO narrow_" + name)
+					|| !detail::execute(db, "CREATE TABLE " + name + "(" + std::string{ columns } + ") STRICT") || !detail::execute(db, "INSERT INTO " + name + " SELECT * FROM narrow_" + name)
+					|| !detail::execute(db, "DROP TABLE narrow_" + name) || !detail::execute(db, "COMMIT")) {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
 					return { };
 				}

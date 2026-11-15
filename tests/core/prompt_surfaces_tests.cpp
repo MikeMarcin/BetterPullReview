@@ -324,6 +324,70 @@ namespace {
 		const auto layer                                 = repository_layer_of(library, surfaces, edited, "octo/render");
 		expect(layer.Overrides.size() == 1U && layer.Overrides.front().Groups && apply_repository_layer(library, surfaces, layer) == edited, "a repository overrides the groups");
 	}
+
+	// [[BPR-2185]] (review N5): three-valued conditions, a stable leaf
+	// index, bounded nesting, Hide at a wider scope, and the decisions the
+	// page reads.
+	void test_review_n5()
+	{
+		auto       facts = sample_prompt_facts(prompt_place::agent_tab);
+		const auto draft = prompt_condition{ .Fact = prompt_fact::draft };
+		facts.Draft.reset();
+		auto body = prompt_macro_body{ .Name = "N", .Template = "N", .Groups = { { .Match = prompt_match::none, .Conditions = { draft } } } };
+		expect(!decide_prompt_conditions(body, facts).Holds, "None of a condition whose fact is unknown does not hold: unknown satisfies neither polarity");
+		facts.Draft = false;
+		expect(decide_prompt_conditions(body, facts).Holds, "None holds once the fact is known untrue");
+		facts.Draft = true;
+		expect(!decide_prompt_conditions(body, facts).Holds, "and not once it is true");
+		facts.Draft.reset();
+		body.Groups = { { .Match = prompt_match::any, .Conditions = { draft, { .Fact = prompt_fact::file_open } } } };
+		expect(decide_prompt_conditions(body, facts).Holds, "Any holds on one true child whatever the others are");
+		body.Groups = { { .Match = prompt_match::all, .Conditions = { { .Fact = prompt_fact::file_open, .Negated = true }, draft } } };
+		expect(!decide_prompt_conditions(body, facts).Holds, "All of a false child does not hold, unknowns or not");
+
+		// The failing leaf's index is its place in the tree, Hide or not.
+		facts.ChecksFailing  = false;
+		auto       macro     = prompt_macro{ .Id = "own.leaf", .Body = { .Name = "L", .Template = "L", .Conditions = { { .Fact = prompt_fact::file_open } }, .Groups = { { .Conditions = { { .Fact = prompt_fact::checks_failing } } } } } };
+		const auto shown     = evaluate_prompt_macro(macro, facts);
+		macro.Body.WhenUnmet = prompt_when_unmet::hide;
+		const auto hidden    = evaluate_prompt_macro(macro, facts);
+		expect(shown.Unmet == prompt_unmet::condition && shown.Condition == 1U && hidden.Condition == 1U, "the unmet leaf is numbered the same whatever the prompt does while unmet");
+
+		// Nested group count is bounded at each level.
+		auto wide        = prompt_macro{ .Id = "own.wide", .Body = { .Name = "W", .Template = "x" } };
+		wide.Body.Groups = { { .Groups = std::vector<prompt_condition_group>(maximum_prompt_conditions + 1U) } };
+		expect(!prompt_macro_valid(wide), "a group holding five groups is too many");
+		wide.Body.Groups.front().Groups.resize(maximum_prompt_conditions);
+		expect(prompt_macro_valid(wide), "four are fine");
+
+		// Hide at a wider scope: no thread matches, so the row is hidden.
+		auto library         = shipped();
+		auto open            = prompt_macro{ .Id = "own.still-open", .Place = prompt_place::conversation, .Body = { .Name = "Still open?", .Template = "Still open?", .Subject = prompt_subject::conversation } };
+		open.Body.Conditions = { { .Fact = prompt_fact::thread_unresolved } };
+		open.Body.WhenUnmet  = prompt_when_unmet::hide;
+		library.push_back(open);
+		auto surfaces = shipped_surfaces(library);
+		static_cast<void>(place(surfaces, library, "own.still-open", prompt_surface::pull_request_menu));
+		auto quick    = quick_ask_facts{ .Base = sample_prompt_facts(prompt_place::agent_tab) };
+		quick.Threads = { { .Identity = "t1", .Path = "src/a.cpp", .Resolved = true }, { .Identity = "t2", .Path = "src/b.cpp", .Resolved = true } };
+		auto menu     = decide_quick_asks(placed_prompt_macros(library, surfaces), quick, quick_ask_anchor::review_bar);
+		expect(find_quick_ask(menu, "own.still-open", prompt_scope::pull_request) == nullptr && std::ranges::any_of(menu.Hidden, [](const prompt_withheld& aHidden) { return aHidden.Id == "own.still-open" && aHidden.Unmet == prompt_unmet::condition; }),
+			   "Q1: a Hide prompt at a wider scope with no matching thread is hidden");
+		library.back().Body.WhenUnmet = prompt_when_unmet::disable;
+		menu                          = decide_quick_asks(placed_prompt_macros(library, surfaces), quick, quick_ask_anchor::review_bar);
+		const auto* const greyed      = find_quick_ask(menu, "own.still-open", prompt_scope::pull_request);
+		expect(greyed != nullptr && !greyed->Enabled && greyed->Reason == quick_ask_reason::no_threads_match, "Show it disabled lists it disabled");
+		quick.Threads.back().Resolved = false;
+		library.back().Body.WhenUnmet = prompt_when_unmet::hide;
+		menu                          = decide_quick_asks(placed_prompt_macros(library, surfaces), quick, quick_ask_anchor::review_bar);
+		const auto* const one         = find_quick_ask(menu, "own.still-open", prompt_scope::pull_request);
+		expect(one != nullptr && one->Enabled && one->Each == std::vector<std::string>{ "t2" }, "and asks for the one that matches");
+
+		// What the page reads.
+		expect(prompt_has_conditions({ .Groups = { { } } }) && !prompt_has_conditions({ }), "a nested group is a condition");
+		const auto activity = prompt_unmet_reading_of({ .Fact = prompt_fact::thread_activity, .Negated = true, .Activity = prompt_activity_value::pushes });
+		expect(activity.Present && activity.Activity == prompt_activity_value::pushes, "an unmet \"is not\" thread activity says the activity is there");
+	}
 } // namespace
 
 auto main() -> int
@@ -335,6 +399,7 @@ auto main() -> int
 	test_condition_kinds();
 	test_repository_layer();
 	test_nested_conditions();
+	test_review_n5();
 	if (failures != 0) {
 		return EXIT_FAILURE;
 	}

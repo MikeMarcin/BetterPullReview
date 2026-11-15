@@ -724,3 +724,36 @@ Fixed:
   `qt_agent_report_view`, `application_fixture_agent_every_ask`,
   `application_ask_report_public_path`, `application_ask_menu_public_path` and
   `application_explain_file_public_path`.
+
+## Correction: Prompts settings split ([[BPR-2185]], 2026-11-14)
+
+A critical architecture review of `03aae05cb` found that Settings › Prompts
+([[BPR-2179]]) kept its save protocol, editing model, undo, identities and
+copies of condition rules in the widget, and that its evidence missed it
+(recorded on BPR-2179). Fixed:
+
+- `bpr/core/prompt_editor.hpp` is the page's reducer: the document (library,
+  surfaces, layers), every edit as a transition with an undo history scoped to
+  the layer Prompts for shows, the library's bound, and the save protocol. A
+  save names the revision its edits came from; a failed write keeps the
+  edits until the next one; a stale write shows the other window's set; a
+  projection never replaces waiting edits. `prompt_macro_differences_of` (now
+  core, one function) makes the full differences, layers included.
+- `prompt_macro_host::save` writes from the revision it is given and reports
+  the outcome before the read-back; `mint_identity` gives a new prompt its
+  identity (no `QUuid` in Qt).
+- Core decides Use app-wide conditions (the conditions, match, groups and
+  Hide it as one), Has conditions, the facts a prompt's Add offers, the
+  problem line (now in words) and what an unmet condition says (the
+  thread-activity reason reads its polarity).
+- Core semantics: a Hide prompt at a wider scope with no match is hidden;
+  conditions decide in three values, so None of an unknown fact does not
+  hold; the condition index is the leaf's place in the tree whatever the
+  prompt does while unmet; each level holds four groups.
+- `agent-setup.sqlite3`'s conditions columns are 16384 bytes (a tree at
+  core's limits encodes to at most about 13,000), rebuilt with their rows
+  from an earlier build's 8192.
+
+Visible: Undo and Redo cover every edit; at 64 prompts New prompt and
+Duplicate say the library is full; after a failed write the editor says
+"Not saved" rather than "Saved"; a problem line reads in words.

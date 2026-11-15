@@ -186,6 +186,13 @@ namespace bpr::core {
 					aRow.Each.push_back(thread->Identity);
 				}
 			}
+			// [[BPR-2184]] (review B1). One ask carries at most
+			// `maximum_addressed_threads`, the first in the pull request's
+			// order; the row names exactly those, and says how many more.
+			if (aRow.Each.size() > maximum_addressed_threads) {
+				aRow.Omitted = static_cast<std::uint32_t>(aRow.Each.size() - maximum_addressed_threads);
+				aRow.Each.resize(maximum_addressed_threads);
+			}
 			aRow.Count = static_cast<std::uint32_t>(aRow.Each.empty() ? threads.size() : aRow.Each.size());
 			aRow.Unit  = quick_ask_unit::threads;
 			return aRow.Each.empty() ? greyed(std::move(aRow), quick_ask_reason::no_commits_since_threads) : aRow;
@@ -232,6 +239,16 @@ namespace bpr::core {
 			// A wider scope asks once for each thread, or each file.
 			auto label = std::optional<std::string>{ };
 			auto seen  = std::uint32_t{ 0 };
+			// Review N5: whether every one it was decided for failed on its
+			// conditions alone, and the first such failure.
+			auto       onlyConditions = true;
+			auto       firstUnmet     = std::optional<prompt_evaluation>{ };
+			const auto note           = [&onlyConditions, &firstUnmet](const prompt_evaluation& aEvaluation) {
+				onlyConditions = onlyConditions && aEvaluation.Unmet == prompt_unmet::condition;
+				if (!firstUnmet) {
+					firstUnmet = aEvaluation;
+				}
+			};
 			if (*own == prompt_scope::thread) {
 				for (const auto* const thread : threads_at(aFacts, aRow.Scope)) {
 					if (thread->Path.empty() && aRow.Scope == prompt_scope::file) {
@@ -243,6 +260,8 @@ namespace bpr::core {
 						if (!label) {
 							label = std::move(evaluation.Offer->Label);
 						}
+					} else {
+						note(evaluation);
 					}
 				}
 				aRow.Unit = quick_ask_unit::threads;
@@ -254,6 +273,8 @@ namespace bpr::core {
 						if (!label) {
 							label = std::move(evaluation.Offer->Label);
 						}
+					} else {
+						note(evaluation);
 					}
 				}
 				aRow.Unit = quick_ask_unit::files;
@@ -271,6 +292,13 @@ namespace bpr::core {
 			aRow.Count = static_cast<std::uint32_t>(aRow.Each.empty() ? seen : aRow.Each.size());
 			if (seen == 0U) {
 				return greyed(std::move(aRow), *own == prompt_scope::thread ? quick_ask_reason::no_threads : quick_ask_reason::no_files_match);
+			}
+			// RFC-BPR-0128 Q1, review N5: a prompt that hides while its
+			// conditions are unmet hides here too, when its conditions are
+			// all that held it back from every one.
+			if (aRow.Each.empty() && onlyConditions && firstUnmet && aMacro.Body.WhenUnmet == prompt_when_unmet::hide) {
+				aWithheld = { .Id = aMacro.Id, .Unmet = firstUnmet->Unmet, .Condition = firstUnmet->Condition };
+				return std::nullopt;
 			}
 			if (aRow.Each.empty()) {
 				return greyed(std::move(aRow), *own == prompt_scope::thread ? quick_ask_reason::no_threads_match : quick_ask_reason::no_files_match);

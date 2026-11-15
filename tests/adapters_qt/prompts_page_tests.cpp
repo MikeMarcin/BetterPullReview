@@ -32,8 +32,10 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -60,15 +62,27 @@ namespace {
 		}
 	}
 
-	/// A host in miniature: each save is stored as the host would, and the
-	/// projection comes back on the next turn.
+	/// A host in miniature: a store with the revision rule, each save's
+	/// outcome heard first and the store read back on the next turn, as the
+	/// host does; identities minted here.
 	struct harness
 	{
 		QScrollArea                                                                    Scroll;
 		qt::prompts_page*                                                              Page  = nullptr;
 		qt::writing_hooks_panel*                                                       Hooks = nullptr;
 		std::vector<std::pair<std::vector<core::prompt_macro>, core::prompt_surfaces>> Saves;
+		std::vector<std::uint64_t>                                                     From;
+		core::prompt_macro_differences                                                 Stored;
 		std::uint64_t                                                                  Revision = 0U;
+		bool                                                                           Refuse   = false;
+		int                                                                            Minted   = 0;
+
+		[[nodiscard]] auto projection(const std::optional<core::prompt_save_outcome> aWrite = std::nullopt) const -> application::prompt_macro_projection
+		{
+			auto read      = application::prompt_macro_projection{ .Set = core::merge_prompt_macros(core::shipped_prompt_macros(), Stored), .Revision = Revision, .Readable = true, .Loaded = true };
+			read.LastWrite = aWrite;
+			return read;
+		}
 
 		harness()
 		{
@@ -76,27 +90,26 @@ namespace {
 			Hooks = new qt::writing_hooks_panel{ Page };
 			Hooks->adopt_review_skill(new qt::review_skill_panel{ Page });
 			Page->adopt_system_prompts(Hooks);
-			Page->set_save_dispatch([this](std::vector<core::prompt_macro> aMacros, core::prompt_surfaces aSurfaces, std::vector<core::prompt_repository_layer> aLayers) {
-				Saves.emplace_back(aMacros, aSurfaces);
-				auto       differences = core::prompt_macro_differences{ };
-				const auto shipped     = core::shipped_prompt_macros();
-				for (const auto& macro : aMacros) {
-					if (!macro.BuiltIn) {
-						differences.Own.push_back(macro);
-						continue;
-					}
-					const auto original = std::ranges::find_if(shipped, [&macro](const core::prompt_builtin& aBuiltin) { return aBuiltin.Macro.Id == macro.Id; });
-					if (original != shipped.end() && (original->Macro.Body != macro.Body || original->Macro.On != macro.On)) {
-						differences.Changes.push_back({ .Id = macro.Id, .Body = macro.Body, .On = macro.On, .WrittenAgainst = 1U });
-					}
+			Page->set_identity_source([this] { return "own.minted-" + std::to_string(++Minted); });
+			Page->set_save_dispatch([this](core::prompt_save_request aRequest) {
+				From.push_back(aRequest.From);
+				auto outcome = core::prompt_save_outcome::stored;
+				if (Refuse) {
+					outcome = core::prompt_save_outcome::failed;
+				} else if (aRequest.From != Revision) {
+					outcome = core::prompt_save_outcome::stale;
+				} else {
+					Stored         = aRequest.Differences;
+					Revision       = aRequest.From + 1U;
+					const auto set = core::merge_prompt_macros(core::shipped_prompt_macros(), Stored);
+					Saves.emplace_back(set.macros(), set.Surfaces);
 				}
-				differences.Surfaces     = core::prompt_surface_changes_of(aMacros, aSurfaces);
-				differences.Repositories = std::move(aLayers);
-				auto projection          = application::prompt_macro_projection{ .Set = core::merge_prompt_macros(shipped, differences), .Revision = ++Revision, .Readable = true, .Loaded = true };
-				projection.LastWrite     = application::prompt_macro_write::stored;
-				QTimer::singleShot(0, Page, [this, projection] { Page->present(projection); });
+				QTimer::singleShot(0, Page, [this, outcome] {
+					Page->settle_save(outcome);
+					Page->present(projection(outcome));
+				});
 			});
-			Page->present({ .Set = core::merge_prompt_macros(core::shipped_prompt_macros(), { }), .Readable = true, .Loaded = true });
+			Page->present(projection());
 			Scroll.setWidgetResizable(true);
 			Scroll.setWidget(Page);
 			Scroll.resize(1180, 840);
@@ -371,6 +384,49 @@ namespace {
 		expect(std::ranges::find(appChips, std::string{ "agent-tab.review-pull-request" }) != appChips.end(), "the app-wide surfaces are untouched");
 	}
 
+	// [[BPR-2185]] (review N1, N2): the save protocol and undo over every
+	// edit, through the page.
+	void test_saving(harness& aHarness)
+	{
+		auto&      page = *aHarness.Page;
+		const auto id   = std::string{ "agent-tab.what-could-break" };
+		const auto on   = [&page, &id] { return std::ranges::find(page.library(), id, &core::prompt_macro::Id)->On; };
+		settle();
+		// A failed write keeps the edit.
+		aHarness.Refuse = true;
+		page.set_on(id, false);
+		settle();
+		auto* const status = page.findChild<QLabel*>(QStringLiteral("promptsStatus"));
+		expect(!on() && status->text().contains(QStringLiteral("couldn't be saved")), "review N1(a): a failed write keeps the edit and says so");
+		aHarness.Refuse = false;
+		page.set_on("agent-tab.review-pull-request", false);
+		settle();
+		const auto stored = core::merge_prompt_macros(core::shipped_prompt_macros(), aHarness.Stored).macros();
+		expect(std::ranges::find(stored, id, &core::prompt_macro::Id)->On == false && page.saved_text() == QStringLiteral("Saved"), "it saves with the next edit");
+		// Undo covers On, and clears Redo.
+		expect(page.undo() && std::ranges::find(page.library(), std::string{ "agent-tab.review-pull-request" }, &core::prompt_macro::Id)->On, "review N2: Undo turns a prompt back on");
+		page.set_on(id, true);
+		expect(!page.redo(), "an edit clears Redo");
+		settle();
+		// Another window writes; this window's edit was made before it read it.
+		const auto from = aHarness.Revision;
+		aHarness.Stored.Own.push_back(core::prompt_macro{ .Id = "own.theirs", .Body = { .Name = "Theirs", .Template = "Theirs" } });
+		++aHarness.Revision;
+		page.set_on(id, false);
+		settle();
+		expect(aHarness.From.back() == from, "review N1(b): the save names the revision its edit came from");
+		expect(std::ranges::any_of(page.library(), [](const core::prompt_macro& aMacro) { return aMacro.Id == "own.theirs"; }) && status->text().contains(QStringLiteral("Another window")),
+			   "the store refuses it as stale and the page shows theirs");
+		// The host mints a new prompt's identity.
+		const auto minted = page.new_prompt();
+		expect(minted.starts_with("own.minted-"), "review N2: a new prompt's identity comes from the host");
+		static_cast<void>(page.delete_prompt(minted));
+		static_cast<void>(page.delete_prompt("own.theirs"));
+		page.set_on(id, true);
+		page.set_on("agent-tab.review-pull-request", true);
+		settle();
+	}
+
 	void test_system_prompts(harness& aHarness)
 	{
 		auto& page = *aHarness.Page;
@@ -399,6 +455,7 @@ auto main(int aArgc, char** aArgv) -> int
 	test_library_actions(harnessed);
 	test_conditions(harnessed);
 	test_repository(harnessed);
+	test_saving(harnessed);
 	test_system_prompts(harnessed);
 	if (failures != 0) {
 		return EXIT_FAILURE;

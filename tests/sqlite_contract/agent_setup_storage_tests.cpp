@@ -513,6 +513,71 @@ try {
 			   "a write never rewrites a newer build's row");
 	}
 
+	// [[BPR-2185]] (review N6). A conditions column an earlier build made at
+	// 8192 bytes is widened with its rows; a nested set at core's limits,
+	// longer than that, is stored and read back.
+	{
+		tests::sqlite_contract::scratch_root wide{ "prompt-conditions" };
+		const auto                           widePath = wide.path() / "state/v1/agent-setup.sqlite3";
+		auto                                 macros   = adapters::sqlite::make_prompt_macro_store(wide.path());
+		expect(macros->load().has_value(), "a fresh store");
+		macros.reset();
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(widePath.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			for (const auto* const table : { "prompt_macros", "prompt_repository_prompts" }) {
+				// The table as an earlier build made it: the same columns, the
+				// conditions at 8192 bytes.
+				auto sql = std::string{ };
+				{
+					sqlite3_stmt* row = nullptr;
+					expect(sqlite3_prepare_v2(database, (std::string{ "SELECT sql FROM sqlite_schema WHERE name='" } + table + "'").c_str(), -1, &row, nullptr) == SQLITE_OK && sqlite3_step(row) == SQLITE_ROW,
+						   "the table's definition is read");
+					sql = reinterpret_cast<const char*>(sqlite3_column_text(row, 0));
+					sqlite3_finalize(row);
+				}
+				const auto at = sql.find("conditions AS BLOB)) <= 16384)");
+				expect(at != std::string::npos, "this build's column is wide");
+				sql.replace(at, std::string_view{ "conditions AS BLOB)) <= 16384)" }.size(), "conditions AS BLOB)) <= 8192)");
+				expect(sqlite3_exec(database, (std::string{ "DROP TABLE " } + table).c_str(), nullptr, nullptr, nullptr) == SQLITE_OK && sqlite3_exec(database, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+					   "an earlier build's narrow table");
+			}
+			expect(sqlite3_exec(database,
+								"INSERT INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+								"VALUES(1,'own.kept',0,'agent-tab',1,'Kept','Kept','pull-request','question','disable',0,0,1,0)",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "with a row in it");
+			sqlite3_close_v2(database);
+		}
+		macros         = adapters::sqlite::make_prompt_macro_store(wide.path());
+		const auto old = macros->load();
+		expect(old && old->Differences.Own.size() == 1U && old->Differences.Own.front().Id == "own.kept", "the widened table keeps its rows");
+		// Twelve conditions, each with eight long patterns, nested two levels.
+		const auto leaf = [](const char aLetter) {
+			auto condition = core::prompt_condition{ .Fact = core::prompt_fact::path };
+			for (auto pattern = 0; pattern < static_cast<int>(core::maximum_prompt_patterns); ++pattern) {
+				condition.Patterns.push_back(std::string(120U, aLetter) + "/**");
+			}
+			return condition;
+		};
+		auto deep            = core::prompt_macro{ .Id = "own.deep", .Place = core::prompt_place::agent_tab, .Body = { .Name = "Deep", .Template = "Deep" } };
+		deep.Body.Conditions = { leaf('a'), leaf('b'), leaf('c'), leaf('d') };
+		deep.Body.Groups     = { { .Match = core::prompt_match::any, .Conditions = { leaf('e'), leaf('f') }, .Groups = { { .Match = core::prompt_match::none, .Conditions = { leaf('g'), leaf('h') } } } },
+								 { .Match = core::prompt_match::all, .Conditions = { leaf('i'), leaf('j'), leaf('k'), leaf('l') } } };
+		expect(core::prompt_macro_valid(deep), "a tree within core's limits");
+		auto differences = old->Differences;
+		differences.Own.push_back(deep);
+		auto layer = core::prompt_repository_layer{ .Repository = "octo/render" };
+		layer.Overrides.push_back({ .Id = "agent-tab.what-could-break", .Conditions = deep.Body.Conditions, .Groups = deep.Body.Groups, .WhenUnmet = core::prompt_when_unmet::disable });
+		differences.Repositories.push_back(layer);
+		expect(macros->store(differences, old->Revision) == application::prompt_macro_write::stored, "is stored, longer than 8192 bytes");
+		macros.reset();
+		macros          = adapters::sqlite::make_prompt_macro_store(wide.path());
+		const auto back = macros->load();
+		expect(back && back->Differences == differences, "and read back, in a repository's layer too");
+	}
+
 	{
 		sqlite3* database = nullptr;
 		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");

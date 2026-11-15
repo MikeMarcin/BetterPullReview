@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PROMPT_MACRO_HOST_HPP
 
 #include "bpr/application/port.hpp"
+#include "bpr/core/prompt_editor.hpp"
 #include "bpr/core/prompt_macro.hpp"
 
 #include <cstdint>
@@ -30,13 +31,11 @@ namespace bpr::application {
 		auto operator<=>(const prompt_macro_stored&) const = default;
 	};
 
-	enum class prompt_macro_write : std::uint8_t {
-		stored,
-		/// Written from an older revision: nothing changed.
-		stale,
-		/// The store refused the write: nothing changed.
-		failed,
-	};
+	/// \brief How a write ended: stored (the store is at its `From` plus
+	/// one), stale (written from an older revision: nothing changed) or
+	/// failed (the store refused it: nothing changed). What each means for
+	/// the edits is `core::settle_prompt_save`'s to decide.
+	using prompt_macro_write = core::prompt_save_outcome;
 
 	/// \brief Where a profile keeps its suggested prompts.
 	class prompt_macro_store_port
@@ -46,7 +45,8 @@ namespace bpr::application {
 		/// \brief The stored differences; nothing when the store cannot be
 		/// read. A store without the tables is the shipped set, revision 0.
 		[[nodiscard]] virtual auto load() -> std::optional<prompt_macro_stored> = 0;
-		/// \brief Replaces the differences when the store is at `aFrom`.
+		/// \brief Replaces the differences when the store is at `aFrom`, and
+		/// moves it to `aFrom` plus one; stale when it is at another revision.
 		[[nodiscard]] virtual auto store(const core::prompt_macro_differences& aDifferences, std::uint64_t aFrom) -> prompt_macro_write = 0;
 	};
 
@@ -74,6 +74,9 @@ namespace bpr::application {
 		decision_executor*       Decision = nullptr;
 		/// The projection changed: a load, a write, or a refusal.
 		std::function<void(const prompt_macro_projection&)> Changed;
+		/// [[BPR-2185]]. A new prompt's identity, without the `own.`
+		/// prefix; none uses the host's own entropy.
+		std::function<std::string()> MintIdentity;
 	};
 
 	/// \brief Keeps a window's suggested prompts. Lives on the decision lane;
@@ -90,8 +93,14 @@ namespace bpr::application {
 		/// \brief Reads the store again (at start, and when the window comes
 		/// back to the front, so another window's edit reaches it).
 		void load();
-		/// \brief Writes `aDifferences` from the revision shown.
-		void               save(core::prompt_macro_differences aDifferences);
+		/// \brief [[BPR-2185]] (review N1). Writes `aDifferences` if the store
+		/// is still at `aFrom`, the revision they were derived from; never the
+		/// revision shown now. `aSettled` hears how it ended before the store
+		/// is read back and `Changed` hears the projection.
+		void save(core::prompt_macro_differences aDifferences, std::uint64_t aFrom, std::function<void(prompt_macro_write)> aSettled = { });
+		/// \brief [[BPR-2185]] (review N2). A new prompt's identity: `own.` and
+		/// 32 hexadecimal digits the host draws.
+		[[nodiscard]] auto mint_identity() const -> std::string;
 		[[nodiscard]] auto projection() const noexcept -> const prompt_macro_projection&;
 		/// \brief The differences behind the projection.
 		[[nodiscard]] auto differences() const noexcept -> const core::prompt_macro_differences&;
@@ -103,14 +112,6 @@ namespace bpr::application {
 		std::shared_ptr<implementation> Implementation;
 	};
 
-	/// \brief The differences that make `aEdited` from the shipped set: each
-	/// built-in whose body or On differs, every own macro, and each place's
-	/// order when it is not the shipped order.
-	[[nodiscard]] auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited) -> core::prompt_macro_differences;
-	/// \brief [[BPR-2179]]. The same, with every surface as `aSurfaces` has
-	/// it: a surface is stored where it differs from what the fields describe.
-	[[nodiscard]] auto prompt_macro_differences_of(const std::vector<core::prompt_builtin>& aShipped, const std::vector<core::prompt_macro>& aEdited, const core::prompt_surfaces& aSurfaces)
-		-> core::prompt_macro_differences;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PROMPT_MACRO_HOST_HPP
