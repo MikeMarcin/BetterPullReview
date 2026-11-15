@@ -485,9 +485,12 @@ int main(int argc, char** argv)
 		}
 		std::string line;
 		std::getline(std::cin, line);
+		// [[BPR-2181]] (AC13). The seeded Ready to look again?, as expanded
+		// at its press: the answer says the agent received it.
+		const auto answer = line.find("changed enough since my review that I should look again?") != std::string::npos ? std::string{ "LOOK_AGAIN_ECHO" } : std::string{ "CHAT_STUB_ANSWER" };
 		std::cout << R"({"type":"system","subtype":"init","session_id":")" << session << R"(","tools":[],"mcp_servers":[],"plugins":[],"model":"default"})" << '\n'
-				  << R"({"type":"assistant","session_id":")" << session << R"(","message":{"role":"assistant","content":[{"type":"text","text":"CHAT_STUB_ANSWER"}]}})" << '\n'
-				  << R"({"type":"result","subtype":"success","is_error":false,"session_id":")" << session << R"(","result":"CHAT_STUB_ANSWER"})" << '\n'
+				  << R"({"type":"assistant","session_id":")" << session << R"(","message":{"role":"assistant","content":[{"type":"text","text":")" << answer << R"("}]}})" << '\n'
+				  << R"({"type":"result","subtype":"success","is_error":false,"session_id":")" << session << R"(","result":")" << answer << R"("})" << '\n'
 				  << std::flush;
 		return 0;
 	}

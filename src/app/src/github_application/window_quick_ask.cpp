@@ -245,12 +245,39 @@ namespace bpr::app {
 		return facts;
 	}
 
+	auto github_application::implementation::placed_prompts() const -> std::vector<core::prompt_macro>
+	{
+		return core::placed_prompt_macros(core::prompt_set_for_repository(PromptMacroSet, prompt_repository()));
+	}
+
 	auto github_application::implementation::quick_ask_menu(const qt::ask_menu_request& aRequest) const -> std::optional<core::quick_ask_menu>
 	{
 		if (Closing || Window == nullptr || Window->agent_tab() == nullptr) {
 			return std::nullopt;
 		}
-		return core::decide_quick_asks(core::placed_prompt_macros(core::prompt_set_for_repository(PromptMacroSet, prompt_repository())), quick_ask_facts(aRequest), aRequest.Anchor);
+		return core::decide_quick_asks(placed_prompts(), quick_ask_facts(aRequest), aRequest.Anchor);
+	}
+
+	/// [[BPR-2181]] (AC13, Prompts review B1). The chips the Agent tab and
+	/// the tour chats show, decided on the facts the Ask menus are: a prompt
+	/// conditioned on pushes since my review is offered, and sent, alike.
+	auto github_application::implementation::chat_prompts(core::prompt_chat_view aView) const -> core::chat_prompts
+	{
+		if (Closing || Window == nullptr) {
+			return { };
+		}
+		auto request = qt::ask_menu_request{ };
+		if (aView.OpenFile) {
+			request.File = QString::fromStdString(*aView.OpenFile);
+		}
+		// The tab names its conversation by the chip's key; the facts read
+		// the thread the window attached.
+		aView.Thread.reset();
+		if (aView.Place == core::prompt_place::conversation && AskedConversation) {
+			aView.Thread = AskedConversation->Identity;
+		}
+		const auto placed = placed_prompts();
+		return core::decide_chat_prompts(placed, core::chat_prompt_facts(quick_ask_facts(request), aView));
 	}
 
 	/// A press queues the quick ask on its session (owner, 2026-11-14).
@@ -297,6 +324,7 @@ namespace bpr::app {
 				}
 				if (aSession == tour_queue_key()) {
 					present_tour_feedback();
+					recover_tour_feedback();
 				} else if (aSession == ask_session_key()) {
 					present_ask_queue(aQueue);
 				} },
@@ -642,6 +670,18 @@ namespace bpr::app {
 		if (every) {
 			items = { std::string{ } };
 		}
+		// [[BPR-2181]] (AC13). A suggested prompt is expanded here, on the
+		// facts the menu was decided on; its release sends that and decides
+		// nothing again.
+		const auto facts  = quick_ask_facts(aRequest);
+		const auto placed = placed_prompts();
+		auto       macro  = std::ranges::find_if(placed, [row](const core::prompt_macro& aMacro) {
+			return aMacro.Id == row->Id && aMacro.Surface && core::is_menu(*aMacro.Surface) && core::surface_scope(*aMacro.Surface) == std::optional{ row->Scope };
+		});
+		if (macro == placed.end()) {
+			macro = std::ranges::find(placed, row->Id, &core::prompt_macro::Id);
+		}
+		const auto* const pressed = macro != placed.end() ? &*macro : nullptr;
 		for (const auto& item : items) {
 			auto input = core::queued_input{ .QuickAsk = row->Id, .Scope = scope, .File = aRequest.File.toStdString(), .Label = row->Label };
 			// AC06: the threads it carries, typed.
@@ -654,6 +694,9 @@ namespace bpr::app {
 			}
 			if (byFile && !item.empty()) {
 				input.File = item;
+			}
+			if (pressed != nullptr && pressed->Action == core::prompt_action::none) {
+				input.Prompt = core::decide_quick_ask_prompt(*pressed, facts, item);
 			}
 			if (const auto refused = AgentQueue->enqueue(session, std::move(input)); refused != core::queue_refusal::none) {
 				Window->open_agent_question();
@@ -708,6 +751,10 @@ namespace bpr::app {
 		if (session != AgentQueueShown) {
 			AgentQueueShown = session;
 			AgentQueue->show(session);
+			// [[BPR-2181]] (AC11). Feedback a crash left for the pull
+			// request's tour comes back to its chat.
+			AgentQueue->show(tour_queue_key());
+			recover_tour_feedback();
 		}
 		AgentQueue->agent_changed(session);
 	}
@@ -758,7 +805,7 @@ namespace bpr::app {
 		}
 		// [[BPR-2179]]. The copy on the menu it was queued from: placement
 		// decides what it asks about.
-		const auto set   = core::placed_prompt_macros(core::prompt_set_for_repository(PromptMacroSet, prompt_repository()));
+		const auto set   = placed_prompts();
 		auto       macro = std::ranges::find_if(set, [&aEntry](const core::prompt_macro& aMacro) {
 			return aMacro.Id == aEntry.Input.QuickAsk && aMacro.Surface && core::is_menu(*aMacro.Surface) && core::surface_scope(*aMacro.Surface)
 				&& core::stable_name(*core::surface_scope(*aMacro.Surface)) == aEntry.Input.Scope;
@@ -770,7 +817,6 @@ namespace bpr::app {
 			return taken(false);
 		}
 		const auto turns = tab->turn_count();
-		const auto id    = QString::fromStdString(macro->Id);
 		switch (macro->Action) {
 		case core::prompt_action::what_changed:
 			dismiss_asked_conversation();
@@ -793,7 +839,12 @@ namespace bpr::app {
 				}
 				dismiss_asked_conversation();
 			}
-			tab->send_prompt(id);
+			// AC13: the offer decided at the press. An entry restored from a
+			// store written before it carried one is decided here, on the
+			// window's facts, never by the tab.
+			if (auto offer = aEntry.Input.Prompt ? aEntry.Input.Prompt : released_prompt(*macro, aEntry); offer) {
+				static_cast<void>(tab->send_decided_prompt(*offer));
+			}
 			break;
 		}
 		Window->open_agent_question();
@@ -810,6 +861,19 @@ namespace bpr::app {
 		// A turn may start on a later pass (Explain this file reads its
 		// material first): that path said so.
 		return taken(false);
+	}
+
+	/// [[BPR-2181]] (AC13). A queued suggested prompt with no decided offer
+	/// (restored from a store written before releases carried one), decided
+	/// on the window's facts at the subject it was queued with.
+	auto github_application::implementation::released_prompt(const core::prompt_macro& aMacro, const core::queued_entry& aEntry) const -> std::optional<core::prompt_offer>
+	{
+		auto request = qt::ask_menu_request{ };
+		request.File = QString::fromStdString(aEntry.Input.File);
+		if (!aEntry.Input.Threads.empty()) {
+			request.Thread = QString::fromStdString(aEntry.Input.Threads.front());
+		}
+		return core::decide_quick_ask_prompt(aMacro, quick_ask_facts(request), { });
 	}
 
 	void github_application::implementation::note_release_deferred()
@@ -866,7 +930,7 @@ namespace bpr::app {
 	{
 		PromptMacroSet = aProjection.Set;
 		if (Window != nullptr) {
-			Window->present_prompt_macros(aProjection, prompt_repository());
+			Window->present_prompt_macros(aProjection);
 			auto repositories = QStringList{ };
 			if (const auto open = prompt_repository(); !open.empty()) {
 				repositories << QString::fromStdString(open);

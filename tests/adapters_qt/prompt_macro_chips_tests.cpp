@@ -25,6 +25,8 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "../support/qt_prompt_sources.hpp"
+
 #include <QAction>
 #include <QApplication>
 #include <QFileInfo>
@@ -143,6 +145,9 @@ namespace {
 			});
 			settle();
 			tab().set_suggestion_context([this] { return Context; });
+			// [[BPR-2181]] (AC13). The shipped set, decided as a window's
+			// composition decides it before the profile's own arrives.
+			tests::install_prompt_source(tab(), tests::shipped_placed_prompts());
 			tab().refresh();
 			settle();
 		}
@@ -293,7 +298,7 @@ namespace {
 		auto  macros = shipped();
 		macros.push_back(own("own.security", "Security pass on {file.name}", "Check {file} for injection and unsafe deserialisation. Say which lines.", core::prompt_subject::open_file));
 		macros.push_back(own("own.focus", "Ask about a part of {file.name}…", "In {file}, look only at {cursor} and say what could break.", core::prompt_subject::open_file));
-		tab.present_prompt_macros(macros);
+		tests::install_prompt_source(tab, macros);
 		settle();
 		const auto name      = QStringLiteral("Security pass on renderer.cpp");
 		const auto expansion = QStringLiteral("Check src/render/renderer.cpp for injection and unsafe deserialisation. Say which lines.");
@@ -317,7 +322,7 @@ namespace {
 				   && aHarness.field().textCursor().position() == QStringLiteral("In src/render/renderer.cpp, look only at ").size(),
 			   "AC06 a {cursor} macro is put in the field by a plain click, the caret at the mark");
 		aHarness.field().clear();
-		tab.present_prompt_macros(shipped());
+		tests::install_prompt_source(tab, shipped());
 		settle();
 	}
 
@@ -330,7 +335,7 @@ namespace {
 			longTemplate += "\n" + std::to_string(line) + ". look for one more kind of mistake";
 		}
 		macros.push_back(own("own.long", "Long pass on {file.name}", longTemplate, core::prompt_subject::open_file));
-		tab.present_prompt_macros(macros);
+		tests::install_prompt_source(tab, macros);
 		settle();
 		auto* const chip = aHarness.chip(QStringLiteral("Long pass on renderer.cpp"));
 		expect(chip != nullptr, "AC07 the long macro is a chip");
@@ -397,7 +402,7 @@ namespace {
 		expect(tab.turn_name(tab.turn_count() - 1U) == QStringLiteral("Long pass on renderer.cpp") && tab.turn_show_all(tab.turn_count() - 1U) != nullptr, "AC07 the thread read back shows the same name and fold");
 		host.shutdown();
 		tab.present_thread({ });
-		tab.present_prompt_macros(shipped());
+		tests::install_prompt_source(tab, shipped());
 		settle();
 	}
 
@@ -408,7 +413,7 @@ namespace {
 		for (const auto* const word : { "Naming", "Tests", "Errors", "Docs" }) {
 			macros.push_back(own(std::string{ "own." } + word, std::string{ "Check " } + word, std::string{ "Check the " } + word + " in {repo} #{pr.number}."));
 		}
-		tab.present_prompt_macros(macros);
+		tests::install_prompt_source(tab, macros);
 		settle();
 		auto* const list = tab.suggestion_list();
 		expect(tab.suggestions().size() == 5U && list->more().size() == 2U && list->more_button() != nullptr && list->more_button()->text() == QStringLiteral("More prompts (2)…"),
@@ -446,7 +451,7 @@ namespace {
 		context.PullRequest->Title = "A new title";
 		aHarness.set_context(context);
 		expect(tab.suggestion_buttons().at(2) == focused && (!focusable || focused->hasFocus()), "AC08 a refresh that changes no name leaves focus on its chip");
-		tab.present_prompt_macros(shipped());
+		tests::install_prompt_source(tab, shipped());
 		settle();
 	}
 
@@ -459,7 +464,7 @@ namespace {
 		auto macros = shipped();
 		macros.push_back(own("own.title", "Summarize the title", "Summarize {pr.title} /review-notes"));
 		macros.push_back(own("own.model", "Model check", "/model {pr.title}"));
-		tab.present_prompt_macros(macros);
+		tests::install_prompt_source(tab, macros);
 		settle();
 		aHarness.field().clear();
 		auto* const titled = aHarness.chip(QStringLiteral("Summarize the title"));
@@ -479,7 +484,7 @@ namespace {
 		settle();
 		expect(aHarness.Sends.size() == sent + 1U, "AC09 a typed /model is still read as a command");
 		aHarness.field().clear();
-		tab.present_prompt_macros(shipped());
+		tests::install_prompt_source(tab, shipped());
 		settle();
 	}
 

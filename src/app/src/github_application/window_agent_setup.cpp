@@ -1613,15 +1613,20 @@ namespace bpr::app {
 		});
 		// Owner decision (a). The suggested prompts name the open file and
 		// the selected lines, one-based.
-		// RFC-BPR-0125. The suggested prompts are the shipped set until the
-		// profile's store holds the reviewer's own (milestone 3).
-		tab->present_prompt_macros(core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { })));
+		// RFC-BPR-0125; [[BPR-2181]] (AC13, Prompts review B1). The Agent
+		// tab's and the tour chats' offers are decided here, once, from the
+		// facts the window holds (the review's included); the chats are
+		// handed them.
+		tab->set_prompt_source([this](const core::prompt_chat_view& aView) { return chat_prompts(aView); });
+		if (auto* const editor = Window->tour_editor(); editor != nullptr && editor->side_chat() != nullptr) {
+			editor->side_chat()->set_prompt_source([this](const core::prompt_chat_view& aView) { return chat_prompts(aView); });
+		}
 		tab->set_suggestion_context([this] {
 			auto context = qt::agent_suggestion_context{ };
 			// RFC-BPR-0125. The names a suggested prompt may fill in and the
 			// facts its conditions read, from what the window already holds.
-			// Whether the author is me and whether checks fail are not
-			// gathered yet: unknown, which no condition holds for.
+			// Whether checks fail is not gathered yet: unknown, which no
+			// condition holds for.
 			if (!Closing && WindowRead != nullptr && WindowRead->accepted_snapshot() && AgentReview) {
 				const auto& record      = WindowRead->accepted_snapshot()->PullRequest;
 				auto        pullRequest = core::prompt_pull_request{ };
@@ -1634,6 +1639,11 @@ namespace bpr::app {
 				context.PullRequest     = std::move(pullRequest);
 				context.Repository      = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
 				context.Draft           = record.Draft;
+				// [[BPR-2181]] (AC13). Whether I wrote it, from the signed-in
+				// viewer the read names; unknown when it names none.
+				if (const auto& viewer = WindowRead->accepted_snapshot()->Viewer.Login; !viewer.empty() && record.Author) {
+					context.AuthorIsMe = record.Author->Login == viewer;
+				}
 			}
 			// [[BPR-1781]]. Asked on Overview, a question is about the pull
 			// request: no open file, no lines.

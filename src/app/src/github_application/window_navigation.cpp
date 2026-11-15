@@ -1301,13 +1301,20 @@ DefectThreadNames.reset();
 				schedule_link_location();
 				schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests, Profile->Images.get(), Profile->Provider.get());
 		// [[BPR-2191]]. A file asked for from a first read's reported files
-		// waits in the workbench host for the review that read names.
+		// waits in the workbench host for the review that read names. Once the
+		// read has been accepted its reported files can still be the rows on
+		// screen until the review's own arrive: a file asked for then is the
+		// accepted review's.
 		Window->set_pending_open_dispatch([this, weak](const QString& aPath) {
 			if (weak.expired() || Closing || !Profile->current_window(DraftWindow) || WorkbenchHost == nullptr) {
 				return;
 			}
-			if (const auto& read = WindowRead->state().PendingPullRequest; read.has_value()) {
-				WorkbenchHost->open_when_listed(application::workbench_pending_open{ .Review = workbench_review(*read), .Path = aPath.toStdString() });
+			const auto& read   = WindowRead->state().PendingPullRequest;
+			const auto  review = read.has_value() ? std::optional{ workbench_review(*read) }
+				: LastAcceptedHandoff             ? std::optional{ workbench_review(*LastAcceptedHandoff) }
+												  : std::nullopt;
+			if (review.has_value()) {
+				WorkbenchHost->open_when_listed(application::workbench_pending_open{ .Review = *review, .Path = aPath.toStdString() });
 			}
 		});
 		Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {

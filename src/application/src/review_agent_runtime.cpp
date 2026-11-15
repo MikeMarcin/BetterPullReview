@@ -24,6 +24,15 @@ namespace bpr::application {
 			}
 			static_cast<void>(aStore.store(aConversation, *turns));
 		}
+
+		/// [[BPR-2181]] (AC13). A suggested prompt the runtime sends with no
+		/// window: a question about the pull request, its expansion decided at
+		/// the press and complete (no `{cursor}` left for the reviewer).
+		[[nodiscard]] auto sent_as_text(const core::queued_input& aInput) -> bool
+		{
+			return aInput.Prompt && aInput.Prompt->Subject == core::prompt_subject::pull_request && aInput.Prompt->Kind == core::prompt_ask::question && !aInput.Prompt->finish()
+				&& !aInput.Prompt->Expansion.Text.empty();
+		}
 	} // namespace
 
 	auto queued_finish_of(const agent_run_result& aResult) noexcept -> core::queued_finish
@@ -109,10 +118,12 @@ namespace bpr::application {
 		if (std::ranges::any_of(Presenters, [](const auto& aPresenter) { return aPresenter.second.releases(); })) {
 			return core::queue_agent::idle;
 		}
-		// A typed message is built from the snapshot alone. A quick ask needs
-		// its decided expansion (RFC-BPR-0126 AC13, slice 6): until a release
-		// carries one, it waits for a window that shows the session.
-		return Snapshot && aFront->Input.QuickAsk.empty() ? core::queue_agent::idle : core::queue_agent::not_set_up;
+		// A typed message is built from the snapshot alone, and so is a
+		// suggested prompt about the pull request that carries its decided
+		// expansion (AC13). Any other quick ask needs what a window shows (a
+		// file opened, a thread attached, a review's findings), and waits for
+		// one.
+		return Snapshot && (aFront->Input.QuickAsk.empty() || sent_as_text(aFront->Input)) ? core::queue_agent::idle : core::queue_agent::not_set_up;
 	}
 
 	auto review_agent_runtime::release(const core::queued_entry& aEntry) -> queued_admission
@@ -140,7 +151,7 @@ namespace bpr::application {
 			// (b) Built from the review the runtime holds: the Agent tab's
 			// turn on that review, asking what was typed.
 			auto request                = Snapshot->Request;
-			request.Context.ChatMessage = aEntry.Input.Text;
+			request.Context.ChatMessage = aEntry.Input.Prompt ? aEntry.Input.Prompt->Expansion.Text : aEntry.Input.Text;
 			request.NativeQuestion.clear();
 			static_cast<void>(dispatch(std::move(request)));
 		}

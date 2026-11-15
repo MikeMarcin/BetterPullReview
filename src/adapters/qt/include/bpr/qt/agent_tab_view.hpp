@@ -16,6 +16,7 @@
 #include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/prompt_macro.hpp"
+#include "bpr/core/quick_ask.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
@@ -409,6 +410,8 @@ namespace bpr::qt {
 		/// `aEditFirst` (a Shift-click or Shift-Return) put in the field to
 		/// edit before sending. The core decides which.
 		void choose_prompt(const QString& aPrompt, bool aEditFirst);
+		/// \brief A press on one decided offer.
+		void press_offer(const core::prompt_offer& aOffer, bool aEditFirst);
 		/// \brief Reads the panels again and redraws.
 		void refresh();
 		/// \brief The question field takes the keyboard.
@@ -619,10 +622,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto macro_chip() const noexcept -> QWidget* { return MacroChip; }
 		[[nodiscard]] auto macro_chip_text() const -> QString;
 		[[nodiscard]] auto macro_chip_close() const noexcept -> QToolButton* { return MacroClose; }
-		/// \brief RFC-BPR-0125. The suggested prompts this tab offers from,
-		/// every place's in the reviewer's order; the shipped set until the
-		/// host gives another. The chips are the core's offers.
-		void               present_prompt_macros(std::vector<core::prompt_macro> aMacros);
+		/// \brief RFC-BPR-0125; [[BPR-2181]] (AC13, Prompts review B1). Where
+		/// the tab's suggested prompts are decided: handed what the tab shows,
+		/// it answers the decided offers. The tab assembles no facts and
+		/// decides no offer; with no source it offers none.
+		using prompt_source = std::function<core::chat_prompts(const core::prompt_chat_view&)>;
+		void set_prompt_source(prompt_source aSource);
+		/// \brief What the tab shows that its prompts are decided on.
+		[[nodiscard]] auto prompt_view() const -> core::prompt_chat_view;
+		/// \brief [[BPR-2181]] (AC13). A queued suggested prompt's release:
+		/// the offer decided at its press, sent (or put in the field, for one
+		/// with `{cursor}`) as it is, never decided again.
+		[[nodiscard]] auto send_decided_prompt(const core::prompt_offer& aOffer) -> release_outcome;
 		[[nodiscard]] auto suggestion_list() const noexcept -> agent_suggestion_list* { return Suggestions; }
 		/// \brief RFC-BPR-0125 (AC07). The name a turn was sent under, shown
 		/// above its question; empty when none differs from it.
@@ -1082,7 +1093,7 @@ namespace bpr::qt {
 		bool                                                                       LinesDetached = false;
 		/// RFC-BPR-0125. The macros offered from, and the core's offers shown
 		/// now, chips then More.
-		std::vector<core::prompt_macro> PromptMacros;
+		prompt_source                   PromptSource;
 		std::vector<core::prompt_offer> Offered;
 		/// What a sent or drafted suggested prompt carries: its name, its
 		/// subject and kind for `decide_agent_question`, and, for a direct

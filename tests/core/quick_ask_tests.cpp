@@ -272,6 +272,50 @@ void test_wide_ask_is_capped()
 	expect(find_quick_ask(small, "conversation.was-addressed", prompt_scope::pull_request)->Omitted == 0U, "under the cap nothing is left out");
 }
 
+/// [[BPR-2181]] (AC13, Prompts review B1). A chat's offers and a quick ask's
+/// press are decided on the same facts: a prompt conditioned on pushes since
+/// my review is offered in the Agent tab only once there were pushes, and
+/// its press carries the expansion decided then.
+void test_chat_prompts_read_the_review()
+{
+	auto again            = prompt_macro{ .Id = "own.look-again", .Place = prompt_place::agent_tab };
+	again.Body.Name       = "Ready to look again?";
+	again.Body.Template   = "Has {pr.title} changed enough since my review that I should look again?";
+	again.Body.Conditions = { { .Fact = prompt_fact::pushes_since_review } };
+	again.Body.QuickAsk   = true;
+	again.Body.Scopes     = { .PullRequest = true };
+	const auto set        = std::vector{ again };
+	auto       facts      = returning_facts();
+	const auto view       = prompt_chat_view{ .Place = prompt_place::agent_tab, .ChatEmpty = true };
+	const auto pushed     = decide_chat_prompts(set, chat_prompt_facts(facts, view));
+	expect(pushed.Chips.size() == 1U && pushed.Chips.front().Label == "Ready to look again?" && pushed.Pressable.size() == 1U, "18 commits since my review: the chip is offered");
+	expect(pushed.Chips.front().Expansion.Text == "Has Render retained frames changed enough since my review that I should look again?", "expanded on the pull request's own facts");
+	facts.CommitsSinceReview = 0U;
+	expect(decide_chat_prompts(set, chat_prompt_facts(facts, view)).Chips.size() == 1U, "the reviewed head no longer listed (a force push) but a newer revision offered: pushes since my review");
+	facts.LatestUpload = latest_upload_state::hidden;
+	expect(decide_chat_prompts(set, chat_prompt_facts(facts, view)).Chips.empty(), "nothing newer than my review: not offered");
+	facts.LatestUpload       = latest_upload_state::offered;
+	facts.CommitsSinceReview = 18U;
+	const auto        menu   = decide_quick_asks(set, facts, quick_ask_anchor::review_bar);
+	const auto* const row    = find_quick_ask(menu, "own.look-again", prompt_scope::pull_request);
+	expect(row != nullptr && row->Enabled, "the menu lists it on the same facts");
+	const auto decided = decide_quick_ask_prompt(again, facts, { });
+	expect(decided && *decided == pushed.Chips.front(), "a press carries the offer the chip shows");
+	facts.Reviewed = false;
+	expect(!decide_quick_ask_prompt(again, facts, { }), "no review to return to: a press decides nothing");
+	// A conversation's chat reads its own thread's facts.
+	auto open            = prompt_macro{ .Id = "own.still-open", .Place = prompt_place::conversation };
+	open.Body.Name       = "Still open after the push?";
+	open.Body.Template   = "Is it still open?";
+	open.Body.Subject    = prompt_subject::conversation;
+	open.Body.Conditions = { { .Fact = prompt_fact::thread_activity, .Activity = prompt_activity_value::pushes } };
+	auto       threads   = returning_facts();
+	const auto on        = decide_chat_prompts(std::vector{ open }, chat_prompt_facts(threads, prompt_chat_view{ .Place = prompt_place::conversation, .Thread = "t10", .TakesReplies = true }));
+	const auto off       = decide_chat_prompts(std::vector{ open }, chat_prompt_facts(threads, prompt_chat_view{ .Place = prompt_place::conversation, .Thread = "t31", .TakesReplies = true }));
+	expect(on.Chips.size() == 1U && off.Chips.empty(), "the thread pushes followed is offered it; the one they did not is not");
+	expect(decide_quick_ask_prompt(open, threads, "t10").has_value() && !decide_quick_ask_prompt(open, threads, "t31"), "a thread's press decides on that thread");
+}
+
 auto main() -> int
 {
 	test_legality();
@@ -280,6 +324,7 @@ auto main() -> int
 	test_greyed_and_hidden();
 	test_reviewer_choices();
 	test_wide_ask_is_capped();
+	test_chat_prompts_read_the_review();
 	std::cout << "quick-ask-tests:pass\n";
 	return EXIT_SUCCESS;
 }

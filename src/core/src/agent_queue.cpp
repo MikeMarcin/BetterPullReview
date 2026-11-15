@@ -15,8 +15,46 @@ namespace bpr::core {
 			for (const auto& thread : aInput.Threads) {
 				threads += thread.size() + 1U;
 			}
-			return aInput.QuickAsk.size() + aInput.Scope.size() + aInput.File.size() + threads + aInput.Label.size() + aInput.Text.size();
+			const auto prompt = aInput.Prompt ? aInput.Prompt->Id.size() + aInput.Prompt->Label.size() + aInput.Prompt->Expansion.Text.size() : std::size_t{ 0U };
+			return aInput.QuickAsk.size() + aInput.Scope.size() + aInput.File.size() + threads + aInput.Label.size() + aInput.Text.size() + prompt;
 		}
+
+		/// One decimal field and its `;`.
+		void put_number(std::string& aTo, const std::size_t aValue)
+		{
+			aTo += std::to_string(aValue);
+			aTo += ';';
+		}
+
+		[[nodiscard]] auto take_number(std::string_view& aFrom) -> std::optional<std::size_t>
+		{
+			const auto end = aFrom.find(';');
+			if (end == std::string_view::npos || end == 0U || end > 9U) {
+				return std::nullopt;
+			}
+			auto value = std::size_t{ 0U };
+			for (const auto digit : aFrom.substr(0U, end)) {
+				if (digit < '0' || digit > '9') {
+					return std::nullopt;
+				}
+				value = value * 10U + static_cast<std::size_t>(digit - '0');
+			}
+			aFrom.remove_prefix(end + 1U);
+			return value;
+		}
+
+		[[nodiscard]] auto take_text(std::string_view& aFrom) -> std::optional<std::string>
+		{
+			const auto size = take_number(aFrom);
+			if (!size || *size > aFrom.size()) {
+				return std::nullopt;
+			}
+			auto text = std::string{ aFrom.substr(0U, *size) };
+			aFrom.remove_prefix(*size);
+			return text;
+		}
+
+		constexpr auto queued_prompt_version = std::string_view{ "p1;" };
 
 		[[nodiscard]] auto unsent(const queued_entry& aEntry) noexcept -> bool { return aEntry.State == queued_state::queued; }
 
@@ -86,7 +124,8 @@ namespace bpr::core {
 		if (aInput.Label.empty() && aInput.Text.empty()) {
 			return queue_refusal::empty;
 		}
-		if (aInput.Text.size() > maximum_queued_text_bytes || !utf8::valid(aInput.Text) || !utf8::valid(aInput.Label)) {
+		if (aInput.Text.size() > maximum_queued_text_bytes || !utf8::valid(aInput.Text) || !utf8::valid(aInput.Label)
+			|| (aInput.Prompt && (aInput.Prompt->Expansion.Text.size() > maximum_queued_text_bytes || !utf8::valid(aInput.Prompt->Expansion.Text)))) {
 			return queue_refusal::too_long;
 		}
 		if (aQueue.Entries.size() >= maximum_queued_inputs) {
@@ -448,5 +487,70 @@ namespace bpr::core {
 	{
 		aSession.Kind = aKind;
 		return aSession;
+	}
+
+	auto encode_queued_prompt(const prompt_offer& aOffer) -> std::string
+	{
+		auto text = std::string{ queued_prompt_version };
+		put_number(text, static_cast<std::size_t>(aOffer.Place));
+		put_number(text, static_cast<std::size_t>(aOffer.Subject));
+		put_number(text, static_cast<std::size_t>(aOffer.Kind));
+		put_number(text, aOffer.Expansion.Cursor ? *aOffer.Expansion.Cursor + 1U : 0U);
+		put_number(text, aOffer.Expansion.Values.size());
+		for (const auto& value : aOffer.Expansion.Values) {
+			put_number(text, value.Begin);
+			put_number(text, value.End);
+		}
+		for (const auto* const field : { &aOffer.Id, &aOffer.Label, &aOffer.Expansion.Text }) {
+			put_number(text, field->size());
+			text += *field;
+		}
+		return text;
+	}
+
+	auto decode_queued_prompt(std::string_view aText) -> std::optional<prompt_offer>
+	{
+		if (!aText.starts_with(queued_prompt_version)) {
+			return std::nullopt;
+		}
+		aText.remove_prefix(queued_prompt_version.size());
+		const auto place   = take_number(aText);
+		const auto subject = take_number(aText);
+		const auto kind    = take_number(aText);
+		const auto cursor  = take_number(aText);
+		const auto values  = take_number(aText);
+		if (!place || *place >= prompt_place_count || !subject || *subject > static_cast<std::size_t>(prompt_subject::tour) || !kind
+			|| *kind > static_cast<std::size_t>(prompt_ask::review) || !cursor || !values || *values > aText.size()) {
+			return std::nullopt;
+		}
+		auto offer    = prompt_offer{ };
+		offer.Place   = static_cast<prompt_place>(*place);
+		offer.Subject = static_cast<prompt_subject>(*subject);
+		offer.Kind    = static_cast<prompt_ask>(*kind);
+		for (auto index = std::size_t{ 0U }; index < *values; ++index) {
+			const auto begin = take_number(aText);
+			const auto end   = take_number(aText);
+			if (!begin || !end || *end < *begin) {
+				return std::nullopt;
+			}
+			offer.Expansion.Values.push_back({ .Begin = *begin, .End = *end });
+		}
+		auto id    = take_text(aText);
+		auto label = take_text(aText);
+		auto body  = take_text(aText);
+		if (!id || !label || !body || !aText.empty() || !utf8::valid(*body) || !utf8::valid(*label)) {
+			return std::nullopt;
+		}
+		offer.Id             = std::move(*id);
+		offer.Label          = std::move(*label);
+		offer.Expansion.Text = std::move(*body);
+		if (*cursor > 0U) {
+			offer.Expansion.Cursor = *cursor - 1U;
+		}
+		const auto size = offer.Expansion.Text.size();
+		if ((offer.Expansion.Cursor && *offer.Expansion.Cursor > size) || std::ranges::any_of(offer.Expansion.Values, [size](const prompt_value_span& aSpan) { return aSpan.End > size; })) {
+			return std::nullopt;
+		}
+		return offer;
 	}
 } // namespace bpr::core

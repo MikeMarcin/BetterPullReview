@@ -856,9 +856,9 @@ namespace bpr::qt {
 		refresh_actions();
 	}
 
-	void tour_side_chat::set_prompt_macros(std::vector<core::prompt_macro> aMacros)
+	void tour_side_chat::set_prompt_source(prompt_source aSource)
 	{
-		PromptMacros = std::move(aMacros);
+		PromptSource = std::move(aSource);
 		rebuild();
 	}
 
@@ -867,7 +867,7 @@ namespace bpr::qt {
 	void tour_side_chat::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
 		const auto thread = current();
-		if (!thread || !PromptMacros) {
+		if (!thread || !PromptSource) {
 			return;
 		}
 		// RFC-BPR-0125. A press expands against the facts at the press; one
@@ -1270,24 +1270,33 @@ namespace bpr::qt {
 		return part;
 	}
 
-	auto tour_side_chat::prompt_offers() const -> core::prompt_offers
+	auto tour_side_chat::prompt_view() const -> std::optional<core::prompt_chat_view>
 	{
 		const auto thread = current();
-		if (!thread || !PromptMacros) {
-			return { };
+		if (!thread) {
+			return std::nullopt;
 		}
 		// [[BPR-1934]] v002. Explain the selected block leads while text is
 		// selected in a part, whatever the chat holds already; for another
 		// part than this chat's, it names the part. The rest are for an empty
 		// chat, and go with its first turn.
-		auto facts      = core::prompt_facts{ };
-		facts.Thread    = prompt_part(*thread);
-		facts.Place     = facts.Thread->Place;
-		facts.ChatEmpty = core::thread_runs(Session, *thread).empty() && !(thread->Kind == core::tour_thread_kind::tour && Session.Waiting);
+		auto view      = core::prompt_chat_view{ };
+		view.TourPart  = prompt_part(*thread);
+		view.Place     = view.TourPart->Place;
+		view.ChatEmpty = core::thread_runs(Session, *thread).empty() && !(thread->Kind == core::tour_thread_kind::tour && Session.Waiting);
 		if (Selection) {
-			facts.Selection = prompt_part(Selection->Thread);
+			view.Selection = prompt_part(Selection->Thread);
 		}
-		return core::decide_prompt_offers(*PromptMacros, facts);
+		return view;
+	}
+
+	auto tour_side_chat::prompt_offers() const -> core::chat_prompts
+	{
+		const auto view = prompt_view();
+		if (!view || !PromptSource) {
+			return { };
+		}
+		return PromptSource(*view);
 	}
 
 	void tour_side_chat::refresh_prompts()
@@ -2102,7 +2111,7 @@ namespace bpr::qt {
 		// the chat's last item, in the agent's accent: the prompts for this
 		// kind of chat while it is empty, and Explain the selected block
 		// while text is selected (v002).
-		if (thread && PromptMacros) {
+		if (thread && PromptSource) {
 			Suggestions = new agent_suggestion_list{ tr("Or try:"), body };
 			Suggestions->setObjectName(QStringLiteral("tourSideChatSuggestions"));
 			Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });

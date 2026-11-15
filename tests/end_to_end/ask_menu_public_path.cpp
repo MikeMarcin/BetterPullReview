@@ -297,6 +297,68 @@ auto main(int argc, char** argv) -> int
 				 "both run, one after the other");
 			expect(tab->turn_returning(turns) == core::returning_operation::latest_upload && tab->turn_explain(turns + 1U) == path, "in the order they were queued");
 
+			// [[BPR-2181]] (AC13, Prompts review B1). The seeded Ready to look
+			// again?, kept to its one condition (pushes since my review), is
+			// offered as a chip and on the Ask menu on the same facts, and
+			// the agent receives it pressed either way: sent at once, and
+			// from the queue with the expansion decided at the press, which
+			// an edit made while it waits does not change.
+			{
+				auto* const page = window.prompts();
+				page->select("own.example-look-again");
+				page->edit_selected([](core::prompt_macro& aMacro) { aMacro.Body.Groups.clear(); });
+				const auto lookAgain = [&]() -> QPushButton* {
+					for (auto* const chip : tab->suggestion_buttons()) {
+						if (chip->isVisibleTo(tab) && chip->text() == QStringLiteral("Ready to look again?")) {
+							return chip;
+						}
+					}
+					return nullptr;
+				};
+				window.open_agent_question();
+				const auto shown = [&] {
+					auto texts = std::string{ };
+					for (auto* const chip : tab->suggestion_buttons()) {
+						texts += chip->text().toStdString() + (chip->isVisibleTo(tab) ? "" : "(hidden)") + "|";
+					}
+					const auto& library = page->library();
+					const auto  seeded  = std::ranges::find(library, std::string{ "own.example-look-again" }, &core::prompt_macro::Id);
+					ask->refresh_menu();
+					auto* const listed = row(*ask->menu(), QStringLiteral("own.example-look-again"), QStringLiteral("pull-request"));
+					return texts + " groups=" + (seeded == library.end() ? std::string{ "none" } : std::to_string(seeded->Body.Groups.size()) + " conditions=" + std::to_string(seeded->Body.Conditions.size()) + " quick=" + std::to_string(seeded->Body.QuickAsk ? 1 : 0) + " on=" + std::to_string(seeded->On ? 1 : 0))
+						+ " row=" + (listed == nullptr ? std::string{ "none" } : std::to_string(listed->isEnabled() ? 1 : 0) + ":" + listed->toolTip().toStdString());
+				};
+				if (!e2e::wait_until_plain([&] { return lookAgain() != nullptr && lookAgain()->isEnabled(); }, e2e::extended_agent_budget)) {
+					throw std::runtime_error{ "pushes since my review: the Agent tab offers Ready to look again?: " + shown() };
+				}
+				const auto before = tab->turn_count();
+				lookAgain()->click();
+				if (!e2e::wait_until_plain([&] { return tab->turn_count() == before + 1U && answer_of(*tab).find("LOOK_AGAIN_ECHO") != std::string::npos && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent; },
+										   e2e::extended_agent_budget)) {
+					throw std::runtime_error{ "pressed as a chip, the agent receives it: turns=" + std::to_string(tab->turn_count() - before) + " question=" + (tab->turn_count() > before ? tab->turn_question(before).toStdString() : std::string{ })
+											  + " answer=" + answer_of(*tab) + " status=" + window.agent_panel()->status_text().toStdString() };
+				}
+				expect(tab->turn_question(before).contains(QStringLiteral("changed enough since my review that I should look again?")), "as expanded on the pull request's facts: " + tab->turn_question(before).toStdString());
+				// Busy with What changed, a press on the menu row queues it.
+				ask->refresh_menu();
+				row(*ask->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"))->trigger();
+				ask->refresh_menu();
+				auto* const queued = row(*ask->menu(), QStringLiteral("own.example-look-again"), QStringLiteral("pull-request"));
+				expect(queued != nullptr && queued->isEnabled(), "the review bar's Ask lists it on the same facts");
+				queued->trigger();
+				QApplication::processEvents();
+				expect(tab->queue_note()->text().contains(QStringLiteral("Ready to look again?")), "while What changed runs it waits its turn: " + tab->queue_note()->text().toStdString());
+				// Edited while it waits: the release sends what was decided.
+				page->select("own.example-look-again");
+				page->edit_selected([](core::prompt_macro& aMacro) { aMacro.Body.Template = "EDITED_AFTER_THE_PRESS {pr.title}"; });
+				wait([&] { return tab->turn_count() == before + 3U && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent && tab->queue_note()->text().isEmpty(); },
+					 "from the queue it runs after What changed");
+				expect(answer_of(*tab).find("LOOK_AGAIN_ECHO") != std::string::npos && !tab->turn_question(before + 2U).contains(QStringLiteral("EDITED_AFTER_THE_PRESS")),
+					   "the agent receives the expansion decided at the press: " + tab->turn_question(before + 2U).toStdString());
+				page->select("own.example-look-again");
+				page->edit_selected([](core::prompt_macro& aMacro) { aMacro.Body.Template = "Has {pr.title} changed enough since my review that I should look again?"; });
+			}
+
 			// RFC-BPR-0126 ([[BPR-2151]]): the pending list and typed
 			// follow-ups. With a message waiting and the queue paused, typed
 			// messages queue (Send says Queue), are edited in place (held,

@@ -1,3 +1,4 @@
+#include "../support/qt_prompt_sources.hpp"
 #include "../support/resize_cursor_hold_check.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "diff_publication_fixture.hpp"
@@ -12865,8 +12866,9 @@ namespace {
 		auto  course = line_gesture_course{ false };
 		auto& window = course.Window;
 		course.reset();
-		auto* const agent   = window.agent_tab();
-		auto        profile = core::agent_profile{ };
+		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
+		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
 		profile.DisplayName = "Claude Code";
 		profile.Executable  = "/usr/bin/true";
@@ -14421,6 +14423,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		process_events();
 		auto profile        = core::agent_profile{ };
@@ -14561,6 +14564,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
@@ -14637,6 +14641,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		process_events();
 		auto profile        = core::agent_profile{ };
@@ -14808,6 +14813,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		process_events();
 		auto profile        = core::agent_profile{ };
@@ -15016,6 +15022,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		process_events();
 		auto profile        = core::agent_profile{ };
@@ -15257,6 +15264,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		process_events();
 		const auto make = [](const std::uint32_t aId, const char* aName) {
@@ -15378,6 +15386,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		window.open_agent_action()->trigger();
 		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
@@ -15552,6 +15561,7 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		expect(window.open_agent_action() != nullptr && window.open_agent_action()->shortcut() == QKeySequence{ Qt::ALT | Qt::SHIFT | Qt::Key_A }
 				   && window.ask_agent_action()->shortcut() == QKeySequence{ Qt::CTRL | Qt::Key_I },
 			   "⌥⇧A opens the Agent tab and ⌘I asks about the selected lines");
@@ -17003,6 +17013,7 @@ namespace {
 		tabs->setCurrentIndex(2);
 		process_events();
 		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		expect(agent != nullptr && agent->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked() && !window.conversation_panel()->isVisible()
 				   && below(agent) && agent->state() == qt::agent_tab_state::not_set_up && agent->empty_state()->isVisible()
 				   && agent->empty_state()->action_button() != nullptr && agent->empty_state()->action_button()->text() == QStringLiteral("Set up an agent")
@@ -20241,8 +20252,9 @@ namespace {
 		process_events();
 
 		// The Agent tab, set up, with an answer naming two lines of the long file.
-		auto* const agent   = window.agent_tab();
-		auto        profile = core::agent_profile{ };
+		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
+		auto profile        = core::agent_profile{ };
 		profile.Id          = core::agent_profile_id{ 1U };
 		profile.DisplayName = "Claude Code";
 		profile.Executable  = "/usr/bin/true";
@@ -21529,6 +21541,7 @@ namespace {
 		auto* const panel  = window.conversation_panel();
 		auto* const cards  = panel->cards();
 		auto* const agent  = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
 		expect(window.showing_overview() && drawer->tabs()->count() == 5, "Overview's drawer has five tabs");
 		for (auto index = 0; index < drawer->tabs()->count(); ++index) {
 			expect(drawer->tabs()->tabText(index) != QStringLiteral("Notes") && drawer->tabs()->accessibleTabName(index) != QStringLiteral("Notes"),

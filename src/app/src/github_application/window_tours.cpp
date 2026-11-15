@@ -1696,7 +1696,9 @@ namespace bpr::app {
 			if (refused == core::queue_refusal::none) {
 				TourFeedbackQueued = true;
 				present_tour_feedback();
-				Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback is sent to the tour agent when the draft is ready, so it revises that draft."));
+				// [[BPR-2181]] (AC11). Only what will happen: it goes if the
+				// draft proposes a tour, and comes back here if not.
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback waits for the draft. If the draft proposes a tour, the feedback goes next to revise it; if not, it comes back here unsent."));
 				return;
 			}
 			Window->tour_editor()->show_writing_notice(QStringLiteral("This feedback is too long to wait for the draft. Nothing was added; send it once the draft is ready."));
@@ -1917,6 +1919,28 @@ namespace bpr::app {
 		drain_tour_queue();
 	}
 
+	/// [[BPR-2181]] (AC11). Feedback the store kept for a draft no open
+	/// window runs (the app quit or crashed while it waited, or while it was
+	/// being sent) never waits forever: it comes back to the tour chat as
+	/// not sent, and the queue takes the next draft's.
+	void github_application::implementation::recover_tour_feedback()
+	{
+		const auto key = tour_queue_key();
+		if (Closing || Window == nullptr || !AgentQueue || key.empty() || TourFeedbackQueued || TourQueueSending || TourDraftPending || ReturningTourFeedback) {
+			return;
+		}
+		const auto* const queue = AgentQueue->queue(key);
+		if (queue == nullptr || queue->Entries.empty()) {
+			return;
+		}
+		// Another window's draft it waits for keeps it.
+		const auto inFlight = std::ranges::any_of(queue->Entries, [](const core::queued_entry& aEntry) { return aEntry.State == core::queued_state::sending; });
+		if (inFlight || AgentRunner.state(key) != core::queue_agent::not_set_up) {
+			return;
+		}
+		return_tour_feedback("The app closed before this feedback was answered, so it wasn't sent. Send it again when you want.");
+	}
+
 	void github_application::implementation::return_tour_feedback(const std::string& aWhy)
 	{
 		const auto key     = tour_queue_key();
@@ -1926,16 +1950,23 @@ namespace bpr::app {
 			return;
 		}
 		auto texts = std::string{ };
-		// A copy: withdrawing changes the list.
-		const auto entries = AgentQueue->queue(key)->Entries;
+		// A copy: withdrawing changes the list. One whose delivery a crash
+		// left unknown is discarded by the core's transition: its turn never
+		// answered here, and nothing sends it again by itself.
+		const auto entries    = AgentQueue->queue(key)->Entries;
+		ReturningTourFeedback = true;
 		for (const auto& entry : entries) {
-			if (entry.State == core::queued_state::queued && AgentQueue->withdraw(key, entry.Id) == core::queue_refusal::none) {
+			const auto taken = entry.State == core::queued_state::queued ? AgentQueue->withdraw(key, entry.Id)
+				: entry.State == core::queued_state::delivery_unknown    ? AgentQueue->discard(key, entry.Id)
+																		 : core::queue_refusal::not_editable;
+			if (taken == core::queue_refusal::none) {
 				texts += (texts.empty() ? "" : "\n\n") + entry.Input.Text;
 			}
 		}
 		// A tour's feedback queue holds only what waits for a draft: emptied,
 		// it takes the next draft's.
 		static_cast<void>(AgentQueue->resume(key));
+		ReturningTourFeedback = false;
 		if (!texts.empty()) {
 			if (const auto turn = core::begin_tour_ask(TourAgent, core::tour_thread{ }, std::nullopt, texts)) {
 				static_cast<void>(core::finish_tour_run(TourAgent, *turn, core::tour_agent_run_state::failed, aWhy));

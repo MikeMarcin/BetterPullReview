@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_QUEUE_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_QUEUE_HPP
 
+#include "bpr/core/prompt_macro.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -59,9 +61,19 @@ namespace bpr::core {
 		std::string Label;
 		/// A typed message's text.
 		std::string Text;
+		/// [[BPR-2181]] (AC13). A suggested prompt's offer as decided at the
+		/// press, its expansion included: the release sends it as it is and
+		/// decides nothing again. None for a typed message or an action.
+		std::optional<prompt_offer> Prompt;
 
 		auto operator<=>(const queued_input&) const = default;
 	};
+
+	/// \brief [[BPR-2181]] (AC13). A queued input's decided prompt as the
+	/// store keeps it in one text column, and read back; a value that is not
+	/// one this wrote reads as none.
+	[[nodiscard]] auto encode_queued_prompt(const prompt_offer& aOffer) -> std::string;
+	[[nodiscard]] auto decode_queued_prompt(std::string_view aText) -> std::optional<prompt_offer>;
 
 	/// \brief [[BPR-2181]] (AC06). Whose queue it is: the session a queue
 	/// belongs to, typed. Its `session_key` is the stable name the host, the

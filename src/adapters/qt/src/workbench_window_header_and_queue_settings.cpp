@@ -1552,16 +1552,15 @@ namespace bpr::qt {
 }
 
 namespace bpr::qt {
-	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection, const std::string& aRepository)
+	void workbench_window::present_prompt_macros(const application::prompt_macro_projection& aProjection)
 	{
-		// [[BPR-2179]]. The chips and menus read each surface's placements,
-		// as the open pull request's repository has them.
-		auto macros = core::placed_prompt_macros(core::prompt_set_for_repository(aProjection.Set, aRepository));
+		// [[BPR-2181]] (AC13). The chats' offers are decided by their prompt
+		// sources from the new set; they are only shown again here.
 		if (AgentTab != nullptr) {
-			AgentTab->present_prompt_macros(macros);
+			AgentTab->refresh_suggestions();
 		}
 		if (TourEditor != nullptr && TourEditor->side_chat() != nullptr) {
-			TourEditor->side_chat()->set_prompt_macros(macros);
+			TourEditor->side_chat()->refresh_prompts();
 		}
 		if (Prompts != nullptr) {
 			Prompts->present(aProjection);

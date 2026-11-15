@@ -206,6 +206,29 @@ namespace {
 			   "discarded, it leaves; the queue stays paused");
 		expect(resume(queue, queue.Revision) == queue_refusal::none && next_release(queue, queue_agent::idle) == b, "and Resume goes on with the next");
 	}
+
+	/// [[BPR-2181]] (AC13). A queued suggested prompt keeps the offer decided
+	/// at its press, as the store writes and reads it.
+	void test_decided_prompt()
+	{
+		auto offer      = prompt_offer{ .Id = "own.look-again", .Label = "Ready to look again?", .Place = prompt_place::agent_tab, .Subject = prompt_subject::open_file, .Kind = prompt_ask::review };
+		offer.Expansion = prompt_expansion{ .Text = "Has \xc3\xa9 {x} changed?\nYes;3:", .Cursor = 4U, .Values = { { .Begin = 4U, .End = 6U }, { .Begin = 8U, .End = 9U } } };
+		const auto kept = decode_queued_prompt(encode_queued_prompt(offer));
+		expect(kept && *kept == offer, "every part of the offer is read back as written");
+		offer.Expansion.Cursor.reset();
+		offer.Expansion.Values.clear();
+		expect(decode_queued_prompt(encode_queued_prompt(offer)) == std::optional{ offer }, "no cursor and no values read back as none");
+		const auto text = encode_queued_prompt(offer);
+		expect(!decode_queued_prompt(text.substr(0U, text.size() - 1U)) && !decode_queued_prompt(text + "x") && !decode_queued_prompt("p2;" + text.substr(3U)) && !decode_queued_prompt(""),
+			   "a cut, padded or other version's value is none");
+		auto queue   = agent_queue{ };
+		auto input   = ask("Ready to look again?");
+		input.Prompt = offer;
+		input.Prompt->Expansion.Text.assign(maximum_queued_text_bytes + 1U, 'a');
+		expect(enqueue(queue, input, 0U) == queue_refusal::too_long, "an expansion past the text bound is refused");
+		input.Prompt = offer;
+		expect(enqueue(queue, input, 0U) == queue_refusal::none && queue.Entries.front().Input.Prompt == std::optional{ offer }, "queued with its decided offer");
+	}
 } // namespace
 
 auto main() -> int
@@ -218,6 +241,7 @@ auto main() -> int
 	test_order_and_release();
 	test_limits();
 	test_hold_pause_and_restore();
+	test_decided_prompt();
 	std::cout << "agent-queue-tests:pass\n";
 	return EXIT_SUCCESS;
 }

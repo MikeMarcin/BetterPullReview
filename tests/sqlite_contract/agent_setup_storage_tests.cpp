@@ -609,9 +609,13 @@ try {
 				entry.Input.Text = "waiting";
 				// AC06: a wider Was this addressed? carries its threads typed.
 				entry.Input.Threads = { "thread-a", "thread-b" };
-				auto queue          = core::agent_queue{ };
-				queue.LastId        = 1U;
-				queue.Paused        = pauses[index];
+				// AC13: a suggested prompt keeps the offer decided at its press.
+				if (index == 1U) {
+					entry.Input.Prompt = core::prompt_offer{ .Id = "own.look-again", .Label = "Ready to look again?", .Expansion = { .Text = "Has it changed?", .Cursor = 3U, .Values = { { .Begin = 4U, .End = 6U } } } };
+				}
+				auto queue   = core::agent_queue{ };
+				queue.LastId = 1U;
+				queue.Paused = pauses[index];
 				queue.Entries.push_back(entry);
 				expect(queueStore->store("session-" + std::to_string(index), queue), "a queue with each pause is saved");
 			}
@@ -623,6 +627,9 @@ try {
 			expect(found != reloaded->end() && found->second.Paused == pauses[index], "each pause reloads as itself, lost-access included");
 			expect(found != reloaded->end() && found->second.Entries.size() == 1U && found->second.Entries.front().Input.Threads == std::vector<std::string>{ "thread-a", "thread-b" },
 				   "a message's threads reload as they were queued (AC06)");
+			expect(found != reloaded->end() && !found->second.Entries.empty() && found->second.Entries.front().Input.Prompt.has_value() == (index == 1U)
+					   && (index != 1U || (found->second.Entries.front().Input.Prompt->Expansion.Text == "Has it changed?" && found->second.Entries.front().Input.Prompt->Expansion.Values.size() == 1U)),
+				   "a decided prompt reloads as it was decided, and only where there was one (AC13)");
 		}
 	}
 	{

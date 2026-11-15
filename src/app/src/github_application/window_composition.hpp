@@ -798,6 +798,12 @@ namespace bpr::app {
 		/// `window_quick_ask.cpp`.
 		void               bind_quick_ask();
 		[[nodiscard]] auto quick_ask_facts(const qt::ask_menu_request& aRequest) const -> core::quick_ask_facts;
+		/// [[BPR-2181]] (AC13). A chat's decided offers, from what it shows
+		/// and the facts the window holds.
+		[[nodiscard]] auto chat_prompts(core::prompt_chat_view aView) const -> core::chat_prompts;
+		/// The placed macros the open pull request's chats and menus read.
+		[[nodiscard]] auto placed_prompts() const -> std::vector<core::prompt_macro>;
+		[[nodiscard]] auto released_prompt(const core::prompt_macro& aMacro, const core::queued_entry& aEntry) const -> std::optional<core::prompt_offer>;
 		[[nodiscard]] auto quick_ask_menu(const qt::ask_menu_request& aRequest) const -> std::optional<core::quick_ask_menu>;
 		void               press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               ask_custom_question(const qt::ask_menu_request& aRequest);
@@ -901,6 +907,10 @@ namespace bpr::app {
 		/// Feedback that cannot go (the draft did not propose a tour, or the
 		/// app closed first) lands in the tour chat as not sent, as written.
 		void return_tour_feedback(const std::string& aWhy);
+		void recover_tour_feedback();
+		/// Feedback is being returned: the queue changes it makes recover
+		/// nothing again.
+		bool ReturningTourFeedback = false;
 		void present_tour_feedback();
 		bool TourQueueSending = false;
 		/// This window's draft has feedback waiting in the tour's queue.

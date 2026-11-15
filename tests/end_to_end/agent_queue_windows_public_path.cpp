@@ -32,6 +32,13 @@
 /// a run that fails pauses the queue as failed with the next message still
 /// queued; resumed, a run past the agent's usage limit pauses it as usage
 /// limit, the last message still queued; resumed again, that one answers.
+///
+/// `--tour-feedback-crash` ([[BPR-2181]] AC11): the store holds the pull
+/// request's tour feedback as a crash left it, one feedback being sent and
+/// one waiting for the draft. On the next launch neither waits forever: both
+/// come back to the tour chat as one turn that was not sent, the uncertain
+/// one discarded by the core's transition, and the tour's queue is empty and
+/// not paused, so the next draft's feedback queues again.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
@@ -39,7 +46,9 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -196,6 +205,7 @@ auto main(int argc, char** argv) -> int
 	const auto    closeRunsOn = mode == "--close-runs-on";
 	const auto    restart     = mode == "--restart";
 	const auto    finishes    = mode == "--finish-pauses";
+	const auto    tourCrash   = mode == "--tour-feedback-crash";
 	QTemporaryDir data;
 	auto          dataRoot = e2e::private_data_root(data);
 	if (!dataRoot) {
@@ -459,6 +469,47 @@ auto main(int argc, char** argv) -> int
 			expect(questions_of(*after->agent_tab()).count(QStringLiteral("Sending at the crash")) == 0, "the discarded message was never sent again");
 			quit(*after);
 			std::cout << "agent-queue-restart:pass\n";
+			return EXIT_SUCCESS;
+		}
+		if (tourCrash) {
+			const auto session = access::agent_session_key(*owner);
+			const auto typed   = core::parse_session_key(session);
+			expect(typed.has_value(), "the window shows the pull request's Agent-tab session");
+			const auto tourKey = core::session_key(core::with_kind(*typed, core::queued_session_kind::tour_feedback));
+			quit(*first);
+			{
+				auto crashed = core::agent_queue{ };
+				crashed.Entries.push_back({ .Id = 1U, .Input = { .Scope = "tour", .Label = "Feedback sending at the crash", .Text = "Feedback sending at the crash" }, .State = core::queued_state::sending });
+				crashed.Entries.push_back({ .Id = 2U, .Input = { .Scope = "tour", .Label = "Feedback waiting at the crash", .Text = "Feedback waiting at the crash" } });
+				crashed.LastId   = 2U;
+				crashed.Revision = 5U;
+				expect(adapters::sqlite::make_agent_queue_store(*dataRoot)->store(tourKey, crashed), "the store holds the tour's feedback as the crash left it");
+			}
+			start();
+			auto* const after = owner->window(owner->windows().front());
+			after->resize(1440, 960);
+			const auto restored = access::agent_session(*owner, tourKey);
+			expect(restored.Paused == core::queue_pause::restarted, "the tour's queue is read back from disk, paused because the app restarted");
+			open_review(*after, "the window after the crash");
+			agent_ready(*after);
+			auto* const panel    = after->tour_editor()->tour_agent();
+			const auto  returned = [&] {
+				return std::ranges::find_if(panel->session().Runs, [](const core::tour_agent_run& aRun) {
+					return aRun.Question.find("Feedback sending at the crash") != std::string::npos && aRun.Question.find("Feedback waiting at the crash") != std::string::npos;
+				});
+			};
+			wait([&] { return returned() != panel->session().Runs.end(); }, "both feedbacks come back to the tour chat: " + panel->transcript_text().toStdString());
+			expect(returned()->State == core::tour_agent_run_state::failed, "as a turn that was not sent");
+			const auto emptied = access::agent_session(*owner, tourKey);
+			expect(emptied.Queued == 0U && !emptied.Sending && emptied.Paused == core::queue_pause::none, "the tour's queue is empty and not paused: the next draft's feedback queues again");
+			expect(!panel->session().Waiting, "nothing is shown waiting for a draft");
+			for (auto settle = 0; settle < 20; ++settle) {
+				QApplication::processEvents();
+			}
+			expect(access::agent_session(*owner, tourKey).Launches == 0U && std::ranges::count(panel->session().Runs, core::tour_agent_run_state::running, &core::tour_agent_run::State) == 0,
+				   "nothing was sent by itself");
+			quit(*after);
+			std::cout << "agent-queue-tour-feedback-crash:pass\n";
 			return EXIT_SUCCESS;
 		}
 		if (loading) {

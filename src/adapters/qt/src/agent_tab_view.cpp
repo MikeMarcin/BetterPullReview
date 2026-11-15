@@ -994,8 +994,6 @@ namespace bpr::qt {
 		// [[BPR-1934]]. One component, which the tour chats show too.
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
 		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
-		// RFC-BPR-0125. The shipped set until the host gives the profile's.
-		PromptMacros = core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }));
 		contentCol->addWidget(Suggestions);
 		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
 		// offered when the earlier revision cannot be read, said where the
@@ -2745,10 +2743,27 @@ namespace bpr::qt {
 
 	void agent_tab_view::send_prompt(const QString& aPrompt) { choose_prompt(aPrompt, false); }
 
-	void agent_tab_view::present_prompt_macros(std::vector<core::prompt_macro> aMacros)
+	void agent_tab_view::set_prompt_source(prompt_source aSource)
 	{
-		PromptMacros = std::move(aMacros);
+		PromptSource = std::move(aSource);
 		refresh_suggestions();
+	}
+
+	auto agent_tab_view::prompt_view() const -> core::prompt_chat_view
+	{
+		const auto context = current_suggestion_context();
+		auto       view    = core::prompt_chat_view{ .Place = ConversationShown ? core::prompt_place::conversation : core::prompt_place::agent_tab, .ChatEmpty = Turns.empty() };
+		if (ConversationShown) {
+			view.Thread       = ConversationShown->Key;
+			view.TakesReplies = ConversationShown->Replies;
+		}
+		if (!context.OpenFile.isEmpty()) {
+			view.OpenFile = context.OpenFile.toStdString();
+		}
+		if (context.Lines) {
+			view.Lines = core::prompt_line_range{ .First = context.Lines->first, .Last = context.Lines->second };
+		}
+		return view;
 	}
 
 	auto agent_tab_view::offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*
@@ -2786,7 +2801,22 @@ namespace bpr::qt {
 		if (found == nullptr) {
 			return;
 		}
-		const auto offer    = *found;
+		press_offer(*found, aEditFirst);
+	}
+
+	auto agent_tab_view::send_decided_prompt(const core::prompt_offer& aOffer) -> release_outcome
+	{
+		if (!panels_alive()) {
+			return release_outcome::refused;
+		}
+		Released = release_outcome::refused;
+		press_offer(aOffer, false);
+		return Released;
+	}
+
+	void agent_tab_view::press_offer(const core::prompt_offer& aChosen, const bool aEditFirst)
+	{
+		const auto offer    = aChosen;
 		const auto text     = QString::fromStdString(offer.Expansion.Text);
 		auto*      composer = Chat.composer();
 		const auto draft    = composer->toPlainText();
@@ -2881,39 +2911,15 @@ namespace bpr::qt {
 		}
 		const auto context = current_suggestion_context();
 		present_lines_chip(context);
-		// RFC-BPR-0125. The core decides the chips from the macros and what
-		// the window holds; this presents its offers. Owner decision (a):
-		// the pull request, the open file when one is open, what the change
-		// could break, and the selected lines when lines are selected.
-		auto facts        = core::prompt_facts{ };
-		facts.Place       = ConversationShown ? core::prompt_place::conversation : core::prompt_place::agent_tab;
-		facts.PullRequest = context.PullRequest;
-		facts.Repository  = context.Repository;
-		if (!context.OpenFile.isEmpty()) {
-			facts.OpenFile = context.OpenFile.toStdString();
-		}
-		if (context.Lines) {
-			facts.Lines = core::prompt_line_range{ .First = context.Lines->first, .Last = context.Lines->second };
-		}
-		facts.Draft         = context.Draft;
-		facts.AuthorIsMe    = context.AuthorIsMe;
-		facts.ChecksFailing = context.ChecksFailing;
-		facts.ChatEmpty     = Turns.empty();
-		if (ConversationShown) {
-			facts.TakesReplies = ConversationShown->Replies;
-		}
-		const auto offers = core::decide_prompt_offers(PromptMacros, facts);
-		Offered           = offers.Chips;
-		Offered.insert(Offered.end(), offers.More.begin(), offers.More.end());
-		// [[BPR-2179]]. A prompt only on an Ask menu is no chip, but a press
-		// from the menu still sends it.
-		for (auto& offer : core::menu_prompt_offers(PromptMacros, facts)) {
-			if (std::ranges::find(Offered, offer.Id, &core::prompt_offer::Id) == Offered.end()) {
-				Offered.push_back(std::move(offer));
-			}
-		}
-		auto chips = std::vector<agent_suggestion>{ };
-		auto more  = std::vector<agent_suggestion>{ };
+		// RFC-BPR-0125; [[BPR-2181]] (AC13). The offers are decided outside
+		// the tab, from what it shows and what the window holds; this
+		// presents them. Owner decision (a): the pull request, the open file
+		// when one is open, what the change could break, and the selected
+		// lines when lines are selected.
+		const auto offers = PromptSource ? PromptSource(prompt_view()) : core::chat_prompts{ };
+		Offered           = offers.Pressable;
+		auto chips        = std::vector<agent_suggestion>{ };
+		auto more         = std::vector<agent_suggestion>{ };
 		ReturningPrompts.clear();
 		// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). First when commits
 		// followed my review, or on a thread I commented in once they did.

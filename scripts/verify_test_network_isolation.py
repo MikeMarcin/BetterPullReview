@@ -131,6 +131,17 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
 # STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    # [[BPR-2151]], [[BPR-2153]], [[BPR-2181]]. The queue and steer public
+    # paths, registered on macOS without their pins until now.
+    "application_agent_steer_sent_public_path": "unmeasured (registered on macOS)",
+    "application_agent_steer_unavailable_public_path": "unmeasured (registered on macOS)",
+    "application_tour_feedback_queue_public_path": "unmeasured (registered on macOS)",
+    "application_agent_queue_windows_public_path": "unmeasured (registered on macOS)",
+    "application_agent_queue_second_window_loading_public_path": "unmeasured (registered on macOS)",
+    "application_agent_queue_close_runs_on_public_path": "unmeasured (registered on macOS)",
+    "application_agent_queue_restart_public_path": "unmeasured (registered on macOS)",
+    "application_agent_queue_tour_feedback_crash_public_path": "unmeasured (registered on macOS)",
+    "application_agent_queue_finish_pauses_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1933]]. Native Limited interactive Windows Release, source
     # a30ed6f5b, 2026-11-08 UTC: the unchanged course passes normally. The
     # byte-identical image, argv, cwd and configured environment/modifications
