@@ -50,11 +50,12 @@ or stopped by this lane. The 3434 checkout's station status is unmanaged/local.
    [[BPR-2103]] source-only request admission/two-hour accounting. Verify the
    maintained entrypoints and prepare a source-only request and durable phase
    record; Done does not prove a fresh native rehearsal. Preserve prior failures.
-2. **Two independent native hosts.** The coordinator owns Intel Mac discovery
-   and Ubuntu 26.04 x86_64 provisioning. The owner confirms the Intel Mac exists
-   and Ubuntu is not installed. No ready Linux producer is claimed. Prefer a
-   non-destructive VM under macOS; record actual hardware, access, virtualization
-   support, resources and native GUI/vault prerequisites before qualification.
+2. **Two independent native hosts.** The Intel Mac now runs an isolated
+   Ubuntu 26.04.1 x86_64 VZ guest with native ext4 storage, build tools, Xvfb
+   and a private Secret Service prerequisite smoke. See the
+   [host record](intel-ubuntu-qualification-host.md) for the exact route and
+   evidence boundary. The transferred candidate failed its source tripwire;
+   no product build or native qualification is claimed.
    Reconcile JaegAW Windows station identity, principal, prior task forests and
    physical-host lease before native work. Windows and WSL on JaegAW share one
    host and remain serialized; independently provisioned Intel Ubuntu may run
@@ -74,16 +75,15 @@ or stopped by this lane. The 3434 checkout's station status is unmanaged/local.
    profile selection only then. Native trust, source/legal/security, signing,
    owner acceptance and publication remain their own obligations.
 
-The coordinator's read-only Intel discovery reached the existing, pinned SSH
-alias `intel-mbp`: MacBookPro15,1, x86_64 macOS 15.8.1, 32 GiB RAM,
-12 logical CPUs, approximately 716 GiB free and `kern.hv_support=1`.
-Homebrew exists at `/usr/local/bin/brew`; no hypervisor was discovered and
-passwordless sudo is unavailable. The proposed next route is user-level Lima
-with Apple's VZ backend, an Ubuntu 26.04 x86_64 image, a task-specific
-`LIMA_HOME`, no host mounts/containerd and a bounded 6-CPU/16-GiB/150-GiB sparse
-guest. These are prerequisites and a proposal, not an installed VM. The next
-engineer should use the existing verified alias, preserve host data, verify
-official release digests and finish actual boot/toolchain/GUI/vault readiness.
+The Intel provisioning milestone completed the non-destructive VM setup on
+2026-11-15. The [host record](intel-ubuntu-qualification-host.md) retains native
+facts, exact source, tool versions, successful infrastructure checks and the
+composition rejection that prevents downstream product work. Its external
+continuation is
+`/Users/jaeger/.codex/release-preparation/v0.5.0-20261115/intel-ubuntu`.
+The installer source and both preparation records still need explicit integration
+onto current main after reconciling its tracker writer. No broader Claude intake
+is implied.
 
 The historical external run root
 `/Users/jaeger/.codex/release-runs/v0.4.2-20261104` was not present at takeover.
