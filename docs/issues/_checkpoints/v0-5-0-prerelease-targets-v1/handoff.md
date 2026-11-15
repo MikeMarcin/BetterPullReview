@@ -3404,3 +3404,17 @@ window's read leaves the first window's agent run unretired (workspace
 cleanup never runs while the second window is open), so a queue there would
 wait. The course uses the single-head phase; the look is frozen without
 `--next-push`. Not investigated further.
+
+Correction to the "Found" note above: the stall is a race, not the phase. At
+the next push the course passes once the second window has loaded; a run in
+the first window that ends while the second is still loading never retires
+(workspace cleanup refused, job kept). Look `queue-windows-v001`: session
+`74fcc4b08cdfbc6fc8d13b39a1040715`, state
+`/Users/jaeger/.attended-review-state/queue-windows-v001-2026-11-14/state`
+(URL in `serve.log`), cursor 3, host PID 73524; root
+`/Users/jaeger/queue-windows-v001.uqq1jqr3` from `d8f7fbf4b` (at the next
+push). One question, `BPR-2151-queue-across-windows`. AC03 shows the owner
+nothing new, so it has no question.
+
+Next: on the handback read from cursor 3; on Accept, finish BPR-2151 (AC02 to
+AC04) and mirror to main; remove the root and stop the host.
