@@ -111,3 +111,5 @@ Option-Down move it, Delete removes it; a pencil edits a typed message and a
 trash can removes it; a sending message is dimmed and says Sending. The
 fixture agent takes about twenty seconds, a read a second, on any question
 holding "Take your time".
+
+Look `prompts-v002` filed (2026-11-14): session `a91caa31b1f548e1c54a22f0dc1350ec`, state `/Users/jaeger/.attended-review-state/prompts-v002-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v002.bkog9vts` from `d92a6426e` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2179-nested-conditions`, `BPR-2151-queue-list-look`, `BPR-2151-drag-trash-pencil`, `BPR-2151-slow-fixture-ask` (type "Take your time"), `BPR-2151-thinking-for`.

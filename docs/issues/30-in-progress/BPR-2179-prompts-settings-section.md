@@ -266,3 +266,7 @@ default: the chip order stands (accepted); the Conditions add button moved to
 the heading's row with All/Any/None under it, so it is no longer cut; a
 system prompt in the library saves as it is typed too (no Save or Discard
 there; Reset and Undo reset stay).
+
+### Look prompts-v002
+
+Look `prompts-v002` filed (2026-11-14): session `a91caa31b1f548e1c54a22f0dc1350ec`, state `/Users/jaeger/.attended-review-state/prompts-v002-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v002.bkog9vts` from `d92a6426e` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2179-nested-conditions`, `BPR-2151-queue-list-look`, `BPR-2151-drag-trash-pencil`, `BPR-2151-slow-fixture-ask` (type "Take your time"), `BPR-2151-thinking-for`.

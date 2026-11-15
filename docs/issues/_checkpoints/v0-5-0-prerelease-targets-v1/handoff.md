@@ -3266,3 +3266,32 @@ yet found.
 Next: on prompts-v001's handback read from cursor 36; the spec's open
 questions (Agent tab chip order, footnoted greys kinds, system prompt Save vs
 autosave, which repositories Prompts for lists).
+
+## prompts-v001 handed back; its rejects built; prompts-v002 filed (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `781380408` | Nested condition groups (All/Any/None; core, store, editor); the pending list restyled (bordered panel and cards, drag, pencil, trash); Thinking for Ns; the fixture agent's slow ask; system prompts save as typed; Conditions Add no longer cut; verdicts on both cards |
+| `d92a6426e` | `--attended-prompt-examples` a known option; the queue course checks the seeded nested prompts. **prompts-v002 frozen commit** |
+| main `f41f7160a` | Card mirror (verdicts and rejects built) |
+
+Runs (dev, Debug, macOS), 22 passing: core_prompt_*, core_quick_ask,
+core_agent_queue, sqlite_agent_setup_storage, qt_prompts_page,
+qt_settings_window, qt_feedback_label_settings, qt_agent_footer, qt_ask_menu,
+qt_prompt_macro_chips, qt_button_faces, qt_quiet_buttons, qt_tour_side_chat,
+application_ask_menu_public_path, application_prompt_macros_public_path,
+application_ask_queue_public_path, application_fixture_agent_*,
+qt_workbench_window_scale_100, architecture_boundaries. Documentation gate OK.
+The queue course exercises the drop through `agent_tab_view::drop_queued`; a
+synthetic QDropEvent and an Option-Up key sent with QApplication::sendEvent did
+not reach the card or panel in the course (cause not found), so the real drag
+and Option-Up are left to the look.
+
+Look `prompts-v002`, filed and not waited on: session
+`a91caa31b1f548e1c54a22f0dc1350ec`, state
+`/Users/jaeger/.attended-review-state/prompts-v002-2026-11-14/state` (URL in
+`serve.log`), cursor 15, host PID 51036 (Tailscale child 51049). Root
+`/Users/jaeger/prompts-v002.bkog9vts` from `d92a6426e`. Five questions.
+The prompts-v001 root and host were removed and stopped by the coordinator.
+
+Next: on prompts-v002's handback read from cursor 15.
