@@ -18,7 +18,8 @@ BetterPullReview.
 Install these before configuring:
 
 - CMake 4.4.2
-- Ninja
+- Ninja; 1.13 or newer for a `dev` build to join the
+  [build jobserver](#build-jobserver)
 - A C++23 compiler
 - Python 3.10 or newer, for the verification scripts. On macOS,
   `/usr/bin/python3` is too old; make sure `python3` resolves to a newer
@@ -35,7 +36,8 @@ Install these before configuring:
 
 **Qt.** You do not need to install Qt yourself. Configure acquires a pinned
 Qt 6.12.0 into the shared dependency cache. To use a Qt you already have, pass
-`-DBPR_QT_ROOT=<prefix>` (an official 6.12.0 prefix, which also works offline),
+`-DBPR_QT_ROOT=<prefix>` (an official 6.12.0 prefix with QtSvg and the
+qtimageformats add-on, which also works offline),
 or pass `-DBPR_QT_PROVIDER=OFF` to require a caller-installed Qt 6.8 or newer
 including CoreTools (`rcc`). On Windows, Qt acquisition needs Git on `PATH`.
 
@@ -264,6 +266,37 @@ shared one see different Qt include paths and do not share those units. The
 presets keep `build/.cpm-cache` because the release package records its
 `CPM_SOURCE_CACHE`.
 
+## Build jobserver
+
+When several builds share one machine, full-width Ninja builds side by side can
+exhaust its memory. A machine-wide GNU make jobserver caps them all. Start it
+once per login on macOS or Linux:
+
+```sh
+python3 scripts/build_jobserver.py start     # 40 tokens; --tokens N to change
+python3 scripts/build_jobserver.py status
+python3 scripts/build_jobserver.py stop
+```
+
+`start` is idempotent, and `stop` signals only the process its own pidfile
+names. The `dev` preset (and `qualification-release`, which inherits it) sets
+`CMAKE_MAKE_PROGRAM` to `scripts/jobserver_ninja.py`, so every
+`cmake --build --preset dev` goes through that wrapper:
+
+- With the server running, the wrapper drops `-j` (Ninja ignores a jobserver
+  whenever `-j` is given) and hands Ninja the server's FIFO. All joined builds
+  together run at most N jobs; when every token is in use, a build waits for
+  one. Joining needs Ninja 1.13 or newer.
+- With no server, or a stale FIFO left by a killed one, the build runs at the
+  preset's `-j 8`. A missing server never fails or stalls a build.
+- Each build holds a lock on `.bpr-build.lock` in its build directory. A second
+  build of the same tree prints which build it waits for and runs after it;
+  builds of different trees still run side by side.
+
+A tree configured before the wrapper existed joins after one
+`cmake --preset dev`. Do not run a bare `ninja` with a larger `-j` in a shared
+tree: it bypasses the wrapper and does not join the pool.
+
 ## Presets
 
 All build trees live under the ignored `build/` directory, one per preset.
@@ -273,6 +306,8 @@ All build trees live under the ignored `build/` directory, one per preset.
 | `dev` | Everyday development: the complete graph with Qt (Debug) | Yes |
 | `core-only` | Proving the core and application host build without Qt (Debug) | Yes |
 | `windows-dev` | Development on Windows (Visual Studio 18 2026, multi-config; build and test select Debug) | Yes |
+| `qualification-release` | The `dev` graph built and tested as Release (`build/qualification-release`) | Yes |
+| `windows-qualification-release` | The `windows-dev` tree built and tested in its Release configuration | Yes |
 | `tour-cli` | The non-GUI `bpr` terminal tool (Release) | No |
 | `app-release` | A tests-disabled Release application for local use | No |
 | `macos-release`, `windows-app-release`, `linux-package` | Distribution builds; see the [package guide](release-packages.md) | No |
@@ -292,7 +327,7 @@ Three switches shape the graph independently of the preset:
 
 | Switch | Default | What it changes |
 |---|---|---|
-| `BPR_BUILD_TOUR_CLI` | `OFF` in `dev`, `ON` in `tour-cli` | Builds `bpr` (`app_bpr`) and registers the rows that run it: `cycle_cli_public_path`, `cycle_cli_documentation`, `skill_bpr_cycle_package`, and, in a graph with Qt, the two-round, parity and handoff courses. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
+| `BPR_BUILD_TOUR_CLI` | `OFF`; `ON` in `tour-cli`, `macos-release` and `macos-release-agent-free` | Builds `bpr` (`app_bpr`) and registers the rows that run it: the `tour_cli_*` rows, `skill_pr_tour_package`, `cycle_cli_public_path`, `cycle_cli_documentation`, `skill_bpr_cycle_package`, and, in a graph with Qt, the two-round, parity and handoff courses. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
 | `BPR_BUILD_AGENT_INTEGRATIONS` | `ON` (`OFF` in `tour-cli` and the `-agent-free` presets) | Compiles out the agent launch adapter, protocol decoders, agent hosts, MCP helper and Send to Agent. |
 | `BPR_BUILD_LOCAL_AUTOMATION` | `ON` (`OFF` in the `-agent-free-automation-off` presets) | Without it no owner command endpoint is bound and `bpr` cannot be built; the automation-off two-round course is registered instead. |
 
@@ -315,9 +350,17 @@ The [terminal guide](cycle-cli.md) covers `bpr` itself.
 | `better_pull_review_sqlite3` | Verified CPM-acquired static SQLite 3.53.4 provider, exposed as `BetterPullReview::SQLite3` |
 | `better_pull_review_adapter_sqlite` | Concrete BPEC v1 epoch-catalog storage and operation-state adapter |
 | `better_pull_review_adapter_ai` | Capability boundary established for a later RFC |
+| `better_pull_review_adapter_agent` | Agent launch adapter and protocol loop; only with `BPR_BUILD_AGENT_INTEGRATIONS` |
+| `better_pull_review_adapter_mcp` | Read-only MCP context helper; links only the core and its JSON decoder |
+| `better_pull_review_adapter_workspace` | Read-only local workspace source for Review Cycles; follows no links, writes nothing, runs no Git |
+| `better_pull_review_adapter_syntax` | KSyntaxHighlighting definitions; graphs with Qt only |
+| `better_pull_review_adapter_update` | Release update staging; the macOS installer transaction on Apple only |
+| `better_pull_review_process_support` | `QProcess` supervision the `gh` and Git runners share |
+| `better_pull_review_platform` | Header-only platform definitions several adapters share |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
 | `better_pull_review_composition` | Explicit profile, transport, vault, provider, worker, host, and Qt wiring |
-| `app_better_pull_review` | Native read-only GitHub application target; emits `better_pull_review` |
+| `app_better_pull_review` | Native GitHub review application target; emits `better_pull_review` |
+| `app_bpr` | The `bpr` terminal tool; only with `BPR_BUILD_TOUR_CLI` |
 
 ## Run tests
 

@@ -798,7 +798,7 @@ Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack i
 | [RFC-BPR-0114](RFC-BPR-0114-commit-and-push-a-local-pr-draft-through-the-authors-own-git.md) | Commit and push a local PR draft through the author's own Git | Proposed | RFC-BPR-0108, RFC-BPR-0111 |
 | [RFC-BPR-0115](RFC-BPR-0115-agent-changes-in-a-local-pr-draft-worktree.md) | The agent changes a local PR draft's worktree: fixes and history operations | Proposed | RFC-BPR-0096, RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0113, RFC-BPR-0114 |
 
-Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/local-draft-authoring-v1.LIVE_IMPORT.md); [authored plan](plans/local-draft-authoring-v1/milestone-plan.json). RFC-BPR-0114 reopens PUBLISH-01 of RFC-BPR-0111; the [proposed amendments](assets/local-draft-authoring-v1/AMENDMENTS.md) to RFC-BPR-0104, 0108 and 0111 are applied by the owning milestones, not at import.
+Imported 2026-11-10 at the owner's request. BPR-2062 (RFC-BPR-0113) and BPR-2065 and BPR-2182 (RFC-BPR-0114) are Done; the pack's other cards wait in Backlog. [Import](assets/local-draft-authoring-v1.LIVE_IMPORT.md); [authored plan](plans/local-draft-authoring-v1/milestone-plan.json). RFC-BPR-0114 reopens PUBLISH-01 of RFC-BPR-0111; the [proposed amendments](assets/local-draft-authoring-v1/AMENDMENTS.md) to RFC-BPR-0104, 0108 and 0111 are applied by the owning milestones, not at import.
 
 ## Agent assistance
 
@@ -811,7 +811,7 @@ Imported 2026-11-10 at the owner's request; no implementation mandate has been g
 | [RFC-BPR-0120](RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md) | The agent runs a planned check on a local PR draft | Proposed | RFC-BPR-0101, RFC-BPR-0103, RFC-BPR-0104, RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0128 |
 | [RFC-BPR-0121](RFC-BPR-0121-insights-shows-what-the-agents-did-and-what-was-kept.md) | Insights shows what the agents did and which suggestions were kept | Proposed | RFC-BPR-0086, RFC-BPR-0101 |
 
-Imported 2026-11-10 at the owner's request; no implementation mandate has been given. [Import](assets/agent-assistance-v1.LIVE_IMPORT.md); [authored plan](plans/agent-assistance-v1/milestone-plan.json). The [proposed amendments](assets/agent-assistance-v1/AMENDMENTS.md) change the subject rule of two agent entry points and are applied by the owning milestones, not at import.
+Imported 2026-11-10 at the owner's request. BPR-2073 (RFC-BPR-0116) is Done; BPR-2074, BPR-2076 and BPR-2078 are parked for owner review. [Import](assets/agent-assistance-v1.LIVE_IMPORT.md); [authored plan](plans/agent-assistance-v1/milestone-plan.json). The [proposed amendments](assets/agent-assistance-v1/AMENDMENTS.md) change the subject rule of two agent entry points and are applied by the owning milestones, not at import.
 
 ## Address review feedback
 
@@ -829,7 +829,7 @@ Imported 2026-11-11 at the owner's request ("/author-rfc a pack for this and mes
 |---|---|---|---|
 | [RFC-BPR-0125](RFC-BPR-0125-suggested-prompts-are-editable-macros.md) | Suggested prompts are editable macros with rules for where and when they show | In Progress | RFC-BPR-0092, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0107 |
 
-Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested prompts configurable macros we can add/remove/edit in the settings"). The owner answered Q1 to Q10 the same day, Q6 otherwise than recommended (`/` stays skills only; prompts are reached with `/p `), and asked for implementation. Milestone 1, pure core, is built on `main`'s base; milestones 2 onward need the lane's RFC-BPR-0102 and RFC-BPR-0107 code. [Mockup](RFC-BPR-0125-suggested-prompts-are-editable-macros-mockup.html). Its proposed amendments to RFC-BPR-0102 and RFC-BPR-0107 are applied by the owning milestones, not at drafting.
+Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested prompts configurable macros we can add/remove/edit in the settings"). The owner answered Q1 to Q10 the same day, Q6 otherwise than recommended (`/` stays skills only; prompts are reached with `/p `), and asked for implementation. BPR-2144, BPR-2145 and BPR-2146 are Done; BPR-2147 to BPR-2149 wait in Backlog. [Mockup](RFC-BPR-0125-suggested-prompts-are-editable-macros-mockup.html). Its proposed amendments to RFC-BPR-0102 and RFC-BPR-0107 are applied by the owning milestones, not at drafting.
 
 ## Queue and steer
 
@@ -837,7 +837,7 @@ Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested pro
 |---|---|---|---|
 | [RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md) | Queue follow-ups in BPR and steer native agent chats | Proposed | RFC-BPR-0092, RFC-BPR-0096, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0103 |
 
-Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Implement the RFC"); queued behind the lane's current work, no card started. [Import](assets/queue-and-steer-v1.LIVE_IMPORT.md); [plan](plans/queue-and-steer-v1/MILESTONES.md), one milestone. The owner answered Q1 to Q18 on 2026-11-13 (the tour feedback buffer folds into the queue, the local draft's discussion is included, follow-up behaviour is a Queue or Steer setting defaulting to Queue, a queue belongs to its session, queued messages are edited in place) and added one Stop all in the agent footer (AC09).
+Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Implement the RFC"); BPR-2151 is Done, BPR-2181 is In Progress, and BPR-2152 to BPR-2154 wait in Backlog. [Import](assets/queue-and-steer-v1.LIVE_IMPORT.md); [plan](plans/queue-and-steer-v1/MILESTONES.md), one milestone. The owner answered Q1 to Q18 on 2026-11-13 (the tour feedback buffer folds into the queue, the local draft's discussion is included, follow-up behaviour is a Queue or Steer setting defaulting to Queue, a queue belongs to its session, queued messages are edited in place) and added one Stop all in the agent footer (AC09).
 
 ## Comments absorb notes
 
@@ -845,7 +845,7 @@ Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Impleme
 |---|---|---|---|
 | [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) | Comments absorb notes: one comment that is Local, Draft or Published | Auto-Verified | Closed 2026-11-14 by [BPR-2162](../issues/60-done/BPR-2162-close-rfc-0127.md): every criterion evidenced on the [ledger](../verification/RFC-BPR-0127.md), owner looks accepted through v007, AC10 as the owner amended it (Draft alone on agent surfaces); follow-ups BPR-2172 to BPR-2175 |
 
-Imported 2026-11-13; the owner accepted the design and all fourteen defaults, with a computer icon ("Only on this computer") instead of a lock for Local comments. No card started. [Import](assets/comments-absorb-notes-v1.LIVE_IMPORT.md); [plan](plans/comments-absorb-notes-v1/MILESTONES.md), five milestones; [accepted design](../design/comments-absorb-notes-v1/README.md). Its amendments are recorded on RFC-BPR-0007, 0011, 0012, 0023, 0049, 0085, 0086, 0094, 0101, 0102, 0107, 0108, 0110, 0111, 0113, 0115, 0116, 0117, 0118, 0121 and 0125.
+Imported 2026-11-13; the owner accepted the design and all fourteen defaults, with a computer icon ("Only on this computer") instead of a lock for Local comments. [Import](assets/comments-absorb-notes-v1.LIVE_IMPORT.md); [plan](plans/comments-absorb-notes-v1/MILESTONES.md), five milestones; [accepted design](../design/comments-absorb-notes-v1/README.md). Its amendments are recorded on RFC-BPR-0007, 0011, 0012, 0023, 0049, 0085, 0086, 0094, 0101, 0102, 0107, 0108, 0110, 0111, 0113, 0115, 0116, 0117, 0118, 0121 and 0125.
 
 ## Ask
 
@@ -853,4 +853,4 @@ Imported 2026-11-13; the owner accepted the design and all fourteen defaults, wi
 |---|---|---|---|
 | [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md) | Ask: quick asks at three scopes, and long answers read in a file tab | Auto-Verified | Closed 2026-11-14 by [BPR-2168](../issues/60-done/BPR-2168-close-rfc-0128.md): every criterion evidenced on the [ledger](../verification/RFC-BPR-0128.md), owner looks accepted through ask-v008 and report-templates-v004 (dressed reports, report colours in Appearance, the Agent tab's code boxes); Why did a check fail? has no row (RFC-BPR-0119 not built) |
 
-Written at import 2026-11-13 from the owner's Ask decisions: option 1C, quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab. Q1 to Q14 other than the host are open, each built as its default unless answered. No card started. [Import](assets/ask-v1.LIVE_IMPORT.md); [plan](plans/ask-v1/MILESTONES.md), three milestones; [chosen design](../design/ask-v1/README.md). Its amendments are recorded on RFC-BPR-0116, 0117, 0118, 0119 and 0125.
+Written at import 2026-11-13 from the owner's Ask decisions: option 1C, quick asks as macros with a Quick ask checkbox filtered by context, Ask at the pull request, a file and a thread, Was this addressed? on any thread, a merge of main as one line, and the report read in a file tab. Q1 to Q14 other than the host are open, each built as its default unless answered. [Import](assets/ask-v1.LIVE_IMPORT.md); [plan](plans/ask-v1/MILESTONES.md), three milestones; [chosen design](../design/ask-v1/README.md). Its amendments are recorded on RFC-BPR-0116, 0117, 0118, 0119 and 0125.

@@ -22,11 +22,16 @@ draft it opened. Otherwise it runs here, on the profile's store, under the
 profile's lease.
 
 `--json` writes one `bpr.draft.cli-result.v1` document: `ok`, and in `data`
-the `outcome` (`created`, `resumed`, `choose_target`, `moved`, `recovery`),
-the `draft` identity, `title`, `branch`, `target`, `candidates` and `notes`,
-or the `recovery` (`detached_head`, `remote_chain`, `target_unavailable`,
-`no_common_base`, `several_bases`, …) or `target_question`. A refusal has a
-`code` and a `message` and exits 2.
+the `outcome` (`created`, `resumed`, `choose_target`, `moved`, `recovery`)
+and the `location`; once a draft exists, its `draft` identity, `title`,
+`branch`, `target` and the counts of `candidates` and `notes`; and, when they
+apply, the `recovery` (`detached_head`, `remote_chain`, `target_unavailable`,
+`no_common_base`, `several_bases`, …) or `target_question`. `ok` is true when
+a draft was opened at this location. Otherwise the document has a `code` and a
+`message` and the command exits 2: `target_needed`, `rebind_needed` or
+`not_ready` beside that `data`, or a refusal with no `data`, such as `not_git`
+for a folder that is not a Git worktree. Without `--json`, success prints one
+line and a refusal prints its message on standard error.
 
 A target that the remotes do not settle (a fork and its parent, a repository
 with no known default branch) and a draft whose worktree moved are settled in

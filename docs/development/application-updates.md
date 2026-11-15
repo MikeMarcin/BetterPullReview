@@ -4,8 +4,9 @@
 that has been copied out of the DMG into a folder you can write to. Windows,
 Linux and other macOS installations update manually from the
 [release page](https://github.com/MikeMarcin/BetterPullReview/releases/latest).
-Administrators can turn self-update off by setting the `BPRManagedUpdates`
-preference to `true`.
+Administrators can turn self-update off by setting the boolean
+`BPRManagedUpdates` preference in the `com.gamecoretech.betterpullreview`
+domain to `true`.
 
 Installing an update closes every window. If a GitHub publish was in progress
 with an unknown result, check GitHub before publishing again: updating never

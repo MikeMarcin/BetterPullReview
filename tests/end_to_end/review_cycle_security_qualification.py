@@ -537,7 +537,7 @@ def main():
                         part = client.recv(64 - len(hello))
                         assert part, f"{name}: the owner greets first"
                         hello += part
-                    assert hello[:5] == b"BPRT\x06", f"{name}: protocol 6 greeting: {hello[:5]!r}"
+                    assert hello[:5] == b"BPRT\x08", f"{name}: protocol 8 greeting: {hello[:5]!r}"
                     started = time.monotonic()
                     try:
                         send(client, hello)

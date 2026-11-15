@@ -30,7 +30,9 @@ environments, the qualification above is incomplete.
 | Reading and publishing reviews | HTTPS `api.github.com` and Git smart HTTP to `github.com`, or the configured GHES host only. Only text the user publishes is sent. |
 | GitHub.com device sign-in | `github.com/login/device/code` and `/login/oauth/access_token`. |
 | Public preview | Anonymous GitHub.com requests; no credential. |
-| GitHub CLI profile (macOS, opt-in) | Whatever `gh` and its Git children reach; one short-lived credential per operation, no token stored. |
+| Images in descriptions and comments, and avatars | GitHub.com: HTTPS to GitHub's own image and avatar hosts (`*.githubusercontent.com`, `github.com`) and, after a redirect, GitHub's `github-production-*.s3.amazonaws.com` storage; never a credential. GHES: HTTPS to any host a description or comment names; the credential goes only to the GHES host itself and its `media.` host. **Settings > Appearance > People > Avatars > Coloured initials** fetches no avatar. |
+| GitHub CLI profile (opt-in) | Whatever `gh` and its Git children reach; one short-lived credential per operation, no token stored. |
+| Local PR draft Push (macOS and Linux) | The user's own Git pushes the draft's branch to the hosted repository's URL, through the user's Git configuration and credential helpers. Never forced; no tags. |
 | Review Cycles publication | `api.github.com` only, after confirmation: one new branch, commit and pull request. No push, force or delete. |
 | macOS updater (eligible signed installs) | `api.github.com` and `release-assets.githubusercontent.com`. |
 | AI agents the user starts | Whatever the agent connects to; no allow-list. |
@@ -48,9 +50,11 @@ Manual tokens are deleted on quit; device sign-in tokens persist until
 
 ## Local data
 
-Each profile stores notes, drafts, publication recovery, retained Git objects,
-agent workspaces, MCP context snapshots, Review Cycles captures and a
-diagnostic log. These can contain company source.
+Each profile stores notes, drafts, local PR drafts, publication recovery,
+retained Git objects, agent workspaces and conversations, MCP context
+snapshots, Review Cycles captures and a diagnostic log. Agent scratch folders
+sit beside the profile folder or in the user's cache folder. These can
+contain company source.
 
 > [!IMPORTANT]
 > BetterPullReview does not encrypt these stores; they rely on OS user
@@ -63,18 +67,32 @@ data behind; secure erasure is not claimed. See
 
 ## Programs and local IPC
 
-- **Git:** repository hooks, filters and external diff are not run as an app
-  feature.
-- **`gh`** (optional, macOS): may start Git and its credential helper.
-- **AI agents** (optional): `codex`, approved `claude` or `bpr-agent-terminal`.
+- **Git:** the app's own Git runs isolated: repository hooks, filters and
+  external diff are not run. The exception is **Commit** and **Push** in a
+  local PR draft (macOS and Linux; unavailable on Windows): after the user
+  allows it for that draft, the user's installed Git runs in their own
+  worktree with their Git configuration, the repository's hooks and their
+  credential helpers. **Save** in a local PR draft writes files in that
+  worktree.
+- **`gh`** (optional): may start Git and its credential helper.
+- **AI agents** (optional): Claude Code (`claude`), Codex (`codex`),
+  `bpr-agent-terminal`, or a custom agent program the user names by absolute
+  path. A custom agent's fixed arguments are passed exactly as written; no
+  shell runs them.
 - **Agent supervisor:** cleans up agent processes; it is not a sandbox.
 - **MCP helper:** read-only context over stdio.
 - **macOS updater:** `codesign`, `spctl`, `hdiutil` and its own helper; no
   elevation.
 
 The app opens no TCP or UDP server. Its only listeners are two same-user local
-IPC endpoints (window activation, and local commands used by `bpr`); neither
-carries credentials, GitHub access or arbitrary commands. There is no bundled
+IPC endpoints. One carries window activation. The other lets `bpr` send a fixed
+set of commands to the app that owns the profile, which runs them against its
+own local store: tour draft edits, writing-assist requests, `bpr cycle`
+commands and `bpr draft open`. It also answers one read, at most 200 lines of
+pinned source for a pull request a window already has open, from that window's
+Git cache. Neither endpoint carries credentials or publication authority, and
+neither accepts a GitHub request, a process or a command of the caller's
+choosing. There is no bundled
 web engine or Node runtime.
 
 ## AI agents
@@ -83,6 +101,19 @@ web engine or Node runtime.
 - By default it works in an isolated copy of the pull-request head; private
   notes are included only when selected.
 - Results never publish automatically. Agents' own tools may run code.
+- Agents that speak Claude Code's or Codex's protocols start with a scratch
+  folder by default, outside the repository (none on Windows). BetterPullReview
+  adds permission for the agent to write there and run the scripts it writes
+  there; the folder has a size limit, 256 MiB by default. When the agent's own
+  arguments or Codex configuration set its permissions, BetterPullReview adds
+  none.
+- **Build and run tests** is off by default for each agent. When it is on,
+  each pull request asks before the first build, and builds run only in a
+  disposable checkout of the pull request, with the user's account rights.
+- MCP servers are off by default: Claude Code gets an empty strict MCP
+  configuration and Codex an empty server list. Per agent, the user may let
+  the servers in the agent's own configuration load; a pull request's
+  checkout's servers never load.
 
 See the [AI boundary](../architecture/ai-agent-boundary.md).
 
