@@ -3832,8 +3832,17 @@ Decisions taken in this round:
   queue host is made by the profile (`compose_agent_queue`), no longer in
   the window's code.
 
-Next action: step 6, a scratch-worktree build of `32946c58e`'s successor
-(this checkpoint's commit). Then slices 3 to 6 per the card. The windows'
+Step 6 done: a scratch worktree at `0082c28c5` (detached, since removed)
+configured with `cmake --preset dev` and built `app_better_pull_review`
+and `test_agent_queue_windows_public_path` from nothing. Then
+`application_agent_queue_windows_public_path`,
+`application_agent_queue_close_runs_on_public_path` and
+`application_agent_queue_restart_public_path` passed there.
+
+Next action: slices 3 to 6 per the card. Close the transcript gap first
+(a profile-owned conversation store the runtime writes its unseen turns
+to), and look at `application_native_agent_sessions`'s
+`tour-native-first-answer`. The windows'
 own `AgentHost` still serves `restore_native`, `probe_workspace`, the
 offerings and the catalog. Retiring it is not required by AC01 and was
 not done.
