@@ -200,6 +200,15 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   no selection; the steer and fixture guard courses open the file at a line
   and send again until the turn runs. The contract's app source list lacked
   the lane's `review_agent_stack` files; they were added with the reseal.
+- Look steer-v002 filed 2026-11-15, not waited on: session
+  `2f71ab85765e5e310eedcafc88ad275a`, state
+  `/Users/jaeger/.attended-review-state/steer-v002-2026-11-15/state` (URL in
+  `serve.log` beside it), cursor 6, served on the tailnet (host PID 82984,
+  Tailscale child 82991). Root `/Users/jaeger/steer-v002.o_9b6mim` from
+  `c7b853ba3`, `returning-review-v1` with `--next-push`. Two questions:
+  `BPR-2153-steer` (Steer) and `BPR-2153-transcript` (the steered message
+  in the transcript, and after a restart). steer-v001's host was stopped and
+  its root removed.
 
 ## Progress (fixture session, 2026-11-15)
 
