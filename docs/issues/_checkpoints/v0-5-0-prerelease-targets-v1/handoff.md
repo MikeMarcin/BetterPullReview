@@ -3295,3 +3295,27 @@ Look `prompts-v002`, filed and not waited on: session
 The prompts-v001 root and host were removed and stopped by the coordinator.
 
 Next: on prompts-v002's handback read from cursor 15.
+
+## prompts-v002 handed back; reworked; prompts-v003 filed (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `99e327e03` | One stop and one time (the run's stop is Stop all); the drawer never pans sideways (with a drawer-fit check that fails when it does, confirmed by reverting the wrap); conditions: no top-level None, Disable/Hide, trash cans, Undo/Redo, Add = Condition or Group, full width with no inner scroll |
+| `37f9eabf1` | The pending list's state on its own wrapped line. **prompts-v003 frozen commit** |
+| main `c7ae0a285` | Card mirror (v002 verdicts and rework) |
+
+Runs (dev, Debug, macOS), passing: core_prompt_surfaces, qt_prompts_page,
+qt_settings_window, qt_agent_footer, qt_drawer_surfaces_fit_scale_100/125/200,
+application_ask_queue_public_path, application_prompt_macros_public_path.
+Failing in this worktree from another writer's uncommitted report-template and
+appearance work (not in the frozen commit): architecture_boundaries (QUrl in
+agent_report_view.cpp), application_ask_menu_public_path (What changed's
+prompt), and tests/core/agent_context_supplement_tests.cpp does not compile.
+
+Look `prompts-v003`, filed and not waited on: session
+`2b1c044e69cb4b2740b13a50ad6c5915`, state
+`/Users/jaeger/.attended-review-state/prompts-v003-2026-11-14/state` (URL in
+`serve.log`), cursor 9, host PID 73741 (Tailscale child 73749). Root
+`/Users/jaeger/prompts-v003.dpoz1ap3` from `37f9eabf1`. Three questions.
+
+Next: on prompts-v003's handback read from cursor 9.

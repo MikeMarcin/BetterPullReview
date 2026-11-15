@@ -291,3 +291,7 @@ prompt, a run of typing being one step; Add offers Condition (a submenu) and
 Group (a new group is All of these); the conditions column takes the room
 beside the text (no fixed width) and has no scroll of its own, the editor
 growing with them while the page scrolls.
+
+### Look prompts-v003
+
+Look `prompts-v003` filed (2026-11-14): session `2b1c044e69cb4b2740b13a50ad6c5915`, state `/Users/jaeger/.attended-review-state/prompts-v003-2026-11-14/state` (URL in `serve.log` beside it), cursor 9; root `/Users/jaeger/prompts-v003.dpoz1ap3` from `37f9eabf1` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Three questions: `BPR-2151-one-stop-one-time`, `BPR-2179-nested-conditions`, `BPR-2151-drawer-no-sideways`.
