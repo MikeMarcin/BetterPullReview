@@ -462,4 +462,24 @@ slice 1.
   `agent_queue_host::discard`. Course `qt_drawer_surfaces_fit_scale_*`
   (the pending list with an uncertain row: only it offers Discard, the
   press asks for that message, and the drawer stays whole).
+- **Verification, second round (2026-11-15):** a scratch worktree of
+  `d9962f2ff`, configured and built from nothing, ran the agent and queue
+  course set serially (ctest `-R "agent|queue|ask_|tour_feedback|prompt_macros|explain_file|suggest_change|review_tour|enhance_comment|returning_review|application_logging|qt_drawer_surfaces_fit"`):
+  168 of 176 passed. Of the 8 that failed, four chat contracts
+  (`application_agent_chat_{composition,stale,anchored_continuation,conversation}_contract`)
+  pinned the window's `AgentHost->dispatch(` as the one launch path; the
+  pin now names the runtime's (`0d70ff618`) and they pass. Four fail on
+  this round's parent `4bb44f28f` too, built in the same scratch tree:
+  `application_agent_chat_continued_contract` (it passed at `0d70ff618`,
+  so it is intermittent), `application_enhance_comment_note_public_path`
+  ("Use puts it in the Local comment to save"),
+  `application_review_tour_link_public_path` (exit -11) and
+  `application_review_tour_cli_ordinary_stop` ("consented to the chosen
+  account ... no read question opened"). The writing-stub courses
+  (tour writing, writing wrapper, ask courses, explain, suggest, returning
+  review) and `application_logging*` pass. At `0d70ff618`, the scratch tree
+  rebuilt and ran the 34 courses this round touched (`application_agent_chat_*`,
+  `application_agent_invocation_*`, `application_agent_finding_dif*`,
+  `application_agent_queue_*`, `qt_drawer_surfaces_fit*`,
+  `application_agent_launch`, `application_agent_finding_protocol`): 34 of 34.
 

@@ -3916,3 +3916,54 @@ Not done this round: usage-limit decode (`"error":"rate_limit"`), the
 admission run id and AC12, Discard's control in the Agent tab, the store
 refusal (AC05), slices 5 and 6 (AC06, AC08, AC10, AC13, AC11, AC15,
 BPR-2184 N4 and N5).
+
+## BPR-2181: lane green again, window fallback retired, usage limit decoded, Discard shown (2026-11-15, second round)
+
+Coordinator (2026-11-15): priority 1 the five red contracts and retiring
+the window's fallback host for turns, then AC02, AC03/AC12, AC04/AC05,
+slices 5 and 6; the writing-stub courses; finish with a scratch build of
+HEAD and the full agent and queue course set.
+
+| Commit | What |
+|---|---|
+| `d9962f2ff` | The five contracts pass; `send_agent_turn` never runs a turn on the window; usage-limit decode and pause with its fixture-agent course; Discard on an uncertain message |
+| `0d70ff618` | The chat composition course pins the runtime's dispatch as the one launch path |
+
+Causes of the five (the last handoff's "fixture holds" diagnosis was
+wrong): the context evidence expected the window's session, a fixture's
+re-accepted revision never reached the lent handoff, the Dif matched the
+window's session and authority, and the stack's epoch host (its agent
+host's workspace port) and the profile's epoch actors closed before a
+refused workspace removal could be retried. Each fix is on the card.
+
+Another writer works in this worktree on BPR-2180/BPR-2191 (commit
+`4bb44f28f`, and uncommitted `window_navigation.cpp`,
+`window_workbench.cpp`, `workbench_application_host.cpp`). This round
+committed only its own paths. The dev tree's course runs include that
+writer's uncommitted edits; the scratch run below does not.
+
+Verification (scratch worktree, built from nothing, serial): the agent
+and queue course set at `d9962f2ff`, 168 of 176 pass. Four chat contracts
+failed on a source pin and pass at `0d70ff618`; four fail at the parent
+`4bb44f28f` too (`application_agent_chat_continued_contract`, intermittent;
+`application_enhance_comment_note_public_path`,
+`application_review_tour_link_public_path`,
+`application_review_tour_cli_ordinary_stop`). At `0d70ff618` the 34
+courses this round touched pass, 34 of 34. The writing-stub courses
+(tour writing and its wrapper, the ask courses, explain, suggest,
+returning review) and `application_logging*` pass. Documentation gate
+passes. Scratch worktree removed.
+
+Not done this round: AC03 and AC12 (the release still reads the tab's
+refusal text as its verdict; a typed admission with the run id needs the
+runner's start to settle asynchronously for a quick ask whose turn starts
+on a later pass), a public course reaching an uncertain message through a
+crash (AC04), the store refusal returned to the composer (AC05), slices 5
+and 6 (AC06, AC08, AC10, AC15, AC13, AC11, BPR-2184 N4 and N5).
+
+Next action: AC03/AC12 (typed admission from `send_agent_turn` and the
+runtime's dispatch, keyed by run id, replacing `send_refusal_text()` in
+`release_queued`), then AC05's refusal, then slices 5 and 6. Look at the
+three pre-existing failures with their owners (enhance, tour link, tour CLI
+stop).
+
