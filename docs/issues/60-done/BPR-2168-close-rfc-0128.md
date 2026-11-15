@@ -57,5 +57,20 @@ Reconcile the amended RFCs (RFC-BPR-0116, 0117, 0118, 0119, 0125) with what was 
 
 [[BPR-2166]] and [[BPR-2167]] are Done; look report-templates-v004 was
 accepted. RFC-BPR-0128 is Auto-Verified, its index entry closed and its
-verification summary (RFC-BPR-0128 verification on claude/v0-5-0-prerelease-targets-52265d) written.
+verification summary (on claude/v0-5-0-prerelease-targets-52265d) written.
+
+## Correction (2026-11-14)
+
+The close missed that `architecture_boundaries` was red from `16e8e2dc9`. The
+report page was a `QTextBrowser` taking its links as `QUrl`, so the page could
+load what agent-written text named, and the gate's later rules went
+unenforced. Fixed:
+
+- The page now reads over the Markdown readers' resource-denying document and
+  takes its links as text. No gate exception was added.
+- New course `qt_agent_report_view` proves the page loads nothing. It fails
+  against the old page.
+- The gate is green again.
+
+Details are in RFC-BPR-0128's verification (on claude/v0-5-0-prerelease-targets-52265d).
 
