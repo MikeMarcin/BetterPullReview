@@ -42,6 +42,10 @@ namespace bpr::application {
 		/// \brief No run, workspace or helper of it is outstanding.
 		[[nodiscard]] virtual auto is_quiescent() const -> bool = 0;
 		virtual void               shutdown()                   = 0;
+		/// \brief [[BPR-2181]]. The review's authority the machinery reads it
+		/// under (the lease the profile lent it) is live. No turn starts
+		/// without it.
+		[[nodiscard]] virtual auto authorized() const -> bool = 0;
 	};
 
 	/// \brief The review a runtime builds a released message's request from:
@@ -90,12 +94,15 @@ namespace bpr::application {
 
 		/// \brief What the session's agent can take for `aFront` (the message
 		/// that goes next): busy while a turn runs or its run has not retired;
-		/// not set up when nothing could send it.
+		/// not set up when nothing could send it or the review's authority is
+		/// not live.
 		[[nodiscard]] auto state(const core::queued_entry* aFront) const -> core::queue_agent;
 		/// \brief Releases one queued message: through an attached window that
 		/// releases, otherwise built from the snapshot. Whether a turn started.
 		[[nodiscard]] auto release(const core::queued_entry& aEntry) -> bool;
 		/// \brief (d) A turn the window composed, sent through the runtime.
+		/// Refused while a turn runs and while the review's authority is not
+		/// live.
 		[[nodiscard]] auto dispatch(agent_invocation_request aRequest) -> bool;
 		void               cancel();
 		/// \brief The run of the runtime's turn retired (its machinery is
@@ -180,6 +187,13 @@ namespace bpr::application {
 		/// \brief A window stops presenting `aSession`: its runtime stays while
 		/// its queue can drain or a turn runs.
 		void detach(const std::string& aSession, std::uint64_t aPresenter);
+		/// \brief [[BPR-2181]]. The review's lent authority ended (the account
+		/// or its identity changed, the pull request became unreadable, or
+		/// the profile closed): the session's queue pauses with
+		/// `core::queue_pause::lost_access` and its running turn is
+		/// cancelled. Nothing starts until a window lends it a live
+		/// authority again and the reviewer resumes.
+		void authority_ended(const std::string& aSession);
 		/// \brief The sessions with a runtime.
 		[[nodiscard]] auto sessions() const -> std::vector<std::string>;
 		void               shutdown();

@@ -35,6 +35,9 @@ namespace bpr::application {
 		if (Running || !Turns->is_quiescent()) {
 			return core::queue_agent::busy;
 		}
+		if (!Turns->authorized()) {
+			return core::queue_agent::not_set_up;
+		}
 		if (aFront == nullptr) {
 			return Snapshot || std::ranges::any_of(Presenters, [](const auto& aPresenter) { return static_cast<bool>(aPresenter.second.Release); })
 				? core::queue_agent::idle
@@ -69,7 +72,7 @@ namespace bpr::application {
 
 	auto review_agent_runtime::dispatch(agent_invocation_request aRequest) -> bool
 	{
-		if (Turns == nullptr || Running || !Turns->is_quiescent()) {
+		if (Turns == nullptr || Running || !Turns->is_quiescent() || !Turns->authorized()) {
 			return false;
 		}
 		Running   = true;
@@ -281,6 +284,17 @@ namespace bpr::application {
 			runtime->detach(aPresenter);
 			settle(aSession);
 		}
+	}
+
+	void review_agent_runtimes::authority_ended(const std::string& aSession)
+	{
+		if (Dependencies.Queue != nullptr) {
+			Dependencies.Queue->pause(aSession, core::queue_pause::lost_access);
+		}
+		if (auto* const runtime = find(aSession); runtime != nullptr) {
+			runtime->cancel();
+		}
+		settle(aSession);
 	}
 
 	auto review_agent_runtimes::sessions() const -> std::vector<std::string>

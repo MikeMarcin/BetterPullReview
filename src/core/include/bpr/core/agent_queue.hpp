@@ -82,6 +82,9 @@ namespace bpr::core {
 		delivery_unknown,
 		/// What an entry is about is no longer there.
 		changed_target,
+		/// [[BPR-2181]]. The review's authority ended: the account or its
+		/// identity changed, or the pull request became unreadable.
+		lost_access,
 	};
 	[[nodiscard]] auto stable_name(queue_pause aPause) noexcept -> std::string_view;
 

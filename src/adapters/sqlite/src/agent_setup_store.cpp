@@ -3103,7 +3103,7 @@ namespace bpr::adapters::sqlite {
 						queue.Revision    = static_cast<std::uint64_t>(sqlite3_column_int64(meta->Value, 1));
 						queue.LastId      = static_cast<std::uint64_t>(sqlite3_column_int64(meta->Value, 2));
 						const auto paused = column_text(meta->Value, 3).value_or(std::string{ });
-						queue.Paused      = named_value<core::queue_pause>(paused, 8U).value_or(core::queue_pause::restarted);
+						queue.Paused      = named_value<core::queue_pause>(paused, 9U).value_or(core::queue_pause::restarted);
 					}
 					auto entries = detail::prepare(db, "SELECT session,id,quick_ask,scope,file,thread,label,text,state,held FROM agent_queue_entries ORDER BY session,position");
 					if (!entries) {

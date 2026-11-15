@@ -43,6 +43,7 @@ namespace bpr::core {
 		case queue_pause::restarted:        return "restarted";
 		case queue_pause::delivery_unknown: return "delivery-unknown";
 		case queue_pause::changed_target:   return "changed-target";
+		case queue_pause::lost_access:      return "lost-access";
 		}
 		return "unknown";
 	}

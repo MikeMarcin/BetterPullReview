@@ -53,9 +53,10 @@ namespace {
 		std::vector<application::agent_invocation_request> Requests;
 		application::agent_invocation_projection_port*     Projection = nullptr;
 		std::function<void()>                              Retired;
-		bool                                               Running  = false;
-		std::size_t                                        Cancels  = 0U;
-		bool                                               Shutdown = false;
+		bool                                               Running    = false;
+		std::size_t                                        Cancels    = 0U;
+		bool                                               Shutdown   = false;
+		bool                                               Authorized = true;
 
 		void answer(const std::string& aText)
 		{
@@ -82,6 +83,7 @@ namespace {
 		void               cancel() override { ++Machinery.Cancels; }
 		[[nodiscard]] auto is_quiescent() const -> bool override { return !Machinery.Running; }
 		void               shutdown() override { Machinery.Shutdown = true; }
+		[[nodiscard]] auto authorized() const -> bool override { return Machinery.Authorized; }
 
 	private:
 		agent_machinery& Machinery;
@@ -236,6 +238,46 @@ namespace {
 		expect(app.Runtimes->open("agent-tab:github.com/o/r#10") == nullptr && app.Runtimes->open("tour:github.com/o/r#9") == nullptr,
 			   "nothing opens while closing, and a tour session is not the registry's");
 	}
+
+	/// [[BPR-2181]]. The review's authority the profile lent the runtime ends
+	/// (here, a lost lease): the queue pauses with that reason, the running
+	/// turn is cancelled, and no turn starts until a live authority returns
+	/// and the reviewer resumes.
+	void test_a_lost_authority_pauses_the_queue_and_starts_nothing()
+	{
+		auto       app     = profile{ };
+		const auto session = std::string{ "agent-tab:github.com/o/r#11" };
+		auto*      runtime = app.Runtimes->open(session);
+		runtime->adopt(review_snapshot());
+		// A window shows the session throughout, so the runtime stays.
+		auto window = shown_turns{ };
+		static_cast<void>(runtime->attach({ .Projection = &window, .Release = { } }));
+		static_cast<void>(app.Queue.enqueue(session, typed("one")));
+		static_cast<void>(app.Queue.enqueue(session, typed("two")));
+		auto& machinery = app.Machinery[session];
+		expect(machinery.Requests.size() == 1U, "the first message is running");
+
+		machinery.Authorized = false;
+		app.Runtimes->authority_ended(session);
+		expect(machinery.Cancels == 1U && app.Queue.queue(session)->Paused == core::queue_pause::lost_access,
+			   "the running turn is cancelled and the queue pauses with lost access");
+		machinery.answer("cut short");
+		app.Lane.drain();
+		expect(machinery.Requests.size() == 1U && app.Queue.queue(session)->Entries.size() == 1U, "the next message does not start");
+		auto direct                = review_snapshot().Request;
+		direct.Context.ChatMessage = "typed";
+		expect(!runtime->dispatch(direct) && runtime->state(nullptr) == core::queue_agent::not_set_up,
+			   "no turn starts without a live authority, not even a window's own");
+		expect(app.Queue.resume(session) == core::queue_refusal::none && machinery.Requests.size() == 1U,
+			   "resuming without a live authority still starts nothing");
+
+		machinery.Authorized = true;
+		app.Queue.agent_changed(session);
+		expect(machinery.Requests.size() == 2U && machinery.Requests.back().Context.ChatMessage == "two",
+			   "with a live authority again the queue goes on");
+		machinery.answer("two answered");
+		app.Lane.drain();
+	}
 } // namespace
 
 auto main() -> int
@@ -243,5 +285,6 @@ auto main() -> int
 	test_zero_windows_drain_and_keep_the_transcript();
 	test_window_releases_and_runtime_stays_while_work_waits();
 	test_shutdown_stops_every_runtime();
+	test_a_lost_authority_pauses_the_queue_and_starts_nothing();
 	return EXIT_SUCCESS;
 }

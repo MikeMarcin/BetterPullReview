@@ -371,6 +371,7 @@ namespace bpr::app {
 			: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
 			: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
 			: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")
+			: aQueue.Paused == core::queue_pause::lost_access         ? QStringLiteral("Paused: this pull request can no longer be read with your account")
 																	  : QStringLiteral("Queued, %1").arg(state);
 		Window->agent_tab()->present_queue_rows(std::move(rows), why, aQueue.Paused != core::queue_pause::none);
 	}
