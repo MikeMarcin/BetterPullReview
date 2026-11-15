@@ -443,6 +443,8 @@ try {
 		// [[BPR-2179]]. Any of these, and a condition with what it counts.
 		own.Body.Match = core::prompt_match::any;
 		own.Body.Conditions.push_back({ .Fact = core::prompt_fact::thread_activity, .Activity = core::prompt_activity_value::replies });
+		// Look prompts-v001: nested groups, None among them.
+		own.Body.Groups        = { { .Match = core::prompt_match::none, .Conditions = { { .Fact = core::prompt_fact::draft } }, .Groups = { { .Match = core::prompt_match::all, .Conditions = { { .Fact = core::prompt_fact::checks_failing }, { .Fact = core::prompt_fact::thread_unresolved } } } } } };
 		own.Body.Scopes        = { .File = true, .PullRequest = true };
 		own.On                 = false;
 		const auto differences = core::prompt_macro_differences{
@@ -455,7 +457,7 @@ try {
 			// [[BPR-2179]]. A repository's layer: an override, one of its own,
 			// a surface with an addition, a removal and its own order.
 			.Repositories = { { .Repository = "octo/render",
-								.Overrides  = { { .Id = "agent-tab.what-could-break", .Template = "What could break here?", .On = false } },
+								.Overrides  = { { .Id = "agent-tab.what-could-break", .Template = "What could break here?", .Conditions = std::vector<core::prompt_condition>{ }, .Groups = std::vector<core::prompt_condition_group>{ { .Match = core::prompt_match::any, .Conditions = { { .Fact = core::prompt_fact::draft } } } }, .On = false } },
 								.Own        = { { .Id = "own.only-here", .Body = { .Name = "Only here", .Template = "Ask here" } } },
 								.Surfaces   = { { .Surface = core::prompt_surface::thread_menu, .Added = { "own.only-here" }, .Removed = { "conversation.summarize" }, .Order = std::vector<std::string>{ "own.only-here" } } } } },
 		};

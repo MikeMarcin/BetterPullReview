@@ -14,6 +14,7 @@ class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
 class QStackedWidget;
+class QTimer;
 namespace bpr::qt {
 	class skill_completer;
 	class review_skill_panel;
@@ -99,6 +100,7 @@ namespace bpr::qt {
 		std::function<bool(core::writing_hook, std::string)>             Save;
 		std::function<void(core::writing_hook)>                          Test;
 		std::function<void()>                                            RowsChanged;
+		QTimer*                                                          AutoSave         = nullptr;
 		bool                                                             Loading          = false;
 		bool                                                             ReviewSkillShown = false;
 		QListWidget*                                                     Hook;

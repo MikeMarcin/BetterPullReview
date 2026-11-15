@@ -2154,6 +2154,8 @@ namespace bpr::app {
 		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
 		decltype(github_profile_runtime::SparseAgentSetupLook)&                   SparseAgentSetupLook                   = Profile->SparseAgentSetupLook;
+		decltype(github_profile_runtime::PromptExamplesLook)&                     PromptExamplesLook                     = Profile->PromptExamplesLook;
+		bool                                                                      PromptExamplesSeeded                   = false;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;

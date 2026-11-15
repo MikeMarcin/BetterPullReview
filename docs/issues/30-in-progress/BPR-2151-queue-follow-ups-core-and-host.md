@@ -84,3 +84,30 @@ Not yet: the lines a typed follow-up was asked about (its file and
 conversation are kept, its line selection is not), Steer itself (BPR-2153),
 tour proposals, the multi-window store sharing (the queue host is still one a
 window, keyed by session), and AC02 to AC04's full evidence.
+
+## Look prompts-v001 handed back (owner, 2026-11-14)
+
+Accepted, no note: `BPR-2151-edit-hold`, `BPR-2151-follow-up-setting`.
+
+Accepted with a note, `BPR-2151-stop-all`, verbatim: "Yes, thinking for would
+be a good time to track while it's active." Built: beside Stop all, "Thinking
+for 12s" (then "1m 05s") while a turn runs (`qt_agent_footer`).
+
+Rejected, `BPR-2151-cmd-return`, verbatim: "I think we can make it look a
+little better, how about drag to reorder instead of up/down erros, how about a
+trash can to delete and a pencil to edit. Also I'm not able to test this with
+the current agent fixture... we need a message that the fake agent takes
+enough time on for me to queue stuff."
+
+Rejected, `BPR-2151-pending-list`, verbatim: "I think it can look a little
+better, like some defined borders maybe. I dunno send this back to a frontend
+desgin worker."
+
+Built (frontend-design loaded; the leaf implementer did the restyle, as it may
+not start a worker): the pending list is a bordered panel (head: Waiting, the
+count, the queue's state, Pause or Resume) of bordered cards; a card is
+dragged by its grip to reorder (a line shows where it lands), Option-Up and
+Option-Down move it, Delete removes it; a pencil edits a typed message and a
+trash can removes it; a sending message is dimmed and says Sending. The
+fixture agent takes about twenty seconds, a read a second, on any question
+holding "Take your time".

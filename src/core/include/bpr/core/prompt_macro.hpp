@@ -219,6 +219,9 @@ namespace bpr::core {
 		all,
 		/// Any of these is true.
 		any,
+		/// [[BPR-2179]] look prompts-v001 (owner: "You should be able to nest
+		/// conditionals"): none of these is true, a Not over Any.
+		none,
 	};
 	[[nodiscard]] auto stable_name(prompt_match aMatch) noexcept -> std::string_view;
 
@@ -255,6 +258,25 @@ namespace bpr::core {
 		auto operator<=>(const prompt_condition&) const = default;
 	};
 
+	/// \brief [[BPR-2179]], look prompts-v001. A nested group of conditions:
+	/// All, Any or None of its conditions and groups, the way the owner's
+	/// tag queries nest And, Or and Not groups. Each leaf keeps its kind.
+	struct prompt_condition_group
+	{
+		prompt_match                        Match = prompt_match::all;
+		std::vector<prompt_condition>       Conditions;
+		std::vector<prompt_condition_group> Groups;
+
+		// Spelled out: a defaulted comparison cannot see through the
+		// recursion.
+		[[nodiscard]] auto operator<=>(const prompt_condition_group& aOther) const -> std::strong_ordering;
+		[[nodiscard]] auto operator==(const prompt_condition_group& aOther) const -> bool;
+	};
+	/// \brief The deepest nesting: the prompt's own list, then two levels.
+	inline constexpr std::size_t maximum_prompt_condition_depth = 3U;
+	/// \brief The most conditions in a prompt's whole tree.
+	inline constexpr std::size_t maximum_prompt_condition_leaves = 12U;
+
 	/// \brief The longest name, in bytes, as written.
 	inline constexpr std::size_t maximum_prompt_name_bytes = 120U;
 	/// \brief The longest template, a writing hook's bound.
@@ -283,8 +305,11 @@ namespace bpr::core {
 		/// RFC-BPR-0128. Listed in the Ask menus at `Scopes`.
 		bool          QuickAsk = false;
 		prompt_scopes Scopes   = { };
-		/// [[BPR-2179]]. All of these, or any of these.
+		/// [[BPR-2179]]. All of these, any of these, or none of these.
 		prompt_match Match = prompt_match::all;
+		/// [[BPR-2179]], look prompts-v001. Groups nested under the list,
+		/// combined with `Conditions` by `Match`.
+		std::vector<prompt_condition_group> Groups;
 
 		auto operator<=>(const prompt_macro_body&) const = default;
 	};
@@ -575,8 +600,9 @@ namespace bpr::core {
 		/// untrue condition hides; under Any, every condition hides.
 		bool Hides = false;
 		/// The condition whose reason a greyed row gives: the first untrue
-		/// greys condition. Meaningless while `Holds` or `Hides`.
-		std::size_t Reason = 0U;
+		/// greys condition (a true one under None, its polarity turned).
+		/// None while `Holds` or `Hides`.
+		std::optional<prompt_condition> Reason;
 
 		auto operator<=>(const prompt_conditions_outcome&) const = default;
 	};
@@ -770,7 +796,9 @@ namespace bpr::core {
 		std::optional<prompt_ask>                    Kind;
 		std::optional<std::vector<prompt_condition>> Conditions;
 		std::optional<prompt_match>                  Match;
-		std::optional<bool>                          On;
+		/// Set with `Conditions`: the nested groups as this repository has them.
+		std::optional<std::vector<prompt_condition_group>> Groups;
+		std::optional<bool>                                On;
 
 		auto operator<=>(const prompt_override&) const = default;
 	};

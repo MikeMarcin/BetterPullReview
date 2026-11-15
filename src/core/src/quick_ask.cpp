@@ -219,7 +219,7 @@ namespace bpr::core {
 					if (evaluation.Unmet == prompt_unmet::condition) {
 						if (const auto decided = decide_prompt_conditions(aMacro.Body, facts); !decided.Hides) {
 							aRow.Label     = each_label(aMacro, facts, "");
-							aRow.Condition = aMacro.Body.Conditions.at(decided.Reason);
+							aRow.Condition = decided.Reason;
 							return greyed(std::move(aRow), quick_ask_reason::condition);
 						}
 					}

@@ -843,30 +843,52 @@ namespace bpr::qt {
 
 		auto* const right = new QVBoxLayout{ };
 		right->setSpacing(4);
+		// The heading and its add button on one row, the list's match under
+		// them, so the add button is never cut at the column's edge.
 		auto* const conditionsHeader = new QHBoxLayout{ };
 		conditionsHeader->addWidget(heading(tr("Conditions"), page));
 		conditionsHeader->addStretch(1);
-		MatchAll = segmented(tr("All of these"), page);
-		MatchAll->setObjectName(QStringLiteral("promptsMatchAll"));
-		MatchAny = segmented(tr("Any of these"), page);
-		MatchAny->setObjectName(QStringLiteral("promptsMatchAny"));
-		conditionsHeader->addWidget(MatchAll);
-		conditionsHeader->addWidget(MatchAny);
-		AddCondition = new QToolButton{ page };
+		AddCondition = new QPushButton{ tr("Add"), page };
 		AddCondition->setObjectName(QStringLiteral("promptsAddCondition"));
-		AddCondition->setText(QStringLiteral("+"));
-		AddCondition->setAccessibleName(tr("Add a condition"));
-		AddCondition->setPopupMode(QToolButton::InstantPopup);
+		AddCondition->setAccessibleName(tr("Add a condition or a group"));
 		auto* const conditionMenu = new QMenu{ AddCondition };
 		AddCondition->setMenu(conditionMenu);
 		conditionsHeader->addWidget(AddCondition);
 		right->addLayout(conditionsHeader);
-		auto* const conditionsBox = new QWidget{ page };
-		Conditions                = new QVBoxLayout{ conditionsBox };
+		auto* const matchRow = new QHBoxLayout{ };
+		matchRow->setSpacing(0);
+		MatchAll = segmented(tr("All of these"), page);
+		MatchAll->setObjectName(QStringLiteral("promptsMatchAll"));
+		MatchAny = segmented(tr("Any of these"), page);
+		MatchAny->setObjectName(QStringLiteral("promptsMatchAny"));
+		MatchNone = segmented(tr("None of these"), page);
+		MatchNone->setObjectName(QStringLiteral("promptsMatchNone"));
+		matchRow->addWidget(MatchAll);
+		matchRow->addWidget(MatchAny);
+		matchRow->addWidget(MatchNone);
+		matchRow->addStretch(1);
+		right->addLayout(matchRow);
+		// Nested groups can outgrow the editor's height: the conditions
+		// scroll on their own rather than squeeze.
+		auto* const conditionsScroll = new QScrollArea{ page };
+		conditionsScroll->setObjectName(QStringLiteral("promptsConditionsScroll"));
+		conditionsScroll->setFrameShape(QFrame::NoFrame);
+		conditionsScroll->setWidgetResizable(true);
+		conditionsScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		auto* const conditionsBox = new QWidget{ conditionsScroll };
+		conditionsBox->setAutoFillBackground(false);
+		conditionsScroll->viewport()->setAutoFillBackground(false);
+		auto* const conditionsColumn = new QVBoxLayout{ conditionsBox };
+		conditionsColumn->setContentsMargins(0, 0, 0, 0);
+		conditionsColumn->setSpacing(0);
+		auto* const conditionsList = new QWidget{ conditionsBox };
+		Conditions                 = new QVBoxLayout{ conditionsList };
 		Conditions->setContentsMargins(0, 0, 0, 0);
 		Conditions->setSpacing(2);
-		right->addWidget(conditionsBox);
-		right->addStretch(1);
+		conditionsColumn->addWidget(conditionsList);
+		conditionsColumn->addStretch(1);
+		conditionsScroll->setWidget(conditionsBox);
+		right->addWidget(conditionsScroll, 1);
 		Problems = secondary({ }, page);
 		Problems->setObjectName(QStringLiteral("promptsProblems"));
 		right->addWidget(Problems);
@@ -925,37 +947,16 @@ namespace bpr::qt {
 				edit_selected([kind](core::prompt_macro& aMacro) { aMacro.Body.Kind = kind; });
 			});
 		}
-		for (auto* const button : { MatchAll, MatchAny }) {
+		for (auto* const button : { MatchAll, MatchAny, MatchNone }) {
 			connect(button, &QToolButton::clicked, this, [this, button] {
-				const auto match = button == MatchAny ? core::prompt_match::any : core::prompt_match::all;
+				const auto match = button == MatchAny ? core::prompt_match::any : button == MatchNone ? core::prompt_match::none
+																									  : core::prompt_match::all;
 				edit_selected([match](core::prompt_macro& aMacro) { aMacro.Body.Match = match; });
 			});
 		}
 		connect(conditionMenu, &QMenu::aboutToShow, this, [this, conditionMenu] {
 			conditionMenu->clear();
-			for (const auto& name : { tr("Pull request"), tr("File"), tr("Thread"), tr("Chat") }) {
-				conditionMenu->addSection(name);
-				for (std::size_t fact = 0U; fact < core::prompt_fact_count; ++fact) {
-					const auto value = static_cast<core::prompt_fact>(fact);
-					if (prompt_fact_group(value) != name) {
-						continue;
-					}
-					conditionMenu->addAction(prompt_fact_name(value), this, [this, value] {
-						edit_selected([this, value](core::prompt_macro& aMacro) {
-							if (aMacro.Body.Conditions.size() >= core::maximum_prompt_conditions) {
-								return;
-							}
-							auto condition = core::prompt_condition{ .Fact = value };
-							if (value == core::prompt_fact::path || value == core::prompt_fact::repository) {
-								condition.Patterns = { value == core::prompt_fact::path ? "src/**" : "owner/*" };
-							}
-							aMacro.Body.Conditions.push_back(std::move(condition));
-							// A row just added is open.
-							Open.at(aMacro.Body.Conditions.size() - 1U) = true;
-						});
-					});
-				}
-			}
+			fill_condition_menu(*conditionMenu, { });
 		});
 		connect(Duplicate, &QPushButton::clicked, this, [this] {
 			if (Selected) {
@@ -1785,7 +1786,7 @@ namespace bpr::qt {
 		Filling                 = true;
 		const auto* const macro = Selected ? find(*Selected) : nullptr;
 		const auto        shown = macro != nullptr;
-		for (auto* const widget : std::initializer_list<QWidget*>{ Name, AsQuestion, AsFindings, Text, MatchAll, MatchAny, AddCondition, AddTo, Duplicate, Reset }) {
+		for (auto* const widget : std::initializer_list<QWidget*>{ Name, AsQuestion, AsFindings, Text, MatchAll, MatchAny, MatchNone, AddCondition, AddTo, Duplicate, Reset }) {
 			widget->setEnabled(shown);
 		}
 		if (!shown) {
@@ -1809,6 +1810,7 @@ namespace bpr::qt {
 		AsFindings->setChecked(macro->Body.Kind == core::prompt_ask::review);
 		MatchAll->setChecked(macro->Body.Match == core::prompt_match::all);
 		MatchAny->setChecked(macro->Body.Match == core::prompt_match::any);
+		MatchNone->setChecked(macro->Body.Match == core::prompt_match::none);
 		const auto system = action_system_key(macro->Action);
 		ActionNote->setVisible(system.has_value());
 		Text->setVisible(!system.has_value());
@@ -1858,8 +1860,8 @@ namespace bpr::qt {
 		Bytes->setWordWrap(false);
 		insert->addWidget(Bytes);
 
-		AddCondition->setEnabled(macro->Body.Conditions.size() < core::maximum_prompt_conditions);
-		AddCondition->setToolTip(AddCondition->isEnabled() ? tr("Add a condition") : tr("A prompt can have four conditions."));
+		AddCondition->setEnabled(macro->Body.Conditions.size() < core::maximum_prompt_conditions || macro->Body.Groups.size() < core::maximum_prompt_conditions);
+		AddCondition->setToolTip(macro->Body.Conditions.size() < core::maximum_prompt_conditions ? tr("Add a condition or a group") : tr("A list holds four conditions; put more in a group."));
 		rebuild_conditions();
 
 		// Problems, as the prompt reads where it is placed.
@@ -1913,6 +1915,115 @@ namespace bpr::qt {
 		Filling = false;
 	}
 
+	namespace {
+		/// One group of a prompt's tree, the list itself included.
+		struct group_ref
+		{
+			core::prompt_match*                        Match      = nullptr;
+			std::vector<core::prompt_condition>*       Conditions = nullptr;
+			std::vector<core::prompt_condition_group>* Groups     = nullptr;
+		};
+
+		/// The group at `aPath` (indices into each level's groups); none when
+		/// the path no longer names one.
+		[[nodiscard]] auto group_at(core::prompt_macro_body& aBody, const std::vector<std::size_t>& aPath) -> std::optional<group_ref>
+		{
+			auto ref = group_ref{ .Match = &aBody.Match, .Conditions = &aBody.Conditions, .Groups = &aBody.Groups };
+			for (const auto at : aPath) {
+				if (at >= ref.Groups->size()) {
+					return std::nullopt;
+				}
+				auto& group = (*ref.Groups)[at];
+				ref         = { .Match = &group.Match, .Conditions = &group.Conditions, .Groups = &group.Groups };
+			}
+			return ref;
+		}
+
+		[[nodiscard]] auto leaf_count(const std::vector<core::prompt_condition>& aConditions, const std::vector<core::prompt_condition_group>& aGroups) -> std::size_t
+		{
+			auto count = aConditions.size();
+			for (const auto& group : aGroups) {
+				count += leaf_count(group.Conditions, group.Groups);
+			}
+			return count;
+		}
+
+		[[nodiscard]] auto path_key(const std::vector<std::size_t>& aPath, const std::optional<std::size_t> aLeaf = std::nullopt) -> QString
+		{
+			auto key = QStringLiteral("g");
+			for (const auto at : aPath) {
+				key += QLatin1Char('.') + QString::number(at);
+			}
+			return aLeaf ? key + QLatin1Char(':') + QString::number(*aLeaf) : key;
+		}
+
+		[[nodiscard]] auto match_words(const core::prompt_match aMatch) -> QString
+		{
+			switch (aMatch) {
+			case core::prompt_match::all:  return QObject::tr("All of these");
+			case core::prompt_match::any:  return QObject::tr("Any of these");
+			case core::prompt_match::none: return QObject::tr("None of these");
+			}
+			return { };
+		}
+	} // namespace
+
+	void prompts_page::fill_condition_menu(QMenu& aMenu, const std::vector<std::size_t>& aPath)
+	{
+		const auto* const macro = Selected ? find(*Selected) : nullptr;
+		if (macro == nullptr) {
+			return;
+		}
+		auto       body  = macro->Body;
+		const auto group = group_at(body, aPath);
+		if (!group) {
+			return;
+		}
+		const auto full    = leaf_count(body.Conditions, body.Groups) >= core::maximum_prompt_condition_leaves;
+		const auto crowded = group->Conditions->size() >= core::maximum_prompt_conditions;
+		for (const auto& name : { tr("Pull request"), tr("File"), tr("Thread"), tr("Chat") }) {
+			aMenu.addSection(name);
+			for (std::size_t fact = 0U; fact < core::prompt_fact_count; ++fact) {
+				const auto value = static_cast<core::prompt_fact>(fact);
+				if (prompt_fact_group(value) != name) {
+					continue;
+				}
+				auto* const action = aMenu.addAction(prompt_fact_name(value), this, [this, value, aPath] {
+					edit_selected([this, value, aPath](core::prompt_macro& aMacro) {
+						const auto into = group_at(aMacro.Body, aPath);
+						if (!into || into->Conditions->size() >= core::maximum_prompt_conditions || leaf_count(aMacro.Body.Conditions, aMacro.Body.Groups) >= core::maximum_prompt_condition_leaves) {
+							return;
+						}
+						auto condition = core::prompt_condition{ .Fact = value };
+						if (value == core::prompt_fact::path || value == core::prompt_fact::repository) {
+							condition.Patterns = { value == core::prompt_fact::path ? "src/**" : "owner/*" };
+						}
+						into->Conditions->push_back(std::move(condition));
+						// A row just added is open.
+						OpenConditions.insert(path_key(aPath, into->Conditions->size() - 1U));
+					});
+				});
+				action->setEnabled(!full && !crowded);
+			}
+		}
+		// Look prompts-v001: groups nest, as the owner's tag queries do.
+		aMenu.addSection(tr("Group"));
+		for (const auto match : { core::prompt_match::all, core::prompt_match::any, core::prompt_match::none }) {
+			auto* const action = aMenu.addAction(tr("Group: %1").arg(match_words(match)), this, [this, match, aPath] {
+				edit_selected([match, aPath](core::prompt_macro& aMacro) {
+					if (const auto into = group_at(aMacro.Body, aPath); into && into->Groups->size() < core::maximum_prompt_conditions && aPath.size() + 1U < core::maximum_prompt_condition_depth) {
+						into->Groups->push_back({ .Match = match });
+					}
+				});
+			});
+			action->setEnabled(aPath.size() + 1U < core::maximum_prompt_condition_depth && group->Groups->size() < core::maximum_prompt_conditions);
+		}
+		aMenu.setToolTipsVisible(true);
+		if (full) {
+			aMenu.setToolTip(tr("A prompt can have twelve conditions."));
+		}
+	}
+
 	void prompts_page::rebuild_conditions()
 	{
 		while (auto* const item = Conditions->takeAt(0)) {
@@ -1922,21 +2033,34 @@ namespace bpr::qt {
 		if (macro == nullptr) {
 			return;
 		}
-		if (macro->Body.Conditions.empty()) {
+		if (macro->Body.Conditions.empty() && macro->Body.Groups.empty()) {
 			Conditions->addWidget(secondary(tr("None: it is offered wherever it is placed."), Conditions->parentWidget()));
 		}
-		for (std::size_t at = 0U; at < macro->Body.Conditions.size(); ++at) {
-			const auto& condition = macro->Body.Conditions[at];
-			auto* const row       = new QFrame{ Conditions->parentWidget() };
-			row->setObjectName(QStringLiteral("promptsCondition-%1").arg(at));
+		auto body = macro->Body;
+		add_group_rows(*Conditions, body, { });
+	}
+
+	void prompts_page::add_group_rows(QVBoxLayout& aColumn, core::prompt_macro_body& aBody, const std::vector<std::size_t>& aPath)
+	{
+		const auto group = group_at(aBody, aPath);
+		if (!group) {
+			return;
+		}
+		auto* const parent = aColumn.parentWidget() != nullptr ? aColumn.parentWidget() : Conditions->parentWidget();
+		for (std::size_t at = 0U; at < group->Conditions->size(); ++at) {
+			const auto& condition = (*group->Conditions)[at];
+			const auto  key       = path_key(aPath, at);
+			const auto  open      = OpenConditions.contains(key);
+			auto* const row       = new QFrame{ parent };
+			row->setObjectName(aPath.empty() ? QStringLiteral("promptsCondition-%1").arg(at) : QStringLiteral("promptsCondition-%1").arg(key));
 			auto* const column = new QVBoxLayout{ row };
 			column->setContentsMargins(0, 0, 0, 0);
 			column->setSpacing(2);
 			auto* const line       = new QHBoxLayout{ };
 			auto* const disclosure = new quiet_tool_button{ row };
-			disclosure->setArrowType(Open.at(at) ? Qt::DownArrow : Qt::RightArrow);
+			disclosure->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
 			disclosure->setAutoRaise(true);
-			disclosure->setAccessibleName(Open.at(at) ? tr("Close") : tr("Open"));
+			disclosure->setAccessibleName(open ? tr("Close") : tr("Open"));
 			line->addWidget(disclosure);
 			line->addWidget(new QLabel{ prompt_fact_name(condition.Fact), row }, 1);
 			auto* const kind = secondary(core::prompt_fact_kind(condition.Fact) == core::prompt_condition_kind::hides ? tr("hides") : tr("greys"), row);
@@ -1948,17 +2072,28 @@ namespace bpr::qt {
 			removeButton->setAccessibleName(tr("Remove %1").arg(prompt_fact_name(condition.Fact)));
 			line->addWidget(removeButton);
 			column->addLayout(line);
-			connect(disclosure, &QToolButton::clicked, this, [this, at] {
-				Open.at(at) = !Open.at(at);
+			connect(disclosure, &QToolButton::clicked, this, [this, key] {
+				if (!OpenConditions.remove(key)) {
+					OpenConditions.insert(key);
+				}
 				rebuild_conditions();
 			});
-			connect(removeButton, &QToolButton::clicked, this, [this, at] {
-				for (auto next = at; next + 1U < Open.size(); ++next) {
-					Open.at(next) = Open.at(next + 1U);
-				}
-				edit_selected([at](core::prompt_macro& aMacro) { aMacro.Body.Conditions.erase(aMacro.Body.Conditions.begin() + static_cast<std::ptrdiff_t>(at)); });
+			connect(removeButton, &QToolButton::clicked, this, [this, aPath, at] {
+				OpenConditions.clear();
+				edit_selected([aPath, at](core::prompt_macro& aMacro) {
+					if (const auto from = group_at(aMacro.Body, aPath); from && at < from->Conditions->size()) {
+						from->Conditions->erase(from->Conditions->begin() + static_cast<std::ptrdiff_t>(at));
+					}
+				});
 			});
-			if (Open.at(at)) {
+			const auto edit = [this, aPath, at](const std::function<void(core::prompt_condition&)>& aChange) {
+				edit_selected([&aChange, aPath, at](core::prompt_macro& aMacro) {
+					if (const auto in = group_at(aMacro.Body, aPath); in && at < in->Conditions->size()) {
+						aChange((*in->Conditions)[at]);
+					}
+				});
+			};
+			if (open) {
 				auto* const settings = new QHBoxLayout{ };
 				settings->setContentsMargins(15, 0, 0, 0);
 				const auto patterned = condition.Fact == core::prompt_fact::path || condition.Fact == core::prompt_fact::repository;
@@ -1969,9 +2104,7 @@ namespace bpr::qt {
 					polarity->addItems(patterned ? QStringList{ tr("matches"), tr("doesn't match") } : QStringList{ tr("is"), tr("is not") });
 					polarity->setCurrentIndex(condition.Negated ? 1 : 0);
 					settings->addWidget(polarity);
-					connect(polarity, &QComboBox::activated, this, [this, at](const int aIndex) {
-						edit_selected([at, aIndex](core::prompt_macro& aMacro) { aMacro.Body.Conditions.at(at).Negated = aIndex == 1; });
-					});
+					connect(polarity, &QComboBox::activated, this, [edit](const int aIndex) { edit([aIndex](core::prompt_condition& aCondition) { aCondition.Negated = aIndex == 1; }); });
 				}
 				if (patterned) {
 					auto* const patterns = new QLineEdit{ row };
@@ -1982,9 +2115,9 @@ namespace bpr::qt {
 					patterns->setText(joined.join(QStringLiteral(", ")));
 					patterns->setPlaceholderText(tr("src/**, *.cpp"));
 					settings->addWidget(patterns, 1);
-					connect(patterns, &QLineEdit::editingFinished, this, [this, at, patterns] {
+					connect(patterns, &QLineEdit::editingFinished, this, [edit, patterns] {
 						const auto parsed = core::parse_prompt_patterns(patterns->text().toStdString());
-						edit_selected([at, &parsed](core::prompt_macro& aMacro) { aMacro.Body.Conditions.at(at).Patterns = parsed; });
+						edit([&parsed](core::prompt_condition& aCondition) { aCondition.Patterns = parsed; });
 					});
 				}
 				if (condition.Fact == core::prompt_fact::selected_lines) {
@@ -1992,9 +2125,7 @@ namespace bpr::qt {
 					lines->addItems({ tr("any"), tr("one line"), tr("several lines") });
 					lines->setCurrentIndex(static_cast<int>(condition.Lines));
 					settings->addWidget(lines);
-					connect(lines, &QComboBox::activated, this, [this, at](const int aIndex) {
-						edit_selected([at, aIndex](core::prompt_macro& aMacro) { aMacro.Body.Conditions.at(at).Lines = static_cast<core::prompt_lines_value>(aIndex); });
-					});
+					connect(lines, &QComboBox::activated, this, [edit](const int aIndex) { edit([aIndex](core::prompt_condition& aCondition) { aCondition.Lines = static_cast<core::prompt_lines_value>(aIndex); }); });
 				}
 				if (condition.Fact == core::prompt_fact::thread_activity) {
 					auto* const count = new QComboBox{ row };
@@ -2003,9 +2134,7 @@ namespace bpr::qt {
 					count->setCurrentIndex(static_cast<int>(condition.Activity));
 					settings->addWidget(new QLabel{ tr("Count"), row });
 					settings->addWidget(count);
-					connect(count, &QComboBox::activated, this, [this, at](const int aIndex) {
-						edit_selected([at, aIndex](core::prompt_macro& aMacro) { aMacro.Body.Conditions.at(at).Activity = static_cast<core::prompt_activity_value>(aIndex); });
-					});
+					connect(count, &QComboBox::activated, this, [edit](const int aIndex) { edit([aIndex](core::prompt_condition& aCondition) { aCondition.Activity = static_cast<core::prompt_activity_value>(aIndex); }); });
 				}
 				settings->addStretch(1);
 				column->addLayout(settings);
@@ -2013,7 +2142,69 @@ namespace bpr::qt {
 				note->setContentsMargins(15, 0, 0, 0);
 				column->addWidget(note);
 			}
-			Conditions->addWidget(row);
+			aColumn.addWidget(row);
+		}
+		// Each nested group: a bordered box with its own match, add and remove.
+		for (std::size_t at = 0U; at < group->Groups->size(); ++at) {
+			auto path = aPath;
+			path.push_back(at);
+			const auto  match = (*group->Groups)[at].Match;
+			auto* const box   = new QFrame{ parent };
+			box->setObjectName(QStringLiteral("promptsConditionGroup-%1").arg(path_key(path)));
+			box->setFrameShape(QFrame::StyledPanel);
+			box->setAccessibleName(tr("Group: %1").arg(match_words(match)));
+			auto* const inner = new QVBoxLayout{ box };
+			inner->setContentsMargins(8, 6, 6, 6);
+			inner->setSpacing(2);
+			auto* const head = new QHBoxLayout{ };
+			head->setSpacing(0);
+			// Short in a group, its full words in its tooltip.
+			for (const auto choice : { core::prompt_match::all, core::prompt_match::any, core::prompt_match::none }) {
+				auto* const button = segmented(choice == core::prompt_match::all ? tr("All") : choice == core::prompt_match::any ? tr("Any")
+																																 : tr("None"),
+											   box);
+				button->setToolTip(match_words(choice));
+				button->setAccessibleName(match_words(choice));
+				button->setChecked(choice == match);
+				button->setObjectName(QStringLiteral("promptsGroupMatch-%1-%2").arg(path_key(path), QString::fromLatin1(core::stable_name(choice))));
+				connect(button, &QToolButton::clicked, this, [this, path, choice] {
+					edit_selected([path, choice](core::prompt_macro& aMacro) {
+						if (const auto in = group_at(aMacro.Body, path)) {
+							*in->Match = choice;
+						}
+					});
+				});
+				head->addWidget(button);
+			}
+			head->addStretch(1);
+			auto* const add = new QPushButton{ tr("Add"), box };
+			add->setAccessibleName(tr("Add to this group"));
+			auto* const menu = new QMenu{ add };
+			add->setMenu(menu);
+			connect(menu, &QMenu::aboutToShow, this, [this, menu, path] {
+				menu->clear();
+				fill_condition_menu(*menu, path);
+			});
+			head->addWidget(add);
+			auto* const remove = new quiet_tool_button{ box };
+			remove->setText(QStringLiteral("−"));
+			remove->setAutoRaise(true);
+			remove->setAccessibleName(tr("Remove this group"));
+			connect(remove, &QToolButton::clicked, this, [this, aPath, at] {
+				OpenConditions.clear();
+				edit_selected([aPath, at](core::prompt_macro& aMacro) {
+					if (const auto from = group_at(aMacro.Body, aPath); from && at < from->Groups->size()) {
+						from->Groups->erase(from->Groups->begin() + static_cast<std::ptrdiff_t>(at));
+					}
+				});
+			});
+			head->addWidget(remove);
+			inner->addLayout(head);
+			if ((*group->Groups)[at].Conditions.empty() && (*group->Groups)[at].Groups.empty()) {
+				inner->addWidget(secondary(tr("Empty: add a condition to it."), box));
+			}
+			add_group_rows(*inner, aBody, path);
+			aColumn.addWidget(box);
 		}
 	}
 

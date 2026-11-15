@@ -71,9 +71,29 @@ namespace {
 
 	auto holds(const std::string& aText, const std::string_view aWord) -> bool { return aText.find(aWord) != std::string::npos; }
 
+	/// [[BPR-2151]] look prompts-v001 (owner: "we need a message that the
+	/// fake agent takes enough time on for me to queue stuff"): a question
+	/// holding "Take your time" runs about twenty seconds, showing progress
+	/// each second (`BPR_FIXTURE_AGENT_SLOW_STEP_MS`, default 1000).
+	constexpr int slow_steps = 20;
+
+	auto slow(const std::string& aRequest) -> bool { return holds(aRequest, "Take your time") || holds(aRequest, "take your time"); }
+
+	void slow_step()
+	{
+		const auto configured = environment("BPR_FIXTURE_AGENT_SLOW_STEP_MS");
+		const auto millis     = configured.empty() ? 1000 : std::atoi(configured.c_str());
+		if (millis > 0) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ millis });
+		}
+	}
+
 	/// The canned answer for what the request asks.
 	auto answer_for(const std::string& aRequest) -> std::string
 	{
+		if (slow(aRequest)) {
+			return "Took my time: twenty slow steps, about twenty seconds, so you could queue follow-ups while I worked. This is the fixture agent; nothing real ran.";
+		}
 		if (holds(aRequest, "returning.operation")) {
 			// RFC-BPR-0128 as amended (look ask-v005): several threads in one
 			// ask, a claim a thread in the bpr-claims block.
@@ -215,9 +235,22 @@ namespace {
 					  << std::flush;
 			return 1;
 		}
-		// A run with Read reads a file first, in steps; a tool-free run
-		// answers straight away.
-		if (std::ranges::find(aTools, std::string{ "Read" }) != aTools.end()) {
+		// The slow ask: one read a second, so the footer and the pending
+		// list have a running turn to show.
+		if (slow(aRequest)) {
+			const auto reads = std::ranges::find(aTools, std::string{ "Read" }) != aTools.end();
+			for (int step = 1; step <= slow_steps; ++step) {
+				slow_step();
+				if (reads) {
+					const auto id = "slow-" + std::to_string(step);
+					std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-)" << id << R"(","role":"assistant","content":[{"type":"tool_use","id":")" << id
+							  << R"(","name":"Read","input":{"file_path":"src/engine/step-)" << step << R"(.cpp"}}]}})" << '\n'
+							  << R"({"type":"user","session_id":"fixture-agent","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" << id
+							  << R"(","content":"fixture file"}]}})" << '\n'
+							  << std::flush;
+				}
+			}
+		} else if (std::ranges::find(aTools, std::string{ "Read" }) != aTools.end()) {
 			pause();
 			std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-read","role":"assistant","content":[{"type":"tool_use","id":"read-1","name":"Read","input":{"file_path":"src/engine/renderer.cpp"}}]}})" << '\n'
 					  << std::flush;
@@ -253,6 +286,13 @@ namespace {
 		pause();
 		std::cout << R"({"type":"item.completed","item":{"id":"item-0","type":"reasoning","text":"Reading the fixture file."}})" << '\n'
 				  << std::flush;
+		if (slow(aRequest)) {
+			for (int step = 1; step <= slow_steps; ++step) {
+				slow_step();
+				std::cout << R"({"type":"item.completed","item":{"id":"slow-)" << step << R"(","type":"reasoning","text":"Taking my time: step )" << step << R"( of 20."}})" << '\n'
+						  << std::flush;
+			}
+		}
 		pause();
 		std::cout << R"({"type":"item.completed","item":{"id":"item-1","type":"agent_message","text":")" << escape(answer_for(aRequest)) << "\"}}\n"
 				  << R"({"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1}})" << '\n'

@@ -418,7 +418,7 @@ namespace bpr::core {
 		auto contradiction(const prompt_macro& aMacro, const std::vector<prompt_unmet>& aNeeds) -> std::optional<std::size_t>
 		{
 			// Any of these: one holding is enough, so none contradicts.
-			if (aMacro.Body.Match == prompt_match::any) {
+			if (aMacro.Body.Match != prompt_match::all || !aMacro.Body.Groups.empty()) {
 				return std::nullopt;
 			}
 			auto states = reachable_states{ };
@@ -601,7 +601,28 @@ namespace bpr::core {
 		}
 	}
 
-	auto stable_name(const prompt_match aMatch) noexcept -> std::string_view { return aMatch == prompt_match::any ? "any" : "all"; }
+	auto stable_name(const prompt_match aMatch) noexcept -> std::string_view
+	{
+		switch (aMatch) {
+		case prompt_match::all:  return "all";
+		case prompt_match::any:  return "any";
+		case prompt_match::none: return "none";
+		}
+		return "all";
+	}
+
+	auto prompt_condition_group::operator<=>(const prompt_condition_group& aOther) const -> std::strong_ordering
+	{
+		if (const auto match = Match <=> aOther.Match; match != 0) {
+			return match;
+		}
+		if (const auto conditions = Conditions <=> aOther.Conditions; conditions != 0) {
+			return conditions;
+		}
+		return std::lexicographical_compare_three_way(Groups.begin(), Groups.end(), aOther.Groups.begin(), aOther.Groups.end());
+	}
+
+	auto prompt_condition_group::operator==(const prompt_condition_group& aOther) const -> bool { return (*this <=> aOther) == 0; }
 
 	auto prompt_fact_allowed(const prompt_place aPlace, const prompt_fact aFact) noexcept -> bool
 	{
@@ -878,36 +899,103 @@ namespace bpr::core {
 		return false;
 	}
 
+	namespace {
+		/// One child of a group, decided: whether it holds; whether, untrue,
+		/// it hides a menu row (or, true under None, would); and the leaf a
+		/// greyed row names.
+		struct child_outcome
+		{
+			bool                            Holds        = true;
+			bool                            HidesUntrue  = false;
+			bool                            HidesTrue    = false;
+			std::optional<prompt_condition> ReasonUntrue = std::nullopt;
+			std::optional<prompt_condition> ReasonTrue   = std::nullopt;
+		};
+
+		[[nodiscard]] auto turned(prompt_condition aCondition) -> prompt_condition
+		{
+			aCondition.Negated = !aCondition.Negated;
+			return aCondition;
+		}
+
+		[[nodiscard]] auto decide_group(prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts)
+			-> child_outcome;
+
+		[[nodiscard]] auto children_of(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts)
+			-> std::vector<child_outcome>
+		{
+			auto children = std::vector<child_outcome>{ };
+			for (const auto& condition : aConditions) {
+				const auto hides = prompt_fact_kind(condition.Fact) == prompt_condition_kind::hides;
+				children.push_back({ .Holds        = prompt_condition_holds(condition, aFacts),
+									 .HidesUntrue  = hides,
+									 .HidesTrue    = hides,
+									 .ReasonUntrue = hides ? std::nullopt : std::optional{ condition },
+									 .ReasonTrue   = hides ? std::nullopt : std::optional{ turned(condition) } });
+			}
+			for (const auto& group : aGroups) {
+				children.push_back(decide_group(group.Match, group.Conditions, group.Groups, aFacts));
+			}
+			return children;
+		}
+
+		auto decide_group(const prompt_match aMatch, const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, const prompt_facts& aFacts)
+			-> child_outcome
+		{
+			const auto children = children_of(aConditions, aGroups, aFacts);
+			auto       outcome  = child_outcome{ };
+			const auto first    = [&children](const auto aPick) -> std::optional<prompt_condition> {
+				for (const auto& child : children) {
+					if (auto reason = aPick(child)) {
+						return reason;
+					}
+				}
+				return std::nullopt;
+			};
+			// Holds: under All every child, under Any one, under None none.
+			const auto holding = static_cast<std::size_t>(std::ranges::count_if(children, &child_outcome::Holds));
+			switch (aMatch) {
+			case prompt_match::all:  outcome.Holds = holding == children.size(); break;
+			case prompt_match::any:  outcome.Holds = children.empty() || holding > 0U; break;
+			case prompt_match::none: outcome.Holds = holding == 0U; break;
+			}
+			// Untrue: what hides the row and which reason a greyed row gives
+			// (Q1, and the coordinator's default for Any).
+			switch (aMatch) {
+			case prompt_match::all:
+				outcome.HidesUntrue  = std::ranges::any_of(children, [](const child_outcome& aChild) { return !aChild.Holds && aChild.HidesUntrue; });
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return !aChild.Holds && !aChild.HidesUntrue ? aChild.ReasonUntrue : std::nullopt; });
+				break;
+			case prompt_match::any:
+				outcome.HidesUntrue  = std::ranges::all_of(children, &child_outcome::HidesUntrue);
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.HidesUntrue ? std::nullopt : aChild.ReasonUntrue; });
+				break;
+			case prompt_match::none:
+				outcome.HidesUntrue  = std::ranges::all_of(children, [](const child_outcome& aChild) { return !aChild.Holds || aChild.HidesTrue; });
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.Holds && !aChild.HidesTrue ? aChild.ReasonTrue : std::nullopt; });
+				break;
+			}
+			// True, under a None above it: the same, turned.
+			outcome.HidesTrue  = std::ranges::all_of(children, [](const child_outcome& aChild) { return aChild.HidesTrue && aChild.HidesUntrue; });
+			outcome.ReasonTrue = first([](const child_outcome& aChild) { return aChild.ReasonTrue ? aChild.ReasonTrue : std::nullopt; });
+			if (outcome.HidesUntrue == false && !outcome.ReasonUntrue && !outcome.Holds) {
+				// A greys row needs a reason: the first greys leaf of the group.
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.ReasonUntrue; });
+			}
+			return outcome;
+		}
+	} // namespace
+
 	auto decide_prompt_conditions(const prompt_macro_body& aBody, const prompt_facts& aFacts) -> prompt_conditions_outcome
 	{
-		const auto& conditions = aBody.Conditions;
-		if (conditions.empty()) {
+		if (aBody.Conditions.empty() && aBody.Groups.empty()) {
 			return { };
 		}
-		auto outcome    = prompt_conditions_outcome{ .Holds = aBody.Match == prompt_match::all };
-		auto greysFound = false;
-		auto everyHides = true;
-		for (auto index = std::size_t{ 0 }; index < conditions.size(); ++index) {
-			const auto holds = prompt_condition_holds(conditions[index], aFacts);
-			const auto hides = prompt_fact_kind(conditions[index].Fact) == prompt_condition_kind::hides;
-			everyHides       = everyHides && hides;
-			if (aBody.Match == prompt_match::any) {
-				if (holds) {
-					return { };
-				}
-			} else if (!holds) {
-				outcome.Holds = false;
-				outcome.Hides = outcome.Hides || hides;
-			}
-			if (!holds && !hides && !greysFound) {
-				greysFound     = true;
-				outcome.Reason = index;
-			}
+		const auto decided = decide_group(aBody.Match, aBody.Conditions, aBody.Groups, aFacts);
+		if (decided.Holds) {
+			return { };
 		}
-		if (aBody.Match == prompt_match::any) {
-			outcome.Hides = everyHides;
-		}
-		return outcome;
+		return { .Holds = false, .Hides = decided.HidesUntrue || !decided.ReasonUntrue, .Reason = decided.HidesUntrue ? std::nullopt : decided.ReasonUntrue };
 	}
 
 	auto evaluate_prompt_macro(const prompt_macro& aMacro, const prompt_facts& aFacts) -> prompt_evaluation
@@ -925,9 +1013,10 @@ namespace bpr::core {
 				return { .Unmet = need };
 			}
 		}
-		if (aMacro.Body.Match == prompt_match::any) {
+		if (aMacro.Body.Match != prompt_match::all || !aMacro.Body.Groups.empty()) {
 			if (const auto decided = decide_prompt_conditions(aMacro.Body, aFacts); !decided.Holds) {
-				return { .Unmet = prompt_unmet::condition, .Condition = decided.Hides ? 0U : decided.Reason };
+				const auto at = decided.Reason ? std::ranges::find(aMacro.Body.Conditions, *decided.Reason) : aMacro.Body.Conditions.end();
+				return { .Unmet = prompt_unmet::condition, .Condition = at == aMacro.Body.Conditions.end() ? 0U : static_cast<std::size_t>(at - aMacro.Body.Conditions.begin()) };
 			}
 		} else {
 			for (auto index = std::size_t{ 0 }; index < aMacro.Body.Conditions.size(); ++index) {
@@ -1065,6 +1154,28 @@ namespace bpr::core {
 		}
 		for (auto index = std::size_t{ 0 }; index < body.Conditions.size(); ++index) {
 			validate_condition(problems, aMacro.Place, body.Conditions[index], index);
+		}
+		// [[BPR-2179]], look prompts-v001. Nested groups: each holds at most
+		// four conditions, two levels below the list, twelve in all; their
+		// conditions are checked as the list's are, numbered after it.
+		{
+			auto       leaves = body.Conditions.size();
+			auto       deep   = false;
+			auto       wide   = false;
+			const auto walk   = [&](const auto& aSelf, const std::vector<prompt_condition_group>& aGroups, const std::size_t aDepth) -> void {
+				for (const auto& group : aGroups) {
+					deep = deep || aDepth >= maximum_prompt_condition_depth;
+					wide = wide || group.Conditions.size() > maximum_prompt_conditions;
+					for (const auto& condition : group.Conditions) {
+						validate_condition(problems, aMacro.Place, condition, leaves++);
+					}
+					aSelf(aSelf, group.Groups, aDepth + 1U);
+				}
+			};
+			walk(walk, body.Groups, 1U);
+			if (deep || wide || leaves > maximum_prompt_condition_leaves || body.Groups.size() > maximum_prompt_conditions) {
+				problems.push_back({ .Problem = prompt_problem::too_many_conditions, .Excess = leaves > maximum_prompt_condition_leaves ? leaves - maximum_prompt_condition_leaves : 0U });
+			}
 		}
 		// RFC-BPR-0128. A quick ask is on at least one scope, none narrower
 		// than what it is about.

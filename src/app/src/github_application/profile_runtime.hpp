@@ -570,7 +570,9 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		/// [[BPR-1879]]. The attended Repository-step look shows a fixture
 		/// review's agent setup as a review read sparsely through `gh`.
-		bool                                 SparseAgentSetupLook = false;
+		bool SparseAgentSetupLook = false;
+		/// [[BPR-2179]]. Seed a fresh profile's prompts for a look.
+		bool                                 PromptExamplesLook = false;
 		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> ClaudeAgentExecutable;
 		/// [[BPR-1916]]. A fixture home whose skill folders are read instead

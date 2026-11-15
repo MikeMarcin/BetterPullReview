@@ -523,6 +523,9 @@ namespace bpr::qt {
 		/// state ("waiting its turn", "paused: Stop") and whether it is paused.
 		void               present_queue_rows(std::vector<queue_row> aRows, const QString& aState, bool aPaused);
 		[[nodiscard]] auto queue_list() const noexcept -> QWidget* { return QueueList; }
+		/// \brief A waiting card dropped at `aAt` among the waiting cards,
+		/// as the pending list's drop does.
+		void drop_queued(std::uint64_t aId, int aAt);
 		/// \brief RFC-BPR-0126 Q4/Q5 as answered: while a turn runs or messages
 		/// wait, a typed message is a follow-up; Queue (the default) or Steer
 		/// by the setting, Cmd+Return (Ctrl+Return off macOS) the other for

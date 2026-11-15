@@ -28,10 +28,13 @@
 #include <QAccessible>
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDialog>
+#include <QDrag>
+#include <QDragEnterEvent>
 #include <QEnterEvent>
 #include <QEvent>
 #include <QFrame>
@@ -48,6 +51,7 @@
 #include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -71,6 +75,235 @@
 
 namespace bpr::qt {
 	namespace {
+		/// [[BPR-2151]] look prompts-v001 ("some defined borders maybe";
+		/// "drag to reorder instead of up/down arrows, a trash can to delete
+		/// and a pencil to edit"). The pending list is a bordered panel of
+		/// bordered cards: a grip to drag a card, the message, a pencil and a
+		/// trash can. Colours come from the palette.
+		constexpr auto queue_mime = "application/x-bpr-queued-message";
+
+		[[nodiscard]] auto blend(const QColor& aFrom, const QColor& aTo, const float aShare) -> QColor
+		{
+			return QColor::fromRgbF(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aShare, aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aShare,
+									aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aShare);
+		}
+
+		/// One waiting message: a card with a defined edge, dragged by its
+		/// grip, moved by Option-Up and Option-Down, removed by Delete.
+		class queue_card final : public QFrame
+		{
+		public:
+			queue_card(const std::uint64_t aId, const bool aMovable, std::function<void(std::uint64_t, int)> aMove, std::function<void(std::uint64_t)> aRemove, QWidget* const aParent)
+				: QFrame{ aParent }
+				, Id{ aId }
+				, Movable{ aMovable }
+				, Move{ std::move(aMove) }
+				, Remove{ std::move(aRemove) }
+			{
+				setObjectName(QStringLiteral("agentQueueRow"));
+				setFocusPolicy(aMovable ? Qt::StrongFocus : Qt::NoFocus);
+				setAttribute(Qt::WA_Hover);
+				setMinimumHeight(30);
+			}
+
+			[[nodiscard]] auto id() const noexcept -> std::uint64_t { return Id; }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto ground  = palette().color(QPalette::Base);
+				const auto ink     = palette().color(QPalette::WindowText);
+				const auto lit     = hasFocus() || underMouse();
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(QPen{ lit ? palette().color(QPalette::Highlight) : blend(ground, ink, 0.22F), lit ? 1.5 : 1.0 });
+				painter.setBrush(ground);
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.75, 0.75, -0.75, -0.75), 6, 6);
+				if (Movable) {
+					// The grip: two columns of three dots.
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(blend(ground, ink, 0.45F));
+					for (int column = 0; column < 2; ++column) {
+						for (int dot = 0; dot < 3; ++dot) {
+							painter.drawEllipse(QPointF{ 9.0 + column * 4.0, height() / 2.0 - 4.0 + dot * 4.0 }, 1.1, 1.1);
+						}
+					}
+				}
+			}
+
+			void mousePressEvent(QMouseEvent* const aEvent) override
+			{
+				Pressed = aEvent->position().toPoint();
+				QFrame::mousePressEvent(aEvent);
+			}
+
+			void mouseMoveEvent(QMouseEvent* const aEvent) override
+			{
+				if (!Movable || !(aEvent->buttons() & Qt::LeftButton) || (aEvent->position().toPoint() - Pressed).manhattanLength() < QApplication::startDragDistance()) {
+					QFrame::mouseMoveEvent(aEvent);
+					return;
+				}
+				auto* const drag    = new QDrag{ this };
+				auto* const payload = new QMimeData;
+				payload->setData(QString::fromLatin1(queue_mime), QByteArray::number(static_cast<qulonglong>(Id)));
+				drag->setMimeData(payload);
+				drag->setPixmap(grab());
+				drag->setHotSpot(Pressed);
+				static_cast<void>(drag->exec(Qt::MoveAction));
+			}
+
+			void keyPressEvent(QKeyEvent* const aEvent) override
+			{
+				if (Movable && (aEvent->modifiers() & Qt::AltModifier) != 0 && (aEvent->key() == Qt::Key_Up || aEvent->key() == Qt::Key_Down)) {
+					if (Move) {
+						Move(Id, aEvent->key() == Qt::Key_Up ? -1 : 1);
+					}
+					return;
+				}
+				if (Movable && (aEvent->key() == Qt::Key_Delete || aEvent->key() == Qt::Key_Backspace)) {
+					if (Remove) {
+						Remove(Id);
+					}
+					return;
+				}
+				QFrame::keyPressEvent(aEvent);
+			}
+
+			void focusInEvent(QFocusEvent* const aEvent) override
+			{
+				update();
+				QFrame::focusInEvent(aEvent);
+			}
+
+			void focusOutEvent(QFocusEvent* const aEvent) override
+			{
+				update();
+				QFrame::focusOutEvent(aEvent);
+			}
+
+		private:
+			std::uint64_t                           Id      = 0U;
+			bool                                    Movable = false;
+			std::function<void(std::uint64_t, int)> Move;
+			std::function<void(std::uint64_t)>      Remove;
+			QPoint                                  Pressed;
+		};
+
+		/// The pending list: a bordered panel that takes a dragged card and
+		/// draws where it will land.
+		class queue_panel final : public QWidget
+		{
+		public:
+			explicit queue_panel(QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+				setAcceptDrops(true);
+			}
+
+			void set_move(std::function<void(std::uint64_t, int)> aMove) { Move = std::move(aMove); }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto ground  = palette().color(QPalette::Window);
+				const auto ink     = palette().color(QPalette::WindowText);
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(QPen{ blend(ground, ink, 0.28F), 1.0 });
+				painter.setBrush(blend(ground, ink, 0.035F));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+				if (Line >= 0) {
+					painter.setPen(QPen{ palette().color(QPalette::Highlight), 2.0 });
+					painter.drawLine(QPointF{ 10.0, static_cast<qreal>(Line) }, QPointF{ static_cast<qreal>(width() - 10), static_cast<qreal>(Line) });
+				}
+			}
+
+			void dragEnterEvent(QDragEnterEvent* const aEvent) override
+			{
+				if (aEvent->mimeData()->hasFormat(QString::fromLatin1(queue_mime))) {
+					aEvent->acceptProposedAction();
+				}
+			}
+
+			void dragMoveEvent(QDragMoveEvent* const aEvent) override
+			{
+				if (!aEvent->mimeData()->hasFormat(QString::fromLatin1(queue_mime))) {
+					return;
+				}
+				const auto [at, line] = landing(aEvent->position().toPoint().y());
+				static_cast<void>(at);
+				Line = line;
+				update();
+				aEvent->acceptProposedAction();
+			}
+
+			void dragLeaveEvent(QDragLeaveEvent* const aEvent) override
+			{
+				Line = -1;
+				update();
+				QWidget::dragLeaveEvent(aEvent);
+			}
+
+			void dropEvent(QDropEvent* const aEvent) override
+			{
+				Line = -1;
+				update();
+				aEvent->acceptProposedAction();
+				land(aEvent->mimeData()->data(QString::fromLatin1(queue_mime)).toULongLong(), landing(aEvent->position().toPoint().y()).first);
+			}
+
+		public:
+			/// A card dropped at `aAt` among the waiting cards (0 is above the
+			/// first): the queue is asked to move it there.
+			void land(const std::uint64_t aId, int aAt)
+			{
+				const auto cards = movable();
+				const auto from  = std::ranges::find_if(cards, [aId](const queue_card* aCard) { return aCard->id() == aId; });
+				if (from == cards.end() || !Move) {
+					return;
+				}
+				const auto index = static_cast<int>(from - cards.begin());
+				if (aAt > index) {
+					--aAt;
+				}
+				if (aAt != index) {
+					// After the drag returns: the move rebuilds the cards.
+					QTimer::singleShot(0, this, [move = Move, aId, by = aAt - index] { move(aId, by); });
+				}
+			}
+
+		protected:
+		private:
+			[[nodiscard]] auto movable() const -> std::vector<queue_card*>
+			{
+				auto cards = std::vector<queue_card*>{ };
+				for (auto* const child : findChildren<QFrame*>(QStringLiteral("agentQueueRow"), Qt::FindDirectChildrenOnly)) {
+					if (auto* const card = dynamic_cast<queue_card*>(child); card != nullptr && !card->isHidden() && card->focusPolicy() != Qt::NoFocus) {
+						cards.push_back(card);
+					}
+				}
+				std::ranges::sort(cards, { }, [](const queue_card* aCard) { return aCard->y(); });
+				return cards;
+			}
+
+			/// Where a drop at `aY` lands among the movable cards, and the
+			/// line's height.
+			[[nodiscard]] auto landing(const int aY) const -> std::pair<int, int>
+			{
+				const auto cards = movable();
+				for (std::size_t index = 0U; index < cards.size(); ++index) {
+					if (aY < cards[index]->geometry().center().y()) {
+						return { static_cast<int>(index), cards[index]->geometry().top() - 2 };
+					}
+				}
+				return { static_cast<int>(cards.size()), cards.empty() ? 4 : cards.back()->geometry().bottom() + 3 };
+			}
+
+			std::function<void(std::uint64_t, int)> Move;
+			int                                     Line = -1;
+		};
 		/// A reply card's side margins; its answer is this much narrower.
 		constexpr auto reply_left_margin  = 12;
 		constexpr auto reply_right_margin = 10;
@@ -758,12 +991,20 @@ namespace bpr::qt {
 		// RFC-BPR-0126 ([[BPR-2151]]). The session's waiting messages, each
 		// with Edit (a typed one, held while edited), Remove and Move up and
 		// down, and Pause or Resume for the queue.
-		QueueList = new QWidget{ content };
+		{
+			auto* const panel = new queue_panel{ content };
+			panel->set_move([this](const std::uint64_t aId, const int aBy) {
+				if (QueueDispatch.Move) {
+					QueueDispatch.Move(aId, aBy);
+				}
+			});
+			QueueList = panel;
+		}
 		QueueList->setObjectName(QStringLiteral("agentQueueList"));
 		QueueList->setAccessibleName(tr("Queued messages"));
 		new QVBoxLayout{ QueueList };
-		QueueList->layout()->setContentsMargins(0, 0, 0, 0);
-		QueueList->layout()->setSpacing(2);
+		QueueList->layout()->setContentsMargins(8, 6, 8, 8);
+		QueueList->layout()->setSpacing(4);
 		QueueList->hide();
 		contentCol->addWidget(QueueList);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
@@ -2714,17 +2955,67 @@ namespace bpr::qt {
 			static_cast<void>(this);
 			return made;
 		};
+		// An icon alone, named and tipped: the pencil and the trash can.
+		const auto glyph = [this, &button](QWidget* aParent, const conversation_glyph aGlyph, const QString& aName, const QString& aSpoken) {
+			auto* const made = button(aParent, QString{ }, aName, aSpoken);
+			made->setIcon(conversation_icon(aGlyph, palette()));
+			made->setIconSize(QSize{ 14, 14 });
+			return made;
+		};
+		// The panel's head: what waits, how many, the queue's state, and
+		// Pause or Resume.
+		{
+			auto* const head  = new QWidget{ QueueList };
+			auto* const heads = new QHBoxLayout{ head };
+			heads->setContentsMargins(2, 0, 0, 2);
+			auto* const title = new QLabel{ tr("Waiting"), head };
+			title->setObjectName(QStringLiteral("agentQueueTitle"));
+			auto titleFont = title->font();
+			titleFont.setWeight(QFont::DemiBold);
+			title->setFont(titleFont);
+			heads->addWidget(title);
+			const auto  waiting = std::ranges::count_if(aRows, [](const queue_row& aRow) { return !aRow.Sending; });
+			auto* const count   = new QLabel{ QString::number(waiting), head };
+			count->setForegroundRole(QPalette::PlaceholderText);
+			heads->addWidget(count);
+			auto* const state = new QLabel{ aState, head };
+			state->setObjectName(QStringLiteral("agentQueueState"));
+			state->setForegroundRole(QPalette::PlaceholderText);
+			heads->addWidget(state, 1, Qt::AlignRight);
+			auto* const toggle = button(head, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
+			connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
+				if (aPaused && QueueDispatch.Resume) {
+					QueueDispatch.Resume();
+				} else if (!aPaused && QueueDispatch.Pause) {
+					QueueDispatch.Pause();
+				}
+			});
+			heads->addWidget(toggle);
+			column->addWidget(head);
+		}
+		const auto move = [this](const std::uint64_t aId, const int aBy) {
+			if (QueueDispatch.Move) {
+				QueueDispatch.Move(aId, aBy);
+			}
+		};
+		const auto drop = [this](const std::uint64_t aId) {
+			if (QueueDispatch.Remove) {
+				QueueDispatch.Remove(aId);
+			}
+		};
 		for (std::size_t index = 0U; index < aRows.size(); ++index) {
 			const auto& entry = aRows[index];
-			auto* const row   = new QWidget{ QueueList };
-			row->setObjectName(QStringLiteral("agentQueueRow"));
+			const auto  id    = entry.Id;
+			auto* const row   = new queue_card{ id, !entry.Sending && !(EditingQueued == entry.Id && entry.Held), move, drop, QueueList };
 			row->setProperty("agentQueueId", QVariant::fromValue<qulonglong>(entry.Id));
+			row->setAccessibleName(tr("Queued %1 of %2: %3").arg(index + 1U).arg(aRows.size()).arg(entry.Label));
+			row->setAccessibleDescription(entry.Sending ? tr("Sending") : tr("Drag, or Option-Up and Option-Down, to reorder; Delete removes it"));
 			auto* const line = new QHBoxLayout{ row };
-			line->setContentsMargins(0, 0, 0, 0);
-			line->setSpacing(4);
-			const auto id = entry.Id;
+			line->setContentsMargins(22, 3, 4, 3);
+			line->setSpacing(2);
 			if (EditingQueued == entry.Id && entry.Held) {
 				// Edited in place, held: never sent, and nothing passes it.
+				line->setContentsMargins(8, 3, 4, 3);
 				auto* const field = new QLineEdit{ entry.Text, row };
 				field->setObjectName(QStringLiteral("agentQueueEditField"));
 				field->setAccessibleName(tr("Queued message"));
@@ -2750,16 +3041,23 @@ namespace bpr::qt {
 				QTimer::singleShot(0, field, [field] { field->setFocus(Qt::OtherFocusReason); });
 				continue;
 			}
+			if (entry.Sending) {
+				line->setContentsMargins(8, 3, 4, 3);
+			}
 			auto* const label = new QLabel{ row };
 			label->setObjectName(QStringLiteral("agentQueueLabel"));
-			label->setText(entry.Sending ? tr("%1 (sending)").arg(entry.Label) : entry.Held ? tr("%1 (being edited)").arg(entry.Label)
-																							: entry.Label);
+			label->setText(entry.Held ? tr("%1 (being edited)").arg(entry.Label) : entry.Label);
 			label->setTextFormat(Qt::PlainText);
 			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
 			line->addWidget(label, 1);
-			if (!entry.Sending) {
+			if (entry.Sending) {
+				auto* const sending = new QLabel{ tr("Sending"), row };
+				sending->setObjectName(QStringLiteral("agentQueueSending"));
+				apply_agent_accent(*sending, palette());
+				line->addWidget(sending);
+			} else {
 				if (!entry.Text.isEmpty()) {
-					auto* const edit = button(row, tr("Edit"), QStringLiteral("agentQueueEdit"), tr("Edit the queued message: %1").arg(entry.Label));
+					auto* const edit = glyph(row, conversation_glyph::edit, QStringLiteral("agentQueueEdit"), tr("Edit the queued message: %1").arg(entry.Label));
 					connect(edit, &QPushButton::clicked, this, [this, id] {
 						EditingQueued = id;
 						if (QueueDispatch.Edit) {
@@ -2768,50 +3066,28 @@ namespace bpr::qt {
 					});
 					line->addWidget(edit);
 				}
-				auto* const up     = button(row, QStringLiteral("\u2191"), QStringLiteral("agentQueueUp"), tr("Move up: %1").arg(entry.Label));
-				auto* const down   = button(row, QStringLiteral("\u2193"), QStringLiteral("agentQueueDown"), tr("Move down: %1").arg(entry.Label));
-				auto* const remove = button(row, tr("Remove"), QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
-				up->setEnabled(index > 0U && !aRows[index - 1U].Sending);
-				down->setEnabled(index + 1U < aRows.size());
-				connect(up, &QPushButton::clicked, this, [this, id] {
-					if (QueueDispatch.Move) {
-						QueueDispatch.Move(id, -1);
-					}
-				});
-				connect(down, &QPushButton::clicked, this, [this, id] {
-					if (QueueDispatch.Move) {
-						QueueDispatch.Move(id, 1);
-					}
-				});
+				auto* const remove = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
 				connect(remove, &QPushButton::clicked, this, [this, id] {
 					if (QueueDispatch.Remove) {
 						QueueDispatch.Remove(id);
 					}
 				});
-				line->addWidget(up);
-				line->addWidget(down);
 				line->addWidget(remove);
 			}
 			column->addWidget(row);
 		}
-		auto* const foot = new QWidget{ QueueList };
-		auto* const feet = new QHBoxLayout{ foot };
-		feet->setContentsMargins(0, 0, 0, 0);
-		auto* const state = new QLabel{ aState, foot };
-		state->setObjectName(QStringLiteral("agentQueueState"));
-		state->setForegroundRole(QPalette::PlaceholderText);
-		feet->addWidget(state, 1);
-		auto* const toggle = button(foot, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
-		connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
-			if (aPaused && QueueDispatch.Resume) {
-				QueueDispatch.Resume();
-			} else if (!aPaused && QueueDispatch.Pause) {
-				QueueDispatch.Pause();
-			}
-		});
-		feet->addWidget(toggle);
-		column->addWidget(foot);
+		if (QueueNote != nullptr) {
+			// The panel says what waits; the line above it would repeat it.
+			QueueNote->hide();
+		}
 		QueueList->show();
+	}
+
+	void agent_tab_view::drop_queued(const std::uint64_t aId, const int aAt)
+	{
+		if (auto* const panel = dynamic_cast<queue_panel*>(QueueList); panel != nullptr) {
+			panel->land(aId, aAt);
+		}
 	}
 
 	void agent_tab_view::present_queue(const QStringList& aWaiting, const QString& aState)
@@ -2821,7 +3097,7 @@ namespace bpr::qt {
 		}
 		QueueNote->setText(aWaiting.isEmpty() ? QString{ } : tr("Queued (%1): %2").arg(aState, aWaiting.join(QStringLiteral(", "))));
 		QueueNote->setAccessibleName(QueueNote->text());
-		QueueNote->setVisible(!aWaiting.isEmpty());
+		QueueNote->setVisible(!aWaiting.isEmpty() && (QueueList == nullptr || QueueList->isHidden()));
 	}
 
 	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict

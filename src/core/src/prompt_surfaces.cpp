@@ -386,6 +386,9 @@ namespace bpr::core {
 			if (found->Match) {
 				macro.Body.Match = *found->Match;
 			}
+			if (found->Groups) {
+				macro.Body.Groups = *found->Groups;
+			}
 			if (found->On) {
 				macro.On = *found->On;
 			}
@@ -427,8 +430,9 @@ namespace bpr::core {
 			if (macro.Body.Kind != app->Body.Kind) {
 				change.Kind = macro.Body.Kind;
 			}
-			if (macro.Body.Conditions != app->Body.Conditions) {
+			if (macro.Body.Conditions != app->Body.Conditions || macro.Body.Groups != app->Body.Groups) {
 				change.Conditions = macro.Body.Conditions;
+				change.Groups     = macro.Body.Groups;
 			}
 			if (macro.Body.Match != app->Body.Match) {
 				change.Match = macro.Body.Match;

@@ -4,6 +4,8 @@
 #include "bpr/application/prompt_macro_host.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 
+#include <QSet>
+#include <QString>
 #include <QStringList>
 #include <QWidget>
 
@@ -163,6 +165,8 @@ namespace bpr::qt {
 		void               rebuild_library();
 		void               refresh_editor();
 		void               rebuild_conditions();
+		void               add_group_rows(QVBoxLayout& aColumn, core::prompt_macro_body& aBody, const std::vector<std::size_t>& aPath);
+		void               fill_condition_menu(QMenu& aMenu, const std::vector<std::size_t>& aPath);
 		void               changed(bool aTyping = false);
 		void               flush();
 		void               show_system(bool aShown);
@@ -207,37 +211,39 @@ namespace bpr::qt {
 		bool                                                        InFlight = false;
 		QString                                                     Refusal;
 		std::array<QListWidget*, core::prompt_surface_count>        Lists{ };
-		std::array<bool, core::maximum_prompt_conditions>           Open{ };
-		QComboBox*                                                  PromptsFor    = nullptr;
-		QLabel*                                                     Caption       = nullptr;
-		QLineEdit*                                                  Search        = nullptr;
-		QButtonGroup*                                               Filters       = nullptr;
-		QListWidget*                                                LibraryList   = nullptr;
-		QStackedWidget*                                             EditorPages   = nullptr;
-		QLineEdit*                                                  Name          = nullptr;
-		QLabel*                                                     BuiltInTag    = nullptr;
-		QToolButton*                                                AsQuestion    = nullptr;
-		QToolButton*                                                AsFindings    = nullptr;
-		QPlainTextEdit*                                             Text          = nullptr;
-		QLabel*                                                     ActionNote    = nullptr;
-		QWidget*                                                    InsertRow     = nullptr;
-		QLabel*                                                     Bytes         = nullptr;
-		QToolButton*                                                MatchAll      = nullptr;
-		QToolButton*                                                MatchAny      = nullptr;
-		QToolButton*                                                AddCondition  = nullptr;
-		QVBoxLayout*                                                Conditions    = nullptr;
-		QLabel*                                                     Problems      = nullptr;
-		QPushButton*                                                AddTo         = nullptr;
-		QPushButton*                                                Duplicate     = nullptr;
-		QPushButton*                                                Reset         = nullptr;
-		QLabel*                                                     OnSurfaces    = nullptr;
-		QLabel*                                                     SavedLabel    = nullptr;
-		QLabel*                                                     Status        = nullptr;
-		QTimer*                                                     Typing        = nullptr;
-		QBoxLayout*                                                 ToolsRow      = nullptr;
-		QBoxLayout*                                                 Body          = nullptr;
-		QBoxLayout*                                                 EditorColumns = nullptr;
-		QWidget*                                                    RightBox      = nullptr;
+		/// Which condition rows are open, by their place in the tree.
+		QSet<QString>   OpenConditions;
+		QComboBox*      PromptsFor    = nullptr;
+		QLabel*         Caption       = nullptr;
+		QLineEdit*      Search        = nullptr;
+		QButtonGroup*   Filters       = nullptr;
+		QListWidget*    LibraryList   = nullptr;
+		QStackedWidget* EditorPages   = nullptr;
+		QLineEdit*      Name          = nullptr;
+		QLabel*         BuiltInTag    = nullptr;
+		QToolButton*    AsQuestion    = nullptr;
+		QToolButton*    AsFindings    = nullptr;
+		QPlainTextEdit* Text          = nullptr;
+		QLabel*         ActionNote    = nullptr;
+		QWidget*        InsertRow     = nullptr;
+		QLabel*         Bytes         = nullptr;
+		QToolButton*    MatchAll      = nullptr;
+		QToolButton*    MatchAny      = nullptr;
+		QToolButton*    MatchNone     = nullptr;
+		QPushButton*    AddCondition  = nullptr;
+		QVBoxLayout*    Conditions    = nullptr;
+		QLabel*         Problems      = nullptr;
+		QPushButton*    AddTo         = nullptr;
+		QPushButton*    Duplicate     = nullptr;
+		QPushButton*    Reset         = nullptr;
+		QLabel*         OnSurfaces    = nullptr;
+		QLabel*         SavedLabel    = nullptr;
+		QLabel*         Status        = nullptr;
+		QTimer*         Typing        = nullptr;
+		QBoxLayout*     ToolsRow      = nullptr;
+		QBoxLayout*     Body          = nullptr;
+		QBoxLayout*     EditorColumns = nullptr;
+		QWidget*        RightBox      = nullptr;
 	};
 } // namespace bpr::qt
 

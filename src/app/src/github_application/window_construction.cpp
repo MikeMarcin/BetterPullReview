@@ -19,6 +19,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_ignore.hpp"
+#include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -1578,6 +1579,36 @@ namespace bpr::app {
 				if (!Closing) {
 					present_prompt_macros(aProjection);
 				}
+	#if defined(BPR_BUILD_TESTING)
+				// [[BPR-2179]] look prompts-v002: a fresh profile starts with
+				// two prompts of the reviewer's own whose conditions nest.
+				if (!Closing && PromptExamplesLook && !PromptExamplesSeeded && aProjection.Loaded && aProjection.Readable && aProjection.Revision == 0U) {
+					PromptExamplesSeeded = true;
+					using core::prompt_fact;
+					using core::prompt_match;
+					auto again            = core::prompt_macro{ .Id = "own.example-look-again", .Place = core::prompt_place::agent_tab };
+					again.Body.Name       = "Ready to look again?";
+					again.Body.Template   = "Has {pr.title} changed enough since my review that I should look again?";
+					again.Body.Conditions = { { .Fact = prompt_fact::pushes_since_review } };
+					again.Body.Groups     = { { .Match = prompt_match::none, .Conditions = { { .Fact = prompt_fact::draft } } },
+											  { .Match = prompt_match::any, .Conditions = { { .Fact = prompt_fact::checks_failing }, { .Fact = prompt_fact::author_is_me, .Negated = true } } } };
+					auto open             = core::prompt_macro{ .Id = "own.example-still-open", .Place = core::prompt_place::conversation };
+					open.Body.Name        = "Still open after the push?";
+					open.Body.Template    = "Is the concern in this thread still open after the latest push?";
+					open.Body.Subject     = core::prompt_subject::conversation;
+					open.Body.Conditions  = { { .Fact = prompt_fact::thread_unresolved } };
+					open.Body.Groups      = { { .Match = prompt_match::any, .Conditions = { { .Fact = prompt_fact::replies_since_mine }, { .Fact = prompt_fact::thread_activity, .Activity = core::prompt_activity_value::pushes } } } };
+					auto macros           = aProjection.Set.macros();
+					auto surfaces         = aProjection.Set.Surfaces;
+					macros.push_back(again);
+					macros.push_back(open);
+					for (const auto& [id, surface] : { std::pair{ again.Id, core::prompt_surface::pull_request_menu }, std::pair{ again.Id, core::prompt_surface::pull_request_chips },
+													   std::pair{ open.Id, core::prompt_surface::thread_menu }, std::pair{ open.Id, core::prompt_surface::thread_chips } }) {
+						static_cast<void>(core::place(surfaces, macros, id, surface));
+					}
+					PromptMacros->save(application::prompt_macro_differences_of(core::shipped_prompt_macros(), macros, surfaces));
+				}
+	#endif
 			};
 			PromptMacros = std::make_unique<application::prompt_macro_host>(std::move(dependencies));
 		}

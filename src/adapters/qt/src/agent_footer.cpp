@@ -223,6 +223,14 @@ namespace bpr::qt {
 				StopAllDispatch();
 			}
 		});
+		// [[BPR-2151]] look prompts-v001 (owner, on Stop all: "thinking for
+		// would be a good time to track while it's active"): beside Stop all,
+		// how long the longest turn has been thinking, while one is.
+		ThinkingFor = new QLabel{ this };
+		ThinkingFor->setObjectName(QStringLiteral("agentFooterThinkingFor"));
+		ThinkingFor->setForegroundRole(QPalette::PlaceholderText);
+		ThinkingFor->hide();
+		row->addWidget(ThinkingFor);
 		row->addWidget(StopAllButton);
 		StopAllButton->hide();
 
@@ -422,6 +430,19 @@ namespace bpr::qt {
 		SettingsButton->setText(chosen ? tr("Agent settings…") : tr("Set up an agent…"));
 		SettingsButton->setVisible(!Need.isEmpty() || Picker->isHidden());
 		StopAllButton->setVisible(count > 0U || Queued > 0U);
+		{
+			auto longest = qint64{ -1 };
+			for (const auto& each : Runs) {
+				if (each) {
+					longest = std::max(longest, seconds_of(each->Started));
+				}
+			}
+			ThinkingFor->setVisible(longest >= 0);
+			if (longest >= 0) {
+				ThinkingFor->setText(longest < 60 ? tr("Thinking for %1s").arg(longest) : tr("Thinking for %1m %2s").arg(longest / 60).arg(longest % 60, 2, 10, QLatin1Char{ '0' }));
+				ThinkingFor->setAccessibleName(ThinkingFor->text());
+			}
+		}
 		Divider->setVisible(RunArea->isVisibleTo(this) || RunsButton->isVisibleTo(this));
 
 		const auto total = total_cost();

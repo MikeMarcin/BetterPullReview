@@ -199,13 +199,13 @@ namespace {
 		const auto cppOnly  = prompt_condition{ .Fact = prompt_fact::path, .Patterns = { "*.md" } };
 		auto       body     = prompt_macro_body{ .Name = "Why did it fail?", .Template = "Why did the check fail?", .Conditions = { failing } };
 		auto       decided  = decide_prompt_conditions(body, facts);
-		expect(!decided.Holds && !decided.Hides && decided.Reason == 0U, "All: a greys condition untrue greys");
+		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "All: a greys condition untrue greys");
 		body.Conditions = { failing, cppOnly };
 		decided         = decide_prompt_conditions(body, facts);
 		expect(!decided.Holds && decided.Hides, "All: a hides condition untrue hides");
 		body.Match = prompt_match::any;
 		decided    = decide_prompt_conditions(body, facts);
-		expect(!decided.Holds && !decided.Hides && decided.Reason == 0U, "Any: hidden only when every condition hides");
+		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "Any: hidden only when every condition hides");
 		body.Conditions = { cppOnly };
 		expect(decide_prompt_conditions(body, facts).Hides, "Any of hides alone: hidden");
 		facts.ChecksFailing = true;
@@ -281,6 +281,46 @@ namespace {
 		const auto set = merge_prompt_macros(shipped_prompt_macros(), { .Repositories = { layer } });
 		expect(prompt_set_for_repository(set, "Octo/Render").Surfaces == edited.Surfaces && prompt_set_for_repository(set, "other/repo") == set, "only its own repository");
 	}
+
+	// Look prompts-v001 (owner: "You should be able to nest conditionals"):
+	// All, Any and None groups that nest, each leaf keeping its kind.
+	void test_nested_conditions()
+	{
+		auto facts          = sample_prompt_facts(prompt_place::agent_tab);
+		facts.ChecksFailing = false;
+		facts.Draft         = true;
+		const auto failing  = prompt_condition{ .Fact = prompt_fact::checks_failing };
+		const auto draft    = prompt_condition{ .Fact = prompt_fact::draft };
+		const auto markdown = prompt_condition{ .Fact = prompt_fact::path, .Patterns = { "*.md" } };
+		// draft AND (failing OR markdown): the group is untrue.
+		auto body    = prompt_macro_body{ .Name = "N", .Template = "N", .Conditions = { draft }, .Groups = { { .Match = prompt_match::any, .Conditions = { failing, markdown } } } };
+		auto decided = decide_prompt_conditions(body, facts);
+		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "an untrue Any group greys with its greys leaf's reason");
+		facts.ChecksFailing = true;
+		expect(decide_prompt_conditions(body, facts).Holds, "and holds when one of it holds");
+		// NONE of (draft): untrue while a draft; the reason is draft turned.
+		body             = prompt_macro_body{ .Name = "N", .Template = "N", .Groups = { { .Match = prompt_match::none, .Conditions = { draft } } } };
+		decided          = decide_prompt_conditions(body, facts);
+		auto notDraft    = draft;
+		notDraft.Negated = true;
+		expect(!decided.Holds && !decided.Hides && decided.Reason == notDraft, "None of a true greys leaf greys, with its turned reason");
+		// A hides leaf deep in an All hides the row.
+		body = prompt_macro_body{ .Name = "N", .Template = "N", .Groups = { { .Match = prompt_match::all, .Groups = { { .Match = prompt_match::all, .Conditions = { markdown } } } } } };
+		expect(decide_prompt_conditions(body, facts).Hides, "a hides leaf two levels down still hides");
+		// Validation bounds the tree.
+		auto deep        = prompt_macro{ .Id = "own.deep", .Body = { .Name = "Deep", .Template = "x" } };
+		deep.Body.Groups = { { .Groups = { { .Groups = { { .Conditions = { draft } } } } } } };
+		expect(!prompt_macro_valid(deep), "three levels below the list are too deep");
+		auto fine = prompt_macro{ .Id = "own.fine", .Body = { .Name = "Fine", .Template = "x", .Groups = { { .Match = prompt_match::none, .Groups = { { .Conditions = { draft } } } } } } };
+		expect(prompt_macro_valid(fine), "two levels are fine");
+		// A repository's layer carries the groups.
+		const auto library                               = std::vector<prompt_macro>{ fine };
+		const auto surfaces                              = prompt_surfaces{ };
+		auto       edited                                = prompt_layered{ .Library = library, .Surfaces = surfaces };
+		edited.Library.front().Body.Groups.front().Match = prompt_match::any;
+		const auto layer                                 = repository_layer_of(library, surfaces, edited, "octo/render");
+		expect(layer.Overrides.size() == 1U && layer.Overrides.front().Groups && apply_repository_layer(library, surfaces, layer) == edited, "a repository overrides the groups");
+	}
 } // namespace
 
 auto main() -> int
@@ -291,6 +331,7 @@ auto main() -> int
 	test_decisions_read_surfaces();
 	test_condition_kinds();
 	test_repository_layer();
+	test_nested_conditions();
 	if (failures != 0) {
 		return EXIT_FAILURE;
 	}

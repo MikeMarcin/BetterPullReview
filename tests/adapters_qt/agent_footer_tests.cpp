@@ -443,6 +443,9 @@ auto main(int argc, char** argv) -> int
 		footer->present_run(qt::agent_footer_place::tour_chat, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, waiting_on_helpers()), .Started = started2, .Stop = [&stoppedAll] { stoppedAll += "tour;"; } });
 		settle();
 		expect(footer->stop_all_button()->isVisible() && footer->stop_all_button()->focusPolicy() != Qt::NoFocus, "and so does a running turn; it takes keyboard focus");
+		// Look prompts-v001: beside it, how long the turn has been thinking.
+		expect(footer->thinking_for()->isVisible() && footer->thinking_for()->text().startsWith(QStringLiteral("Thinking for ")) && footer->thinking_for()->text().endsWith(QStringLiteral("s")),
+			   "a running turn says how long it has been thinking: " + footer->thinking_for()->text().toStdString());
 		footer->stop_all_button()->click();
 		expect(stoppedAll == "agent;tour;" && pausedAll == 1, "it stops every run and pauses every queue: " + stoppedAll);
 		footer->present_run(qt::agent_footer_place::agent_tab, std::nullopt);

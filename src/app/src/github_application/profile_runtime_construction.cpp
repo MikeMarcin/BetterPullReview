@@ -209,6 +209,7 @@ namespace bpr::app {
 				= aFixtureOptions.ExternalAgentExecutable;
 			CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
 			SparseAgentSetupLook    = aFixtureOptions.SparseAgentSetupLook;
+			PromptExamplesLook      = aFixtureOptions.PromptExamplesLook;
 			ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 			PersonalSkillHome       = aFixtureOptions.PersonalSkillHome;
 			ClaudeSearch            = aFixtureOptions.ClaudeSearch;

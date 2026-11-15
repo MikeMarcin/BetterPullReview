@@ -347,7 +347,21 @@ auto main(int argc, char** argv) -> int
 			expect(rowsOf().contains(QStringLiteral("First follow-up, edited")), "the edit is kept: " + rowsOf().join(QLatin1Char('|')).toStdString());
 			expect(pressIn(QStringLiteral("agentQueueRemove"), QStringLiteral("Third, steered")), "Remove");
 			expect(!rowsOf().contains(QStringLiteral("Third, steered")), "removed");
-			expect(pressIn(QStringLiteral("agentQueueUp"), QStringLiteral("Second follow-up")), "Move up");
+			// Look prompts-v001: a card is dragged to reorder; dropped above
+			// the second waiting card, the third goes there.
+			{
+				auto moved = false;
+				for (auto* const card : list()->findChildren<QWidget*>(QStringLiteral("agentQueueRow"))) {
+					auto* const label = card->findChild<QLabel*>(QStringLiteral("agentQueueLabel"));
+					if (label != nullptr && label->text() == QStringLiteral("Second follow-up")) {
+						tab->drop_queued(card->property("agentQueueId").toULongLong(), 1);
+						moved = true;
+						break;
+					}
+				}
+				expect(moved, "Move up by a drag");
+				wait([&] { return rowsOf().indexOf(QStringLiteral("Second follow-up")) < rowsOf().indexOf(QStringLiteral("First follow-up, edited")); }, "the drop lands");
+			}
 			const auto order = rowsOf();
 			expect(order.indexOf(QStringLiteral("Second follow-up")) < order.indexOf(QStringLiteral("First follow-up, edited")), "moved up: " + order.join(QLatin1Char('|')).toStdString());
 			expect(launchesAt() > 0U && tab->turn_count() == settledTurns + 1U, "nothing more ran while paused");

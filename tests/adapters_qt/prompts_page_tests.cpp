@@ -55,6 +55,8 @@ namespace {
 	{
 		for (int pass = 0; pass < 4; ++pass) {
 			QApplication::processEvents();
+			// Rows a rebuild retired go now, so a lookup finds the new ones.
+			QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 		}
 	}
 
@@ -274,9 +276,30 @@ namespace {
 		}
 		expect(kinds.contains(QStringLiteral("greys")) && kinds.contains(QStringLiteral("Thread is unresolved")), "a condition row shows its name and kind: " + kinds.join(QLatin1Char('|')).toStdString());
 		expect(qt::prompt_condition_reason({ .Fact = core::prompt_fact::thread_unresolved }) == QStringLiteral("This thread is resolved."), "its greyed reason");
-		auto* const add = page.findChild<QToolButton*>(QStringLiteral("promptsAddCondition"));
-		page.edit_selected([](core::prompt_macro& aMacro) { aMacro.Body.Conditions.resize(core::maximum_prompt_conditions, { .Fact = core::prompt_fact::draft }); });
-		expect(add != nullptr && !add->isEnabled() && !add->toolTip().isEmpty(), "at four the add button is disabled and says so");
+		auto* const add = page.findChild<QPushButton*>(QStringLiteral("promptsAddCondition"));
+		page.edit_selected([](core::prompt_macro& aMacro) {
+			aMacro.Body.Conditions.resize(core::maximum_prompt_conditions, { .Fact = core::prompt_fact::draft });
+			aMacro.Body.Groups.resize(core::maximum_prompt_conditions);
+		});
+		expect(add != nullptr && !add->isEnabled() && !add->toolTip().isEmpty(), "full, the add button is disabled and says so");
+		// Look prompts-v001: groups nest (All, Any, None), each its own box.
+		page.edit_selected([](core::prompt_macro& aMacro) {
+			aMacro.Body.Conditions = { { .Fact = core::prompt_fact::thread_unresolved } };
+			aMacro.Body.Match      = core::prompt_match::all;
+			aMacro.Body.Groups     = { { .Match = core::prompt_match::any, .Conditions = { { .Fact = core::prompt_fact::replies_since_mine } }, .Groups = { { .Match = core::prompt_match::none, .Conditions = { { .Fact = core::prompt_fact::draft } } } } } };
+		});
+		settle();
+		auto* const outer = page.findChild<QWidget*>(QStringLiteral("promptsConditionGroup-g.0"));
+		auto* const inner = page.findChild<QWidget*>(QStringLiteral("promptsConditionGroup-g.0.0"));
+		auto* const none  = page.findChild<QToolButton*>(QStringLiteral("promptsGroupMatch-g.0.0-none"));
+		expect(outer != nullptr && inner != nullptr && inner->parentWidget() == outer && none != nullptr && none->isChecked(), "a group holds a group, each with its own match");
+		auto* const anyOuter = page.findChild<QToolButton*>(QStringLiteral("promptsGroupMatch-g.0-all"));
+		if (anyOuter != nullptr) {
+			anyOuter->click();
+			settle();
+		}
+		const auto changed = std::ranges::find(page.library(), std::string{ "conversation.summarize" }, &core::prompt_macro::Id);
+		expect(changed->Body.Groups.front().Match == core::prompt_match::all && aHarness.Saves.back().first == page.library(), "a group's match is edited and saved");
 		render(aHarness, QStringLiteral("03-conditions"));
 		page.reset_to_default("conversation.summarize");
 	}

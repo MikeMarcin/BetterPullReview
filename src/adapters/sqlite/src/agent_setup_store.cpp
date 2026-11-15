@@ -2308,33 +2308,67 @@ namespace bpr::adapters::sqlite {
 		/// Conditions as text: one per line, `fact`, `is` or `not`, the lines
 		/// value, then each pattern, separated by the unit separator. A
 		/// pattern holding a control character is not stored.
-		/// [[BPR-2179]]. "Any of these" leads as a line of its own, and
-		/// `thread-activity` keeps what it counts in the lines field, so an
-		/// earlier build reads either row as a newer build's and keeps it.
-		[[nodiscard]] auto encode_conditions(const std::vector<core::prompt_condition>& aConditions, const core::prompt_match aMatch = core::prompt_match::all) -> std::optional<std::string>
+		/// One condition as a line: `fact`, `is` or `not`, the lines value (or,
+		/// for `thread-activity`, what it counts), then each pattern.
+		[[nodiscard]] auto encode_condition(std::string& aText, const core::prompt_condition& aCondition) -> bool
 		{
-			auto text = std::string{ aMatch == core::prompt_match::any ? "any" : "" };
-			for (const auto& condition : aConditions) {
-				if (!text.empty()) {
-					text += '\n';
+			if (!aText.empty()) {
+				aText += '\n';
+			}
+			aText += core::stable_name(aCondition.Fact);
+			aText += '\x1f';
+			aText += aCondition.Negated ? "not" : "is";
+			aText += '\x1f';
+			if (aCondition.Fact == core::prompt_fact::thread_activity) {
+				aText += aCondition.Activity == core::prompt_activity_value::replies ? "replies" : aCondition.Activity == core::prompt_activity_value::pushes ? "pushes"
+																																							  : "both";
+			} else {
+				aText += lines_name(aCondition.Lines);
+			}
+			for (const auto& pattern : aCondition.Patterns) {
+				if (std::ranges::any_of(pattern, [](const char aCharacter) { return static_cast<unsigned char>(aCharacter) < 0x20U; })) {
+					return false;
 				}
-				text += core::stable_name(condition.Fact);
-				text += '\x1f';
-				text += condition.Negated ? "not" : "is";
-				text += '\x1f';
-				if (condition.Fact == core::prompt_fact::thread_activity) {
-					text += condition.Activity == core::prompt_activity_value::replies ? "replies" : condition.Activity == core::prompt_activity_value::pushes ? "pushes"
-																																							   : "both";
-				} else {
-					text += lines_name(condition.Lines);
-				}
-				for (const auto& pattern : condition.Patterns) {
-					if (std::ranges::any_of(pattern, [](const char aCharacter) { return static_cast<unsigned char>(aCharacter) < 0x20U; })) {
-						return std::nullopt;
+				aText += '\x1f';
+				aText += pattern;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto encode_groups(std::string& aText, const std::vector<core::prompt_condition_group>& aGroups) -> bool
+		{
+			for (const auto& group : aGroups) {
+				aText += aText.empty() ? "(" : "\n(";
+				aText += '\x1f';
+				aText += core::stable_name(group.Match);
+				for (const auto& condition : group.Conditions) {
+					if (!encode_condition(aText, condition)) {
+						return false;
 					}
-					text += '\x1f';
-					text += pattern;
 				}
+				if (!encode_groups(aText, group.Groups)) {
+					return false;
+				}
+				aText += "\n)";
+			}
+			return true;
+		}
+
+		/// [[BPR-2179]]. "Any of these" or "None of these" leads as a line of
+		/// its own; a nested group opens with `(` and its match and closes
+		/// with `)`. An earlier build reads any of these as a newer build's row
+		/// and keeps it.
+		[[nodiscard]] auto encode_conditions(const std::vector<core::prompt_condition>& aConditions, const core::prompt_match aMatch = core::prompt_match::all,
+											 const std::vector<core::prompt_condition_group>& aGroups = { }) -> std::optional<std::string>
+		{
+			auto text = std::string{ aMatch == core::prompt_match::all ? "" : core::stable_name(aMatch) };
+			for (const auto& condition : aConditions) {
+				if (!encode_condition(text, condition)) {
+					return std::nullopt;
+				}
+			}
+			if (!encode_groups(text, aGroups)) {
+				return std::nullopt;
 			}
 			return text;
 		}
@@ -2351,49 +2385,100 @@ namespace bpr::adapters::sqlite {
 			return parts;
 		}
 
-		[[nodiscard]] auto decode_conditions(std::string_view aText, core::prompt_match* const aMatch = nullptr) -> std::optional<std::vector<core::prompt_condition>>
+		[[nodiscard]] auto decode_condition(const std::string_view aLine) -> std::optional<core::prompt_condition>
+		{
+			const auto fields = split(aLine, '\x1f');
+			if (fields.size() < 3U) {
+				return std::nullopt;
+			}
+			const auto fact = named_value<core::prompt_fact>(fields[0], core::prompt_fact_count);
+			if (!fact || (fields[1] != "is" && fields[1] != "not")) {
+				return std::nullopt;
+			}
+			auto condition = core::prompt_condition{ .Fact = *fact, .Negated = fields[1] == "not" };
+			if (*fact == core::prompt_fact::thread_activity) {
+				if (fields[2] == "replies") {
+					condition.Activity = core::prompt_activity_value::replies;
+				} else if (fields[2] == "pushes") {
+					condition.Activity = core::prompt_activity_value::pushes;
+				} else if (fields[2] != "both") {
+					return std::nullopt;
+				}
+			} else if (fields[2] == "one") {
+				condition.Lines = core::prompt_lines_value::one;
+			} else if (fields[2] == "several") {
+				condition.Lines = core::prompt_lines_value::several;
+			} else if (fields[2] != "any") {
+				return std::nullopt;
+			}
+			for (auto index = std::size_t{ 3 }; index < fields.size(); ++index) {
+				condition.Patterns.emplace_back(fields[index]);
+			}
+			return condition;
+		}
+
+		[[nodiscard]] auto match_named(const std::string_view aName) -> std::optional<core::prompt_match>
+		{
+			for (const auto match : { core::prompt_match::all, core::prompt_match::any, core::prompt_match::none }) {
+				if (core::stable_name(match) == aName) {
+					return match;
+				}
+			}
+			return std::nullopt;
+		}
+
+		/// The list's conditions; its match and nested groups go to `aMatch`
+		/// and `aGroups` when given. A line this build cannot read refuses
+		/// the whole text.
+		[[nodiscard]] auto decode_conditions(std::string_view aText, core::prompt_match* const aMatch = nullptr, std::vector<core::prompt_condition_group>* const aGroups = nullptr)
+			-> std::optional<std::vector<core::prompt_condition>>
 		{
 			auto conditions = std::vector<core::prompt_condition>{ };
-			if (aText == "any" || aText.starts_with("any\n")) {
-				if (aMatch != nullptr) {
-					*aMatch = core::prompt_match::any;
+			for (const auto header : { std::string_view{ "any" }, std::string_view{ "none" } }) {
+				if (aText == header || (aText.starts_with(header) && aText.size() > header.size() && aText[header.size()] == '\n')) {
+					if (aMatch != nullptr) {
+						*aMatch = *match_named(header);
+					}
+					aText.remove_prefix(std::min(aText.size(), header.size() + 1U));
 				}
-				aText.remove_prefix(std::min<std::size_t>(aText.size(), 4U));
 			}
 			if (aText.empty()) {
 				return conditions;
 			}
+			// The open groups, innermost last; the list itself is none of them.
+			auto top  = core::prompt_condition_group{ };
+			auto open = std::vector<core::prompt_condition_group*>{ &top };
 			for (const auto line : split(aText, '\n')) {
-				const auto fields = split(line, '\x1f');
-				if (fields.size() < 3U) {
-					return std::nullopt;
-				}
-				const auto fact = named_value<core::prompt_fact>(fields[0], core::prompt_fact_count);
-				if (!fact || (fields[1] != "is" && fields[1] != "not")) {
-					return std::nullopt;
-				}
-				auto condition = core::prompt_condition{ .Fact = *fact, .Negated = fields[1] == "not" };
-				if (*fact == core::prompt_fact::thread_activity) {
-					if (fields[2] == "replies") {
-						condition.Activity = core::prompt_activity_value::replies;
-					} else if (fields[2] == "pushes") {
-						condition.Activity = core::prompt_activity_value::pushes;
-					} else if (fields[2] != "both") {
+				if (line.starts_with("(")) {
+					const auto fields = split(line, '\x1f');
+					const auto match  = fields.size() == 2U && fields[0] == "(" ? match_named(fields[1]) : std::nullopt;
+					if (!match || open.size() > core::maximum_prompt_condition_depth) {
 						return std::nullopt;
 					}
-				} else if (fields[2] == "one") {
-					condition.Lines = core::prompt_lines_value::one;
-				} else if (fields[2] == "several") {
-					condition.Lines = core::prompt_lines_value::several;
-				} else if (fields[2] != "any") {
+					open.back()->Groups.push_back({ .Match = *match });
+					open.push_back(&open.back()->Groups.back());
+					continue;
+				}
+				if (line == ")") {
+					if (open.size() < 2U) {
+						return std::nullopt;
+					}
+					open.pop_back();
+					continue;
+				}
+				auto condition = decode_condition(line);
+				if (!condition) {
 					return std::nullopt;
 				}
-				for (auto index = std::size_t{ 3 }; index < fields.size(); ++index) {
-					condition.Patterns.emplace_back(fields[index]);
-				}
-				conditions.push_back(std::move(condition));
+				open.back()->Conditions.push_back(std::move(*condition));
 			}
-			return conditions;
+			if (open.size() != 1U || (!top.Groups.empty() && aGroups == nullptr)) {
+				return std::nullopt;
+			}
+			if (aGroups != nullptr) {
+				*aGroups = std::move(top.Groups);
+			}
+			return std::move(top.Conditions);
 		}
 
 		[[nodiscard]] auto scope_bits(const core::prompt_scopes aScopes) -> std::int64_t { return (aScopes.Thread ? 1 : 0) | (aScopes.File ? 2 : 0) | (aScopes.PullRequest ? 4 : 0); }
@@ -2535,7 +2620,9 @@ namespace bpr::adapters::sqlite {
 						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), 8U);
 						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), 2U);
 						auto       match      = core::prompt_match::all;
-						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }), &match);
+						auto       groups     = std::vector<core::prompt_condition_group>{ };
+						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }), &match, &groups);
+						macro.Body.Groups     = std::move(groups);
 						macro.Body.Match      = match;
 						known                 = known && subject && ask && when;
 						macro.Body.Subject    = subject.value_or(core::prompt_subject::pull_request);
@@ -2680,7 +2767,8 @@ namespace bpr::adapters::sqlite {
 					const auto when       = optional_text(prompts->Value, 8);
 					const auto match      = optional_text(prompts->Value, 9);
 					const auto on         = sqlite3_column_type(prompts->Value, 10) == SQLITE_NULL ? std::optional<bool>{ } : std::optional{ sqlite3_column_int64(prompts->Value, 10) != 0 };
-					auto       conditions = when ? decode_conditions(*when) : std::optional{ std::vector<core::prompt_condition>{ } };
+					auto       groups     = std::vector<core::prompt_condition_group>{ };
+					auto       conditions = when ? decode_conditions(*when, nullptr, &groups) : std::optional{ std::vector<core::prompt_condition>{ } };
 					const auto kindValue  = ask ? named_value<core::prompt_ask>(*ask, 2U) : std::optional{ core::prompt_ask::question };
 					if (!conditions || !kindValue || repository.empty()) {
 						continue;
@@ -2692,9 +2780,10 @@ namespace bpr::adapters::sqlite {
 						}
 						if (when) {
 							change.Conditions = std::move(conditions);
+							change.Groups     = std::move(groups);
 						}
 						if (match) {
-							change.Match = *match == "any" ? core::prompt_match::any : core::prompt_match::all;
+							change.Match = match_named(*match).value_or(core::prompt_match::all);
 						}
 						layer(repository).Overrides.push_back(std::move(change));
 						continue;
@@ -2710,7 +2799,8 @@ namespace bpr::adapters::sqlite {
 					own.Body.Subject    = *subject;
 					own.Body.Kind       = *kindValue;
 					own.Body.Conditions = std::move(*conditions);
-					own.Body.Match      = match && *match == "any" ? core::prompt_match::any : core::prompt_match::all;
+					own.Body.Match      = match ? match_named(*match).value_or(core::prompt_match::all) : core::prompt_match::all;
+					own.Body.Groups     = std::move(groups);
 					layer(repository).Own.push_back(std::move(own));
 				}
 				auto surfaces = detail::prepare(aDatabase, "SELECT layer,surface,ids,removed,added,ordered FROM prompt_surface_lists WHERE layer<>'' ORDER BY layer,surface");
@@ -2784,7 +2874,7 @@ namespace bpr::adapters::sqlite {
 					for (const auto& change : layer.Overrides) {
 						auto conditions = std::optional<std::string>{ };
 						if (change.Conditions) {
-							conditions = encode_conditions(*change.Conditions);
+							conditions = encode_conditions(*change.Conditions, core::prompt_match::all, change.Groups.value_or(std::vector<core::prompt_condition_group>{ }));
 							if (!conditions) {
 								return false;
 							}
@@ -2797,7 +2887,7 @@ namespace bpr::adapters::sqlite {
 					}
 					position = 0;
 					for (const auto& own : layer.Own) {
-						const auto conditions = encode_conditions(own.Body.Conditions);
+						const auto conditions = encode_conditions(own.Body.Conditions, core::prompt_match::all, own.Body.Groups);
 						if (!conditions
 							|| !row(1, own.Id, std::string{ core::stable_name(own.Place) }, std::string{ core::stable_name(own.Body.Subject) }, own.Body.Name, own.Body.Template,
 									std::string{ core::stable_name(own.Body.Kind) }, conditions, std::string{ core::stable_name(own.Body.Match) }, own.On)) {
@@ -2893,7 +2983,7 @@ namespace bpr::adapters::sqlite {
 				if (aPosition >= static_cast<std::int64_t>(core::maximum_prompt_macros)) {
 					return false;
 				}
-				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions, aBody->Match) : std::optional{ std::string{ } };
+				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions, aBody->Match, aBody->Groups) : std::optional{ std::string{ } };
 				if (!conditions) {
 					return false;
 				}

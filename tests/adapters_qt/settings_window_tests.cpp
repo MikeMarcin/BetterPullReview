@@ -734,7 +734,9 @@ auto main(int argc, char** argv) -> int
 		expect(badge->text() == "Built-in" && !save->isEnabled() && !reset->isEnabled() && row_marker(1).isEmpty(), "a built-in prompt says so and has nothing to save or reset");
 		const auto builtIn = text->toPlainText();
 		text->setPlainText(builtIn + "\nUse /fixture-technical-writer.");
-		expect(save->isEnabled() && row_marker(1) == "Unsaved" && state->text().startsWith("Unsaved"), "an edit is marked unsaved, in the list too");
+		// [[BPR-2179]]: in the Prompts library a system prompt saves as it is
+		// typed; until it does, it says so.
+		expect(save->isEnabled() && row_marker(1) == "Unsaved" && (state->text().startsWith("Unsaved") || state->text() == QStringLiteral("Saving\u2026")), "an edit is marked unsaved, in the list too");
 		panel->select_hook(core::writing_hook::solution);
 		panel->select_hook(core::writing_hook::problem);
 		expect(text->toPlainText().endsWith("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U, "moving to another prompt keeps the unsaved edit");

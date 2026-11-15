@@ -623,6 +623,10 @@ namespace bpr::app::detail {
 		/// [[BPR-1879]]. The agent setup treats the fixture review as one read
 		/// sparsely through `gh`, so a look shows the Repository step's choice.
 		bool SparseAgentSetupLook = false;
+		/// [[BPR-2179]] look prompts-v002. A fresh profile's prompts start
+		/// with two of the reviewer's own that use nested conditions, placed
+		/// on the pull request's and a thread's menu and chips.
+		bool PromptExamplesLook = false;
 		/// [[BPR-1301]]. Where the shipped bare `claude` is looked for, so a
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.

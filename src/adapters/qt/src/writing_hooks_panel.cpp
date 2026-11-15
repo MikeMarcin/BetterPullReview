@@ -18,6 +18,7 @@
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -407,6 +408,11 @@ namespace bpr::qt {
 			}
 			refresh_state();
 			refresh_rows();
+			// [[BPR-2179]]: in the Prompts library a system prompt saves as it
+			// is typed, as every other prompt there does.
+			if (AutoSave != nullptr && Unsaved[static_cast<std::size_t>(hook)]) {
+				AutoSave->start();
+			}
 		});
 		connect(PreviewMode, &QPushButton::toggled, this, [this](const bool aOn) { show_preview(aOn); });
 		connect(Hook, &QListWidget::currentRowChanged, this, [this] { show_hook(); });
@@ -678,8 +684,8 @@ namespace bpr::qt {
 		Badge->setFont(badgeFont);
 		Source->setText(changed ? tr("Changed from built-in %1, profile revision %2").arg(text_of(version)).arg(Settings.Revision)
 								: tr("Built-in %1, profile revision %2").arg(text_of(version)).arg(Settings.Revision));
-		SaveState->setText(unsaved ? tr("Unsaved changes. They stay here until you save or discard them.") : changed ? tr("Saved for this profile.")
-																													 : tr("Using the built-in text."));
+		SaveState->setText(unsaved ? (AutoSave != nullptr ? tr("Saving\u2026") : tr("Unsaved changes. They stay here until you save or discard them.")) : changed ? tr("Saved for this profile.")
+																																								  : tr("Using the built-in text."));
 		auto stateFont = font();
 		stateFont.setWeight(unsaved ? QFont::DemiBold : QFont::Normal);
 		SaveState->setFont(stateFont);
@@ -722,6 +728,20 @@ namespace bpr::qt {
 
 	void writing_hooks_panel::set_embedded(const bool aEmbedded)
 	{
+		// Look prompts-v001 (the accepted default, "saves as typed"): no Save
+		// or Discard; an edit saves a moment after the typing stops.
+		if (aEmbedded && AutoSave == nullptr) {
+			AutoSave = new QTimer{ this };
+			AutoSave->setSingleShot(true);
+			AutoSave->setInterval(450);
+			connect(AutoSave, &QTimer::timeout, this, [this] {
+				if (Unsaved[static_cast<std::size_t>(selected_hook())]) {
+					SaveButton->click();
+				}
+			});
+		}
+		SaveButton->setVisible(!aEmbedded);
+		DiscardButton->setVisible(!aEmbedded);
 		Hook->setVisible(!aEmbedded);
 		for (const auto* const name : { "writingHooksHeading", "writingHooksExplanation" }) {
 			if (auto* const label = findChild<QLabel*>(QString::fromLatin1(name)); label != nullptr) {

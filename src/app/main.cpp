@@ -12863,7 +12863,9 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.PersonalSkillHome = std::filesystem::path{ std::string{ *skills } };
 		}
 		const auto attendedPromptEditor = launch.has("--attended-prompt-editor");
-		const auto attendedShareLook    = launch.has("--attended-share-look");
+		// [[BPR-2179]] look prompts-v002: prompts with nested conditions.
+		fixtureOptions.PromptExamplesLook = launch.has("--attended-prompt-examples");
+		const auto attendedShareLook      = launch.has("--attended-share-look");
 		if (attendedRepositoryLook) {
 			// Every fixture review is read whole; the look shows the step as a
 			// review read through `gh` shows it, where the choice is.
