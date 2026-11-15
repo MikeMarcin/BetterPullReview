@@ -3603,3 +3603,60 @@ Further window-bound ports found, for the composition after the lease:
 
 The window-side steps, the public course and the reruns listed in the
 previous section are unchanged.
+
+## BPR-2181 slice 2: coordinator decisions taken; the session limit landed, the lent lease is next (2026-11-14)
+
+Coordinator decisions (2026-11-14):
+1. **Lent lease.** It is owned and revoked in `github_application_host`.
+   Revoke it on an account change, an identity-generation change or a
+   profile-revision change, and when the runtime lets go. Revoke it too when
+   the lending window's read host sees the pull request become inaccessible
+   (404 or lost permission). Each cause gets its own host test. Any
+   revocation pauses the runtime's queue with a reason, and no turn starts
+   without a live lease.
+2. **Consumer bound = queue session bound.** Done in `03a540b91`:
+   `core::maximum_queued_sessions` (32) bounds the sessions whose queues
+   hold messages; `agent_queue_host::enqueue` refuses a new one past it
+   (`full`), and `maximum_profile_owned_epoch_consumers` is that constant.
+   The registry itself carries more (its actor bound is 1,000), so the queue
+   limit is the smaller of the two and governs. Course:
+   `application_agent_queue_host` (`test_restored_refused_and_limits`).
+3. Then steps 2 to 5 of the earlier section, the same build and commit
+   rules, and a scratch-worktree build of HEAD at the end.
+
+Verification at `03a540b91`: `application_agent_queue_host`,
+`application_review_agent_runtime` and `application_epoch_host` pass on the
+dev tree.
+
+Next action: the lent lease. Not started. Where it goes:
+- `bound_git_smart_authority` and `smart_authority_state` are in the
+  anonymous namespace of `src/application/src/github_window_read_host.cpp`
+  (about lines 107 to 240). Move them to an internal header both read host
+  and `github_application_host.cpp` include. Do not duplicate them.
+- `github_application_host` gains something like
+  `lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender, core::application_session_id aHolder, std::function<void(lease_revocation_cause)> aRevoked) -> std::optional<lent_review_authority>`.
+  It returns a handoff copy whose `ApplicationSession` is the holder's,
+  with a `SmartGit` minted over the lender's account transport (or the
+  anonymous factory) and bound to the holder's session. The host keeps each
+  lent lease's `smart_authority_state` and its `revoked` callback, and the
+  callback runs on the decision lane.
+- Revocation hooks: identity-generation, account and profile-revision
+  changes where the host publishes `github_identity_delta` (about line 428
+  of `github_application_host.cpp`, and the credential session paths near
+  lines 293 to 383); runtime let-go through the returned handle's
+  destructor or `release()`. For the lending window's inaccessible pull
+  request, the read host's `invalidate_epoch_authority`
+  (`github_window_read_host.cpp` about line 846) also fires on an ordinary
+  PR switch and on window retirement, which must NOT revoke the lent lease.
+  So add a distinct read-host notification for a 404 or permission loss on
+  the accepted pull request, observed by `github_application_host` through
+  `observe_attached_read` or a new observer, and revoke only on it.
+- Runtime side: when it is told of a revocation, the runtime's composition
+  calls `agent_queue_host::pause(session, <reason>)`. Add a
+  `core::queue_pause` value if none fits, for example
+  `lost_access`, with its sentence in `present_ask_queue`. It also cancels
+  the running turn. `review_agent_runtime::state` reads `not_set_up` while
+  no live lease is held.
+
+After that, the four further window-bound ports and the window-side steps
+of the two earlier sections, then the public course and the reruns.
