@@ -6,6 +6,7 @@
 #include "bpr/core/feedback_label_columns.hpp"
 #include "bpr/core/filtered_comment.hpp"
 #include "bpr/core/generated_files.hpp"
+#include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_submission.hpp"
@@ -197,6 +198,49 @@ namespace bpr::application {
 			&& aAuthority.IdentityGeneration.value() != 0U
 			&& aAuthority.PullRequestGeneration.value() != 0U;
 	}
+
+	/// \brief [[BPR-2191]]. The review a first read names before GitHub has
+	/// answered with its identities: the host and account it is read under,
+	/// the repository as asked for, and the number.
+	/// \details An accepted review names the same key from its handoff, so a
+	/// file asked for while the read was loading can be tied to the review that
+	/// reported it, and to no other.
+	struct workbench_review_key
+	{
+		core::git_host_id         Host;
+		core::github_account_id   Account;
+		core::repository_locator  Repository;
+		core::pull_request_number Number;
+
+		auto operator<=>(const workbench_review_key&) const = default;
+	};
+
+	/// \brief [[BPR-2191]]. Whether two keys name one review. GitHub's
+	/// owner and repository names are case-insensitive, and a read asked for
+	/// by hand may spell them differently from GitHub's answer.
+	[[nodiscard]] auto same_review(const workbench_review_key& aLeft, const workbench_review_key& aRight) noexcept -> bool;
+
+	/// \brief [[BPR-2191]]. A file the reviewer asked for from a first read's
+	/// reported files, before the review that reported it is accepted.
+	struct workbench_pending_open
+	{
+		workbench_review_key Review;
+		std::string          Path;
+
+		auto operator<=>(const workbench_pending_open&) const = default;
+	};
+
+	/// \brief [[BPR-2191]]. The pending open as the host decided it: the
+	/// path still waited for, or none; and when none, whether the last one
+	/// ended by opening its file (its wait goes on as that file's) rather than
+	/// by being cancelled.
+	struct workbench_pending_open_projection
+	{
+		std::optional<std::string> Path;
+		bool                       Opened = false;
+
+		auto operator<=>(const workbench_pending_open_projection&) const = default;
+	};
 
 	/// \brief Describes the workbench observation request record.
 	///
@@ -1413,6 +1457,9 @@ namespace bpr::application {
 		std::optional<home_view_state> HomeView;
 		/// Published once after this window's load, never as a sibling preference.
 		std::optional<workbench_window_geometry> Geometry;
+		/// [[BPR-2191]]. Published when the pending open starts, opens its
+		/// file or is cancelled.
+		std::optional<workbench_pending_open_projection> PendingOpen;
 
 		auto operator<=>(const workbench_projection&) const = default;
 	};
@@ -1434,7 +1481,8 @@ namespace bpr::application {
 			&& !aProjection.Behaviour.has_value()
 			&& !aProjection.Refusal.has_value()
 			&& !aProjection.HomeView.has_value()
-			&& !aProjection.Geometry.has_value();
+			&& !aProjection.Geometry.has_value()
+			&& !aProjection.PendingOpen.has_value();
 	}
 
 	enum class workbench_host_failure : std::uint8_t {

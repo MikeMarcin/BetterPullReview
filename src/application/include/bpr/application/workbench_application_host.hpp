@@ -80,7 +80,18 @@ namespace bpr::application {
 		// writes the layout back.
 		void restore();
 		// Supersedes any outstanding observation and advances the incarnation.
-		void observe(workbench_pull_request_authority aAuthority);
+		// [[BPR-2191]]. `aReview` names the accepted review; a pending open for
+		// any other review, or with none named, is cancelled.
+		void observe(workbench_pull_request_authority aAuthority, std::optional<workbench_review_key> aReview = std::nullopt);
+		/// \brief [[BPR-2191]]. Opens `aOpen.Path` once the review it names is
+		/// accepted and its own files are observed: selected as the reviewer's
+		/// own choice would be, or cancelled if that review does not list it.
+		/// A newer review, another selection, or `cancel_pending_open`
+		/// cancels it. Replaces any earlier pending open.
+		void open_when_listed(workbench_pending_open aOpen);
+		/// \brief [[BPR-2191]]. The read that reported the file ended with no
+		/// review: its pending open is cancelled.
+		void cancel_pending_open();
 		// Retires one exact authority and clears every authority-bound cursor fact.
 		void invalidate(workbench_pull_request_authority aAuthority);
 		// Replays the retained semantic selection after an accepted comparison

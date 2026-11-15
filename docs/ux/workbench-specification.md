@@ -3381,8 +3381,12 @@ Where it applies:
   loaded…"; the accepted review's rows replace them. A file clicked among them
   is remembered ("Opening a.cpp once the review has loaded…"), the comparison
   pane waits for it at once in the shape of code, and it opens when the
-  review lists it. A read that ends with no review takes its reported files
-  back. A file activated on the Overview while the review loads goes to
+  review lists it. [[BPR-2191]]: the workbench host holds that pending open,
+  tied to the review that reported the file, and opens it as the reviewer's
+  selection once that review's own rows are accepted; a newer review, another
+  selection or a read that ends with no review cancels it. The window shows
+  only the pending open the host publishes. A read that ends with no review
+  takes its reported files back. A file activated on the Overview while the review loads goes to
   Review at once, where the comparison waits for it in the shape of code
   until it opens; no drawer opens by itself when the load ends (a layout
   restored only once the workbench is active opens none over a Review the

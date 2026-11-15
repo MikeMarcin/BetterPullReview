@@ -32,6 +32,15 @@ namespace bpr::app {
 		const application::accepted_pull_request_handoff& aHandoff) noexcept
 		-> application::workbench_pull_request_authority;
 
+	/// \brief [[BPR-2191]]. The review an accepted handoff names, as a
+	/// pending open made during its first read names it.
+	[[nodiscard]] auto workbench_review(const application::accepted_pull_request_handoff& aHandoff)
+		-> application::workbench_review_key;
+
+	/// \brief [[BPR-2191]]. The review a pull-request read asks for.
+	[[nodiscard]] auto workbench_review(const core::pull_request_request_context& aRead)
+		-> application::workbench_review_key;
+
 	/// \brief Routes appearance projections to the surfaces that consume them.
 	///
 	/// \details BPR-0182 composed the host, BPR-0183 made the appearance

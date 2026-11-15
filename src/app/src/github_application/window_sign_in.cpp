@@ -158,7 +158,7 @@ namespace bpr::app {
 				clear_diff_selection();
 			}
 			if (WorkbenchHost != nullptr) {
-				WorkbenchHost->observe(authority);
+				WorkbenchHost->observe(authority, workbench_review(aHandoff));
 			}
 			compose_review_mutation(aHandoff);
 			compose_review_submission(aHandoff);

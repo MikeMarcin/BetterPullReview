@@ -362,17 +362,26 @@ namespace {
 		settle(20);
 		expect(drawer->contents()->rowCount() == 2 && window.files_tree()->model()->rowCount() > 0, "the reported files are the drawer's rows, in the list and the tree");
 		expect(panes.Files->look() == core::pending_look::quiet || panes.Files->look() == core::pending_look::partial, "and no veil covers them");
+		// [[BPR-2191]]. The click is asked of the host, which decides when the
+		// file opens; the window shows only what the host publishes.
+		auto asked = std::vector<QString>{ };
+		window.set_pending_open_dispatch([&asked](const QString& aPath) { asked.push_back(aPath); });
 		const auto selections = window.statistics().FileSelections;
 		drawer->contents_view()->setCurrentIndex(drawer->contents()->index(0, 0));
 		settle(20);
-		expect(panes.Files->words().Coming == QStringLiteral("Opening a.cpp once the review has loaded…"), "a click on a reported file is remembered and said");
+		expect(asked == std::vector{ QStringLiteral("src/a.cpp") }, "a click on a reported file is asked of the host by path");
 		expect(window.statistics().FileSelections == selections, "and nothing is asked of a comparison that does not exist yet");
 		auto* const code = window.comparison_surface()->comparison_veil();
+		expect(!code->busy() && panes.Files->words().Coming != QStringLiteral("Opening a.cpp once the review has loaded…"), "nothing waits until the host says the file is pending");
+		window.publish(application::workbench_projection{ .PendingOpen = application::workbench_pending_open_projection{ .Path = "src/a.cpp" } });
+		settle(20);
+		expect(panes.Files->words().Coming == QStringLiteral("Opening a.cpp once the review has loaded…"), "the host's pending open is said");
 		expect(code->busy() && code->shape() == qt::pending_shape::code && window.comparison_surface()->waiting_path() == QStringLiteral("src/a.cpp"),
 			   "the comparison waits for it in the shape of code");
 		window.publish(application::github_presentation_update{ .Transition       = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::pull_request_failed } },
 																.Loading          = core::github_loading_readiness{ },
 																.ProvisionalFiles = std::vector<application::github_provisional_file>{ } });
+		window.publish(application::workbench_projection{ .PendingOpen = application::workbench_pending_open_projection{ } });
 		settle(20);
 		expect(drawer->contents()->rowCount() == 0 && window.files_tree()->model()->rowCount() == 0, "a read that opened no review leaves none of its files listed");
 		expect(!panes.Files->busy() && !code->busy(), "and nothing waits");

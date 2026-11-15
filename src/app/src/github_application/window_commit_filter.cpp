@@ -248,7 +248,7 @@ namespace bpr::app {
 		}
 		cancel_preparation();
 		if (WorkbenchHost != nullptr && LastAcceptedHandoff) {
-			WorkbenchHost->observe(workbench_authority(*LastAcceptedHandoff));
+			WorkbenchHost->observe(workbench_authority(*LastAcceptedHandoff), workbench_review(*LastAcceptedHandoff));
 			// RFC-BPR-0089 M4. Observing the new file set starts a new
 			// workbench generation; the publication host is bound to one, as
 			// after a refresh, or every comment under a filter is refused.

@@ -319,7 +319,8 @@ try {
 		expect(tree->model()->rowCount() > 0 && drawer->contents()->rowCount() > 0, "the reported files are the drawer's own rows, in the list and the tree");
 		renders(QStringLiteral("review-files-while-loading"));
 		// A click on a reported file is remembered, said, and opened later.
-		const auto selections = window->statistics().FileSelections;
+		const auto selections  = window->statistics().FileSelections;
+		const auto opensBefore = window->statistics().PendingOpensOpened;
 		drawer->contents_view()->setCurrentIndex(drawer->contents()->index(0, 0));
 		pause(50);
 		expect(files->words().Coming.startsWith(QStringLiteral("Opening ")), "the drawer says it opens the clicked file once the review has loaded");
@@ -332,7 +333,10 @@ try {
 		expect(code->busy() && code->shape() == qt::pending_shape::code && comparison->waiting_path() == drawer->contents()->index(0, 0).data().toString(),
 			   "the comparison waits for the clicked file in the shape of code");
 		expect(shows_file_without_gap(*comparison, "the code veil shows until the file arrives"), "the clicked file arrives");
-		expect(window->overview_page()->projection().has_value() && window->statistics().FileSelections > selections, "it opened once the review listed it");
+		// [[BPR-2191]]. The host opened it, once the review that reported it
+		// listed it; the window only showed what the host published.
+		expect(window->overview_page()->projection().has_value() && window->statistics().PendingOpensOpened > opensBefore && window->statistics().FileSelections == selections,
+			   "it opened once the review listed it");
 		expect(!files->busy() && !files->isVisible(), "the accepted review leaves the drawer with no veil");
 		// A read that is superseded and then fails opens no review: the files
 		// it reported go, and the drawer lists the review still shown.
