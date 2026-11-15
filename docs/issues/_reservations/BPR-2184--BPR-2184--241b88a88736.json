@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2184"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0128 review fixes: wide Was this addressed? cap, report actions out of hrefs, gate gathers every violation, merge counts on demand, Q6 baseline in core, host-owned report records, derived report colours in core, full commit set for the listing, report view keyboard links",
+  "created": "2026-11-15T05:28:24.308419+00:00",
+  "base": "8d76c48d40860ed8f1a39cfcdace7f004a1464d0"
+}
