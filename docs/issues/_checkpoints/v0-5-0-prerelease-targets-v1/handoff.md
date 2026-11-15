@@ -3533,3 +3533,73 @@ They are why this was not finished in this round:
   `application_agent_queue_second_window_loading_public_path`,
   `application_ask_queue_public_path` and
   `application_tour_feedback_queue_public_path`.
+
+## BPR-2181 slice 2: open risks checked; the runtime needs its own lease before composition (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `9c7672579` | `profile_epoch_actor_registry::attach_profile_owned` and the profile-owned `epoch_application_host` constructor; course in `application_epoch_host` |
+
+Verification on the dev tree, built from exactly the committed files (no
+other change in the tree): `application_epoch_host`,
+`application_review_agent_runtime` and `application_agent_queue_host` pass.
+Only the application library and the epoch host test were built; the app
+does not use the new constructor yet.
+
+The open risks, answered:
+1. **Non-window epoch context: a real conflict, fixed at its owner.**
+   `github_profile_runtime::current_window` admits only live window
+   observers, and every registry consumer took one of the 32 window places.
+   The registry now has a profile-owned consumer, current until it retires
+   or the registry closes, with its own bound of 32. The epoch host
+   attaches as one through
+   `epoch_application_host(state, registry, catalogs, entropy, clock, effects, lane, projections)`.
+2. **Two ledger hosts on one review file: no conflict.**
+   `review_ledger_database::admit_agent_session` is one `BEGIN IMMEDIATE`
+   transaction over the scope's `agent_session_sequence`, and every
+   connection sets a 2 s busy timeout.
+3. **New, and the next action: the lease.** `epoch_host_dispatch_and_imports.cpp`
+   (about line 696) fails ingestion with `unavailable` when the handoff has
+   no live `SmartGit`, even when the profile cache holds the objects. The
+   course pins this: a lease-less handoff is not ingested, and one leased in
+   the runtime's own session is. A lease (`bound_git_smart_authority` in
+   `github_window_read_host.cpp`, about line 140) binds the holder's
+   `ApplicationSession`, and the window keeps only `clone_without_smart_git`.
+   So the GitHub side must lend the runtime a lease bound to the runtime's
+   own session, through the same account transport (a
+   `github_account_transport` is a `shared_ptr` and can outlive the window).
+   The profile (`github_application_host`) must revoke it when the account,
+   identity generation or profile revision changes, and when the runtime
+   lets go. The window's own read host revokes only the window's lease, so
+   the lent lease's revocation cannot sit there. Decide that at the GitHub
+   host with its own host course before composing.
+
+Further window-bound ports found, for the composition after the lease:
+- **Private runs are required.** `agent_invocation_host` refuses a turn
+  whose `PrivateRun` presence disagrees with having a private run port
+  (`agent_invocation_host.cpp` line 469). Every Agent tab turn carries one
+  from `PrivateReview->default_run`. The runtime's host therefore needs its
+  own `private_review_application_host` over a private review store on the
+  same ledger file (`adapters::sqlite::private_review_configuration`, as in
+  `compose_review_ledger`). The window's `PrivateReview` keeps receiving
+  `private_changed` through the runtime's fan-out to `AgentProjections`.
+- **Ledger host.** `review_ledger_application_host` takes a projection port
+  (the window passes `*this`). The runtime's ledger host needs a no-op
+  projection, its own store effects lane and the profile decision lane.
+- **Epoch host projection.** The runtime's epoch host needs an
+  `epoch_projection_port`, a no-op one, and its own `ApplicationSession`.
+  The snapshot's `Request.ApplicationSession` is rewritten to it, and the
+  runtime's agent host is `observe`d with it.
+- **Readiness.** The window's `ask_queue_agent` also required
+  `tab->setup_readiness() == ready && tab->ready_to_send()`. Give
+  `review_agent_presenter` a `Ready` predicate, so `state` reads
+  `not_set_up` rather than releasing into a window that cannot send.
+- **Inputs the composition needs from the first window that adopts:**
+  agent profiles and policies, the scratch root, the fixture admission
+  (`fixture_agent_admission`), the handoff without its lease, and the
+  ledger configuration. Keep them in a profile-level map from session to
+  the composed object, which `Compose` registers. The window calls it from
+  `refresh_agent_authority`.
+
+The window-side steps, the public course and the reruns listed in the
+previous section are unchanged.
