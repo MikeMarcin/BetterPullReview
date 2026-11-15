@@ -146,10 +146,24 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
 
 ## Pending
 
-- The Steer button's wiring in `window_quick_ask.cpp` (its Steer today moves
-  the message to the front and says Steer is unavailable): blocked on
-  BPR-2151's moving files; a minimal separate commit once the coordinator
-  rebases this branch or releases those files.
-- AC05 through BPR itself: the probes above drove the CLIs directly; the
-  same correction from the Steer button through the app is proved by the
-  wiring commit's course once it lands.
+- AC05 through BPR itself, with the Fixture agent: the wiring is on the
+  session queue host (BPR-2181's `agent_queue_host::steer` and
+  `agent_session_runtime::Steer`, filled by `application::agent_runtime_steer`),
+  and `application_agent_steer_unavailable_public_path` passes. The sent
+  course (`application_agent_steer_sent_public_path`) is registered disabled:
+  a tests-on fixture session's Agent tab runs on the built-in Claude profile
+  (profile 3) with no agent entry in the setup's preferences, so the window
+  asks for no native session (`NativeAgentIdentity` empty) and no turn keeps
+  a connection to steer. A person's setup adds an entry and gets native
+  sessions. The fixture session needs an agent entry (BPR-2177's
+  composition) before the sent course and a steer look can run.
+- The steer look (steer-v001) waits on the same: a look at Steer on a
+  Fixture agent that can't be steered would show only the refusal.
+
+## Progress (wiring)
+
+- 2026-11-15: rebased onto BPR-2181 slice 1; Steer wired through the
+  session queue host (window forwards only); the Fixture agent steerable by
+  default as `claude`, `FIXTURE_UNVERSIONED` for an unversioned turn;
+  `application_ask_queue_public_path` checks the real Q17 words; the app
+  source digest resealed. Old WIP wiring branch deleted.

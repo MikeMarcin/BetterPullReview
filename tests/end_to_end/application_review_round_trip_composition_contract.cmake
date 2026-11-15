@@ -3738,8 +3738,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# BPR-2172, BPR-2173 and BPR-2175: the local draft look's environment can
 	# choose the Local comments look or Finish your review on the same
 	# fixture file instead (tests-only attended launch). No new effect or path.
+	# BPR-2153: the window's Steer forwards to the session queue host and its
+	# agent runtime's Steer is the application's (agent_runtime_steer); no new
+	# effect or path.
 	set(bpr_expected_production_app_manifest_digest
-        "b8d1051321e049532ded673cd4f1dce006633f15c3c722589a6c498aea405b7b"
+        "59baf96c97937f4a7ec9d46ebe966366fc63e93c37958657c2ee797a84315cba"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
