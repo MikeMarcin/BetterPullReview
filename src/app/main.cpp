@@ -301,6 +301,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-prompt-editor" },
+		bpr::app::command_line_option{ .Name = "attended-prompt-examples" },
 		bpr::app::command_line_option{ .Name = "attended-share-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },

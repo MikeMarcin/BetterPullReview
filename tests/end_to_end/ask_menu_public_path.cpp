@@ -230,9 +230,12 @@ auto main(int argc, char** argv) -> int
 		options.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
 		options.ClaudeAgentExecutable = stub;
 		options.ClaudeSearch          = search;
-		auto terminal                 = false;
-		auto startup                  = access::start(app::detail::github_public_path_fixture::returning_review_v1,
-													  std::move(options), [&](auto aResult) { terminal = true; if (aResult) { application = std::move(*aResult); } });
+		// [[BPR-2179]] look prompts-v002: the queue course starts with the
+		// look's seeded prompts, whose conditions nest.
+		options.PromptExamplesLook = course == "queue";
+		auto terminal              = false;
+		auto startup               = access::start(app::detail::github_public_path_fixture::returning_review_v1,
+												   std::move(options), [&](auto aResult) { terminal = true; if (aResult) { application = std::move(*aResult); } });
 		wait([&] { return terminal && startup && startup->is_quiescent(); }, "startup terminal");
 		expect(application != nullptr, "startup succeeds");
 		application->show();
@@ -248,6 +251,12 @@ auto main(int argc, char** argv) -> int
 		const auto  path       = QStringLiteral("src/engine/renderer.cpp");
 		wait([&] { return window.what_changed_action()->isEnabled(); }, "the returning pull request's commits are read");
 		if (course == "queue") {
+			wait([&] {
+				const auto& library = window.prompts()->library();
+				const auto  seeded  = std::ranges::find(library, std::string{ "own.example-look-again" }, &core::prompt_macro::Id);
+				return seeded != library.end() && seeded->Body.Groups.size() == 2U && seeded->Body.Groups.front().Match == core::prompt_match::none;
+			},
+				 "--attended-prompt-examples seeds a prompt whose conditions nest");
 			// Owner, 2026-11-14: "a plain click queues it. We might not have
 			// set up the agent yet or we might be running other things
 			// already." Before setup: queued, the Agent tab offers setup, and
