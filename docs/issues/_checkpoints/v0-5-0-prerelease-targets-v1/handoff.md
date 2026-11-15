@@ -3459,3 +3459,77 @@ snapshot the runtime owns; (c) transcript recording for unshown sessions;
 Workspace note: other writers' uncommitted files share this checkout (their
 `NEXT_ID` currently fails the documentation gate as a rewind); stage only
 your own, and window_composition.hpp holds their BPR-2184 hunks.
+
+## BPR-2181 slice 2: the runtime's application layer landed; app composition next (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `c1c80c1e6` | `application::review_agent_runtime` and the `review_agent_runtimes` registry, plus the host course `application_review_agent_runtime` (zero windows) |
+
+Verification: `application_review_agent_runtime` and
+`application_agent_queue_host` pass on the dev tree. The commit adds new files
+and two CMake lines; nothing outside it changed.
+
+What exists (application layer, steps (a) to (c)):
+- The registry offers one `agent_session_runtime` to `agent_session_runner`
+  for the sessions it holds; `Runs` is a composition predicate (the Agent tab's
+  `agent-tab:` sessions, not tours). Steer is left to the runner's stub, and
+  `agent_turn_runner_port::steer` is unchanged.
+- A runtime owns its machinery as a `review_agent_turn_port`, made by
+  `review_agent_runtime_dependencies::Compose(session, projection, retired)`.
+  The runtime is the invocation projection: it fans every event out to
+  attached presenters and keeps `unshown_turns` for any turn no window saw
+  end.
+- `adopt(review_agent_snapshot)` holds an `agent_invocation_request` minus
+  the question. `release` goes through a presenter's `Release` (the window's
+  full context) when one is attached. Otherwise a typed message is built from
+  the snapshot, and a quick ask waits (`not_set_up`) for AC13's decided
+  expansion.
+- The registry keeps a runtime while it is presented, running, not
+  quiescent, or its unpaused queue's next message is one it can release. It
+  lets the runtime go on the decision lane, never inside its own callback.
+
+Next action, step (a) to (d) composition in `src/app`, not started. The
+window-bound ports the runtime's machinery must stop borrowing are below.
+They are why this was not finished in this round:
+- **Workspace:** `agent_invocation_host` takes `*EpochHost` (the window's
+  `epoch_application_host`). Materializing needs an authority actor with an
+  accepted blob authorization from a GitHub read handoff, so the runtime
+  needs its own `epoch_application_host` (registry constructor,
+  `profile_epoch_actor_registry` attach needs a `bpr_window_context` the
+  `epoch_window_context_port` accepts), fed `accept(handoff)` from the window
+  that adopts its snapshot. Check what the window context port requires of a
+  context that is not a window.
+- **Session catalog:** the window itself (`admit` and `session_catalog`
+  forward to the window's `ReviewLedgerHost`). The runtime needs its own
+  ledger host over the review's ledger file. Confirm that admission allocates
+  identities transactionally, since the window's tour session still admits
+  through the window's ledger.
+- **Process chain:** `AgentProcess`, `ClaudeProcess`, `LocatedProcess`,
+  `EntryProcess` and `DiagnosedProcess` are window-owned, built from the
+  window's shared `ClaudeWrapperSource`, `AgentProgramSource` and
+  `AgentEntries` and its `locate_claude()` and `locate_agent_program()`.
+  Fixture admission is on the testing probe. Move them to the profile or
+  build them per runtime from shared sources.
+- Already profile-level: `AgentEffects`, `DecisionLane`,
+  `NativeAgentSessions` (the invocation host records each native turn there
+  itself, line ~1161, so the Agent tab's transcript is durable once the host
+  outlives the window), `AgentWorkspaceNeighbourhood`, `EpochCatalogs`,
+  `EpochEntropy`, `EpochClock`, `EpochEffects`, `EpochActors`.
+- Window side: `refresh_agent_authority` adopts the snapshot and the
+  handoff. `launch_agent_invocation` dispatches through
+  `review_agent_runtime::dispatch` instead of `AgentHost->dispatch`. The
+  window's `AgentProjections` attach as the presenter. `release_queued`
+  becomes the presenter's `Release`. `attach_agent_queue` stops offering ask
+  sessions (tours stay). `window_shutdown` detaches instead of
+  `AgentHost->shutdown` for the Agent tab, and `begin_other_shutdown` no
+  longer returns the ask session's message. There are about 40 `AgentHost->`
+  uses (`is_quiescent`, `clear`, `observe`, `restore_native`,
+  `probe_workspace`, `cancel`, `retry_cleanup`, `statistics`).
+- Public course to add: queue two typed messages, close the window, the
+  turns run, then reopen and the transcript (native history) shows them. Then
+  rerun `application_agent_queue_windows_public_path` (its close case
+  changes: AC09's interim return becomes "close does not touch the turn"),
+  `application_agent_queue_second_window_loading_public_path`,
+  `application_ask_queue_public_path` and
+  `application_tour_feedback_queue_public_path`.

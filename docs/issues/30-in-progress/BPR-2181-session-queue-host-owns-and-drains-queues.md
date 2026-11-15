@@ -98,6 +98,8 @@ slice 1.
 2. AC01 rest: a profile-level agent runtime, so a session no window shows
    still runs and keeps its transcript, a window close does not touch a
    running turn, and the Agent tab stops being the send transport.
+   Application layer done (`c1c80c1e6`, see Evidence); composition into
+   the app not started.
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
@@ -110,3 +112,33 @@ slice 1.
    `core::thread_baseline` and `core::thread_progress_since`) and N5 (report
    identity: a stable turn identity and structured byline, reports keyed by
    it, dropped when their tab closes), recorded on BPR-2184 when done.
+
+## Evidence
+
+- **AC01 (partial, slice 2 application layer, `c1c80c1e6`):**
+  `application::review_agent_runtime` and the `review_agent_runtimes`
+  registry (`src/application/include/bpr/application/review_agent_runtime.hpp`).
+  There is one runtime per review session, owned by the profile. The
+  registry offers it to `agent_session_runner`, whose
+  `agent_turn_runner_port::steer` is unchanged. A runtime runs its turns on
+  machinery the wiring composes for it (`review_agent_turn_port`). It
+  builds a released typed message's request from the review snapshot it
+  holds, and it keeps every turn no window saw end (`unshown_turns`). It
+  lives while its queue can drain or a turn runs, and the registry lets it
+  go off its own callback once neither holds and no window shows it.
+  Course: `application_review_agent_runtime`. A queue with zero windows
+  drains in order, each request comes from the snapshot, and the transcript
+  keeps all three turns. A window detaching neither cancels nor shuts down
+  the running turn. A quick ask with no window stays queued and unpaused
+  until AC13 gives releases a decided expansion. Still open for AC01: the
+  app composition. Each runtime gets its own invocation stack (an epoch
+  host holding the review's accepted handoff for workspaces, a ledger for
+  session admission, and the process chain), windows attach and adopt
+  snapshots, the Agent tab sends through `review_agent_runtime::dispatch`,
+  and a close stops touching a running turn. The public path is to queue
+  two messages, close the window, let the turns run, then reopen and see
+  them.
+- **AC07:** `application_agent_queue_second_window_loading_public_path`
+  passes (slice 1, `c65c59df0`). The runtime registry does not change it,
+  because windows still run their own agent hosts until the composition
+  lands.
