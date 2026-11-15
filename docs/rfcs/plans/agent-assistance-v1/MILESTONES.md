@@ -73,19 +73,19 @@ A reviewer asks the agent why a check failed, from the check's row.
 
 ## agent-run-checks
 
-An author has the agent run a planned check on a local draft and accepts the reported result into evidence.
+An author asks the agent for a check on a local draft, sees its plan, runs it in a disposable copy of the candidate and reads the result as a report.
 
-**Work:** `BPR-2082`, `BPR-2083`
+**Work:** `BPR-2082`, `BPR-2189`, `BPR-2083`
 
 **Prerequisites:** None
 
 **Completion:**
 
-- An agent-run result is recorded as reported, never observed, with its commands and limitations.
-- The result is bound to the candidate only when the worktree equals it before and after the run.
-- A failed result is kept, and nothing enters evidence or is published without the author.
+- Nothing runs before the author presses Run on a plan that names its commands and grants.
+- A check runs in a check copy of the candidate and leaves the author's worktree, branch and index unchanged.
+- Every outcome, failures included, is kept as a report in the draft's conversation, and nothing from a check is published.
 
-**Boundary:** Needed RFC-BPR-0109's evidence record and RFC-BPR-0115's change runs first. RFC-BPR-0109 is Rejected (owner, 2026-11-15), so this milestone cannot proceed as written: BPR-2082 is closed as rejected and BPR-2083 is Blocked until the owner decides RFC-BPR-0120's future.
+**Boundary:** Rewritten without evidence at the owner's direction (2026-11-15, "Rewrite without evidence"); stands on built work only and waits on no other RFC. BPR-2082 stays closed as rejected; BPR-2189 is Parked until the owner reviews the rewrite.
 
 ## agent-insights
 
