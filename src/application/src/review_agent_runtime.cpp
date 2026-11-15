@@ -39,11 +39,11 @@ namespace bpr::application {
 			return core::queue_agent::not_set_up;
 		}
 		if (aFront == nullptr) {
-			return Snapshot || std::ranges::any_of(Presenters, [](const auto& aPresenter) { return static_cast<bool>(aPresenter.second.Release); })
+			return Snapshot || std::ranges::any_of(Presenters, [](const auto& aPresenter) { return aPresenter.second.releases(); })
 				? core::queue_agent::idle
 				: core::queue_agent::not_set_up;
 		}
-		if (std::ranges::any_of(Presenters, [](const auto& aPresenter) { return static_cast<bool>(aPresenter.second.Release); })) {
+		if (std::ranges::any_of(Presenters, [](const auto& aPresenter) { return aPresenter.second.releases(); })) {
 			return core::queue_agent::idle;
 		}
 		// A typed message is built from the snapshot alone. A quick ask needs
@@ -58,7 +58,7 @@ namespace bpr::application {
 			return false;
 		}
 		for (const auto& [token, presenter] : Presenters) {
-			if (presenter.Release) {
+			if (presenter.releases()) {
 				return presenter.Release(aEntry);
 			}
 		}
@@ -77,7 +77,10 @@ namespace bpr::application {
 		}
 		Running   = true;
 		TurnShown = presented();
-		Turn      = agent_conversation_turn{ .Asked = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion };
+		// [[BPR-2181]]. A native session's turn is kept in its native history,
+		// the transcript a window shows it from; only another is kept here.
+		TurnNative = !aRequest.NativeAgentIdentity.empty();
+		Turn       = agent_conversation_turn{ .Asked = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion };
 		Turns->dispatch(std::move(aRequest));
 		return true;
 	}
@@ -169,8 +172,9 @@ namespace bpr::application {
 					Turn->Answered += item;
 				}
 			}
-			// (c) A turn no window saw to its end is kept for the next one.
-			if (!TurnShown || !presented()) {
+			// (c) A turn no window saw to its end is kept for the next one,
+			// unless its native history keeps it: each turn has one transcript.
+			if ((!TurnShown || !presented()) && !TurnNative) {
 				Unshown.push_back(std::move(*Turn));
 				if (Unshown.size() > maximum_unshown_turns) {
 					Unshown.erase(Unshown.begin());
@@ -339,6 +343,10 @@ namespace bpr::application {
 		if (Dependencies.Queue->sending(aSession)) {
 			return true;
 		}
+		// Turns no window has seen yet are kept until one attaches.
+		if (const auto* const runtime = find(aSession); runtime != nullptr && !runtime->unshown_turns().empty()) {
+			return true;
+		}
 		const auto* const queue   = Dependencies.Queue->queue(aSession);
 		const auto* const next    = front(aSession);
 		const auto* const runtime = find(aSession);
@@ -348,8 +356,9 @@ namespace bpr::application {
 			&& runtime->state(next) != core::queue_agent::not_set_up;
 	}
 
-	/// The runtime is let go once no window shows it, no turn of it runs and
-	/// its queue holds no work it can do; never inside its own callback.
+	/// The runtime is let go once no window shows it, no turn of it runs, it
+	/// keeps no turn a window has not seen and its queue holds no work it can
+	/// do; never inside its own callback.
 	void review_agent_runtimes::settle(const std::string& aSession)
 	{
 		if (Dependencies.DecisionLane == nullptr) {

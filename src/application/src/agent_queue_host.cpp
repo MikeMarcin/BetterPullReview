@@ -30,7 +30,15 @@ namespace bpr::application {
 
 	void agent_queue_host::commit(const std::string& aSession)
 	{
-		if (Dependencies.Store != nullptr) {
+		if (Dependencies.Store != nullptr && Dependencies.Effects != nullptr) {
+			// The lane is serial, so the store sees each session's writes in
+			// the order the queue changed.
+			try {
+				Dependencies.Effects->post([store = Dependencies.Store, aSession, queue = Queues[aSession]] { static_cast<void>(store->store(aSession, queue)); });
+			} catch (...) {
+				// A closed lane takes no more writes; the queue stays as it is.
+			}
+		} else if (Dependencies.Store != nullptr) {
 			static_cast<void>(Dependencies.Store->store(aSession, Queues[aSession]));
 		}
 		show(aSession);

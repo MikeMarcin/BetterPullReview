@@ -62,7 +62,7 @@ namespace bpr::app {
 	auto github_application::implementation::agent_idle() const -> bool
 	{
 #if defined(BPR_AGENT_INTEGRATIONS)
-		return AgentHost && AgentHost->is_quiescent();
+		return AgentHost && agent_turn_quiescent();
 #else
 		return false;
 #endif
@@ -1189,6 +1189,10 @@ namespace bpr::app {
 							  .Cards    = restored_finding_cards(turn.Answered) });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
+		if (aView.Loaded) {
+			// [[BPR-2181]]. Turns the session's runtime ran with no window join it.
+			adopt_unshown_turns();
+		}
 		present_agent_pull_request();
 		// [[BPR-1823]], owner ruling 2026-10-29: opening a pull request
 		// never switches the picker to the agent it was last asked with.

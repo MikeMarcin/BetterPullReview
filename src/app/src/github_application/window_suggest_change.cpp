@@ -22,6 +22,9 @@ namespace bpr::app {
 											[this] {
 												if (!Closing && AgentHost != nullptr) {
 													AgentHost->cancel();
+													if (auto* const runtime = agent_runtime(); runtime != nullptr) {
+														runtime->cancel();
+													}
 												}
 											});
 		tab->set_suggest_change_observer([this](const qt::agent_tab_view::suggest_change_turn& aTurn) {

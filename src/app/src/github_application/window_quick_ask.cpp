@@ -262,14 +262,11 @@ namespace bpr::app {
 		if (AgentQueueSubscriber || Closing || Window == nullptr) {
 			return;
 		}
+		// [[BPR-2181]]. The profile's queue host and the runtimes the Agent
+		// tab's sessions run on, made once and as long-lived as the profile.
+		Profile->compose_agent_queue();
 		if (!AgentQueue) {
-			AgentQueueStore     = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
-			auto dependencies   = application::agent_queue_dependencies{ };
-			dependencies.Store  = AgentQueueStore.get();
-			dependencies.Runner = &AgentRunner;
-			AgentQueue          = std::make_unique<application::agent_queue_host>(dependencies);
-			AgentRunner.bind(*AgentQueue);
-			AgentQueue->load();
+			return;
 		}
 		AgentQueueSubscriber = AgentQueue->subscribe(application::agent_queue_subscriber{
 			.Changed = [this](const std::string& aSession, const core::agent_queue& aQueue) {
@@ -292,16 +289,14 @@ namespace bpr::app {
 					});
 				} },
 		});
-		// What this window's agent runtime runs and can take. The host alone
-		// decides when a message goes; the runner starts it here.
+		// What this window runs: a tour's feedback, through the window whose
+		// draft it waits for (until slice 6). The Agent tab's session runs on
+		// the profile's runtime of it, which this window only presents
+		// (`attach_agent_runtime`). The host alone decides when a message goes.
 		AgentRuntime = AgentRunner.offer(application::agent_session_runtime{
-			.Runs  = [this](const std::string& aSession) {
-				// A tour's feedback goes through the window whose draft it
-				// waits for.
-				return !Closing && Window != nullptr && !aSession.empty()
-					&& (aSession == tour_queue_key() ? TourFeedbackQueued || TourQueueSending : aSession == ask_session_key()); },
-			.State = [this](const std::string& aSession) { return aSession == tour_queue_key() ? tour_queue_agent() : ask_queue_agent(); },
-			.Start = [this](const std::string& aSession, const core::queued_entry& aEntry) { return aSession == tour_queue_key() ? release_tour_feedback(aEntry) : release_queued(aEntry); },
+			.Runs  = [this](const std::string& aSession) { return !Closing && Window != nullptr && !aSession.empty() && aSession == tour_queue_key() && (TourFeedbackQueued || TourQueueSending); },
+			.State = [this](const std::string&) { return tour_queue_agent(); },
+			.Start = [this](const std::string&, const core::queued_entry& aEntry) { return release_tour_feedback(aEntry); },
 			.Steer = { },
 		});
 		// The runs' own retirement events: nothing watches for them on a
@@ -321,18 +316,161 @@ namespace bpr::app {
 		}
 	}
 
+	/// This window's own agent host retired a run (a turn it ran with no
+	/// session runtime to send through): the session's queue may go on. A
+	/// turn the runtime ran is settled by the runtime's own retirement.
 	void github_application::implementation::agent_runtime_retired()
 	{
 		const auto session = ask_session_key();
-		if (Closing || !AgentQueue || !AgentRuntime || session.empty()) {
-			return;
-		}
-		if (AgentRunner.running(session) == AgentRuntime && QueueTurnSeen && (Window == nullptr || Window->agent_tab()->state() != qt::agent_tab_state::working)) {
-			QueueTurnSeen = false;
-			AgentRunner.retired(*AgentRuntime, session, core::queue_pause::none);
+		if (Closing || !AgentQueue || session.empty()) {
 			return;
 		}
 		AgentQueue->agent_changed(session);
+	}
+
+	auto github_application::implementation::agent_runtime() const -> application::review_agent_runtime*
+	{
+		if (!AgentPresenter || !Profile->AgentRuntimes) {
+			return nullptr;
+		}
+		return Profile->AgentRuntimes->find(AgentPresenterSession);
+	}
+
+	/// What the profile composes this review's runtime from: this window's
+	/// agent setup as values and shared sources, and the review's stores.
+	auto github_application::implementation::agent_stack_seed() const -> review_agent_stack_seed
+	{
+		auto seed = review_agent_stack_seed{
+			.Profiles      = ComposedAgentProfiles,
+			.Policies      = AgentPolicies,
+			.ClaudeWrapper = ClaudeWrapperSource,
+			.Programs      = AgentProgramSource,
+			.Entries       = AgentEntries,
+			.LocateClaude  = locate_claude(),
+			.LocateProgram = locate_agent_program(),
+			.Ledger        = { },
+			.Private       = { },
+			.ScratchRoot   = AgentScratchRoot,
+		};
+		if (LastAcceptedHandoff) {
+			const auto& handoff = *LastAcceptedHandoff;
+			seed.Ledger         = adapters::sqlite::review_ledger_configuration{
+				.StorageRoot = ApplicationDataRoot,
+				.Host        = std::string{ handoff.Hostname.value() },
+				.Account     = std::to_string(handoff.Account.value()),
+				.Repository  = handoff.Locator.Owner + "/" + handoff.Locator.Name,
+				.PullRequest = static_cast<std::int64_t>(handoff.Number.value()),
+			};
+			seed.Private = adapters::sqlite::private_review_configuration{ .Ledger = seed.Ledger, .Profile = DraftWindow.Profile, .Host = handoff.Host, .Account = handoff.Account, .Repository = handoff.Repository, .PullRequest = handoff.PullRequest };
+		}
+	#if defined(BPR_BUILD_TESTING)
+		if (Fixture) {
+			seed.Admission = fixture_agent_admission();
+		}
+	#endif
+		return seed;
+	}
+
+	/// [[BPR-2181]] slice 2. Opens (or finds) the session's runtime, attaches
+	/// this window as a presenter, and lends it the review this window
+	/// accepted, in the runtime's own name, when it holds no live loan of it.
+	void github_application::implementation::attach_agent_runtime(const core::agent_revision_binding& aBinding)
+	{
+		const auto session = ask_session_key();
+		if (Closing || Window == nullptr || session.empty() || !WindowRead || !Host || !AgentQueue || !AgentProjections || !LastAcceptedHandoff || ComposedAgentProfiles.empty()) {
+			return;
+		}
+		if (AgentPresenter && AgentPresenterSession != session) {
+			detach_agent_runtime();
+		}
+		auto* const runtime = Profile->open_agent_runtime(session, agent_stack_seed());
+		if (runtime == nullptr) {
+			return;
+		}
+		if (!AgentPresenter) {
+			AgentPresenter        = runtime->attach(application::review_agent_presenter{
+				.Projection = AgentProjections.get(),
+				.Release    = [this](const core::queued_entry& aEntry) { return release_queued(aEntry); },
+				.Ready      = [this] { return ask_queue_agent() == core::queue_agent::idle; },
+			});
+			AgentPresenterSession = session;
+			adopt_unshown_turns();
+		}
+		auto* const stack = Profile->agent_stack(session);
+		if (stack == nullptr || stack->lent_for(aBinding)) {
+			return;
+		}
+		auto lent = Host->lend_review_authority(WindowRead, stack->session(), [registry = std::weak_ptr<application::review_agent_runtimes>{ Profile->AgentRuntimes }, session](application::lent_review_authority_end) {
+			if (const auto runtimes = registry.lock()) {
+				runtimes->authority_ended(session);
+			}
+		});
+		if (lent) {
+			stack->lend(std::move(*lent), aBinding);
+			AgentQueue->agent_changed(session);
+		}
+	}
+
+	void github_application::implementation::adopt_unshown_turns()
+	{
+		auto* const runtime = agent_runtime();
+		if (Closing || Window == nullptr || runtime == nullptr || runtime->unshown_turns().empty() || !AgentConversation || !AgentConversation->is_loaded()) {
+			return;
+		}
+		auto view = AgentConversation->projection();
+		for (const auto& turn : runtime->unshown_turns()) {
+			// A turn the conversation already holds is not added again.
+			if (std::ranges::none_of(view.Turns, [&turn](const application::agent_conversation_turn& aKept) { return aKept.Asked == turn.Asked && aKept.Answered == turn.Answered; })) {
+				view.Turns.push_back(turn);
+			}
+		}
+		runtime->forget_unshown();
+		auto shown = std::vector<qt::agent_thread_turn>{ };
+		shown.reserve(view.Turns.size());
+		for (const auto& turn : view.Turns) {
+			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered) });
+		}
+		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
+		AgentConversation->record(std::move(view.Turns));
+	}
+
+	/// The window stops presenting the session: its runtime stays while its
+	/// queue can drain or a turn runs (a close does not touch a running turn).
+	void github_application::implementation::detach_agent_runtime()
+	{
+		if (const auto presenter = std::exchange(AgentPresenter, std::nullopt); presenter && Profile->AgentRuntimes) {
+			Profile->AgentRuntimes->detach(AgentPresenterSession, *presenter);
+		}
+		AgentPresenterSession.clear();
+	}
+
+	auto github_application::implementation::send_agent_turn(application::agent_invocation_request aRequest) -> bool
+	{
+		auto* const runtime = agent_runtime();
+		if (runtime == nullptr) {
+			AgentHost->dispatch(std::move(aRequest));
+			return true;
+		}
+		// The review a queued message is sent on once no window shows the
+		// session: this turn's request, less what this turn asked.
+		auto snapshot = aRequest;
+		snapshot.Context.ChatMessage.clear();
+		snapshot.Context.Skills.clear();
+		snapshot.NativeQuestion.clear();
+		runtime->adopt(application::review_agent_snapshot{ .Request = std::move(snapshot) });
+		if (!runtime->dispatch(std::move(aRequest))) {
+			Window->agent_panel()->refuse(runtime->running() ? "The agent is still answering. Nothing was sent." : "The agent isn't ready for this pull request yet. Nothing was sent.");
+			return false;
+		}
+		return true;
+	}
+
+	auto github_application::implementation::presented_agent_stack() const -> review_agent_stack* { return AgentPresenter ? Profile->agent_stack(AgentPresenterSession) : nullptr; }
+
+	auto github_application::implementation::agent_turn_quiescent() const -> bool
+	{
+		const auto* const runtime = agent_runtime();
+		return (AgentHost == nullptr || AgentHost->is_quiescent()) && (runtime == nullptr || runtime->is_quiescent());
 	}
 
 	/// The session's queue in the Agent tab: the pending list with its
@@ -391,7 +529,7 @@ namespace bpr::app {
 		if (tab->state() == qt::agent_tab_state::working) {
 			return core::queue_agent::busy;
 		}
-		const auto retired = AgentHost == nullptr || AgentHost->is_quiescent();
+		const auto retired = agent_turn_quiescent();
 		return tab->setup_readiness() == qt::agent_setup_readiness::ready && retired && tab->ready_to_send() ? core::queue_agent::idle : core::queue_agent::not_set_up;
 	}
 
@@ -487,10 +625,6 @@ namespace bpr::app {
 			AgentQueueShown = session;
 			AgentQueue->show(session);
 		}
-		if (AgentRunner.running(session) == AgentRuntime && tab->state() == qt::agent_tab_state::working) {
-			QueueTurnSeen = true;
-			return;
-		}
 		AgentQueue->agent_changed(session);
 	}
 
@@ -507,7 +641,6 @@ namespace bpr::app {
 		// RFC-BPR-0126: a typed message, sent as typed on the subject it was
 		// queued with.
 		if (aEntry.Input.QuickAsk.empty()) {
-			QueueTurnSeen    = false;
 			const auto turns = tab->turn_count();
 			if (!aEntry.Input.Thread.empty()) {
 				ask_agent_about_thread(aEntry.Input.Thread);
@@ -537,7 +670,6 @@ namespace bpr::app {
 		}
 		const auto turns = tab->turn_count();
 		const auto id    = QString::fromStdString(macro->Id);
-		QueueTurnSeen    = false;
 		switch (macro->Action) {
 		case core::prompt_action::what_changed:
 			dismiss_asked_conversation();

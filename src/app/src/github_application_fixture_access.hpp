@@ -18,6 +18,7 @@
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_application_host.hpp"
+#include "bpr/core/agent_queue.hpp"
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
@@ -1725,6 +1726,20 @@ namespace bpr::app::detail {
 			= default;
 	};
 
+	/// \brief [[BPR-2181]]. One session's queue and runtime as the profile
+	/// holds them, read with no window showing the session.
+	struct agent_session_evidence
+	{
+		std::size_t       Queued    = 0U;
+		bool              Sending   = false;
+		core::queue_pause Paused    = core::queue_pause::none;
+		bool              Runtime   = false;
+		bool              Running   = false;
+		bool              Quiescent = true;
+		/// Programs the session's runtime stack started.
+		std::size_t Launches = 0U;
+	};
+
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.
 	/// \brief What the RFC-BPR-0012 composition actually did, as values.
 	/// \brief What the RFC-BPR-0012 side-chat session composition did.
@@ -2592,6 +2607,10 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto agent_invocation_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_invocation_composition_evidence;
+		/// \brief [[BPR-2181]]. The Agent-tab session the application's first
+		/// window shows; empty when it shows none.
+		[[nodiscard]] static auto agent_session_key(const github_application& aApplication) -> std::string;
+		[[nodiscard]] static auto agent_session(const github_application& aApplication, const std::string& aSession) -> agent_session_evidence;
 		/// \brief Seeds unselected private prose and a last-reviewed head.
 		[[nodiscard]] static auto seed_agent_private_context_canary(
 			github_application& aApplication,

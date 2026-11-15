@@ -173,6 +173,7 @@ if(BPR_BUILD_QT)
             src/github_application/public_preview_wire_self_check.cpp
             src/github_application/public_preview_wire_transport.cpp
             src/github_application/queue_notifications.cpp
+            src/github_application/review_agent_stack.cpp
             src/github_application/review_mutation_selection.cpp
             src/github_application/session_settings.cpp
             src/github_application/skill_runs.cpp
@@ -600,6 +601,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/public_preview_wire_transport.hpp
 		src/app/src/github_application/queue_notifications.cpp
 		src/app/src/github_application/queue_notifications.hpp
+		src/app/src/github_application/review_agent_stack.cpp
+		src/app/src/github_application/review_agent_stack.hpp
 		src/app/src/github_application/review_mutation_selection.cpp
 		src/app/src/github_application/review_mutation_selection.hpp
 		src/app/src/github_application/session_settings.cpp

@@ -69,6 +69,11 @@ namespace bpr::application {
 		/// or with no window attached, the runtime builds a typed message's
 		/// request from its snapshot.
 		std::function<bool(const core::queued_entry& aEntry)> Release;
+		/// Whether the window can release one now (its agent set up, its tab
+		/// free). Optional: without one, it always can.
+		std::function<bool()> Ready;
+
+		[[nodiscard]] auto releases() const -> bool { return Release && (!Ready || Ready()); }
 	};
 
 	/// \brief Bounds the turns a runtime keeps while no window shows them.
@@ -114,8 +119,9 @@ namespace bpr::application {
 		void               shutdown();
 
 		/// \brief (c) The turns that ran while no window showed the session,
-		/// oldest first; a window that attaches is shown them, and they stay
-		/// until `forget_unshown`.
+		/// oldest first, and that no native history keeps; a window that
+		/// attaches adds them to the session's conversation, which is then
+		/// their one transcript, and they stay until `forget_unshown`.
 		[[nodiscard]] auto unshown_turns() const -> const std::vector<agent_conversation_turn>&;
 		void               forget_unshown();
 
@@ -148,7 +154,8 @@ namespace bpr::application {
 		bool                                            Running       = false;
 		/// The running turn's question and its answer so far.
 		std::optional<agent_conversation_turn> Turn;
-		bool                                   TurnShown = false;
+		bool                                   TurnShown  = false;
+		bool                                   TurnNative = false;
 		std::vector<agent_conversation_turn>   Unshown;
 		std::function<void()>                  Done;
 	};

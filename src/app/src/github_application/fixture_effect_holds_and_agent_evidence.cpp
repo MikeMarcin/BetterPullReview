@@ -49,6 +49,7 @@
 	#include <QFlags>
 	#include <QListView>
 	#include <QModelIndex>
+	#include <algorithm>
 	#include <atomic>
 	#include <chrono>
 	#include <condition_variable>
@@ -917,6 +918,46 @@ namespace bpr::app {
 	#endif
 	}
 
+	auto detail::github_application_fixture_access::agent_session_key(const github_application& aApplication) -> std::string
+	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		if (const auto* const implementation = aApplication.Implementation.get(); implementation != nullptr) {
+			return implementation->ask_session_key();
+		}
+	#endif
+		static_cast<void>(aApplication);
+		return { };
+	}
+
+	auto detail::github_application_fixture_access::agent_session(const github_application& aApplication, const std::string& aSession) -> agent_session_evidence
+	{
+		auto evidence = agent_session_evidence{ };
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		const auto& profile = *aApplication.Profile;
+		if (profile.AgentQueue) {
+			if (const auto* const queue = profile.AgentQueue->queue(aSession); queue != nullptr) {
+				evidence.Queued = static_cast<std::size_t>(std::ranges::count(queue->Entries, core::queued_state::queued, &core::queued_entry::State));
+				evidence.Paused = queue->Paused;
+			}
+			evidence.Sending = profile.AgentQueue->sending(aSession).has_value();
+		}
+		if (profile.AgentRuntimes) {
+			if (const auto* const runtime = profile.AgentRuntimes->find(aSession); runtime != nullptr) {
+				evidence.Runtime   = true;
+				evidence.Running   = runtime->running();
+				evidence.Quiescent = runtime->is_quiescent();
+			}
+		}
+		if (const auto* const stack = profile.agent_stack(aSession); stack != nullptr) {
+			evidence.Launches = stack->invocations();
+		}
+	#else
+		static_cast<void>(aApplication);
+		static_cast<void>(aSession);
+	#endif
+		return evidence;
+	}
+
 	auto detail::github_application_fixture_access::agent_invocation_evidence(
 		const github_application& aApplication) noexcept
 		-> detail::agent_invocation_composition_evidence
@@ -926,6 +967,21 @@ namespace bpr::app {
 			return { };
 		}
 	#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2181]]. The Agent tab's turns run on the session's runtime,
+		// whose stack the profile owns: its launches and statistics count with
+		// the window's own, and its turn with the window's quiescence.
+		const auto* const stack  = implementation->presented_agent_stack();
+		auto              summed = implementation->AgentHost != nullptr ? implementation->AgentHost->statistics() : application::agent_invocation_host_statistics{ };
+		if (stack != nullptr) {
+			const auto own = stack->statistics();
+			summed.CoreDecisions += own.CoreDecisions;
+			summed.WorkspaceStarts += own.WorkspaceStarts;
+			summed.ProcessStarts += own.ProcessStarts;
+			summed.WorkspaceCleanups += own.WorkspaceCleanups;
+			summed.WorkspaceCleanupFailures += own.WorkspaceCleanupFailures;
+			summed.SessionAdmissions += own.SessionAdmissions;
+			summed.SessionAdmissionFailures += own.SessionAdmissionFailures;
+		}
 		return {
 			.AgentProcessLauncherComposed = implementation->AgentProcess != nullptr,
 			// [[BPR-1900]]. The tour session's runs are counted with the
@@ -934,14 +990,11 @@ namespace bpr::app {
 			= (implementation->AgentProcessProbe != nullptr
 				   ? implementation->AgentProcessProbe->invocations()
 				   : 0U)
-				+ (implementation->TourProcessProbe != nullptr ? implementation->TourProcessProbe->invocations() : 0U),
-			.HostComposed = implementation->AgentHost != nullptr,
-			.Quiescent    = (implementation->AgentHost == nullptr
-							 || implementation->AgentHost->is_quiescent())
-				&& (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent()),
-			.Statistics    = implementation->AgentHost != nullptr
-				? implementation->AgentHost->statistics()
-				: application::agent_invocation_host_statistics{ },
+				+ (implementation->TourProcessProbe != nullptr ? implementation->TourProcessProbe->invocations() : 0U)
+				+ (stack != nullptr ? stack->invocations() : 0U),
+			.HostComposed  = implementation->AgentHost != nullptr,
+			.Quiescent     = implementation->agent_turn_quiescent() && (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent()),
+			.Statistics    = summed,
 			.WorkspaceRoot = std::filesystem::path{ implementation->LastAgentWorkspacePath }.parent_path(),
 		};
 	#else

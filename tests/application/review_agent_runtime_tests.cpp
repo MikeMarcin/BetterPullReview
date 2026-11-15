@@ -183,6 +183,13 @@ namespace {
 				   && kept[2].Asked == "second" && kept[2].Answered == "answer two" && kept[2].Outcome == core::agent_turn_outcome::answered,
 			   "every turn no window saw end is kept in the session's transcript");
 
+		// [[BPR-2181]]. The turns no window has seen keep the runtime until a
+		// window takes them into the session's conversation.
+		app.Lane.drain();
+		expect(app.Runtimes->find(session) == runtime, "a runtime keeps the turns no window has seen");
+		const auto later = runtime->attach(application::review_agent_presenter{ });
+		runtime->forget_unshown();
+		app.Runtimes->detach(session, later);
 		// With nothing left to do and no window, the runtime is let go.
 		app.Lane.drain();
 		expect(app.Runtimes->find(session) == nullptr, "an idle runtime no window shows is let go");

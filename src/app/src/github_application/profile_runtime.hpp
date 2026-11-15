@@ -80,6 +80,7 @@
 #include "github_application/github_presentation_projections.hpp"
 #include "github_application/public_preview_wire_transport.hpp"
 #include "github_application/queue_notifications.hpp"
+#include "github_application/review_agent_stack.hpp"
 #include "github_application/review_mutation_selection.hpp"
 #include "github_application/session_settings.hpp"
 #include "github_application/theme_document_file.hpp"
@@ -709,6 +710,31 @@ namespace bpr::app {
 		std::unique_ptr<qt::pull_request_activity_notification_sink> ActivitySink;
 		std::unique_ptr<qt::pull_request_activity_timer>             ActivityTimer;
 		std::unique_ptr<application::pull_request_activity_host>     Activity;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		/// [[BPR-2181]], RFC-BPR-0126 AC01. The review agent runtimes the
+		/// queue host starts the Agent tab's turns on: one per review session,
+		/// each on a stack of its own (`review_agent_stack`), owned here and
+		/// not by any window. Declared last, so it goes before the queue host,
+		/// the epoch registry and the lanes its stacks use; shut down before
+		/// the epoch registry. Made with the queue host.
+		struct agent_runtime_stack
+		{
+			review_agent_stack* Stack = nullptr;
+			std::weak_ptr<bool> Alive;
+		};
+		std::map<std::string, review_agent_stack_seed>      AgentRuntimeSeeds;
+		std::map<std::string, agent_runtime_stack>          AgentRuntimeStacks;
+		std::uint64_t                                       LastAgentRuntimeSession = 0U;
+		std::shared_ptr<application::review_agent_runtimes> AgentRuntimes;
+		/// \brief Makes the queue host, its store and the runtimes, once.
+		void compose_agent_queue();
+		/// \brief Makes the registry beside the queue host, once.
+		void compose_agent_runtimes();
+		/// \brief The session's runtime, composed from `aSeed` when it has none.
+		[[nodiscard]] auto open_agent_runtime(const std::string& aSession, review_agent_stack_seed aSeed) -> application::review_agent_runtime*;
+		/// \brief The live stack of the session's runtime, if it has one.
+		[[nodiscard]] auto agent_stack(const std::string& aSession) const -> review_agent_stack*;
+#endif
 	};
 }
 #endif

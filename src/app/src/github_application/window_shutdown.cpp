@@ -65,10 +65,10 @@ namespace bpr::app {
 		}
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// RFC-BPR-0126 AC04 ([[BPR-2181]]): the window stops being shown its
-		// deltas, and its agent runtime takes no new turn. A turn it runs is
-		// stopped by the close and stays the session's until its run has
-		// really retired (`begin_other_shutdown`), so no other window starts
-		// the next one meanwhile.
+		// deltas, and the tour feedback it runs takes no new turn. A tour turn
+		// it runs is stopped by the close and stays the session's until its
+		// run has really retired (`begin_other_shutdown`), so no other window
+		// starts the next one meanwhile.
 		if (AgentHost) {
 			AgentHost->set_retired_observer({ });
 		}
@@ -78,6 +78,9 @@ namespace bpr::app {
 		if (AgentQueue && AgentQueueSubscriber) {
 			AgentQueue->unsubscribe(*std::exchange(AgentQueueSubscriber, std::nullopt));
 		}
+		// [[BPR-2181]] AC09. The close detaches from the session's runtime and
+		// does not touch its running turn: the profile's runtime runs it on.
+		detach_agent_runtime();
 		if (AgentRuntime) {
 			AgentRunner.withdraw(*AgentRuntime);
 		}
@@ -137,9 +140,11 @@ namespace bpr::app {
 		}
 		OtherShutdownBegun = true;
 #if defined(BPR_AGENT_INTEGRATIONS)
-		// The window's agent runs have retired. Q10: closing a window neither
-		// pauses nor hands over a queue; a turn the close stopped returns its
-		// message to the front, queued, and the queue goes on from here.
+		// The window's tour runs have retired. Q10: closing a window neither
+		// pauses nor hands over a queue; a tour turn the close stopped returns
+		// its message to the front, queued, and the queue goes on from here.
+		// The Agent tab's sessions run on the profile's runtimes, which the
+		// close detached from without touching their turns.
 		if (const auto runtime = std::exchange(AgentRuntime, std::nullopt); runtime) {
 			for (const auto& session : AgentRunner.running_on(*runtime)) {
 				AgentRunner.returned(*runtime, session);

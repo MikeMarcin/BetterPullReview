@@ -183,6 +183,7 @@ namespace bpr::app {
 		const auto& state = EpochHost->state();
 		if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 			|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
+			detach_agent_runtime();
 			AgentHost->clear();
 			if (TourSession) {
 				TourSession->clear();
@@ -197,6 +198,7 @@ namespace bpr::app {
 		if (authority.Host != AgentReview->Host
 			|| authority.Repository != AgentReview->Repository
 			|| authority.PullRequest != AgentReview->PullRequest) {
+			detach_agent_runtime();
 			AgentHost->clear();
 			if (TourSession) {
 				TourSession->clear();
@@ -218,6 +220,7 @@ namespace bpr::app {
 			state.ApplicationSession, authority, observedBinding);
 		AgentHost->observe(
 			state.ApplicationSession, authority, observedBinding);
+		attach_agent_runtime(observedBinding);
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
 			present_tour_continuation();
@@ -259,6 +262,9 @@ namespace bpr::app {
 		}
 		if (std::holds_alternative<qt::cancel_agent_intent>(aIntent)) {
 			AgentHost->cancel();
+			if (auto* const runtime = agent_runtime(); runtime != nullptr) {
+				runtime->cancel();
+			}
 			return;
 		}
 		const auto start = std::get<qt::start_agent_intent>(aIntent);
@@ -848,8 +854,7 @@ namespace bpr::app {
 			// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. The turn's grant.
 			return false;
 		}
-		AgentHost->dispatch(std::move(invocation));
-		return true;
+		return send_agent_turn(std::move(invocation));
 	}
 
 	/// \brief Asks for the kept revision's own alignment, then dispatches.

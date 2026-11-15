@@ -679,7 +679,7 @@ namespace bpr::app {
 
 		PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, ReviewLedgerFile, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
 #if defined(BPR_AGENT_INTEGRATIONS)
-			if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
+			if (Closing || !AgentHost || !agent_turn_quiescent()) {
 				return false;
 			}
 			const auto composing = aIntent.Purpose == core::private_run_purpose::composition;
@@ -928,7 +928,10 @@ namespace bpr::app {
 			// [[BPR-1827]]. Every run the host starts leaves an
 			// `agent.run` started and ended line: enums and counts only.
 			DiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*EntryProcess, DiagnosticLog);
-			AgentHost        = std::make_unique<application::agent_invocation_host>(
+			// [[BPR-2181]]. The profiles this window's agent host offers, for the
+			// session runtime it seeds.
+			ComposedAgentProfiles = agentProfiles;
+			AgentHost             = std::make_unique<application::agent_invocation_host>(
 				agentProfiles,
 				agentPolicies,
 				AgentWorkspaceNeighbourhood,

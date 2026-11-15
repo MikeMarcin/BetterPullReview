@@ -87,6 +87,13 @@ namespace bpr::app {
 		if (DiscussPreferences) {
 			DiscussPreferences->shutdown();
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2181]]. The review agent runtimes' stacks consume the epoch
+		// registry and the agent lane: they close first.
+		if (AgentRuntimes) {
+			AgentRuntimes->shutdown();
+		}
+#endif
 		if (EpochActors) {
 			EpochActors->shutdown();
 		}
@@ -122,6 +129,9 @@ namespace bpr::app {
 			return;
 		}
 #if defined(BPR_AGENT_INTEGRATIONS)
+		if (AgentRuntimes && !AgentRuntimes->is_quiescent()) {
+			return;
+		}
 		if (!AgentEffects.idle() || !McpEffects.idle() || !TourAgentEffects.idle()) {
 			return;
 		}

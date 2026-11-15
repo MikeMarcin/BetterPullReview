@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
@@ -210,6 +211,37 @@ namespace {
 		expect(host.resume("s") == core::queue_refusal::none && host.queue("s")->Paused == core::queue_pause::failed && !host.sending("s"),
 			   "a turn that did not start leaves its message unsent and pauses the queue");
 	}
+
+	/// A serial lane that runs only when told.
+	class held_lane final : public application::effect_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
+		void run()
+		{
+			for (auto index = std::size_t{ 0U }; index < Tasks.size(); ++index) {
+				Tasks[index]();
+			}
+			Tasks.clear();
+		}
+		std::vector<std::function<void()>> Tasks;
+	};
+
+	/// [[BPR-2181]] (AC05). With a lane, a queue's writes run on it, in the
+	/// order the queue changed, and not where it changed.
+	void test_writes_run_on_the_effect_lane()
+	{
+		auto store         = memory_store{ };
+		auto agents        = runner{ };
+		auto lane          = held_lane{ };
+		agents.States["s"] = core::queue_agent::busy;
+		auto host          = application::agent_queue_host{ { .Store = &store, .Runner = &agents, .Effects = &lane } };
+		static_cast<void>(host.enqueue("s", typed("first")));
+		static_cast<void>(host.enqueue("s", typed("second")));
+		expect(store.Kept.empty() && lane.Tasks.size() == 2U, "nothing is written where the queue changed");
+		lane.run();
+		expect(store.Kept.contains("s") && store.Kept["s"].Entries.size() == 2U && store.Kept["s"].Entries.back().Input.Text == "second", "the lane writes each change in order, the last as committed");
+	}
 } // namespace
 
 auto main() -> int
@@ -218,6 +250,7 @@ auto main() -> int
 	test_windows_show_and_edit_one_queue();
 	test_steer();
 	test_restored_refused_and_limits();
+	test_writes_run_on_the_effect_lane();
 	std::cout << "agent-queue-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

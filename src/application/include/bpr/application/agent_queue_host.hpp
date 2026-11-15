@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_QUEUE_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_QUEUE_HOST_HPP
 
+#include "bpr/application/port.hpp"
 #include "bpr/core/agent_queue.hpp"
 
 #include <cstddef>
@@ -68,6 +69,10 @@ namespace bpr::application {
 		agent_queue_store_port* Store = nullptr;
 		/// Optional: without one nothing is released.
 		agent_turn_runner_port* Runner = nullptr;
+		/// [[BPR-2181]] (AC05). Optional: a serial lane the store's writes run
+		/// on, off the decision lane, each with the queue as it was committed.
+		/// Without one they run where the queue changed.
+		effect_executor* Effects = nullptr;
 	};
 
 	/// \brief What Steer did with a queued message.

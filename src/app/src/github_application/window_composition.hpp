@@ -834,10 +834,33 @@ namespace bpr::app {
 		/// edit made from it is refused once another window changed it.
 		std::uint64_t AgentQueueSeen = 0U;
 		/// The session whose queue this window shows.
-		std::string        AgentQueueShown;
-		void               attach_agent_queue();
-		void               present_ask_queue(const core::agent_queue& aQueue);
-		[[nodiscard]] auto ask_queue_agent() const -> core::queue_agent;
+		std::string AgentQueueShown;
+		void        attach_agent_queue();
+		/// [[BPR-2181]] slice 2, RFC-BPR-0126 AC01. The profile's runtime of
+		/// this window's Agent-tab session: the window lends it the review it
+		/// accepted, presents its turns and releases a queued message with its
+		/// whole context while attached; it never runs the session's turns
+		/// itself. Closing the window detaches, and a running turn goes on.
+		void               attach_agent_runtime(const core::agent_revision_binding& aBinding);
+		void               detach_agent_runtime();
+		[[nodiscard]] auto agent_runtime() const -> application::review_agent_runtime*;
+		[[nodiscard]] auto agent_stack_seed() const -> review_agent_stack_seed;
+		/// \brief The turns the runtime ran while no window showed the session
+		/// join its conversation once it has loaded: one transcript, each turn
+		/// shown once.
+		void adopt_unshown_turns();
+		/// \brief Sends an Agent-tab turn through the session's runtime (its
+		/// one transport); with no runtime, on this window's own host.
+		[[nodiscard]] auto send_agent_turn(application::agent_invocation_request aRequest) -> bool;
+		/// \brief No Agent-tab turn of this window's session runs anywhere.
+		[[nodiscard]] auto agent_turn_quiescent() const -> bool;
+		/// \brief The live stack of the runtime this window presents, if any.
+		[[nodiscard]] auto               presented_agent_stack() const -> review_agent_stack*;
+		std::optional<std::uint64_t>     AgentPresenter;
+		std::string                      AgentPresenterSession;
+		std::vector<core::agent_profile> ComposedAgentProfiles;
+		void                             present_ask_queue(const core::agent_queue& aQueue);
+		[[nodiscard]] auto               ask_queue_agent() const -> core::queue_agent;
 		/// RFC-BPR-0126 AC03, Q1 ([[BPR-2151]]). Whole-tour feedback typed
 		/// while Draft the tour runs is the whole-tour conversation's first
 		/// queued message, released on the draft's real completion with the
@@ -852,9 +875,7 @@ namespace bpr::app {
 		void present_tour_feedback();
 		bool TourQueueSending = false;
 		/// This window's draft has feedback waiting in the tour's queue.
-		bool TourFeedbackQueued = false;
-		/// The released entry's turn has been seen running.
-		bool QueueTurnSeen = false;
+		bool                                    TourFeedbackQueued = false;
 		void                                    record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
 		std::map<std::string, qt::thread_claim> ThreadClaims;
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested
