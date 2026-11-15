@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2185"
 title: "Prompts settings: the core decides, the host saves, Qt presents"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2179"]
 priority: "P1"
 platforms: ["mac","linux","win"]
+acceptance: [{"criterion":"N1-N6","outcome":"pass","revision":"798613f0f","evidence":{"kind":"command","detail":"core_prompt_editor, core_prompt_surfaces, core_prompt_macro, core_quick_ask, application_prompt_macro_host, sqlite_agent_setup_storage, qt_prompts_page, application_prompt_macros_public_path, architecture_boundaries, format, verify_documentation"}}]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2185--BPR-2185--8bf721b447aa.json","origin":"critical architecture review of Prompts settings (BPR-2179) at 03aae05cb, relayed by the coordinator 2026-11-14"}
 ---
 
@@ -47,3 +48,31 @@ filled the library, or read a nested condition through the page.
 Each item has its course; `architecture_boundaries`, format and the
 documentation gate are green. Nothing the owner sees changes except that
 undo and redo cover every edit, so no look.
+
+## Closeout (2026-11-14)
+
+Built at `798613f0f`; the verification record has the detail
+([RFC-BPR-0128](../../verification/RFC-BPR-0128.md), "Correction: Prompts
+settings split").
+
+- **N1:** `core::settle_prompt_save` and `adopt_prompt_projection` decide a
+  save's outcome; `prompt_macro_host::save` writes from the revision it is
+  given. Courses `core_prompt_editor` (a failed write keeps the edit; a write
+  after another window's names the older revision and is refused as stale)
+  and the new `application_prompt_macro_host`.
+- **N2:** `bpr/core/prompt_editor.hpp`; the page holds a `core::prompt_editor`.
+  Undo covers On, placement, Reset, Restore built-ins and Use app-wide, each
+  clearing Redo, and starts again when Prompts for changes layer; the
+  library's bound is refused with a reason; `prompt_macro_host::mint_identity`
+  supplies identities.
+- **N3:** `prompt_fields_differing`, `prompt_has_conditions`,
+  `prompt_condition_room_of`, `prompt_placement_problems` (shown in words) and
+  `prompt_unmet_reading_of`.
+- **N4:** `core::prompt_macro_differences_of(shipped, document)`.
+- **N5:** `core_prompt_surfaces` `test_review_n5`.
+- **N6:** `sqlite_agent_setup_storage` widens an earlier build's table with
+  its rows and stores a tree longer than 8192 bytes.
+
+Visible to the owner: Undo and Redo cover every edit; at 64 prompts New
+prompt and Duplicate say the library is full; after a failed write the
+editor reads "Not saved"; a problem line is in words. No look was asked for.
