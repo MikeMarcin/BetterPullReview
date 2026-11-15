@@ -28,4 +28,4 @@ This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
 
-Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred and its closeout BPR-2025 is no longer a dependency; the evidence parts of this card are inactive (see the RFC's amendment).
+Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred and its closeout BPR-2025 is no longer a dependency; the evidence parts of this card are inactive (see the RFC's amendment). Owner decision, 2026-11-15: RFC-BPR-0109 is Rejected ("it shouldnt be deferred it should be rejected or something stronger so it doesnt come back"); the evidence parts of this card are void, not waiting.

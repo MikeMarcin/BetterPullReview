@@ -125,7 +125,7 @@
         "The result is bound to the candidate only when the worktree equals it before and after the run.",
         "A failed result is kept, and nothing enters evidence or is published without the author."
       ],
-      "boundary": "Needs RFC-BPR-0109's evidence record and RFC-BPR-0115's change runs first."
+      "boundary": "Needed RFC-BPR-0109's evidence record and RFC-BPR-0115's change runs first. RFC-BPR-0109 is Rejected (owner, 2026-11-15), so this milestone cannot proceed as written: BPR-2082 is closed as rejected and BPR-2083 is Blocked until the owner decides RFC-BPR-0120's future."
     },
     {
       "id": "agent-insights",

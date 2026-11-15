@@ -11,11 +11,13 @@ depends_on: ["RFC-BPR-0107", "RFC-BPR-0108", "RFC-BPR-0110", "RFC-BPR-0111"]
 ## Owner amendment: no evidence in 0.5.0 (2026-11-12)
 
 The owner cut Evidence from 0.5.0 ("Mockups; cut Evidence") and
-[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred, kept as a
-possible workflow extension. The local draft's working areas are Changes,
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Rejected (owner,
+2026-11-15: "it shouldnt be deferred it should be rejected or something
+stronger so it doesnt come back"); it is not a workflow extension and will
+not be reconsidered. The local draft's working areas are Changes,
 Description and Tour. Clauses below that import a check's results through
 the evidence contract, or speak of observed or reported evidence, are
-inactive until that RFC is reactivated: a check action's findings are shown
+void: a check action's findings are shown
 with the action's outcome as reported, and nothing stores them as evidence.
 AC01 is amended below; it read: "With all extensions absent, local Changes,
 Evidence, Description and Tour remain usable; selecting/importing an

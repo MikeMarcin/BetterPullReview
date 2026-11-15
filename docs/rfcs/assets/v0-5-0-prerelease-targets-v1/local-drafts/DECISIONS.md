@@ -113,8 +113,9 @@ into a new permission gate.
 These boundaries do not waive any required acceptance inside the defined RFCs.
 
 Owner amendment, 2026-11-12 ("Mockups; cut Evidence"): the evidence RFC
-(RFC-DRAFT-0003 here, RFC-BPR-0109 live) is out of 0.5.0 and Deferred, kept
-as a possible workflow extension. The live RFCs drawn from this pack no
+(RFC-DRAFT-0003 here, RFC-BPR-0109 live) is out of 0.5.0, and on 2026-11-15
+the owner rejected it outright: "it shouldnt be deferred it should be
+rejected or something stronger so it doesnt come back". The live RFCs drawn from this pack no
 longer require evidence; the [pack's decision record](../DECISIONS.md#owner-amendment-evidence-cut-from-050-2026-11-12)
 holds the details.
 

@@ -284,8 +284,8 @@ That reader is the publication catalog's isolated store run read-only
 (`merge-base --all`, `ls-tree`, `cat-file`) with the worktree's objects and
 its remote chain's as alternates; refs, configuration, the index and working
 files are read as data through the read-only workspace port, never by Git.
-RFC-BPR-0109's evidence record is deferred out of 0.5.0 (owner, 2026-11-12)
-and is not in the product. The store's version 1 migration rewrites any draft
+RFC-BPR-0109's evidence record was cut from 0.5.0 (owner, 2026-11-12) and the
+RFC is Rejected (owner, 2026-11-15); it is not in the product. The store's version 1 migration rewrites any draft
 written while it could hold evidence without it and deletes objects that only
 its artifacts pinned; core reads such a record (and a publication plan whose
 digest covered evidence, after checking that digest) and drops the evidence.

@@ -3,7 +3,7 @@
 Use MASK-managed implement-rfc and `.mask/skill-config/implement-rfc/` context.
 Cards use `schema: "implement-rfc.card.v1"`, `id`, `title`, `status`, `rfcs: []`, and `depends_on: []`. Closeout associations use `closeout_for: []`; descriptive data belongs in `metadata`. Each field occupies one line with a JSON value. Markdown bodies retain acceptance and evidence.
 
-Common lanes are 00-inbox, 10-backlog, 20-ready, 30-in-progress, 40-parked, 50-blocked and 60-done. Folder and status agree. `platforms: ["win"]` (or mac/linux) filters eligibility; unmet dependencies belong in Backlog. Human waits use `parked_on: "human-review"`; `awaiting-live-github` remains a service wait. Required human acceptance remains open.
+Common lanes are 00-inbox, 10-backlog, 20-ready, 30-in-progress, 40-parked, 50-blocked and 60-done. Folder and status agree. Work the owner rejects (a Rejected RFC's cards, or a card made moot by one) closes in 60-done with `metadata.resolution: "rejected"` and a note quoting the owner; it was never delivered, so no card that claims delivery may depend on it, and the documentation gate refuses an open card naming a Rejected RFC. `platforms: ["win"]` (or mac/linux) filters eligibility; unmet dependencies belong in Backlog. Human waits use `parked_on: "human-review"`; `awaiting-live-github` remains a service wait. Required human acceptance remains open.
 
 ```sh
 python3 .agents/skills/implement-rfc/scripts/issue_board.py --repo-root . queue --rfc RFC-BPR-0008 --platform mac --json

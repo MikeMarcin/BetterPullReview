@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2083"
 title: "Verify and close RFC-BPR-0120"
-status: "Backlog"
+status: "Blocked"
 rfcs: ["RFC-BPR-0120"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2073--BPR-2085--88e53295c309.json","imported_from":"docs/rfcs/assets/agent-assistance-v1/cards/DRAFT-0011-close-agent-run-checks.md","draft_title":"Close agent-run checks"}
-depends_on: ["BPR-2082"]
+depends_on: []
 closeout_for: ["RFC-BPR-0120"]
+blocked_by: "rejected-prerequisite"
 ---
 
 # BPR-2083: Verify and close RFC-BPR-0120
@@ -40,3 +41,15 @@ RFC base: `a9663a706fd72061f60b615bd8e749ee0ddb66b5`.
 | **AC05:** The result enters the evidence record only on the author's acceptance, and running a check publishes nothing. | Pending | Pending | Not implemented |
 | **AC06:** The operation is briefed by its own built-in prompt, whose edit reaches the next check run and no other prompt. | Pending | Pending | Not implemented |
 | **AC07:** On a frozen build with a fixture agent, the owner accepts the control, a passing result, a failing one and an unbound one. | Pending | Pending | Not implemented |
+
+## Blocked: rejected prerequisite (2026-11-15)
+
+The owner rejected RFC-BPR-0109 on 2026-11-15 ("it shouldnt be deferred it
+should be rejected or something stronger so it doesnt come back"), and
+RFC-BPR-0120 runs a planned check into that RFC's evidence record. Its only
+implementation card, [BPR-2082](../60-done/BPR-2082-run-a-planned-check-with-the-agent.md),
+is closed as rejected (moot) and is no longer a dependency here, because
+rejected work is never delivered. Every criterion above names the evidence
+record, so this closeout cannot pass as written. It waits on an owner decision:
+reject RFC-BPR-0120 as well (then close this card the same way), or replace it
+with a new RFC that stands without evidence.
