@@ -79,6 +79,23 @@ namespace bpr::application {
 			epoch_host_limits                    aLimits        = { },
 			std::shared_ptr<diagnostic_log_port> aDiagnosticLog = { });
 
+		/// \brief [[BPR-2181]], RFC-BPR-0126 AC01. A host the profile owns
+		/// rather than a window: a review agent runtime's, which holds the
+		/// review it was handed while no window shows it. It attaches as the
+		/// registry's profile-owned consumer, so no window's admission or
+		/// close decides whether it is current.
+		epoch_application_host(
+			core::epoch_state                    aInitialState,
+			profile_epoch_actor_registry&        aRegistry,
+			epoch_catalog_port&                  aCatalogs,
+			epoch_entropy_port&                  aEntropy,
+			epoch_clock_port&                    aClock,
+			effect_executor&                     aEffects,
+			decision_executor&                   aDecisionLane,
+			epoch_projection_port&               aProjections,
+			epoch_host_limits                    aLimits        = { },
+			std::shared_ptr<diagnostic_log_port> aDiagnosticLog = { });
+
 		~epoch_application_host() override;
 
 		epoch_application_host(const epoch_application_host&) = delete;

@@ -102,18 +102,23 @@ namespace bpr::application {
 		};
 		std::vector<actor_entry>                                                                      Actors;
 		std::vector<std::pair<core::bpr_window_context, std::weak_ptr<profile_epoch_actor_consumer>>> Consumers;
+		/// [[BPR-2181]]. Profile-owned consumers, bounded apart from windows.
+		std::vector<std::weak_ptr<profile_epoch_actor_consumer>> Owned;
 	};
 
 	struct profile_epoch_actor_consumer::implementation
 	{
 		std::shared_ptr<profile_epoch_registry_state> State;
 		core::bpr_window_context                      Context;
-		std::atomic_bool                              Retired = false;
+		/// Whether a window's admission decides currency; a profile-owned
+		/// consumer is current until it retires.
+		bool             WindowBound = true;
+		std::atomic_bool Retired     = false;
 	};
 
 	profile_epoch_actor_consumer::profile_epoch_actor_consumer(
-		std::shared_ptr<profile_epoch_registry_state> aState, const core::bpr_window_context aContext)
-		: Implementation{ std::make_unique<implementation>(std::move(aState), aContext) }
+		std::shared_ptr<profile_epoch_registry_state> aState, const core::bpr_window_context aContext, const bool aWindowBound)
+		: Implementation{ std::make_unique<implementation>(std::move(aState), aContext, aWindowBound) }
 	{ }
 	profile_epoch_actor_consumer::~profile_epoch_actor_consumer() = default;
 
@@ -124,7 +129,8 @@ namespace bpr::application {
 	}
 	auto profile_epoch_actor_consumer::current() const noexcept -> bool
 	{
-		return active() && (!Implementation->State->Windows || Implementation->State->Windows->current(Implementation->Context));
+		return active()
+			&& (!Implementation->WindowBound || !Implementation->State->Windows || Implementation->State->Windows->current(Implementation->Context));
 	}
 	void profile_epoch_actor_consumer::retire() noexcept
 	{
@@ -218,6 +224,28 @@ namespace bpr::application {
 		State->Consumers.emplace_back(aContext, consumer);
 		return consumer;
 	}
+	auto profile_epoch_actor_registry::attach_profile_owned()
+		-> std::expected<std::shared_ptr<profile_epoch_actor_consumer>, profile_epoch_actor_failure>
+	{
+		if (State->Profile.value() == 0U) {
+			return std::unexpected{ profile_epoch_actor_failure::stale_window };
+		}
+		std::scoped_lock lock{ State->Mutex };
+		if (State->Closing.load(std::memory_order_acquire)) {
+			return std::unexpected{ profile_epoch_actor_failure::closing };
+		}
+		std::erase_if(State->Owned, [](const auto& aWeak) {
+			const auto consumer = aWeak.lock();
+			return !consumer || !consumer->active();
+		});
+		if (State->Owned.size() >= maximum_profile_owned_epoch_consumers) {
+			return std::unexpected{ profile_epoch_actor_failure::consumer_limit };
+		}
+		auto consumer = std::shared_ptr<profile_epoch_actor_consumer>{ new profile_epoch_actor_consumer{ State, { .Profile = State->Profile }, false } };
+		State->Owned.emplace_back(consumer);
+		return consumer;
+	}
+
 	void profile_epoch_actor_registry::shutdown() noexcept
 	{
 		State->Closing.store(true, std::memory_order_release);

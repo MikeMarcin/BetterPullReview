@@ -9917,6 +9917,88 @@ namespace {
 		expect(registry.is_quiescent(), "destruction marker participates in profile quiescence");
 	}
 
+	/// [[BPR-2181]], RFC-BPR-0126 AC01. A review agent runtime's epoch host is
+	/// the profile's, not a window's: it is admitted with no window, holds the
+	/// review it was handed without the window's lease after that window
+	/// closes, and its consumers are bounded apart from the windows.
+	void profile_owned_host_holds_its_review_after_the_window_closes()
+	{
+		fixture                                   window;
+		fixture                                   runtime;
+		epoch_test_windows                        windows;
+		application::profile_epoch_actor_registry registry{ core::default_bpr_profile_id, windows, window.Caches, window.Effects };
+		const auto                                shown = windows.launch();
+		window.Host.reset();
+		runtime.Host.reset();
+		window.Host = std::make_unique<application::epoch_application_host>(
+			core::epoch_state{ .ApplicationSession = core::application_session_id{ 91U } }, registry, shown,
+			window.Catalogs, window.Entropy, window.Clock, window.Effects, window.Decisions, window.Projections);
+		runtime.Host = std::make_unique<application::epoch_application_host>(
+			core::epoch_state{ .ApplicationSession = core::application_session_id{ 93U } }, registry,
+			runtime.Catalogs, runtime.Entropy, runtime.Clock, window.Effects, runtime.Decisions, runtime.Projections);
+		const auto drain = [&] {
+			while (window.Effects.pending() || window.Decisions.pending() || runtime.Decisions.pending()) {
+				if (window.Effects.pending()) {
+					window.Effects.run_next();
+				}
+				if (window.Decisions.pending()) {
+					window.Decisions.run_next();
+				}
+				if (runtime.Decisions.pending()) {
+					runtime.Decisions.run_next();
+				}
+			}
+		};
+		window.Host->accept(make_handoff(window.State, 1U, 20U, true));
+		drain();
+		expect(window.Host->state().AcceptedComparison.has_value(), "the window ingests its review under its lease");
+		// Ingestion needs a live lease of its own, even for objects the
+		// profile cache already holds: the window's lease is bound to the
+		// window's session and is not lent, so a runtime needs one bound to
+		// its own session (the open lease-lending step of [[BPR-2181]]).
+		auto unleased               = make_handoff(window.State, 1U, 20U, false);
+		unleased.ApplicationSession = core::application_session_id{ 93U };
+		runtime.Host->accept(std::move(unleased));
+		drain();
+		expect(!runtime.Host->state().AcceptedComparison.has_value(), "a review handed over without a lease is not ingested");
+		auto adopted               = make_handoff(window.State, 1U, 20U, false);
+		adopted.ApplicationSession = core::application_session_id{ 93U };
+		adopted.SmartGit           = std::make_unique<fake_smart_authority>(window.State, application::authority_binding(adopted), 1U);
+		runtime.Host->accept(std::move(adopted));
+		drain();
+		expect(runtime.Host->state().AcceptedComparison.has_value(), "a profile-owned host accepts the review under its own lease with no window");
+		window.Host->shutdown();
+		expect(windows.Catalog.close(shown).has_value(), "the window closes");
+		drain();
+		expect(window.Host->is_quiescent(), "the window's host retires");
+		const auto request = selected_diff_request_for(runtime);
+		auto       result  = std::optional<application::workbench_selected_diff_observation>{ };
+		{
+			std::jthread worker{ [&] { result = runtime.Host->resolve(request, { }); } };
+			window.Effects.wait_for_pending();
+			window.Effects.run_next();
+		}
+		expect(result && result->Status == application::workbench_selected_diff_status::available,
+			   "the profile-owned host still reads its review after the window closed");
+		auto owned = std::vector<std::shared_ptr<application::profile_epoch_actor_consumer>>{ };
+		for (std::size_t index = 1U; index < application::maximum_profile_owned_epoch_consumers; ++index) {
+			auto consumer = registry.attach_profile_owned();
+			expect(consumer.has_value() && (*consumer)->current(), "a profile-owned consumer is current with no window");
+			owned.push_back(std::move(*consumer));
+		}
+		const auto excess = registry.attach_profile_owned();
+		expect(!excess && excess.error() == application::profile_epoch_actor_failure::consumer_limit, "profile-owned consumers are bounded");
+		expect(registry.attach(windows.launch()).has_value(), "profile-owned consumers never take a window's place");
+		owned.back()->retire();
+		expect(!owned.back()->current(), "a retired profile-owned consumer is not current");
+		expect(registry.attach_profile_owned().has_value(), "a retired consumer frees its place");
+		runtime.Host->shutdown();
+		drain();
+		expect(runtime.Host->is_quiescent(), "the profile-owned host retires");
+		registry.shutdown();
+		expect(!registry.attach_profile_owned(), "a closing registry admits no profile-owned consumer");
+	}
+
 	void profile_windows_share_one_cache_without_sharing_selection_or_lifetime()
 	{
 		fixture                                   first;
@@ -10220,6 +10302,7 @@ int main(int argc, char** argv)
 	profile_actor_runs_reviewer_work_before_queued_preparation();
 	profile_actor_replacement_waits_for_session_destruction();
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
+	profile_owned_host_holds_its_review_after_the_window_closes();
 	epoch_preparation_diagnostics_preserve_results();
 	git_tool_refusals_preserve_actionable_reasons_and_retry();
 	gh_tool_refusals_preserve_actionable_reasons_and_retry();

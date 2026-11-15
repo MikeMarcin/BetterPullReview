@@ -120,6 +120,22 @@ namespace bpr::application {
 														  aLimits, std::move(aDiagnosticLog), std::move(*consumer));
 	}
 
+	epoch_application_host::epoch_application_host(
+		core::epoch_state aInitialState, profile_epoch_actor_registry& aRegistry,
+		epoch_catalog_port& aCatalogs, epoch_entropy_port& aEntropy,
+		epoch_clock_port& aClock, effect_executor& aEffects,
+		decision_executor& aDecisionLane, epoch_projection_port& aProjections,
+		const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog)
+	{
+		auto consumer = aRegistry.attach_profile_owned();
+		if (!consumer) {
+			throw std::invalid_argument{ "Profile-owned epoch attachment refused" };
+		}
+		Implementation = std::make_unique<implementation>(std::move(aInitialState),
+														  aRegistry.caches(), aCatalogs, aEntropy, aClock, aEffects, aDecisionLane, aProjections,
+														  aLimits, std::move(aDiagnosticLog), std::move(*consumer));
+	}
+
 	epoch_application_host::~epoch_application_host()
 	{
 		shutdown();

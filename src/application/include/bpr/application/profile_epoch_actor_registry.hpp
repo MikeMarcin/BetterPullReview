@@ -73,6 +73,11 @@ namespace bpr::application {
 
 	struct profile_epoch_registry_state;
 
+	/// \brief [[BPR-2181]]. The profile-owned consumers a registry admits at
+	/// once, apart from its windows: one per review agent runtime that holds an
+	/// accepted review while no window shows it.
+	inline constexpr std::size_t maximum_profile_owned_epoch_consumers = 32U;
+
 	/// \brief Window-local admission gate; retiring it never cancels another window.
 	class profile_epoch_actor_consumer final
 	{
@@ -89,7 +94,7 @@ namespace bpr::application {
 	private:
 		friend class profile_epoch_actor_registry;
 		profile_epoch_actor_consumer(std::shared_ptr<profile_epoch_registry_state> aState,
-									 core::bpr_window_context                      aContext);
+									 core::bpr_window_context aContext, bool aWindowBound = true);
 		struct implementation;
 		std::unique_ptr<implementation> Implementation;
 	};
@@ -108,6 +113,15 @@ namespace bpr::application {
 		profile_epoch_actor_registry(const profile_epoch_actor_registry&)                                  = delete;
 		auto               operator=(const profile_epoch_actor_registry&) -> profile_epoch_actor_registry& = delete;
 		[[nodiscard]] auto attach(core::bpr_window_context aContext)
+			-> std::expected<std::shared_ptr<profile_epoch_actor_consumer>, profile_epoch_actor_failure>;
+		/// \brief [[BPR-2181]], RFC-BPR-0126 AC01. A consumer the profile owns
+		/// rather than a window: a review agent runtime's epoch host, which no
+		/// window shows and which outlives the window it adopted its review
+		/// from. It is current until it retires or the registry closes, never
+		/// by a window's admission, and it is bounded apart from the windows
+		/// (`maximum_profile_owned_epoch_consumers`), so it never takes a
+		/// window's place.
+		[[nodiscard]] auto attach_profile_owned()
 			-> std::expected<std::shared_ptr<profile_epoch_actor_consumer>, profile_epoch_actor_failure>;
 		void               shutdown() noexcept;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
