@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2182",
+    "BPR-2183"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Architecture review of 03aae05cb: RFC-BPR-0114 author-Git push refusal and literal pathspecs; RFC-BPR-0127 Local comment store-owned identity, one-transaction reworded Keep local, host-held alignment",
+  "created": "2026-11-15T05:24:16.403673+00:00",
+  "base": "46028bf5478d1595f64d1d647ca0c32d93a64817"
+}
