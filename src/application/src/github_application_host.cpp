@@ -445,6 +445,40 @@ namespace bpr::application {
 
 	auto github_application_host::attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool { return Implementation->attach_window(aWindow); }
 	void github_application_host::detach_window(const core::bpr_window_context aWindow) { Implementation->detach_window(aWindow); }
+	auto github_application_host::lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender, const core::application_session_id aHolder,
+														std::function<void(lent_review_authority_end)> aRevoked) -> std::optional<lent_review_authority>
+	{
+		return Implementation->lend_review_authority(aLender, aHolder, std::move(aRevoked));
+	}
+
+	lent_review_lease::lent_review_lease(std::shared_ptr<lent_review_record> aRecord) noexcept
+		: Record{ std::move(aRecord) }
+	{ }
+	lent_review_lease::~lent_review_lease() { release(); }
+	lent_review_lease::lent_review_lease(lent_review_lease&& aOther) noexcept
+		: Record{ std::move(aOther.Record) }
+	{ }
+	auto lent_review_lease::operator=(lent_review_lease&& aOther) noexcept -> lent_review_lease&
+	{
+		if (this != &aOther) {
+			release();
+			Record = std::move(aOther.Record);
+		}
+		return *this;
+	}
+	auto lent_review_lease::live() const noexcept -> bool { return Record && Record->live(); }
+	void lent_review_lease::release() noexcept
+	{
+		if (!Record) {
+			return;
+		}
+		// The holder let go: the host forgets the loan on its next pass and
+		// tells nobody.
+		Record->Ended   = true;
+		Record->Revoked = { };
+		Record->Authority->revoke();
+		Record.reset();
+	}
 	void github_application_host::observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, const bool aFreshSnapshot) { Implementation->observe_attached_read(aWindow, aFreshSnapshot); }
 
 	auto github_application_host::accepted_snapshot() const noexcept

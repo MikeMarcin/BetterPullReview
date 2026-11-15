@@ -110,6 +110,8 @@ namespace bpr::application {
 		RestoredDeviceBinding = false;
 		LaunchRenewedGrant    = false;
 		invalidate_epoch_authority();
+		// [[BPR-2181]]. A loan is the identity's, whatever replaces it.
+		end_lent_authorities(lent_review_authority_end::identity_changed, [](const lent_review_record&) { return true; });
 		cancel_provider();
 		// The answer described the identity being invalidated. Keeping it
 		// would let a renewal be armed under a key this host has already

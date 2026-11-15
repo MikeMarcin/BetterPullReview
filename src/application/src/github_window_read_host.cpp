@@ -7,6 +7,7 @@
 #include "bpr/application/setup_destination_projection.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
+#include "git_smart_authority_lease.hpp"
 #include "github_projection_mapping.hpp"
 #include <algorithm>
 #include <array>
@@ -103,140 +104,6 @@ namespace bpr::application {
 			}
 			return std::nullopt;
 		}
-
-		struct smart_authority_state final
-		{
-			void retain(const git_smart_transport& aTransport)
-			{
-				const std::scoped_lock lock{ Mutex };
-				std::erase_if(Transports,
-							  [](const auto& aCandidate) { return aCandidate.expired(); });
-				Transports.emplace_back(aTransport);
-			}
-
-			void revoke() noexcept
-			{
-				if (Revoked.exchange(true, std::memory_order_acq_rel)) {
-					return;
-				}
-				auto transports = std::vector<
-					std::weak_ptr<git_smart_transport_port>>{ };
-				{
-					const std::scoped_lock lock{ Mutex };
-					transports.swap(Transports);
-				}
-				for (const auto& candidate : transports) {
-					if (const auto transport = candidate.lock()) {
-						transport->revoke();
-					}
-				}
-			}
-
-			std::atomic_bool                                     Revoked = false;
-			std::mutex                                           Mutex;
-			std::vector<std::weak_ptr<git_smart_transport_port>> Transports;
-		};
-
-		class bound_git_smart_authority final : public git_smart_authority_lease
-		{
-		public:
-			bound_git_smart_authority(git_smart_authority_binding            aBinding,
-									  github_account_transport               aAccount,
-									  std::shared_ptr<smart_authority_state> aState)
-				: Binding{ std::move(aBinding) }
-				, Account{ std::move(aAccount) }
-				, State{ std::move(aState) }
-			{
-			}
-
-			// The credential-free binding. Composition owns the anonymous
-			// factory for the host's lifetime, so the lease borrows it rather
-			// than sharing an account transport it must never hold.
-			bound_git_smart_authority(git_smart_authority_binding            aBinding,
-									  git_smart_transport_factory_port*      aAnonymous,
-									  std::shared_ptr<smart_authority_state> aState)
-				: Binding{ std::move(aBinding) }
-				, Anonymous{ aAnonymous }
-				, State{ std::move(aState) }
-			{
-			}
-
-			~bound_git_smart_authority() override { revoke(); }
-
-			[[nodiscard]] auto binding() const noexcept
-				-> const git_smart_authority_binding& override
-			{
-				return Binding;
-			}
-
-			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
-			{
-				if (State->Revoked.load(std::memory_order_acquire)) {
-					return false;
-				}
-				auto* const factory = Account == nullptr
-					? Anonymous
-					: dynamic_cast<git_smart_transport_factory_port*>(Account.get());
-				return factory != nullptr && factory->supports_sparse_commit_trees();
-			}
-
-			[[nodiscard]] auto acquire(const git_smart_request_context& aContext)
-				-> git_smart_transport_result<git_smart_transport> override
-			{
-				if (State->Revoked.load(std::memory_order_acquire)
-					|| !application::valid(aContext)
-					|| aContext.ApplicationSession != Binding.ApplicationSession
-					|| aContext.Authority.Profile != Binding.Profile
-					|| aContext.Authority.ProfileRevision != Binding.ProfileRevision
-					|| aContext.Authority.Host != Binding.Host
-					|| aContext.Authority.HostAuthority != Binding.HostAuthority
-					|| aContext.Authority.Account != Binding.Account
-					|| aContext.Authority.Repository != Binding.Repository
-					|| aContext.Repository != Binding.Locator
-					|| aContext.Revision.Base.algorithm() != Binding.ObjectFormat
-					|| aContext.Revision.Head.algorithm() != Binding.ObjectFormat) {
-					return std::unexpected{ git_smart_transport_error{
-						.Failure = git_smart_transport_failure::invalid_request } };
-				}
-				auto* const factory = Account == nullptr
-					? Anonymous
-					: dynamic_cast<git_smart_transport_factory_port*>(Account.get());
-				if (factory == nullptr) {
-					return std::unexpected{ git_smart_transport_error{
-						.Failure = git_smart_transport_failure::unavailable } };
-				}
-				auto acquired = factory->acquire(aContext);
-				if (!acquired) {
-					return std::unexpected{ acquired.error() };
-				}
-				State->retain(*acquired);
-				if (State->Revoked.load(std::memory_order_acquire)) {
-					(*acquired)->revoke();
-					return std::unexpected{ git_smart_transport_error{
-						.Failure = git_smart_transport_failure::cancelled } };
-				}
-				return std::move(*acquired);
-			}
-
-			void revoke() noexcept override { State->revoke(); }
-
-			[[nodiscard]] auto revoked() const noexcept -> bool override
-			{
-				return State->Revoked.load(std::memory_order_acquire);
-			}
-
-			[[nodiscard]] auto state() const noexcept
-				-> std::shared_ptr<smart_authority_state>
-			{
-				return State;
-			}
-
-		private:
-			git_smart_authority_binding            Binding;
-			github_account_transport               Account;
-			git_smart_transport_factory_port*      Anonymous = nullptr;
-			std::shared_ptr<smart_authority_state> State;
-		};
 
 		[[nodiscard]] constexpr auto
 		retryable(const github_provider_error& aError) noexcept -> bool
@@ -1620,6 +1487,19 @@ namespace bpr::application {
 				if (errorValid) {
 					publish_error_advisory(error->Error);
 				}
+				// [[BPR-2181]]. A 404 or a refused permission says this pull
+				// request is no longer readable under this authority. Told
+				// before the core decides, so a lease lent for it ends with
+				// the read that found out.
+				if (errorValid && error->Error.Failure == github_provider_failure::permission && AccessLoss) {
+					AccessLoss(github_pull_request_access_loss{
+						.Profile    = error->Request.Context.Profile,
+						.Account    = error->Request.Context.Account,
+						.Mode       = error->Request.Context.Mode,
+						.Repository = error->Request.Context.Repository,
+						.Number     = error->Request.Context.Number,
+					});
+				}
 				record_pull_request(diagnostic_outcome::failed,
 									error->Request.Context.Request,
 									errorValid ? mapped_failure(error->Error.Failure)
@@ -2129,6 +2009,7 @@ namespace bpr::application {
 		std::optional<github_public_preview_refusal>        PublicPreviewRefusal;
 		std::optional<pull_request_authority_invalidation>  ActiveEpochAuthority;
 		std::shared_ptr<smart_authority_state>              ActiveEpochSmartAuthority;
+		github_window_read_host::access_loss_observer       AccessLoss;
 		bool                                                Closing = false, EpochHandoffDeliveryFailed = false, EpochHandoffUnavailable = false;
 		std::atomic_bool                                    ProjectionDeliveryFailed{ false };
 	};
@@ -2322,6 +2203,26 @@ namespace bpr::application {
 		return Implementation->open_loading_pull_request_page(aIntent, aBrowser);
 	}
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
+
+	auto github_window_read_host::lend_epoch_handoff(const core::application_session_id aHolder) -> std::optional<accepted_pull_request_handoff>
+	{
+		auto& host = *Implementation;
+		if (host.Closing || aHolder.value() == 0U || aHolder == host.State.ApplicationSession || !host.AcceptedSnapshot
+			|| host.State.AcceptedSnapshot != host.AcceptedSnapshot->Snapshot) {
+			return std::nullopt;
+		}
+		auto handoff = host.make_epoch_handoff(*host.AcceptedSnapshot);
+		if (!handoff) {
+			return std::nullopt;
+		}
+		// The window's own lease is the window's. The lender mints the
+		// holder's, bound to the holder's session.
+		handoff->SmartGit.reset();
+		handoff->ApplicationSession = aHolder;
+		return handoff;
+	}
+
+	void github_window_read_host::observe_access_loss(access_loss_observer aObserver) { Implementation->AccessLoss = std::move(aObserver); }
 
 	void github_window_read_host::count_merges(std::vector<github_merge_to_count> aMerges, github_merge_count_handler aDone)
 	{

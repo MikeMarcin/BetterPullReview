@@ -229,6 +229,7 @@ namespace bpr::application {
 		AttachedWindows.push_back({ aWindow->window(), aWindow->state().ApplicationSession,
 									session ? std::optional{ session->ProfileAuthority } : std::nullopt,
 									session ? session->Session.Viewer.Account : core::github_account_id{ }, aWindow });
+		aWindow->observe_access_loss([this](const github_pull_request_access_loss& aLoss) { observe_access_loss(aLoss); });
 		ExplicitPrimaryAttached = ExplicitPrimaryAttached || aWindow->window().Window == core::bpr_window_id{ 1 };
 		LastAttachedWindow      = std::max(LastAttachedWindow, aWindow->window().Window);
 		if (restored) {
@@ -273,6 +274,8 @@ namespace bpr::application {
 	{
 		const auto attached = std::ranges::find_if(AttachedWindows, [aContext](const auto& aSlot) { return aSlot.Context == aContext; });
 		if (attached != AttachedWindows.end()) {
+			// [[BPR-2181]]. A closed lender's loans stay: the holder outlives it.
+			attached->Host->observe_access_loss({ });
 			attached->Host->shutdown();
 			attached->Detaching = true;
 			std::erase_if(AttachedWindows, [](const auto& aSlot) { return aSlot.Detaching && aSlot.Host->is_quiescent(); });
@@ -289,6 +292,85 @@ namespace bpr::application {
 			AcceptedSnapshot.reset();
 			ReviewMutationTransport.reset();
 		}
+	}
+
+	auto github_application_host::implementation::lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender,
+																		const core::application_session_id              aHolder,
+																		std::function<void(lent_review_authority_end)>  aRevoked)
+		-> std::optional<lent_review_authority>
+	{
+		std::erase_if(LentAuthorities, [](const auto& aRecord) { return !aRecord->live(); });
+		const auto session = current_profile_session();
+		const auto lender  = std::ranges::find_if(AttachedWindows, [&aLender](const auto& aSlot) { return aSlot.Host == aLender && !aSlot.Detaching; });
+		if (Closing || !session || !aLender || lender == AttachedWindows.end() || aHolder.value() == 0U || aHolder == State.ApplicationSession
+			|| std::ranges::any_of(AttachedWindows, [aHolder](const auto& aSlot) { return aSlot.Session == aHolder; })
+			|| LentAuthorities.size() >= maximum_lent_review_authorities) {
+			return std::nullopt;
+		}
+		auto handoff = aLender->lend_epoch_handoff(aHolder);
+		if (!handoff || handoff->IdentityGeneration != State.IdentityGeneration || handoff->Profile != session->ProfileAuthority.Profile
+			|| handoff->ProfileRevision.value() != session->ProfileAuthority.ProfileRevision.value() || handoff->Account != session->Session.Viewer.Account
+			|| handoff->Mode != State.AccessMode) {
+			return std::nullopt;
+		}
+		auto state = std::make_shared<smart_authority_state>();
+		if (handoff->Mode == core::github_access_mode::public_preview) {
+			if (AnonymousSmartGit != nullptr) {
+				handoff->SmartGit = std::make_unique<bound_git_smart_authority>(authority_binding(*handoff), AnonymousSmartGit, state);
+			}
+		} else if (dynamic_cast<git_smart_transport_factory_port*>(AccountTransport.get()) != nullptr) {
+			handoff->SmartGit = std::make_unique<bound_git_smart_authority>(authority_binding(*handoff), AccountTransport, state);
+		}
+		if (!handoff->SmartGit) {
+			// No Git authority to lend, so nothing is lent.
+			return std::nullopt;
+		}
+		auto record        = std::make_shared<lent_review_record>();
+		record->Authority  = std::move(state);
+		record->Profile    = handoff->Profile;
+		record->Account    = handoff->Account;
+		record->Mode       = handoff->Mode;
+		record->Repository = handoff->Locator;
+		record->Number     = handoff->Number;
+		record->Revoked    = std::move(aRevoked);
+		LentAuthorities.push_back(record);
+		auto lent    = lent_review_authority{ };
+		lent.Handoff = std::move(*handoff);
+		lent.Lease   = lent_review_lease{ std::move(record) };
+		return lent;
+	}
+
+	void github_application_host::implementation::end_lent_authorities(const lent_review_authority_end                       aCause,
+																	   const std::function<bool(const lent_review_record&)>& aEnds) noexcept
+	{
+		// Copied first: a revoked transport may call back into this host.
+		const auto loans = LentAuthorities;
+		for (const auto& loan : loans) {
+			if (!loan->live() || !aEnds(*loan)) {
+				continue;
+			}
+			loan->Ended = true;
+			loan->Authority->revoke();
+			if (auto holder = std::exchange(loan->Revoked, { })) {
+				try {
+					DecisionLane.post([revoked = std::move(holder), aCause] { revoked(aCause); });
+				} catch (...) {
+					ProjectionDeliveryFailed = true;
+				}
+			}
+		}
+		std::erase_if(LentAuthorities, [](const auto& aRecord) { return !aRecord->live(); });
+	}
+
+	void github_application_host::implementation::observe_access_loss(const github_pull_request_access_loss& aLoss) noexcept
+	{
+		if (Closing) {
+			return;
+		}
+		end_lent_authorities(lent_review_authority_end::pull_request_inaccessible, [&aLoss](const lent_review_record& aLoan) {
+			return aLoan.Profile == aLoss.Profile && aLoan.Account == aLoss.Account && aLoan.Mode == aLoss.Mode
+				&& aLoan.Repository == aLoss.Repository && aLoan.Number == aLoss.Number;
+		});
 	}
 
 	void github_application_host::implementation::publish_profile_session()

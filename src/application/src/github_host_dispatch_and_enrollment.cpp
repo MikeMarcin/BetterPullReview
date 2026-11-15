@@ -44,6 +44,9 @@ namespace bpr::application {
 
 	github_application_host::implementation::~implementation()
 	{
+		for (const auto& slot : AttachedWindows) {
+			slot.Host->observe_access_loss({ });
+		}
 		const std::lock_guard barrier{ CompletionGate->Barrier };
 		CompletionGate->Host.store(nullptr, std::memory_order_release);
 	}

@@ -95,6 +95,62 @@ namespace bpr::application {
 	/// account or the session fails; no value, or the same profile, continues here.
 	using github_enrollment_rebind = std::function<std::optional<core::host_profile_id>(const github_profile_authority&, const github_viewer_record&)>;
 
+	/// \brief [[BPR-2181]]. The most review authorities one host lends at once.
+	inline constexpr std::size_t maximum_lent_review_authorities = 32U;
+
+	/// \brief [[BPR-2181]]. Why `github_application_host` ended a review
+	/// authority it lent.
+	/// \details The holder letting go ends nothing it is told about.
+	enum class lent_review_authority_end : std::uint8_t {
+		/// The identity it was lent under ended: the account changed or
+		/// signed out, the identity generation advanced, or the profile was
+		/// re-resolved at another revision. Each of these invalidates the
+		/// identity first, which is when the lease must stop, and which of
+		/// them it was is known only once the next session is accepted.
+		identity_changed,
+		/// A read of its pull request answered 404 or refused permission.
+		pull_request_inaccessible,
+		/// The host shut down.
+		host_closing,
+	};
+
+	struct lent_review_record;
+
+	/// \brief [[BPR-2181]]. The holder's hold on a lent review authority.
+	/// \details Move-only. Releasing it, or destroying it, revokes the lease
+	/// and every transport it issued, and the host forgets the loan without
+	/// telling the holder. Decision lane only. Safe after the host is gone.
+	class lent_review_lease final
+	{
+	public:
+		lent_review_lease() = default;
+		~lent_review_lease();
+		lent_review_lease(const lent_review_lease&)                    = delete;
+		auto operator=(const lent_review_lease&) -> lent_review_lease& = delete;
+		lent_review_lease(lent_review_lease&& aOther) noexcept;
+		auto operator=(lent_review_lease&& aOther) noexcept -> lent_review_lease&;
+
+		/// \brief True until it is released or the host ends the loan.
+		[[nodiscard]] auto live() const noexcept -> bool;
+		void               release() noexcept;
+
+	private:
+		friend class github_application_host;
+		explicit lent_review_lease(std::shared_ptr<lent_review_record> aRecord) noexcept;
+		std::shared_ptr<lent_review_record> Record;
+	};
+
+	/// \brief [[BPR-2181]]. An accepted pull request's epoch handoff lent to
+	/// a holder that is not a window, with the holder's hold on it.
+	/// \details `Handoff` names the holder's application session, and its
+	/// `SmartGit` lease is bound to that session. It goes to the holder's own
+	/// epoch host.
+	struct lent_review_authority
+	{
+		accepted_pull_request_handoff Handoff;
+		lent_review_lease             Lease;
+	};
+
 	/// \brief Provides the github credential binding catalog contract.
 	class github_credential_binding_catalog final
 	{
@@ -192,6 +248,26 @@ namespace bpr::application {
 		/// generation1 windows; the first fresh admission seals restoration.
 		/// Fresh IDs increase beyond every admitted ID; retired IDs never reattach.
 		[[nodiscard]] auto attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool;
+		/// \brief [[BPR-2181]]. Lends the accepted pull request of an attached
+		/// window to a holder that outlives windows.
+		/// \details The handoff is the window's, rewritten for \p aHolder's
+		/// application session, with a smart-Git lease minted over this
+		/// session's account transport (the credential-free one signed out)
+		/// and bound to \p aHolder. This host owns the lease: it ends it when
+		/// the identity it was lent under is invalidated, when any attached
+		/// window's read of that pull request under the same account answers
+		/// 404 or refused permission, and at shutdown, revoking every
+		/// transport it issued at once and then posting \p aRevoked with the
+		/// cause to the decision lane. Opening another pull request in the
+		/// lender, or closing the lender, ends nothing. Empty while closing,
+		/// without an accepted session, for a window not attached, a window
+		/// with no accepted pull request of this session, a holder that is
+		/// zero or a window's own session, and once
+		/// `maximum_lent_review_authorities` loans are live. Decision lane only.
+		[[nodiscard]] auto lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender,
+												 core::application_session_id                    aHolder,
+												 std::function<void(lent_review_authority_end)>  aRevoked)
+			-> std::optional<lent_review_authority>;
 		/// \brief Retires an explicit attachment before considering the standalone legacy read slot.
 		void detach_window(core::bpr_window_context aWindow);
 		/// \brief Adopts an attached window's accepted read for the host-level projections.
