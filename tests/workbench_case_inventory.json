@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "72484982cfac504055f7f346417e07dadd373f366096dc296ebef74289190f14",
+  "source_sha256": "934a77a84564f5d13c62b85b3086be2ff428a9e5a6f206ae1d01a10ee2fd2f47",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -140,6 +140,7 @@
       "test_the_pane_edit_takes_the_editor_gestures",
       "test_a_held_suggestion_is_converted_and_a_kept_one_reopens",
       "test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment",
+      "test_placement_notices_fold_into_the_composer_mark",
       "test_line_numbers_select_lines",
       "test_a_drag_onto_an_empty_line_takes_it",
       "test_comment_takes_the_selected_lines",
@@ -177,6 +178,7 @@
       "test_composition_pages_retain_editors_and_never_submit_on_navigation",
       "test_composition_keys_open_the_pages_and_esc_returns",
       "test_finish_review_is_a_sheet_beside_the_code",
+      "test_compose_review_lightbox_gestures_and_window_controls",
       "test_the_tour_is_a_route_expanding_to_its_page",
       "test_the_agent_is_a_drawer_tab",
       "test_a_reply_drafts_all_its_suggested_comments",
@@ -267,7 +269,7 @@
       "test_queue_rule_selection_survives_unrelated_projection",
       "test_saved_repository_gestures_round_trip_through_the_dispatch",
       "test_add_repository_comes_before_the_clone_folders",
-      "test_add_enterprise_server_opens_a_card_in_its_edit_state",
+      "test_add_account_opens_the_account_setup",
       "test_github_cli_discovery_is_a_separate_accounts_path",
       "test_a_kept_enterprise_server_remembers_and_forgets_on_its_card",
       "test_the_servers_combo_editor_is_gone",
@@ -299,7 +301,8 @@
       "test_hide_drawers_command_key_icon_and_editor_yield",
       "test_threads_finds_and_picks_into_review",
       "test_threads_opens_a_thread_in_discuss",
-      "test_a_large_file_leaves_the_widget_count_bounded"
+      "test_a_large_file_leaves_the_widget_count_bounded",
+      "test_the_duplicate_comment_and_add_stop_buttons_are_gone"
     ]
   }
 }
