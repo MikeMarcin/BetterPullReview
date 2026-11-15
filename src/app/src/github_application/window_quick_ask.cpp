@@ -51,105 +51,53 @@ namespace bpr::app {
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
 								  .Edit   = [this] { Window->reveal_prompt_macros(); },
 							  });
-		if (!AgentQueue) {
-			AgentQueueStore      = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
-			auto dependencies    = application::agent_queue_dependencies{ };
-			dependencies.Store   = AgentQueueStore.get();
-			dependencies.Release = [this](const std::string&, const core::queued_entry& aEntry) { return release_queued(aEntry); };
-			dependencies.Changed = [this](const std::string& aSession, const core::agent_queue& aQueue) {
-				// RFC-BPR-0126 AC09: Stop all shows while any session's queue
-				// holds a message.
-				if (!Closing && Window != nullptr) {
-					QTimer::singleShot(0, Window.get(), [this] {
-						if (!Closing && Window != nullptr && Window->agent_footer_widget() != nullptr && AgentQueue) {
-							Window->agent_footer_widget()->present_queued(AgentQueue->queued_count());
-						}
-					});
-				}
-				if (Closing || Window == nullptr || aSession != ask_session_key()) {
-					return;
-				}
-				auto waiting = QStringList{ };
-				for (const auto& entry : aQueue.Entries) {
-					if (entry.State == core::queued_state::queued) {
-						waiting << QString::fromStdString(entry.Input.Label);
-					}
-				}
-				const auto state = aQueue.Paused != core::queue_pause::none                      ? QStringLiteral("paused")
-					: Window->agent_tab()->setup_readiness() != qt::agent_setup_readiness::ready ? QStringLiteral("waiting for the agent's setup")
-																								 : QStringLiteral("waiting its turn");
-				Window->agent_tab()->present_queue(waiting, state);
-				// RFC-BPR-0126 ([[BPR-2151]]): the pending list with its
-				// controls; a paused queue says why.
-				auto rows = std::vector<qt::agent_tab_view::queue_row>{ };
-				for (const auto& entry : aQueue.Entries) {
-					rows.push_back({
-						.Id = entry.Id,
-						// A typed message reads as its text, edited or not.
-						.Label   = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
-						.Text    = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
-						.Held    = entry.Held,
-						.Sending = entry.State != core::queued_state::queued,
-					});
-				}
-				const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")
-					: aQueue.Paused == core::queue_pause::stopped             ? QStringLiteral("Paused: Stop all")
-					: aQueue.Paused == core::queue_pause::failed              ? QStringLiteral("Paused: a run failed")
-					: aQueue.Paused == core::queue_pause::usage_limit         ? QStringLiteral("Paused: the agent's usage limit")
-					: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
-					: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
-					: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")
-																			  : QStringLiteral("Queued, %1").arg(state);
-				Window->agent_tab()->present_queue_rows(std::move(rows), why, aQueue.Paused != core::queue_pause::none);
-			};
-			AgentQueue = std::make_unique<application::agent_queue_host>(std::move(dependencies));
-			AgentQueue->load();
-			// RFC-BPR-0126 AC09: Stop all, after the footer stopped every run,
-			// pauses every queue, so nothing starts next.
-			if (auto* const footer = Window->agent_footer_widget(); footer != nullptr) {
-				footer->set_stop_all_dispatch([this] {
-					if (!Closing && AgentQueue) {
-						AgentQueue->pause_all(core::queue_pause::stopped);
-					}
-				});
-			}
-		}
+		attach_agent_queue();
 		Window->agent_tab()->set_availability_observer([this](const bool aSettled) { observe_ask_queue(aSettled); });
 		auto* const tab = Window->agent_tab();
 		// RFC-BPR-0126 ([[BPR-2151]]). The pending list's controls, on the
 		// session's one queue.
+		// RFC-BPR-0126 AC04: every window showing the session edits its one
+		// queue, from what it shows; an edit made from an older revision, or
+		// on a message another window is editing, is refused and says so.
 		const auto onQueue = [this](auto aAct) {
 			return [this, aAct](auto... aArgs) {
 				if (!Closing && AgentQueue && !ask_session_key().empty()) {
-					static_cast<void>(aAct(*AgentQueue, ask_session_key(), aArgs...));
+					const auto refused = aAct(*AgentQueue, ask_session_key(), AgentQueueSeen, aArgs...);
+					if (refused == core::queue_refusal::stale || refused == core::queue_refusal::unknown_entry || refused == core::queue_refusal::not_editable) {
+						Window->agent_panel()->refuse("Another window changed this queue first, so nothing changed here.");
+						AgentQueue->show(ask_session_key());
+					}
 					observe_ask_queue(false);
 				}
 			};
 		};
+		using seen = std::uint64_t;
 		tab->set_queue_dispatch(qt::agent_tab_view::queue_dispatch{
-			.Edit   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.hold(aSession, aId); }),
-			.Save   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId, const QString& aText) {
+			.Edit = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId) { return aQueue.hold(aSession, aId, aSeen); }),
+			// The hold is this window's own: Save and Cancel are not refused
+			// for what another window did meanwhile.
+			.Save   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen, const std::uint64_t aId, const QString& aText) {
 				return aQueue.release_hold(aSession, aId, aText.trimmed().isEmpty() ? std::nullopt : std::optional{ aText.toStdString() });
 			}),
-			.Cancel = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.release_hold(aSession, aId, std::nullopt); }),
-			.Remove = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.withdraw(aSession, aId); }),
-			.Move   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId, const int aBy) { return aQueue.reorder(aSession, aId, aBy); }),
+			.Cancel = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen, const std::uint64_t aId) { return aQueue.release_hold(aSession, aId, std::nullopt); }),
+			.Remove = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId) { return aQueue.withdraw(aSession, aId, aSeen); }),
+			.Move   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId, const int aBy) { return aQueue.reorder(aSession, aId, aBy, aSeen); }),
 			// Look prompts-v003: a queued message's Steer. No driver steers
 			// a running turn yet ([[BPR-2153]]), so, as a typed steer does
 			// (Q17), it goes next instead, ahead of the rest, and says why.
 			.Steer = [this, onQueue](const std::uint64_t aId) {
-				onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aEntry) {
-					return aQueue.reorder(aSession, aEntry, -static_cast<int>(core::maximum_queued_inputs));
+				onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aEntry) {
+					return aQueue.reorder(aSession, aEntry, -static_cast<int>(core::maximum_queued_inputs), aSeen);
 				})(aId);
 				if (!Closing && Window != nullptr) {
 					Window->agent_panel()->refuse("Steer isn't available for this agent yet, so the message goes next, right after this answer.");
 				}
 			},
-			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession) {
+			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen) {
 				aQueue.pause(aSession, core::queue_pause::reviewer);
 				return core::queue_refusal::none;
 			}),
-			.Resume = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession) { return aQueue.resume(aSession); }),
+			.Resume = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen) { return aQueue.resume(aSession, aSeen); }),
 		});
 		// Q4/Q5 as answered: a typed message while a turn runs or messages
 		// wait is queued on the session (Steer is not built: a driver that
@@ -300,6 +248,118 @@ namespace bpr::app {
 		return "agent-tab:" + AgentReview->Hostname + "/" + AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name + "#" + std::to_string(AgentReview->Number.value());
 	}
 
+	/// RFC-BPR-0126 AC04 ([[BPR-2151]]), Q10 as overridden by the owner:
+	/// "Queue must be tied to session not active UI windows". The profile's
+	/// one queue host, made by the first window; this window joins it as one
+	/// viewer of the sessions it shows (its Agent tab's, and its tour's).
+	void github_application::implementation::attach_agent_queue()
+	{
+		if (AgentQueueViewer || Closing || Window == nullptr) {
+			return;
+		}
+		if (!AgentQueue) {
+			AgentQueueStore    = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
+			auto dependencies  = application::agent_queue_dependencies{ };
+			dependencies.Store = AgentQueueStore.get();
+			AgentQueue         = std::make_unique<application::agent_queue_host>(std::move(dependencies));
+			AgentQueue->load();
+		}
+		AgentQueueViewer = AgentQueue->attach(application::agent_queue_viewer{
+			.Shows   = [this](const std::string& aSession) {
+				// A tour's feedback is shown by, and goes through, the window
+				// whose draft it waits for.
+				return !Closing && Window != nullptr && !aSession.empty()
+					&& (aSession == tour_queue_key() ? TourFeedbackQueued || TourQueueSending : aSession == ask_session_key()); },
+			.Agent   = [this](const std::string& aSession) { return aSession == tour_queue_key() ? tour_queue_agent() : ask_queue_agent(); },
+			.Release = [this](const std::string& aSession, const core::queued_entry& aEntry) { return aSession == tour_queue_key() ? release_tour_feedback(aEntry) : release_queued(aEntry); },
+			.Changed = [this](const std::string& aSession, const core::agent_queue& aQueue) {
+				if (aSession == tour_queue_key()) {
+					present_tour_feedback();
+				} else {
+					present_ask_queue(aQueue);
+				} },
+			// RFC-BPR-0126 AC09: Stop all shows while any session's queue holds
+			// a message.
+			.Waiting = [this](const std::size_t aWaiting) {
+				if (!Closing && Window != nullptr) {
+					QTimer::singleShot(0, Window.get(), [this, aWaiting] {
+						if (!Closing && Window != nullptr && Window->agent_footer_widget() != nullptr) {
+							Window->agent_footer_widget()->present_queued(aWaiting);
+						}
+					});
+				} },
+		});
+		// RFC-BPR-0126 AC09: Stop all, after the footer stopped every run,
+		// pauses every queue, so nothing starts next.
+		if (auto* const footer = Window->agent_footer_widget(); footer != nullptr) {
+			footer->set_stop_all_dispatch([this] {
+				if (!Closing && AgentQueue) {
+					AgentQueue->pause_all(core::queue_pause::stopped);
+				}
+			});
+			footer->present_queued(AgentQueue->queued_count());
+		}
+	}
+
+	/// The session's queue in the Agent tab: the pending list with its
+	/// controls; a paused queue says why.
+	void github_application::implementation::present_ask_queue(const core::agent_queue& aQueue)
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		AgentQueueSeen = aQueue.Revision;
+		auto waiting   = QStringList{ };
+		for (const auto& entry : aQueue.Entries) {
+			if (entry.State == core::queued_state::queued) {
+				waiting << QString::fromStdString(entry.Input.Label);
+			}
+		}
+		const auto state = aQueue.Paused != core::queue_pause::none                      ? QStringLiteral("paused")
+			: Window->agent_tab()->setup_readiness() != qt::agent_setup_readiness::ready ? QStringLiteral("waiting for the agent's setup")
+																						 : QStringLiteral("waiting its turn");
+		Window->agent_tab()->present_queue(waiting, state);
+		auto rows = std::vector<qt::agent_tab_view::queue_row>{ };
+		for (const auto& entry : aQueue.Entries) {
+			rows.push_back({
+				.Id = entry.Id,
+				// A typed message reads as its text, edited or not.
+				.Label   = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
+				.Text    = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
+				.Held    = entry.Held,
+				.Sending = entry.State != core::queued_state::queued,
+			});
+		}
+		const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")
+			: aQueue.Paused == core::queue_pause::stopped             ? QStringLiteral("Paused: Stop all")
+			: aQueue.Paused == core::queue_pause::failed              ? QStringLiteral("Paused: a run failed")
+			: aQueue.Paused == core::queue_pause::usage_limit         ? QStringLiteral("Paused: the agent's usage limit")
+			: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
+			: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
+			: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")
+																	  : QStringLiteral("Queued, %1").arg(state);
+		Window->agent_tab()->present_queue_rows(std::move(rows), why, aQueue.Paused != core::queue_pause::none);
+	}
+
+	/// What this window's agent can take for its Agent tab's session now. A
+	/// turn running here keeps the session busy in every window; a window
+	/// still retiring its run, or not set up, takes nothing but holds no
+	/// other window back. The window that ran a released entry settles it
+	/// only once its run retired (RFC-BPR-0126: real completion, not a raw
+	/// result), so the next waits for that.
+	auto github_application::implementation::ask_queue_agent() const -> core::queue_agent
+	{
+		auto* const tab = Window != nullptr ? Window->agent_tab() : nullptr;
+		if (Closing || tab == nullptr) {
+			return core::queue_agent::not_set_up;
+		}
+		if (tab->state() == qt::agent_tab_state::working) {
+			return core::queue_agent::busy;
+		}
+		const auto retired = AgentHost == nullptr || AgentHost->is_quiescent();
+		return tab->setup_readiness() == qt::agent_setup_readiness::ready && retired && tab->ready_to_send() ? core::queue_agent::idle : core::queue_agent::not_set_up;
+	}
+
 	/// A plain click: each run the row asks (one a thread or file at a wider
 	/// scope) is queued on the session; a wide press asks first (Q5).
 	void github_application::implementation::queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow)
@@ -376,10 +436,10 @@ namespace bpr::app {
 	}
 
 	/// What the session's agent can take now; a settled turn first settles
-	/// the entry it ran.
+	/// the entry it ran, in the window that ran it.
 	void github_application::implementation::observe_ask_queue([[maybe_unused]] const bool aSettled)
 	{
-		if (Closing || Window == nullptr || !AgentQueue) {
+		if (Closing || Window == nullptr || !AgentQueue || !AgentQueueViewer) {
 			return;
 		}
 		const auto  session = ask_session_key();
@@ -387,11 +447,15 @@ namespace bpr::app {
 		if (session.empty() || tab == nullptr) {
 			return;
 		}
-		const auto working = tab->state() == qt::agent_tab_state::working;
-		// The run retires before the next input goes (RFC-BPR-0126: real
-		// completion, not a raw result).
-		const auto retired = AgentHost == nullptr || AgentHost->is_quiescent();
-		if (AgentQueue->sending(session)) {
+		if (session != AgentQueueShown) {
+			// A session this window shows now: its queue, as every other
+			// window showing it shows it.
+			AgentQueueShown = session;
+			AgentQueue->show(session);
+		}
+		if (AgentQueue->sending(session) && AgentQueue->dispatcher(session) == AgentQueueViewer) {
+			const auto working = tab->state() == qt::agent_tab_state::working;
+			const auto retired = AgentHost == nullptr || AgentHost->is_quiescent();
 			if (working) {
 				QueueTurnSeen = true;
 			} else if (QueueTurnSeen && retired) {
@@ -405,10 +469,7 @@ namespace bpr::app {
 				return;
 			}
 		}
-		const auto agent = tab->setup_readiness() != qt::agent_setup_readiness::ready ? core::queue_agent::not_set_up
-			: working || !retired || !tab->ready_to_send()                            ? core::queue_agent::busy
-																					  : core::queue_agent::idle;
-		AgentQueue->observe(session, agent);
+		AgentQueue->drain(session);
 	}
 
 	/// Starts one queued entry's turn through the existing launch paths, and

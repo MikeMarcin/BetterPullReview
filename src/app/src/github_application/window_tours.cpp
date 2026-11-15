@@ -618,6 +618,10 @@ namespace bpr::app {
 		const auto projectedGeneration = TourIdleObservationGeneration;
 		const auto idle                = tour_session_idle();
 		editor->set_tour_host_idle(idle);
+		if (idle) {
+			// RFC-BPR-0126 Q1: the retired host releases the queued feedback.
+			QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
+		}
 		// A presentation callback can replace either identity or an observer.
 		// Never let the older refresh overwrite that reentrant observation.
 		if (Closing || !Window || !editor || Window->tour_editor() != editor.data()
@@ -652,6 +656,9 @@ namespace bpr::app {
 			}
 			const auto ready = tour_session_idle();
 			editor->set_tour_host_idle(ready);
+			if (ready) {
+				QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
+			}
 			// Reentrant presentation may have deleted this exact observer.
 			if (ready && observer) {
 				observer->stop();
@@ -1446,18 +1453,19 @@ namespace bpr::app {
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			finish_tour_draft(run, aResult, words);
-			// [[BPR-1930]] AC3. Feedback given while it drafted goes next, to
-			// revise what it proposed; a draft that didn't finish says so in
-			// the tour chat, with the feedback as written.
-			if (TourAgent.Waiting && aResult.Outcome == application::agent_run_outcome::success && TourProposal) {
-				send_waiting_tour_feedback();
-			} else if (const auto waiting = core::take_tour_feedback(TourAgent)) {
-				if (const auto turn = core::begin_tour_ask(TourAgent, core::tour_thread{ }, std::nullopt, *waiting)) {
-					static_cast<void>(core::finish_tour_run(TourAgent, *turn, core::tour_agent_run_state::failed, "The draft didn't propose a tour, so this feedback wasn't sent. Send it again when you want."));
-				}
+			// [[BPR-1930]] AC3, RFC-BPR-0126 Q1. Feedback given while it
+			// drafted is the whole-tour conversation's first queued message:
+			// it goes once the run has really ended (the host retired), to
+			// revise what it proposed. A draft that didn't propose a tour says
+			// so in the tour chat, with the feedback as written.
+			if (!(aResult.Outcome == application::agent_run_outcome::success && TourProposal)) {
+				return_tour_feedback("The draft didn't propose a tour, so this feedback wasn't sent. Send it again when you want.");
 			}
 		} else if (TourAskPending) {
 			TourAskPending = false;
+			if (std::exchange(TourQueueSending, false) && AgentQueue && !tour_queue_key().empty()) {
+				AgentQueue->settle(tour_queue_key(), core::queue_pause::none);
+			}
 		} else {
 			finish_writing(aIdentity, aResult);
 		}
@@ -1660,9 +1668,33 @@ namespace bpr::app {
 		// [[BPR-1930]] AC3, owner: "particularly during the initial agent
 		// draft". Feedback on the whole tour while Draft the tour runs waits
 		// for its proposal, then revises it.
-		if (aThread.Kind == core::tour_thread_kind::tour && !aUpdate && TourDraftPending && core::queue_tour_feedback(TourAgent, question)) {
-			Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback is sent to the tour agent when the draft is ready, so it revises that draft."));
-			present_tour_session();
+		// RFC-BPR-0126 Q1: it is the whole-tour conversation's first queued
+		// message; more feedback before the draft is ready joins it.
+		if (aThread.Kind == core::tour_thread_kind::tour && !aUpdate && TourDraftPending && AgentQueue && !tour_queue_key().empty()) {
+			const auto  key     = tour_queue_key();
+			const auto* queue   = AgentQueue->queue(key);
+			auto        refused = core::queue_refusal::none;
+			if (queue != nullptr && !queue->Entries.empty() && queue->Entries.front().State == core::queued_state::queued && !queue->Entries.front().Held) {
+				const auto id     = queue->Entries.front().Id;
+				const auto joined = queue->Entries.front().Input.Text + "\n\n" + question;
+				refused           = joined.size() > core::maximum_queued_text_bytes ? core::queue_refusal::too_long : AgentQueue->hold(key, id);
+				if (refused == core::queue_refusal::none) {
+					refused = AgentQueue->release_hold(key, id, joined);
+				}
+			} else {
+				auto label = question.substr(0U, question.find('\n'));
+				if (label.size() > 80U) {
+					label = label.substr(0U, 79U) + "\u2026";
+				}
+				refused = AgentQueue->enqueue(key, core::queued_input{ .Scope = "tour", .Label = std::move(label), .Text = question });
+			}
+			if (refused == core::queue_refusal::none) {
+				TourFeedbackQueued = true;
+				present_tour_feedback();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback is sent to the tour agent when the draft is ready, so it revises that draft."));
+				return;
+			}
+			Window->tour_editor()->show_writing_notice(QStringLiteral("This feedback is too long to wait for the draft. Nothing was added; send it once the draft is ready."));
 			return;
 		}
 		// A turn that cannot run still lands in its side chat, saying why.
@@ -1799,21 +1831,118 @@ namespace bpr::app {
 		}
 	}
 
-	/// [[BPR-1930]] AC3. The feedback given while Draft the tour ran, sent as
-	/// the tour chat's next turn once the run has fully ended, so it is given
-	/// the draft's proposal and revises it.
-	void github_application::implementation::send_waiting_tour_feedback(const int aTries)
+	/// RFC-BPR-0126 Q1 ([[BPR-2151]]). The whole-tour conversation's queue
+	/// on this pull request.
+	auto github_application::implementation::tour_queue_key() const -> std::string
 	{
-		if (Closing || Window == nullptr || !TourAgent.Waiting) {
+		const auto session = ask_session_key();
+		return session.empty() ? std::string{ } : "tour-feedback:" + session.substr(session.find(':') + 1U);
+	}
+
+	/// The tour conversation takes its next turn only after Draft the tour
+	/// has really ended: the answer handled, its proposal made and the run
+	/// retired (RFC-BPR-0126: real completion, no timer retry).
+	auto github_application::implementation::tour_queue_agent() const -> core::queue_agent
+	{
+		if (Closing || Window == nullptr || TourDraftPending || TourAskPending || TourQueueSending) {
+			return core::queue_agent::busy;
+		}
+		return tour_session_idle() && TourProposal ? core::queue_agent::idle : core::queue_agent::busy;
+	}
+
+	/// The feedback goes as the whole-tour conversation's next turn, with the
+	/// draft's answer as the Ask more seed and its proposal in the request,
+	/// so it revises that draft (Q1).
+	auto github_application::implementation::release_tour_feedback(const core::queued_entry& aEntry) -> bool
+	{
+		if (Closing || Window == nullptr) {
+			return false;
+		}
+		TourFeedbackQueued = false;
+		TourAgent.Waiting.reset();
+		TourAskMore      = tour_ask_more{ .Thread = core::tour_thread{ }, .Seed = TourDraftSeed.empty() ? std::string{ "Draft Tour proposed a tour." } : TourDraftSeed };
+		TourQueueSending = true;
+		request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(aEntry.Input.Text), false);
+		if (!TourAskPending) {
+			// It could not run: the tour chat holds it as a turn that says
+			// why, with the feedback as written, so it settles here.
+			TourQueueSending = false;
+			QTimer::singleShot(0, Window->tour_editor(), [this, key = tour_queue_key()] {
+				if (!Closing && AgentQueue) {
+					AgentQueue->settle(key, core::queue_pause::none);
+				}
+			});
+		}
+		return true;
+	}
+
+	/// Releases the feedback once this window's draft has really ended. A
+	/// queue no open window drafted (the app closed, or the window that
+	/// drafted did) comes back to the tour chat as not sent.
+	void github_application::implementation::drain_tour_queue()
+	{
+		const auto key = tour_queue_key();
+		if (Closing || Window == nullptr || !AgentQueue || key.empty() || TourQueueSending) {
 			return;
 		}
-		if (!tour_session_idle() && aTries < 50) {
-			QTimer::singleShot(100, Window->tour_editor(), [this, aTries] { send_waiting_tour_feedback(aTries + 1); });
+		const auto* queue = AgentQueue->queue(key);
+		if (queue == nullptr || queue->Entries.empty()) {
 			return;
 		}
-		const auto feedback = core::take_tour_feedback(TourAgent);
-		if (feedback) {
-			request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(*feedback), false);
+		if (!TourFeedbackQueued) {
+			if (!AgentQueue->sending(key) && !AgentQueue->shown(key)) {
+				return_tour_feedback("The draft this feedback waited for ended before it was ready, so it wasn't sent. Send it again when you want.");
+			}
+			return;
+		}
+		AgentQueue->drain(key);
+	}
+
+	void github_application::implementation::return_tour_feedback(const std::string& aWhy)
+	{
+		const auto key     = tour_queue_key();
+		TourFeedbackQueued = false;
+		TourAgent.Waiting.reset();
+		if (!AgentQueue || key.empty() || AgentQueue->queue(key) == nullptr) {
+			return;
+		}
+		auto texts = std::string{ };
+		// A copy: withdrawing changes the list.
+		const auto entries = AgentQueue->queue(key)->Entries;
+		for (const auto& entry : entries) {
+			if (entry.State == core::queued_state::queued && AgentQueue->withdraw(key, entry.Id) == core::queue_refusal::none) {
+				texts += (texts.empty() ? "" : "\n\n") + entry.Input.Text;
+			}
+		}
+		// A tour's feedback queue holds only what waits for a draft: emptied,
+		// it takes the next draft's.
+		static_cast<void>(AgentQueue->resume(key));
+		if (!texts.empty()) {
+			if (const auto turn = core::begin_tour_ask(TourAgent, core::tour_thread{ }, std::nullopt, texts)) {
+				static_cast<void>(core::finish_tour_run(TourAgent, *turn, core::tour_agent_run_state::failed, aWhy));
+			}
+		}
+		present_tour_session();
+	}
+
+	/// The tour chat shows the queued feedback where it showed the buffer.
+	void github_application::implementation::present_tour_feedback()
+	{
+		if (Closing || Window == nullptr || !AgentQueue) {
+			return;
+		}
+		const auto* queue  = AgentQueue->queue(tour_queue_key());
+		auto        joined = std::optional<std::string>{ };
+		if (queue != nullptr && TourFeedbackQueued) {
+			for (const auto& entry : queue->Entries) {
+				if (entry.State == core::queued_state::queued) {
+					joined = joined ? *joined + "\n\n" + entry.Input.Text : entry.Input.Text;
+				}
+			}
+		}
+		if (joined != TourAgent.Waiting) {
+			TourAgent.Waiting = std::move(joined);
+			present_tour_session();
 		}
 	}
 

@@ -9,6 +9,7 @@
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/agent_queue_host.hpp"
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/appearance_preferences_application_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
@@ -347,12 +348,20 @@ namespace bpr::app {
 		std::optional<QString>                                                   RestorationGlobalNotice;
 		std::unique_ptr<application::remembered_connection_store_port>           ConnectionStore;
 		std::unique_ptr<application::remembered_connection_host>                 Connections;
-		std::optional<core::github_identity_generation>                          RememberedGeneration;
-		std::set<core::host_profile_id>                                          CliConsent;
-		void                                                                     connection_notice(application::connection_metadata_observation aObservation);
-		[[nodiscard]] auto                                                       selected_connection(std::optional<std::string_view> aHostname = std::nullopt) const -> std::optional<core::remembered_connection>;
-		[[nodiscard]] auto                                                       suppress_device(std::string_view aHostname) const -> bool;
-		void                                                                     observe_connection();
+		/// RFC-BPR-0126 AC04 ([[BPR-2151]]), Q10 as overridden: "Queue must be
+		/// tied to session not active UI windows". The profile's one queue
+		/// host: every window showing a session shows and edits its queue, and
+		/// closing a window neither pauses nor hands it over. Made by the first
+		/// window that asks, before any window attaches; windows detach as they
+		/// close, so it outlives them.
+		std::unique_ptr<application::agent_queue_store_port> AgentQueueStore;
+		std::unique_ptr<application::agent_queue_host>       AgentQueue;
+		std::optional<core::github_identity_generation>      RememberedGeneration;
+		std::set<core::host_profile_id>                      CliConsent;
+		void                                                 connection_notice(application::connection_metadata_observation aObservation);
+		[[nodiscard]] auto                                   selected_connection(std::optional<std::string_view> aHostname = std::nullopt) const -> std::optional<core::remembered_connection>;
+		[[nodiscard]] auto                                   suppress_device(std::string_view aHostname) const -> bool;
+		void                                                 observe_connection();
 		/// [[BPR-1494]]. A native sign-in begins on a profile minted before its
 		/// account is known. Once the host's bootstrap `/user` names the account,
 		/// core decides whether this profile already holds that account's own

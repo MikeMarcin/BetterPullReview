@@ -3043,7 +3043,7 @@ namespace bpr::qt {
 		for (std::size_t index = 0U; index < aRows.size(); ++index) {
 			const auto& entry = aRows[index];
 			const auto  id    = entry.Id;
-			auto* const row   = new queue_card{ id, !entry.Sending && !(EditingQueued == entry.Id && entry.Held), move, drop, QueueList };
+			auto* const row   = new queue_card{ id, !entry.Sending && !entry.Held, move, drop, QueueList };
 			row->setProperty("agentQueueId", QVariant::fromValue<qulonglong>(entry.Id));
 			row->setAccessibleName(tr("Queued %1 of %2: %3").arg(index + 1U).arg(aRows.size()).arg(entry.Label));
 			row->setAccessibleDescription(entry.Sending ? tr("Sending") : tr("Drag, or Option-Up and Option-Down, to reorder; Delete removes it"));
@@ -3096,7 +3096,10 @@ namespace bpr::qt {
 				sending->setObjectName(QStringLiteral("agentQueueSending"));
 				apply_agent_accent(*sending, palette());
 				line->addWidget(sending);
-			} else {
+			} else if (!entry.Held) {
+				// RFC-BPR-0126 AC04: a message being edited in another window
+				// showing this session has no controls here until Save or
+				// Cancel there.
 				if (!entry.Text.isEmpty()) {
 					auto* const edit = glyph(row, conversation_glyph::edit, QStringLiteral("agentQueueEdit"), tr("Edit the queued message: %1").arg(entry.Label));
 					edit->setToolTip(tr("Edit"));

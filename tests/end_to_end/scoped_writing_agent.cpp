@@ -267,6 +267,11 @@ namespace {
 		if (!focus.empty()) {
 			reply += " I'll keep the tour focused on " + focus + ".";
 		}
+		// RFC-BPR-0126 Q1: feedback queued while the draft ran goes with the
+		// draft's answer as the Ask more seed.
+		if (aInput.find("Earlier, in a separate run, the agent answered this") != std::string::npos) {
+			reply += " I started from the draft's own answer.";
+		}
 		answer_with(R"({"schema":"bpr.tour-revise.v1","reply":")" + escape(reply) + R"(","problem":"","solution":"","stops":[)" + stops + R"(],"stop_texts":[],"remove_stops":[)" + removed + R"(],"merge_stops":[)" + merges + R"(],"split_stops":[],"order":[],"focus":")" + escape(focus)
 					+ R"(","replace_waiting_stops":)" + (replace ? "true" : "false") + "}");
 		return 0;

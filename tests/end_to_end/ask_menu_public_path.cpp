@@ -52,6 +52,8 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -99,7 +101,7 @@ namespace {
 	using access = app::detail::github_application_fixture_access;
 
 	template <typename Predicate>
-	void wait(Predicate aPredicate, const char* aMessage)
+	void wait(Predicate aPredicate, const std::string& aMessage)
 	{
 		if (!e2e::wait_until_plain(aPredicate, e2e::extended_agent_budget)) {
 			throw std::runtime_error{ aMessage };
@@ -207,8 +209,8 @@ auto main(int argc, char** argv) -> int
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
 	const auto   course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
-	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue" && course != "macros")) {
-		std::cerr << "usage: ask_menu_public_path menu|addressed|report STUB [--attended]\n";
+	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue" && course != "macros" && course != "tour-queue")) {
+		std::cerr << "usage: ask_menu_public_path menu|addressed|report|queue|macros|tour-queue STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
 	const auto    stub     = std::filesystem::path{ argv[2] };
@@ -219,7 +221,10 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "private data root refused\n";
 		return EXIT_FAILURE;
 	}
-	auto search = e2e::stub_claude_search(std::filesystem::path{ data.path().toStdString() } / "stub-claude-search", stub);
+	// The tour course's Claude drafts slowly (the stub's
+	// `attended-drafting-claude`), so feedback can be typed while it runs.
+	const auto searchFolder = std::filesystem::path{ data.path().toStdString() } / (course == "tour-queue" ? "attended-drafting-claude" : "stub-claude-search");
+	auto       search       = e2e::stub_claude_search(searchFolder, stub);
 	if (!search) {
 		std::cerr << "stub claude search refused\n";
 		return EXIT_FAILURE;
@@ -228,7 +233,7 @@ auto main(int argc, char** argv) -> int
 	try {
 		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
 		options.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
-		options.ClaudeAgentExecutable = stub;
+		options.ClaudeAgentExecutable = course == "tour-queue" ? searchFolder / ("claude" + stub.extension().string()) : stub;
 		options.ClaudeSearch          = search;
 		// [[BPR-2179]] look prompts-v002: the queue course starts with the
 		// look's seeded prompts, whose conditions nest.
@@ -393,6 +398,57 @@ auto main(int argc, char** argv) -> int
 			}
 			shutdown(*application);
 			std::cout << "ask-menu-queue:pass\n";
+			return EXIT_SUCCESS;
+		}
+		if (course == "tour-queue") {
+			// RFC-BPR-0126 AC03, Q1 ([[BPR-2151]]): whole-tour feedback typed
+			// while Draft the tour runs is the whole-tour conversation's first
+			// queued message. More feedback joins it; nothing is sent while
+			// the draft runs; once the draft has really finished (answer
+			// handled, proposal made, run retired) it goes as one turn, with
+			// the draft's answer as the Ask more seed and the proposal in the
+			// request, and revises that proposal.
+			agent_ready(window);
+			window.open_review_tour();
+			auto* const editor = window.tour_editor();
+			auto* const panel  = editor->tour_agent();
+			auto* const chat   = editor->side_chat();
+			wait([&] { return editor->shown().Draft && !editor->shown().Loading && panel->draft_button()->isVisible() && panel->draft_button()->isEnabled(); }, "Draft the tour is offered");
+			panel->draft_button()->click();
+			const auto drafting = [&] {
+				const auto& runs = panel->session().Runs;
+				return !runs.empty() && runs.back().Request == core::tour_agent_request::draft_tour && runs.back().State == core::tour_agent_run_state::running;
+			};
+			wait(drafting, "the draft runs");
+			panel->chat_button()->click();
+			QApplication::processEvents();
+			const auto runsWhileDrafting = panel->session().Runs.size();
+			for (const auto* const feedback : { "Fewer stops, please.", "Start at the header that declares the change." }) {
+				chat->composer()->setPlainText(QString::fromLatin1(feedback));
+				wait([&] { return chat->send_button()->isEnabled(); }, "feedback can be sent while it drafts");
+				chat->send_button()->click();
+				QApplication::processEvents();
+			}
+			expect(drafting() && panel->session().Runs.size() == runsWhileDrafting, "nothing is sent while the draft runs");
+			expect(chat->waiting_feedback() != nullptr && panel->session().Waiting && panel->session().Waiting->find("Fewer stops") != std::string::npos && panel->session().Waiting->find("header") != std::string::npos,
+				   "the feedback waits as one message, the second joined to the first");
+			wait([&] {
+				const auto& runs = panel->session().Runs;
+				return runs.size() > runsWhileDrafting && runs.back().Request != core::tour_agent_request::draft_tour && runs.back().State != core::tour_agent_run_state::running && access::agent_invocation_evidence(*application).Quiescent;
+			},
+				 "after the draft, the feedback is the tour chat's next turn: " + panel->transcript_text().toStdString());
+			const auto& runs  = panel->session().Runs;
+			const auto  draft = std::ranges::find(runs, core::tour_agent_request::draft_tour, &core::tour_agent_run::Request);
+			expect(draft != runs.end() && draft->State == core::tour_agent_run_state::answered, "the draft answered first");
+			const auto& turn = runs.back();
+			expect(turn.Question.find("Fewer stops") != std::string::npos && turn.Question.find("header") != std::string::npos && turn.State == core::tour_agent_run_state::answered,
+				   "one turn, with both feedbacks as written: " + turn.Question + " / " + turn.Reply);
+			expect(turn.Reply.find("I revised the draft before you accept it") != std::string::npos, "its request carried the draft's proposal, which it revised: " + turn.Reply);
+			expect(turn.Reply.find("I started from the draft's own answer") != std::string::npos, "and the draft's answer as the Ask more seed: " + turn.Reply);
+			expect(!panel->session().Waiting && chat->waiting_feedback() == nullptr, "nothing waits any more");
+			expect(std::ranges::count(runs, core::tour_agent_run_state::failed, &core::tour_agent_run::State) == 0, "no turn was refused for a run still finishing");
+			shutdown(*application);
+			std::cout << "ask-menu-tour-queue:pass\n";
 			return EXIT_SUCCESS;
 		}
 		agent_ready(window);

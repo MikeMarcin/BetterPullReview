@@ -62,6 +62,11 @@ namespace {
 		// Cancel it continues by itself.
 		expect(hold(queue, first, queue.Revision) == queue_refusal::none && queue.Paused == queue_pause::none && queue.Entries.front().Held, "an edit holds its entry, without pausing");
 		expect(!next_release(queue, queue_agent::idle), "a held entry is never sent, and nothing is sent past it");
+		// RFC-BPR-0126 AC04: every window showing the session edits its one
+		// queue, so a message one window edits cannot be edited or removed
+		// from another until Save or Cancel.
+		expect(hold(queue, first, queue.Revision) == queue_refusal::not_editable && withdraw(queue, first, queue.Revision) == queue_refusal::not_editable && queue.Entries.front().Held,
+			   "a held entry is not edited or removed twice");
 		expect(release_hold(queue, first, std::string{ "edited" }, queue.Revision) == queue_refusal::none && queue.Entries.front().Input.Text == "edited" && queue.Paused == queue_pause::none,
 			   "Save keeps the edit");
 		expect(next_release(queue, queue_agent::idle) == first, "and the queue continues with it, never skipped");

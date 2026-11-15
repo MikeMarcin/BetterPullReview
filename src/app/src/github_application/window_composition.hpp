@@ -809,13 +809,39 @@ namespace bpr::app {
 		/// plain click queues it"). The session's queue: a quick ask is
 		/// queued, released when the agent is set up and free, and its turn
 		/// shown in the Agent tab.
-		[[nodiscard]] auto                                   ask_session_key() const -> std::string;
-		void                                                 queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
-		void                                                 draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
-		void                                                 observe_ask_queue(bool aSettled);
-		[[nodiscard]] auto                                   release_queued(const core::queued_entry& aEntry) -> bool;
-		std::unique_ptr<application::agent_queue_store_port> AgentQueueStore;
-		std::unique_ptr<application::agent_queue_host>       AgentQueue;
+		[[nodiscard]] auto ask_session_key() const -> std::string;
+		void               queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void               draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
+		void               observe_ask_queue(bool aSettled);
+		[[nodiscard]] auto release_queued(const core::queued_entry& aEntry) -> bool;
+		/// RFC-BPR-0126 AC04: the profile's one queue host (Q10 as
+		/// overridden); this window is one of its viewers while it is open.
+		decltype(github_profile_runtime::AgentQueueStore)& AgentQueueStore = Profile->AgentQueueStore;
+		decltype(github_profile_runtime::AgentQueue)&      AgentQueue      = Profile->AgentQueue;
+		std::optional<std::uint64_t>                       AgentQueueViewer;
+		/// The revision of the session's queue this window last showed: an
+		/// edit made from it is refused once another window changed it.
+		std::uint64_t AgentQueueSeen = 0U;
+		/// The session whose queue this window shows.
+		std::string        AgentQueueShown;
+		void               attach_agent_queue();
+		void               present_ask_queue(const core::agent_queue& aQueue);
+		[[nodiscard]] auto ask_queue_agent() const -> core::queue_agent;
+		/// RFC-BPR-0126 AC03, Q1 ([[BPR-2151]]). Whole-tour feedback typed
+		/// while Draft the tour runs is the whole-tour conversation's first
+		/// queued message, released on the draft's real completion with the
+		/// Ask more seed.
+		[[nodiscard]] auto tour_queue_key() const -> std::string;
+		[[nodiscard]] auto tour_queue_agent() const -> core::queue_agent;
+		[[nodiscard]] auto release_tour_feedback(const core::queued_entry& aEntry) -> bool;
+		void               drain_tour_queue();
+		/// Feedback that cannot go (the draft did not propose a tour, or the
+		/// app closed first) lands in the tour chat as not sent, as written.
+		void return_tour_feedback(const std::string& aWhy);
+		void present_tour_feedback();
+		bool TourQueueSending = false;
+		/// This window's draft has feedback waiting in the tour's queue.
+		bool TourFeedbackQueued = false;
 		/// The released entry's turn has been seen running.
 		bool                                    QueueTurnSeen     = false;
 		std::uint32_t                           QueueRetireChecks = 0U;
@@ -955,9 +981,6 @@ namespace bpr::app {
 		void ask_more_from(core::tour_agent_run_id aRun);
 		void present_tour_session();
 		void cancel_tour_run();
-		/// [[BPR-1930]]. Sends the feedback kept while Draft the tour ran, as
-		/// the tour chat's next turn, once the session is idle.
-		void send_waiting_tour_feedback(int aTries = 0);
 		/// [[BPR-1930]]. Clears the remembered focus (its chip's ×).
 		void clear_tour_focus();
 		/// [[BPR-1930]] follow-up. Undo on a turn's "Focus set to" line.

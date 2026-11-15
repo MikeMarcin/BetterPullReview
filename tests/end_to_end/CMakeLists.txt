@@ -5541,3 +5541,23 @@ bpr_add_network_isolated_test(NAME application_ask_queue_public_path
     COMMAND test_ask_menu_public_path queue "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_queue_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-queue:pass")
+# RFC-BPR-0126 AC03 ([[BPR-2151]]), Q1: whole-tour feedback typed while the
+# draft runs is the tour conversation's first queued message.
+bpr_add_network_isolated_test(NAME application_tour_feedback_queue_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path tour-queue "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_tour_feedback_queue_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "ask-menu-tour-queue:pass")
+# RFC-BPR-0126 AC04 ([[BPR-2151]]), Q10 as overridden: two windows on one
+# session show and edit its one queue; closing one neither pauses nor stops it.
+bpr_add_executable(test_agent_queue_windows_public_path agent_queue_windows_public_path.cpp)
+target_link_libraries(test_agent_queue_windows_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_agent_queue_windows_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_agent_queue_windows_public_path)
+bpr_enable_warnings(test_agent_queue_windows_public_path)
+add_dependencies(test_agent_queue_windows_public_path test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_agent_queue_windows_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_agent_queue_windows_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-windows:pass")

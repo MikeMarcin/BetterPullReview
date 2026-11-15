@@ -1118,6 +1118,12 @@ target_link_libraries(test_better_pull_review_agent_conversation_host_tests PRIV
 bpr_enable_hardening(test_better_pull_review_agent_conversation_host_tests)
 bpr_enable_warnings(test_better_pull_review_agent_conversation_host_tests)
 bpr_add_network_isolated_test(NAME application_agent_conversation_host COMMAND test_better_pull_review_agent_conversation_host_tests)
+# RFC-BPR-0126 AC04 ([[BPR-2151]]). One session's queue across windows.
+bpr_add_executable(test_better_pull_review_agent_queue_host_tests agent_queue_host_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_queue_host_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_agent_queue_host_tests)
+bpr_enable_warnings(test_better_pull_review_agent_queue_host_tests)
+bpr_add_network_isolated_test(NAME application_agent_queue_host COMMAND test_better_pull_review_agent_queue_host_tests)
 set_tests_properties(application_agent_conversation_host PROPERTIES PASS_REGULAR_EXPRESSION "agent-conversation-host-tests:pass" TIMEOUT 30)
 endif()
 # RFC-BPR-0032 amendment r1. The in-window account setup host with stubbed gh.

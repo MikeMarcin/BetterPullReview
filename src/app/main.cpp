@@ -307,6 +307,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-prompt-editor" },
 		bpr::app::command_line_option{ .Name = "attended-prompt-examples" },
+		bpr::app::command_line_option{ .Name = "attended-queue-windows" },
 		bpr::app::command_line_option{ .Name = "attended-share-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
@@ -12947,6 +12948,9 @@ auto main(int argc, char** argv) -> int
 		const auto attendedPromptEditor = launch.has("--attended-prompt-editor");
 		// [[BPR-2179]] look prompts-v002: prompts with nested conditions.
 		fixtureOptions.PromptExamplesLook = launch.has("--attended-prompt-examples");
+		// RFC-BPR-0126 AC04 ([[BPR-2151]]): a second window reads the same
+		// pull request again, for the look at its one queue.
+		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || launch.has("--attended-queue-windows");
 		const auto attendedShareLook      = launch.has("--attended-share-look");
 		if (attendedRepositoryLook) {
 			// Every fixture review is read whole; the look shows the step as a

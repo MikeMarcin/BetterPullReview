@@ -6,6 +6,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <utility>
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/application/workbench_preferences_host.hpp"
@@ -62,6 +63,14 @@ namespace bpr::app {
 			QueueHost->detach(*QueueConsumer);
 			QueueConsumer.reset();
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// RFC-BPR-0126 AC04, Q10 as overridden: closing a window neither
+		// pauses nor hands over a queue; another window showing the session
+		// goes on draining it.
+		if (AgentQueue && AgentQueueViewer) {
+			AgentQueue->detach(*std::exchange(AgentQueueViewer, std::nullopt));
+		}
+#endif
 		if (SharedDrafts) {
 			SharedDrafts->detach(DraftConsumer);
 		}

@@ -102,7 +102,8 @@ namespace bpr::core {
 		if (found == aQueue.Entries.end()) {
 			return queue_refusal::unknown_entry;
 		}
-		if (!unsent(*found)) {
+		// A message being edited (in any window) is not removed under it.
+		if (!unsent(*found) || found->Held) {
 			return queue_refusal::not_editable;
 		}
 		aQueue.Entries.erase(found);
@@ -151,7 +152,7 @@ namespace bpr::core {
 		if (found == aQueue.Entries.end()) {
 			return queue_refusal::unknown_entry;
 		}
-		if (!unsent(*found)) {
+		if (!unsent(*found) || found->Held) {
 			return queue_refusal::not_editable;
 		}
 		// Q9 as refined (owner, 2026-11-13): held, not paused; nothing is
