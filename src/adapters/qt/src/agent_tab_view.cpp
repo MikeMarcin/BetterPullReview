@@ -2260,9 +2260,9 @@ namespace bpr::qt {
 			const auto after = message.AfterSteps == 0U ? tr("Steered before the agent's first step") : tr("Steered after step %1").arg(message.AfterSteps);
 			auto       state = after;
 			switch (message.Disposition) {
-			case core::agent_steer_disposition::refused:  state = tr("%1 · the agent refused it, so it went back to the queue").arg(after); break;
-			case core::agent_steer_disposition::unknown:  state = tr("%1 · the agent may not have taken it").arg(after); break;
-			case core::agent_steer_disposition::unsent:   state = tr("%1 · not sent").arg(after); break;
+			case core::agent_steer_disposition::refused:  state = tr("%1. The agent refused it, so it went back to the queue.").arg(after); break;
+			case core::agent_steer_disposition::unknown:  state = tr("%1. The agent may not have taken it.").arg(after); break;
+			case core::agent_steer_disposition::unsent:   state = tr("%1. It was not sent.").arg(after); break;
 			case core::agent_steer_disposition::sent:
 			case core::agent_steer_disposition::consumed: break;
 			}
