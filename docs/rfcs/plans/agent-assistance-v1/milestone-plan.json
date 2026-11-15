@@ -129,7 +129,7 @@
         "A check runs in a check copy of the candidate and leaves the author's worktree, branch and index unchanged.",
         "Every outcome, failures included, is kept as a report in the draft's conversation, and nothing from a check is published."
       ],
-      "boundary": "Rewritten without evidence at the owner's direction (2026-11-15, \"Rewrite without evidence\"); stands on built work only and waits on no other RFC. BPR-2082 stays closed as rejected; BPR-2189 is Parked until the owner reviews the rewrite."
+      "boundary": "Rewritten without evidence at the owner's direction (2026-11-15, \"Rewrite without evidence\"); stands on built work only and waits on no other RFC. BPR-2082 stays closed as rejected; The owner accepted the rewrite on 2026-11-15; BPR-2189 is Ready."
     },
     {
       "id": "agent-insights",

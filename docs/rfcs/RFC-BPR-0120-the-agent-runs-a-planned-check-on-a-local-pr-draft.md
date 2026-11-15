@@ -152,11 +152,21 @@ change runs, if and when they exist; nothing here waits on them); checks on a
 pull request review, where the Agent tab already builds and tests; CI; and any
 record of results beyond the conversation.
 
-## Open questions for the owner
+## Owner review of the rewrite (2026-11-15)
 
-Each is built as its default unless the owner answers otherwise.
+The owner accepted this rewrite and every recommended default below, with no
+notes, in attended session `ab74a8e490f235b4dd24fa66146a9f14`
+(rfc-0120-rewrite-v001, candidate revision `rfc-0120-rewrite-v001-baf674386`,
+handed back at event 31; state directory outside the repository under
+`~/.attended-review-state/rfc-0120-rewrite-v001-2026-11-15`). That session
+judged the design text at `baf674386`; it accepts no built behaviour, and
+AC07 stays open for the look on a frozen build.
 
-| # | Question | Recommended default |
+## Questions answered by the owner (2026-11-15)
+
+Each was accepted at its recommended default, which is now the design.
+
+| # | Question | Answer (accepted default) |
 |---|---|---|
 | Q1 | Should every check show its plan and wait for Run, or may a check run straight away? | Always plan first: a check runs code with your rights, so you see the commands before they run. |
 | Q2 | With no words, does the agent choose which checks to run? | Yes: an empty Plan a check… asks for the checks that matter most for this change, and the plan shows its choice before anything runs. |
@@ -176,7 +186,7 @@ Each is built as its default unless the owner answers otherwise.
 
 ## Proposed delivery
 
-[Plan and run a check, and its report](../issues/40-parked/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
+[Plan and run a check, and its report](../issues/20-ready/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
 and [closeout](../issues/10-backlog/BPR-2083-close-rfc-0120.md) form the
-fifth [milestone](plans/agent-assistance-v1/milestone-plan.json). BPR-2189 is
-Parked until the owner has reviewed this rewrite; no build starts before then.
+fifth [milestone](plans/agent-assistance-v1/milestone-plan.json). The owner
+accepted the rewrite on 2026-11-15, and BPR-2189 is Ready.
