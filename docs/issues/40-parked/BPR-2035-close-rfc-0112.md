@@ -62,3 +62,23 @@ that directory's `serve.log`), cursor 9, host PID 51673 (Tailscale child
 `ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN`). Every criterion passes on automation;
 RFC-BPR-0112 closes once the owner accepts, or the look's notes are
 engineered.
+
+## Owner look workflow-v001 handed back (2026-11-15)
+
+Session `e9336c1caf748712f3c1056a633c4792` handed back at sequence 13.
+`BPR-2032-workflow-import-preview`: **Rejected**, note "What the heck
+happend to my status drawer?" with a screenshot of Overview's Status drawer
+(kept at the session's attachments). `BPR-2033-workflow-area` and
+`BPR-2033-agent-accent-on-actions`: unanswered. The Workflow area took over
+the local draft's Status drawer: pickers, a paragraph per action and the
+publish steps pushed below the fold.
+
+Rework (coordinator): the drawer keeps its own content and layout; the
+workflow is one compact section in it; one line per action (name, short
+state, one small button) with the explanations in a tooltip or disclosure
+and the run model said once; pickers show full names and collapse when
+there is one choice; nothing, or one "No workflow" line, when unused. It is
+assigned to a dedicated frontend-design worker. Host 51673 (Tailscale child
+51681) stopped; root `workflow-v001.xlei1v22` removed with
+`freeze_attended_build.py remove`. AC07 and AC09 stay pending until
+`workflow-v002` asks all three questions again.
