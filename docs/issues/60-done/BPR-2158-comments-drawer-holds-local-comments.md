@@ -157,3 +157,47 @@ Evidence (dev, Debug, macOS), passing: `qt_conversation_cards_view`, `qt_workben
 ### Owner look v003 filed (2026-11-13)
 
 Session `acaf71a2f3272811be5bfa4f25222fb9` (state `/Users/jaeger/.attended-review-state/comments-absorb-notes-v003-2026-11-13/state`, cursor 27), frozen root `/Users/jaeger/comments-absorb-notes-v003.as90oxpw` from `6e7bbc13a36f`. One Accept/Reject each: `composer-in-view`, `previous-next-comment`, `local-reply-tooltip`, `post-rules`, `reply-composer-layout`, `make-draft-reason`, `closed-card-line-numbers`, `no-pull-request-label`, `compact-edge-chips`. Not waited on. v002's `reply-local-state`, `local-reply-actions` and `local-edit-and-delete` remain unanswered.
+
+## Correction, 2026-11-15: N in the Comments list, the tab row at 280 px, and Page Down to the Reply field
+
+`qt_composed_inline_drawer_scale_{100,125,200}` crashed (exit -11) after
+`N opens the next thread with new posts`. Three rows of the workbench window
+course had also failed since before BPR-2181. Each was bisected in a scratch
+worktree, building only the course's executable.
+
+| Failure | First bad | Cause | Product or course |
+|---|---|---|---|
+| N in the Comments list opens a Local comment, not the next thread with new posts | `e8553b931` (`9e408149a` passes) | The window's `localCommentAction` (N, a window shortcut since this card) takes N before the list reads it. Qt offers a key to shortcuts first | Product: the list's N and Shift+N were out of reach |
+| The tab row at 280 px with larger text cuts its last tab | `32b2e068a` (`b84491388` passes) | With Previous and Next on the tools row, compacting the edge chips shrinks the tools after the header has placed them, and the header's grid keeps their old, wider size | Product |
+| Page Down never shows the long thread's Reply field whole (`qt_workbench_conversation_reveal`) | after `b3a6e12ef` (passes) and before `9e408149a` (fails); not narrowed further | A page was the whole view, so a field at a page's foot was carried past the top on the next page | Product |
+| The Help catalogue misses two keys (`qt_keyboard_shortcuts_scale_*`) | BPR-2179's Settings › Prompts | Unnamed Undo and Redo shortcuts on the conditions | Product |
+| The Home row menu (`qt_workbench_open_review_from_home_scale_*`) | RFC-BPR-0108 X02 | Open Local Preparation follows Resume, hidden unless a local draft became the pull request | Course: stale |
+
+Fixes (lane commit `8304729e3`):
+
+- The notes claim plain N and Shift+N ahead of window shortcuts, in the list
+  and in an open thread outside its fields (`conversation_cards_view::event`
+  and its event filter). N in the code still opens a Local comment.
+- When the edge chips change width, the fit tells the Comments tools and the
+  tray's tools that their size changed (`set_edge_chips_compact` now says
+  whether anything changed).
+- Page Down in the notes keeps the page's last two lines in view.
+- The Prompts page's Undo and Redo are named (`promptsConditionsUndo`,
+  `promptsConditionsRedo`) and listed in Help › Keyboard Shortcuts.
+- The Home row menu course expects Open Local Preparation, hidden on that row.
+- The drawer course's failure now exits 1 with its message (`std::_Exit`). Its
+  `std::exit` destroyed the windows' pending deletions after the platform
+  plugin, which was the -11. A reviewer cannot reach this: the application
+  leaves `main` normally.
+
+Evidence at `8304729e3` (lane `affe49d2d` plus the fix, built in a scratch
+worktree because the lane held another implementer's unbuilt work):
+`ctest --repeat until-fail:5` passed 5 of 5 for
+`qt_composed_inline_drawer_scale_{100,125,200}`,
+`qt_keyboard_shortcuts_scale_{100,125,200}`,
+`qt_workbench_open_review_from_home_scale_{100,125,200}` and
+`qt_workbench_conversation_reveal`. Once each, passing:
+`qt_composed_github_scale_{100,125,200}`, `qt_conversation_cards_view`,
+`qt_workbench_window_scale_{100,125,200}`, `qt_prompts_page`,
+`qt_drawer_parts_scale_{100,125,200}` and
+`qt_drawer_surfaces_fit_scale_{100,125,200}`.
