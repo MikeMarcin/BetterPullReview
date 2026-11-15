@@ -627,3 +627,39 @@ Courses: `core_agent_report`, `core_appearance_contrast`, `core_theme_exchange`,
 the base on import), `application_agent_launch_policy`, `fixture_agent_answers`,
 `application_fixture_agent_every_ask` (`menus=10`), the ask and returning
 courses.
+
+## Owner look report-templates-v003 (session `4350d1f915a24699b4d0cb6043d88417`)
+
+Frozen from `16e8e2dc9`. Handed back 2026-11-14. Verdicts, verbatim (the
+coordinator saved the attachment outside the repository):
+
+- `RFC-BPR-0128-report-colours-appearance`, **Accept**.
+- `RFC-BPR-0128-report-templates-rendered`, **Accept**: "Perfect EXCEPT we
+  need code syntax highlighting and normal code block coloring rules on code
+  blocks. Including the other rules we added to code block formatting for the
+  agents tab like scroll and copy." (Attachment: a report's code block in the
+  dark theme, monochrome in a plain box.)
+
+The host was stopped and the root removed by the coordinator.
+
+Done: a report's code blocks are the Agent tab's own.
+
+- Each code block is the Agent tab's code box, laid over its place in the
+  page (an object the page sizes to the box). It has the language header,
+  Wrap and Copy. It uses the code theme's colours and syntax colours from the
+  same syntax adapter: the window passes a report's syntax answers to it as
+  it does the Agent tab's. A long line scrolls sideways and does not wrap
+  until Wrap is pressed. The numbered gutter is kept: the box
+  (`markdown_code_block`) can now number its lines from a first line, and the
+  report numbers each block from its item's place.
+- A suggestion is the Agent tab's Suggested change: the replaced lines and
+  the new ones, numbered and coloured by the file's language. Add as draft
+  comment is still under it.
+- The every-ask check fails `ATTENDED_FIXTURE_AGENT_FAILED:report-code`
+  unless every code block and suggestion in a report is one of these boxes,
+  shown at the page's width.
+- What could break and Review stay out of the Prompt library, as the
+  coordinator asked (BPR-2179 owns the library).
+
+Courses: `application_fixture_agent_every_ask`, the markdown and Agent tab
+courses, `core_agent_report`, the ask, explain and returning courses.

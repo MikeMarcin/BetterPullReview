@@ -18,6 +18,8 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
+
+#include "bpr/qt/agent_report_view.hpp"
 #include "external_link_confirmation.hpp"
 #include "github_presentation_text.hpp"
 
@@ -624,6 +626,11 @@ namespace bpr::qt {
 		}
 		if (AgentTab != nullptr) {
 			AgentTab->apply_code_syntax(aSpans);
+		}
+		// Look report-templates-v003: a report's code is coloured as the Agent
+		// tab's is.
+		if (ReportView != nullptr) {
+			ReportView->apply_code_syntax(aSpans);
 		}
 		if (TourEditor != nullptr) {
 			TourEditor->apply_code_syntax(aSpans);

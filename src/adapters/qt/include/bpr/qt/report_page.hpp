@@ -8,6 +8,9 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
+#include <string>
+#include <vector>
 
 /// \file
 /// \brief RFC-BPR-0128 (docs/design/report-templates-v1 and v2; owner,
@@ -39,9 +42,31 @@ namespace bpr::qt {
 	/// in the menu.
 	inline constexpr auto report_heading_anchor = "bpr-h-";
 
+	/// \brief Look report-templates-v003 (owner: "we need code syntax
+	/// highlighting and normal code block coloring rules on code blocks").
+	/// A code block of the page is drawn by the Agent tab's own code box over
+	/// its place: the page holds `report_code_marker` and the slot's ordinal
+	/// there, and the slot says what the box shows.
+	struct report_code_slot
+	{
+		std::string                  Language;
+		std::vector<std::string>     Lines;
+		std::optional<std::uint32_t> FirstLine;
+		/// A suggestion: the lines it replaces and the file they are in, so
+		/// it shows as the Agent tab shows a suggested change.
+		bool                     Suggestion = false;
+		std::vector<std::string> Replaced;
+		std::string              Path;
+
+		auto operator==(const report_code_slot&) const -> bool = default;
+	};
+	inline constexpr auto report_code_marker = "BPRREPORTCODE";
+
 	/// \brief The page's HTML. `aDraftNotes` says, by an item's row in the
-	/// menu, what became of its Add as draft comment.
-	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes = { }) -> QString;
+	/// menu, what became of its Add as draft comment. Each code block is a
+	/// marker paragraph, its slot appended to `aSlots`.
+	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes = { },
+										std::vector<report_code_slot>* aSlots = nullptr) -> QString;
 
 	/// \brief The colour a tone wears; neutral is the stronger rule.
 	[[nodiscard]] auto report_tone_colour(core::report_tone aTone, const report_colours& aColours) -> QColor;

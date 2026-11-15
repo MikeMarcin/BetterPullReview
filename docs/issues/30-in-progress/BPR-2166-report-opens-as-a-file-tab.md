@@ -95,3 +95,12 @@ heading-level defect is fixed, and the ☰ menu works on the dressed page.
 Details and courses are in [RFC-BPR-0128's verification](../../verification/RFC-BPR-0128.md).
 Asked in look report-templates-v003.
 
+- report-templates-v003: the report colours in Settings › Appearance
+  **Accept**; the rendered reports **Accept**, "Perfect EXCEPT we need code
+  syntax highlighting and normal code block coloring rules on code blocks.
+  Including the other rules we added to code block formatting for the agents
+  tab like scroll and copy." Done: a report's code blocks are the Agent tab's
+  code box (syntax colours, the code colours, Wrap, Copy, sideways scroll) with
+  the numbered gutter kept, and its suggestions the Agent tab's Suggested
+  change. Asked again in report-templates-v004.
+

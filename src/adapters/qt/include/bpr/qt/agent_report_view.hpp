@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_REPORT_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_REPORT_VIEW_HPP
 
+#include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/agent_report.hpp"
 #include "bpr/qt/report_page.hpp"
 
@@ -95,6 +96,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto dressed_view() const noexcept -> QTextBrowser* { return Dressed; }
 		/// \brief Follows a link of the page as a press does.
 		void follow(const QString& aLink);
+		/// \brief Look report-templates-v003. The page's code boxes, the
+		/// Agent tab's own, in the order the page shows them.
+		[[nodiscard]] auto code_views() const -> const std::vector<markdown_body_view*>& { return CodeViews; }
+		/// \brief Syntax colours for the report's code, as the window's
+		/// readers take them.
+		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 
 		[[nodiscard]] auto outline() const noexcept -> QListWidget* { return Sections; }
 		[[nodiscard]] auto menu_button() const noexcept -> QToolButton* { return MenuButton; }
@@ -113,6 +120,8 @@ namespace bpr::qt {
 		void               dress_headings();
 		void               choose(int aRow);
 		void               render_dressed();
+		void               place_code();
+		[[nodiscard]] auto code_height(int aSlot, int aWidth) const -> int;
 		void               locate_headings();
 		void               apply_colours();
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
@@ -122,11 +131,16 @@ namespace bpr::qt {
 		std::vector<QString>  Headings;
 		/// The rendered heading blocks, in the outline's order; empty when
 		/// the rendering and the outline disagree on how many there are.
-		std::vector<int>                         HeadingBlocks;
-		std::vector<QString>                     OutlineTitles;
-		QWidget*                                 Column  = nullptr;
-		QWidget*                                 Tail    = nullptr;
-		QTextBrowser*                            Dressed = nullptr;
+		std::vector<int>     HeadingBlocks;
+		std::vector<QString> OutlineTitles;
+		QWidget*             Column  = nullptr;
+		QWidget*             Tail    = nullptr;
+		QTextBrowser*        Dressed = nullptr;
+		/// The page's code boxes, by slot, and the page's places for them.
+		std::vector<report_code_slot>            Slots;
+		std::vector<markdown_body_view*>         CodeViews;
+		std::vector<int>                         CodePlaces;
+		QObject*                                 CodeObjects = nullptr;
 		core::dressed_report                     Dress;
 		report_colours                           Colours;
 		std::map<std::uint32_t, QString>         DraftNotes;

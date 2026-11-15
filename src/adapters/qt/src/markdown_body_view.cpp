@@ -1708,6 +1708,8 @@ namespace bpr::qt {
 		Frames->style(*Code, theme->Colors, font(), CodeFont, TabStopDistance);
 	}
 
+	void markdown_body_view::set_code_first_line(const std::optional<std::uint32_t> aFirst) { Frames->set_first_line(aFirst); }
+
 	void markdown_body_view::set_code_block_tools(const bool aShown)
 	{
 		if (CodeTools == aShown) {

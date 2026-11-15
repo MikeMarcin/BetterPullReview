@@ -165,6 +165,10 @@ namespace bpr::qt {
 		/// kept by block while the identity stays.
 		void               set_code_block_tools(bool aShown);
 		[[nodiscard]] auto code_block_tools() const noexcept -> bool;
+		/// \brief RFC-BPR-0128 (look report-templates-v003). The code boxes
+		/// number their lines from `aFirst` in a gutter; none, the default,
+		/// shows no numbers. Applies to the boxes the next body makes.
+		void set_code_first_line(std::optional<std::uint32_t> aFirst);
 		/// \brief The current body's fenced code, for tests and accessibility.
 		[[nodiscard]] auto code_store() const noexcept -> const detail::markdown_code_store*;
 		/// \brief Switches modes, retaining independent positions and selections.

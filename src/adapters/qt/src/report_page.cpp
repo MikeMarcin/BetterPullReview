@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QObject>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QStringList>
 
 #include <algorithm>
@@ -13,6 +14,18 @@
 
 namespace bpr::qt {
 	namespace {
+		/// The slots the page being written collects its code blocks into.
+		std::vector<report_code_slot>* Collected = nullptr;
+
+		[[nodiscard]] auto code_marker(report_code_slot aSlot) -> QString
+		{
+			if (Collected == nullptr) {
+				return { };
+			}
+			Collected->push_back(std::move(aSlot));
+			return QStringLiteral("<p style=\"margin:10px 0 0 0\">%1%2</p>").arg(QString::fromLatin1(report_code_marker)).arg(Collected->size() - 1U);
+		}
+
 		using core::dressed_block;
 		using core::dressed_block_kind;
 		using core::dressed_item;
@@ -156,6 +169,9 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto code_html(const dressed_block& aBlock, const palette& aPalette) -> QString
 		{
+			if (Collected != nullptr) {
+				return code_marker({ .Language = aBlock.Language, .Lines = aBlock.Lines, .FirstLine = aBlock.FirstLine });
+			}
 			auto lines = QStringList{ };
 			for (auto index = std::size_t{ 0U }; index < aBlock.Lines.size(); ++index) {
 				auto line = QString::fromStdString(aBlock.Lines[index]).toHtmlEscaped();
@@ -197,6 +213,25 @@ namespace bpr::qt {
 				row(aPalette.Added, first + static_cast<std::uint32_t>(index), QLatin1Char{ '+' }, now[index]);
 			}
 			const auto note = aNotes.find(aItem.Outline);
+			if (Collected != nullptr) {
+				// The suggested change as the Agent tab shows one, then Add as
+				// draft comment under it.
+				const auto place = core::read_report_place(aItem.Place);
+				auto       body  = code_marker({ .Language   = aBlock.Language,
+												 .Lines      = aBlock.Lines,
+												 .FirstLine  = aBlock.FirstLine,
+												 .Suggestion = true,
+												 .Replaced   = aBlock.Replaced,
+												 .Path       = place ? place->Path : std::string{ } });
+				body += QStringLiteral("<p style=\"margin:6px 0 0 0;font-family:%1;font-size:14px;color:%2\">%3</p>")
+							.arg(sans(), aPalette.Faint,
+								 note != aNotes.end() ? note->second.toHtmlEscaped()
+													  : QStringLiteral("<a href=\"%1%2\" style=\"color:%3\">%4</a>&nbsp;&nbsp;&nbsp;%5")
+															.arg(QString::fromLatin1(report_draft_scheme))
+															.arg(aItem.Outline)
+															.arg(aPalette.Link, QObject::tr("Add as draft comment"), QObject::tr("Nothing is published")));
+				return body;
+			}
 			const auto foot = note != aNotes.end() ? note->second.toHtmlEscaped()
 												   : QStringLiteral("<a href=\"%1%2\" style=\"color:%3\">%4</a>&nbsp;&nbsp;&nbsp;%5")
 														 .arg(QString::fromLatin1(report_draft_scheme))
@@ -304,8 +339,10 @@ namespace bpr::qt {
 
 	auto report_serif_families() -> QString { return QStringLiteral("Charter, 'Iowan Old Style', 'Bitstream Charter', Cambria, Georgia, serif"); }
 
-	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes) -> QString
+	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes, std::vector<report_code_slot>* aSlots) -> QString
 	{
+		Collected          = aSlots;
+		const auto reset   = qScopeGuard([] { Collected = nullptr; });
 		const auto colours = palette_of(aColours);
 		auto       html    = QStringLiteral("<html><body style=\"font-family:%1;font-size:17px;color:%2\">").arg(report_serif_families(), colours.Ink);
 		if (!aReport.Summary.empty()) {

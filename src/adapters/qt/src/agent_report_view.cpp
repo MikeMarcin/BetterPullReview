@@ -4,6 +4,7 @@
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
@@ -22,6 +23,7 @@
 #include <QTextBrowser>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextObjectInterface>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -33,6 +35,55 @@
 
 namespace bpr::qt {
 	namespace {
+		/// Look report-templates-v003. The object a code box's place is in the
+		/// page, and its slot.
+		constexpr int report_code_object  = QTextFormat::UserObject + 86;
+		constexpr int report_code_ordinal = QTextFormat::UserProperty + 0x0B67;
+
+		/// Sizes each code box's place in the page to the box at the width
+		/// the page is laid out at; the box is laid over it.
+		class report_code_objects final : public QObject, public QTextObjectInterface
+		{
+		public:
+			explicit report_code_objects(QObject* aParent, std::function<int(int, int)> aHeight)
+				: QObject{ aParent }
+				, Height{ std::move(aHeight) }
+			{ }
+
+			[[nodiscard]] auto qt_metacast(const char* aName) -> void* override
+			{
+				if (aName != nullptr && std::string_view{ "org.qt-project.Qt.QTextObjectInterface" } == aName) {
+					return static_cast<QTextObjectInterface*>(this);
+				}
+				return QObject::qt_metacast(aName);
+			}
+
+			[[nodiscard]] auto intrinsicSize(QTextDocument* aDocument, const int aPosition, const QTextFormat& aFormat) -> QSizeF override
+			{
+				const auto width = place_width(aDocument, aPosition);
+				return { static_cast<qreal>(width), static_cast<qreal>(std::max(1, Height(aFormat.intProperty(report_code_ordinal), width))) };
+			}
+
+			void drawObject(QPainter*, const QRectF&, QTextDocument*, int, const QTextFormat&) override { }
+
+			/// An item's code is in its cell, which is the page less the rule
+			/// and its padding.
+			[[nodiscard]] static auto place_width(QTextDocument* aDocument, const int aPosition) -> int
+			{
+				if (aDocument == nullptr) {
+					return 1;
+				}
+				auto width = static_cast<int>(aDocument->textWidth() - 2.0 * aDocument->documentMargin());
+				if (QTextCursor{ aDocument->findBlock(aPosition) }.currentTable() != nullptr) {
+					width -= 3 + 16;
+				}
+				return std::max(1, width);
+			}
+
+		private:
+			std::function<int(int, int)> Height;
+		};
+
 		// docs/design/report-card-v4/SPEC.md, the drawings' points.
 		constexpr int column_width      = 572;
 		constexpr int title_top         = 22;
@@ -272,6 +323,7 @@ namespace bpr::qt {
 		Dressed->document()->setDocumentMargin(0.0);
 		Dressed->setVisible(false);
 		connect(Dressed, &QTextBrowser::anchorClicked, this, [this](const QUrl& aUrl) { follow(aUrl.toString()); });
+		CodeObjects = new report_code_objects{ this, [this](const int aSlot, const int aWidth) { return code_height(aSlot, aWidth); } };
 		column->addWidget(Dressed);
 		column->addStretch(1);
 		// Look ask-v008: room under the last section, made when a section is
@@ -503,6 +555,49 @@ namespace bpr::qt {
 		if (Dressed != nullptr) {
 			Dressed->document()->setTextWidth(width);
 			Dressed->setFixedHeight(static_cast<int>(std::ceil(Dressed->document()->size().height())) + 4);
+			place_code();
+		}
+	}
+
+	auto agent_report_view::code_height(const int aSlot, const int aWidth) const -> int
+	{
+		if (aSlot < 0 || static_cast<std::size_t>(aSlot) >= CodeViews.size()) {
+			return 1;
+		}
+		return CodeViews[static_cast<std::size_t>(aSlot)]->heightForWidth(aWidth);
+	}
+
+	/// Each code box over its place in the page.
+	void agent_report_view::place_code()
+	{
+		auto* const document = Dressed->document();
+		for (auto index = std::size_t{ 0U }; index < CodeViews.size() && index < CodePlaces.size(); ++index) {
+			auto* const view = CodeViews[index];
+			if (CodePlaces[index] < 0) {
+				view->hide();
+				continue;
+			}
+			auto cursor = QTextCursor{ document };
+			cursor.setPosition(CodePlaces[index]);
+			const auto line  = Dressed->cursorRect(cursor);
+			const auto width = report_code_objects::place_width(document, CodePlaces[index]);
+			const auto shape = QRect{ line.left(), line.top(), width, view->heightForWidth(width) };
+			if (view->geometry() != shape) {
+				view->setGeometry(shape);
+				// Laid out now, so its reader and the box in it take the
+				// width at once, not a default one until the next pass.
+				if (auto* const inner = view->layout(); inner != nullptr) {
+					inner->activate();
+				}
+			}
+		}
+	}
+
+	void agent_report_view::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		Body->apply_code_syntax(aSpans);
+		for (auto* const view : CodeViews) {
+			view->apply_code_syntax(aSpans);
 		}
 	}
 
@@ -518,8 +613,68 @@ namespace bpr::qt {
 		if (!Dress.Sections.empty()) {
 			const auto top = Scroll->verticalScrollBar()->value();
 			Dressed->document()->setDefaultFont(QFont{ QStringLiteral("Charter"), 13 });
-			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes));
+			auto collected = std::vector<report_code_slot>{ };
+			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes, &collected));
+			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
+			// Look report-templates-v003: each code block is the Agent tab's
+			// own code box (its syntax colours, the code colours, Wrap and
+			// Copy, a long line scrolling sideways), numbered from its place,
+			// laid over its place in the page.
+			if (collected != Slots) {
+				// The last report's boxes go now, not only when the loop next
+				// deletes them.
+				for (auto* const view : CodeViews) {
+					view->hide();
+					view->deleteLater();
+				}
+				CodeViews.clear();
+				Slots = std::move(collected);
+				for (const auto& slot : Slots) {
+					auto* const view = new markdown_body_view{ Dressed->viewport() };
+					view->setObjectName(QStringLiteral("agentReportCode"));
+					view->set_in_place(true);
+					view->set_code_block_tools(true);
+					view->set_code_first_line(slot.Suggestion ? std::nullopt : slot.FirstLine);
+					if (Dresser) {
+						Dresser(*view);
+					}
+					auto text = std::string{ "```" } + (slot.Suggestion ? std::string{ "suggestion" } : slot.Language) + "\n";
+					for (const auto& line : slot.Lines) {
+						text += line + "\n";
+					}
+					text += "```\n";
+					if (slot.Suggestion) {
+						view->set_suggestions(markdown_suggestion_presentation{
+							.Path  = slot.Path,
+							.Lines = slot.Replaced.empty() ? std::nullopt : std::optional{ core::markdown_suggestion_context{ .FirstLine = slot.FirstLine.value_or(1U), .Lines = slot.Replaced } } });
+					}
+					view->set_body(text, "agent-report-" + std::to_string(Document.Turn) + "-code-" + std::to_string(CodeViews.size()));
+					view->set_height_observer([this] {
+						Dressed->document()->markContentsDirty(0, Dressed->document()->characterCount());
+						fit_body();
+						place_code();
+					});
+					view->show();
+					CodeViews.push_back(view);
+				}
+			}
+			// The markers become the boxes' places.
+			CodePlaces.assign(Slots.size(), -1);
+			for (auto index = std::size_t{ 0U }; index < Slots.size(); ++index) {
+				auto found = Dressed->document()->find(QString::fromLatin1(report_code_marker) + QString::number(index), 0, QTextDocument::FindCaseSensitively | QTextDocument::FindWholeWords);
+				if (found.isNull()) {
+					continue;
+				}
+				auto format = QTextCharFormat{ };
+				format.setObjectType(report_code_object);
+				format.setProperty(report_code_ordinal, static_cast<int>(index));
+				found.insertText(QString{ QChar::ObjectReplacementCharacter }, format);
+				CodePlaces[index] = found.position() - 1;
+			}
 			Scroll->verticalScrollBar()->setValue(top);
+		}
+		for (auto* const view : CodeViews) {
+			view->setVisible(shown);
 		}
 		Dressed->setVisible(shown);
 		Body->setVisible(!shown);

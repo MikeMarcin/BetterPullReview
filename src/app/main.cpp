@@ -8246,7 +8246,44 @@ namespace {
 					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-dressed:step=%1").arg(current.Name));
 					return;
 				}
-				// The look's pictures: each report as it opens.
+				// Look report-templates-v003: every code block of the report is
+				// the Agent tab's own code box (its Copy and Wrap, its syntax
+				// colours), shown over its place, numbered unless a suggestion.
+				{
+					auto blocks = std::size_t{ 0U };
+					for (const auto& section : report->dressed().Sections) {
+						for (const auto& item : section.Items) {
+							blocks += static_cast<std::size_t>(std::ranges::count_if(item.Body, [](const bpr::core::dressed_block& aBlock) {
+								return aBlock.Kind == bpr::core::dressed_block_kind::code || aBlock.Kind == bpr::core::dressed_block_kind::suggestion;
+							}));
+						}
+					}
+					const auto& views = report->code_views();
+					// A box takes its width when its reader is laid out, a pass
+					// after the page; it is given the passes a person's eye is.
+					const auto boxed = [&views] {
+						return std::ranges::all_of(views, [](bpr::qt::markdown_body_view* aView) {
+							const auto boxes = aView->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+							return aView->isVisible() && aView->code_block_tools() && aView->height() > 20
+								&& std::ranges::all_of(boxes, [aView](const QWidget* aBox) { return aBox->width() >= aView->width() - 2; });
+						});
+					};
+					for (auto pass = 0; pass < 50 && !boxed(); ++pass) {
+						QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+					}
+					if (views.size() != blocks || !boxed()) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-code:step=%1:blocks=%2:boxes=%3").arg(current.Name).arg(blocks).arg(views.size()));
+						return;
+					}
+				}
+				// The look's pictures: each report as it opens, its code's syntax
+				// colours given the moment they take to arrive.
+				if (!shots.isEmpty()) {
+					const auto until = automated_clock::now() + std::chrono::milliseconds{ 600 };
+					while (automated_clock::now() < until) {
+						QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+					}
+				}
 				{
 					auto slug = current.Name.section(QLatin1Char{ '.' }, -1);
 					slug.replace(QRegularExpression{ QStringLiteral("[^A-Za-z0-9_-]+") }, QStringLiteral("-"));

@@ -17,6 +17,9 @@
 
 #include <set>
 
+#include <cstdint>
+#include <optional>
+
 #include <functional>
 #include <map>
 #include <string>
@@ -66,6 +69,10 @@ namespace bpr::qt::detail {
 		void set_line_formats(const std::vector<QList<QTextLayout::FormatRange>>& aFormats);
 
 		void set_wrapped(bool aWrapped);
+		/// \brief RFC-BPR-0128 (look report-templates-v003): numbers the
+		/// lines in a gutter from `aFirst`; none shows no gutter.
+		void               set_first_line(std::optional<std::uint32_t> aFirst);
+		[[nodiscard]] auto first_line() const noexcept -> std::optional<std::uint32_t> { return FirstLine; }
 		/// \brief The box's height at a width: header, code and, unwrapped
 		/// and wider than the box, a scroll bar that takes room.
 		[[nodiscard]] auto height_for(int aWidth) const -> int;
@@ -91,21 +98,24 @@ namespace bpr::qt::detail {
 		void               refresh_wrap_names();
 		void               refresh_tool_surfaces();
 		[[nodiscard]] auto header_font() const -> QFont;
+		/// The numbers' column, nothing without a first line.
+		[[nodiscard]] auto gutter_width() const -> int;
 		/// \brief The box's ground and ink, and its header's ground: the code
 		/// theme's colours, or the palette's before it has them.
 		[[nodiscard]] auto back_colour() const -> QColor;
 		[[nodiscard]] auto ink_colour() const -> QColor;
 		[[nodiscard]] auto header_colour() const -> QColor;
 
-		QString                     Language;
-		std::string                 Text;
-		markdown_code_block_colours Colours;
-		bool                        Wrapped   = false;
-		bool                        Copied    = false;
-		QTextEdit*                  Editor    = nullptr;
-		quiet_tool_button*          Wrap      = nullptr;
-		quiet_tool_button*          Copy      = nullptr;
-		QTimer*                     CopiedFor = nullptr;
+		QString                      Language;
+		std::string                  Text;
+		markdown_code_block_colours  Colours;
+		bool                         Wrapped = false;
+		std::optional<std::uint32_t> FirstLine;
+		bool                         Copied    = false;
+		QTextEdit*                   Editor    = nullptr;
+		quiet_tool_button*           Wrap      = nullptr;
+		quiet_tool_button*           Copy      = nullptr;
+		QTimer*                      CopiedFor = nullptr;
 	};
 
 	/// \brief Sizes each framed block's place in the reader to its box at the
@@ -119,6 +129,8 @@ namespace bpr::qt::detail {
 		void create(const markdown_code_store& aCode);
 		void clear();
 		void reset_wrap() { Wrapped.clear(); }
+		/// \brief The line every box made from now on is numbered from.
+		void set_first_line(std::optional<std::uint32_t> aFirst) { FirstLine = aFirst; }
 		void style(const markdown_code_store& aCode, const code_role_colors& aRoles, const QFont& aFont, const QFont& aCodeFont, qreal aTabStopDistance);
 		void place();
 		/// The containing message may need a new height after Wrap changes.
@@ -141,6 +153,7 @@ namespace bpr::qt::detail {
 		std::map<int, QPointer<markdown_code_block>> Boxes;
 		std::set<int>                                Wrapped;
 		bool                                         PlacementQueued = false;
+		std::optional<std::uint32_t>                 FirstLine;
 	};
 } // namespace bpr::qt::detail
 
