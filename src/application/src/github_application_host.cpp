@@ -446,9 +446,10 @@ namespace bpr::application {
 	auto github_application_host::attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool { return Implementation->attach_window(aWindow); }
 	void github_application_host::detach_window(const core::bpr_window_context aWindow) { Implementation->detach_window(aWindow); }
 	auto github_application_host::lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender, const core::application_session_id aHolder,
-														std::function<void(lent_review_authority_end)> aRevoked) -> std::optional<lent_review_authority>
+														std::function<void(lent_review_authority_end)> aRevoked, const accepted_pull_request_handoff* aAccepted)
+		-> std::optional<lent_review_authority>
 	{
-		return Implementation->lend_review_authority(aLender, aHolder, std::move(aRevoked));
+		return Implementation->lend_review_authority(aLender, aHolder, std::move(aRevoked), aAccepted);
 	}
 
 	lent_review_lease::lent_review_lease(std::shared_ptr<lent_review_record> aRecord) noexcept

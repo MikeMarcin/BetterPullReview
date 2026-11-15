@@ -405,22 +405,15 @@ namespace bpr::app {
 		if (stack == nullptr || stack->lent_for(aBinding)) {
 			return;
 		}
-		auto lent = Host->lend_review_authority(WindowRead, stack->session(), [registry = std::weak_ptr<application::review_agent_runtimes>{ Profile->AgentRuntimes }, session](application::lent_review_authority_end) {
-			if (const auto runtimes = registry.lock()) {
-				runtimes->authority_ended(session);
-			}
-		});
+		// The runtime follows the revision this window accepted.
+		auto lent = Host->lend_review_authority(
+			WindowRead, stack->session(), [registry = std::weak_ptr<application::review_agent_runtimes>{ Profile->AgentRuntimes }, session](application::lent_review_authority_end) {
+				if (const auto runtimes = registry.lock()) {
+					runtimes->authority_ended(session);
+				}
+			},
+			&*LastAcceptedHandoff);
 		if (lent) {
-	#if defined(BPR_BUILD_TESTING)
-			// A fixture moves the window's accepted revision itself
-			// (`reaccept_fixture_revision`), past what the read host lends:
-			// the runtime is lent the revision the window accepted.
-			if (Fixture) {
-				lent->Handoff.Snapshot              = LastAcceptedHandoff->Snapshot;
-				lent->Handoff.PullRequestGeneration = LastAcceptedHandoff->PullRequestGeneration;
-				lent->Handoff.Head                  = LastAcceptedHandoff->Head;
-			}
-	#endif
 			stack->lend(std::move(*lent), aBinding);
 			AgentQueue->agent_changed(session);
 		}

@@ -416,9 +416,18 @@ slice 1.
   and the expected supplement names it. (2) `_staleness_contract`: the
   course moves the window's accepted revision itself
   (`reaccept_fixture_revision`), past what the read host lends, so the
-  stack kept the older revision and the run never went stale. In a
-  tests-on build with a fixture, the lent handoff takes the window's
-  accepted snapshot, generation and head (`attach_agent_runtime`).
+  stack kept the older revision and the run never went stale. The loan
+  now follows the revision the window accepted, in every build and on one
+  path: `github_application_host::lend_review_authority` takes the
+  window's accepted handoff (`aAccepted`), checks that it names the
+  lender's pull request under the same identity, and lends its revision
+  (course `application_github_host`,
+  `test_a_lent_review_authority_follows_the_windows_accepted_revision`).
+  The tests-only branch that first did this is gone. The course still
+  moves the window's revision with `reaccept_fixture_revision` rather than
+  through the read host: the public-path fixture serves one pull request
+  head per run (its epoch phase is chosen at start), so a live head move
+  through the read host has no fixture to serve it.
   (3) `_workspace_diagnostic_contract` and
   `application_agent_finding_dif_context_contract`: the Dif's cues matched
   turns against the window's session and authority, and every turn now
