@@ -1,51 +1,57 @@
 # BetterPullReview
 
 A native desktop app for reviewing GitHub pull requests and local code.
-Read diffs, keep private notes, and follow changes across review rounds.
+Read diffs, keep local comments, and follow changes across review rounds.
 
 **[Download](#install) · [Quick start](#quick-start) · [Guides](#guides) · [Contribute](#development)**
 
 - Compare a pull request with earlier revisions that BetterPullReview has retained.
-- Draft comments and reviews beside the code, then publish when you're ready.
+- Write comments beside the code. A comment stays Local (only on this computer)
+  or becomes a Draft that you publish when you're ready.
+- Prepare a pull request from a Git worktree with **Prepare Pull Request…** on
+  Home, then create it on GitHub as a draft pull request once its branch is pushed.
+- Use **Ask** to put a question about the pull request, a file or a thread to
+  an optional agent; long answers open in a file tab.
 - Write a **Review Tour** that walks reviewers through the problem, solution and
   selected source lines.
 - Use **Review Cycles** to review a local folder, file or checkout without a
   GitHub account or an AI agent.
 
 > [!NOTE]
-> GitHub owns shared comments, reviews and approvals. Your notes, drafts and
-> review progress stay local; publishing is a separate action.
+> GitHub owns shared comments, reviews and approvals. Your Local comments,
+> drafts and review progress stay on your computer; publishing is a separate action.
 
 ## Install
 
 The [latest release](https://github.com/MikeMarcin/BetterPullReview/releases/latest)
-is **0.4.1**. Downloads and corresponding source are publicly available.
+is **0.4.2**. Downloads and corresponding source are publicly available.
 
 | Platform | Installer |
 |---|---|
-| macOS 14.4+ · Apple Silicon and Intel | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.1/BetterPullReview-0.4.1-build.8-macos-universal.dmg) |
-| Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.1/BetterPullReview-0.4.1-build.8-windows-x64.msi) |
-| Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.1/BetterPullReview-0.4.1-build.8-linux-ubuntu-26.04-x64.deb) |
+| macOS 14.4+ · Universal | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-macos-universal.dmg) |
+| Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-windows-x64.msi) |
+| Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-linux-ubuntu-26.04-x64.deb) |
 
 Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
 may work but are untested.
 
 On macOS, open the DMG and copy the app to `~/Applications`. On Windows, run
 the per-machine MSI installer. On Ubuntu, follow the release's
-[signature verification steps](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.1#linux-signature-verification)
+[signature verification steps](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.2#linux-signature-verification)
 before installing the DEB with your package manager.
 
 Install Git 2.39+ for pull-request history and comparisons. Optional GitHub CLI
-access is macOS-only and requires `gh` 2.96+ and Git 2.49+.
+access requires `gh` 2.96+ and Git 2.49+. On Windows and Linux, `gh`'s file
+writes are not confined as they are on macOS.
 The [package guide](docs/development/release-packages.md) covers archive installs,
 system dependencies and signature checks. Windows and Linux use manual updates;
 eligible signed macOS installations can use **Check for Updates…**.
 
 > [!WARNING]
-> 0.4.1 is a stable release, but native installation, authentication, vault,
+> 0.4.2 is a stable release, but native installation, authentication, vault,
 > accessibility, removal, crash-privacy and vulnerability qualification remain
 > incomplete.
-> The [release notes](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.1#known-limitations)
+> The [release notes](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.2#verification-and-limitations)
 > record the evidence, gaps and accepted release exceptions.
 
 ## Quick start
@@ -70,7 +76,8 @@ explicitly in **Accounts & hosts**; available sign-in methods depend on the host
 ### Review local code
 
 1. Choose **File > Open Project…** and select a folder, file or Git checkout.
-2. Add notes or suggested edits, then compose a review round to copy, save or export.
+2. Add notes or suggested edits, then use **Share notes** to copy the round or
+   save it to a file.
 3. After the code changes, use **Capture revision** to compare it with the
    previous revision and record your verification.
 

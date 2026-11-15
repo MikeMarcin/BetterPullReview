@@ -34,7 +34,7 @@ The [M1 runtime ledger](../verification/BPR-1673-command-owned-correctness.md) r
 ## M2 optimized qualification boundary
 
 The [M2 result](../verification/BPR-1674-input-scoped-qualification.md) and
-[publish-release pilot procedure](../../.codex/skills/publish-release/references/optimized-qualification.md)
+[publish-release pilot procedure](../../.agents/skills/publish-release/references/optimized-qualification.md)
 make a bounded tests-enabled Release discriminator operational. Five passing
 commands do not replace a complete native gate. The later owner amendment selects the explicit normal/Debug-residual route for bounded patches and comprehensive native Release/Debug for major or broad changes; see the operational profile contract.
 Source/manifest/artifact/security/legal/native obligations stay fresh. Only duplicate

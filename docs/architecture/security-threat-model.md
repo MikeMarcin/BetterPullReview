@@ -242,9 +242,11 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
   is the second and last: a separate same-user AF_UNIX rendezvous (on Windows an
   owner-private local named pipe that rejects remote clients, [[BPR-1168]])
   bound only under the exact-root lease, with a versioned owner binding
-  (protocol 6), 5 MiB frames and a closed command set the owner runs against its
+  (protocol 8), 5 MiB frames and a closed command set the owner runs against its
   own store: local tour draft, hook and assist commands, and since RFC-BPR-0058
-  the finite `bpr cycle` registry, each with only that command's own options.
+  the finite `bpr cycle` registry, each with only that command's own options,
+  and since RFC-BPR-0108 `bpr draft open`, which opens or resumes one
+  worktree's local PR draft in the owner's window.
   Since [[BPR-1227]] it also carries one read: bounded pinned source (one commit,
   path, side and at most 200 lines) for a draft whose pull request a desktop
   window already has open, answered from that window's accepted authority and

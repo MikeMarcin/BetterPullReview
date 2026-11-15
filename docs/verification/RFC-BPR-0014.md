@@ -271,7 +271,7 @@ No child agent, background command or review server is handed off.
 ## Owner amendment r2: existing macOS release workflow
 
 The owner explicitly directed M1 to inventory and reuse the project
-[publish-release skill](../../.codex/skills/publish-release/SKILL.md).
+[publish-release skill](../../.agents/skills/publish-release/SKILL.md).
 The complete skill and both underlying scripts were read at
 `9778997d565fa3b5c89540bd52799cc0c12e2982`; their contents are unchanged by M1.
 This is an implementation inventory, not a newly observed release or proof

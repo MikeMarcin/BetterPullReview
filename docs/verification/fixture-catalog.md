@@ -199,7 +199,7 @@ lines to show. The same pack and contract builders serve it; the script's
 `--attended-read-state`. Constructed, not recorded; its fixture test
 regenerates the construction and the served tree byte for byte.
 `scripts/capture_promo_assets.py` captures it; see
-`.codex/skills/update-promo-assets`.
+`.agents/skills/update-promo-assets`.
 
 ### `line-details-v1`, long changed lines
 

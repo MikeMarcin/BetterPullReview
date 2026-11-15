@@ -123,7 +123,8 @@ and the specimen establishes no historical LINK selection. Check installed first
 `signtool verify /pa /all /v` and `Get-AuthenticodeSignature`; require publisher
 `Michael Marcin` and a timestamp. MSI/runtime ZIP equivalence and native Windows
 11 clean-account install/launch/auth/repair/upgrade/removal remain qualification
-gates. Release notes say the build is tested on Windows 11; other Windows
+gates. The versioned package guide, not the release description, says the build
+is tested on Windows 11; other Windows
 versions may work but are untested, and the MSI's minimum OS stays Windows 10
 (unproven, not refused; owner 2026-10-23, [[BPR-1743]]). The offline manifest verifier checks byte bindings and producer receipts;
 it cannot independently establish Windows trust from a Mac.

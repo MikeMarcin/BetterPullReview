@@ -5,8 +5,8 @@ cycle, write notes, freeze a round and export it. It also lets an agent harness
 read one round you have granted it and add a response; a harness author can
 start at [A harness reading one round](#a-harness-reading-one-round).
 
-`bpr cycle` is the same `bpr` executable as [`bpr tour`](tour-cli.md) and uses
-the same cycle services as the desktop app. It never starts a window, account,
+`bpr cycle` is the same `bpr` executable as [`bpr tour`](tour-cli.md) and
+[`bpr draft`](draft-cli.md), and uses the same cycle services as the desktop app. It never starts a window, account,
 provider, credential vault, agent, browser or network connection.
 
 ## Quick start
@@ -88,8 +88,8 @@ four. Any other option is `unsupported_option`.
 | `--profile ID\|NAME` | The profile, by ID or exact name. By default the default profile (ID 1). |
 | `--operation-id ID` | Names the command so that repeating it never applies it twice; see [Working while the desktop is open](#working-while-the-desktop-is-open). |
 
-`bpr` with no arguments names its two command families, `bpr tour` and
-`bpr cycle`. `bpr cycle` alone, or `bpr cycle help`, prints the command list
+`bpr` with no arguments names its three command families, `bpr tour`,
+`bpr cycle` and `bpr draft`. `bpr cycle` alone, or `bpr cycle help`, prints the command list
 `capabilities` gives.
 
 ## Output
@@ -155,8 +155,9 @@ observation never means the round was received, read or accepted.
 
 A profile has one writer at a time. If the desktop (or another BetterPullReview
 process) holds the profile, the command is sent to that process over a same-user
-channel (protocol 6), and gives the same answers. Prompts, the editor and output
-stay in the terminal. A message to the owner is at most 5 MiB; for a larger
+channel (protocol 8), and gives the same answers. Prompts, the editor and output
+stay in the terminal. A message to the owner is at most 5 MiB, and a response
+read from standard input reaches the owner only up to 4 MiB; for a larger
 response, give `--file PATH` instead of standard input.
 
 Review Cycles have no undo in either interface: reverse a change with its
@@ -291,7 +292,7 @@ and check both copies with
 
 ## Not in this build
 
-- The desktop does not list **Use in external agent** yet; use `round grant`.
+- The desktop does not list **Use in External Agent…** yet; use `round grant`.
 - Publishing a pull request is the desktop's alone.
 - No command imports a `.bpr-review.zip` bundle; `export --format bundle` only
   writes one.

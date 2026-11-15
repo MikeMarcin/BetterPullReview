@@ -713,10 +713,10 @@ namespace bpr::app {
 		return core::writing_digest(key);
 	}
 
-	/// \brief [[BPR-1753]], owner decision 2026-10-23. The agent
-	/// tour writing asks: the one chosen in the Agent tab when it speaks
-	/// Claude Code's stream JSON (tool-free writing needs it), otherwise the
-	/// first added agent that does.
+	/// \brief [[BPR-1753]], owner decision 2026-10-23. The agent tour
+	/// writing asks: the one chosen in the pull request's agent picker. The
+	/// callers refuse it when it does not speak Claude Code's stream JSON
+	/// (tool-free writing needs it); no other agent is tried.
 	auto github_application::implementation::writing_agent() const -> std::optional<core::agent_profile_id>
 	{
 		return Window->agent_panel()->selected_profile();

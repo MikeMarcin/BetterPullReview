@@ -43,7 +43,7 @@ narrow exception to AGENTS.md's no-desktop rule.
   produces the Review, Overview, Discuss and Threads stills and the demo
   recording from the application's own window only, with the files drawer
   hidden, and refuses identical stills.
-- BPR-1676:skill — `.codex/skills/update-promo-assets` documents the
+- BPR-1676:skill — `.agents/skills/update-promo-assets` documents the
   workflow and its safety rules; AGENTS.md records the exception.
 - BPR-1676:owner-look — the owner accepts the captures.
 

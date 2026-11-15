@@ -2106,9 +2106,10 @@ unpinned version and account-inventory calls of an explicit Use GitHub CLI
 gesture can let `gh` migrate its own global configuration; every pinned call
 still reads only its private configuration, which is owner-only (on Windows the
 shared owner-private descriptor, with read-only files but a directory that is
-not write-locked) and removed afterwards. gh's Git-object acquisition and exact
-blob reads remain macOS-only, so full diffs through GitHub CLI are unavailable
-there and say so. On Linux `gh` reaches Secret Service only through the
+not write-locked) and removed afterwards. Since [[BPR-1857]] gh's Git-object
+acquisition and exact blob reads run there too, so full diffs through GitHub
+CLI are available on all three; the clone store sits in the user's temporary
+directory. On Linux `gh` reaches Secret Service only through the
 session bus socket in `XDG_RUNTIME_DIR`; a session without one fails
 configuration and is reported. Native Windows and Linux evidence is pending on
 the card.
