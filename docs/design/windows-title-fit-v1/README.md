@@ -162,8 +162,10 @@ of `harness/CMakeLists.txt` with `-DBPR_ROOT=` an export of the lane.
 
 ## Status
 
-Filed for the owner on 2026-11-15 as attended review `windows-title-fit-v001`:
-one choice between A, B, C and D. External state directory
-`~/.attended-review-state/windows-title-fit-v001-2026-11-15/` (`state/` is the
-session and holds its ID). Lifecycle: awaiting the owner's answer. Nothing is
-built until it is given.
+Answered on 2026-11-15 in attended review `windows-title-fit-v001` (external
+state directory `~/.attended-review-state/windows-title-fit-v001-2026-11-15/`):
+the owner chose **C, icons that open**, with the note "I like icons when it
+gets narrow because we already do that for the drawer tabs. What about using ^
+for Ctrl? Eg ^1", and afterwards withdrew the caret and asked for the same on
+all three platforms. Lifecycle: closed, host stopped.
+[Round 2](../windows-title-fit-v2/README.md) draws the choice.

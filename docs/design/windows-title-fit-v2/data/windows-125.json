@@ -1,0 +1,4022 @@
+{
+ "environment": {
+  "device_pixel_ratio": 1.25,
+  "general_font_family": "Segoe UI",
+  "general_font_points": 13.5,
+  "mode_keys": [
+   "Ctrl+1",
+   "Ctrl+2",
+   "Ctrl+3",
+   "Ctrl+4",
+   "Ctrl+5"
+  ],
+  "os": "Windows 11 Version 25H2",
+  "platform": "windows",
+  "qt": "6.12.0",
+  "row_font_family": "Segoe UI",
+  "row_font_pixel_size": 12,
+  "row_font_points": 9,
+  "style": "windows11",
+  "system": "windows",
+  "tooltips": [
+   "Overview\nRead the pull request overview, with every drawer closed (Ctrl+1).",
+   "Review\nReview the code in the drawers you last arranged (Ctrl+2). Choose Review again to open Files and Comments.",
+   "Discuss\nCollapse the files drawer and give the thread the room (Ctrl+3).",
+   "Threads\nFind a thread in the pull request (Ctrl+4, Ctrl+J)"
+  ]
+ },
+ "faces": [
+  {
+   "face": "names and keys",
+   "index": 0,
+   "segments": [
+    109,
+    97,
+    99,
+    102,
+    93
+   ],
+   "width": 512,
+   "x": 659,
+   "shown": 522
+  },
+  {
+   "face": "names",
+   "index": 1,
+   "segments": [
+    69,
+    57,
+    59,
+    62,
+    54
+   ],
+   "width": 313,
+   "x": 858,
+   "shown": 323
+  },
+  {
+   "face": "three-letter prefixes",
+   "index": 2,
+   "segments": [
+    42,
+    39,
+    37,
+    38,
+    39
+   ],
+   "width": 207,
+   "x": 964,
+   "shown": 217
+  },
+  {
+   "face": "icons, the open mode named",
+   "index": 3,
+   "segments": [
+    30,
+    30,
+    30,
+    30,
+    74
+   ],
+   "width": 206,
+   "x": 965,
+   "shown": 216
+  },
+  {
+   "face": "icons",
+   "index": 4,
+   "segments": [
+    30,
+    30,
+    30,
+    30,
+    30
+   ],
+   "width": 162,
+   "x": 1009,
+   "shown": 172
+  }
+ ],
+ "rows": [
+  {
+   "asked": 1588,
+   "face": "names and keys",
+   "file": "windows-today-long-1600-dark-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap …",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 396,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 540
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 574
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 743
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 759
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1600
+  },
+  {
+   "asked": 1336,
+   "face": "names and keys",
+   "file": "windows-today-long-1366-dark-125.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 144,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 288
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 322
+    },
+    {
+     "name": "Spare",
+     "w": 30,
+     "x": 491
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 525
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1366
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-long-1280-dark-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 209,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 638
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1280
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-long-1100-dark-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 29,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 458
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1100
+  },
+  {
+   "asked": 955,
+   "face": "names",
+   "file": "windows-today-long-960-dark-125.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 140
+    },
+    {
+     "name": "Spare",
+     "w": 5,
+     "x": 309
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 318
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 960
+  },
+  {
+   "asked": 1490,
+   "face": "names",
+   "file": "windows-fold-long-1600-dark-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 497,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 641
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 675
+    },
+    {
+     "name": "Spare",
+     "w": 110,
+     "x": 844
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 958
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1600
+  },
+  {
+   "asked": 1350,
+   "face": "icons, the open mode named",
+   "file": "windows-fold-long-1366-dark-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at res…",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 464,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 608
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 642
+    },
+    {
+     "name": "Spare",
+     "w": 16,
+     "x": 811
+    },
+    {
+     "name": "Modes",
+     "w": 206,
+     "x": 831
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1366
+  },
+  {
+   "asked": 1266,
+   "face": "icons, the open mode named",
+   "file": "windows-fold-long-1280-dark-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and c…",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 380,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 524
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 558
+    },
+    {
+     "name": "Spare",
+     "w": 14,
+     "x": 727
+    },
+    {
+     "name": "Modes",
+     "w": 206,
+     "x": 745
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1280
+  },
+  {
+   "asked": 1087,
+   "face": "icons",
+   "file": "windows-fold-long-1100-dark-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search resu…",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 245,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 389
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 423
+    },
+    {
+     "name": "Spare",
+     "w": 13,
+     "x": 592
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 609
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1100
+  },
+  {
+   "asked": 920,
+   "face": "icons",
+   "file": "windows-fold-long-960-dark-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 40,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 469
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 496,
+   "width": 960
+  },
+  {
+   "asked": 1588,
+   "face": "names and keys",
+   "file": "windows-today-long-1600-light-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap …",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 396,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 540
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 574
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 743
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 759
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1600
+  },
+  {
+   "asked": 1336,
+   "face": "names and keys",
+   "file": "windows-today-long-1366-light-125.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 144,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 288
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 322
+    },
+    {
+     "name": "Spare",
+     "w": 30,
+     "x": 491
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 525
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1366
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-long-1280-light-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 209,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 638
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1280
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-long-1100-light-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 29,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 458
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1100
+  },
+  {
+   "asked": 955,
+   "face": "names",
+   "file": "windows-today-long-960-light-125.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 140
+    },
+    {
+     "name": "Spare",
+     "w": 5,
+     "x": 309
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 318
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 960
+  },
+  {
+   "asked": 1490,
+   "face": "names",
+   "file": "windows-fold-long-1600-light-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 497,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 641
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 675
+    },
+    {
+     "name": "Spare",
+     "w": 110,
+     "x": 844
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 958
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1600
+  },
+  {
+   "asked": 1350,
+   "face": "icons, the open mode named",
+   "file": "windows-fold-long-1366-light-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at res…",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 464,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 608
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 642
+    },
+    {
+     "name": "Spare",
+     "w": 16,
+     "x": 811
+    },
+    {
+     "name": "Modes",
+     "w": 206,
+     "x": 831
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1366
+  },
+  {
+   "asked": 1266,
+   "face": "icons, the open mode named",
+   "file": "windows-fold-long-1280-light-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and c…",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 380,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 524
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 558
+    },
+    {
+     "name": "Spare",
+     "w": 14,
+     "x": 727
+    },
+    {
+     "name": "Modes",
+     "w": 206,
+     "x": 745
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1280
+  },
+  {
+   "asked": 1087,
+   "face": "icons",
+   "file": "windows-fold-long-1100-light-125.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search resu…",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 245,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 389
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 423
+    },
+    {
+     "name": "Spare",
+     "w": 13,
+     "x": 592
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 609
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 1100
+  },
+  {
+   "asked": 920,
+   "face": "icons",
+   "file": "windows-fold-long-960-light-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 40,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 469
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 496,
+   "width": 960
+  },
+  {
+   "asked": 1412,
+   "face": "names and keys",
+   "file": "windows-today-short-1600-dark-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 188,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 759
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1600
+  },
+  {
+   "asked": 1336,
+   "face": "names and keys",
+   "file": "windows-today-short-1366-dark-125.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 144,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 288
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 322
+    },
+    {
+     "name": "Spare",
+     "w": 30,
+     "x": 491
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 525
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1366
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-short-1280-dark-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 209,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 638
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1280
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-short-1100-dark-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 29,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 458
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1100
+  },
+  {
+   "asked": 955,
+   "face": "names",
+   "file": "windows-today-short-960-dark-125.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 140
+    },
+    {
+     "name": "Spare",
+     "w": 5,
+     "x": 309
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 318
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 960
+  },
+  {
+   "asked": 1412,
+   "face": "names and keys",
+   "file": "windows-fold-short-1600-dark-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 188,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 759
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1600
+  },
+  {
+   "asked": 1213,
+   "face": "names",
+   "file": "windows-fold-short-1366-dark-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 153,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 724
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1366
+  },
+  {
+   "asked": 1213,
+   "face": "names",
+   "file": "windows-fold-short-1280-dark-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 67,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 638
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1280
+  },
+  {
+   "asked": 1062,
+   "face": "icons",
+   "file": "windows-fold-short-1100-dark-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 38,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 609
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1100
+  },
+  {
+   "asked": 920,
+   "face": "icons",
+   "file": "windows-fold-short-960-dark-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 40,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 469
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 219,
+   "width": 960
+  },
+  {
+   "asked": 1412,
+   "face": "names and keys",
+   "file": "windows-today-short-1600-light-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 188,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 759
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1600
+  },
+  {
+   "asked": 1336,
+   "face": "names and keys",
+   "file": "windows-today-short-1366-light-125.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 144,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 288
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 322
+    },
+    {
+     "name": "Spare",
+     "w": 30,
+     "x": 491
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 525
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1366
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-short-1280-light-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 209,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 638
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1280
+  },
+  {
+   "asked": 1071,
+   "face": "names",
+   "file": "windows-today-short-1100-light-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 29,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 458
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1100
+  },
+  {
+   "asked": 955,
+   "face": "names",
+   "file": "windows-today-short-960-light-125.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 140
+    },
+    {
+     "name": "Spare",
+     "w": 5,
+     "x": 309
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 318
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 960
+  },
+  {
+   "asked": 1412,
+   "face": "names and keys",
+   "file": "windows-fold-short-1600-light-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 188,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 512,
+     "x": 759
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1275
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1309
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1343
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1377
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1394
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1428
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1462
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2000,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1600
+  },
+  {
+   "asked": 1213,
+   "face": "names",
+   "file": "windows-fold-short-1366-light-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 153,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 724
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1041
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1075
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1109
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1143
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1160
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1194
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1228
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1708,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1366
+  },
+  {
+   "asked": 1213,
+   "face": "names",
+   "file": "windows-fold-short-1280-light-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 67,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 313,
+     "x": 638
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 955
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 989
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1023
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1057
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1074
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1108
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 1142
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1600,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1280
+  },
+  {
+   "asked": 1062,
+   "face": "icons",
+   "file": "windows-fold-short-1100-light-125.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 220,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 364
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 398
+    },
+    {
+     "name": "Spare",
+     "w": 38,
+     "x": 567
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 609
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 775
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 809
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 843
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 877
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 894
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 928
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 962
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1375,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 1100
+  },
+  {
+   "asked": 920,
+   "face": "icons",
+   "file": "windows-fold-short-960-light-125.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Menu",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 106
+    },
+    {
+     "name": "Name",
+     "w": 78,
+     "x": 140
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 222
+    },
+    {
+     "name": "Branch",
+     "w": 165,
+     "x": 256
+    },
+    {
+     "name": "Spare",
+     "w": 40,
+     "x": 425
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 469
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 635
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 669
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 703
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 737
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 754
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 788
+    },
+    {
+     "name": "Caption buttons",
+     "w": 134,
+     "x": 822
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1200,
+    38
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 219,
+   "width": 960
+  }
+ ]
+}
