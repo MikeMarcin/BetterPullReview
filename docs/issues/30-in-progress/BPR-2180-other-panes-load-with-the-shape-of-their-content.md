@@ -139,3 +139,12 @@ separately in its own shape.
   and `application_progressive_open_public_path` assertions that sections
   stay hidden while loading now assert that they wait in place with nothing
   of the previous pull request shown.
+- Look `bpr-2180-loading-shapes-v002`, attended session
+  `ab148169e2487a6d3fec30a40e58d336` (state
+  `/Users/jaeger/.attended-review-state/bpr-2180-loading-shapes-v002-2026-11-14`,
+  served on the tailnet, cursor 6), two candidates, one Accept/Reject each:
+  `BPR-2180-review-files-v002` (AC09) and `BPR-2180-side-sections-v002`
+  (AC03). Frozen root `/Users/jaeger/bpr-2180-loading-shapes-v002.0zw6l_19`
+  from 2ab3d74bd, same fixture and delays as v001. The v001 session's host is
+  stopped and its candidates released (its verdicts stay recorded above); the
+  v001 root is removed.
