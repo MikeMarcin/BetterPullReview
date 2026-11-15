@@ -146,7 +146,14 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
 
 ## Pending
 
-- The owner's look at Steer (steer-v001): Accept or Reject.
+- The owner's look at Steer (steer-v001): Accept or Reject. Filed
+  2026-11-15, not waited on: session `1e6b0468f60fc61d6480addad7ea6224`,
+  state `/Users/jaeger/.attended-review-state/steer-v001-2026-11-15/state`
+  (URL in `serve.log` beside it), cursor 3, served on the tailnet (host PID
+  20453, Tailscale child 20460). Root `/Users/jaeger/steer-v001.4mnd4k0p`
+  from `c7a0c44d4`, frozen with `returning-review-v1` and `--next-push`
+  (the launcher's own check presses What changed since my review, which
+  only the pushed head offers). One question.
 
 ## Progress (fixture session, 2026-11-15)
 
