@@ -1,8 +1,8 @@
 # Windows release and manual Azure signing
 
 Use native Windows 11 x64 (the tested Windows environment) with activated MSVC x64, Ninja and the repository's
-Qt/CMake toolchain. Require WiX .NET tool 4/5 with matching
-`WixToolset.UI.wixext`; the owner selected 5.0.2 rather than WiX 6's additional
+Qt/CMake toolchain. Require WiX .NET tool 5.0.2 with matching
+`WixToolset.UI.wixext`; the dual-context installer needs WiX 5, and the owner selected 5.0.2 rather than WiX 6's additional
 EULA. Python 3.10+, Qt producer SPDX, `VCToolsRedistDir` and the applicable
 Microsoft redistribution notice are required. Read the package guide for exact
 inputs and native qualification limits.

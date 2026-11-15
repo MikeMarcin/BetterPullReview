@@ -44,7 +44,7 @@ Build from committed, clean source.
 | Native build host | Preset and output | Required operator inputs |
 |---|---|---|
 | macOS | `macos-release`: universal x86_64/arm64, minimum macOS 14.4; app and ZIP, plus DMG for a full release | The existing Qt/macOS toolchain. Local prepare mode needs no Apple credential. |
-| Windows x64 (tested on Windows 11) | `windows-app-release`: WiX per-machine MSI under `%ProgramFiles%\BetterPullReview` (installing asks for administrator approval) (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, the Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
+| Windows x64 (tested on Windows 11) | `windows-app-release`: WiX dual-context MSI, Just me or Everyone (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`; pinned WiX 5.0.2) | Native MSVC x64 developer environment, Ninja, WiX 5.0.2 with matching `WixToolset.UI.wixext`, Python 3.10+, the Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
 | Ubuntu 26.04 LTS x86_64 (WSL2 can produce it) | `linux-package`: DEB and per-user archive | A C++23 compiler and library that pass the build's checks, the Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools, and libsecret and libxcb development files |
 
 All hosts also need CMake 4.4.2, Ninja, Python 3.10+ and a C++23 compiler and
@@ -282,13 +282,34 @@ package trust.
 
 ### MSI installation notes
 
-The MSI installs per machine under Program Files ([[BPR-1788]]; earlier
-packages installed per user under `%LOCALAPPDATA%\Programs`). It stores its
-selected directory in its own HKLM installer value, so repair and uninstall
-resolve the same directory, including a custom one. An MSI cannot upgrade a
-product across install scopes, so when the installing user still has a per-user
-copy from an earlier package, the installer stops and asks for it to be
-uninstalled first rather than leaving two installations.
+The MSI offers **Just me** or **Everyone** ([[BPR-1788]], owner amendment
+2026-11-15). The fresh default is Just me, under
+`%LOCALAPPDATA%\Programs\BetterPullReview`, without elevation. Everyone uses
+`%ProgramFiles%\BetterPullReview` and Windows UAC approval; the choice remains
+visible to a standard user who can provide administrator credentials.
+
+The choice runs before costing. Windows Installer 5 redirects the Programs
+and Start menu known folders and `HKMU` registry writes to the chosen context.
+The remembered directory is read from HKCU or HKLM and restored along with
+scope before related-product detection. Restore actions use the first sequence
+only, so the execute sequence does not change a choice already made in UI.
+Existing installations skip the choice and retain their directory and scope.
+Both visible installation markers cause a refusal asking for the older copy
+to be removed. Another user's per-user copy cannot be discovered this way.
+
+Scope changes require uninstall/reinstall; no cross-scope MSI upgrade is
+promised. Uninstall removes program files, not private profile data. For a
+silent fresh install use `ALLUSERS=2 MSIINSTALLPERUSER=1` (Just me) or
+`ALLUSERS=2 MSIINSTALLPERUSER=""` (Everyone). Existing scope takes precedence.
+
+`packaging/windows/Installer.cmake` adapts only Scope in CPack's maintained
+template to WiX `perUserOrMachine`; unexpected template changes refuse
+configuration. The stable InstallDir dialogs follow the scope choice.
+The package supplies its own context-aware Start menu component because
+CPack's generated shortcut marker is hard-coded HKCU. Native compilation,
+ICE105/table validation, standard-user Everyone with different administrator
+credentials, both same-scope upgrade routes, custom-path repair and removal
+remain pending for this amended candidate; source checks do not prove them.
 CPack supplies the normal installed-location metadata. Use native backslash
 paths with `msiexec`: a forward-slash command was refused before installation.
 

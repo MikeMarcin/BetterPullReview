@@ -127,9 +127,14 @@ if(WIN32)
     set(CPACK_GENERATOR WIX)
     set(CPACK_WIX_VERSION 4)
     set(CPACK_WIX_ARCHITECTURE x64)
-    # [[BPR-1788]]. A per-machine install under Program Files, as a Windows
-    # application normally is; it was per-user under %LOCALAPPDATA%\Programs.
+    # [[BPR-1788]]. Generate file-keyed components; the adapted package template
+    # selects WiX's dual context. The scope choice runs before MSI costing, so
+    # ProgramFiles64Folder and HKMU follow Just me or Everyone consistently.
     set(CPACK_WIX_INSTALL_SCOPE perMachine)
+    include("${PROJECT_SOURCE_DIR}/packaging/windows/Installer.cmake")
+    bpr_configure_windows_installer_template("${CMAKE_BINARY_DIR}/_bpr/WIX.template.in")
+    set(CPACK_WIX_TEMPLATE "${CMAKE_BINARY_DIR}/_bpr/WIX.template.in")
+    set(CPACK_WIX_UI_REF WixUI_InstallDir)
     set(CPACK_WIX_UPGRADE_GUID "18DF84A8-5883-4979-B1C6-6F226934AA68")
     set(CPACK_WIX_ROOT_FOLDER_ID ProgramFiles64Folder)
     set(CPACK_WIX_PATCH_FILE "${PROJECT_SOURCE_DIR}/packaging/windows/InstallRoot.xml")
@@ -144,7 +149,8 @@ if(WIN32)
     endif()
     set(CPACK_WIX_PROPERTY_ARPURLINFOABOUT "${PROJECT_HOMEPAGE_URL}")
     set(CPACK_WIX_PRODUCT_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/windows/better_pull_review.ico")
-    set(CPACK_PACKAGE_EXECUTABLES "better_pull_review" "BetterPullReview")
+    # CPack's shortcut marker is hard-coded HKCU. InstallRoot.xml supplies a
+    # context-aware Start menu shortcut instead, with its own HKMU key path.
     set(CPACK_PACKAGE_FILE_NAME "BetterPullReview-${BPR_RELEASE_ASSET_VERSION}-windows-x64${bpr_package_variant}")
 else()
     if(bpr_package_target STREQUAL "linux-ubuntu-26.04-x64")

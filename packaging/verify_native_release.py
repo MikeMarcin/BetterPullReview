@@ -122,7 +122,11 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
             if identity != {"debianVersion": release["native"]["debianVersion"]}:
                 raise ValueError("native Debian version mismatch")
         else:
-            expected_msi = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1",
+            # Previously published per-machine receipts remain verifiable. New
+            # production requires the dual-purpose default in package.py.
+            properties = identity.get("msiProperties")
+            scope = {"ALLUSERS": "1"} if isinstance(properties, dict) and properties.get("ALLUSERS") == "1" else {"ALLUSERS": "2", "MSIINSTALLPERUSER": "1"}
+            expected_msi = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], **scope,
                             "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": version,
                             "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": record["releaseCohort"]["cohortDigest"],
                             "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}

@@ -8,7 +8,7 @@ Detail is in the [packaging reference](release-packaging-maintainers.md#recipien
 | Platform | Package |
 |---|---|
 | macOS 14.4+, Apple Silicon and Intel | `*-macos-universal.dmg` (or `.zip`) |
-| Windows x64 | `*-windows-x64.msi`, per-user |
+| Windows x64 | `*-windows-x64.msi`, Just me or Everyone |
 | Ubuntu 26.04 x86_64 | `*-linux-ubuntu-26.04-x64.deb`, or the per-user `*-user.tar.gz` |
 
 Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
@@ -71,8 +71,11 @@ The full check list is in [signature checks](release-packaging-maintainers.md#si
 ## Install and update
 
 - **macOS:** open the DMG and copy the app to `/Applications` (or another chosen location).
-- **Windows:** run the MSI; it installs into
-  `%LOCALAPPDATA%\Programs\BetterPullReview` by default.
+- **Windows:** run the MSI and choose **Just me** (the fresh-install default,
+  `%LOCALAPPDATA%\Programs\BetterPullReview`, no administrator approval) or
+  **Everyone** (`%ProgramFiles%\BetterPullReview`, administrator approval).
+  Upgrades keep the existing scope and directory. To change scope, uninstall
+  and reinstall; your profile data is retained.
 - **Ubuntu:** install the DEB with your package manager, or unpack the
   per-user archive into its own folder (install the DEB's declared system
   libraries first) and run `better_pull_review`.
