@@ -3660,3 +3660,79 @@ Next action: the lent lease. Not started. Where it goes:
 
 After that, the four further window-bound ports and the window-side steps
 of the two earlier sections, then the public course and the reruns.
+
+## BPR-2181 slice 2: the lent lease and lost-access pause landed; the runtime's agent stack is next (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `0aff5a7be` | `github_application_host::lend_review_authority`, `lent_review_lease`, `lent_review_authority_end`; read-host `lend_epoch_handoff` and `observe_access_loss`; lease types moved to `src/application/src/git_smart_authority_lease.hpp`; seven courses in `application_github_host` |
+| `32fb55c83` | `review_agent_turn_port::authorized`, `review_agent_runtimes::authority_ended`, `core::queue_pause::lost_access` (stored as `lost-access`; the store reads 9 names), its sentence in `window_quick_ask.cpp`; course in `application_review_agent_runtime` |
+
+Verification on the dev tree at `32fb55c83`, with `app_better_pull_review`
+built: `application_github_host`, `application_github_window_read_host`,
+`application_epoch_host`, `application_agent_queue_host`,
+`application_review_agent_runtime`, `core_agent_queue`,
+`application_ask_menu_public_path`, `application_ask_queue_public_path`,
+`application_tour_feedback_queue_public_path`,
+`application_agent_queue_windows_public_path` and
+`application_agent_queue_second_window_loading_public_path` pass. Nothing in
+`src/app` uses the loan yet, so the public paths only show that nothing
+regressed.
+
+Decisions taken in this round:
+- **One cause for the three identity changes.** An account change, a
+  generation change and a profile-revision change all invalidate the
+  identity (`implementation::invalidate`) before the next session names its
+  account or revision, and the loan must stop at that moment. They all
+  report `lent_review_authority_end::identity_changed`, and each has its own
+  course. The other causes are `pull_request_inaccessible` and
+  `host_closing`. Letting go (`lent_review_lease::release` or destruction)
+  revokes the lease silently.
+- **Inaccessible:** any attached window's read (not only the lender's)
+  answering `github_provider_failure::permission` (403 without rate limit,
+  or 404) for the loan's profile, account, mode, locator and number. The
+  lender may already be closed, so its own read cannot be the only signal.
+- Revocation is synchronous (the state is revoked and transports die). The
+  callback is posted to the decision lane.
+- A loan needs a smart-Git factory (an account transport, or the anonymous
+  one signed out). Without one nothing is lent. At most 32 live loans
+  (`maximum_lent_review_authorities`).
+
+Next action: step 2, the runtime's agent stack in `src/app`. Not started.
+What it composes, per runtime (`review_agent_runtime_dependencies::Compose`):
+1. **A private-run port free of Qt. Extract it first.**
+   `private_review_workflow` (`src/app/src/private_review_workflow.cpp`
+   about lines 1026 to 1072) implements `private_agent_run_port`'s three
+   methods by finding a context by scope and delegating to
+   `application::private_review_application_host(*context->Store)`. `claim`
+   opens a separate store per claim. It also holds the Qt panel, so the
+   runtime cannot own one. Move those three methods and the scope-keyed
+   contexts (configuration, store, ledger-file mutex) into a class with no
+   Qt dependency in `src/app`. The workflow then delegates to it, and the
+   runtime owns one opened from the same
+   `adapters::sqlite::private_review_configuration` the window builds in
+   `compose_review_ledger` (`window_review_ledger.cpp` about line 1013). The
+   window still gets `private_changed` through the runtime's fan-out.
+2. Epoch host: the profile-owned constructor
+   (`epoch_application_host(state, registry, catalogs, entropy, clock,
+   effects, lane, projections)`) over the profile's `EpochActors`,
+   `EpochCatalogs`, `EpochEntropy`, `EpochClock` and `EpochEffects`, with a
+   no-op `epoch_projection_port`. It is fed `accept(lent.Handoff)` from
+   `Host->lend_review_authority(WindowRead, runtimeSession, revoked)`.
+   `revoked` calls `review_agent_runtimes::authority_ended(session)`. The
+   turn port's `authorized()` is `Lease.live()`. A new loan replaces the old
+   one and calls `Queue.agent_changed(session)`; the reviewer resumes a
+   `lost_access` pause.
+3. Ledger host: `review_ledger_application_host` over its own
+   `make_review_ledger_store` scope (the window's open lambda), a no-op
+   projection, its own store-effects lane and the profile decision lane. It
+   is the `agent_session_catalog_port`.
+4. Process chain: per runtime, from the profile's shared
+   `ClaudeWrapperSource`, `AgentProgramSource` and `AgentEntries`
+   (`window_construction.cpp` about lines 886 to 935), including the
+   fixture admission in a tests-on build, then `diagnosed_agent_process`
+   and `agent_invocation_host`. Set the scratch root the same way.
+5. Then steps 3 to 6 of the coordinator's order (window rewiring, one
+   transcript source, the public course plus reruns, a scratch build of
+   HEAD). The window-side list in the section "the runtime's application
+   layer landed" still holds.

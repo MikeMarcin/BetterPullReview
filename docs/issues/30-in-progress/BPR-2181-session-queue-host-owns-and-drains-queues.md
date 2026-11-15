@@ -100,11 +100,15 @@ slice 1.
    running turn, and the Agent tab stops being the send transport.
    Application layer done (`c1c80c1e6`, see Evidence). The epoch actor
    registry admits a profile-owned host (`9c7672579`), bounded by the queue
-   host's session limit (`03a540b91`). Composition into the app waits on a
-   lease `github_application_host` lends the runtime in its own name and
-   revokes on account, identity-generation or profile-revision change, on
-   let-go, or when the lending window finds the pull request inaccessible;
-   any revocation pauses the queue with a reason (coordinator, 2026-11-14).
+   host's session limit (`03a540b91`). The lent lease landed
+   (`0aff5a7be`): `github_application_host` lends the runtime a review
+   authority in its own name and ends it on identity invalidation, on a 404
+   or refused permission for its pull request, on shutdown, or when the
+   runtime lets go, and an ended authority pauses the queue with
+   `lost_access` and starts no turn (`32fb55c83`). Composition into the app
+   is next. Before it, the runtime needs a private-run port that is free of
+   Qt: today the window's `private_review_workflow` serves it, and that
+   class holds the Qt panel.
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
@@ -167,6 +171,41 @@ slice 1.
   The profile-owned consumers take the queue host's session limit,
   `core::maximum_queued_sessions` (32), which `agent_queue_host::enqueue`
   now enforces (`03a540b91`, course `application_agent_queue_host`).
+- **AC01 (partial, slice 2, `0aff5a7be` and `32fb55c83`), the runtime's
+  own authority:** `github_application_host::lend_review_authority` lends an
+  attached window's accepted pull request to a holder that is not a window.
+  The handoff names the holder's application session, and its smart-Git
+  lease is bound to that session. The lease is minted over the session's
+  account transport, or over the credential-free one when signed out. The
+  lease types moved to the internal `git_smart_authority_lease.hpp`, which
+  the read host and the GitHub host share. The host ends a loan when the
+  identity it was lent under is invalidated, when any attached window's read
+  of that pull request under the same account answers 404 or refused
+  permission, and at shutdown. It revokes every issued transport at once
+  and then posts the holder's callback to the decision lane. The 404 signal
+  is a new read-host observer (`observe_access_loss`), separate from
+  `invalidate_epoch_authority`. Releasing the lease revokes it and tells
+  nobody. The lender switching pull request or closing ends nothing. An
+  account change, a generation change and a profile-revision change each
+  invalidate the identity first, before the next session names its account
+  or revision, and that is the moment the lease has to stop. So all three
+  report one cause, `identity_changed`, and each has its own course. Course
+  `application_github_host`: seven `test_a_lent_review_authority_*` cases
+  (the holder's own lease and let-go, sign-out, account change, generation
+  change, profile revision, pull request inaccessible, host closing).
+  Runtime side: `review_agent_turn_port::authorized` gates every turn.
+  `review_agent_runtimes::authority_ended` pauses the session's queue with
+  the new `core::queue_pause::lost_access` ("Paused: this pull request can
+  no longer be read with your account") and cancels the running turn.
+  Course `application_review_agent_runtime`
+  (`test_a_lost_authority_pauses_the_queue_and_starts_nothing`). Rerun on
+  the dev tree at `32fb55c83` with the app built:
+  `application_ask_menu_public_path`, `application_ask_queue_public_path`,
+  `application_tour_feedback_queue_public_path`,
+  `application_agent_queue_windows_public_path` and
+  `application_agent_queue_second_window_loading_public_path` pass, along
+  with `application_agent_queue_host`, `application_epoch_host`,
+  `application_github_window_read_host` and `core_agent_queue`.
 - **AC07:** `application_agent_queue_second_window_loading_public_path`
   passes (slice 1, `c65c59df0`). The runtime registry does not change it,
   because windows still run their own agent hosts until the composition
