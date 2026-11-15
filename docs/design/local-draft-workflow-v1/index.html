@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The author's checklist: four places it could live</title><style>/* Tokens are the application's own roles, as the accepted local-draft window mock drew them
+   (docs/design/local-draft-pr-window-v1) and as the owner's screenshot of 2026-11-15 shows them.
+   No new hue: the Agent accent stays on agent-bound actions. */
+*{box-sizing:border-box}
+html{background:var(--canvas)}
+html[data-theme=light]{--canvas:#dcdde1;--docink:#1b1c20;--docink2:#474a52;--doclink:#0b4fd6;--docrule:rgba(0,0,0,.13);--quote:rgba(0,0,0,.045);--pickbg:rgba(26,127,55,.08);--pickline:rgba(26,127,55,.3);
+--bg:#f6f7f9;--drawer:#f6f7f9;--panel:#fff;--panel2:#eceff2;--rule:#d9dee4;--rule2:#c3cad2;--ink:#1f2328;--ink2:#57606a;--ink3:#7d8590;--signal:#0969da;--ok:#1a7f37;--onok:#fff;--bad:#cf222e;--needs:#9a6100;--code:#fff;--agent:#4a3fd6;--agentwash:rgba(74,63,214,.07);--agentline:rgba(74,63,214,.34);--winedge:rgba(0,0,0,.24);--shadow:0 26px 64px rgba(0,0,0,.22),0 3px 10px rgba(0,0,0,.10);--menu:rgba(250,250,251,.99);--sel:#0969da;--rowrule:rgba(31,35,40,.08);--selrow:rgba(9,105,218,.09);--tip:#2b2f36;--tipink:#f2f4f7;color-scheme:light}
+html[data-theme=dark]{--canvas:#101113;--docink:#e6edf3;--docink2:#a3acb6;--doclink:#7fb0e8;--docrule:rgba(255,255,255,.14);--quote:rgba(255,255,255,.05);--pickbg:rgba(63,185,80,.08);--pickline:rgba(63,185,80,.3);
+--bg:#1c2026;--drawer:#1c2026;--panel:#262b33;--panel2:#272d35;--rule:#30363f;--rule2:#414955;--ink:#e6edf3;--ink2:#a3acb6;--ink3:#7e8893;--signal:#7fb0e8;--ok:#3fb950;--onok:#0d1117;--bad:#f47067;--needs:#e0a23c;--code:#0d1117;--agent:#a3a0ff;--agentwash:rgba(163,160,255,.09);--agentline:rgba(163,160,255,.42);--winedge:rgba(255,255,255,.16);--shadow:0 26px 64px rgba(0,0,0,.6),0 3px 10px rgba(0,0,0,.4);--menu:rgba(39,45,53,.99);--sel:#1f6fd0;--rowrule:rgba(48,54,63,.55);--selrow:rgba(127,176,232,.10);--tip:#e9edf2;--tipink:#15181d;color-scheme:dark}
+
+/* ---------- the page around the frames ---------- */
+body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--docink);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1480px;margin:0 auto;padding:40px 40px 120px}
+.crumbs{display:flex;gap:18px;font-size:13.5px;margin:0 0 26px;color:var(--docink2)}
+.crumbs .themes{margin-left:auto}
+.wrap a{color:var(--doclink);text-decoration-thickness:1px;text-underline-offset:3px}
+.wrap a:focus-visible{outline:2px solid var(--doclink);outline-offset:3px;border-radius:3px}
+h1.doc{font-size:30px;line-height:1.14;font-weight:700;letter-spacing:-.022em;margin:0 0 10px}
+.lede{max-width:74ch;margin:0 0 8px;color:var(--docink2);font-size:16px;line-height:1.5}
+h2.doc{font-size:23px;font-weight:700;letter-spacing:-.016em;margin:76px 0 6px;padding-top:22px;border-top:1px solid var(--docrule)}
+h3.doc{font-size:17px;font-weight:680;letter-spacing:-.01em;margin:34px 0 4px}
+.say{max-width:76ch;margin:0 0 8px;color:var(--docink2)}
+.say b,.say code{color:var(--docink)}
+.wrap code{font:.92em "SF Mono",ui-monospace,Menlo,monospace}
+figure{margin:22px 0 14px}
+figure .scroll{overflow-x:auto;padding:6px 6px 40px;margin:0 -6px -22px}
+figcaption{max-width:84ch;margin:0;color:var(--docink2);font-size:14px;line-height:1.5}
+figcaption b{color:var(--docink);font-weight:650}
+.pngs{font-size:13px;margin:4px 0 0;color:var(--docink2)}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:6px 40px;max-width:1040px;margin:16px 0 0;padding:0}
+.trade dt{font-weight:650;margin:0 0 2px}
+.trade dd{margin:0;color:var(--docink2);font-size:14.5px;line-height:1.5}
+.trade ul{margin:0;padding-left:18px}
+.trade li{margin:0 0 4px}
+ul.plain{max-width:80ch;margin:8px 0 0;padding-left:20px;color:var(--docink2);font-size:14.5px}
+ul.plain li{margin:0 0 6px}
+ul.plain b{color:var(--docink)}
+.said{max-width:86ch;margin:14px 0 0;padding:12px 18px;border-radius:8px;background:var(--quote);font-size:14.5px;color:var(--docink2)}
+.said p{margin:0 0 8px}.said p:last-child{margin:0}
+.pick{max-width:80ch;margin:16px 0 0;padding:12px 16px;border-radius:8px;background:var(--pickbg);box-shadow:inset 0 0 0 1px var(--pickline);font-size:15px}
+.pick p{margin:0 0 8px}.pick p:last-child{margin:0}
+table.cmp{border-collapse:collapse;margin:14px 0 0;font-size:14px;max-width:1240px}
+table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:7px 18px 7px 0;border-bottom:1px solid var(--docrule)}
+table.cmp th{font-weight:650}
+table.cmp td{color:var(--docink2)}
+table.cmp td:first-child{color:var(--docink);font-weight:600;white-space:nowrap}
+body.shot{display:inline-block;padding:40px}
+body.shot .wrap{max-width:none;margin:0;padding:0}
+body.shot .doconly,body.shot figcaption{display:none}
+body.shot figure{display:none;margin:0}
+body.shot figure.sel{display:block}
+body.shot figure .scroll{overflow:visible;padding:0;margin:0}
+body.shot .bpr.win{box-shadow:0 0 0 .5px var(--winedge),0 10px 28px rgba(0,0,0,.16)}
+body.shot .pop{box-shadow:0 0 0 .5px var(--winedge),0 5px 14px rgba(0,0,0,.3)}
+body.shot .tip{box-shadow:0 2px 6px rgba(0,0,0,.3)}
+@media (max-width:760px){.wrap{padding:26px 18px 80px}.trade{grid-template-columns:1fr}}
+
+/* ---------- the window ---------- */
+.bpr{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;font:12.5px/16px var(--font);color:var(--ink);cursor:default;text-align:left}
+.bpr.win{position:relative;border-radius:12px;background:var(--bg);overflow:hidden;box-shadow:0 0 0 .5px var(--winedge),var(--shadow);display:flex;flex-direction:column}
+.bpr svg.i{flex:none;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block}
+.bpr .sp{flex:1}
+.bpr a{color:var(--signal);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--signal) 40%,transparent);text-underline-offset:2px}
+.tb1{flex:none;display:flex;align-items:center;gap:10px;height:38px;padding:0 12px 0 11px}
+.lights{display:flex;gap:8px;margin-right:10px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.lights i:nth-child(2){background:#febc2e}
+.lights i:nth-child(3){background:#28c840}
+.ib{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;border-radius:6px;color:var(--ink2)}
+.ib.on{box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink)}
+.ttl{flex:0 1 auto;min-width:0;margin-left:2px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl b{font-weight:500;color:var(--ink2);margin-right:8px}
+.seg{flex:none;display:inline-flex;height:24px;border-radius:7px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--rule)}
+.seg span{display:inline-flex;align-items:center;gap:6px;padding:0 11px;border-radius:6px;white-space:nowrap}
+.seg span i{font-style:normal;color:var(--ink3)}
+.seg span.on{background:var(--sel);color:#fff}
+.seg span.on i{color:rgba(255,255,255,.75)}
+.seg span.off{color:var(--ink3);opacity:.6}
+.seg.pk span{padding:0 7px}
+.seg.pk span.on{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule2)}
+.badge{flex:none;display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 9px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink2);font-size:11.5px;font-weight:500;white-space:nowrap}
+.badge svg.i{width:12px;height:12px}
+.badge .up{color:var(--needs);font-weight:600}
+.btn{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:24px;padding:0 11px;border-radius:6px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink);font-weight:500;white-space:nowrap}
+.btn.pri{background:var(--sel);color:#fff;box-shadow:none;font-weight:600}
+.btn.dis{opacity:.42}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--ink2);padding:0 8px}
+.btn.agent{color:var(--agent);box-shadow:inset 0 0 0 1px var(--agentline);background:var(--agentwash)}
+.btn.rb{min-width:108px;height:22px;padding:0 8px}
+.btn.sm{height:22px;padding:0 9px}
+.btn.hand{min-width:132px}
+.dd{flex:none;display:inline-flex;align-items:center;gap:12px;height:24px;padding:0 7px 0 11px;border-radius:6px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--rule2);white-space:nowrap}
+.dd svg.i{width:9px;height:13px;color:var(--ink2)}
+.dd.flat{height:22px;gap:6px;padding:0 4px 0 0;background:transparent;box-shadow:none;color:var(--ink2)}
+.vr{flex:none;width:1px;height:14px;background:var(--rule2)}
+.tb2{flex:none;display:flex;align-items:center;gap:14px;height:34px;padding:0 12px 0 14px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);background:var(--bg)}
+.tb2 .q{display:inline-flex;align-items:center;gap:6px;color:var(--ink2);white-space:nowrap}
+.tb2 .q svg.i{width:13px;height:13px}
+.tb2 .nv{display:inline-flex;align-items:center;gap:12px;font-size:13.5px;white-space:nowrap;padding:0 4px 5px;border-bottom:2px solid var(--signal);margin-bottom:-7px}
+.tb2 .nv svg.i{width:12px;height:12px;color:var(--ink2)}
+.tb2.cut{border-top:0;padding-left:10px;justify-content:flex-end;gap:10px}
+.pst{flex:none;display:inline-flex;align-items:center;gap:7px;color:var(--ink2);white-space:nowrap}
+.pst .pd{width:8px;height:8px;border-radius:50%;background:var(--ink3)}
+.pst.needs{color:var(--needs)}.pst.needs .pd{background:var(--needs)}
+.pst.bad{color:var(--bad)}.pst.bad .pd{background:var(--bad)}
+.pst.ok .pd{background:var(--ok)}
+.pst.pbtn{height:24px;padding:0 6px 0 10px;border-radius:6px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--rule2)}
+.pst.pbtn.open{background:var(--selrow);box-shadow:inset 0 0 0 1px var(--signal)}
+.pst.pbtn svg.i{width:10px;height:10px;color:var(--ink2);margin-left:2px}
+.main{flex:1;min-height:0;display:flex;position:relative}
+.drawer{flex:none;display:flex;flex-direction:column;background:var(--drawer);border-left:1px solid var(--rule)}
+.drawer.full{border-left:0}
+.dtabs{flex:none;display:flex;align-items:flex-end;padding:6px 10px 0;height:33px;border-bottom:1px solid var(--rule);background:var(--code)}
+.dtabs span.t{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 13px;border:1px solid var(--rule);border-bottom:none;border-left-width:0;color:var(--ink2);background:var(--bg);font-weight:500}
+.dtabs span.t:first-child{border-left-width:1px;border-top-left-radius:6px}
+.dtabs span.t.last{border-top-right-radius:6px}
+.dtabs span.t.on{color:var(--ink);background:var(--drawer);box-shadow:inset 0 2px 0 var(--signal);font-weight:600}
+.dtabs .n{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;font-size:11px;font-weight:650;color:var(--needs);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--needs) 55%,transparent)}
+.dtabs .n.bad{color:var(--bad);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 55%,transparent)}
+.dtabs .tools{margin-left:auto;display:flex;gap:2px;padding-bottom:3px;color:var(--ink2)}
+.sbar{flex:none;display:flex;align-items:center;gap:10px;height:28px;padding:0 12px 0 6px;border-top:1px solid var(--rule);background:var(--bg);white-space:nowrap}
+.sbar .dif{flex:none;width:19px;height:23px;margin:0 2px 1px 3px;background:url(data:image/png;base64,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) center/contain no-repeat}
+.sbar .msg{font-size:13px}
+.sbar .amber{color:var(--needs)}
+.sbar .fresh{color:var(--ink3)}
+.apill{flex:none;display:inline-flex;align-items:center;gap:7px;height:21px;padding:0 6px 0 10px;border-radius:10.5px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--rule)}
+.apill svg.i{width:8px;height:12px;color:var(--ink2)}
+.apill .q{color:var(--ink2)}
+
+/* ---------- Overview's main column ---------- */
+.ov{flex:1;min-width:0;background:var(--bg);padding:16px 22px 0;overflow:hidden}
+.ov .trow{display:flex;align-items:center;gap:9px}
+.ov h1{font-size:19px;line-height:1.25;font-weight:700;letter-spacing:-.012em;margin:0}
+.chip{flex:none;display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px 0 7px;border-radius:10px;background:var(--panel2);color:var(--ink2);font-weight:600;font-size:12px}
+.chip i{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--ink3)}
+.chip.open{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.chip.open i{box-shadow:none;background:var(--ok)}
+.wants{color:var(--ink3);font-size:13px;margin:5px 0 8px}
+.tech{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:5px;background:var(--panel2);font-weight:500;font-size:12px}
+.tech::before{content:"";border:4px solid transparent;border-left:6px solid var(--ink);border-right:0}
+.descp{position:relative;margin-top:10px;border-radius:6px;background:var(--code);padding:11px 44px 3px 14px;font-size:13px;line-height:1.5}
+.descp h3{font-size:13px;font-weight:650;margin:0 0 2px}
+.descp p{margin:0 0 9px}
+.descp code{font:11.5px var(--mono);background:var(--panel2);padding:1px 4px;border-radius:3px}
+.descp .edit{position:absolute;top:8px;right:10px;color:var(--ink2)}
+.nodesc{display:flex;align-items:center;gap:12px;margin-top:10px;font-size:13px}
+.fl{margin-top:14px}
+.fl .cap{display:flex;align-items:center;gap:10px;color:var(--ink3);font-weight:600;font-size:13px;margin-bottom:6px;min-height:24px}
+.fl .cap .dd.flat{font-weight:500}
+.fl .cap .rev{font-weight:400;font:11px var(--mono)}
+.fl .cap .hd{color:var(--ink)}
+table.files{width:100%;border-collapse:collapse;font-size:13px}
+table.files th{text-align:left;font-weight:600;padding:4px 8px;white-space:nowrap}
+table.files td{padding:0 8px;height:25px;white-space:nowrap;background:var(--code)}
+table.files tr + tr td{border-top:1px solid var(--rowrule)}
+table.files td:first-child{width:230px}
+table.files th.r,table.files td.p,table.files td.m{text-align:right;width:76px}
+table.files td.p{color:var(--ok)}
+table.files td.m{color:var(--bad)}
+table.files tr.grp td{color:var(--ink2)}
+.fb{flex:none;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3.5px;font:700 9.5px/1 var(--font);box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink2);vertical-align:middle;margin:-2px 9px 0 0}
+.fb.a{background:var(--ok);color:var(--onok);box-shadow:none}
+.gn{color:var(--ink3);margin-right:8px}
+.rd{display:inline-block;width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1.3px var(--ink3);vertical-align:-1px}
+
+/* ---------- the checklist: marks, rows, groups ---------- */
+.mk{flex:none;width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-top:0}
+.bpr .mk svg.i{width:10px;height:10px;stroke-width:2.2}
+.mk.todo{box-shadow:inset 0 0 0 1.5px var(--rule2)}
+.mk.off{border:1.5px dotted var(--rule2)}
+.mk.note{background:radial-gradient(circle,var(--ink3) 0 2.5px,transparent 3.1px)}
+.mk.now{box-shadow:inset 0 0 0 1.5px var(--needs);background:radial-gradient(circle,var(--needs) 0 3px,transparent 3.6px)}
+.mk.done{background:var(--ok);color:var(--onok)}
+.mk.fail{background:var(--bad);color:var(--onok)}
+.mk.busy{box-shadow:inset 0 0 0 1.5px var(--signal);background:conic-gradient(var(--signal) 0 30%,transparent 30%)}
+.mk.rep{box-shadow:inset 0 0 0 1.5px var(--ok);color:var(--ok)}
+.mk.repfail{box-shadow:inset 0 0 0 1.5px var(--bad);color:var(--bad)}
+.mk.stale{border:1.5px dashed var(--needs);color:var(--needs)}
+.bpr .mk.stale svg.i{width:9px;height:9px;stroke-width:1.9}
+.mk.wait{box-shadow:inset 0 0 0 1.5px var(--signal);color:var(--signal)}
+.mk.run{box-shadow:inset 0 0 0 1.5px var(--agentline);background:conic-gradient(var(--agent) 0 30%,transparent 30%)}
+.stat{flex:1;min-height:0;padding:13px 14px 12px}
+.hd{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:650;min-height:22px}
+.hd .r{margin-left:auto;font-size:12.5px;font-weight:400;color:var(--ink2);white-space:nowrap}
+.bigdot{flex:none;width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--ink3)}
+.bigdot.now{box-shadow:inset 0 0 0 2px var(--needs)}
+.bigdot.bad{box-shadow:inset 0 0 0 2px var(--bad)}
+.bigdot.ok{background:var(--ok);box-shadow:none}
+.gc{display:flex;align-items:center;gap:8px;margin:15px 0 3px;font-size:12px;font-weight:650;color:var(--ink2);min-height:18px}
+.pubr{display:flex;align-items:center;gap:11px;margin:2px 0 4px;color:var(--ink2);white-space:nowrap}
+.rad{display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
+.rad::before{content:"";width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1.3px var(--rule2);background:var(--panel)}
+.rad.on::before{box-shadow:none;background:radial-gradient(circle,#fff 0 2.3px,var(--sel) 2.9px)}
+.row{position:relative;display:flex;gap:9px;padding:5px 0}
+.row.one .nm{white-space:nowrap}
+.row .bd{flex:1;min-width:0}
+.row .l1{display:flex;align-items:baseline;gap:8px}
+.row .nm{font-weight:500;font-size:13px}
+.row .l1 .st{margin-left:auto;text-align:right;color:var(--ink2);padding-left:8px}
+.row.dim .nm{color:var(--ink3);font-weight:400}
+.row.dim .st{color:var(--ink3)}
+.row .l2{display:flex;align-items:center;gap:6px;min-height:22px;margin-top:3px;color:var(--ink2)}
+.row .l2 .st{flex:1;min-width:0}
+.st.bad{color:var(--bad)}.st.needs{color:var(--needs)}
+.who{flex:none;display:inline-flex;color:var(--ink3)}
+.bpr .who svg.i{width:13px;height:13px;stroke-width:1.4}
+.who.ag{color:var(--agent)}
+.tag{flex:none;display:inline-flex;align-items:center;height:16px;padding:0 6px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--rule2);color:var(--ink2);font-size:11px;font-weight:500;position:relative;top:-1px}
+.det{color:var(--ink2);margin-top:2px}
+.cmd{margin-top:6px}
+.cmd code{display:block;font:11px/16px var(--mono);color:var(--ink);background:var(--code);box-shadow:inset 0 0 0 1px var(--rule2);border-radius:6px;padding:5px 9px;overflow-wrap:anywhere}
+.cmd.one{display:flex;align-items:center;gap:6px}
+.cmd.one code{flex:1;min-width:0;height:22px;padding:3px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acts{display:flex;gap:6px;margin:7px 0 2px}
+.wff{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:9px;border-top:1px solid var(--rule);min-height:32px;color:var(--ink2)}
+.wff .lbl{color:var(--ink3)}
+.wff .rev{margin-left:auto;font:11px var(--mono);color:var(--ink3)}
+.wff .btn.quiet{padding:0;height:22px;color:var(--signal)}
+.tip{position:absolute;z-index:40;padding:4px 8px;border-radius:5px;background:var(--tip);color:var(--tipink);font-size:11.5px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+
+/* ---------- B: today's Status sections, and the Workflow tab ---------- */
+.role{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:650}
+.av{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#0d1117;background:#4cc2d6;box-shadow:0 0 0 1.5px var(--drawer),0 0 0 2.5px var(--rule2)}
+.av.a{background:#e79acb}.av.d{background:#e59a55}
+.sec{display:flex;align-items:center;margin:16px 0 4px;font-size:12px;font-weight:650;color:var(--ink)}
+.sec .c{margin-left:auto;color:var(--ink3);font-weight:500}
+.sec::after{content:"";margin-left:8px;border:3.5px solid transparent;border-left:5px solid var(--ink3);border-right:0}
+.att{display:flex;gap:8px;padding:2px 0;font-size:13.5px}
+.att i{flex:none;width:9px;height:9px;border-radius:50%;margin-top:5px;background:var(--needs)}
+.att i.bad{background:var(--bad)}.att i.sig{background:var(--signal)}
+.att div span{color:var(--ink3);font-size:12.5px;display:block}
+.att .go{margin-left:auto;align-self:center}
+.meter{height:4px;border-radius:2px;background:var(--rule);margin:6px 0 5px;overflow:hidden;display:flex}
+.meter b{display:block;height:100%;background:var(--ok)}
+.meter b.bad{background:var(--bad)}.meter b.run{background:var(--signal)}
+.faces{display:flex;align-items:center;gap:8px;color:var(--ink2);margin:4px 0 8px}
+.wsel{display:flex;align-items:center;justify-content:space-between;height:24px;padding:0 7px 0 10px;border-radius:6px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--rule2)}
+.wsel svg.i{width:9px;height:13px;color:var(--ink2)}
+.wfrom{margin:5px 0 0;color:var(--ink2)}
+.wfrom code{font:11px var(--mono);color:var(--ink3)}
+.empty{color:var(--ink2);font-size:13px;margin:2px 0 10px}
+
+/* ---------- C: the checklist as a table in Overview ---------- */
+table.todo{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+table.todo th{text-align:left;font-weight:600;padding:4px 8px;white-space:nowrap}
+table.todo td{padding:5px 8px;vertical-align:top;background:var(--code)}
+table.todo tr + tr td{border-top:1px solid var(--rowrule)}
+table.todo tr.grp td{color:var(--ink2);padding:4px 8px}
+table.todo tr.grp .pubr{display:inline-flex;margin:0 0 0 18px}
+table.todo td.step > div{display:flex;gap:9px;align-items:flex-start}
+table.todo td.step .nm{font-weight:500}
+table.todo tr.dim td{color:var(--ink3)}
+table.todo tr.dim td.step .nm{font-weight:400}
+table.todo td.step .tag{top:1px}
+table.todo td.by{color:var(--ink2);white-space:nowrap}
+table.todo td.by.ag{color:var(--agent)}
+table.todo td.state{color:var(--ink2)}
+table.todo td.state .cmd{margin:5px 0 2px}
+table.todo td.state .acts{margin:6px 0 2px}
+table.todo td.act{text-align:right;white-space:nowrap}
+table.todo td.act .btn{vertical-align:top;margin-top:-2px}
+
+/* ---------- D: the popover ---------- */
+.pop{position:absolute;z-index:30;width:356px;padding:12px 14px 10px;border-radius:10px;background:var(--menu);box-shadow:0 0 0 .5px var(--winedge),0 14px 38px rgba(0,0,0,.3)}
+.pop::before{content:"";position:absolute;top:-6px;right:var(--nib,206px);width:12px;height:12px;background:var(--menu);transform:rotate(45deg);box-shadow:-.5px -.5px 0 var(--winedge)}
+.pop .wff{margin-top:10px}
+
+/* ---------- boards of slices ---------- */
+.frame{display:inline-block}
+.case{margin:0 0 14px;font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--docink2);max-width:1200px}
+.case b{color:var(--docink);font-weight:700;font-size:17px;margin-right:8px}
+.board{display:flex;gap:26px 24px;align-items:flex-start;margin:0 0 44px}
+.board.wrap2{flex-wrap:wrap;width:1624px}
+.board:last-child{margin-bottom:0}
+.lab{min-height:37px;display:flex;flex-wrap:wrap;align-content:flex-end;column-gap:5px;margin:0 0 8px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--docink2)}
+.lab b{color:var(--docink);font-weight:650}
+.slice{position:relative;border-radius:10px;background:var(--bg);box-shadow:0 0 0 .5px var(--winedge),0 10px 28px rgba(0,0,0,.14);overflow:hidden}
+.slice .drawer{border-left:0}
+.slice.under{background:var(--code);overflow:visible}
+.slice.under > .tb2{border-radius:10px 10px 0 0}
+.key{display:grid;grid-template-columns:repeat(3,1fr);gap:0 28px;width:880px;padding:16px 20px 14px}
+.key h6{margin:0 0 6px;font-size:12px;font-weight:650;color:var(--ink2)}
+.key .kr{display:flex;align-items:center;gap:9px;height:25px;font-size:13px}
+.key .kr span.x{color:var(--ink3);margin-left:auto;font-size:12px}
+.key .handoffs{grid-column:1 / -1;margin-top:12px;padding-top:12px;border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(3,1fr);gap:0 28px}
+.key .handoffs div{display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+.key .handoffs span.c{color:var(--ink2)}
+</style><script>var q=new URLSearchParams(location.search),t=q.get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;document.addEventListener('DOMContentLoaded',function(){var f=q.get('frame');if(f){document.body.classList.add('shot');var e=document.querySelector('[data-frame="'+f+'"]');if(e)e.classList.add('sel');}});</script></head><body><div class="wrap">
+<p class="crumbs doconly"><a href="README.md">README</a><span class="themes"><a href="?theme=light">Light</a> &nbsp; <a href="?theme=dark">Dark</a></span></p>
+
+<header class="doconly">
+<h1 class="doc">The author's checklist: four places it could live</h1>
+<p class="lede">The Workflow area took over a local draft's Status drawer and turned it into a wall of paragraphs, one for every action. The owner rejected it, then widened the question from the drawer to authoring as a whole.</p>
+<div class="said">
+<p>&ldquo;What the heck happend to my status drawer?&rdquo;</p>
+<p>&ldquo;I mean if we don't need status tab then we don't need it here. If there's information that isn't relevant we don't need to keep it. This looks to be the PR Authoring workflow so make sure whatever we design works for a Local PR, an existing Draft PR that we own, and a live PR we need to make revisions to.&rdquo;</p>
+</div>
+<p class="say" style="margin-top:14px">Mockups only. No product code changed. Every frame is drawn in the application's dark and light themes; the content is invented, and the workflow is the repository's synthetic organization fixture.</p>
+</header>
+
+<section class="doconly">
+<h2 class="doc">What the four options share</h2>
+<ul class="plain">
+<li><b>One checklist, three handoffs.</b> An author's window answers one question: what is left before I hand this over? For a local draft the handoff is Create Draft PR&hellip;, for a draft pull request it is Ready for review, and for an open pull request that came back from review it is Publish response&hellip;. The handoff is one button at the right end of the review bar, where Submit review sits for a reviewer.</li>
+<li><b>A workflow adds rows, not a panel.</b> Its actions are rows among the author's other steps, in the order of the workflow file. Without a workflow the list is shorter and one quiet control offers the workflow.</li>
+<li><b>Who runs a row is said once.</b> An agent action runs in BetterPullReview and wears the agent accent. A companion action is one you run in your own terminal: pressing Hand off shows the exact command with Copy. Each kind has one glyph and one tooltip; no row repeats the explanation.</li>
+<li><b>Trust is in the mark.</b> A filled mark means BetterPullReview saw it itself, on this computer or on GitHub. An outlined mark means a companion reported it, and the words say Reported. Nothing a companion returns is drawn filled.</li>
+<li><b>Removed, in every option.</b> What is sent (the Create Draft PR&hellip; sheet already shows it before anything is sent), My review (files read and comments in review are a reviewer's), the two truncated pickers and every per-action paragraph. People becomes one Reviewers row.</li>
+</ul>
+</section>
+
+<figure data-frame="model"><div class="scroll" id="f-model"></div>
+<figcaption class="doconly"><b>The marks and the three handoffs.</b> Filled is seen, outlined is reported. Renders: <a href="png/model-dark.png">dark</a>, <a href="png/model-light.png">light</a>.</figcaption></figure>
+
+<section>
+<h2 class="doc doconly">A, One list: the Status tab becomes the author's checklist</h2>
+<p class="say doconly">The drawer keeps one tab and it holds one list: a headline that says where the pull request stands, then every step in small groups. The workflow's actions are rows in Prepare. The workflow's name and revision sit in a quiet line at the foot, which is also where a draft without one offers it.</p>
+<figure data-frame="a-window"><div class="scroll" id="f-a-window"></div>
+<figcaption class="doconly"><b>A, in the window.</b> A local draft with a required check reported not met and the org tool chosen as publisher. The tooltip on the outlined mark is the whole trust statement. Renders: <a href="png/a-window-dark.png">dark</a>, <a href="png/a-window-light.png">light</a>.</figcaption></figure>
+<figure data-frame="a-local"><div class="scroll" id="f-a-local"></div>
+<figcaption class="doconly"><b>A, a local draft.</b> Each slice is the right end of the review bar over the drawer. Renders: <a href="png/a-local-dark.png">dark</a>, <a href="png/a-local-light.png">light</a>.</figcaption></figure>
+<figure data-frame="a-draft"><div class="scroll" id="f-a-draft"></div>
+<figcaption class="doconly"><b>A, a draft pull request I own.</b>  Renders: <a href="png/a-draft-dark.png">dark</a>, <a href="png/a-draft-light.png">light</a>.</figcaption></figure>
+<figure data-frame="a-live"><div class="scroll" id="f-a-live"></div>
+<figcaption class="doconly"><b>A, my open pull request, sent back.</b>  Renders: <a href="png/a-live-dark.png">dark</a>, <a href="png/a-live-light.png">light</a>.</figcaption></figure>
+<dl class="trade doconly">
+<div><dt>Gives</dt><dd><ul><li>One place, always in view on Overview, that reads top to bottom as what is left.</li><li>The publisher choice sits on the publish steps it changes.</li><li>The same list grows from a local draft to a pull request under review; nothing is relearned.</li><li>Closest to what the drawer was: the publish steps are still there.</li></ul></dd></div>
+<div><dt>Costs</dt><dd><ul><li>The drawer is 340 points wide, so an action takes two lines and a command is cut short in its field.</li><li>With a workflow and feedback the list reaches about 560 points and scrolls in a short window.</li><li>Showing a command moves the rows under it.</li><li>The Status tab is on Overview only, so the list is out of view in Review.</li></ul></dd></div>
+</dl>
+</section>
+
+<section>
+<h2 class="doc doconly">B, Workflow tab: Status as it is, and a second tab for the workflow</h2>
+<p class="say doconly">The smallest change. Status stays what the application shows today, less the parts an author does not use, and the workflow gets its own tab beside it. The tab's label counts what the workflow still needs, and Status gains one line that opens it.</p>
+<figure data-frame="b-window"><div class="scroll" id="f-b-window"></div>
+<figcaption class="doconly"><b>B, in the window.</b> The Workflow tab is selected. Renders: <a href="png/b-window-dark.png">dark</a>, <a href="png/b-window-light.png">light</a>.</figcaption></figure>
+<figure data-frame="b-local"><div class="scroll" id="f-b-local"></div>
+<figcaption class="doconly"><b>B, a local draft.</b> The first slice is the Status tab, which the workflow changes by one line. The other four are the Workflow tab. Renders: <a href="png/b-local-dark.png">dark</a>, <a href="png/b-local-light.png">light</a>.</figcaption></figure>
+<figure data-frame="b-draft"><div class="scroll" id="f-b-draft"></div>
+<figcaption class="doconly"><b>B, a draft pull request I own.</b>  Renders: <a href="png/b-draft-dark.png">dark</a>, <a href="png/b-draft-light.png">light</a>.</figcaption></figure>
+<figure data-frame="b-live"><div class="scroll" id="f-b-live"></div>
+<figcaption class="doconly"><b>B, my open pull request, sent back.</b>  Renders: <a href="png/b-live-dark.png">dark</a>, <a href="png/b-live-light.png">light</a>.</figcaption></figure>
+<dl class="trade doconly">
+<div><dt>Gives</dt><dd><ul><li>Status is untouched by a workflow, whatever the workflow holds.</li><li>The workflow has a whole tab: room for the full name, the revision and a command.</li><li>Least to build: the rejected area moves to its own tab and is cut down to rows.</li></ul></dd></div>
+<div><dt>Costs</dt><dd><ul><li>Two places to look. What is left is split by where it comes from, not by what to do next.</li><li>The publisher is chosen in one tab and changes the steps in the other.</li><li>A draft without a workflow still carries the tab, or the tab comes and goes.</li><li>Status keeps today's sections, which were made for a reviewer; the feedback rows of an open pull request have no home here.</li></ul></dd></div>
+</dl>
+</section>
+
+<section>
+<h2 class="doc doconly">C, Overview table: the checklist is a table over Files, and the Status tab goes</h2>
+<p class="say doconly">The checklist moves into Overview's main column as a table in the Files table's manner: Step, Run by, State and one button. The author's Overview has no Status tab at all. Run by says who acts in a word, so no glyph has to be learned, and a command fits on one line.</p>
+<figure data-frame="c-window"><div class="scroll" id="f-c-window"></div>
+<figcaption class="doconly"><b>C, in the window.</b> No drawer on Overview. Renders: <a href="png/c-window-dark.png">dark</a>, <a href="png/c-window-light.png">light</a>.</figcaption></figure>
+<figure data-frame="c-local"><div class="scroll" id="f-c-local"></div>
+<figcaption class="doconly"><b>C, a local draft.</b> Each slice is Overview’s main column at half width, with the description left out and the Files heading under the table. Renders: <a href="png/c-local-dark.png">dark</a>, <a href="png/c-local-light.png">light</a>.</figcaption></figure>
+<figure data-frame="c-draft"><div class="scroll" id="f-c-draft"></div>
+<figcaption class="doconly"><b>C, a draft pull request I own.</b>  Renders: <a href="png/c-draft-dark.png">dark</a>, <a href="png/c-draft-light.png">light</a>.</figcaption></figure>
+<figure data-frame="c-live"><div class="scroll" id="f-c-live"></div>
+<figcaption class="doconly"><b>C, my open pull request, sent back.</b>  Renders: <a href="png/c-live-dark.png">dark</a>, <a href="png/c-live-light.png">light</a>.</figcaption></figure>
+<dl class="trade doconly">
+<div><dt>Gives</dt><dd><ul><li>The most room: one line per step, and who runs it in plain words.</li><li>No Status tab for an author, and nothing kept that is not about authoring.</li><li>A table the application already has, beside the one the author reads next.</li></ul></dd></div>
+<div><dt>Costs</dt><dd><ul><li>It pushes Files down by its own height: about 200 points for a local draft with a workflow, about 330 for an open pull request.</li><li>Overview only, like A.</li><li>The description and the list of what is left compete for the top of the page.</li><li>Showing a command grows its row and moves the rows under it.</li></ul></dd></div>
+</dl>
+</section>
+
+<section>
+<h2 class="doc doconly">D, Header popover: the handoff's status is a button</h2>
+<p class="say doconly">The status beside the handoff button becomes a button itself. It says what is left in a few words and opens the checklist as a popover. There is no Status tab, the window's layout does not change, and the status is in view on every tab.</p>
+<figure data-frame="d-window"><div class="scroll" id="f-d-window"></div>
+<figcaption class="doconly"><b>D, in the window.</b> The popover is open over Overview. Renders: <a href="png/d-window-dark.png">dark</a>, <a href="png/d-window-light.png">light</a>.</figcaption></figure>
+<figure data-frame="d-local"><div class="scroll" id="f-d-local"></div>
+<figcaption class="doconly"><b>D, a local draft.</b> Each slice is the right end of the review bar with the popover open. Renders: <a href="png/d-local-dark.png">dark</a>, <a href="png/d-local-light.png">light</a>.</figcaption></figure>
+<figure data-frame="d-draft"><div class="scroll" id="f-d-draft"></div>
+<figcaption class="doconly"><b>D, a draft pull request I own.</b>  Renders: <a href="png/d-draft-dark.png">dark</a>, <a href="png/d-draft-light.png">light</a>.</figcaption></figure>
+<figure data-frame="d-live"><div class="scroll" id="f-d-live"></div>
+<figcaption class="doconly"><b>D, my open pull request, sent back.</b>  Renders: <a href="png/d-live-dark.png">dark</a>, <a href="png/d-live-light.png">light</a>.</figcaption></figure>
+<dl class="trade doconly">
+<div><dt>Gives</dt><dd><ul><li>In view from Overview, Review, Discuss and Threads; the others are Overview only.</li><li>Nothing in the window moves, and Overview's whole width goes to the description and Files.</li><li>The status and the handoff are side by side, so the button's state is explained where it is.</li></ul></dd></div>
+<div><dt>Costs</dt><dd><ul><li>Closed, it shows a few words. Which step is waiting takes a press.</li><li>A handoff is copy the command, run it in a terminal, come back and read the answer. A popover closes when the application loses focus, so the author reopens it to finish.</li><li>A tall popover over an open pull request covers the code it is about.</li><li>Ready for review moves from the title's line to the bar.</li></ul></dd></div>
+</dl>
+</section>
+
+<section class="doconly">
+<h2 class="doc">Side by side</h2>
+<table class="cmp">
+<tr><th></th><th>Where the checklist is</th><th>Status tab</th><th>In view from</th><th>A command to copy</th><th>Without a workflow</th></tr>
+<tr><td>A, One list</td><td>The drawer's Status tab</td><td>Kept, as the checklist</td><td>Overview</td><td>Under its row, on one line</td><td>The publish steps and one link</td></tr>
+<tr><td>B, Workflow tab</td><td>A second drawer tab, for the workflow's rows only</td><td>Kept, as today</td><td>Overview</td><td>Under its row, on one line</td><td>An empty tab with one button</td></tr>
+<tr><td>C, Overview table</td><td>A table over Files</td><td>Removed</td><td>Overview</td><td>In its row, on one line</td><td>A short table and one link</td></tr>
+<tr><td>D, Header popover</td><td>A popover from the review bar</td><td>Removed</td><td>Every tab</td><td>Under its row; the popover closes when you leave</td><td>A few words beside the button</td></tr>
+</table>
+
+<h2 class="doc">What the application lacks today</h2>
+<ul class="plain">
+<li><b>A workflow belongs to a local draft.</b> A pull request that never had one has no workflow rows until a worktree is associated with it, which RFC-BPR-0122 proposes and nothing builds yet.</li>
+<li><b>The feedback rows are proposed, not built.</b> Address feedback (RFC-BPR-0122), the agent's evaluation and replies (RFC-BPR-0123) and Publish response&hellip; with its re-request (RFC-BPR-0124) are Proposed. Today the author has Threads, reply drafts, Resolve and Request review.</li>
+<li><b>Since a reviewer's review is the reviewer's question today.</b> RFC-BPR-0116 answers it for the person who reviewed. The author's row needs the same comparison from the other side.</li>
+<li><b>The author sees a reviewer's drawer.</b> Overview shows My review to the person who opened the pull request.</li>
+<li><b>Ready for review ends the title's line</b> (BPR-1852). Every option moves or repeats it at the right end of the review bar.</li>
+</ul>
+
+<h2 class="doc">Recommendation</h2>
+<div class="pick">
+<p><b>A, One list</b>, keeping the status words beside the handoff button that the accepted local-draft design already has.</p>
+<p>It answers both of the owner's remarks. The drawer shows status again, and only an author's status: the publish steps stay, the reviewer's sections go. It is the only option where the publisher sits on the steps it changes, and the same list serves a local draft, a draft pull request and a pull request sent back, growing a group at a time. Its cost is width. If the two-line rows read as cramped in the look, C is the same list with room, at the price of pushing Files down.</p>
+</div>
+</section>
+</div>
+<script>/* One checklist model, drawn four ways. Content is invented; the workflow is the repository's
+   synthetic organization fixture (tests/fixtures/workflow_companion). */
+(function(){
+'use strict';
+var P={
+ home:'<path d="M2.5 7.6 8 3l5.5 4.6V13h-3.6V9.6H6.1V13H2.5z"/>',
+ list:'<rect x="2.5" y="3" width="11" height="10" rx="1.6"/><path d="M5 6h6M5 8.2h6M5 10.4h3.5"/>',
+ side:'<rect x="2.5" y="3" width="11" height="10" rx="1.6"/><path d="M6.3 3v10"/>',
+ rside:'<rect x="2.5" y="3" width="11" height="10" rx="1.6"/><path d="M9.7 3v10"/>',
+ ext:'<path d="M9.2 3H13v3.8M13 3 7.6 8.4M11 9.4V13H3V5h3.6"/>',
+ branch:'<circle cx="5" cy="3.8" r="1.4"/><circle cx="5" cy="12.2" r="1.4"/><circle cx="11" cy="5.4" r="1.4"/><path d="M5 5.2v5.6M11 6.8c0 2.6-6 1.4-6 4"/>',
+ l:'<path d="M10 3.5 5.5 8l4.5 4.5"/>', r:'<path d="M6 3.5 10.5 8 6 12.5"/>',
+ ll:'<path d="M8 3.5 3.5 8 8 12.5M12.5 3.5 8 8l4.5 4.5"/>', rr:'<path d="M3.5 3.5 8 8l-4.5 4.5M8 3.5 12.5 8 8 12.5"/>',
+ ud:'<path d="M2 5.5 4.5 3 7 5.5M2 10.5 4.5 13 7 10.5" transform="translate(3.5 0)"/>',
+ down:'<path d="M3.5 6 8 10.5 12.5 6"/>',
+ check:'<path d="M3.4 8.3l3 3 6.2-6.6"/>', x:'<path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8"/>',
+ term:'<rect x="2" y="3" width="12" height="10" rx="1.8"/><path d="M4.8 6.4 6.9 8 4.8 9.6M8.4 10h2.6"/>',
+ spark:'<path d="M8 2.4l1.4 4.2L13.6 8l-4.2 1.4L8 13.6 6.6 9.4 2.4 8l4.2-1.4z"/>',
+ out:'<path d="M5.4 10.6l5-5M6.4 5.4h4.2v4.2"/>',
+ redo:'<path d="M12 7A4.2 4.2 0 1 0 12.2 9.4M12.4 3.4V7H8.8"/>',
+ refresh:'<path d="M3.2 8a4.8 4.8 0 1 1 1.5 3.5M3 12.6V9.4h3.2"/>',
+ person:'<circle cx="8" cy="5.6" r="2.4"/><path d="M3.4 13c.5-2.4 2.3-3.6 4.6-3.6s4.1 1.2 4.6 3.6"/>',
+ sun:'<circle cx="8" cy="8" r="2.6"/><path d="M8 2v1.6M8 12.4V14M2 8h1.6M12.4 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M3.8 12.2l1.1-1.1M11.1 4.9l1.1-1.1"/>',
+ pencil:'<path d="M3 13l.6-2.8L10.8 3l2.2 2.2-7.2 7.2z"/>',
+ two:'<rect x="2.5" y="3.5" width="11" height="9" rx="1.4"/><path d="M8 3.5v9"/>',
+ one:'<rect x="2.5" y="3.5" width="11" height="9" rx="1.4"/><path d="M5 6.5h6M5 9.5h6"/>',
+ edit:'<rect x="2.5" y="3.5" width="11" height="9" rx="1.4"/><path d="M5 6.5h3M5 9.5h6"/>',
+ pop:'<path d="M9.2 3H13v3.8M13 3 8.4 7.6M11.4 9.2V13H3V4.6h3.8"/>'
+};
+function svg(k){return '<svg class="i" viewBox="0 0 16 16">'+P[k]+'</svg>';}
+
+/* Tooltips: the suite's rule is 60 characters or fewer, no semicolon, no line break. */
+var TIP={
+ done:'BetterPullReview saw this itself',
+ fail:'BetterPullReview saw this itself',
+ busy:'GitHub is still running it',
+ rep:'Reported by the companion, not observed by BetterPullReview',
+ repfail:'Reported by the companion, not observed by BetterPullReview',
+ wait:'Handed off. The answer comes from your terminal',
+ stale:'It ran on an earlier candidate',
+ run:'Writer is working in BetterPullReview',
+ todo:'Not done on this candidate',
+ off:'Not possible yet',
+ now:'Yours to do',
+ note:'For your information',
+ term:'Runs in your terminal, where you approve what it does',
+ agent:'Writer runs this in BetterPullReview and can only propose',
+ req:'This workflow needs it before its publisher gets the plan',
+ pubBpr:'Does not run this workflow’s checks',
+ pubOrg:'You run the org tool in your terminal with the exact plan',
+ rev:'From Synthetic Org, revision 363f805d21d0',
+ use:'Optional. Selecting it runs nothing',
+ handoff:'Writes the request and shows the command to run',
+ ask:'Asks Writer here. It reads only what it is sent',
+ read:'Reads the answer file the companion wrote',
+ pill:'What is left before the next handoff',
+ made:'Reported by the org tool, then read on GitHub'
+};
+window.BPR_TIPS=TIP;
+var MG={done:'check',rep:'check',fail:'x',repfail:'x',stale:'redo',wait:'out'};
+function mk(m,k){return '<span class="mk '+m+'" title="'+TIP[k||m]+'">'+(MG[m]?svg(MG[m]):'')+'</span>';}
+
+var CMD='python3 ~/tools/synthetic_org_companion.py --request ~/.bpr/handoff/template-3.request.json --response ~/.bpr/handoff/template-3.response.json';
+var PUSH='git push git@github.com:bpr-fixtures/engine.git feature/search-results';
+var ACT={
+ ctx:{n:'Gather the ticket’s context',who:'term',wf:1},
+ desc:{n:'Draft the description in the house style',who:'agent',wf:1},
+ tmpl:{n:'Check the pull request template',who:'term',req:1,wf:1},
+ plan:{n:'Hand the plan to the org tool',who:'term',wf:1},
+ follow:{n:'Link the ticket and upload the screenshot',who:'term',wf:1}
+};
+function a(k,o){var r={},p;for(p in ACT[k])r[p]=ACT[k][p];for(p in o)r[p]=o[p];return r;}
+function f(m,n,who,s,o){var r={m:m,n:n,who:who,s:s},p;for(p in (o||{}))r[p]=o[p];return r;}
+
+var pushNow=f('now','Push feature/search-results','you','',{cmd:PUSH,acts:['Copy','Check GitHub']});
+var createTodo=f('todo','Create the draft pull request','bpr','',{dim:1});
+var tourTodo=f('todo','Publish the tour','bpr','1 to accept',{dim:1});
+var followOff=a('follow',{m:'off',s:'After the pull request exists',dim:1});
+var ctxNew=a('ctx',{m:'todo',s:'Not run',b:'Hand off'});
+var descNew=a('desc',{m:'todo',s:'Not run',b:'Ask Writer',ba:'agent'});
+var tmplNew=a('tmpl',{m:'todo',s:'Not run',b:'Hand off'});
+var followNew=a('follow',{m:'todo',s:'Not run',b:'Hand off'});
+var ctxRep=a('ctx',{m:'rep',s:'Reported',det:'PROJ-482, Search shows the best match first',b:'Hand off again'});
+var descDone=a('desc',{m:'done',s:'Accepted',b:'Ask Writer',ba:'agent'});
+var followRep=a('follow',{m:'rep',s:'Reported and checked',b:'Hand off again'});
+
+var DATA={
+local:{
+ title:'A local draft',
+ about:'Nothing is on GitHub yet. The handoff is Create Draft PR…, or the plan handed to the org tool when the workflow’s own publisher is chosen. Ready means the branch on GitHub is this candidate and every required check is reported passed on it.',
+ none:{head:{m:'now',t:'Not on GitHub',r:'1 left'},pill:{c:'needs',t:'Push needed'},btn:{t:'Create Draft PR…',k:'dis'},
+  groups:[{c:'Create draft pull request',rows:[pushNow,createTodo,tourTodo]}]},
+ fresh:{wf:1,head:{m:'now',t:'Not on GitHub',r:'2 required left'},pill:{c:'needs',t:'2 required left'},btn:{t:'Create Draft PR…',k:'dis'},
+  groups:[{c:'Prepare',rows:[ctxNew,descNew,tmplNew]},
+          {c:'Create draft pull request',pub:'bpr',rows:[pushNow,createTodo,tourTodo,followOff]}]},
+ mixed:{wf:1,head:{m:'bad',t:'Not on GitHub',r:'1 check not met'},pill:{c:'bad',t:'1 check not met'},btn:{t:'Hand Off Plan…',k:'dis'},
+  groups:[{c:'Prepare',rows:[ctxRep,descDone,
+            a('tmpl',{m:'repfail',s:'Reported: not met',tone:'bad',det:'The Testing section is missing',b:'Hand off again'})]},
+          {c:'Create draft pull request',pub:'org',rows:[
+            f('done','Branch is on GitHub','gh','Candidate 1'),
+            a('plan',{m:'todo',s:'Waits for the required check'}),
+            tourTodo,followOff]}]},
+ ready:{wf:1,head:{m:'ok',t:'Ready to create',r:''},pill:{c:'ok',t:'Ready to create'},btn:{t:'Create Draft PR…',k:'pri'},
+  groups:[{c:'Prepare',rows:[ctxRep,descDone,
+            a('tmpl',{m:'rep',s:'Reported: passed',det:'On candidate 2',b:'Hand off again'})]},
+          {c:'Create draft pull request',pub:'bpr',rows:[
+            f('done','Branch is on GitHub','gh','Candidate 2'),
+            f('now','Create the draft pull request','bpr',''),
+            tourTodo,followOff]}]}
+},
+draft:{
+ title:'A draft pull request I own',
+ about:'#214 exists on GitHub as a draft. The handoff is Ready for review. The publisher is settled, so the choice is gone and every other action applies again on each new candidate. Ready means nothing is unpushed, GitHub’s checks passed and every required check is reported passed on the pushed head.',
+ none:{head:{m:'now',t:'Draft #214',r:'1 left'},pill:{c:'needs',t:'2 commits to push'},btn:{t:'Ready for review',k:'plain'},
+  groups:[{c:'On GitHub',rows:[
+    f('now','Push 2 commits','you','GitHub is at a41c9e2',{b:'Push'}),
+    f('done','Checks on GitHub','gh','5 passed on a41c9e2'),
+    f('todo','Reviewers','you','Nobody is asked yet',{b:'Request…'})]}]},
+ fresh:{wf:1,head:{m:'now',t:'Draft #214',r:'2 required left'},pill:{c:'needs',t:'2 required left'},btn:{t:'Ready for review',k:'plain'},
+  groups:[{c:'Prepare',rows:[ctxNew,descNew,tmplNew,followNew]},
+          {c:'On GitHub',rows:[
+    f('now','Push 2 commits','you','GitHub is at a41c9e2',{b:'Push'}),
+    f('done','Checks on GitHub','gh','5 passed on a41c9e2'),
+    f('todo','Reviewers','you','Nobody is asked yet',{b:'Request…'})]}]},
+ mixed:{wf:1,head:{m:'bad',t:'Draft #214',r:'1 check failed'},pill:{c:'bad',t:'1 check failed'},btn:{t:'Ready for review',k:'plain'},
+  groups:[{c:'Prepare',rows:[ctxRep,descDone,
+            a('tmpl',{m:'wait',s:'Handed off, waiting for its answer',cmd:CMD,one:1,acts:['Read its answer','Its answer was lost']}),
+            a('follow',{m:'repfail',s:'Reported: failed',tone:'bad',det:'Ticket linked, upload failed',b:'I checked it'})]},
+          {c:'On GitHub',rows:[
+    f('done','Branch is pushed','gh','b7e21f4'),
+    f('fail','Checks on GitHub','gh','1 failed: build-linux',{tone:'bad',b:'Open'}),
+    f('done','Draft #214','gh','Made by the org tool',{tipk:'made'}),
+    f('todo','Reviewers','you','Nobody is asked yet',{b:'Request…'})]}]},
+ ready:{wf:1,head:{m:'ok',t:'Draft #214 is ready for review',r:''},pill:{c:'ok',t:'Ready for review'},btn:{t:'Ready for review',k:'pri'},
+  groups:[{c:'Prepare',rows:[ctxRep,descDone,
+            a('tmpl',{m:'rep',s:'Reported: passed',det:'On b7e21f4',b:'Hand off again'}),followRep]},
+          {c:'On GitHub',rows:[
+    f('done','Branch is pushed','gh','b7e21f4'),
+    f('done','Checks on GitHub','gh','5 passed on b7e21f4'),
+    f('done','Draft #214','gh','Made by the org tool',{tipk:'made'}),
+    f('todo','Reviewers','you','alice, when it is ready',{b:'Request…'})]}]}
+},
+live:{
+ title:'My open pull request, sent back',
+ about:'#214 is open and alice requested changes. The handoff is Publish response…: the push, then the replies, then asking alice again. Feedback rows join the list. Ready means every conversation has an answer, the fixes are committed and every required check is reported passed on the new candidate.',
+ none:{head:{m:'now',t:'alice requested changes',r:'2 left'},pill:{c:'needs',t:'2 left'},btn:{t:'Publish response…',k:'dis'},
+  groups:[{c:'Feedback',rows:[
+    f('now','Conversations','you','3 open, 1 reply drafted',{b:'Address…'}),
+    f('note','Since alice’s review','gh','2 commits, 1 not pushed',{b:'Show'})]},
+          {c:'On GitHub',rows:[
+    f('now','Push 1 commit','you','GitHub is at b7e21f4',{b:'Push'}),
+    f('done','Checks on GitHub','gh','5 passed on b7e21f4'),
+    f('note','Reviewers','gh','alice asked for changes 2 h ago')]}]},
+ fresh:{wf:1,head:{m:'now',t:'alice requested changes',r:'3 left'},pill:{c:'needs',t:'3 left'},btn:{t:'Publish response…',k:'dis'},
+  groups:[{c:'Feedback',rows:[
+    f('now','Conversations','you','3 open, 1 reply drafted',{b:'Address…'}),
+    f('note','Since alice’s review','gh','2 commits, 1 not pushed',{b:'Show'})]},
+          {c:'Prepare',rows:[ctxNew,descNew,tmplNew,followNew]},
+          {c:'On GitHub',rows:[
+    f('now','Push 1 commit','you','GitHub is at b7e21f4',{b:'Push'}),
+    f('done','Checks on GitHub','gh','5 passed on b7e21f4'),
+    f('note','Reviewers','gh','alice asked for changes 2 h ago')]}]},
+ mixed:{wf:1,head:{m:'now',t:'alice requested changes',r:'2 left'},pill:{c:'needs',t:'2 left'},btn:{t:'Publish response…',k:'dis'},
+  groups:[{c:'Feedback',rows:[
+    f('now','Conversations','you','1 needs your answer',{det:'2 replies drafted',b:'Address…'}),
+    f('note','Since alice’s review','gh','3 commits, all pushed',{b:'Show'})]},
+          {c:'Prepare',rows:[ctxRep,
+            a('desc',{m:'run',s:'Writer is drafting',b:'Stop',ba:'agent'}),
+            a('tmpl',{m:'stale',s:'Stale',tone:'needs',det:'Ran on an earlier candidate',b:'Hand off again'}),followRep]},
+          {c:'On GitHub',rows:[
+    f('done','Branch is pushed','gh','c93d0a1'),
+    f('busy','Checks on GitHub','gh','4 passed, 1 running'),
+    f('note','Reviewers','gh','alice asked for changes 2 h ago')]}]},
+ ready:{wf:1,head:{m:'ok',t:'Ready to respond to alice',r:''},pill:{c:'ok',t:'Ready to respond'},btn:{t:'Publish response…',k:'pri'},
+  groups:[{c:'Feedback',rows:[
+    f('done','Conversations','you','3 replies to post',{b:'Address…'}),
+    f('note','Since alice’s review','gh','4 commits, 1 to push',{b:'Show'})]},
+          {c:'Prepare',rows:[ctxRep,descDone,
+            a('tmpl',{m:'rep',s:'Reported: passed',det:'On candidate 4',b:'Hand off again'}),followRep]},
+          {c:'On GitHub',rows:[
+    f('todo','Push 1 commit','you','Goes with the response',{dim:1}),
+    f('done','Checks on GitHub','gh','5 passed on c93d0a1'),
+    f('todo','Reviewers','you','Asked again with the response',{dim:1})]}]}
+}};
+var STATES=[['none','No workflow','the checklist alone'],['fresh','Nothing run yet','the workflow adds its rows'],['mixed','Some reported or failed',''],['ready','Ready','']];
+var MIXNOTE={local:'a required check not met',draft:'a command to copy, a failed follow-up',live:'an agent running, a stale check'};
+var READY={local:'ready to publish',draft:'ready for review',live:'ready to respond'};
+
+/* ---------- parts ---------- */
+function whoGlyph(r){
+ if(r.who==='term')return '<span class="who" title="'+TIP.term+'">'+svg('term')+'</span>';
+ if(r.who==='agent')return '<span class="who ag" title="'+TIP.agent+'">'+svg('spark')+'</span>';
+ return '';
+}
+function btn(r){return r.b?'<span class="btn rb'+(r.ba?' '+r.ba:'')+(r.bd?' dis':'')+'">'+r.b+'</span>':'';}
+function command(r){
+ if(!r.cmd)return '';
+ var acts='<div class="acts">'+r.acts.map(function(x){return '<span class="btn sm">'+x+'</span>';}).join('')+'</div>';
+ return r.one?'<div class="cmd one"><code>'+r.cmd+'</code><span class="btn sm">Copy</span></div>'+acts:'<div class="cmd"><code>'+r.cmd+'</code></div>'+acts;
+}
+function extras(r){return (r.det?'<div class="det">'+r.det+'</div>':'')+command(r)+(r.tip?'<span class="tip" style="right:100%;top:-6px;margin-right:10px">'+r.tip+'</span>':'');}
+function tag(r){return r.req?'<span class="tag" title="'+TIP.req+'">Required</span>':'';}
+function row(r){
+ var st='<span class="st'+(r.tone?' '+r.tone:'')+'">'+(r.s||'')+'</span>', who=whoGlyph(r), two=r.b||who;
+ return '<div class="row'+(r.dim?' dim':'')+(two?'':' one')+'">'+mk(r.m,r.tipk)+'<div class="bd"><div class="l1"><span class="nm">'+r.n+'</span>'+tag(r)+(two||!r.s?'':st)+'</div>'+
+  (two?'<div class="l2">'+who+st+btn(r)+'</div>':'')+extras(r)+'</div></div>';
+}
+function radios(sel,bare){
+ return '<div class="pubr">'+(bare?'':'<span>Created by</span>')+'<span class="rad'+(sel==='bpr'?' on':'')+'" title="'+TIP.pubBpr+'">BetterPullReview</span><span class="rad'+(sel==='org'?' on':'')+'" title="'+TIP.pubOrg+'">The org tool</span></div>';
+}
+function group(g){return '<div class="gc">'+g.c+'</div>'+(g.pub?radios(g.pub):'')+g.rows.map(row).join('');}
+function head(d){return '<div class="hd"><span class="bigdot '+d.head.m+'"></span>'+d.head.t+(d.head.r?'<span class="r">'+d.head.r+'</span>':'')+'</div>';}
+function footer(d){
+ return d.wf?'<div class="wff"><span class="dd flat" title="'+TIP.rev+'">Synthetic Org pull request'+svg('ud')+'</span><span class="rev" title="'+TIP.rev+'">363f805</span></div>'
+  :'<div class="wff"><span class="btn quiet" title="'+TIP.use+'">Use Synthetic Org pull request</span></div>';
+}
+function list(d){return head(d)+d.groups.map(group).join('')+footer(d);}
+function pill(d,pop){return '<span class="pst '+d.pill.c+(pop?' pbtn open':'')+'"'+(pop?' title="'+TIP.pill+'"':'')+'><i class="pd"></i>'+d.pill.t+(pop?svg('down'):'')+'</span>';}
+function hand(d){return '<span class="btn hand'+(d.btn.k==='pri'?' pri':d.btn.k==='dis'?' dis':'')+'">'+d.btn.t+'</span>';}
+function strip(d,pop){return '<div class="tb2 cut">'+pill(d,pop)+hand(d)+'</div>';}
+function tabs(names,on,badge){
+ return '<div class="dtabs">'+names.map(function(n,i){return '<span class="t'+(i===on?' on':'')+(i===names.length-1?' last':'')+'">'+n+(badge&&i===1?badge:'')+'</span>';}).join('')+
+  '<span class="tools"><span class="ib">'+svg('pop')+'</span><span class="ib">'+svg('rside')+'</span></span></div>';
+}
+
+/* A: the Status tab is the checklist */
+function drawerA(d,w){return '<div class="drawer" style="width:'+(w||340)+'px">'+tabs(['Status'],0)+'<div class="stat">'+list(d)+'</div></div>';}
+
+/* B: Status as the application has it today, trimmed, and a Workflow tab */
+function wfRows(d){var out=[];d.groups.forEach(function(g){g.rows.forEach(function(r){if(r.wf)out.push(r);});});return out;}
+function wfBadge(d){
+ if(!d.wf)return '';
+ var n=0,bad=false;wfRows(d).forEach(function(r){if(r.m==='repfail'){n++;bad=true;}else if(r.m==='stale'||r.m==='wait'||(r.m==='todo'&&r.req))n++;});
+ return n?'<span class="n'+(bad?' bad':'')+'">'+n+'</span>':'';
+}
+function wfTab(d,ck){
+ if(!d.wf)return '<p class="empty">No workflow on this '+(ck==='local'?'draft':'pull request')+'.</p><span class="btn" title="'+TIP.use+'">Use Synthetic Org pull request</span>';
+ var pub=null;d.groups.forEach(function(g){if(g.pub)pub=g.pub;});
+ return '<div class="wsel">Synthetic Org pull request'+svg('ud')+'</div><p class="wfrom">From Synthetic Org, revision <code>363f805d21d0</code></p>'+
+  '<div class="gc">Actions</div>'+wfRows(d).map(row).join('')+(pub?'<div class="gc">Who creates the pull request</div>'+radios(pub,true):'');
+}
+function drawerB(d,ck,w){return '<div class="drawer" style="width:'+(w||340)+'px">'+tabs(['Status','Workflow'],1,wfBadge(d))+'<div class="stat">'+wfTab(d,ck)+'</div></div>';}
+var BSTATUS={
+ local:'<div class="hd"><span class="bigdot now"></span>Not on GitHub</div><div class="gc">Create draft pull request</div>'+row(pushNow)+row(createTodo)+row(tourTodo)+
+   '<div class="gc">Workflow</div>'+row({m:'now',n:'1 required check is not run',who:'you',s:'Synthetic Org pull request',b:'Open'}),
+ draft:'<div class="role"><span class="av">S</span>Author</div>'+
+   '<div class="sec">Needs attention<span class="c">2</span></div><div class="att"><i></i><div>2 commits not pushed<span>GitHub is at a41c9e2</span></div></div><div class="att"><i></i><div>1 required check is not run<span>Synthetic Org pull request</span></div><span class="btn sm go">Open</span></div>'+
+   '<div class="sec">Checks</div><div class="meter"><b style="width:100%"></b></div><div>5 passed</div>'+
+   '<div class="sec">People<span class="c">1</span></div><div class="faces"><span class="av">S</span>Nobody is asked yet</div><span class="btn sm">Request review</span>',
+ live:'<div class="role"><span class="av">S</span>Author</div>'+
+   '<div class="sec">Needs attention<span class="c">3</span></div><div class="att"><i class="bad"></i><div>alice requested changes<span>2 h ago</span></div></div><div class="att"><i class="sig"></i><div>3 conversations to answer<span>1 reply drafted</span></div></div><div class="att"><i></i><div>1 required check is stale<span>Synthetic Org pull request</span></div><span class="btn sm go">Open</span></div>'+
+   '<div class="sec">Checks</div><div class="meter"><b style="width:80%"></b><b class="run" style="width:20%"></b></div><div>4 passed, 1 running</div>'+
+   '<div class="sec">People<span class="c">2</span></div><div class="faces"><span class="av a">A</span><span class="av" style="margin-left:-12px">S</span>1 requested changes</div><span class="btn sm">Request review</span>'
+};
+function drawerBStatus(ck,w){return '<div class="drawer" style="width:'+(w||340)+'px">'+tabs(['Status','Workflow'],0,'<span class="n">1</span>')+'<div class="stat">'+BSTATUS[ck]+'</div></div>';}
+
+/* C: a table in Overview's main column */
+var BY={you:'You',bpr:'BetterPullReview',gh:'GitHub',agent:'Writer',term:'Your terminal'};
+function tableC(d){
+ var h='<div class="fl"><div class="cap">'+head(d).replace('class="hd"','class="hd" style="font-size:13px"')+'<span class="sp"></span>'+
+  (d.wf?'<span class="dd flat" title="'+TIP.rev+'">Synthetic Org pull request'+svg('ud')+'</span><span class="rev">363f805</span>':'<span class="btn quiet" style="color:var(--signal)" title="'+TIP.use+'">Use Synthetic Org pull request</span>')+'</div>'+
+  '<table class="todo"><colgroup><col style="width:38%"><col style="width:112px"><col><col style="width:124px"></colgroup><tr><th>Step</th><th>Run by</th><th>State</th><th></th></tr>';
+ d.groups.forEach(function(g){
+  h+='<tr class="grp"><td colspan="4"><span class="gn">'+g.rows.length+'</span>'+g.c+(g.pub?radios(g.pub):'')+'</td></tr>';
+  g.rows.forEach(function(r){
+   h+='<tr'+(r.dim?' class="dim"':'')+'><td class="step"><div>'+mk(r.m,r.tipk)+'<span class="nm">'+r.n+(r.req?' '+tag(r):'')+'</span></div></td>'+
+    '<td class="by'+(r.who==='agent'?' ag':'')+'" title="'+(r.who==='term'?TIP.term:r.who==='agent'?TIP.agent:'')+'">'+BY[r.who]+'</td>'+
+    '<td class="state"'+(r.cmd&&!r.b?' colspan="2"':'')+'><span class="st'+(r.tone?' '+r.tone:'')+'">'+(r.s||'')+'</span>'+(r.det?'<div class="det">'+r.det+'</div>':'')+command(r)+'</td>'+
+    (r.cmd&&!r.b?'':'<td class="act">'+btn(r)+'</td>')+'</tr>';
+  });
+ });
+ return h+'</table></div>';
+}
+
+/* the window around them */
+function tb1(ck,nodrawer){
+ var t=ck==='local'?'<b>bpr-fixtures/engine</b>Search results · Local draft':'<b>bpr-fixtures/engine</b>#214 Search results';
+ return '<div class="tb1"><span class="lights"><i></i><i></i><i></i></span><span class="ib">'+svg('home')+'</span><span class="ib">'+svg('list')+'</span><span class="ib on">'+svg('side')+'</span>'+
+  '<span class="ttl">'+t+'</span><span class="ib">'+svg('ext')+'</span><span class="sp"></span>'+
+  '<span class="seg"><span class="on">Overview <i>⌘1</i></span><span>Review <i>⌘2</i></span><span'+(ck==='local'?' class="off"':'')+'>Discuss <i>⌘3</i></span><span'+(ck==='local'?' class="off"':'')+'>Threads <i>⌘4</i></span></span>'+
+  '<span class="ib">'+svg('refresh')+'</span><span class="ib'+(nodrawer?'':' on')+'">'+svg('rside')+'</span><span class="ib">'+svg('person')+'</span><span class="ib">'+svg('sun')+'</span></div>';
+}
+function tb2(d,pop){
+ return '<div class="tb2"><span class="q">Candidate 1 of 1</span><span class="q">'+svg('branch')+'feature/search-results</span><span class="sp"></span>'+
+  '<span class="nv">File 1 of 2'+svg('ll')+svg('rr')+'</span><span class="nv">Changes 1 of 2'+svg('l')+svg('r')+'</span>'+
+  '<span class="seg pk"><span class="on">'+svg('two')+'</span><span>'+svg('one')+'</span><span>'+svg('edit')+'</span></span><span class="sp"></span>'+pill(d,pop)+hand(d)+'</div>';
+}
+function sbar(){
+ return '<div class="sbar"><span class="dif"></span><span class="msg">File 1 of 2. Candidate 1 of 1, captured 11/15/26 1:32 PM.</span><span class="msg amber">2 uncommitted</span><span class="sp"></span>'+
+  '<span class="apill">Fixture agent<span class="q">· Default model</span>'+svg('ud')+'</span><span class="fresh">Updated just now</span></div>';
+}
+function ovTop(ck){
+ if(ck==='local')return '<div class="trow"><span class="chip"><i></i>Draft</span><h1>Search results</h1></div><p class="wants">This draft would merge feature/search-results into main.</p>';
+ if(ck==='draft')return '<div class="trow"><span class="chip"><i></i>Draft</span><h1>Search results</h1></div><p class="wants">sam-dev wants to merge 4 commits into main from feature/search-results.</p>';
+ return '<div class="trow"><h1>Search results</h1></div><p class="wants">sam-dev wants to merge 6 commits into main from feature/search-results.</p>';
+}
+var DESC='<div class="descp"><span class="edit">'+svg('pencil')+'</span><h3>Why</h3><p>Search listed matches in file order, so the best match for a query was often off screen.</p>'+
+ '<h3>What changed</h3><p><code>search::rank</code> scores each match by position and exactness, and <code>engine::results</code> returns the best 50.</p></div>';
+function files(short,ck){
+ return '<div class="fl"><div class="cap">Files: 2 in this '+(ck&&ck!=='local'?'pull request':'draft')+', 2 not read</div><table class="files"><tr><th>File</th><th class="r">Added</th><th class="r">Removed</th><th>Read</th><th>Comments</th><th></th></tr>'+
+  (short?'':'<tr class="grp"><td><span class="gn">2</span>src</td><td></td><td></td><td></td><td></td><td></td></tr>'+
+  '<tr><td><span class="fb">M</span>engine.cpp</td><td class="p">+38</td><td class="m">−12</td><td><span class="rd"></span></td><td></td><td></td></tr>'+
+  '<tr><td><span class="fb a">A</span>search.cpp</td><td class="p">+96</td><td class="m"></td><td><span class="rd"></span></td><td></td><td></td></tr>')+'</table></div>';
+}
+function win(o){
+ return '<div class="bpr win" style="width:1280px;height:'+(o.h||800)+'px">'+tb1('local',!o.drawer)+tb2(o.d,o.pop)+'<div class="main"><div class="ov">'+ovTop('local')+'<span class="tech">Technical details</span>'+DESC+(o.inner||'')+files()+'</div>'+(o.drawer||'')+(o.over||'')+'</div>'+sbar()+'</div>';
+}
+
+/* ---------- frames ---------- */
+function cell(label,note,html,w){return '<div'+(w?' style="width:'+w+'px"':'')+'><p class="lab"><b>'+label+'</b>'+note+'</p>'+html+'</div>';}
+function slice(html,cls,w){return '<div class="bpr slice'+(cls?' '+cls:'')+'"'+(w?' style="width:'+w+'px"':'')+'>'+html+'</div>';}
+function caseHead(ck){return '<p class="case"><b>'+DATA[ck].title+'</b>'+DATA[ck].about+'</p>';}
+function stateNote(ck,s){return s[0]==='mixed'?MIXNOTE[ck]:s[0]==='ready'?READY[ck]:s[2];}
+function cases(letter,build,cls){
+ ['local','draft','live'].forEach(function(ck){
+  F[letter+'-'+ck]=function(){return caseHead(ck)+'<div class="board'+(cls?' '+cls:'')+'">'+build(ck)+'</div>';};
+ });
+}
+var F={};
+F['model']=function(){
+ function kr(m,t,x){return '<div class="kr">'+mk(m)+t+(x?'<span class="x">'+x+'</span>':'')+'</div>';}
+ return slice('<div class="key"><div><h6>BetterPullReview saw it itself</h6>'+kr('done','Done')+kr('fail','Failed')+kr('busy','Running on GitHub')+kr('run','An agent is working','Agent accent')+'</div>'+
+  '<div><h6>A companion reported it</h6>'+kr('rep','Reported')+kr('repfail','Reported: not met')+kr('wait','Handed off, waiting')+'</div>'+
+  '<div><h6>Not settled</h6>'+kr('now','Yours to do')+kr('todo','Not run')+kr('stale','Stale')+kr('off','Not possible yet')+'</div>'+
+  '<div class="handoffs"><div><span class="c">A local draft</span><span class="btn hand pri">Create Draft PR…</span></div><div><span class="c">A draft pull request I own</span><span class="btn hand pri">Ready for review</span></div><div><span class="c">My open pull request, sent back</span><span class="btn hand pri">Publish response…</span></div></div></div>');
+};
+function withTip(d){
+ var c=JSON.parse(JSON.stringify(d));c.groups[0].rows[2].tip=TIP.rep;return c;
+}
+F['a-window']=function(){var d=DATA.local.mixed;return win({d:d,drawer:drawerA(withTip(d))});};
+cases('a',function(ck){return STATES.map(function(s){var d=DATA[ck][s[0]];return cell(s[1],stateNote(ck,s),slice(strip(d)+drawerA(d),'',340),340);}).join('');});
+F['b-window']=function(){var d=DATA.local.mixed;return win({d:d,drawer:drawerB(d,'local')});};
+cases('b',function(ck){
+  return cell('Status tab','as today, less what an author does not use',slice(strip(DATA[ck].fresh)+drawerBStatus(ck),'',340),340)+
+   STATES.map(function(s){var d=DATA[ck][s[0]];return cell('Workflow tab',s[1].toLowerCase(),slice(strip(d)+drawerB(d,ck),'',340),340);}).join('');
+ });
+F['c-window']=function(){var d=DATA.local.mixed;return win({d:d,inner:tableC(d),h:860});};
+cases('c',function(ck){return STATES.map(function(s){var d=DATA[ck][s[0]];
+  return cell(s[1],stateNote(ck,s),slice(strip(d)+'<div class="ov" style="padding-bottom:12px">'+ovTop(ck)+tableC(d)+files(true,ck)+'</div>','',800),800);}).join('');},'wrap2');
+F['d-window']=function(){var d=DATA.local.mixed;return win({d:d,pop:true,over:'<div class="pop" style="right:12px;top:8px;--nib:214px">'+list(d)+'</div>'});};
+cases('d',function(ck){return STATES.map(function(s){var d=DATA[ck][s[0]];
+  return cell(s[1],stateNote(ck,s),slice(strip(d,true)+'<div class="pop" style="position:relative;margin:8px 12px 14px auto">'+list(d)+'</div>','under',380),380);}).join('');});
+document.addEventListener('DOMContentLoaded',function(){
+ Object.keys(F).forEach(function(k){var e=document.getElementById('f-'+k);if(e)e.innerHTML='<div class="frame">'+F[k]()+'</div>';});
+});
+})();
+</script></body></html>
