@@ -34,6 +34,7 @@
 /// limit, the last message still queued; resumed again, that one answers.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -420,6 +421,43 @@ auto main(int argc, char** argv) -> int
 			const auto still = access::agent_session(*owner, session);
 			expect(still.Launches == 0U && still.Queued == static_cast<std::size_t>(waiting.size()), "nothing runs until the reviewer resumes it");
 			quit(*again);
+			// [[BPR-2181]] AC04. A crash while a message was sending: the store
+			// holds it as sending, as the queue left it when the app died (a
+			// quit stops the turn and settles it, so only the store can say
+			// this). On the next launch it may not have been delivered: Resume
+			// is refused, Discard removes it, and Resume sends what waited.
+			{
+				auto crashed = core::agent_queue{ };
+				crashed.Entries.push_back({ .Id = 1U, .Input = { .Scope = "message", .Label = "Sending at the crash", .Text = "Sending at the crash" }, .State = core::queued_state::sending });
+				crashed.Entries.push_back({ .Id = 2U, .Input = { .Scope = "message", .Label = "Waiting at the crash", .Text = "Waiting at the crash" } });
+				crashed.LastId   = 2U;
+				crashed.Revision = 7U;
+				expect(adapters::sqlite::make_agent_queue_store(*dataRoot)->store(session, crashed), "the store holds the queue as the crash left it");
+			}
+			start();
+			auto* const after = owner->window(owner->windows().front());
+			after->resize(1440, 960);
+			expect(access::agent_session(*owner, session).Paused == core::queue_pause::restarted, "after the crash the queue opens paused");
+			open_review(*after, "the window after the crash");
+			agent_ready(*after);
+			wait([&] { return after->agent_tab()->queue_list() != nullptr && after->agent_tab()->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueueDiscard")) != nullptr; },
+				 "the message sending at the crash may not have been delivered, and offers Discard: " + rows_of(*after).join(QLatin1Char('|')).toStdString());
+			auto* const resume = after->agent_tab()->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume"));
+			expect(resume != nullptr, "the queue offers Resume");
+			resume->click();
+			QApplication::processEvents();
+			expect(access::agent_session(*owner, session).Launches == 0U && access::agent_session(*owner, session).Paused != core::queue_pause::none, "Resume is refused while delivery is unknown");
+			after->agent_tab()->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueueDiscard"))->click();
+			QApplication::processEvents();
+			wait([&] { return !rows_of(*after).contains(QStringLiteral("Sending at the crash")); }, "Discard removes it: " + rows_of(*after).join(QLatin1Char('|')).toStdString());
+			after->agent_tab()->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume"))->click();
+			QApplication::processEvents();
+			if (!e2e::wait_until_plain([&] { return questions_of(*after->agent_tab()).count(QStringLiteral("Waiting at the crash")) == 1 && !access::agent_session(*owner, session).Sending && access::agent_session(*owner, session).Queued == 0U; },
+									   e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "Resume sends what waited, once: " + questions_of(*after->agent_tab()).join(QLatin1Char('|')).toStdString() };
+			}
+			expect(questions_of(*after->agent_tab()).count(QStringLiteral("Sending at the crash")) == 0, "the discarded message was never sent again");
+			quit(*after);
 			std::cout << "agent-queue-restart:pass\n";
 			return EXIT_SUCCESS;
 		}
