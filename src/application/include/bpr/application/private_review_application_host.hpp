@@ -2,6 +2,10 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PRIVATE_REVIEW_APPLICATION_HOST_HPP
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/private_review_store.hpp"
+
+#include <functional>
+#include <memory>
+#include <mutex>
 namespace bpr::application {
 	/// \brief Exact user selections; no caller-supplied private body crosses this boundary.
 	struct private_run_intent
@@ -88,6 +92,38 @@ namespace bpr::application {
 
 	private:
 		private_review_store_port& Store;
+	};
+
+	/// \brief [[BPR-2181]]. The private-run port over whichever opened
+	/// private review scopes its lookup finds, with no presentation behind it.
+	/// \details The window's private review workflow and the profile's agent
+	/// runtime both run turns through one. Every call holds \p aGate, the
+	/// review-ledger file exclusion the scopes' stores share, and looks the
+	/// run's scope up under it. A claim opens its own connection to the
+	/// scope, so its source guard lives through the process input write
+	/// without sharing the connection that pages history. Called only from
+	/// the invocation's effect lane.
+	class scoped_private_agent_runs final : public private_agent_run_port
+	{
+	public:
+		using store_opener = std::function<private_store_result<std::unique_ptr<private_review_store_port>>(std::stop_token)>;
+		/// \brief An opened scope: its store, and how to open another connection to it.
+		struct scope_access
+		{
+			private_review_store_port* Store = nullptr;
+			store_opener               Open;
+		};
+		/// \brief Finds an opened scope; no store when none is open.
+		using scope_lookup = std::function<scope_access(const core::private_review_scope&)>;
+
+		scoped_private_agent_runs(std::mutex& aGate, scope_lookup aLookup);
+		[[nodiscard]] auto admit(const private_run_intent&, const core::agent_profile&, const core::agent_session&, const agent_context_observation&, const core::agent_setting_facts&) -> private_run_result<private_run_admission> override;
+		[[nodiscard]] auto claim(const private_run_admission&, std::stop_token) -> private_run_result<std::shared_ptr<agent_input_claim>> override;
+		[[nodiscard]] auto finish(const private_run_admission&, const agent_run_result&, const core::agent_finding_snapshot&) -> private_run_result<private_review_delta> override;
+
+	private:
+		std::mutex&  Gate;
+		scope_lookup Lookup;
 	};
 }
 #endif

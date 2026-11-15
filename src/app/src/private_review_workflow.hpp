@@ -97,19 +97,22 @@ namespace bpr::app {
 		struct context;
 		struct result;
 		using operation = std::function<result(context&)>;
-		void                                                        post(operation, draft_completion = { });
-		void                                                        refresh();
-		auto                                                        find(const core::private_review_scope&) -> std::shared_ptr<context>;
-		auto                                                        publication_context(const application::review_mutation_request&) -> std::shared_ptr<context>;
-		application::effect_executor&                               Effects;
-		application::decision_executor&                             Decisions;
-		private_review_recovery_registry&                           Recovery;
-		qt::private_review_panel&                                   Panel;
-		QPointer<qt::private_composition_editor>                    Editor;
-		draft_sink                                                  Drafts;
-		run_sink                                                    Launch;
-		std::mutex&                                                 Gate;
-		std::vector<std::shared_ptr<context>>                       Contexts;
+		void                                     post(operation, draft_completion = { });
+		void                                     refresh();
+		auto                                     find(const core::private_review_scope&) -> std::shared_ptr<context>;
+		auto                                     publication_context(const application::review_mutation_request&) -> std::shared_ptr<context>;
+		application::effect_executor&            Effects;
+		application::decision_executor&          Decisions;
+		private_review_recovery_registry&        Recovery;
+		qt::private_review_panel&                Panel;
+		QPointer<qt::private_composition_editor> Editor;
+		draft_sink                               Drafts;
+		run_sink                                 Launch;
+		std::mutex&                              Gate;
+		std::vector<std::shared_ptr<context>>    Contexts;
+		/// [[BPR-2181]]. The private-run port, free of the panel: this
+		/// workflow's opened scopes behind the Qt-free run boundary.
+		application::scoped_private_agent_runs                      Runs;
 		std::shared_ptr<context>                                    Current;
 		std::optional<core::private_review_binding>                 Binding;
 		std::vector<core::private_review_binding>                   KnownBindings;

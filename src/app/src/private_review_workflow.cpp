@@ -88,6 +88,16 @@ namespace bpr::app {
 		, Drafts(std::move(aDrafts))
 		, Launch(std::move(aLaunch))
 		, Gate(aLedgerFile)
+		, Runs(aLedgerFile, [this](const core::private_review_scope& aScope) {
+			auto found = find(aScope);
+			if (!found) {
+				return application::scoped_private_agent_runs::scope_access{ };
+			}
+			return application::scoped_private_agent_runs::scope_access{
+				.Store = found->Store.get(),
+				.Open  = [configuration = found->Configuration](std::stop_token aStop) { return adapters::sqlite::make_private_review_store(configuration, std::move(aStop)); },
+			};
+		})
 	{
 		Panel.set_dispatch([this](auto aIntent) { dispatch(std::move(aIntent)); });
 		Editor->set_dispatch([this](auto aIntent) { compose(std::move(aIntent)); });
@@ -1025,50 +1035,15 @@ namespace bpr::app {
 	}
 	auto private_review_workflow::admit(const application::private_run_intent& aIntent, const core::agent_profile& aProfile, const core::agent_session& aSession, const application::agent_context_observation& aContext, const core::agent_setting_facts& aSettings) -> application::private_run_result<application::private_run_admission>
 	{
-		const auto lock    = std::scoped_lock{ Gate };
-		auto       context = find(aIntent.Binding.Scope);
-		if (!context) {
-			return std::unexpected(application::private_run_error{ .Store = application::private_store_failure::unavailable });
-		}
-		return application::private_review_application_host(*context->Store).admit(aIntent, aProfile, aSession, aContext, aSettings);
+		return Runs.admit(aIntent, aProfile, aSession, aContext, aSettings);
 	}
 	auto private_review_workflow::claim(const application::private_run_admission& aAdmission, std::stop_token aStop) -> application::private_run_result<std::shared_ptr<application::agent_input_claim>>
 	{
-		const auto lock    = std::scoped_lock{ Gate };
-		auto       context = find(aAdmission.Delta.Scope);
-		if (!context) {
-			return std::unexpected(application::private_run_error{ .Store = application::private_store_failure::unavailable });
-		}
-		// The source guard lives through the process input write. Its transaction must
-		// not share the presentation connection while that connection pages history.
-		auto store = adapters::sqlite::make_private_review_store(context->Configuration, aStop);
-		if (!store) {
-			return std::unexpected(application::private_run_error{ .Store = store.error() });
-		}
-		auto inner = application::private_review_application_host(**store).claim(aAdmission, aStop);
-		if (!inner) {
-			return std::unexpected(inner.error());
-		}
-		struct isolated_claim final : application::agent_input_claim
-		{
-			std::unique_ptr<application::private_review_store_port> Store;
-			std::shared_ptr<application::agent_input_claim>         Inner;
-			auto                                                    permitted() const noexcept -> bool override { return Inner->permitted(); }
-			void                                                    release() noexcept override { Inner->release(); }
-		};
-		auto claim   = std::make_shared<isolated_claim>();
-		claim->Store = std::move(*store);
-		claim->Inner = std::move(*inner);
-		return claim;
+		return Runs.claim(aAdmission, std::move(aStop));
 	}
 	auto private_review_workflow::finish(const application::private_run_admission& aAdmission, const application::agent_run_result& aResult, const core::agent_finding_snapshot& aSnapshot) -> application::private_run_result<application::private_review_delta>
 	{
-		const auto lock    = std::scoped_lock{ Gate };
-		auto       context = find(aAdmission.Delta.Scope);
-		if (!context) {
-			return std::unexpected(application::private_run_error{ .Store = application::private_store_failure::unavailable });
-		}
-		return application::private_review_application_host(*context->Store).finish(aAdmission, aResult, aSnapshot);
+		return Runs.finish(aAdmission, aResult, aSnapshot);
 	}
 	auto private_review_workflow::publication_context(const application::review_mutation_request& aRequest) -> std::shared_ptr<context>
 	{
