@@ -82,15 +82,18 @@ namespace bpr::app {
 			.Cancel = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen, const std::uint64_t aId) { return aQueue.release_hold(aSession, aId, std::nullopt); }),
 			.Remove = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId) { return aQueue.withdraw(aSession, aId, aSeen); }),
 			.Move   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId, const int aBy) { return aQueue.reorder(aSession, aId, aBy, aSeen); }),
-			// Look prompts-v003: a queued message's Steer. No driver steers
-			// a running turn yet ([[BPR-2153]]), so, as a typed steer does
-			// (Q17), it goes next instead, ahead of the rest, and says why.
-			.Steer = [this, onQueue](const std::uint64_t aId) {
-				onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aEntry) {
-					return aQueue.reorder(aSession, aEntry, -static_cast<int>(core::maximum_queued_inputs), aSeen);
-				})(aId);
-				if (!Closing && Window != nullptr) {
-					Window->agent_panel()->refuse("Steer isn't available for this agent yet, so the message goes next, right after this answer.");
+			// Look prompts-v003: a queued message's Steer. The host offers it
+			// to the running turn ([[BPR-2153]]); not taken, it goes next and
+			// the window shows why. The window only forwards the press.
+			.Steer = [this](const std::uint64_t aId) {
+				if (Closing || Window == nullptr || !AgentQueue || ask_session_key().empty()) {
+					return;
+				}
+				const auto steered = AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen);
+				if (steered.Refused != core::queue_refusal::none) {
+					Window->agent_panel()->refuse("Another window changed this queue first, so nothing changed here.");
+				} else if (!steered.Sent) {
+					Window->agent_panel()->refuse(steered.Why);
 				}
 			},
 			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen) {
@@ -248,34 +251,34 @@ namespace bpr::app {
 		return "agent-tab:" + AgentReview->Hostname + "/" + AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name + "#" + std::to_string(AgentReview->Number.value());
 	}
 
-	/// RFC-BPR-0126 AC04 ([[BPR-2151]]), Q10 as overridden by the owner:
-	/// "Queue must be tied to session not active UI windows". The profile's
-	/// one queue host, made by the first window; this window joins it as one
-	/// viewer of the sessions it shows (its Agent tab's, and its tour's).
+	/// RFC-BPR-0126 AC04 ([[BPR-2151]], [[BPR-2181]]). The owner: "Queues
+	/// should be managed by something like a session manager at a higher
+	/// level and have nothing to do with the UI". The profile's session queue
+	/// host, made by the first window, decides when every session's next
+	/// message goes. This window subscribes to its deltas, sends it commands,
+	/// and offers its agent runtime to the profile's runner.
 	void github_application::implementation::attach_agent_queue()
 	{
-		if (AgentQueueViewer || Closing || Window == nullptr) {
+		if (AgentQueueSubscriber || Closing || Window == nullptr) {
 			return;
 		}
 		if (!AgentQueue) {
-			AgentQueueStore    = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
-			auto dependencies  = application::agent_queue_dependencies{ };
-			dependencies.Store = AgentQueueStore.get();
-			AgentQueue         = std::make_unique<application::agent_queue_host>(std::move(dependencies));
+			AgentQueueStore     = adapters::sqlite::make_agent_queue_store(ApplicationDataRoot);
+			auto dependencies   = application::agent_queue_dependencies{ };
+			dependencies.Store  = AgentQueueStore.get();
+			dependencies.Runner = &AgentRunner;
+			AgentQueue          = std::make_unique<application::agent_queue_host>(dependencies);
+			AgentRunner.bind(*AgentQueue);
 			AgentQueue->load();
 		}
-		AgentQueueViewer = AgentQueue->attach(application::agent_queue_viewer{
-			.Shows   = [this](const std::string& aSession) {
-				// A tour's feedback is shown by, and goes through, the window
-				// whose draft it waits for.
-				return !Closing && Window != nullptr && !aSession.empty()
-					&& (aSession == tour_queue_key() ? TourFeedbackQueued || TourQueueSending : aSession == ask_session_key()); },
-			.Agent   = [this](const std::string& aSession) { return aSession == tour_queue_key() ? tour_queue_agent() : ask_queue_agent(); },
-			.Release = [this](const std::string& aSession, const core::queued_entry& aEntry) { return aSession == tour_queue_key() ? release_tour_feedback(aEntry) : release_queued(aEntry); },
+		AgentQueueSubscriber = AgentQueue->subscribe(application::agent_queue_subscriber{
 			.Changed = [this](const std::string& aSession, const core::agent_queue& aQueue) {
+				if (Closing || Window == nullptr || aSession.empty()) {
+					return;
+				}
 				if (aSession == tour_queue_key()) {
 					present_tour_feedback();
-				} else {
+				} else if (aSession == ask_session_key()) {
 					present_ask_queue(aQueue);
 				} },
 			// RFC-BPR-0126 AC09: Stop all shows while any session's queue holds
@@ -289,6 +292,23 @@ namespace bpr::app {
 					});
 				} },
 		});
+		// What this window's agent runtime runs and can take. The host alone
+		// decides when a message goes; the runner starts it here.
+		AgentRuntime = AgentRunner.offer(application::agent_session_runtime{
+			.Runs  = [this](const std::string& aSession) {
+				// A tour's feedback goes through the window whose draft it
+				// waits for.
+				return !Closing && Window != nullptr && !aSession.empty()
+					&& (aSession == tour_queue_key() ? TourFeedbackQueued || TourQueueSending : aSession == ask_session_key()); },
+			.State = [this](const std::string& aSession) { return aSession == tour_queue_key() ? tour_queue_agent() : ask_queue_agent(); },
+			.Start = [this](const std::string& aSession, const core::queued_entry& aEntry) { return aSession == tour_queue_key() ? release_tour_feedback(aEntry) : release_queued(aEntry); },
+			.Steer = { },
+		});
+		// The runs' own retirement events: nothing watches for them on a
+		// timer.
+		if (AgentHost) {
+			AgentHost->set_retired_observer([this] { agent_runtime_retired(); });
+		}
 		// RFC-BPR-0126 AC09: Stop all, after the footer stopped every run,
 		// pauses every queue, so nothing starts next.
 		if (auto* const footer = Window->agent_footer_widget(); footer != nullptr) {
@@ -299,6 +319,20 @@ namespace bpr::app {
 			});
 			footer->present_queued(AgentQueue->queued_count());
 		}
+	}
+
+	void github_application::implementation::agent_runtime_retired()
+	{
+		const auto session = ask_session_key();
+		if (Closing || !AgentQueue || !AgentRuntime || session.empty()) {
+			return;
+		}
+		if (AgentRunner.running(session) == AgentRuntime && QueueTurnSeen && (Window == nullptr || Window->agent_tab()->state() != qt::agent_tab_state::working)) {
+			QueueTurnSeen = false;
+			AgentRunner.retired(*AgentRuntime, session, core::queue_pause::none);
+			return;
+		}
+		AgentQueue->agent_changed(session);
 	}
 
 	/// The session's queue in the Agent tab: the pending list with its
@@ -435,11 +469,12 @@ namespace bpr::app {
 		}
 	}
 
-	/// What the session's agent can take now; a settled turn first settles
-	/// the entry it ran, in the window that ran it.
+	/// The Agent tab's state changed: the session's queue is shown here, and
+	/// the host is told the agent may take a turn. A turn the runner started
+	/// here is marked seen running; its run's retirement event settles it.
 	void github_application::implementation::observe_ask_queue([[maybe_unused]] const bool aSettled)
 	{
-		if (Closing || Window == nullptr || !AgentQueue || !AgentQueueViewer) {
+		if (Closing || Window == nullptr || !AgentQueue || !AgentQueueSubscriber) {
 			return;
 		}
 		const auto  session = ask_session_key();
@@ -448,28 +483,14 @@ namespace bpr::app {
 			return;
 		}
 		if (session != AgentQueueShown) {
-			// A session this window shows now: its queue, as every other
-			// window showing it shows it.
 			AgentQueueShown = session;
 			AgentQueue->show(session);
 		}
-		if (AgentQueue->sending(session) && AgentQueue->dispatcher(session) == AgentQueueViewer) {
-			const auto working = tab->state() == qt::agent_tab_state::working;
-			const auto retired = AgentHost == nullptr || AgentHost->is_quiescent();
-			if (working) {
-				QueueTurnSeen = true;
-			} else if (QueueTurnSeen && retired) {
-				QueueTurnSeen = false;
-				AgentQueue->settle(session, core::queue_pause::none);
-			} else if (QueueTurnSeen && QueueRetireChecks < 100U) {
-				// The turn ended and its run is still retiring: look again
-				// shortly. This observes retirement; it never resends.
-				++QueueRetireChecks;
-				QTimer::singleShot(100, Window.get(), [this] { observe_ask_queue(false); });
-				return;
-			}
+		if (AgentRunner.running(session) == AgentRuntime && tab->state() == qt::agent_tab_state::working) {
+			QueueTurnSeen = true;
+			return;
 		}
-		AgentQueue->drain(session);
+		AgentQueue->agent_changed(session);
 	}
 
 	/// Starts one queued entry's turn through the existing launch paths, and
@@ -485,9 +506,8 @@ namespace bpr::app {
 		// RFC-BPR-0126: a typed message, sent as typed on the subject it was
 		// queued with.
 		if (aEntry.Input.QuickAsk.empty()) {
-			QueueTurnSeen     = false;
-			QueueRetireChecks = 0U;
-			const auto turns  = tab->turn_count();
+			QueueTurnSeen    = false;
+			const auto turns = tab->turn_count();
 			if (!aEntry.Input.Thread.empty()) {
 				ask_agent_about_thread(aEntry.Input.Thread);
 			}
@@ -514,10 +534,9 @@ namespace bpr::app {
 		if (macro == set.end()) {
 			return false;
 		}
-		const auto turns  = tab->turn_count();
-		const auto id     = QString::fromStdString(macro->Id);
-		QueueTurnSeen     = false;
-		QueueRetireChecks = 0U;
+		const auto turns = tab->turn_count();
+		const auto id    = QString::fromStdString(macro->Id);
+		QueueTurnSeen    = false;
 		switch (macro->Action) {
 		case core::prompt_action::what_changed:
 			dismiss_asked_conversation();

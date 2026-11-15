@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2181"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0126: session queue host owns and drains every session's queue; profile-reachable turn runner; typed finish and retirement; failure, usage limit and Stop pause; workspace owners outlive cache sessions",
+  "created": "2026-11-15T05:19:11.947292+00:00",
+  "base": "1af4a6b8027cfa14cf41dd1bb599ab2812f27745"
+}

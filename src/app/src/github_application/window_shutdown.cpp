@@ -64,11 +64,22 @@ namespace bpr::app {
 			QueueConsumer.reset();
 		}
 #if defined(BPR_AGENT_INTEGRATIONS)
-		// RFC-BPR-0126 AC04, Q10 as overridden: closing a window neither
-		// pauses nor hands over a queue; another window showing the session
-		// goes on draining it.
-		if (AgentQueue && AgentQueueViewer) {
-			AgentQueue->detach(*std::exchange(AgentQueueViewer, std::nullopt));
+		// RFC-BPR-0126 AC04 ([[BPR-2181]]): the window stops being shown its
+		// deltas, and its agent runtime takes no new turn. A turn it runs is
+		// stopped by the close and stays the session's until its run has
+		// really retired (`begin_other_shutdown`), so no other window starts
+		// the next one meanwhile.
+		if (AgentHost) {
+			AgentHost->set_retired_observer({ });
+		}
+		if (TourSession) {
+			TourSession->set_retired_observer({ });
+		}
+		if (AgentQueue && AgentQueueSubscriber) {
+			AgentQueue->unsubscribe(*std::exchange(AgentQueueSubscriber, std::nullopt));
+		}
+		if (AgentRuntime) {
+			AgentRunner.withdraw(*AgentRuntime);
 		}
 #endif
 		if (SharedDrafts) {
@@ -125,6 +136,15 @@ namespace bpr::app {
 			return;
 		}
 		OtherShutdownBegun = true;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// The window's agent runs have retired: a turn the close stopped
+		// settles as stopped, and its queue pauses for it.
+		if (const auto runtime = std::exchange(AgentRuntime, std::nullopt); runtime) {
+			for (const auto& session : AgentRunner.running_on(*runtime)) {
+				AgentRunner.retired(*runtime, session, core::queue_pause::stopped);
+			}
+		}
+#endif
 		TourSourceStop.request_stop();
 		PreparationStop.request_stop();
 		if (PrivateReview) {

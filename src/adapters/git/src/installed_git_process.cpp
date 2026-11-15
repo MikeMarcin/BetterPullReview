@@ -77,6 +77,18 @@
 #endif
 
 namespace bpr::adapters::git {
+	class installed_workspace_owners
+	{
+	public:
+		std::mutex                                                                                                                 Mutex;
+		std::map<std::string, std::pair<application::owned_agent_workspace, std::unique_ptr<installed_agent_workspace_ownership>>> Owners;
+	};
+
+	auto make_installed_workspace_owners() -> std::shared_ptr<installed_workspace_owners>
+	{
+		return std::make_shared<installed_workspace_owners>();
+	}
+
 	namespace {
 		using application::git_ancestry;
 		using application::git_commit_id;
@@ -4529,10 +4541,11 @@ namespace bpr::adapters::git {
 		{
 		public:
 			installed_git_process(
-				application::git_installation        aInstallation,
-				std::filesystem::path                aIsolationRoot,
-				std::unique_ptr<process_worker>      aWorker,
-				std::optional<std::filesystem::path> aWorkspaceRegistry)
+				application::git_installation               aInstallation,
+				std::filesystem::path                       aIsolationRoot,
+				std::unique_ptr<process_worker>             aWorker,
+				std::optional<std::filesystem::path>        aWorkspaceRegistry,
+				std::shared_ptr<installed_workspace_owners> aWorkspaceOwners)
 				: Installation{ std::move(aInstallation) }
 				, IsolationRoot{ std::move(aIsolationRoot) }
 				, RepositoriesRoot{ IsolationRoot / "repositories" / "v1" }
@@ -4541,6 +4554,7 @@ namespace bpr::adapters::git {
 				, HooksRoot{ IsolationRoot / "hooks" }
 				, Worker{ std::move(aWorker) }
 				, WorkspaceRegistry{ std::move(aWorkspaceRegistry) }
+				, WorkspaceOwners{ aWorkspaceOwners ? std::move(aWorkspaceOwners) : make_installed_workspace_owners() }
 			{
 			}
 
@@ -5368,7 +5382,8 @@ namespace bpr::adapters::git {
 					owned.RequiredBase = materialization.Session.Binding.BaseOid;
 				}
 				if (workspaceOwner) {
-					WorkspaceOwners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
+					const auto lock = std::scoped_lock{ WorkspaceOwners->Mutex };
+					WorkspaceOwners->Owners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
 				}
 				return owned;
 			}
@@ -5476,14 +5491,17 @@ namespace bpr::adapters::git {
 					if (!aWorkspace.LifetimeGuard) {
 						return std::unexpected{ git_process_failure::invalid_request };
 					}
-					const auto found = WorkspaceOwners.find(aWorkspace.LifetimeGuard->Path);
-					if (found == WorkspaceOwners.end() || found->second.first != aWorkspace) {
+					// [[BPR-2181]]. Found whichever of the profile's cache
+					// sessions made it.
+					const auto lock  = std::scoped_lock{ WorkspaceOwners->Mutex };
+					const auto found = WorkspaceOwners->Owners.find(aWorkspace.LifetimeGuard->Path);
+					if (found == WorkspaceOwners->Owners.end() || found->second.first != aWorkspace) {
 						return std::unexpected{ git_process_failure::invalid_request };
 					}
 					if (!found->second.second->cleanup()) {
 						return std::unexpected{ git_process_failure::invalid_repository };
 					}
-					WorkspaceOwners.erase(found);
+					WorkspaceOwners->Owners.erase(found);
 					return { };
 				}
 				if (aWorkspace.LifetimeGuard) {
@@ -6303,15 +6321,15 @@ namespace bpr::adapters::git {
 					aMutations.front());
 			}
 
-			application::git_installation                                                                                              Installation;
-			std::filesystem::path                                                                                                      IsolationRoot;
-			std::filesystem::path                                                                                                      RepositoriesRoot;
-			std::filesystem::path                                                                                                      IncomingRoot;
-			std::filesystem::path                                                                                                      TemplatesRoot;
-			std::filesystem::path                                                                                                      HooksRoot;
-			std::unique_ptr<process_worker>                                                                                            Worker;
-			std::optional<std::filesystem::path>                                                                                       WorkspaceRegistry;
-			std::map<std::string, std::pair<application::owned_agent_workspace, std::unique_ptr<installed_agent_workspace_ownership>>> WorkspaceOwners;
+			application::git_installation               Installation;
+			std::filesystem::path                       IsolationRoot;
+			std::filesystem::path                       RepositoriesRoot;
+			std::filesystem::path                       IncomingRoot;
+			std::filesystem::path                       TemplatesRoot;
+			std::filesystem::path                       HooksRoot;
+			std::unique_ptr<process_worker>             Worker;
+			std::optional<std::filesystem::path>        WorkspaceRegistry;
+			std::shared_ptr<installed_workspace_owners> WorkspaceOwners;
 		};
 
 		inline constexpr std::array<std::uint8_t, 230U> probe_pack{
@@ -8630,7 +8648,7 @@ namespace bpr::adapters::git {
 					configuration.Insights = aConfiguration.Insights;
 					return std::unique_ptr<application::git_process_port>{
 						std::make_unique<installed_git_process>(admitted->Installation, admitted->Isolation,
-																std::make_unique<process_worker>(std::move(configuration)), aConfiguration.WorkspaceOwnershipRegistry)
+																std::make_unique<process_worker>(std::move(configuration)), aConfiguration.WorkspaceOwnershipRegistry, aConfiguration.WorkspaceOwners)
 					};
 				}
 			}
@@ -8645,7 +8663,7 @@ namespace bpr::adapters::git {
 			auto implementation = std::make_unique<installed_git_process>(
 				bootstrapped->Installation,
 				bootstrapped->Isolation,
-				std::move(bootstrapped->Worker), aConfiguration.WorkspaceOwnershipRegistry);
+				std::move(bootstrapped->Worker), aConfiguration.WorkspaceOwnershipRegistry, aConfiguration.WorkspaceOwners);
 			const auto probe = implementation->capability_probe(aStop);
 			if (!probe.has_value()) {
 				if (

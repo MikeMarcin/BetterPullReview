@@ -268,6 +268,11 @@ namespace bpr::application {
 							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer, std::stop_token aStop = { });
 
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		/// \brief [[BPR-2181]]. Called on the decision lane when the host is
+		/// quiescent again after a run retired (its workspace cleaned up and
+		/// its helpers settled): the retirement event a queue releases its
+		/// next message on. Set on the decision lane.
+		void               set_retired_observer(std::function<void()> aObserver);
 		[[nodiscard]] auto statistics() const noexcept
 			-> agent_invocation_host_statistics;
 

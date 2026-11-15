@@ -563,7 +563,10 @@ namespace bpr::application {
 					self->AdmissionPending = false;
 					cancelled              = std::exchange(self->AdmissionCancelled, false);
 				}
-				const auto idle = [&self] { self->ActiveJobs.store(0U, std::memory_order_release); };
+				const auto idle = [&self] {
+					self->ActiveJobs.store(0U, std::memory_order_release);
+					self->announce_retirement();
+				};
 				if (!aAdmitted) {
 					++self->SessionAdmissionFailures;
 					idle();
@@ -1478,11 +1481,13 @@ namespace bpr::application {
 				}
 			}
 			ActiveJobs.store(0U, std::memory_order_release);
+			announce_retirement();
 			if (HasDeferredNativeHistory.exchange(false)) {
 				++Probes;
 				try {
 					DecisionLane.post([self = shared_from_this()] {
 						--self->Probes;
+						self->announce_retirement();
 						if (!self->Closing) {
 							auto choice      = std::exchange(self->DeferredNativeChoice, { });
 							auto observation = std::exchange(self->DeferredNativeHistory, { });
@@ -1707,6 +1712,29 @@ namespace bpr::application {
 			}
 		}
 
+		/// [[BPR-2181]]. Told on the decision lane each time the host is
+		/// quiescent after a run retired: the run's own retirement event,
+		/// so nothing watches for it on a timer. Decision lane only.
+		std::function<void()> RetiredObserver;
+
+		[[nodiscard]] auto quiescent() const noexcept -> bool
+		{
+			return ActiveJobs.load(std::memory_order_acquire) == 0U && Probes.load(std::memory_order_acquire) == 0U
+				&& (!NativeDrainRequested || Processes.native_connections_quiescent());
+		}
+
+		void announce_retirement() noexcept
+		{
+			try {
+				DecisionLane.post([weak = weak_from_this()] {
+					const auto self = weak.lock();
+					if (self && !self->Closing.load(std::memory_order_acquire) && self->RetiredObserver && self->quiescent()) {
+						self->RetiredObserver();
+					}
+				});
+			} catch (...) { }
+		}
+
 		std::function<void()> DeferredNativeHistory;
 		std::function<void()> DeferredNativeChoice;
 		std::atomic_bool      HasDeferredNativeHistory = false;
@@ -1837,9 +1865,12 @@ namespace bpr::application {
 
 	auto agent_invocation_host::is_quiescent() const noexcept -> bool
 	{
-		const auto implementation = Implementation;
-		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U && implementation->Probes.load(std::memory_order_acquire) == 0U
-			&& (!implementation->NativeDrainRequested || implementation->Processes.native_connections_quiescent());
+		return Implementation->quiescent();
+	}
+
+	void agent_invocation_host::set_retired_observer(std::function<void()> aObserver)
+	{
+		Implementation->RetiredObserver = std::move(aObserver);
 	}
 
 	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,

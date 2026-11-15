@@ -6958,6 +6958,7 @@ namespace bpr::adapters::git {
 															  .WorkspaceOwnershipRegistry = Configuration.WorkspaceOwnershipRegistry,
 															  .Insights                   = Configuration.Insights,
 															  .Admissions                 = Admissions,
+															  .WorkspaceOwners            = WorkspaceOwners,
 														  },
 														  aStop);
 					}
@@ -6968,6 +6969,9 @@ namespace bpr::adapters::git {
 			/// [[BPR-1842]]. Every review this cache opens shares one admission
 			/// of its Git, rather than admitting it again for each.
 			std::shared_ptr<installed_git_admissions> Admissions = make_installed_git_admissions();
+			/// [[BPR-2181]]. Agent workspaces outlive the cache session that
+			/// made them.
+			std::shared_ptr<installed_workspace_owners> WorkspaceOwners = make_installed_workspace_owners();
 		};
 	} // namespace
 

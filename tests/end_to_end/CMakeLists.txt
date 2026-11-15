@@ -5561,3 +5561,10 @@ bpr_add_network_isolated_test(NAME application_agent_queue_windows_public_path
     COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_agent_queue_windows_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-windows:pass")
+# [[BPR-2181]]. A run that ends while a second window still loads the pull
+# request retires, and the session's queue goes on.
+bpr_add_network_isolated_test(NAME application_agent_queue_second_window_loading_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:test_scoped_writing_agent>" --second-window-loading)
+set_tests_properties(application_agent_queue_second_window_loading_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-second-window-loading:pass")

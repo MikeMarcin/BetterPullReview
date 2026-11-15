@@ -814,11 +814,22 @@ namespace bpr::app {
 		void               draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               observe_ask_queue(bool aSettled);
 		[[nodiscard]] auto release_queued(const core::queued_entry& aEntry) -> bool;
-		/// RFC-BPR-0126 AC04: the profile's one queue host (Q10 as
-		/// overridden); this window is one of its viewers while it is open.
+		/// RFC-BPR-0126 AC04 ([[BPR-2181]]): the profile's session queue host.
+		/// This window subscribes to its deltas and sends it commands, and
+		/// offers its agent runtime to the profile's runner; it never decides
+		/// when a message goes.
 		decltype(github_profile_runtime::AgentQueueStore)& AgentQueueStore = Profile->AgentQueueStore;
 		decltype(github_profile_runtime::AgentQueue)&      AgentQueue      = Profile->AgentQueue;
-		std::optional<std::uint64_t>                       AgentQueueViewer;
+		decltype(github_profile_runtime::AgentRunner)&     AgentRunner     = Profile->AgentRunner;
+		std::optional<std::uint64_t>                       AgentQueueSubscriber;
+		std::optional<std::uint64_t>                       AgentRuntime;
+		/// The Agent tab's turn has retired (the host's retirement event):
+		/// settles the message the runner started here, then lets the queue
+		/// go on.
+		void agent_runtime_retired();
+		void tour_runtime_retired();
+		/// A tour-feedback turn released here has answered.
+		bool TourQueueAnswered = false;
 		/// The revision of the session's queue this window last showed: an
 		/// edit made from it is refused once another window changed it.
 		std::uint64_t AgentQueueSeen = 0U;
@@ -843,8 +854,7 @@ namespace bpr::app {
 		/// This window's draft has feedback waiting in the tour's queue.
 		bool TourFeedbackQueued = false;
 		/// The released entry's turn has been seen running.
-		bool                                    QueueTurnSeen     = false;
-		std::uint32_t                           QueueRetireChecks = 0U;
+		bool QueueTurnSeen = false;
 		void                                    record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
 		std::map<std::string, qt::thread_claim> ThreadClaims;
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested

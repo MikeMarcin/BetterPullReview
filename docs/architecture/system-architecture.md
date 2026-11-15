@@ -135,6 +135,20 @@ identity survives that activation; retained workspace ownership belongs to the e
 drains all windows before profile services. The first window has no special
 ownership of shared services or projection delivery.
 
+The profile runtime owns the session queue host (`application::agent_queue_host`,
+RFC-BPR-0126, [[BPR-2181]]): every agent session's queue, stored with the
+profile and restored paused. It alone decides when a session's next message
+goes, and starts it through the profile's turn runner
+(`agent_turn_runner_port`) only on the previous run's own retirement event
+(`agent_invocation_host::set_retired_observer`), never a timer. Windows
+subscribe to its semantic deltas and send it commands (add, edit-hold,
+reorder, remove, pause and resume, Steer, Stop all); none decides when a
+message goes, and closing one neither pauses nor hands a queue over. Until
+the agent runtime is composed per profile, each window offers its own agent
+invocation host to the runner. The installed Git cache keeps the agent
+workspaces its sessions made for the profile's lifetime, so a run whose cache
+session another window replaced still cleans up and retires.
+
 Explicit transcript replay uses the same scoped catalog with its own generation
 and durable source link. It never acquires the source's opaque native handle. Its explicit turns use the
 shared PR file/Git workspace, with no native tool-memory import. Only that selected generation's answered prose enters a bounded core

@@ -619,9 +619,11 @@ namespace bpr::app {
 		const auto idle                = tour_session_idle();
 		editor->set_tour_host_idle(idle);
 		if (idle) {
-			// RFC-BPR-0126 Q1: the retired host releases the queued feedback.
+			// Feedback left from a draft no window has any more comes back
+			// to the chat as not sent (deferred out of the presentation).
 			QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
 		}
+
 		// A presentation callback can replace either identity or an observer.
 		// Never let the older refresh overwrite that reentrant observation.
 		if (Closing || !Window || !editor || Window->tour_editor() != editor.data()
@@ -656,9 +658,7 @@ namespace bpr::app {
 			}
 			const auto ready = tour_session_idle();
 			editor->set_tour_host_idle(ready);
-			if (ready) {
-				QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
-			}
+
 			// Reentrant presentation may have deleted this exact observer.
 			if (ready && observer) {
 				observer->stop();
@@ -1004,6 +1004,9 @@ namespace bpr::app {
 				return qEnvironmentVariable(aName.c_str()).toStdString();
 			},
 			TourAgentEffects, DecisionLane, *TourProjection, nullptr, NativeAgentSessions.get(), DiagnosticLog.get());
+		// [[BPR-2181]]. The tour session's retirement event releases the
+		// feedback queued for its draft.
+		TourSession->set_retired_observer([this] { tour_runtime_retired(); });
 		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
 		TourProjection->NativeSession = [this](const core::agent_session& aSession) {
 			if (Closing || !Window) {
@@ -1460,12 +1463,14 @@ namespace bpr::app {
 			// so in the tour chat, with the feedback as written.
 			if (!(aResult.Outcome == application::agent_run_outcome::success && TourProposal)) {
 				return_tour_feedback("The draft didn't propose a tour, so this feedback wasn't sent. Send it again when you want.");
+			} else {
+				// Released once the session retires (its retirement event).
+				drain_tour_queue();
 			}
 		} else if (TourAskPending) {
 			TourAskPending = false;
-			if (std::exchange(TourQueueSending, false) && AgentQueue && !tour_queue_key().empty()) {
-				AgentQueue->settle(tour_queue_key(), core::queue_pause::none);
-			}
+			// Its run's retirement event settles it (`tour_runtime_retired`).
+			TourQueueAnswered = TourQueueSending;
 		} else {
 			finish_writing(aIdentity, aResult);
 		}
@@ -1865,11 +1870,12 @@ namespace bpr::app {
 		request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(aEntry.Input.Text), false);
 		if (!TourAskPending) {
 			// It could not run: the tour chat holds it as a turn that says
-			// why, with the feedback as written, so it settles here.
+			// why, with the feedback as written, so it settles once the
+			// runner has recorded the start.
 			TourQueueSending = false;
 			QTimer::singleShot(0, Window->tour_editor(), [this, key = tour_queue_key()] {
-				if (!Closing && AgentQueue) {
-					AgentQueue->settle(key, core::queue_pause::none);
+				if (!Closing && AgentRuntime) {
+					AgentRunner.retired(*AgentRuntime, key, core::queue_pause::none);
 				}
 			});
 		}
@@ -1890,12 +1896,28 @@ namespace bpr::app {
 			return;
 		}
 		if (!TourFeedbackQueued) {
-			if (!AgentQueue->sending(key) && !AgentQueue->shown(key)) {
+			if (!AgentQueue->sending(key) && AgentRunner.state(key) == core::queue_agent::not_set_up) {
 				return_tour_feedback("The draft this feedback waited for ended before it was ready, so it wasn't sent. Send it again when you want.");
 			}
 			return;
 		}
-		AgentQueue->drain(key);
+		AgentQueue->agent_changed(key);
+	}
+
+	/// [[BPR-2181]]. The tour session's own retirement event: a feedback
+	/// turn released here that has answered is settled; otherwise the host
+	/// is told the tour conversation may take its turn.
+	void github_application::implementation::tour_runtime_retired()
+	{
+		const auto key = tour_queue_key();
+		if (Closing || !AgentQueue || !AgentRuntime || key.empty()) {
+			return;
+		}
+		if (std::exchange(TourQueueAnswered, false) && std::exchange(TourQueueSending, false)) {
+			AgentRunner.retired(*AgentRuntime, key, core::queue_pause::none);
+			return;
+		}
+		drain_tour_queue();
 	}
 
 	void github_application::implementation::return_tour_feedback(const std::string& aWhy)
