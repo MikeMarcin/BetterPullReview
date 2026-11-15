@@ -3747,8 +3747,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# effect or path. A tests-on fixture session adds the fixture agent's
 	# entry, and the tests-on launcher probe forwards steering; neither is in
 	# a shipped build.
+	# BPR-2181 reseal over 5434d6010..98c2e9f30 (d9962f2ff, 0d70ff618,
+	# e755fe8a0, 9e6efb2c8 and the merge of native steering): the window
+	# sends every Agent-tab turn through its session's runtime and no longer
+	# on its own host, the Dif follows the runtime's identity, the runtime's
+	# loan follows the window's accepted revision, the profile closes its
+	# epoch actors after its runtimes, usage-limit words, and fixture
+	# evidence. No review mutation or publication path changed; the
+	# mutation-branch pin is unchanged. Reviewed on BPR-2181.
 	set(bpr_expected_production_app_manifest_digest
-        "05b8a610aa3fddddadc4d77b8e153f32e5f2990631cd326ff527ab99a0b1e104"
+        "6773682b962648dfb29ec40f265d15fd9ac8b9efcfb027105e92f8ab9b7b3d82"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
