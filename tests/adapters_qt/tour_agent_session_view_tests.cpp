@@ -19,7 +19,6 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocumentFragment>
 #include <QTextEdit>
@@ -526,7 +525,7 @@ auto main(int argc, char** argv) -> int
 	panel->transcript_button()->click();
 	// [[BPR-1913]] AC1. Its own window: nothing of it in the Tour tab's column.
 	expect(panel->transcript()->isVisible() && panel->transcript()->isWindow(), "it opens from the Tour tab, in its own window");
-	expect(editor.findChildren<QTextBrowser*>().size() == 1U && panel->transcript_view()->window() != editor.window(), "the editing column holds no transcript");
+	expect(editor.findChildren<QTextEdit*>(QStringLiteral("tourSessionRun")).size() == 1U && panel->transcript_view()->window() != editor.window(), "the editing column holds no transcript");
 	const auto said = panel->transcript_text();
 	expect(said.contains(QStringLiteral("Searched rg -n draw_scene src")) && said.contains(QStringLiteral("Read src/renderer.cpp")) && said.contains(QStringLiteral("Answered Proposed a Problem and 2 stops.")), "it says what it searched, read and answered: " + said.toStdString());
 	expect(said.contains(QStringLiteral("Left out \"Elsewhere\", src/elsewhere.cpp, lines 1 to 2: not a file of this pull request")), "it keeps the stop that was left out: " + said.toStdString());

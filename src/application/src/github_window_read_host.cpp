@@ -961,6 +961,7 @@ namespace bpr::application {
 				return;
 			}
 			PendingProvider  = aRequest;
+			LastProvider     = aRequest;
 			ProgressSequence = 0U;
 			// [[BPR-1888]]. Local Git setup can overlap the provider read. It
 			// grants no authority and cannot turn a readable PR into a failure.
@@ -2091,6 +2092,9 @@ namespace bpr::application {
 		/// provider's completion thread; none composed, the core hashes them.
 		const body_digest_port*                             BodyDigests = nullptr;
 		std::optional<github_pull_request_provider_request> PendingProvider;
+		/// [[BPR-2184]]. The last read submitted, whose authority a merge
+		/// count is asked on.
+		std::optional<github_pull_request_provider_request> LastProvider;
 		std::uint64_t                                       ProviderOperationToken = 0;
 		std::atomic_size_t                                  Outstanding{ 0 };
 		std::uint32_t                                       ProgressSequence = 0U;
@@ -2293,6 +2297,37 @@ namespace bpr::application {
 		return Implementation->open_loading_pull_request_page(aIntent, aBrowser);
 	}
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
+
+	void github_window_read_host::count_merges(std::vector<github_merge_to_count> aMerges, github_merge_count_handler aDone)
+	{
+		auto& host = *Implementation;
+		if (!aDone) {
+			return;
+		}
+		if (aMerges.empty() || !host.LastProvider || !host.AcceptedSnapshot || host.LastProvider->Mode != core::github_access_mode::authenticated) {
+			aDone({ });
+			return;
+		}
+		auto request = github_merge_count_request{ .Read = *host.LastProvider, .Repository = host.AcceptedSnapshot->Repository.Repository, .Merges = std::move(aMerges) };
+		auto weak    = std::weak_ptr<implementation>{ Implementation };
+		auto* lane   = &host.DecisionLane;
+		try {
+			host.pull_request_port_for(request.Read).count_merges(std::move(request), [weak, lane, done = std::move(aDone)](std::vector<std::pair<std::string, std::uint64_t>> aCounts) mutable {
+				if (weak.expired()) {
+					return;
+				}
+				try {
+					lane->post([weak, answer = std::move(done), counts = std::move(aCounts)]() mutable {
+						if (weak.lock()) {
+							answer(std::move(counts));
+						}
+					});
+				} catch (...) {
+				}
+			});
+		} catch (...) {
+		}
+	}
 	auto github_window_read_host::mutation_transport() const noexcept -> review_mutation_transport { return Implementation->ReviewMutationTransport; }
 	auto github_window_read_host::rate_limits() const noexcept -> const github_rate_limit_state& { return Implementation->RateLimits; }
 	auto github_window_read_host::is_quiescent() const noexcept -> bool { return Implementation->Outstanding == 0 && (!Implementation->Images || Implementation->Images->quiescent()); }

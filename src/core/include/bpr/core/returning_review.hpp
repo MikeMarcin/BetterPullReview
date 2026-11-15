@@ -233,6 +233,37 @@ namespace bpr::core {
 	[[nodiscard]] auto returning_excerpt(std::string_view aCommit, std::string_view aPath, std::string_view aText, std::uint32_t aFirst, std::uint32_t aLast)
 		-> std::optional<returning_lines>;
 
+	/// \brief [[BPR-2184]] (review N4). One comment of a review thread, as the
+	/// Q6 baseline reads it.
+	struct thread_baseline_comment
+	{
+		bool Deleted = false;
+		/// The commit the comment was written on, and the one GitHub places it
+		/// on now.
+		std::string OriginalCommit;
+		std::string Commit;
+
+		auto operator<=>(const thread_baseline_comment&) const = default;
+	};
+
+	/// \brief Q6: the commit a thread started on, its baseline for Was this
+	/// addressed?: its first comment that is not deleted, at the commit it was
+	/// written on, else the commit GitHub places it on. Empty when none.
+	[[nodiscard]] auto thread_baseline(const std::vector<thread_baseline_comment>& aComments) -> std::string;
+
+	/// \brief Where the head stands against a thread's baseline: whether it
+	/// is past it (none without a baseline) and how many of the pull
+	/// request's commits, oldest first in `aCommits`, follow it (none when
+	/// the list does not hold it, as on a rebased branch).
+	struct thread_progress
+	{
+		std::optional<bool>          Changed;
+		std::optional<std::uint32_t> CommitsSince;
+
+		auto operator<=>(const thread_progress&) const = default;
+	};
+	[[nodiscard]] auto thread_progress_since(std::string_view aBaseline, std::string_view aHead, const std::vector<std::string>& aCommits) -> thread_progress;
+
 	/// \brief The most threads one Was this addressed? carries.
 	inline constexpr std::size_t maximum_addressed_threads = 32U;
 	/// \brief A thread's conversation's bound in a many-thread ask.

@@ -119,9 +119,13 @@ namespace bpr::app {
 					break;
 				}
 			}
-			const auto commit = opening == nullptr             ? std::string{ }
-				: !opening->Observation.OriginalCommit.empty() ? opening->Observation.OriginalCommit
-															   : opening->Observation.Commit;
+			// [[BPR-2184]] (review N4): the baseline is core's decision, the
+			// same one the Ask menus' facts make.
+			auto said = std::vector<core::thread_baseline_comment>{ };
+			for (const auto& comment : thread.Comments) {
+				said.push_back({ .Deleted = comment.Deleted, .OriginalCommit = comment.Observation.OriginalCommit, .Commit = comment.Observation.Commit });
+			}
+			const auto commit = core::thread_baseline(said);
 			const auto asked  = core::proposed_fix_facts{ .ReviewerCommented = opening != nullptr, .LastCommentCommit = commit, .CurrentHead = headHex };
 			if (!core::proposed_fix_offered(asked) || thread.Path.empty()) {
 				continue;
@@ -308,7 +312,7 @@ namespace bpr::app {
 	/// commits it brought where GitHub's compare said, and whether it changed
 	/// this pull request's files where the commit filter has read its tree;
 	/// the rest grouped by area.
-	auto github_application::implementation::returning_commit_listing() const -> std::string
+	auto github_application::implementation::returning_commit_listing() -> std::string
 	{
 		const auto& snapshot = WindowRead != nullptr ? WindowRead->accepted_snapshot() : std::nullopt;
 		if (!snapshot || !ReturningReview.Earlier) {
@@ -319,8 +323,8 @@ namespace bpr::app {
 		auto        listed  = std::vector<core::listed_commit>{ };
 		auto        brought = std::vector<std::pair<std::string, std::uint32_t>>{ };
 		for (auto each = from == commits.end() ? commits.begin() : std::next(from); each != commits.end(); ++each) {
-			if (each->Brought) {
-				brought.emplace_back(std::string{ each->Oid.value() }, static_cast<std::uint32_t>(std::min<std::uint64_t>(*each->Brought, UINT32_MAX)));
+			if (const auto counted = ReturningReview.MergeCounts.find(std::string{ each->Oid.value() }); counted != ReturningReview.MergeCounts.end()) {
+				brought.emplace_back(counted->first, static_cast<std::uint32_t>(std::min<std::uint64_t>(counted->second, UINT32_MAX)));
 			}
 			auto commit = core::listed_commit{ .Oid = std::string{ each->Oid.value() }, .Headline = each->Headline };
 			if (each->Parents) {
@@ -340,7 +344,36 @@ namespace bpr::app {
 		for (const auto& file : snapshot->Files) {
 			files.push_back(file.Path);
 		}
-		auto text = core::render_commit_listing(core::fold_commit_listing(listed, snapshot->PullRequest.BaseRef, files, brought));
+		auto all = std::vector<std::string>{ };
+		for (const auto& commit : commits) {
+			all.emplace_back(commit.Oid.value());
+		}
+		// [[BPR-2184]] (review N3). The merges worth counting, decided in
+		// core, asked once for this head when the listing is first made; the
+		// listing is made again when the counts arrive.
+		const auto head = std::string{ snapshot->PullRequest.HeadOid.value() };
+		if (ReturningReview.MergeCountsHead != head) {
+			ReturningReview.MergeCountsHead = head;
+			ReturningReview.MergeCounts.clear();
+			auto asked = std::vector<application::github_merge_to_count>{ };
+			for (const auto& merge : core::merges_to_count(listed, all, snapshot->PullRequest.BaseRef)) {
+				asked.push_back({ .Merge = merge.Merge, .First = merge.First, .Second = merge.Second });
+			}
+			if (!asked.empty() && WindowRead != nullptr) {
+				WindowRead->count_merges(std::move(asked), [this, head](std::vector<std::pair<std::string, std::uint64_t>> aCounts) {
+					if (Closing || ReturningReview.MergeCountsHead != head || aCounts.empty()) {
+						return;
+					}
+					for (auto& [merge, count] : aCounts) {
+						ReturningReview.MergeCounts[merge] = count;
+					}
+					if (ReturningReview.Material && ReturningReview.Material->Operation == core::returning_operation::latest_upload) {
+						ReturningReview.Material->Commits = returning_commit_listing();
+					}
+				});
+			}
+		}
+		auto text = core::render_commit_listing(core::fold_commit_listing(listed, all, snapshot->PullRequest.BaseRef, files, brought));
 		if (text.size() > core::maximum_returning_change_bytes) {
 			text.resize(core::maximum_returning_change_bytes);
 			while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U) {
@@ -446,11 +479,23 @@ namespace bpr::app {
 		if (Closing || Window == nullptr) {
 			return;
 		}
+		// [[BPR-2184]] (review B1). The row named exactly the threads a press
+		// sends, capped in core; they are sent as named, or not at all when
+		// the window no longer holds one of them, so the count a person saw
+		// is the count asked about.
 		auto threads = std::vector<std::string>{ };
 		for (const auto& identity : aIdentities) {
-			if (ReturningReview.Threads.contains(identity) && accepted_thread(identity) != nullptr && threads.size() < core::maximum_addressed_threads) {
+			if (!ReturningReview.Threads.contains(identity) || accepted_thread(identity) == nullptr) {
+				Window->open_agent_question();
+				Window->agent_panel()->refuse("Was this addressed?: a thread it named has changed since the menu opened. Open the menu again. Nothing was sent.");
+				return;
+			}
+			if (std::ranges::find(threads, identity) == threads.end()) {
 				threads.push_back(identity);
 			}
+		}
+		if (threads.size() > core::maximum_addressed_threads) {
+			threads.resize(core::maximum_addressed_threads);
 		}
 		if (threads.size() == 1U) {
 			ask_was_addressed(threads.front());

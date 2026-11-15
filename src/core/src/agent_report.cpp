@@ -220,16 +220,12 @@ namespace bpr::core {
 		return std::ranges::none_of(aPullRequestCommits, [&aCommit](const std::string& aOid) { return aOid == aCommit.Parents[1]; });
 	}
 
-	auto fold_commit_listing(const std::vector<listed_commit>& aCommits, const std::string_view aBase, const std::vector<std::string>& aPullRequestFiles,
-							 const std::vector<std::pair<std::string, std::uint32_t>>& aBrought) -> commit_listing
+	auto fold_commit_listing(const std::vector<listed_commit>& aCommits, const std::vector<std::string>& aPullRequestCommits, const std::string_view aBase,
+							 const std::vector<std::string>& aPullRequestFiles, const std::vector<std::pair<std::string, std::uint32_t>>& aBrought) -> commit_listing
 	{
 		auto listing = commit_listing{ };
-		auto oids    = std::vector<std::string>{ };
 		for (const auto& commit : aCommits) {
-			oids.push_back(commit.Oid);
-		}
-		for (const auto& commit : aCommits) {
-			if (merges_base(commit, aBase, oids)) {
+			if (merges_base(commit, aBase, aPullRequestCommits)) {
 				auto merge = listed_merge{ .Oid = commit.Oid, .Base = std::string{ aBase } };
 				if (const auto counted = std::ranges::find(aBrought, commit.Oid, &std::pair<std::string, std::uint32_t>::first); counted != aBrought.end()) {
 					merge.Brought = counted->second;
@@ -251,6 +247,17 @@ namespace bpr::core {
 			found->Commits.push_back(commit);
 		}
 		return listing;
+	}
+
+	auto merges_to_count(const std::vector<listed_commit>& aCommits, const std::vector<std::string>& aPullRequestCommits, const std::string_view aBase) -> std::vector<merge_to_count>
+	{
+		auto merges = std::vector<merge_to_count>{ };
+		for (auto commit = aCommits.rbegin(); commit != aCommits.rend() && merges.size() < maximum_counted_merges; ++commit) {
+			if (merges_base(*commit, aBase, aPullRequestCommits)) {
+				merges.push_back({ .Merge = commit->Oid, .First = commit->Parents[0], .Second = commit->Parents[1] });
+			}
+		}
+		return merges;
 	}
 
 	auto render_commit_listing(const commit_listing& aListing) -> std::string

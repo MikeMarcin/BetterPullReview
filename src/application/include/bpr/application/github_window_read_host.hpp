@@ -184,6 +184,11 @@ namespace bpr::application {
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
 		[[nodiscard]] auto window() const noexcept -> core::bpr_window_context;
 		[[nodiscard]] auto accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>&;
+		/// \brief [[BPR-2184]] (review N3). Counts what each merge brought in,
+		/// on the authority and account of the read that answered the
+		/// accepted snapshot; answers on the decision lane, with nothing when
+		/// there is no such read or the window is signed out.
+		void               count_merges(std::vector<github_merge_to_count> aMerges, github_merge_count_handler aDone);
 		[[nodiscard]] auto mutation_transport() const noexcept -> review_mutation_transport;
 		[[nodiscard]] auto rate_limits() const noexcept -> const github_rate_limit_state&;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;

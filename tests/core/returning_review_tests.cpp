@@ -199,8 +199,27 @@ namespace {
 	}
 }
 
+namespace {
+	/// [[BPR-2184]] (review N4). Q6 in core: the baseline is the first
+	/// comment not deleted, at the commit it was written on, else where
+	/// GitHub places it; progress counts the commits after it.
+	void thread_baseline_is_decided_in_core()
+	{
+		expect(core::thread_baseline({ { .Deleted = true, .OriginalCommit = "aaa", .Commit = "aaa" }, { .OriginalCommit = "bbb", .Commit = "ccc" } }) == "bbb", "the first comment not deleted, at the commit it was written on");
+		expect(core::thread_baseline({ { .OriginalCommit = "", .Commit = "ccc" } }) == "ccc", "else the commit GitHub places it on");
+		expect(core::thread_baseline({ }).empty() && core::thread_baseline({ { .Deleted = true, .OriginalCommit = "a", .Commit = "a" } }).empty(), "none when nothing is left");
+		const auto commits = std::vector<std::string>{ "c1", "c2", "c3", "c4" };
+		const auto since   = core::thread_progress_since("c2", "c4", commits);
+		expect(since.Changed == true && since.CommitsSince == 2U, "two commits after c2, the head past it");
+		expect(core::thread_progress_since("c4", "c4", commits).Changed == false, "at the head: unchanged");
+		expect(!core::thread_progress_since("gone", "c4", commits).CommitsSince && core::thread_progress_since("gone", "c4", commits).Changed == true, "a rebased-away baseline: changed, uncounted");
+		expect(!core::thread_progress_since("", "c4", commits).Changed, "no baseline: unknown");
+	}
+}
+
 auto main() -> int
 {
+	thread_baseline_is_decided_in_core();
 	one_ask_reads_every_threads_claim();
 	latest_upload_is_offered_only_for_newer_commits();
 	unreadable_earlier_revision_is_unavailable();

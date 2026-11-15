@@ -391,4 +391,26 @@ namespace bpr::core {
 		}
 		return false;
 	}
+	auto thread_baseline(const std::vector<thread_baseline_comment>& aComments) -> std::string
+	{
+		for (const auto& comment : aComments) {
+			if (!comment.Deleted) {
+				return !comment.OriginalCommit.empty() ? comment.OriginalCommit : comment.Commit;
+			}
+		}
+		return { };
+	}
+
+	auto thread_progress_since(const std::string_view aBaseline, const std::string_view aHead, const std::vector<std::string>& aCommits) -> thread_progress
+	{
+		auto progress = thread_progress{ };
+		if (aBaseline.empty()) {
+			return progress;
+		}
+		progress.Changed = aBaseline != aHead;
+		if (const auto found = std::ranges::find(aCommits, aBaseline); found != aCommits.end()) {
+			progress.CommitsSince = static_cast<std::uint32_t>(std::distance(found, aCommits.end()) - 1);
+		}
+		return progress;
+	}
 } // namespace bpr::core

@@ -2546,6 +2546,85 @@ namespace bpr::adapters::github::detail {
 		fetch_pull_request_with_observations(std::move(aRequest), std::move(aCompletion), std::move(aProgress), { });
 	}
 
+	/// RFC-BPR-0128 ([[BPR-2167]], [[BPR-2184]] review N3). What each merge
+	/// brought in: one compare of its first and second parents (`ahead_by`),
+	/// asked only when What changed is composed, never inside a pull request
+	/// read, and only on an account's own transport. Each answer is
+	/// remembered for the session, by host, profile, repository and the two
+	/// parents. A compare that fails leaves that merge and the rest uncounted.
+	void github_provider::count_merges(application::github_merge_count_request aRequest, application::github_merge_count_handler aDone)
+	{
+		const auto answer = [&aDone](std::vector<std::pair<std::string, std::uint64_t>> aCounts) {
+			if (aDone) {
+				aDone(std::move(aCounts));
+			}
+		};
+		const auto& read  = aRequest.Read;
+		const auto  state = Implementation->State;
+		if (aRequest.Merges.empty() || read.Mode != core::github_access_mode::authenticated || state->ReadAuthority != github_provider_read_authority::authenticated || !valid_request(read)) {
+			answer({ });
+			return;
+		}
+		const auto profile = find_exact_profile(*state, read.ProfileAuthority);
+		const auto account = profile == nullptr ? nullptr
+												: exact_account_transport(read.AccountTransport, read.ProfileAuthority, read.AuthenticationSession.value_or(read.Context.ApplicationSession),
+																		  read.Context.IdentityGeneration, read.Context.Account);
+		if (account == nullptr || account->Transport == nullptr) {
+			answer({ });
+			return;
+		}
+		const auto jobResult = make_job(state, provider_phase::pull_request, read.Context, read.Attempt);
+		if (!jobResult.has_value()) {
+			answer({ });
+			return;
+		}
+		const auto job      = *jobResult;
+		auto       delivery = make_delivery(std::move(aDone));
+		try {
+			state->Effects->post([state, job, profile, account, request = std::move(aRequest), delivery]() mutable {
+				auto counts = std::vector<std::pair<std::string, std::uint64_t>>{ };
+				try {
+					auto transport = account->Transport;
+					auto operation = transport->begin_operation(job->Stop.get_token());
+					if (operation && *operation) {
+						transport = std::move(*operation);
+					}
+					for (const auto& merge : request.Merges) {
+						if (job->Stop.stop_requested() || !operation) {
+							break;
+						}
+						const auto key = std::tuple{ request.Read.Context.Host.value(), request.Read.Context.Profile.value(), request.Repository.value(), merge.First, merge.Second };
+						{
+							std::scoped_lock lock{ state->Mutex };
+							if (const auto found = state->Brought.find(key); found != state->Brought.end()) {
+								counts.emplace_back(merge.Merge, found->second);
+								continue;
+							}
+						}
+						const auto answered = perform_github_merge_base_read(*transport, *profile, request.Read, request.Repository, github_merge_base_basis{ .BaseOid = merge.First }, merge.Second,
+																			 job->Stop.get_token(), { }, state->ReadAuthority, nullptr);
+						if (!answered || !answered->AheadBy) {
+							break;
+						}
+						counts.emplace_back(merge.Merge, *answered->AheadBy);
+						constexpr auto   maximumRemembered = std::size_t{ 256U };
+						std::scoped_lock lock{ state->Mutex };
+						if (state->Brought.size() >= maximumRemembered) {
+							state->Brought.clear();
+						}
+						state->Brought.insert_or_assign(key, *answered->AheadBy);
+					}
+				} catch (...) {
+				}
+				static_cast<void>(finish_job(state, job));
+				delivery->deliver(std::move(counts));
+			});
+		} catch (...) {
+			static_cast<void>(stop_after_failed_post(state, job));
+			delivery->deliver(std::vector<std::pair<std::string, std::uint64_t>>{ });
+		}
+	}
+
 	void github_provider::fetch_pull_request_with_observations(
 		application::github_pull_request_provider_request   aRequest,
 		application::github_pull_request_completion_handler aCompletion,
@@ -2925,62 +3004,6 @@ namespace bpr::adapters::github::detail {
 							} else {
 								result->MergeBaseAvailability = step == merge_base_step::refused ? application::github_merge_base_availability::refused
 																								 : application::github_merge_base_availability::failed;
-							}
-						}
-						// RFC-BPR-0128 ([[BPR-2167]]). What each merge in the pull
-						// request brought in: one compare of its first and second
-						// parents (`ahead_by`), for the newest eight merges a read,
-						// remembered for the session. A read that fails leaves the
-						// rest unasked and their counts unknown; lost
-						// authentication fails the read as every optional read
-						// does.
-						{
-							constexpr auto mostMerges = std::size_t{ 8U };
-							auto           asked      = std::size_t{ 0U };
-							for (auto commit = result->Commits.rbegin(); commit != result->Commits.rend() && asked < mostMerges; ++commit) {
-								if (!commit->Parents || commit->Parents->size() < 2U) {
-									continue;
-								}
-								++asked;
-								const auto first  = std::string{ (*commit->Parents)[0].value() };
-								const auto second = std::string{ (*commit->Parents)[1].value() };
-								const auto key    = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(), first, second };
-								{
-									std::scoped_lock lock{ state->Mutex };
-									if (const auto found = state->Brought.find(key); found != state->Brought.end()) {
-										commit->Brought = found->second;
-										continue;
-									}
-								}
-								const auto read = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository, github_merge_base_basis{ .BaseOid = first },
-																				 second, job->Stop.get_token(), { }, state->ReadAuthority, &observer);
-								if (!read) {
-									if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
-										cancelled();
-										return;
-									}
-									const auto& error = std::get<application::github_provider_error>(read.error());
-									if (error.RateLimits.Core) {
-										result->RateLimits.Core = error.RateLimits.Core;
-									}
-									if (error.Failure == application::github_provider_failure::authentication) {
-										failed(error);
-										return;
-									}
-									break;
-								}
-								if (read->RateLimits.Core) {
-									result->RateLimits.Core = read->RateLimits.Core;
-								}
-								if (read->AheadBy) {
-									commit->Brought                    = *read->AheadBy;
-									constexpr auto   maximumRemembered = std::size_t{ 256U };
-									std::scoped_lock lock{ state->Mutex };
-									if (state->Brought.size() >= maximumRemembered) {
-										state->Brought.clear();
-									}
-									state->Brought.insert_or_assign(key, *read->AheadBy);
-								}
 							}
 						}
 						// [[BPR-1589]]. Whether the viewer is in each team a review

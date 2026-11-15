@@ -130,7 +130,6 @@
 #include <QStyleOption>
 #include <QTabBar>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>

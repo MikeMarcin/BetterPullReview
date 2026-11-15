@@ -20,7 +20,7 @@ class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
-class QTextBrowser;
+class QTextEdit;
 class QToolButton;
 class QLayout;
 class QVBoxLayout;
@@ -185,7 +185,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1913]]. The transcript's own window.
 		[[nodiscard]] auto transcript() const noexcept -> QWidget* { return TranscriptWindow; }
 		/// \brief The shown run's text, selectable across its entries.
-		[[nodiscard]] auto transcript_view() const noexcept -> QTextBrowser* { return RunView; }
+		[[nodiscard]] auto transcript_view() const noexcept -> QTextEdit* { return RunView; }
 		/// \brief The transcript's list of runs, newest first.
 		[[nodiscard]] auto transcript_runs() const noexcept -> QListWidget* { return RunList; }
 		[[nodiscard]] auto copy_run_button() const noexcept -> QPushButton* { return CopyRun; }
@@ -282,7 +282,7 @@ namespace bpr::qt {
 		QLabel*                                                                     OutsideList      = nullptr;
 		QWidget*                                                                    TranscriptWindow = nullptr;
 		QListWidget*                                                                RunList          = nullptr;
-		QTextBrowser*                                                               RunView          = nullptr;
+		QTextEdit*                                                                  RunView          = nullptr;
 		std::shared_ptr<detail::markdown_code_store>                                TranscriptCode;
 		detail::markdown_code_block_objects*                                        TranscriptFrames = nullptr;
 		QPushButton*                                                                CopyRun          = nullptr;

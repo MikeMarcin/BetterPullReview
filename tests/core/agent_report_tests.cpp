@@ -61,8 +61,12 @@ namespace {
 			{ .Oid = "d4000000000000000000000000000000000000dd", .Headline = "Clamp the resize", .Parents = { "c3000000000000000000000000000000000000cc" }, .Paths = std::vector<std::string>{ "src/render/renderer.cpp" } },
 			{ .Oid = "e5000000000000000000000000000000000000ee", .Headline = "Merge remote-tracking branch 'origin/main'", .Parents = { "d4000000000000000000000000000000000000dd", "m12" }, .Paths = std::vector<std::string>{ "tools/ci.yml" } },
 		};
-		const auto files   = std::vector<std::string>{ "src/render/renderer.cpp", "src/render/frame_pool.cpp", "docs/pool.md" };
-		const auto listing = fold_commit_listing(commits, "main", files, { { "b2000000000000000000000000000000000000bb", 24U } });
+		const auto files = std::vector<std::string>{ "src/render/renderer.cpp", "src/render/frame_pool.cpp", "docs/pool.md" };
+		auto       all   = std::vector<std::string>{ };
+		for (const auto& commit : commits) {
+			all.push_back(commit.Oid);
+		}
+		const auto listing = fold_commit_listing(commits, all, "main", files, { { "b2000000000000000000000000000000000000bb", 24U } });
 		expect(listing.Merges.size() == 2U && listing.Merges[0].Brought == 24U && listing.Merges[0].ChangedPullRequestFiles == true && !listing.Merges[1].Brought && listing.Merges[1].ChangedPullRequestFiles == false,
 			   "each merge of main is one line, with its count where known and whether it changed this pull request's files");
 		expect(listing.Areas.size() == 2U && listing.Areas[0].Area == "src" && listing.Areas[0].Commits.size() == 2U && listing.Areas[1].Area == "docs" && listing.Areas[1].Commits.size() == 1U,
@@ -74,7 +78,27 @@ namespace {
 		expect(!merges_base(commits[0], "main", { }), "one parent is no merge");
 		const auto feature = listed_commit{ .Oid = "f", .Headline = "Merge pull request #7 from fork/topic", .Parents = { "a", "b" } };
 		expect(merges_base(feature, "main", { }) && !merges_base(feature, "main", { "a", "b" }), "a merge whose second parent is the pull request's own is not a merge of main");
-		expect(fold_commit_listing(commits, "main", files) == fold_commit_listing(commits, "main", files), "deterministic");
+		expect(fold_commit_listing(commits, all, "main", files) == fold_commit_listing(commits, all, "main", files), "deterministic");
+		// [[BPR-2184]] (review N7). The slice since the review is not the whole
+		// pull request: a merge whose second parent is one of the pull
+		// request's own commits from before the review is not a merge of
+		// main, though that commit is outside the slice.
+		const auto topic = listed_commit{ .Oid = "f6000000000000000000000000000000000000ff", .Headline = "Merge topic into feature", .Parents = { "e5000000000000000000000000000000000000ee", "0older" } };
+		const auto slice = std::vector<listed_commit>{ topic };
+		auto       whole = all;
+		whole.insert(whole.begin(), "0older");
+		expect(fold_commit_listing(slice, whole, "main", files).Merges.empty(), "the pull request's own earlier commit makes it a merge within the branch");
+		expect(fold_commit_listing(slice, all, "main", files).Merges.size() == 1U, "without it in the whole set, it would read as a merge of main");
+		// [[BPR-2184]] (review N3): which merges are counted, decided here.
+		const auto counted = merges_to_count(commits, all, "main");
+		expect(counted.size() == 2U && counted[0].Merge == "e5000000000000000000000000000000000000ee" && counted[0].First == "d4000000000000000000000000000000000000dd" && counted[0].Second == "m12"
+				   && counted[1].Merge == "b2000000000000000000000000000000000000bb",
+			   "each merge of main in the slice, newest first, with its parents");
+		auto many = std::vector<listed_commit>{ };
+		for (auto index = 0; index < 12; ++index) {
+			many.push_back({ .Oid = "m" + std::to_string(index), .Headline = "Merge branch 'main' into topic", .Parents = { "p" + std::to_string(index), "q" + std::to_string(index) } });
+		}
+		expect(merges_to_count(many, { }, "main").size() == maximum_counted_merges, "at most eight a listing");
 	}
 
 	/// docs/design/report-templates-v1 and v2: the convention read for

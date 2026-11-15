@@ -7,6 +7,7 @@
 #include <QString>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -35,9 +36,6 @@ namespace bpr::qt {
 		auto operator==(const report_colours&) const -> bool = default;
 	};
 
-	/// \brief The link Add as draft comment carries: `bpr-draft:` and its
-	/// item's row in the menu.
-	inline constexpr auto report_draft_scheme = "bpr-draft:";
 	/// \brief The anchor a heading's paragraph carries: `bpr-h-` and its row
 	/// in the menu.
 	inline constexpr auto report_heading_anchor = "bpr-h-";
@@ -64,9 +62,13 @@ namespace bpr::qt {
 
 	/// \brief The page's HTML. `aDraftNotes` says, by an item's row in the
 	/// menu, what became of its Add as draft comment. Each code block is a
-	/// marker paragraph, its slot appended to `aSlots`.
+	/// marker paragraph, its slot appended to `aSlots`. Review of 2026-11-14:
+	/// an action never lives in a scheme agent text could write;
+	/// `aDraftLink` mints, per render, the link Add as draft comment carries
+	/// for an item's row in the menu, and only the view that minted it knows
+	/// it. Without one, no item offers the action.
 	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes = { },
-										std::vector<report_code_slot>* aSlots = nullptr) -> QString;
+										std::vector<report_code_slot>* aSlots = nullptr, const std::function<QString(std::uint32_t)>& aDraftLink = { }) -> QString;
 
 	/// \brief The colour a tone wears; neutral is the stronger rule.
 	[[nodiscard]] auto report_tone_colour(core::report_tone aTone, const report_colours& aColours) -> QColor;

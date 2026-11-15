@@ -30,8 +30,8 @@
 #include <QSplitter>
 #include <QTabBar>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
+#include <QTextEdit>
 #include <QTextLayout>
 #include <QToolButton>
 

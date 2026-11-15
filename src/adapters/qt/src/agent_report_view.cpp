@@ -17,6 +17,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -31,6 +32,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <string_view>
 
 namespace bpr::qt {
@@ -316,6 +318,7 @@ namespace bpr::qt {
 		Dressed = new QTextEdit{ Column };
 		Dressed->setDocument(new detail::markdown_document{ Dressed });
 		Dressed->setReadOnly(true);
+		Dressed->setProperty("bprReader", true);
 		Dressed->setAcceptRichText(false);
 		Dressed->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
 		Dressed->setMouseTracking(true);
@@ -622,7 +625,15 @@ namespace bpr::qt {
 			const auto top = Scroll->verticalScrollBar()->value();
 			Dressed->document()->setDefaultFont(QFont{ QStringLiteral("Charter"), 13 });
 			auto collected = std::vector<report_code_slot>{ };
-			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes, &collected));
+			// Add as draft comment's links, minted afresh for this render: a
+			// random token no answer can know, mapped to its item.
+			DraftLinks.clear();
+			const auto mint = std::function<QString(std::uint32_t)>{ [this](const std::uint32_t aOutline) {
+				auto token = QStringLiteral("report-action-%1%2").arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' }).arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' });
+				DraftLinks.emplace(token, aOutline);
+				return token;
+			} };
+			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes, &collected, mint));
 			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
 			// Look report-templates-v003: each code block is the Agent tab's
 			// own code box (its syntax colours, the code colours, Wrap and
@@ -735,13 +746,17 @@ namespace bpr::qt {
 	/// A link of the page: Add as draft comment, or a place or address.
 	void agent_report_view::follow(const QString& aLink)
 	{
-		if (!aLink.startsWith(QString::fromLatin1(report_draft_scheme))) {
+		// Review of 2026-11-14: an action is only a link this render minted;
+		// anything the report's own text links to is a place or an address,
+		// never an action, whatever it is written as.
+		const auto minted = DraftLinks.find(aLink);
+		if (minted == DraftLinks.end()) {
 			if (LinkDispatch) {
 				LinkDispatch(aLink);
 			}
 			return;
 		}
-		const auto outline = aLink.mid(static_cast<qsizetype>(std::string_view{ report_draft_scheme }.size())).toUInt();
+		const auto outline = minted->second;
 		for (const auto& section : Dress.Sections) {
 			for (const auto& item : section.Items) {
 				if (item.Outline != outline) {
@@ -949,7 +964,40 @@ namespace bpr::qt {
 		}
 		if (Dressed != nullptr && aObject == Dressed && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			if (const auto link = Dressed->textCursor().charFormat().anchorHref(); (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !link.isEmpty()) {
+			// [[BPR-2184]] (review N10). Tab and Shift+Tab walk the page's
+			// links, as a browser's did; past the last one the focus moves on.
+			if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) && (key->modifiers() & ~Qt::ShiftModifier) == Qt::NoModifier) {
+				const auto forward = key->key() == Qt::Key_Tab && (key->modifiers() & Qt::ShiftModifier) == 0;
+				const auto from    = forward ? Dressed->textCursor().selectionEnd() : Dressed->textCursor().selectionStart();
+				auto       found   = std::optional<std::pair<int, int>>{ };
+				for (auto block = Dressed->document()->begin(); block.isValid(); block = block.next()) {
+					for (auto it = block.begin(); !it.atEnd(); ++it) {
+						const auto fragment = it.fragment();
+						if (fragment.charFormat().anchorHref().isEmpty()) {
+							continue;
+						}
+						if (forward && fragment.position() >= from && (!found || fragment.position() < found->first)) {
+							found = std::pair{ fragment.position(), fragment.position() + fragment.length() };
+						}
+						if (!forward && fragment.position() + fragment.length() <= from && (!found || fragment.position() > found->first)) {
+							found = std::pair{ fragment.position(), fragment.position() + fragment.length() };
+						}
+					}
+				}
+				if (found) {
+					auto cursor = Dressed->textCursor();
+					cursor.setPosition(found->first);
+					cursor.setPosition(found->second, QTextCursor::KeepAnchor);
+					Dressed->setTextCursor(cursor);
+					Dressed->ensureCursorVisible();
+					return true;
+				}
+			}
+			auto at = Dressed->textCursor();
+			if (at.hasSelection()) {
+				at.setPosition(at.selectionStart() + 1);
+			}
+			if (const auto link = at.charFormat().anchorHref(); (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !link.isEmpty()) {
 				follow(link);
 				return true;
 			}

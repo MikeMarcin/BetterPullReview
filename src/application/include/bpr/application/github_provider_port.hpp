@@ -526,6 +526,28 @@ namespace bpr::application {
 		virtual void cancel_capabilities(github_capability_request aRequest) = 0;
 	};
 
+	/// \brief [[BPR-2184]] (review N3). One merge whose brought-in commits are
+	/// counted: its oid and its first and second parents.
+	struct github_merge_to_count
+	{
+		std::string Merge;
+		std::string First;
+		std::string Second;
+
+		auto operator<=>(const github_merge_to_count&) const = default;
+	};
+	/// \brief The merges to count, on the read that answered the snapshot
+	/// they are in (its authority, account and repository).
+	struct github_merge_count_request
+	{
+		github_pull_request_provider_request Read;
+		core::repository_id                  Repository;
+		std::vector<github_merge_to_count>   Merges;
+	};
+	/// \brief Each merge's count GitHub answered, by merge oid; a merge whose
+	/// compare failed is left out.
+	using github_merge_count_handler = std::function<void(std::vector<std::pair<std::string, std::uint64_t>>)>;
+
 	/// \brief Provides the github pull request port contract.
 	class github_pull_request_port
 	{
@@ -557,6 +579,16 @@ namespace bpr::application {
 		{
 			static_cast<void>(aOverview);
 			fetch_pull_request_with_progress(std::move(aRequest), std::move(aCompletion), std::move(aProgress));
+		}
+		/// \brief [[BPR-2184]] (review N3). Counts what each merge brought in,
+		/// one compare of its parents a merge, asked only when an answer needs
+		/// it. A port that cannot answers with nothing.
+		virtual void count_merges(github_merge_count_request aRequest, github_merge_count_handler aDone)
+		{
+			static_cast<void>(aRequest);
+			if (aDone) {
+				aDone({ });
+			}
 		}
 	};
 

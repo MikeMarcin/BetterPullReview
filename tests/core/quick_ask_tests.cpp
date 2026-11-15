@@ -249,6 +249,29 @@ namespace {
 	}
 } // namespace
 
+/// [[BPR-2184]] (review B1). A wide Was this addressed? over more
+/// changed threads than one ask carries names exactly the threads a
+/// press sends, the first in order, and how many more were left out.
+void test_wide_ask_is_capped()
+{
+	auto facts = returning_facts();
+	facts.Threads.clear();
+	for (auto index = 0U; index < 40U; ++index) {
+		facts.Threads.push_back({ .Identity = "t" + std::to_string(index), .Path = "src/render/renderer.cpp", .TakesReplies = true, .Changed = index % 10U != 9U, .CommitsSince = 1U });
+	}
+	const auto        menu = decide_quick_asks(shipped_set(), facts, quick_ask_anchor::review_bar);
+	const auto* const wide = find_quick_ask(menu, "conversation.was-addressed", prompt_scope::pull_request);
+	expect(wide != nullptr && wide->Each.size() == maximum_addressed_threads && wide->Count == maximum_addressed_threads && wide->Omitted == 4U,
+		   "36 changed threads: the row names the 32 a press sends and says 4 more were left out");
+	expect(wide->Each.front() == "t0" && wide->Each.back() == "t34", "the first 32 changed threads, in the pull request's order, the unchanged ones passed over");
+	expect(std::ranges::none_of(wide->Each, [](const std::string& aIdentity) { return aIdentity == "t9" || aIdentity == "t19"; }), "an unchanged thread is never sent");
+	const auto* const file = find_quick_ask(menu, "conversation.was-addressed", prompt_scope::file);
+	expect(file != nullptr && file->Each == wide->Each && file->Omitted == 4U, "the file's row is capped the same way");
+	auto       few   = returning_facts();
+	const auto small = decide_quick_asks(shipped_set(), few, quick_ask_anchor::review_bar);
+	expect(find_quick_ask(small, "conversation.was-addressed", prompt_scope::pull_request)->Omitted == 0U, "under the cap nothing is left out");
+}
+
 auto main() -> int
 {
 	test_legality();
@@ -256,6 +279,7 @@ auto main() -> int
 	test_review_bar_menu();
 	test_greyed_and_hidden();
 	test_reviewer_choices();
+	test_wide_ask_is_capped();
 	std::cout << "quick-ask-tests:pass\n";
 	return EXIT_SUCCESS;
 }

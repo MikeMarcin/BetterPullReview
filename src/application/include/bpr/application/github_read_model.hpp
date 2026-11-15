@@ -270,12 +270,6 @@ namespace bpr::application {
 		/// recorded response may; the commit filter is then unavailable rather
 		/// than guessed. An empty list is a root commit.
 		std::optional<std::vector<commit_oid>> Parents;
-		/// RFC-BPR-0128 ([[BPR-2167]]). A merge's count of the commits it
-		/// brought in: those its second parent has that its first lacks, as
-		/// GitHub's compare of the two answers (`ahead_by`). Absent for a
-		/// commit that is not a merge, or when it was not asked or not
-		/// answered.
-		std::optional<std::uint64_t> Brought;
 
 		auto operator<=>(const github_commit_record&) const = default;
 	};

@@ -129,10 +129,28 @@ namespace bpr::core {
 
 	/// \brief Folds a listing: each merge of the base branch is one line, and
 	/// the other commits are grouped by area, areas in first-seen order and
-	/// commits in their order. `aBrought` counts, by merge oid, the commits a
-	/// merge brought in where the host knows them.
-	[[nodiscard]] auto fold_commit_listing(const std::vector<listed_commit>& aCommits, std::string_view aBase, const std::vector<std::string>& aPullRequestFiles,
+	/// commits in their order. `aCommits` is the slice listed (the commits
+	/// since the review); `aPullRequestCommits` every commit of the pull
+	/// request, which decides whether a merge's second parent is the pull
+	/// request's own ([[BPR-2184]], review N7). `aBrought` counts, by merge
+	/// oid, the commits a merge brought in where the host knows them.
+	[[nodiscard]] auto fold_commit_listing(const std::vector<listed_commit>& aCommits, const std::vector<std::string>& aPullRequestCommits, std::string_view aBase,
+										   const std::vector<std::string>&                           aPullRequestFiles,
 										   const std::vector<std::pair<std::string, std::uint32_t>>& aBrought = { }) -> commit_listing;
+
+	/// \brief [[BPR-2184]] (review N3). The merges of the base branch in the
+	/// slice whose brought-in commits are worth a compare each: the newest
+	/// first, at most `maximum_counted_merges`, each with its two parents.
+	inline constexpr std::size_t maximum_counted_merges = 8U;
+	struct merge_to_count
+	{
+		std::string Merge;
+		std::string First;
+		std::string Second;
+
+		auto operator<=>(const merge_to_count&) const = default;
+	};
+	[[nodiscard]] auto merges_to_count(const std::vector<listed_commit>& aCommits, const std::vector<std::string>& aPullRequestCommits, std::string_view aBase) -> std::vector<merge_to_count>;
 
 	/// \brief The listing as Markdown for an answer's material: "Merged main
 	/// (24 commits), changed this pull request's files" lines, then each

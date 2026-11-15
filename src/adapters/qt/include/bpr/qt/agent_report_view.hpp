@@ -138,13 +138,15 @@ namespace bpr::qt {
 		QWidget*             Tail    = nullptr;
 		QTextEdit*           Dressed = nullptr;
 		/// The page's code boxes, by slot, and the page's places for them.
-		std::vector<report_code_slot>            Slots;
-		std::vector<markdown_body_view*>         CodeViews;
-		std::vector<int>                         CodePlaces;
-		QObject*                                 CodeObjects = nullptr;
-		core::dressed_report                     Dress;
-		report_colours                           Colours;
-		std::map<std::uint32_t, QString>         DraftNotes;
+		std::vector<report_code_slot>    Slots;
+		std::vector<markdown_body_view*> CodeViews;
+		std::vector<int>                 CodePlaces;
+		QObject*                         CodeObjects = nullptr;
+		core::dressed_report             Dress;
+		report_colours                   Colours;
+		std::map<std::uint32_t, QString> DraftNotes;
+		/// This render's Add as draft comment links, by token.
+		std::map<QString, std::uint32_t>         DraftLinks;
 		report_draft_dispatch                    DraftDispatch;
 		QLabel*                                  Title      = nullptr;
 		QLabel*                                  Byline     = nullptr;

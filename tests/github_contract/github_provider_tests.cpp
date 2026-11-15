@@ -2203,17 +2203,24 @@ namespace {
 				}
 				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
 			};
-			for (const auto read : { 1U, 2U }) {
-				auto completions = std::vector<application::github_pull_request_completion>{ };
-				fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			// [[BPR-2184]] (review N3): a pull request read never counts.
+			auto completions = std::vector<application::github_pull_request_completion>{ };
+			fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			const auto& snapshot = require_one<application::github_pull_request_success>(completions, "the read completes").Snapshot;
+			expect(snapshot.Commits.size() == 2U && snapshot.Commits.front().Oid.value() == merge && asked == 0U, "a pull request read asks no merge's count");
+			// Counted when asked, once a merge.
+			for (const auto attempt : { 1U, 2U }) {
+				auto counts = std::optional<std::vector<std::pair<std::string, std::uint64_t>>>{ };
+				fixture.Provider->count_merges({ .Read = request, .Repository = snapshot.Repository.Repository, .Merges = { { .Merge = merge, .First = firstParent, .Second = secondParent } } },
+											   [&counts](std::vector<std::pair<std::string, std::uint64_t>> aCounts) { counts = std::move(aCounts); });
 				fixture.Effects.run_next();
-				const auto& snapshot = require_one<application::github_pull_request_success>(completions, "the read completes").Snapshot;
-				expect(snapshot.Commits.size() == 2U && snapshot.Commits.front().Oid.value() == merge && !snapshot.Commits.back().Brought, "the head, one parent, is never asked");
+				expect(counts.has_value(), "the count is answered");
 				if (fails) {
-					expect(!snapshot.Commits.front().Brought && asked == read, "a compare that fails leaves the count unknown, asked again on the next read");
+					expect(counts->empty() && asked == attempt, "a compare that fails leaves the count unknown, asked again next time");
 				} else {
-					expect(snapshot.Commits.front().Brought == std::optional<std::uint64_t>{ 24U } && asked == 1U,
-						   read == 1U ? "the merge's count is GitHub's ahead_by for its parents" : "the count is kept: the next read asks nothing");
+					expect(*counts == std::vector<std::pair<std::string, std::uint64_t>>{ { merge, 24U } } && asked == 1U,
+						   attempt == 1U ? "the merge's count is GitHub's ahead_by for its parents" : "the count is kept: asking again sends nothing");
 				}
 			}
 		}

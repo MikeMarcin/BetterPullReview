@@ -2,6 +2,7 @@
 
 #include "markdown_code.hpp"
 #include "markdown_code_block.hpp"
+#include "markdown_document.hpp"
 #include "markdown_github.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
@@ -29,7 +30,6 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextDocumentFragment>
@@ -43,11 +43,21 @@
 namespace bpr::qt {
 	namespace {
 		// A selection spans the whole transcript; code's layout objects
-		// contribute no text, while their hidden code lines still do.
-		class transcript_browser final : public QTextBrowser
+		// contribute no text, while their hidden code lines still do. Review
+		// of 2026-11-14: the transcript holds agent-written text, so it is a
+		// read-only reader over the Markdown readers' document, which denies
+		// every resource load.
+		class transcript_browser final : public QTextEdit
 		{
 		public:
-			using QTextBrowser::QTextBrowser;
+			explicit transcript_browser(QWidget* aParent)
+				: QTextEdit{ aParent }
+			{
+				setDocument(new detail::markdown_document{ this });
+				setReadOnly(true);
+				setAcceptRichText(false);
+				setProperty("bprReader", true);
+			}
 
 		protected:
 			QMimeData* createMimeDataFromSelection() const override
@@ -699,7 +709,6 @@ namespace bpr::qt {
 		TranscriptFrames = new detail::markdown_code_block_objects{ *RunView };
 		RunView->setObjectName(QStringLiteral("tourSessionRun"));
 		RunView->setAccessibleName(tr("Conversation"));
-		RunView->setOpenLinks(false);
 		RunView->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		RunView->document()->setDocumentMargin(14);
 		split->addWidget(RunList);

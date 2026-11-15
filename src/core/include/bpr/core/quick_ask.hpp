@@ -163,6 +163,11 @@ namespace bpr::core {
 		/// A wider scope asks once for each: the threads, or the files, a
 		/// press runs on, in the pull request's order.
 		std::vector<std::string> Each;
+		/// [[BPR-2184]] (review B1). A Was this addressed? over more threads
+		/// than one ask carries (`maximum_addressed_threads`): `Each` and
+		/// `Count` are exactly the threads a press sends, and this is how many
+		/// more were left out.
+		std::uint32_t Omitted = 0U;
 		/// [[BPR-2179]]. The untrue condition a `condition` row gives the
 		/// reason of.
 		std::optional<prompt_condition> Condition;

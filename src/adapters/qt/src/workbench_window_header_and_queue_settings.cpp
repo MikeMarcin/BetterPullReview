@@ -71,7 +71,6 @@
 #include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
-#include <QTextBrowser>
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
@@ -1380,8 +1379,9 @@ namespace bpr::qt {
 		}
 		// A draft's editor is read-only for a moment while each edit is saved,
 		// so a multi-line editor holding the focus counts whatever its state;
-		// only a browser, which is never written in, does not.
-		if (qobject_cast<const QTextBrowser*>(focus) != nullptr) {
+		// only a reader (a transcript, a report), which is never written in,
+		// does not.
+		if (focus->property("bprReader").toBool()) {
 			return false;
 		}
 		return qobject_cast<const QTextEdit*>(focus) != nullptr || qobject_cast<const QPlainTextEdit*>(focus) != nullptr;

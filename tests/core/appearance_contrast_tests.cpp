@@ -1115,10 +1115,26 @@ namespace {
 		expect(find_match_ring(palette, bright, true) == ring, "the ring is a pure function of its inputs");
 	}
 
+	/// [[BPR-2184]] (review N6). The report's faint ink is moved toward the
+	/// paper only as far as the text floor allows.
+	auto test_report_shades_hold_the_floor() -> void
+	{
+		auto palette                                     = appearance_palette{ };
+		palette[index_of(appearance_role::report_paper)] = srgb(0xEEF1F0);
+		palette[index_of(appearance_role::report_ink)]   = srgb(0x1C2427);
+		const auto shades                                = derive_report_shades(palette);
+		expect(contrast_ratio_hundredths(shades.Faint, palette[index_of(appearance_role::report_paper)]) >= text_contrast_minimum_hundredths, "faint ink meets the text floor on the light slate");
+		expect(contrast_ratio_hundredths(shades.Dim, palette[index_of(appearance_role::report_paper)]) >= text_contrast_minimum_hundredths, "dim ink meets it too");
+		expect(contrast_ratio_hundredths(shades.Link, palette[index_of(appearance_role::report_paper)]) >= text_contrast_minimum_hundredths, "the link meets it");
+		expect(std::ranges::all_of(measure_report_shades(palette), [](const contrast_finding& aFinding) { return aFinding.Meets; }), "every derived shade is measured and meets its floor");
+		expect(derive_report_shades(palette) == shades, "deterministic");
+	}
+
 } // namespace
 
 int main()
 {
+	test_report_shades_hold_the_floor();
 	test_the_ratio_matches_known_values();
 	test_the_minimums_are_published_once();
 	test_every_checked_pair_is_named();

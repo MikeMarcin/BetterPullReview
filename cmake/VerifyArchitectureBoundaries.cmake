@@ -1,3 +1,17 @@
+# Review of 2026-11-14: every rule runs. A rule that fails records its
+# message and the gate goes on to the next, so one failure can no longer leave
+# every later rule unenforced; the gate fails at the end, naming every
+# violation it found.
+set_property(GLOBAL PROPERTY BPR_BOUNDARY_VIOLATIONS "")
+function(message mode)
+    if(mode STREQUAL "FATAL_ERROR")
+        string(JOIN "" said ${ARGN})
+        set_property(GLOBAL APPEND PROPERTY BPR_BOUNDARY_VIOLATIONS "${said}")
+    else()
+        _message(${mode} ${ARGN})
+    endif()
+endfunction()
+
 if(NOT DEFINED BPR_ROOT)
     message(FATAL_ERROR "BPR_ROOT is required")
 endif()
@@ -6311,3 +6325,74 @@ if(NOT clone_depth_count EQUAL 1 OR clone_depth_with_filter EQUAL -1)
         "([[BPR-1873]])."
     )
 endif()
+
+# Review of 2026-11-14 (RFC-BPR-0128's report page). Agent-written and
+# GitHub-written text is read only over a document that denies every resource
+# load: no QTextBrowser in the Qt adapter, and rich text is set only in files
+# that read over the Markdown readers' denying document.
+file(GLOB_RECURSE qt_reader_files LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/adapters/qt/*.cpp" "${BPR_ROOT}/src/adapters/qt/*.hpp" "${BPR_ROOT}/src/adapters/qt/*.h" "${BPR_ROOT}/src/adapters/qt/*.mm")
+foreach(source_file IN LISTS qt_reader_files)
+    file(READ "${source_file}" contents)
+    if(contents MATCHES "QTextBrowser")
+        message(FATAL_ERROR "${source_file}: QTextBrowser loads what its document names; read over detail::markdown_document instead")
+    endif()
+    # markdown_github.cpp is the import every Markdown reader calls on its own
+    # denying document; it creates no document of its own.
+    if(contents MATCHES "(setHtml|setMarkdown|insertHtml|insertMarkdown)[ \t\r\n]*\\(" AND NOT contents MATCHES "markdown_document"
+       AND NOT source_file STREQUAL "${BPR_ROOT}/src/adapters/qt/src/markdown_github.cpp")
+        message(FATAL_ERROR "${source_file}: rich text is set outside the Markdown readers' resource-denying document")
+    endif()
+endforeach()
+
+# Review of 2026-11-14. The Qt adapter performs no filesystem effect: no QFile,
+# no QDir or QFileInfo object, no std::filesystem, no C file calls. Path text
+# helpers that touch nothing (QDir's separators and home path, a QFileInfo's
+# name parts) and the system's file dialogs, which only ask the person for a
+# path, are allowed.
+file(GLOB_RECURSE qt_effect_files LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/adapters/qt/*.cpp" "${BPR_ROOT}/src/adapters/qt/*.hpp" "${BPR_ROOT}/src/adapters/qt/*.h" "${BPR_ROOT}/src/adapters/qt/*.mm")
+foreach(source_file IN LISTS qt_effect_files)
+    file(READ "${source_file}" contents)
+    string(REGEX REPLACE "#[ \t]*include[ \t]*<(QDir|QFileInfo|QFileDialog)>" "" contents "${contents}")
+    string(REGEX REPLACE "QFileDialog" "" contents "${contents}")
+    string(REGEX REPLACE "QDir::(toNativeSeparators|fromNativeSeparators|separator|homePath|rootPath|isAbsolutePath|isRelativePath|cleanPath)" "" contents "${contents}")
+    string(REGEX REPLACE "QFileInfo[ \t]*\\{[^}]*\\}\\.(fileName|suffix|completeSuffix|baseName|completeBaseName)\\(\\)" "" contents "${contents}")
+    if(contents MATCHES "(^|[^A-Za-z0-9_])(QFile|QDir|QFileInfo|QSaveFile|QLockFile|QTemporaryFile|QTemporaryDir|QDirIterator)([^A-Za-z0-9_]|$)|std::filesystem|(^|[^A-Za-z0-9_])(fopen|freopen)[ \t]*\\(")
+        message(FATAL_ERROR "${source_file}: the Qt adapter performs a filesystem effect; the host owns files")
+    endif()
+endforeach()
+
+# Review of 2026-11-14. The fixture agent, which answers in place of a real
+# agent in a tests-on build, is built only when testing is on.
+file(READ "${BPR_ROOT}/src/app/CMakeLists.txt" app_cmake)
+string(FIND "${app_cmake}" "add_executable(bpr_fixture_agent" fixture_agent_at)
+if(fixture_agent_at EQUAL -1)
+    message(FATAL_ERROR "src/app/CMakeLists.txt must define the fixture agent (bpr_fixture_agent)")
+else()
+    string(SUBSTRING "${app_cmake}" 0 ${fixture_agent_at} before_fixture_agent)
+    string(FIND "${before_fixture_agent}" "if(BUILD_TESTING)" testing_at REVERSE)
+    if(testing_at EQUAL -1)
+        message(FATAL_ERROR "the fixture agent must be built only inside if(BUILD_TESTING)")
+    else()
+        string(SUBSTRING "${before_fixture_agent}" ${testing_at} -1 testing_block)
+        string(REGEX MATCHALL "(^|[\r\n])[ \t]*if[ \t]*\\(" opened "${testing_block}")
+        string(REGEX MATCHALL "(^|[\r\n])[ \t]*endif[ \t]*\\(" closed "${testing_block}")
+        list(LENGTH opened opened_count)
+        list(LENGTH closed closed_count)
+        math(EXPR still_open "${opened_count} - ${closed_count}")
+        if(NOT still_open EQUAL 1)
+            message(FATAL_ERROR "the fixture agent must be built only inside if(BUILD_TESTING)")
+        endif()
+    endif()
+endif()
+
+get_property(boundary_violations GLOBAL PROPERTY BPR_BOUNDARY_VIOLATIONS)
+list(LENGTH boundary_violations boundary_violation_count)
+if(boundary_violation_count GREATER 0)
+    foreach(violation IN LISTS boundary_violations)
+        _message(SEND_ERROR "${violation}")
+    endforeach()
+    _message(FATAL_ERROR "architecture boundaries: ${boundary_violation_count} violation(s)")
+endif()
+

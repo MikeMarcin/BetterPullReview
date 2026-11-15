@@ -802,7 +802,7 @@ namespace bpr::app {
 		void               press_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               ask_custom_question(const qt::ask_menu_request& aRequest);
 		/// RFC-BPR-0128 ([[BPR-2167]]). What changed's commit listing.
-		[[nodiscard]] auto returning_commit_listing() const -> std::string;
+		[[nodiscard]] auto returning_commit_listing() -> std::string;
 		/// RFC-BPR-0128 ([[BPR-2165]]). A wider scope's runs, one after
 		/// another, and each Was this addressed? claim on its thread.
 		/// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a
@@ -2291,6 +2291,11 @@ namespace bpr::app {
 			bool                                      Readable = false;
 			/// Asks made before the cache served the head; bounded.
 			std::uint32_t Retries = 0U;
+			/// [[BPR-2184]] (review N3). What each merge since the review
+			/// brought in, asked when What changed's material is read, for the
+			/// head it was asked at.
+			std::map<std::string, std::uint64_t> MergeCounts;
+			std::string                          MergeCountsHead;
 			/// Review threads Was this addressed? is offered on, by identity:
 			/// the commit of my last comment there, and its lines then once read.
 			struct thread_offer

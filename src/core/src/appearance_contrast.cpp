@@ -1037,4 +1037,64 @@ namespace bpr::core {
 
 		return required;
 	}
+	namespace {
+		/// `aFrom` moved `aAmount` (thousandths) of the way to `aTo`.
+		[[nodiscard]] auto toward(const appearance_color aFrom, const appearance_color aTo, const std::uint32_t aAmount) noexcept -> appearance_color
+		{
+			const auto blend = [aAmount](const std::uint8_t aA, const std::uint8_t aB) {
+				const auto from = static_cast<std::int32_t>(aA);
+				const auto to   = static_cast<std::int32_t>(aB);
+				return static_cast<std::uint8_t>(from + ((to - from) * static_cast<std::int32_t>(aAmount) + (to >= from ? 500 : -500)) / 1000);
+			};
+			return { .Red = blend(aFrom.Red, aTo.Red), .Green = blend(aFrom.Green, aTo.Green), .Blue = blend(aFrom.Blue, aTo.Blue), .Alpha = 255U };
+		}
+
+		/// The ink moved toward the paper by `aWanted`, or less, until it
+		/// meets `aFloor` on the paper.
+		[[nodiscard]] auto quieter(const appearance_color aInk, const appearance_color aPaper, std::uint32_t aWanted, const std::uint32_t aFloor) noexcept -> appearance_color
+		{
+			for (;; aWanted -= 10U) {
+				const auto shade = toward(aInk, aPaper, aWanted);
+				if (aWanted < 10U || contrast_ratio_hundredths(shade, aPaper) >= aFloor) {
+					return shade;
+				}
+			}
+		}
+	} // namespace
+
+	auto derive_report_shades(const appearance_palette& aPalette) noexcept -> report_shades
+	{
+		const auto paper = aPalette[index_of(appearance_role::report_paper)];
+		const auto ink   = aPalette[index_of(appearance_role::report_ink)];
+		const auto dark  = static_cast<std::uint32_t>(paper.Red) + paper.Green + paper.Blue < 3U * 128U;
+		// The link: the page's blue, darkened (or lightened on a dark paper)
+		// until it meets the text floor.
+		auto link = dark ? appearance_color{ .Red = 0x9CU, .Green = 0xC3U, .Blue = 0xDFU, .Alpha = 255U } : appearance_color{ .Red = 0x1BU, .Green = 0x5DU, .Blue = 0x8CU, .Alpha = 255U };
+		for (auto step = 0; step < 20 && contrast_ratio_hundredths(link, paper) < text_contrast_minimum_hundredths; ++step) {
+			link = toward(link, ink, 150U);
+		}
+		return {
+			.Dim    = quieter(ink, paper, 250U, text_contrast_minimum_hundredths),
+			.Faint  = quieter(ink, paper, 420U, text_contrast_minimum_hundredths),
+			.Strong = quieter(ink, paper, 550U, indicator_contrast_minimum_hundredths),
+			.Line   = toward(ink, paper, 820U),
+			.Link   = link,
+		};
+	}
+
+	auto measure_report_shades(const appearance_palette& aPalette) -> std::vector<contrast_finding>
+	{
+		const auto paper  = aPalette[index_of(appearance_role::report_paper)];
+		const auto shades = derive_report_shades(aPalette);
+		auto       found  = std::vector<contrast_finding>{ };
+		for (const auto& [shade, floor] : { std::pair{ shades.Dim, text_contrast_minimum_hundredths }, std::pair{ shades.Faint, text_contrast_minimum_hundredths },
+											std::pair{ shades.Link, text_contrast_minimum_hundredths }, std::pair{ shades.Strong, indicator_contrast_minimum_hundredths } }) {
+			const auto ratio = contrast_ratio_hundredths(shade, paper);
+			found.push_back({ .Pair              = { .Foreground = appearance_role::report_ink, .Background = appearance_role::report_paper, .Kind = floor == text_contrast_minimum_hundredths ? contrast_kind::text : contrast_kind::indicator },
+							  .RatioHundredths   = ratio,
+							  .MinimumHundredths = floor,
+							  .Meets             = ratio >= floor });
+		}
+		return found;
+	}
 } // namespace bpr::core

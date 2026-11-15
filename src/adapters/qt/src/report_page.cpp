@@ -1,5 +1,7 @@
 #include "bpr/qt/report_page.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
+#include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
 
 #include <QFontDatabase>
@@ -16,6 +18,18 @@ namespace bpr::qt {
 	namespace {
 		/// The slots the page being written collects its code blocks into.
 		std::vector<report_code_slot>* Collected = nullptr;
+		/// The page being written's Add as draft comment links, minted by its
+		/// view.
+		const std::function<QString(std::uint32_t)>* DraftLink = nullptr;
+
+		[[nodiscard]] auto draft_foot(const std::uint32_t aOutline, const QString& aLinkColour) -> QString
+		{
+			if (DraftLink == nullptr || !*DraftLink) {
+				return QObject::tr("Nothing is published");
+			}
+			return QStringLiteral("<a href=\"%1\" style=\"color:%2\">%3</a>&nbsp;&nbsp;&nbsp;%4")
+				.arg((*DraftLink)(aOutline).toHtmlEscaped(), aLinkColour, QObject::tr("Add as draft comment"), QObject::tr("Nothing is published"));
+		}
 
 		[[nodiscard]] auto code_marker(report_code_slot aSlot) -> QString
 		{
@@ -57,16 +71,26 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto palette_of(const report_colours& aColours) -> palette
 		{
-			const auto dark = aColours.Paper.lightness() < 128;
-			auto       link = dark ? QColor::fromHsl(205, 130, 185) : QColor::fromHsl(205, 135, 60);
+			// [[BPR-2184]] (review N6): the quieter inks, the rules and the link
+			// are core's, derived from the paper and ink and held to the
+			// contrast floor there.
+			const auto to_core = [](const QColor& aColour) {
+				return core::appearance_color{ .Red = static_cast<std::uint8_t>(aColour.red()), .Green = static_cast<std::uint8_t>(aColour.green()), .Blue = static_cast<std::uint8_t>(aColour.blue()), .Alpha = 255U };
+			};
+			const auto to_qt                                           = [](const core::appearance_color aColour) { return QColor{ aColour.Red, aColour.Green, aColour.Blue }; };
+			auto       roles                                           = core::appearance_palette{ };
+			roles[core::index_of(core::appearance_role::report_paper)] = to_core(aColours.Paper);
+			roles[core::index_of(core::appearance_role::report_ink)]   = to_core(aColours.Ink);
+			const auto shades                                          = core::derive_report_shades(roles);
+			const auto dark                                            = aColours.Paper.lightness() < 128;
 			return palette{
 				.Roles   = aColours,
 				.Ink     = aColours.Ink.name(),
-				.Dim     = mixed(aColours.Ink, aColours.Paper, 0.25).name(),
-				.Faint   = mixed(aColours.Ink, aColours.Paper, 0.42).name(),
-				.Line    = mixed(aColours.Ink, aColours.Paper, 0.82).name(),
-				.Strong  = mixed(aColours.Ink, aColours.Paper, 0.55).name(),
-				.Link    = link.name(),
+				.Dim     = to_qt(shades.Dim).name(),
+				.Faint   = to_qt(shades.Faint).name(),
+				.Line    = to_qt(shades.Line).name(),
+				.Strong  = to_qt(shades.Strong).name(),
+				.Link    = to_qt(shades.Link).name(),
 				.Wash    = aColours.CodeWash.name(),
 				.Removed = mixed(aColours.Open, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
 				.Added   = mixed(aColours.Done, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
@@ -226,17 +250,11 @@ namespace bpr::qt {
 				body += QStringLiteral("<p style=\"margin:6px 0 0 0;font-family:%1;font-size:14px;color:%2\">%3</p>")
 							.arg(sans(), aPalette.Faint,
 								 note != aNotes.end() ? note->second.toHtmlEscaped()
-													  : QStringLiteral("<a href=\"%1%2\" style=\"color:%3\">%4</a>&nbsp;&nbsp;&nbsp;%5")
-															.arg(QString::fromLatin1(report_draft_scheme))
-															.arg(aItem.Outline)
-															.arg(aPalette.Link, QObject::tr("Add as draft comment"), QObject::tr("Nothing is published")));
+													  : draft_foot(aItem.Outline, aPalette.Link));
 				return body;
 			}
 			const auto foot = note != aNotes.end() ? note->second.toHtmlEscaped()
-												   : QStringLiteral("<a href=\"%1%2\" style=\"color:%3\">%4</a>&nbsp;&nbsp;&nbsp;%5")
-														 .arg(QString::fromLatin1(report_draft_scheme))
-														 .arg(aItem.Outline)
-														 .arg(aPalette.Link, QObject::tr("Add as draft comment"), QObject::tr("Nothing is published"));
+												   : draft_foot(aItem.Outline, aPalette.Link);
 			return QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"3\" style=\"margin-top:10px;border:1px solid %1;border-collapse:collapse\" bgcolor=\"%2\">%3"
 								  "<tr><td style=\"border-top:1px solid %1;padding:8px 10px;font-family:%4;font-size:14px;color:%5\">%6</td></tr></table>")
 				.arg(aPalette.Line, aPalette.Wash, rows, sans(), aPalette.Faint, foot);
@@ -334,15 +352,20 @@ namespace bpr::qt {
 		case report_tone::done:    return aColours.Done;
 		case report_tone::neutral: break;
 		}
-		return mixed(aColours.Ink, aColours.Paper, 0.55);
+		return QColor{ palette_of(aColours).Strong };
 	}
 
 	auto report_serif_families() -> QString { return QStringLiteral("Charter, 'Iowan Old Style', 'Bitstream Charter', Cambria, Georgia, serif"); }
 
-	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes, std::vector<report_code_slot>* aSlots) -> QString
+	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes, std::vector<report_code_slot>* aSlots,
+						  const std::function<QString(std::uint32_t)>& aDraftLink) -> QString
 	{
 		Collected          = aSlots;
-		const auto reset   = qScopeGuard([] { Collected = nullptr; });
+		DraftLink          = &aDraftLink;
+		const auto reset   = qScopeGuard([] {
+			Collected = nullptr;
+			DraftLink = nullptr;
+		});
 		const auto colours = palette_of(aColours);
 		auto       html    = QStringLiteral("<html><body style=\"font-family:%1;font-size:17px;color:%2\">").arg(report_serif_families(), colours.Ink);
 		if (!aReport.Summary.empty()) {

@@ -216,6 +216,7 @@ namespace bpr::adapters::github::detail {
 			application::github_pull_request_completion_handler aCompletion,
 			application::github_pull_request_progress_handler   aProgress,
 			application::github_pull_request_overview_handler   aOverview) override;
+		void count_merges(application::github_merge_count_request aRequest, application::github_merge_count_handler aDone) override;
 
 		/// \brief [[BPR-0988]]. One bounded personal discovery read, on the
 		/// same exact account transport a pull request read uses.
