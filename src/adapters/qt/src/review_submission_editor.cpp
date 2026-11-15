@@ -5,6 +5,7 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 #include "comment_state_toggle.hpp"
@@ -56,7 +57,10 @@
 
 namespace bpr::qt {
 	namespace {
-		constexpr auto decision_order = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+		/// [[BPR-2180]]. How many comment rows hold the pending comments'
+		/// place while they are read.
+		constexpr int  pending_placeholder_rows = 3;
+		constexpr auto decision_order           = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
 
 		[[nodiscard]] auto decision_index(const core::review_disposition aDisposition) noexcept -> std::size_t
 		{
@@ -1273,6 +1277,15 @@ namespace bpr::qt {
 		PendingRows->setSpacing(0);
 		Pending->hide();
 		inside->addWidget(Pending);
+		// [[BPR-2180]]. While the pending comments are read, their place holds
+		// comment rows under the heading, which already says they are loading.
+		{
+			auto* const veil = new pending_veil{ *Pending, pending_shape::rows, tr("Pending comments") };
+			veil->setObjectName(QStringLiteral("wholeReviewPendingVeil"));
+			veil->set_words_beside(true);
+			veil->set_announces(false);
+			veil->set_placeholder_count(pending_placeholder_rows);
+		}
 		// [[BPR-2094]]. My drafts the review does not carry: a heading that
 		// counts them, with Add all, then each with its file and lines and
 		// its own Add. The owner: "finish review should note draft comments
@@ -1928,17 +1941,29 @@ namespace bpr::qt {
 			remove->setEnabled(writing);
 		}
 
-		Pending->setVisible(!comments.empty());
+		// The owner, 2026-11-11. Comments not read yet are not "none": the
+		// heading says they are loading, and the count replaces it once read.
+		const auto loading = Draft.has_value() && Draft->State == core::review_submission_state::drafting && Shown.Controls.CommentsUnknown;
+		// [[BPR-2180]]. Their place is held while they load, with rows in it.
+		const auto holding = loading && comments.empty();
+		const auto row     = QFontMetrics{ font() }.height() * 2;
+		Pending->setMinimumHeight(holding ? (row * pending_placeholder_rows) + (row / 2) : 0);
+		if (auto* const veil = pending_veil::find(*Pending, QStringLiteral("wholeReviewPendingVeil")); veil != nullptr) {
+			veil->set_row_height(row);
+			if (holding) {
+				veil->present(core::pending_activity::loading, false, false, { .Loading = tr("Loading pending comments…") });
+			} else {
+				veil->present_ready();
+			}
+		}
+		Pending->setVisible(!comments.empty() || holding);
 		// The heading holds my blocking feedback's chip whenever there is a
 		// draft, and the count when the review carries comments.
 		Heading->setVisible(Draft.has_value());
 		RevealHint->setVisible(HintWanted && !comments.empty());
-		HeadingRule->setVisible(Draft.has_value() && !comments.empty());
+		HeadingRule->setVisible(Draft.has_value() && (!comments.empty() || holding));
 		SummaryRule->setVisible(false);
 		SummaryHeading->setVisible(Draft.has_value());
-		// The owner, 2026-11-11. Comments not read yet are not "none": the
-		// heading says they are loading, and the count replaces it once read.
-		const auto loading = Draft.has_value() && Draft->State == core::review_submission_state::drafting && Shown.Controls.CommentsUnknown;
 		Carries->setText(loading ? tr("Loading pending comments…") : comments.size() == 1U ? tr("1 pending comment")
 																						   : tr("%1 pending comments").arg(comments.size()));
 		Carries->setVisible(loading || !comments.empty());

@@ -671,7 +671,7 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::set_pending_appearance(const bool aFullMotion, const bool aHighContrast, const QColor& aFailureInk)
 	{
-		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side }) {
+		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side, Veils.People, Veils.Roster }) {
 			if (veil != nullptr) {
 				veil->set_full_motion(aFullMotion);
 				veil->set_high_contrast(aHighContrast);
@@ -711,6 +711,16 @@ namespace bpr::qt {
 		} else {
 			section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
 		}
+		// [[BPR-2180]]. Once the column's other sections have begun to show
+		// and the people have not, the People section stands in its place and
+		// waits as faces, rather than appearing later and pushing the rest
+		// down. Before then the whole column's placeholders stand over it.
+		const auto people = Loading && has_observed_status() && !ObservedPeople;
+		if (people) {
+			Sections[static_cast<std::size_t>(overview_status_section::people)].Frame->show();
+		}
+		section(*Veils.People, people, QStringLiteral("Loading reviewers…"));
+		section(*Veils.Roster, people, QStringLiteral("Loading participants…"));
 		// As many placeholder rows as GitHub reported files, once it has.
 		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
 		if (Loading && ObservedFiles) {

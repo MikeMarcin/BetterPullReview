@@ -1483,6 +1483,9 @@ namespace bpr::qt {
 		if (EpochSelectors != nullptr && EpochSelectors->readiness_mark() != nullptr) {
 			EpochSelectors->readiness_mark()->set_full_motion(full);
 		}
+		if (PendingPanes.Status != nullptr) {
+			PendingPanes.Status->set_full_motion(full);
+		}
 	}
 
 	void workbench_window::build_pending_veils()
@@ -1492,23 +1495,27 @@ namespace bpr::qt {
 		PendingPanes.Content = new pending_veil{ *ReviewSurface, pending_shape::block, QStringLiteral("Review"), CentralSplitter };
 		PendingPanes.Content->setObjectName(QStringLiteral("reviewPendingVeil"));
 		PendingPanes.Content->set_announces(false);
-		const auto pane = [](QWidget* const aTarget, const QString& aName, const QString& aObject) -> pending_veil* {
+		const auto pane = [](QWidget* const aTarget, const QString& aName, const QString& aObject, const pending_shape aShape = pending_shape::rows) -> pending_veil* {
 			if (aTarget == nullptr) {
 				return nullptr;
 			}
-			auto* const veil = new pending_veil{ *aTarget, pending_shape::rows, aName };
+			auto* const veil = new pending_veil{ *aTarget, aShape, aName };
 			veil->setObjectName(aObject);
 			// How many rows are coming is not known yet: a short list says
 			// "a list" without promising a long one.
-			veil->set_placeholder_count(8);
+			veil->set_placeholder_count(aShape == pending_shape::cards ? 4 : 8);
 			// The Overview says when the pull request is ready; the drawers
 			// beside it do not say it again.
 			veil->set_announces(false);
 			return veil;
 		};
-		PendingPanes.Files         = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
-		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Comments"), QStringLiteral("commentsPendingVeil"));
-		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"));
+		PendingPanes.Files = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
+		// [[BPR-2180]]. The owner, 2026-11-14: "more graphics like the main
+		// pane loading for other parts that are loading in". Conversations
+		// (the drawer, and Discuss, which shows the same panel) and Threads
+		// wait as the thread cards they will show.
+		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Comments"), QStringLiteral("commentsPendingVeil"), pending_shape::cards);
+		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"), pending_shape::cards);
 		PendingPanes.Repositories  = pane(RepositoriesTree, QStringLiteral("Repositories"), QStringLiteral("repositoriesPendingVeil"));
 		PendingPanes.HomeList      = pane(HomeList, QStringLiteral("My pull requests"), QStringLiteral("homeListPendingVeil"));
 		if (PendingPanes.HomeList != nullptr) {

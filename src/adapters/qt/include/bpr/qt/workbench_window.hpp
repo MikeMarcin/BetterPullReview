@@ -161,6 +161,7 @@ namespace bpr::qt {
 	class dif_widget;
 	class home_list;
 	class home_filter_field;
+	class pending_mark;
 	class pending_veil;
 	class refresh_note;
 	class keyboard_shortcuts_window;
@@ -1842,7 +1843,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1576]]. The loading-state presenters the window lays
 		/// over its own panes, for courses: the review's content while it is
 		/// refreshed, the Files drawer, conversations, Threads, the
-		/// repositories drawer and Home's list.
+		/// repositories drawer and Home's list. [[BPR-2180]]: conversations
+		/// and Threads wait as thread cards, and the status bar's line turns
+		/// the pattern's mark while it says a load.
 		struct pending_panes
 		{
 			pending_veil* Content       = nullptr;
@@ -1851,6 +1854,7 @@ namespace bpr::qt {
 			pending_veil* Threads       = nullptr;
 			pending_veil* Repositories  = nullptr;
 			pending_veil* HomeList      = nullptr;
+			pending_mark* Status        = nullptr;
 		};
 		[[nodiscard]] auto pending_veils() const noexcept -> const pending_panes&;
 		/// \brief [[BPR-1576]]. Whether waits are drawn turning: only when the

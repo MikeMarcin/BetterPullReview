@@ -12,6 +12,7 @@
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
@@ -1667,6 +1668,33 @@ namespace bpr::qt {
 		EpochSelectors->set_readiness_busy(busy, pending_full_motion());
 		if (OverviewPage != nullptr) {
 			OverviewPage->set_read_waiting(read_stage_words());
+		}
+		// [[BPR-2180]]. The line turns the loading pattern's mark the Updates
+		// line does while it says a load: the pull request's read, or its
+		// comparisons being prepared. The words keep the mark's place whether
+		// it turns or not, so they never move when a wait starts or ends. The
+		// line is made after the window's panes, so its mark is made here.
+		if (PendingPanes.Status == nullptr && StatusLabel != nullptr) {
+			PendingPanes.Status = new pending_mark{ StatusLabel };
+			PendingPanes.Status->setObjectName(QStringLiteral("workbenchStatusPendingMark"));
+			PendingPanes.Status->setForegroundRole(QPalette::WindowText);
+			PendingPanes.Status->lead(*StatusLabel);
+			PendingPanes.Status->set_full_motion(pending_full_motion());
+		}
+		if (PendingPanes.Status != nullptr && StatusLabel != nullptr) {
+			// The line says what it waits for as the wait changes, not only
+			// when a workbench projection lands.
+			StatusLabel->setText(status_line());
+			const auto local     = showing_local_cycle() || (showing_local_draft() && LocalDraft != nullptr);
+			const auto reading   = SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request;
+			const auto epoch     = EpochSelectors != nullptr ? EpochSelectors->status() : core::epoch_status::inactive;
+			const auto preparing = HasEpochState
+				&& (epoch == core::epoch_status::loading_catalog || epoch == core::epoch_status::preparing || epoch == core::epoch_status::committing
+					|| epoch == core::epoch_status::resolving || epoch == core::epoch_status::maintaining);
+			const auto failed = SessionPanel != nullptr && SessionPanel->status() == core::github_status::pull_request_failed;
+			const auto waits  = !local && !showing_home() && !StatusLabel->text().isEmpty()
+				&& (reading || (!HasCachedOverview && !failed && HasGithubPullRequest && (!HasCommands || !Cursor) && preparing));
+			PendingPanes.Status->set_turning(waits);
 		}
 	}
 

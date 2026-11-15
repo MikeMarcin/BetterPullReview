@@ -542,6 +542,10 @@ namespace bpr::qt {
 		pending_veil* Files = nullptr;
 		/// Merge, waiting on, participants, since my last review, checks.
 		pending_veil* Side = nullptr;
+		/// [[BPR-2180]]. The People section's faces and its roster, while the
+		/// rest of the side column has shown and the people are still coming.
+		pending_veil* People = nullptr;
+		pending_veil* Roster = nullptr;
 	};
 
 	/// \brief [[BPR-1774]]. Save pressed in the description's editor: the body

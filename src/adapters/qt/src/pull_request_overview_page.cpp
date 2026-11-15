@@ -1049,6 +1049,14 @@ namespace bpr::qt {
 		Veils.Header->set_announces(false);
 		Veils.Description->set_announces(false);
 		Veils.Side->set_announces(false);
+		// [[BPR-2180]]. The People section waits as faces, on its own line and
+		// in its roster, once the rest of the column has shown.
+		Veils.People = new pending_veil{ *this, pending_shape::people, QStringLiteral("People"), PeopleSummary->parentWidget() };
+		Veils.Roster = new pending_veil{ *this, pending_shape::people, QStringLiteral("Participants"), Sections[static_cast<std::size_t>(overview_status_section::people)].Details };
+		for (auto* const veil : { Veils.People, Veils.Roster }) {
+			veil->set_announces(false);
+			veil->set_words_beside(true);
+		}
 		clear();
 	}
 }

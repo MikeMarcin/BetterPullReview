@@ -195,6 +195,13 @@ try {
 		const auto veils = window->overview_page()->pending_veils();
 		if (aAssert) {
 			expect(veils.Files->busy() && veils.Side->busy(), "the file table and the side column wait in their own places");
+			// [[BPR-2180]]. The Comments drawer and Threads wait as thread
+			// cards, and the status bar's line turns the mark while it says
+			// the read.
+			const auto& panes = window->pending_veils();
+			expect(panes.Conversations->busy() && panes.Conversations->shape() == qt::pending_shape::cards, "the Comments drawer waits as thread cards");
+			expect(panes.Threads->busy() && panes.Threads->shape() == qt::pending_shape::cards, "Threads waits as thread cards");
+			expect(panes.Status != nullptr && panes.Status->turning(), "the status line turns the mark while it says the read");
 		}
 		renders(aName + QStringLiteral("-first-answer"));
 		wait_for([&] { return !veils.Header->busy() && !veils.Description->busy(); }, "the title and description show as soon as GitHub names them");

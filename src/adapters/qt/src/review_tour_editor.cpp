@@ -13,6 +13,7 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
@@ -1644,6 +1645,11 @@ namespace bpr::qt {
 		layout->setSpacing(0);
 		RouteScroll->setWidget(routeBody);
 		bands->addWidget(RouteScroll, 1);
+		// [[BPR-2180]]. While the private tour loads, its place under the head
+		// waits as the stop cards it will show, in either mode.
+		auto* const veil = new pending_veil{ *this, pending_shape::cards, tr("Private tour"), RouteScroll };
+		veil->setObjectName(QStringLiteral("tourPendingVeil"));
+		veil->set_placeholder_count(4);
 
 		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): no band
 		// asks for setup here. The pull request window's footer says when the
@@ -2443,6 +2449,14 @@ namespace bpr::qt {
 		}
 		Status->setText(status);
 		Foot->setVisible(!routine && !Shown.Loading);
+		if (auto* const veil = pending_veil::find(*this, QStringLiteral("tourPendingVeil")); veil != nullptr) {
+			if (Shown.Loading) {
+				veil->present(core::pending_activity::loading, false, false,
+							  { .Loading = tr("Loading private tour…"), .Done = tr("Private tour loaded.") });
+			} else {
+				veil->present_ready();
+			}
+		}
 		QString changes = tr("No prior local tour version.");
 		if (Shown.Draft && Shown.Draft->HasPriorObservation) {
 			changes = tr("Changes at the last differing local website observation:");

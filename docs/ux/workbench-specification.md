@@ -3315,7 +3315,7 @@ layout, so nothing under it moves.
 
 | Look | When | What the pane shows |
 |---|---|---|
-| Placeholder | A first load, before 400 ms | Faint bars in the content's own shape (rows, prose, code beside a gutter, name and value pairs), with the words line held empty above them. A load faster than this never flashes a spinner. |
+| Placeholder | A first load, before 400 ms | Faint bars in the content's own shape (rows, prose, code beside a gutter, name and value pairs, thread cards, people), with the words line held empty above them. A load faster than this never flashes a spinner. |
 | Loading | A first load, from 400 ms | The turning mark and one line naming what loads ("Loading the file list: 2 files reported…") above the placeholders. |
 | Slow | Any wait, from 6 s | A second line saying what the read still waits on, from its own progress ("Still waiting for GitHub: the changed files, 3 pages so far."). |
 | Quiet | Content on screen and more coming, before 400 ms | The content exactly as it is. A refresh's own control has already answered the gesture ([[BPR-1575]]). |
@@ -3337,6 +3337,22 @@ not announced. A line that already says its wait in words, such as the
 Updates line's readiness, carries the turning mark alone
 (`qt::pending_mark`) in a place its words always keep.
 
+[[BPR-2180]] (the owner, 2026-11-14: "Hey can we do more graphics like the main
+pane loading for other parts that are loading in?") added two shapes and one
+option, and adds no shimmer or other motion:
+
+- **Thread cards** (`cards`): a faint outlined card per thread, as the
+  Comments drawer draws one, with the feedback rail at its left, the author's
+  face, a name and an age on its first line, and two lines of what was said
+  under the name.
+- **People** (`people`): where the place is one line high, three faces in a
+  row and the line beside them; where it is taller, a roster with a face, a
+  name and the person's standing on each row.
+- **Words beside**: a pane whose heading already says its wait ("Loading
+  pending comments…") draws its placeholders in the words' place and no words
+  of its own. Assistive technology still hears them, and a failure is still
+  said in place.
+
 Where it applies:
 
 - **Overview**, section by section. Opening a pull request (and opening
@@ -3347,11 +3363,20 @@ Where it applies:
   shows one placeholder row per file GitHub reported and says how many; the
   side column waits for the accepted review; the comment counts by file are
   the last part and are said as partial. The files say once, politely, when
-  the Overview is ready.
+  the Overview is ready. [[BPR-2180]]: once the column's other sections have
+  begun to show and the people have not, the People section stands in its
+  place and waits as faces, on its own line and in its roster.
 - **The comparison panes**: code placeholders while a file comparison loads,
   then "Colouring syntax…" as partial until its classification is adopted or
   fails. The status above the panes still says the outcome.
-- **The Files drawer, the Comments drawer and Threads**: rows while the first read runs.
+- **The Files drawer**: rows while the first read runs. **The Comments drawer
+  (and Discuss, which shows the same panel) and Threads**: thread cards while
+  the first read runs ([[BPR-2180]]).
+- **The private tour**: stop cards under its head while it loads
+  ([[BPR-2180]]).
+- **Finish review**: while its pending comments are read, their place is held
+  under the "Loading pending comments…" heading with three comment rows, words
+  beside ([[BPR-2180]]).
 - **The repositories drawer and Home's list**: rows while the queue restores;
   on Home, "Finding my pull requests in 2 saved repositories…" while personal
   discovery runs with nothing listed yet, refreshing over the rows already
@@ -3363,7 +3388,9 @@ Where it applies:
   plate at the review's foot, "Refreshing comments and checks…", until the
   refresh ends. A refresh whose head moved keeps the veil to the end.
 - **The Updates line**: the turning mark before its loading and preparation
-  words.
+  words. **The status bar's line** carries the same mark while it says the
+  pull request's read or its comparisons being prepared; its words keep the
+  mark's place whether it turns or not ([[BPR-2180]]).
 - **Markdown images**: the reserved plate holds the still turning mark before
   the alternative text while the image loads.
 
