@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2185"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0128 review of BPR-2179: Prompts settings save protocol and editing reducer in core, host-minted identities, condition decisions in core, differences in core, quick-ask Hide at wider scope, three-valued None, stable condition index, nested group bound, wider conditions column",
+  "created": "2026-11-15T05:29:32.094329+00:00",
+  "base": "249f4c2490693bf640ec339b1b6c9e7e29d16f6b"
+}
