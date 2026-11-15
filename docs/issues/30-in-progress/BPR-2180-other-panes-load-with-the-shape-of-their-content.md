@@ -192,3 +192,11 @@ checked only the drawer's rows and veil, and the comparison veil's courses
   under a read delay: the drawer lists the files uncovered, a click shows the
   code veil without a gap until the file arrives, and a superseded read that
   fails leaves only the shown review's files).
+- Look `bpr-2180-loading-shapes-v003`, attended session
+  `856f3dec1b0b67a634a60a0ce3e586e0` (state
+  `/Users/jaeger/.attended-review-state/bpr-2180-loading-shapes-v003-2026-11-14`,
+  served on the tailnet, cursor 6), two candidates, one Accept/Reject each:
+  `BPR-2180-diff-skeleton-v003` and `BPR-2180-review-files-v003` (AC09).
+  Frozen root `/Users/jaeger/bpr-2180-loading-shapes-v003.1rcim4tx` from
+  1887d3281, same fixture and delays as v001 and v002. The v002 host is
+  stopped, its candidates released, its root removed.
