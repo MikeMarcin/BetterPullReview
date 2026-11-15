@@ -574,3 +574,41 @@ slice 1.
   loan last lent, and holds a same-revision loan while a turn runs; the
   continued chat contract passes 20 of 20 (card in Done).
 
+- **AC13 (fifth round, `0dcfce828`, `6183d8934`):** the window composition
+  decides the chats' suggested prompts once, from the facts the Ask menus
+  read (`quick_ask_facts`, the review's included):
+  `core::chat_prompt_facts` and `core::decide_chat_prompts`. The Agent tab
+  and the tour side chat hand their source what they show
+  (`core::prompt_chat_view`) and present the decided offers; neither
+  assembles a `prompt_facts` or holds macros any more. A quick ask's press
+  decides its offer (`core::decide_quick_ask_prompt`) and stores it on the
+  queued input (`core::queued_input::Prompt`, a new `prompt` column the
+  store adds to an older file); the release sends it as decided
+  (`agent_tab_view::send_decided_prompt`), and the profile's runtime sends
+  one about the pull request with no window. Found on the way: pushes since
+  my review read false when the reviewed head was no longer listed (a force
+  push) though a newer revision was offered; it is now true then too. And
+  the author-is-me fact is gathered from the read's viewer. Courses:
+  `core_quick_ask` (`test_chat_prompts_read_the_review`), `core_agent_queue`
+  (`test_decided_prompt`), `sqlite_agent_setup_storage` (a decided prompt
+  reloads), `application_review_agent_runtime` (sent with no window; one
+  about the open file waits), and `application_ask_queue_public_path`:
+  the seeded Ready to look again?, kept to its pushes-since-review
+  condition, is a chip and an Ask row on the same facts; pressed as a chip
+  the agent receives it, and pressed from the menu while What changed runs
+  it is queued, edited in Settings while it waits, and the agent receives
+  the expansion decided at the press.
+- **AC11 (fifth round, `0dcfce828`):** tour feedback the store kept for a
+  draft no open window runs (a quit or crash while it waited or was being
+  sent) comes back to the tour chat as one turn that was not sent; one of
+  uncertain delivery is discarded by the core's transition, and the tour's
+  queue is resumed empty, so the next draft's feedback queues again. The
+  notice says only what will happen ("If the draft proposes a tour, the
+  feedback goes next to revise it; if not, it comes back here unsent").
+  Course `application_agent_queue_tour_feedback_crash_public_path`, with
+  `application_tour_feedback_queue_public_path` unchanged.
+- **AC08 public path (fifth round):** not added. Every public-path fixture
+  serves one pull request, so a window cannot switch pull request mid-turn
+  without a new two-pull-request fixture; the host course
+  (`test_a_pull_request_switch_mid_turn_settles_per_session`) remains the
+  evidence.
