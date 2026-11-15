@@ -425,6 +425,15 @@ namespace {
 			}
 			auto accepted     = aNote;
 			accepted.Revision = application::local_comment_revision{ NextNoteRevision++ };
+			// As the durable store ([[BPR-2183]]): a new note without an
+			// identity takes the next free one.
+			if (!aExpectedRevision && accepted.Id.value() == 0U) {
+				auto last = std::uint64_t{ 0U };
+				for (const auto& note : Notes) {
+					last = std::max(last, note.Id.value());
+				}
+				accepted.Id = application::local_comment_id{ last + 1U };
+			}
 			if (found == Notes.end()) {
 				Notes.push_back(accepted);
 			} else {
@@ -1783,6 +1792,22 @@ namespace {
 			store.Touched.size() == 1U && store.Touched.front() == "store_local_comment"
 				&& store.Notes.size() == 1U,
 			"agent output reaches store_local_comment and no other durable authority");
+
+		// [[BPR-2187]]. Promotion names no identity: the store chooses the
+		// next free one, not a window's snapshot.
+		const auto unnamed = application::store_promoted_finding(
+			store,
+			application::local_comment_id{ },
+			std::nullopt,
+			core::agent_finding_promotion_request{
+				.Finding = finding,
+				.Verdict = verdict,
+				.Choice  = core::agent_finding_promotion_choice::private_note,
+			});
+		expect(
+			unnamed.has_value() && unnamed->Id == application::local_comment_id{ 8U }
+				&& store.Notes.size() == 2U,
+			"an unnamed promoted note takes the store's next identity");
 
 		auto       elsewhere = ledger_store_spy{ };
 		const auto refused   = application::store_promoted_finding(

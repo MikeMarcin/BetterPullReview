@@ -1395,20 +1395,6 @@ namespace bpr::app {
 				: promotion_refusal_name(aOutcome.Promotion));
 	}
 
-	auto github_application::implementation::next_private_note_id() const
-		-> application::local_comment_id
-	{
-		auto next = std::uint64_t{ 1U };
-		if (ReviewLedgerHost != nullptr) {
-			if (const auto observed = ReviewLedgerHost->private_observation();
-				observed.has_value()) {
-				for (const auto& note : observed->LocalComments) {
-					next = std::max(next, note.Id.value() + 1U);
-				}
-			}
-		}
-		return application::local_comment_id{ next };
-	}
 #endif
 	auto github_application::implementation::current_note_attachment() const
 		-> std::optional<application::local_comment_attachment>
@@ -1462,8 +1448,8 @@ namespace bpr::app {
 			break;
 		case application::agent_finding_action::add_to_private_notes:
 			// RFC-BPR-0127. Keep local: on the finding's file when it is
-			// the one shown, otherwise on the pull request.
-			request.Note = next_private_note_id();
+			// the one shown, otherwise on the pull request. The store gives
+			// the comment its identity ([[BPR-2187]]).
 			if (SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == aIntent.Subject.Finding.Path) {
 				request.Attachment = current_note_attachment();
 			}

@@ -227,8 +227,8 @@ namespace bpr::app {
 			answer(false, QStringLiteral("no review is open"));
 			return;
 		}
+		// The store gives the note its identity ([[BPR-2187]]).
 		auto note = application::local_comment_record{ };
-		note.Id   = next_private_note_id();
 		note.Body = std::move(aText);
 		if (aLine) {
 			const auto        attachment = current_note_attachment();

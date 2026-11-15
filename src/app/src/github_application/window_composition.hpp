@@ -1850,9 +1850,6 @@ namespace bpr::app {
 		void present_finding_outcome(
 			const application::agent_finding_outcome& aOutcome);
 
-		[[nodiscard]] auto next_private_note_id() const
-			-> application::local_comment_id;
-
 #else
 		/// [[BPR-1179]]. What an agent-free review keeps of the authority
 		/// refresh: private history follows the review. There is no agent host

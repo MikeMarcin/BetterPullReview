@@ -230,7 +230,6 @@ namespace bpr::app {
 			return;
 		}
 		auto note       = application::local_comment_record{ };
-		note.Id         = next_private_note_id();
 		note.Body       = text;
 		note.Attachment = *attachment;
 		if (aPath.size() <= application::maximum_note_path_bytes) {

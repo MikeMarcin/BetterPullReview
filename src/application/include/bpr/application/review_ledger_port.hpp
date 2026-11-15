@@ -213,6 +213,11 @@ namespace bpr::application {
 	/// \brief Reports whether one note can enter the durable authority.
 	[[nodiscard]] auto valid(const local_comment_record& aNote) noexcept -> bool;
 
+	/// \brief [[BPR-2183]]. Reports whether a new note can enter it: as
+	/// `valid`, except that an identity of zero is left for the store to
+	/// choose in the transaction that writes it.
+	[[nodiscard]] auto valid_new(const local_comment_record& aNote) noexcept -> bool;
+
 	/// \brief Reports whether one defect can enter the durable authority.
 	[[nodiscard]] auto valid(const durable_defect_record& aDefect) noexcept -> bool;
 

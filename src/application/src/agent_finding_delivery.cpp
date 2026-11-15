@@ -58,7 +58,8 @@ namespace bpr::application {
 		if (record.Attachment && !aRequest.Finding.Path.empty() && aRequest.Finding.Path.size() <= maximum_note_path_bytes) {
 			record.FilePath = aRequest.Finding.Path;
 		}
-		if (!valid(record)) {
+		// [[BPR-2187]]. A zero identity is the store's to choose.
+		if (!valid_new(record)) {
 			return std::unexpected(agent_note_promotion_failure{
 				.Store = ledger_store_failure::invalid_record,
 			});

@@ -105,7 +105,8 @@ namespace bpr::application {
 	///
 	/// \details The note's text is whatever `core::promote_agent_finding`
 	/// produced — the claim, byte for byte. A record the durable authority
-	/// would refuse is refused here, before any store sees it.
+	/// would refuse is refused here, before any store sees it. An identity of
+	/// zero is left for the store to choose ([[BPR-2187]]).
 	[[nodiscard]] auto promoted_note(
 		local_comment_id                             aNote,
 		std::optional<local_comment_attachment>      aAttachment,
