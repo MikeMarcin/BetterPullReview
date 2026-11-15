@@ -586,6 +586,65 @@ try {
 		sqlite3_close_v2(database);
 	}
 	expect(!store->load() && !store->store(chosen), "a file with another store's identity is refused, not read or overwritten");
+	{
+		// [[BPR-2181]]. Every queue pause is saved by its stable name and read
+		// back as itself; `lost-access` is the newest.
+		tests::sqlite_contract::scratch_root queues{ "agent-queue-pauses" };
+		const auto                           pauses = std::vector{ core::queue_pause::none, core::queue_pause::reviewer, core::queue_pause::stopped, core::queue_pause::failed, core::queue_pause::usage_limit,
+																   core::queue_pause::restarted, core::queue_pause::delivery_unknown, core::queue_pause::changed_target, core::queue_pause::lost_access };
+		{
+			auto queueStore = adapters::sqlite::make_agent_queue_store(queues.path());
+			for (std::size_t index = 0U; index < pauses.size(); ++index) {
+				// An empty queue is not kept, so each holds one message.
+				auto entry       = core::queued_entry{ };
+				entry.Id         = 1U;
+				entry.Input.Text = "waiting";
+				auto queue       = core::agent_queue{ };
+				queue.LastId     = 1U;
+				queue.Paused     = pauses[index];
+				queue.Entries.push_back(entry);
+				expect(queueStore->store("session-" + std::to_string(index), queue), "a queue with each pause is saved");
+			}
+		}
+		const auto reloaded = adapters::sqlite::make_agent_queue_store(queues.path())->load();
+		expect(reloaded.has_value() && reloaded->size() == pauses.size(), "every saved queue reloads");
+		for (std::size_t index = 0U; reloaded && index < pauses.size(); ++index) {
+			const auto found = reloaded->find("session-" + std::to_string(index));
+			expect(found != reloaded->end() && found->second.Paused == pauses[index], "each pause reloads as itself, lost-access included");
+		}
+	}
+	{
+		// [[BPR-2181]]. A file made when the entries cascaded from their queue
+		// (which the hardened connection never let run, so no save ever
+		// succeeded) holds only empty queue tables; it is made again and
+		// saves.
+		tests::sqlite_contract::scratch_root cascadeRoot{ "agent-queue-cascade" };
+		expect(adapters::sqlite::make_agent_queue_store(cascadeRoot.path())->load().has_value(), "the store makes its file");
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2((cascadeRoot.path() / "state/v1/agent-setup.sqlite3").string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			expect(sqlite3_exec(database,
+								"DROP TABLE agent_queue_entries; DROP TABLE agent_queues;"
+								"CREATE TABLE agent_queues(session TEXT PRIMARY KEY CHECK(length(CAST(session AS BLOB)) BETWEEN 1 AND 1024), revision INTEGER NOT NULL CHECK(revision >= 0), last_id INTEGER NOT NULL CHECK(last_id >= 0), paused TEXT NOT NULL CHECK(length(CAST(paused AS BLOB)) <= 64)) STRICT;"
+								"CREATE TABLE agent_queue_entries(session TEXT NOT NULL REFERENCES agent_queues(session) ON DELETE CASCADE, position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15), id INTEGER NOT NULL CHECK(id >= 1), quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL, label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384), state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1), PRIMARY KEY(session, position)) STRICT;",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "the old cascading tables are put back");
+			sqlite3_close_v2(database);
+		}
+		auto entry       = core::queued_entry{ };
+		entry.Id         = 1U;
+		entry.Input.Text = "waiting";
+		auto queue       = core::agent_queue{ };
+		queue.LastId     = 1U;
+		queue.Paused     = core::queue_pause::lost_access;
+		queue.Entries.push_back(entry);
+		auto legacyStore = adapters::sqlite::make_agent_queue_store(cascadeRoot.path());
+		expect(legacyStore->store("session", queue), "a queue saves into a file the cascade made");
+		expect(legacyStore->store("session", queue), "and saves again over itself");
+		const auto again = legacyStore->load();
+		expect(again && again->size() == 1U && again->begin()->second.Entries.size() == 1U && again->begin()->second.Paused == core::queue_pause::lost_access, "and reads back");
+	}
 	std::cout << "agent-setup-storage:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

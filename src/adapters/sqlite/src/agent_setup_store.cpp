@@ -96,6 +96,25 @@ namespace bpr::adapters::sqlite {
 			"PRIMARY KEY(repository, kind, id)"
 		};
 
+		/// [[BPR-2181]]. Drops queue tables made with a cascading entry
+		/// reference while both are empty, which is all they can be: no save
+		/// into them ever succeeded. Anything else is left as it is.
+		[[nodiscard]] auto drop_cascading_queue_tables(sqlite3* const aDatabase) -> bool
+		{
+			const auto cascading = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%ON DELETE CASCADE%'");
+			if (!cascading) {
+				return false;
+			}
+			if (*cascading == 0) {
+				return true;
+			}
+			const auto rows = detail::scalar_integer(aDatabase, "SELECT (SELECT count(*) FROM agent_queue_entries) + (SELECT count(*) FROM agent_queues)");
+			if (!rows) {
+				return false;
+			}
+			return *rows != 0 || (detail::execute(aDatabase, "DROP TABLE agent_queue_entries") && detail::execute(aDatabase, "DROP TABLE agent_queues"));
+		}
+
 		[[nodiscard]] auto open(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
 		{
 			if (!detail::sqlite_runtime_ready()) {
@@ -373,6 +392,12 @@ namespace bpr::adapters::sqlite {
 									"PRIMARY KEY(place, position)) STRICT")
 				// RFC-BPR-0126 ([[BPR-2151]]). Each session's queue: its state
 				// and its entries in order; a session's queue is written whole.
+				// [[BPR-2181]]. Its entries are deleted with it explicitly: a
+				// cascade is a trigger program, and the hardened connection
+				// allows none, so a cascading delete never ran and no queue was
+				// ever saved. A file made with the cascade can hold only empty
+				// queue tables; they are made again without it.
+				|| !drop_cascading_queue_tables(db)
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_queues("
 									"session TEXT PRIMARY KEY CHECK(length(CAST(session AS BLOB)) BETWEEN 1 AND 1024),"
@@ -381,7 +406,7 @@ namespace bpr::adapters::sqlite {
 									"paused TEXT NOT NULL CHECK(length(CAST(paused AS BLOB)) <= 64)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_queue_entries("
-									"session TEXT NOT NULL REFERENCES agent_queues(session) ON DELETE CASCADE,"
+									"session TEXT NOT NULL REFERENCES agent_queues(session),"
 									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15),"
 									"id INTEGER NOT NULL CHECK(id >= 1),"
 									"quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL,"
@@ -3140,8 +3165,13 @@ namespace bpr::adapters::sqlite {
 					if (!detail::execute(db, "BEGIN IMMEDIATE")) {
 						return false;
 					}
-					auto ok = false;
-					if (auto erase = detail::prepare(db, "DELETE FROM agent_queues WHERE session=?1"); erase) {
+					auto ok = true;
+					for (const auto* const statement : { "DELETE FROM agent_queue_entries WHERE session=?1", "DELETE FROM agent_queues WHERE session=?1" }) {
+						auto erase = detail::prepare(db, statement);
+						if (!ok || !erase) {
+							ok = false;
+							break;
+						}
 						bind_text(erase->Value, 1, aSession);
 						ok = sqlite3_step(erase->Value) == SQLITE_DONE;
 					}
