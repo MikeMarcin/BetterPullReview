@@ -14,12 +14,12 @@
       "source": "agentskills"
     },
     {
-      "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
+      "commit": "34a74d4bf6e7a5ace84340a1dd14d068a5335b49",
       "git_object_format": "sha1",
       "id": "author-rfc",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/author-rfc",
-      "payload_digest": "sha256:10d805132054c35331f009f9b387b0cda4f18d32387858bce13b2f22df99f7c9",
+      "payload_digest": "sha256:a71c842ae224fb7cd9588305625825dcd277d5f5d74ab2330fbd04e07d53d27c",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
@@ -53,12 +53,12 @@
       "source": "agentskills"
     },
     {
-      "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
+      "commit": "34a74d4bf6e7a5ace84340a1dd14d068a5335b49",
       "git_object_format": "sha1",
       "id": "grill-rfc",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/grill-rfc",
-      "payload_digest": "sha256:00eca41868abf2d5fbc20ed167e78af5e719e148cc63bc8de3d752e81ad14975",
+      "payload_digest": "sha256:c2ebc83bf704b44621e2e33533dac3c7bb5de166db2fa712811bbd6ced4c32c9",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
@@ -66,12 +66,12 @@
       "source": "agentskills"
     },
     {
-      "commit": "4f470e9d18e7602f354ffbb378952fee3d407f2b",
+      "commit": "34a74d4bf6e7a5ace84340a1dd14d068a5335b49",
       "git_object_format": "sha1",
       "id": "implement-rfc",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/implement-rfc",
-      "payload_digest": "sha256:18970741e3a5a854df2f45bf0ac422c05a389c1e5314bd405c4d397ae4ed8c47",
+      "payload_digest": "sha256:5c51a6ff3685da3156c57700aae363b9f912d0696f51bd071f234e473cb2921b",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
@@ -133,5 +133,5 @@
   ],
   "resolver": "mask-lock-v1",
   "schema_version": 1,
-  "selection_digest": "sha256:e7ee8a20a563f1f9bc39b28651b09f1da80da4d043a609aa846e74a0950bb1ec"
+  "selection_digest": "sha256:bc6ad08847914a9a2d816be27349cdd5d3ce2336c70a214c2b02431a53df9996"
 }
