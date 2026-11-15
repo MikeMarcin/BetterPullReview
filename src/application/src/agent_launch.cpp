@@ -21,6 +21,7 @@
 
 namespace bpr::application {
 	namespace {
+#if defined(BPR_AGENT_INTEGRATIONS)
 		/// [[BPR-2142]], RFC-BPR-0103. Whether text a run wrote names a failed
 		/// sign-in: a 401, `authentication_failed`, Claude's "Not logged in"
 		/// or "Invalid API key", or a wrapper's missing token.
@@ -30,6 +31,7 @@ namespace bpr::application {
 			return has("authentication_failed") || has("Not logged in") || has("Invalid API key") || has("Please run /login")
 				|| (has("401") && (has("token") || has("auth") || has("Unauthorized") || has("unauthorized")));
 		}
+#endif
 		template <typename TSink>
 		void append_field(
 			TSink&                 aOutput,
