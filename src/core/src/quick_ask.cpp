@@ -1,5 +1,7 @@
 #include "bpr/core/quick_ask.hpp"
 
+#include "bpr/core/prompt_surfaces.hpp"
+
 #include <algorithm>
 #include <utility>
 
@@ -26,8 +28,11 @@ namespace bpr::core {
 		/// [[BPR-2179]]. The facts the pull request's newer conditions read.
 		[[nodiscard]] auto with_review_facts(prompt_facts aFacts, const quick_ask_facts& aFrom) -> prompt_facts
 		{
+			// [[BPR-2181]] (AC13). Commits counted after the earlier head, or a
+			// newer revision the latest upload offers when that head is no
+			// longer listed (a force push): either is a push since my review.
 			if (!aFacts.PushesSinceReview) {
-				aFacts.PushesSinceReview = aFrom.Reviewed && aFrom.CommitsSinceReview > 0U;
+				aFacts.PushesSinceReview = aFrom.Reviewed && (aFrom.CommitsSinceReview > 0U || aFrom.LatestUpload != latest_upload_state::hidden);
 			}
 			return aFacts;
 		}
@@ -420,5 +425,68 @@ namespace bpr::core {
 			}
 		}
 		return nullptr;
+	}
+
+	auto chat_prompt_facts(const quick_ask_facts& aFacts, const prompt_chat_view& aView) -> prompt_facts
+	{
+		auto facts = with_review_facts(aFacts.Base, aFacts);
+		if (aView.Thread) {
+			if (const auto found = std::ranges::find(aFacts.Threads, *aView.Thread, &quick_ask_thread::Identity); found != aFacts.Threads.end()) {
+				facts = thread_facts(aFacts, *found);
+			}
+		}
+		facts.Place     = aView.Place;
+		facts.ChatEmpty = aView.ChatEmpty;
+		facts.OpenFile  = aView.OpenFile;
+		facts.Lines     = aView.Lines;
+		if (aView.OpenFile && !aView.Thread) {
+			add_file_facts(facts, aFacts, *aView.OpenFile);
+		}
+		if (aView.TakesReplies) {
+			facts.TakesReplies = aView.TakesReplies;
+		}
+		facts.Thread    = aView.TourPart;
+		facts.Selection = aView.Selection;
+		return facts;
+	}
+
+	auto decide_chat_prompts(const std::span<const prompt_macro> aPlaced, const prompt_facts& aFacts) -> chat_prompts
+	{
+		auto offers       = decide_prompt_offers(aPlaced, aFacts);
+		auto decided      = chat_prompts{ .Chips = std::move(offers.Chips), .More = std::move(offers.More), .Pressable = { } };
+		decided.Pressable = decided.Chips;
+		decided.Pressable.insert(decided.Pressable.end(), decided.More.begin(), decided.More.end());
+		for (auto& offer : menu_prompt_offers(aPlaced, aFacts)) {
+			if (std::ranges::find(decided.Pressable, offer.Id, &prompt_offer::Id) == decided.Pressable.end()) {
+				decided.Pressable.push_back(std::move(offer));
+			}
+		}
+		return decided;
+	}
+
+	auto decide_quick_ask_prompt(const prompt_macro& aMacro, const quick_ask_facts& aFacts, const std::string_view aItem) -> std::optional<prompt_offer>
+	{
+		if (aMacro.Action != prompt_action::none) {
+			return std::nullopt;
+		}
+		auto       facts = pull_request_facts(aFacts);
+		const auto own   = subject_scope(aMacro.Body.Subject);
+		if (own == prompt_scope::thread) {
+			const auto identity = !aItem.empty() ? std::string{ aItem } : aFacts.Thread.value_or(std::string{ });
+			const auto found    = std::ranges::find(aFacts.Threads, identity, &quick_ask_thread::Identity);
+			if (found == aFacts.Threads.end()) {
+				return std::nullopt;
+			}
+			facts = thread_facts(aFacts, *found);
+		} else if (own == prompt_scope::file) {
+			if (!aItem.empty()) {
+				facts = file_facts(aFacts, std::string{ aItem });
+			} else if (aFacts.File) {
+				facts = file_facts(aFacts, *aFacts.File);
+			} else {
+				return std::nullopt;
+			}
+		}
+		return evaluate_prompt_macro(aMacro, facts).Offer;
 	}
 } // namespace bpr::core

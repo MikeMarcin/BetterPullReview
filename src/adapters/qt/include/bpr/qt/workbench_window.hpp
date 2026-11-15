@@ -1619,11 +1619,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-2179]]. Settings › Prompts: Surfaces and the Prompt
 		/// library, the system prompts among them.
 		[[nodiscard]] auto prompts() const noexcept -> prompts_page* { return Prompts; }
-		/// \brief The profile's suggested prompts reach the Agent tab's chips,
-		/// the tour chats and Settings.
-		/// [[BPR-2179]]: with `aRepository`'s layer applied to them, the
-		/// chips and menus being the open pull request's.
-		void present_prompt_macros(const application::prompt_macro_projection& aProjection, const std::string& aRepository = { });
+		/// \brief The profile's suggested prompts reach Settings; the Agent
+		/// tab's chips and the tour chats show their sources' offers again
+		/// ([[BPR-2181]] AC13: decided outside the window).
+		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
 		/// \brief Edit Quick Asks…: Settings › Prompts, brought into view.
 		void reveal_prompt_macros();
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.

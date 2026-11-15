@@ -115,6 +115,18 @@ namespace bpr::adapters::sqlite {
 			return *rows != 0 || (detail::execute(aDatabase, "DROP TABLE agent_queue_entries") && detail::execute(aDatabase, "DROP TABLE agent_queues"));
 		}
 
+		/// [[BPR-2181]] (AC13). A queued suggested prompt keeps the offer
+		/// decided at its press; a file made before has no column for it.
+		[[nodiscard]] auto add_queue_prompt_column(sqlite3* const aDatabase) -> bool
+		{
+			const auto present = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%prompt TEXT%'");
+			if (!present) {
+				return false;
+			}
+			return *present != 0
+				|| detail::execute(aDatabase, "ALTER TABLE agent_queue_entries ADD COLUMN prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960)").has_value();
+		}
+
 		[[nodiscard]] auto open(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
 		{
 			if (!detail::sqlite_runtime_ready()) {
@@ -418,7 +430,9 @@ namespace bpr::adapters::sqlite {
 									"quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL,"
 									"label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384),"
 									"state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1),"
+									"prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960),"
 									"PRIMARY KEY(session, position)) STRICT")
+				|| !add_queue_prompt_column(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
@@ -3200,7 +3214,7 @@ namespace bpr::adapters::sqlite {
 						const auto paused = column_text(meta->Value, 3).value_or(std::string{ });
 						queue.Paused      = named_value<core::queue_pause>(paused, 9U).value_or(core::queue_pause::restarted);
 					}
-					auto entries = detail::prepare(db, "SELECT session,id,quick_ask,scope,file,thread,label,text,state,held FROM agent_queue_entries ORDER BY session,position");
+					auto entries = detail::prepare(db, "SELECT session,id,quick_ask,scope,file,thread,label,text,state,held,prompt FROM agent_queue_entries ORDER BY session,position");
 					if (!entries) {
 						return std::nullopt;
 					}
@@ -3216,6 +3230,9 @@ namespace bpr::adapters::sqlite {
 						};
 						entry.State = named_value<core::queued_state>(column_text(entries->Value, 8).value_or(std::string{ }), 4U).value_or(core::queued_state::delivery_unknown);
 						entry.Held  = sqlite3_column_int64(entries->Value, 9) != 0;
+						if (const auto prompt = column_text(entries->Value, 10).value_or(std::string{ }); !prompt.empty()) {
+							entry.Input.Prompt = core::decode_queued_prompt(prompt);
+						}
 						queues[column_text(entries->Value, 0).value_or(std::string{ })].Entries.push_back(std::move(entry));
 					}
 					return queues;
@@ -3260,7 +3277,7 @@ namespace bpr::adapters::sqlite {
 							if (!ok) {
 								break;
 							}
-							auto row = detail::prepare(db, "INSERT INTO agent_queue_entries(session,position,id,quick_ask,scope,file,thread,label,text,state,held) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)");
+							auto row = detail::prepare(db, "INSERT INTO agent_queue_entries(session,position,id,quick_ask,scope,file,thread,label,text,state,held,prompt) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)");
 							if (!row) {
 								ok = false;
 								break;
@@ -3276,6 +3293,7 @@ namespace bpr::adapters::sqlite {
 							bind_text(row->Value, 9, entry.Input.Text);
 							bind_text(row->Value, 10, std::string{ core::stable_name(entry.State) });
 							sqlite3_bind_int64(row->Value, 11, entry.Held ? 1 : 0);
+							bind_text(row->Value, 12, entry.Input.Prompt ? core::encode_queued_prompt(*entry.Input.Prompt) : std::string{ });
 							ok = sqlite3_step(row->Value) == SQLITE_DONE;
 						}
 					}

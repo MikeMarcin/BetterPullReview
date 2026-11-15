@@ -1723,10 +1723,6 @@ namespace bpr::qt {
 		// scrolls its own route between them.
 		TourChatSplit->addWidget(TourHolder);
 		auto* const chat = TourEditor->side_chat();
-		// [[BPR-1934]], RFC-BPR-0125. The chats' suggested prompts are the
-		// core's offers from the shipped set, until the host gives the
-		// profile's own.
-		chat->set_prompt_macros(core::placed_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { })));
 		// [[BPR-1998]]. Its replies' references open as the Agent tab's do.
 		chat->set_reference_links([this] { return core::agent_reference_files{ .Changed = review_changed_files() }; },
 								  [this](const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast, const bool aBefore) { static_cast<void>(go_to_file_line(aPath, aFirst, aBefore, aLast)); });

@@ -18,6 +18,8 @@
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "../support/qt_prompt_sources.hpp"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QElapsedTimer>
@@ -233,7 +235,7 @@ auto main(int argc, char** argv) -> int
 	chat->resize(380, 900);
 	// [[BPR-1934]], RFC-BPR-0125 AC05. The window gives the chat the shipped
 	// suggested prompts; every list and text below is today's.
-	chat->set_prompt_macros(core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros());
+	tests::install_prompt_source(*chat, core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros());
 	const auto offered = [chat] {
 		auto* const list = chat->suggestions();
 		return list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();

@@ -394,8 +394,8 @@ namespace {
 			   "a window that shows the session releases a quick ask with its material");
 		app.Machinery[session].answer("it changed");
 		expect(window.Text == "it changed" && window.Finished == 1U && runtime->unshown_turns().empty(), "a turn a window showed is presented, not kept as unshown");
-		// A quick ask waits for a window once none shows the session: its
-		// decided expansion is slice 6's (AC13).
+		// An action's quick ask waits for a window once none shows the
+		// session (it needs what a window shows).
 		app.Runtimes->detach(session, presenter);
 		app.Lane.drain();
 		expect(app.Runtimes->find(session) == nullptr, "no window, no snapshot and no work: let go");
@@ -405,6 +405,24 @@ namespace {
 		app.Lane.drain();
 		expect(app.Machinery[session].Requests.size() == 1U && app.Queue.queue(session)->Entries.size() == 1U && app.Queue.queue(session)->Paused == core::queue_pause::none,
 			   "a quick ask with no window stays queued, unpaused");
+		// AC13: a suggested prompt about the pull request carries the
+		// expansion decided at its press, and is sent with no window as it
+		// was decided; one about the open file still waits for a window.
+		const auto withdrawn = app.Queue.withdraw(session, app.Queue.queue(session)->Entries.front().Id);
+		expect(withdrawn == core::queue_refusal::none, "the action's quick ask is taken off");
+		auto offer      = core::prompt_offer{ .Id = "own.look-again", .Label = "Ready to look again?" };
+		offer.Expansion = core::prompt_expansion{ .Text = "Has it changed enough since my review?" };
+		static_cast<void>(app.Queue.enqueue(session, core::queued_input{ .QuickAsk = "own.look-again", .Scope = "pull-request", .Label = "Ready to look again?", .Prompt = offer }));
+		app.Lane.drain();
+		expect(app.Machinery[session].Requests.size() == 2U && app.Machinery[session].Requests.back().Context.ChatMessage == "Has it changed enough since my review?",
+			   "a decided prompt about the pull request is sent with no window, as decided at the press");
+		app.Machinery[session].answer("yes");
+		app.Lane.drain();
+		auto aboutFile    = offer;
+		aboutFile.Subject = core::prompt_subject::open_file;
+		static_cast<void>(app.Queue.enqueue(session, core::queued_input{ .QuickAsk = "own.file", .Scope = "file", .File = "a.cpp", .Label = "About a.cpp", .Prompt = aboutFile }));
+		app.Lane.drain();
+		expect(app.Machinery[session].Requests.size() == 2U && app.Queue.queue(session)->Entries.size() == 1U, "one about the open file waits for a window");
 	}
 
 	void test_shutdown_stops_every_runtime()

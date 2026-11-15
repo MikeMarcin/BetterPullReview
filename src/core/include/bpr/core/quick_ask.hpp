@@ -204,6 +204,55 @@ namespace bpr::core {
 	/// \brief The row named `aId` at `aScope`, decided again at a press: a
 	/// press acts on the facts it is made under.
 	[[nodiscard]] auto find_quick_ask(const quick_ask_menu& aMenu, std::string_view aId, prompt_scope aScope) -> const quick_ask_row*;
+
+	/// \brief [[BPR-2181]] (AC13, Prompts review B1). What a chat shows when
+	/// its suggested prompts are decided: the Agent tab, or a tour part's side
+	/// chat. A chat says only what it shows; `chat_prompt_facts` makes the
+	/// facts, with the review's, outside the chat.
+	struct prompt_chat_view
+	{
+		prompt_place Place = prompt_place::agent_tab;
+		/// The conversation the Agent tab is about, by identity, and whether
+		/// it takes replies.
+		std::optional<std::string> Thread;
+		std::optional<bool>        TakesReplies;
+		std::optional<std::string> OpenFile;
+		/// One-based.
+		std::optional<prompt_line_range> Lines;
+		bool                             ChatEmpty = true;
+		/// A tour chat's own part, and the part where tour text is selected.
+		std::optional<prompt_tour_part> TourPart;
+		std::optional<prompt_tour_part> Selection;
+
+		auto operator<=>(const prompt_chat_view&) const = default;
+	};
+
+	/// \brief A chat's decided offers: its chips and More, and every offer a
+	/// press may name (a prompt on an Ask menu only is no chip, but a press
+	/// from the menu still sends it, [[BPR-2179]]).
+	struct chat_prompts
+	{
+		std::vector<prompt_offer> Chips;
+		std::vector<prompt_offer> More;
+		std::vector<prompt_offer> Pressable;
+
+		auto operator<=>(const chat_prompts&) const = default;
+	};
+
+	/// \brief The facts a chat's prompts are decided against: the review's
+	/// (pushes since my review, the open file's threads, the conversation's
+	/// own) with what the chat shows.
+	[[nodiscard]] auto chat_prompt_facts(const quick_ask_facts& aFacts, const prompt_chat_view& aView) -> prompt_facts;
+
+	/// \brief A chat's offers from the placed macros.
+	[[nodiscard]] auto decide_chat_prompts(std::span<const prompt_macro> aPlaced, const prompt_facts& aFacts) -> chat_prompts;
+
+	/// \brief [[BPR-2181]] (AC13). The decided expansion of an ordinary
+	/// quick ask pressed, for one of the threads or files it runs
+	/// on (`aItem`, empty for its own subject): what its queued input carries,
+	/// so a release sends it as decided at the press. None when it no longer
+	/// applies.
+	[[nodiscard]] auto decide_quick_ask_prompt(const prompt_macro& aMacro, const quick_ask_facts& aFacts, std::string_view aItem) -> std::optional<prompt_offer>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_QUICK_ASK_HPP
