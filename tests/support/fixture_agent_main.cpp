@@ -456,7 +456,9 @@ namespace {
 						continue;
 					}
 					inputs.push_back(field(*correction, "uuid"));
-					steered += "\n\nSteered after step " + std::to_string(step) + ": " + field(*correction, "text");
+					// Said without repeating the words: the transcript shows
+					// them as the reviewer's own message ([[BPR-2153]]).
+					steered += "\n\nTook your correction after step " + std::to_string(step) + " (" + std::to_string(field(*correction, "text").size()) + " characters).";
 				}
 			}
 			const auto encoded = escape(answer_for(request) + steered);

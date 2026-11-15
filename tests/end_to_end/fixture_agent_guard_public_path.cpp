@@ -11,6 +11,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -19,6 +20,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -93,7 +95,16 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return window.github_open_action()->isEnabled(); }, "connected");
 		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
 		window.home_open_action()->trigger();
-		wait([&] { return window.open_file_in_review(QStringLiteral("src/engine/renderer.cpp")); }, "a file opens");
+		// The file at a line, as the ask courses open it: the question is about
+		// that line, so its comparison and selection must be in (BPR-2180 v004
+		// shows a code skeleton first).
+		const auto path = QStringLiteral("src/engine/renderer.cpp");
+		wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path; }, "a file opens at a line");
+		wait([&] {
+			const auto* const comparison = window.comparison_surface();
+			return comparison != nullptr && comparison->current_result() != nullptr && comparison->selection().has_value();
+		},
+			 "the comparison and its selected line are in");
 
 		// The guard: only the fixture agent's folder is admitted.
 		expect(access::fixture_agent_admits(*application, (fixtureFolder / "claude").string()) && access::fixture_agent_admits(*application, (fixtureFolder / "codex").string()),
@@ -161,9 +172,18 @@ auto main(int argc, char** argv) -> int
 		// A question: the fixture agent answers, and no real program ran.
 		auto* const chat  = access::side_chat_panel(*application);
 		const auto  turns = tab->turn_count();
-		chat->composer()->setPlainText(QStringLiteral("What does this change do?"));
-		QApplication::processEvents();
-		chat->send_action()->trigger();
+		// [[BPR-2153]], BPR-2181: the fixture agent is a saved entry, so the
+		// turn runs on the session's runtime, which takes it once the window
+		// has lent it the review's authority; a send before that is refused
+		// and said, and is sent again here.
+		auto asking = QElapsedTimer{ };
+		asking.start();
+		while (tab->turn_count() == turns && tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
+			chat->composer()->setPlainText(QStringLiteral("What does this change do?"));
+			QApplication::processEvents();
+			chat->send_action()->trigger();
+			static_cast<void>(e2e::wait_until_plain([&] { return tab->state() == qt::agent_tab_state::working || tab->turn_count() > turns; }, std::chrono::milliseconds{ 1500 }));
+		}
 		wait([&] { return tab->turn_count() > turns && tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("fixture agent")) && access::agent_invocation_evidence(*application).Quiescent; },
 			 "the fixture agent answers");
 		expect(!std::filesystem::exists(marked), "no real agent program was started");

@@ -2905,6 +2905,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/public_preview_wire_transport.hpp"
         "src/github_application/queue_notifications.cpp"
         "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_agent_stack.cpp"
+        "src/github_application/review_agent_stack.hpp"
         "src/github_application/review_mutation_selection.cpp"
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
@@ -3092,6 +3094,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/public_preview_wire_transport.hpp"
         "src/github_application/queue_notifications.cpp"
         "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_agent_stack.cpp"
+        "src/github_application/review_agent_stack.hpp"
         "src/github_application/review_mutation_selection.cpp"
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
@@ -3744,7 +3748,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# entry, and the tests-on launcher probe forwards steering; neither is in
 	# a shipped build.
 	set(bpr_expected_production_app_manifest_digest
-        "726d9a15cb450aa0070500c52d0e7996126376f3996a1fc82ab4e771c38b7d35"
+        "2a25291d261df4ccda26ce6cb10174457498c38b36951a84a0af079fa8167586"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

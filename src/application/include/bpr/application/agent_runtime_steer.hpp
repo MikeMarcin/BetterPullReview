@@ -17,12 +17,15 @@ namespace bpr::application {
 	/// \brief What an agent runtime's Steer works with.
 	struct agent_runtime_steer_binding
 	{
-		/// The runtime's invocation host; none while it has none.
-		std::function<agent_invocation_host*()> Runs;
+		/// Whether the run could take a correction now
+		/// (`agent_invocation_host::steer_support`); none: nothing can.
+		std::function<core::agent_steer_support(const agent_invocation_projection_identity& aRun)> Support;
+		/// Hands it to the run (`agent_invocation_host::steer`), answered once.
+		std::function<void(const agent_invocation_projection_identity& aRun, std::string aText, agent_invocation_host::steer_answer aAnswer)> Steer;
 		/// The profile's session queue host, which outlives every runtime.
 		agent_queue_host* Queue = nullptr;
-		/// The run the window shows as running, by the identity it was
-		/// admitted with; none when it shows none.
+		/// The run the session's runtime shows as running, by the identity
+		/// it was admitted with; none when none runs.
 		std::function<std::optional<agent_invocation_projection_identity>()> Shown;
 		/// Says, for the window showing `aSession`, why a correction handed
 		/// to the turn came back unsent after it left the queue.

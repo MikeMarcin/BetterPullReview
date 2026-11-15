@@ -166,6 +166,31 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   restart; it flows through the BPR-2181 runtime's turn events, not window
   code. Then steer-v002 with a question on the transcript.
 
+## Progress (steered messages in the transcript, 2026-11-15)
+
+- Rebased onto BPR-2181's profile runtimes (`121c32f58`). The Agent tab's
+  Steer now runs on the session's `review_agent_runtime`: the registry's
+  `agent_session_runtime::Steer` asks the runtime, which names the run it
+  admitted and goes through its turn port (`review_agent_stack` forwards to
+  its invocation host). The window only forwards the press and shows `Why`.
+- The steered message is a turn event: the protocol loop records each
+  correction it writes (`agent_run_result::SteeredInputs`: the words, how
+  many assistant items and how many of the agent's own steps had happened,
+  and at the end its disposition) and emits `agent_stream_kind::steered`.
+  The runtime keeps it in the turn it holds; the agent panel keeps it for
+  the running turn; the Agent tab shows it as the reviewer's message,
+  marked "Steered after step N", between the question and the reply, and
+  says when the agent refused it or may not have taken it. The activity
+  record counts steps rather than listing them, so the step number is how
+  the transcript says where it went in.
+- It is kept: the stored turn (`agent_conversation_turn::Steered`: words,
+  where in the answer, step, state) goes into native history through a new
+  `native_agent_turn_steers` table, read back with the turn and pruned with
+  it; the transcript shown again carries it.
+- The fixture agent acknowledges a correction without repeating its words
+  ("Took your correction after step N"), so the words show once, as the
+  reviewer's.
+
 ## Progress (fixture session, 2026-11-15)
 
 - The blocker: a tests-on fixture session's Agent tab ran on the built-in

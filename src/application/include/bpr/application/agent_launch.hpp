@@ -1156,6 +1156,24 @@ namespace bpr::application {
 		activity,
 		/// A frame arrived and said nothing shown: "last activity" restarts.
 		heartbeat,
+		/// [[BPR-2153]]. The reviewer's message was steered into the turn,
+		/// in `Steered`: their words, shown as theirs where it went in.
+		steered,
+	};
+
+	/// \brief [[BPR-2153]]. One message steered into a run: its input
+	/// identity, the reviewer's words, how far the run had got when it went
+	/// in (assistant items started and the agent's own steps taken), and
+	/// what became of it.
+	struct agent_steered_input
+	{
+		std::string                   Identity;
+		std::string                   Text;
+		std::size_t                   AfterItems  = 0U;
+		std::uint32_t                 AfterSteps  = 0U;
+		core::agent_steer_disposition Disposition = core::agent_steer_disposition::sent;
+
+		auto operator<=>(const agent_steered_input&) const = default;
 	};
 
 	struct agent_stream_event
@@ -1166,6 +1184,8 @@ namespace bpr::application {
 		core::agent_run_id                         Run;
 		agent_stream_kind                          Kind = agent_stream_kind::text;
 		std::optional<core::agent_activity_update> Activity;
+		/// For `steered`.
+		std::optional<agent_steered_input> Steered;
 
 		auto operator<=>(const agent_stream_event&) const = default;
 	};
@@ -1250,6 +1270,9 @@ namespace bpr::application {
 		/// unknown. The run's own outcome is unchanged; a queue pauses on this
 		/// (delivery unknown) rather than releasing its next message.
 		bool SteerDeliveryUnknown = false;
+		/// [[BPR-2153]]. The messages steered into this run, in the order
+		/// written, each with its terminal disposition.
+		std::vector<agent_steered_input> SteeredInputs;
 		/// The descriptions of the helpers still running when the runtime
 		/// ended, for `helpers_unfinished`; at most eight.
 		std::vector<std::string> UnfinishedHelpers;

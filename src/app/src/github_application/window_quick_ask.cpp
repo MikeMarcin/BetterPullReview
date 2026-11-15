@@ -447,7 +447,7 @@ namespace bpr::app {
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(view.Turns.size());
 		for (const auto& turn : view.Turns) {
-			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered) });
+			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered), .Steered = turn.Steered });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		AgentConversation->record(std::move(view.Turns));

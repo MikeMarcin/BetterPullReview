@@ -364,7 +364,13 @@ try {
 	expect(newSession && newSession->Id != restored->Id && newSession->Handle.empty(), "same-head New session retains native origin");
 	const auto unusedAgain = natives->choose(scope, "claude", binding, "");
 	expect(unusedAgain && unusedAgain->Id == newSession->Id, "repeated New session reuses unused empty generation");
-	expect(natives->append(restored->Id, { "Late turn", "Late original answer", "Answered" }), "late output records only its originating history");
+	// [[BPR-2153]]. A turn keeps what the reviewer steered into it.
+	const auto steeredTurn = application::agent_conversation_turn{ .Asked    = "Late turn",
+																   .Answered = "Late original answer",
+																   .Ending   = "Answered",
+																   .Steered  = { { .Text = "Look at b.cpp instead", .At = 0U, .AfterSteps = 7U, .Disposition = core::agent_steer_disposition::consumed },
+																				 { .Text = "And the tests", .At = 4U, .AfterSteps = 9U, .Disposition = core::agent_steer_disposition::unknown } } };
+	expect(natives->append(restored->Id, steeredTurn), "late output records only its originating history");
 	const auto list = natives->history(scope, "claude");
 	expect(list && list->Selected == newSession->Id && list->Turns.empty() && list->Entries.size() == 3U, "new generation empty while all scoped history retained");
 	expect(!natives->choose("authority:agent-b:agent-tab", "claude", binding, restored->Id), "history selection cannot cross agent scope");
@@ -376,6 +382,8 @@ try {
 		   "restart and New session retain shared files even while the original owner is unselected");
 
 	expect(durableHistory && durableHistory->Selected == restored->Id && durableHistory->Turns.size() == 2U && durableHistory->Turns.back().Answered == "Late original answer", "restart preserves selected generation and originating late transcript");
+	expect(durableHistory->Turns.back().Steered == steeredTurn.Steered && durableHistory->Turns.front().Steered.empty(), "restart keeps each turn's steered messages, in order, with their steps and states");
+	expect(!natives->append(restored->Id, { .Asked = "Bad", .Answered = "Too short", .Ending = "Answered", .Steered = { { .Text = "Past the answer", .At = 400U } } }), "a steered message placed past its answer is refused");
 
 	auto replayed = natives->replay(scope, "claude", changedBinding, restored->Id);
 	expect(replayed && replayed->Replay && replayed->Id != restored->Id && replayed->ReplaySource == restored->Id && replayed->Handle.empty() && !replayed->Workspace && replayed->Binding == changedBinding, "explicit replay has separate generation, shown revision and no native tool/filesystem ownership");

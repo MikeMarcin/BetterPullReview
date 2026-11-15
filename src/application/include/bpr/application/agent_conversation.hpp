@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_cost.hpp"
 #include "bpr/core/agent_session.hpp"
+#include "bpr/core/agent_steering.hpp"
 #include "bpr/core/agent_turn.hpp"
 
 #include <cstddef>
@@ -31,6 +32,26 @@ namespace bpr::application {
 		auto operator<=>(const agent_conversation_key&) const = default;
 	};
 
+	/// \brief [[BPR-2153]], RFC-BPR-0126 AC05 (look steer-v001, owner: "I
+	/// would have expected to see Two show up as something I had sent"). A
+	/// message the reviewer steered into a turn while it ran: their own
+	/// words, where in the answer it went in, and whether the agent took it.
+	struct agent_steered_message
+	{
+		std::string Text;
+		/// Bytes of the turn's answer written before it went in; it is shown
+		/// there, between what came before and what came after.
+		std::size_t At = 0U;
+		/// How many of the agent's own steps (a read, a search, a command,
+		/// an edit, a tool) it had taken: the message went in after that one.
+		std::uint32_t AfterSteps = 0U;
+		/// `consumed` once the agent took it; `sent` while the turn runs;
+		/// `refused` or `unknown` when it never did, or no one can tell.
+		core::agent_steer_disposition Disposition = core::agent_steer_disposition::sent;
+
+		auto operator<=>(const agent_steered_message&) const = default;
+	};
+
 	/// \brief One turn of a pull request's conversation, as the Agent tab
 	/// shows it: what was asked, what the agent answered, and how the turn
 	/// ended (who answered, in how long, at what cost).
@@ -43,6 +64,8 @@ namespace bpr::application {
 		/// without one. A turn stored before this was kept reads back from its
 		/// ending (`core::legacy_agent_turn_outcome`).
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
+		/// [[BPR-2153]]. What the reviewer steered into it, in the order sent.
+		std::vector<agent_steered_message> Steered = { };
 
 		auto operator<=>(const agent_conversation_turn&) const = default;
 	};
@@ -100,8 +123,13 @@ namespace bpr::application {
 		}
 		for (const auto& turn : aTurns) {
 			if (turn.Asked.size() > maximum_conversation_text_bytes || turn.Answered.size() > maximum_conversation_text_bytes
-				|| turn.Ending.size() > maximum_conversation_text_bytes) {
+				|| turn.Ending.size() > maximum_conversation_text_bytes || turn.Steered.size() > core::maximum_steers_per_run) {
 				return false;
+			}
+			for (const auto& steered : turn.Steered) {
+				if (steered.Text.empty() || steered.Text.size() > maximum_conversation_text_bytes || steered.At > turn.Answered.size()) {
+					return false;
+				}
 			}
 		}
 		return true;

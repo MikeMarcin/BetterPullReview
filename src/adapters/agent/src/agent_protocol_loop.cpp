@@ -218,7 +218,8 @@ namespace bpr::adapters::agent::detail {
 						if (!SteerReplyDue && Decoder.awaiting_steer_reply()) {
 							SteerReplyDue = std::chrono::steady_clock::now() + std::chrono::milliseconds{ application::agent_steer_reply_deadline_milliseconds };
 						}
-						receipt = { .Identity = std::move(frame->Identity), .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available };
+						receipt = { .Identity = frame->Identity, .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available };
+						record_steered(std::move(frame->Identity), pending->Request.Text);
 					}
 					try {
 						if (pending->Answer) {
@@ -255,6 +256,34 @@ namespace bpr::adapters::agent::detail {
 					ReportedToolVersion = std::move(version);
 					Request.NativeConnection->observe_tool_version(ReportedToolVersion);
 				}
+			}
+
+			[[nodiscard]] static auto agent_step(const core::agent_doing aDoing) noexcept -> bool
+			{
+				return aDoing == core::agent_doing::reading || aDoing == core::agent_doing::searching || aDoing == core::agent_doing::running || aDoing == core::agent_doing::editing
+					|| aDoing == core::agent_doing::using_tool;
+			}
+
+			/// \brief [[BPR-2153]]. A correction written to the turn joins the
+			/// run's record and is told to the sink, so the reviewer sees their
+			/// own words in the turn where they went in.
+			void record_steered(std::string aIdentity, const std::string& aText)
+			{
+				auto input = application::agent_steered_input{ .Identity = std::move(aIdentity), .Text = aText, .AfterItems = Decoder.assistant_items().size(), .AfterSteps = Steps };
+				Result.SteeredInputs.push_back(input);
+				if (!Sink) {
+					return;
+				}
+				auto event     = application::agent_stream_event{ };
+				event.Session  = Request.Session;
+				event.Sequence = Sequence++;
+				event.Run      = Request.Run;
+				event.Kind     = application::agent_stream_kind::steered;
+				event.Text     = aText;
+				event.Steered  = std::move(input);
+				try {
+					Sink(event);
+				} catch (...) { }
 			}
 
 			void record_write(const agent_protocol_write_status aStatus) noexcept
@@ -512,7 +541,12 @@ namespace bpr::adapters::agent::detail {
 							}
 						}
 					} else if (message.Kind == application::agent_protocol_event_kind::activity) {
-						// [[BPR-2004]]. For the running block.
+						// [[BPR-2004]]. For the running block. [[BPR-2153]]: the
+						// agent's own steps are counted, so a steered message
+						// says which one it went in after.
+						if (message.Activity && message.Activity->Kind == core::agent_activity_kind::doing && agent_step(message.Activity->Doing)) {
+							++Steps;
+						}
 						if (!signal(application::agent_stream_kind::activity, message.Activity)) {
 							record_protocol_failure(application::agent_protocol_failure::malformed_frame);
 							return;
@@ -637,8 +671,12 @@ namespace bpr::adapters::agent::detail {
 				Decoder.settle_steers();
 				Result.Steers               = Decoder.steer_tally();
 				Result.SteerDeliveryUnknown = Result.Steers.Unknown > 0U;
-				Result.AssistantItems       = Decoder.assistant_items();
-				Result.StandardOutputBytes  = Decoder.pushed_bytes();
+				for (auto& steered : Result.SteeredInputs) {
+					const auto found    = std::ranges::find(Decoder.steers(), steered.Identity, &application::agent_steer_record::Identity);
+					steered.Disposition = found == Decoder.steers().end() ? core::agent_steer_disposition::unknown : found->Disposition;
+				}
+				Result.AssistantItems      = Decoder.assistant_items();
+				Result.StandardOutputBytes = Decoder.pushed_bytes();
 				if (ProtocolFailure) {
 					Result.RejectedOutputLine = Decoder.rejected_line();
 				}
@@ -710,6 +748,7 @@ namespace bpr::adapters::agent::detail {
 			std::string                                          SavedNativeHandle;
 			core::agent_run_cost_reading                         CostReading;
 			std::optional<std::chrono::steady_clock::time_point> SteerReplyDue;
+			std::uint32_t                                        Steps = 0U;
 			std::string                                          ReportedToolVersion;
 			std::array<char, protocol_buffer_bytes>              Buffer{ };
 			bool                                                 InputClosed    = false;

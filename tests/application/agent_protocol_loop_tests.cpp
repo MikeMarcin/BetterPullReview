@@ -1192,6 +1192,11 @@ namespace {
 				   && wire.Writes.back().find("Look at b.cpp instead") != std::string::npos && wire.Writes.back().find("\"now\"") == std::string::npos,
 			   "it is one UUID-bearing user message with priority next, written once");
 		expect(result.Outcome == application::agent_run_outcome::success && result.Steers == core::agent_steer_tally{ .Consumed = 1U }, "a result naming it settles it as consumed");
+		// [[BPR-2153]]. The run keeps the reviewer's words and how they ended,
+		// for the transcript.
+		expect(result.SteeredInputs.size() == 1U && result.SteeredInputs.front().Text == "Look at b.cpp instead" && result.SteeredInputs.front().Identity == identity
+				   && result.SteeredInputs.front().Disposition == core::agent_steer_disposition::consumed,
+			   "the run's result keeps the steered message, consumed");
 		expect(result.ReportedCostUsd == "0.0040" && !port.Retired && wire.CloseInputCount == 0U, "the run keeps its connection and its one cost");
 	}
 

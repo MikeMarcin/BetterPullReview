@@ -354,6 +354,7 @@ namespace {
 			};
 			result.Steers               = Steers;
 			result.SteerDeliveryUnknown = Steers.Unknown > 0U;
+			result.SteeredInputs        = SteeredInputs;
 			return result;
 		}
 
@@ -381,6 +382,7 @@ namespace {
 		core::agent_steer_support                             SteerSupport = core::agent_steer_support::available;
 		application::agent_steer_receipt                      SteerAnswer  = { .Identity = "steer-identity", .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available };
 		core::agent_steer_tally                               Steers;
+		std::vector<application::agent_steered_input>         SteeredInputs;
 		mutable std::vector<application::agent_steer_request> SupportAsked;
 		std::vector<application::agent_steer_request>         Steered;
 		std::vector<std::string>                              AssistantItems;
@@ -2297,6 +2299,9 @@ namespace {
 		};
 		// The connection could not correlate the correction: the run says so.
 		test.Processes.Steers = core::agent_steer_tally{ .Unknown = 1U };
+		// [[BPR-2153]]: and the run's result keeps the steered message.
+		test.Processes.AssistantItems = { "First part. ", "Second part." };
+		test.Processes.SteeredInputs  = { { .Identity = "steer-identity", .Text = "Look at b.cpp instead", .AfterItems = 1U, .AfterSteps = 3U, .Disposition = core::agent_steer_disposition::unknown } };
 		test.Host.dispatch(input);
 		test.settle();
 		expect(supports == std::vector<core::agent_steer_support>{ core::agent_steer_support::version_unknown, core::agent_steer_support::available, core::agent_steer_support::other_run },
@@ -2317,6 +2322,10 @@ namespace {
 		expect(!test.Projection.Finished.empty() && test.Projection.Finished.back().SteerDeliveryUnknown && test.Projection.Finished.back().Steers.Unknown == 1U,
 			   "an uncorrelated correction reaches the presentation with the run's result, for the queue to pause on");
 		expect(test.Host.steer_support(ran) == agent_steer_support::not_running, "once the turn ended, nothing is steerable");
+		expect(!test.NativeSessions.Appended.empty()
+				   && test.NativeSessions.Appended.back().Steered
+					   == std::vector<application::agent_steered_message>{ { .Text = "Look at b.cpp instead", .At = std::string{ "First part. " }.size(), .AfterSteps = 3U, .Disposition = core::agent_steer_disposition::unknown } },
+			   "the native history keeps the steered message, where it went in, with its state");
 
 		auto terminal = harness{ };
 		terminal.Host.observe(core::application_session_id{ 1U }, authority(core::git_host_id{ 1U }), binding(core::git_host_id{ 1U }));
@@ -2351,7 +2360,8 @@ namespace {
 			auto shown    = std::optional<application::agent_invocation_projection_identity>{ };
 			auto returned = std::vector<std::string>{ };
 			auto steer    = application::agent_runtime_steer({
-				.Runs     = [&test] { return &test.Host; },
+				.Support  = [&test](const application::agent_invocation_projection_identity& aRun) { return test.Host.steer_support(aRun); },
+				.Steer    = [&test](const application::agent_invocation_projection_identity& aRun, std::string aText, application::agent_invocation_host::steer_answer aAnswer) { test.Host.steer(aRun, std::move(aText), std::move(aAnswer)); },
 				.Queue    = &queue,
 				.Shown    = [&shown] { return shown; },
 				.Returned = [&returned](const std::string&, const std::string& aWhy) { returned.push_back(aWhy); },

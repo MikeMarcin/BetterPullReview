@@ -69,6 +69,8 @@ namespace {
 		launch->NativeConversation = aSteerable ? "steered-fixture" : "unqualified-fixture";
 		launch->Run                = core::agent_run_id{ 7U };
 		launch->Path               = core::agent_run_path::agent_tab;
+		// As the Agent tab's runs do: activity is reported, so steps count.
+		launch->ReportActivity = true;
 		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_SLOW_STEP_MS", "60");
 		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_PAUSE_MS", "1");
 		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_STEERABLE", aSteerable ? "1" : "0");
@@ -120,7 +122,12 @@ namespace {
 		expect(run.Result.Outcome == application::agent_run_outcome::success, "the steered run succeeds");
 		expect(run.Result.Steers == core::agent_steer_tally{ .Consumed = 1U }, "the result names the correction: consumed, once");
 		const auto text = answer_text(run.Result);
-		expect(text.find("Steered after step") != std::string::npos && text.find("Look at b.cpp instead") != std::string::npos, "the agent took it after a tool call, in the same turn");
+		expect(text.find("Took your correction after step") != std::string::npos, "the agent took it after a tool call, in the same turn");
+		// Steered as soon as the turn runs, so before its first step; the
+		// window course steers mid-turn and sees the step.
+		expect(run.Result.SteeredInputs.size() == 1U && run.Result.SteeredInputs.front().Text == "Look at b.cpp instead"
+				   && run.Result.SteeredInputs.front().Disposition == core::agent_steer_disposition::consumed,
+			   "the run's result keeps the steered message, consumed");
 		expect(run.Result.ReportedCostUsd == "0", "the run reports one figure for all its parts");
 	}
 

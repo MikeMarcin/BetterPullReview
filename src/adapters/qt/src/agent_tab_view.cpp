@@ -1733,6 +1733,18 @@ namespace bpr::qt {
 			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
 		}
 		column->addWidget(asked);
+		// [[BPR-2153]], look steer-v001 (owner: "I would have expected to see
+		// Two show up as something I had sent"). What the reviewer steered
+		// into the turn shows as their own messages, after the question and
+		// before the reply the agent wrote after taking it.
+		auto* const steered = new QWidget{ box };
+		steered->setObjectName(QStringLiteral("agentTurnSteeredMessages"));
+		auto* const steeredColumn = new QVBoxLayout{ steered };
+		steeredColumn->setContentsMargins(0, 0, 0, 0);
+		steeredColumn->setSpacing(4);
+		steered->hide();
+		column->addWidget(steered);
+		aTurn.SteeredBox = steered;
 		// Owner look v003 ("the response contained in something we could
 		// copy"): the reply in its own card, its footer as the agent apps
 		// have it: Copy and its one keep action, then who answered and when.
@@ -2225,6 +2237,52 @@ namespace bpr::qt {
 		fit_answer(*aTurn.Answer);
 	}
 
+	void agent_tab_view::show_steered(turn& aTurn)
+	{
+		if (aTurn.SteeredBox == nullptr) {
+			return;
+		}
+		auto* const column = qobject_cast<QVBoxLayout*>(aTurn.SteeredBox->layout());
+		while (column != nullptr && column->count() > 0) {
+			auto* const item = column->takeAt(0);
+			if (auto* const widget = item->widget(); widget != nullptr) {
+				widget->hide();
+				widget->deleteLater();
+			}
+			delete item;
+		}
+		for (const auto& message : aTurn.Steered) {
+			auto* const bubble = new rounded{ rounded::look::field, aTurn.SteeredBox };
+			bubble->setObjectName(QStringLiteral("agentTurnSteered"));
+			auto* const bubbleColumn = new QVBoxLayout{ bubble };
+			bubbleColumn->setContentsMargins(10, 6, 10, 6);
+			bubbleColumn->setSpacing(2);
+			const auto after = message.AfterSteps == 0U ? tr("Steered before the agent's first step") : tr("Steered after step %1").arg(message.AfterSteps);
+			auto       state = after;
+			switch (message.Disposition) {
+			case core::agent_steer_disposition::refused:  state = tr("%1 · the agent refused it, so it went back to the queue").arg(after); break;
+			case core::agent_steer_disposition::unknown:  state = tr("%1 · the agent may not have taken it").arg(after); break;
+			case core::agent_steer_disposition::unsent:   state = tr("%1 · not sent").arg(after); break;
+			case core::agent_steer_disposition::sent:
+			case core::agent_steer_disposition::consumed: break;
+			}
+			auto* const label = new QLabel{ state, bubble };
+			label->setObjectName(QStringLiteral("agentTurnSteeredState"));
+			label->setForegroundRole(QPalette::PlaceholderText);
+			label->setWordWrap(true);
+			bubbleColumn->addWidget(label);
+			auto* const text = new QLabel{ QString::fromStdString(message.Text), bubble };
+			text->setObjectName(QStringLiteral("agentTurnSteeredText"));
+			text->setTextFormat(Qt::PlainText);
+			text->setWordWrap(true);
+			text->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			bubbleColumn->addWidget(text);
+			bubble->setAccessibleName(tr("You steered: %1. %2").arg(QString::fromStdString(message.Text), state));
+			column->addWidget(bubble);
+		}
+		aTurn.SteeredBox->setVisible(!aTurn.Steered.empty());
+	}
+
 	void agent_tab_view::show_question(turn& aTurn)
 	{
 		if (aTurn.QuestionLabel == nullptr) {
@@ -2389,7 +2447,9 @@ namespace bpr::qt {
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
 			next.Outcome    = shown.Outcome;
+			next.Steered    = shown.Steered;
 			add_turn_widgets(next);
+			show_steered(next);
 			// [[BPR-1860]]. Kept before its answer is shown: the code host
 			// answers a text it has seen from its cache inside the ask, and
 			// `apply_code_syntax` hands spans only to the turns kept here.
@@ -2562,7 +2622,8 @@ namespace bpr::qt {
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
 								   .AnsweredAt = kept.AnsweredAt,
-								   .Outcome    = kept.Outcome });
+								   .Outcome    = kept.Outcome,
+								   .Steered    = kept.Steered });
 			}
 		}
 		return result;
@@ -3360,7 +3421,13 @@ namespace bpr::qt {
 		if (Turns.empty() || Turns.back().Done || Turns.back().Answer == nullptr || Turns.back().Footer == nullptr) {
 			return;
 		}
-		auto&      current = Turns.back();
+		auto& current = Turns.back();
+		// [[BPR-2153]]. The running turn's steered messages, as its run's
+		// turn events said them, and how each ended.
+		if (current.Steered != Launch.steered()) {
+			current.Steered = Launch.steered();
+			show_steered(current);
+		}
 		const auto agent   = Launch.profile_selector()->currentText();
 		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
 		const auto written = Launch.output_text().trimmed();

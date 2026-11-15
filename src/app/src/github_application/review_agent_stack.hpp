@@ -121,6 +121,9 @@ namespace bpr::app {
 		/// observes, with the stack's own session: the identity every turn of
 		/// it carries. None before the lent review is accepted.
 		[[nodiscard]] auto observed_review() const -> std::optional<std::pair<core::pull_request_authority, core::agent_revision_binding>>;
+		/// \brief [[BPR-2153]]. Steering goes to the stack's invocation host.
+		[[nodiscard]] auto steer_support(const application::agent_invocation_projection_identity& aRun) const -> core::agent_steer_support override;
+		void               steer(const application::agent_invocation_projection_identity& aRun, std::string aText, application::agent_invocation_host::steer_answer aAnswer) override;
 
 		// agent_session_catalog_port, over the stack's own ledger host.
 		void admit(const application::agent_session_admission&                                                aAdmission,

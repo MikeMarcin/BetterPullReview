@@ -68,7 +68,7 @@ def check_steerable(claude: Path) -> None:
                 break
         result = seen[-1]
         expect(result["user_message_uuids"] == [first, correction] and result["queued_turn_count"] == 0, f"the result names both inputs: {result}")
-        expect("Steered after step" in result["result"] and "Look at b.cpp instead" in result["result"], "the correction was taken after a tool call")
+        expect("Took your correction after step" in result["result"] and "Look at b.cpp instead" not in result["result"], "the correction was taken after a tool call, and not repeated")
         expect(sum(1 for frame in seen if frame.get("type") == "result") == 1, "one turn, one result")
         process.stdin.write(message("What does this change do?", second))
         process.stdin.flush()

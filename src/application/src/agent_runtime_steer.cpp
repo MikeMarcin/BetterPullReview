@@ -34,15 +34,14 @@ namespace bpr::application {
 			if (!aEntry.Input.QuickAsk.empty() || std::ranges::all_of(aEntry.Input.Text, [](const char aByte) { return aByte == ' ' || aByte == '\t' || aByte == '\r' || aByte == '\n'; })) {
 				return std::string{ quick_ask } + std::string{ goes_next };
 			}
-			auto* const runs  = binding.Runs ? binding.Runs() : nullptr;
-			const auto  shown = binding.Shown ? binding.Shown() : std::nullopt;
-			if (runs == nullptr || !shown) {
+			const auto shown = binding.Shown ? binding.Shown() : std::nullopt;
+			if (!binding.Support || !binding.Steer || !shown) {
 				return agent_steer_goes_next_words(core::agent_steer_support::not_running);
 			}
-			if (const auto support = runs->steer_support(*shown); support != core::agent_steer_support::available) {
+			if (const auto support = binding.Support(*shown); support != core::agent_steer_support::available) {
 				return agent_steer_goes_next_words(support);
 			}
-			runs->steer(*shown, aEntry.Input.Text, [binding, aSession, input = aEntry.Input](const agent_steer_receipt& aReceipt) {
+			binding.Steer(*shown, aEntry.Input.Text, [binding, aSession, input = aEntry.Input](const agent_steer_receipt& aReceipt) {
 				if (aReceipt.Disposition == core::agent_steer_disposition::sent || binding.Queue == nullptr) {
 					return;
 				}

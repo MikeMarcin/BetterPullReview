@@ -734,7 +734,8 @@ namespace bpr::app {
 							  .Answer   = QString::fromStdString(turn.Answered),
 							  .Footer   = QString::fromStdString(turn.Ending),
 							  .Outcome  = turn.Outcome,
-							  .Cards    = restored_finding_cards(turn.Answered) });
+							  .Cards    = restored_finding_cards(turn.Answered),
+							  .Steered  = turn.Steered });
 		}
 		tab->present_thread(named_turns(std::move(turns)));
 		// [[BPR-1999]]. The conversation's cost, kept with its history.
@@ -1188,7 +1189,8 @@ namespace bpr::app {
 							  .Answer   = QString::fromStdString(turn.Answered),
 							  .Footer   = QString::fromStdString(turn.Ending),
 							  .Outcome  = turn.Outcome,
-							  .Cards    = restored_finding_cards(turn.Answered) });
+							  .Cards    = restored_finding_cards(turn.Answered),
+							  .Steered  = turn.Steered });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		if (aView.Loaded) {
@@ -1490,7 +1492,7 @@ namespace bpr::app {
 			auto kept = std::vector<application::agent_conversation_turn>{ };
 			kept.reserve(aTurns.size());
 			for (const auto& turn : aTurns) {
-				kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString(), .Outcome = turn.Outcome });
+				kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString(), .Outcome = turn.Outcome, .Steered = turn.Steered });
 			}
 			if (AgentNativeHistory.Scope.empty()) {
 				AgentConversation->record(std::move(kept));

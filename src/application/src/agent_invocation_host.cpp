@@ -32,6 +32,31 @@ namespace bpr::application {
 	}
 
 	namespace {
+		/// [[BPR-2153]]. The messages steered into a run, as its stored turn
+		/// keeps them: each where it went in, as bytes of the stored answer
+		/// (the assistant items written before it; with only the last item
+		/// kept, before it unless that item had begun).
+		[[nodiscard]] auto steered_messages(const agent_run_result& aResult, const bool aLastItemOnly, const std::string& aAnswer) -> std::vector<agent_steered_message>
+		{
+			auto messages = std::vector<agent_steered_message>{ };
+			for (const auto& input : aResult.SteeredInputs) {
+				if (messages.size() >= core::maximum_steers_per_run || input.Text.empty()) {
+					break;
+				}
+				auto at = std::size_t{ 0U };
+				if (aLastItemOnly) {
+					at = input.AfterItems >= aResult.AssistantItems.size() ? aAnswer.size() : 0U;
+				} else {
+					const auto written = std::min(input.AfterItems, aResult.AssistantItems.size());
+					for (std::size_t item = 0U; item < written; ++item) {
+						at += aResult.AssistantItems[item].size();
+					}
+				}
+				messages.push_back({ .Text = input.Text, .At = std::min(at, aAnswer.size()), .AfterSteps = input.AfterSteps, .Disposition = input.Disposition });
+			}
+			return messages;
+		}
+
 		// Read only this selected catalog generation, never an in-memory cache of other chats.
 		auto prose_replay(const native_agent_history_projection& aHistory, const bool aTour) -> core::transcript_replay
 		{
@@ -1177,10 +1202,14 @@ namespace bpr::application {
 					}
 					auto turn     = agent_conversation_turn{ };
 					turn.Asked    = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion;
+					turn.Steered  = steered_messages(result, aRequest.ReadOnlyTools && !result.AssistantItems.empty(), answer);
 					turn.Answered = std::move(answer);
 					turn.Ending   = std::string{ name(result.Outcome) };
 					turn.Outcome  = result.Outcome == agent_run_outcome::success ? core::agent_turn_outcome::answered : core::agent_turn_outcome::ended_without_answer;
 					auto bounded  = bound_conversation({ std::move(turn) });
+					for (auto& steered : bounded.front().Steered) {
+						steered.At = std::min(steered.At, bounded.front().Answered.size());
+					}
 					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)) {
 						result.Outcome       = agent_run_outcome::private_storage_failure;
 						result.StandardError = "The question ended, but native session storage failed. Its submission remains uncertain; it will not be resent.";

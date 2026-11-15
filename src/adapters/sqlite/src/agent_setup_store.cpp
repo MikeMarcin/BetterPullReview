@@ -205,6 +205,12 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_workspaces(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
+				// [[BPR-2153]]. What the reviewer steered into each turn, in the
+				// order sent: their words, where in the answer it went in, the
+				// agent's step it followed, and whether the agent took it.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_turn_steers(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, position INTEGER NOT NULL CHECK(position >= 0),"
+									" text TEXT NOT NULL, at INTEGER NOT NULL CHECK(at >= 0), steps INTEGER NOT NULL CHECK(steps >= 0), disposition INTEGER NOT NULL CHECK(disposition BETWEEN 0 AND 4), PRIMARY KEY(conversation,ordinal,position)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
 				// [[BPR-1999]]. What a native conversation has cost: the sum of
 				// its turns' costs, whether any reported one, and the runtime's
@@ -1716,17 +1722,32 @@ namespace bpr::adapters::sqlite {
 					}
 					view.ReadOnly = true;
 				}
-				auto turns = detail::prepare(db, "SELECT asked,answered,ending,outcome FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
-				if (!turns) {
+				auto turns  = detail::prepare(db, "SELECT asked,answered,ending,outcome,ordinal FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
+				auto steers = detail::prepare(db, "SELECT text,at,steps,disposition FROM native_agent_turn_steers WHERE conversation=?1 AND ordinal=?2 ORDER BY position LIMIT 16");
+				if (!turns || !steers) {
 					return std::unexpected(failure::unavailable);
 				}
-				bind_text(turns->Value, 1, aView.empty() ? view.Selected : aView);
+				const auto conversation = aView.empty() ? view.Selected : aView;
+				bind_text(turns->Value, 1, conversation);
 				while ((status = sqlite3_step(turns->Value)) == SQLITE_ROW) {
 					auto turn     = application::agent_conversation_turn{ };
 					turn.Asked    = column_text(turns->Value, 0).value_or("");
 					turn.Answered = column_text(turns->Value, 1).value_or("");
 					turn.Ending   = column_text(turns->Value, 2).value_or("");
 					turn.Outcome  = static_cast<core::agent_turn_outcome>(sqlite3_column_int(turns->Value, 3));
+					sqlite3_reset(steers->Value);
+					bind_text(steers->Value, 1, conversation);
+					sqlite3_bind_int64(steers->Value, 2, sqlite3_column_int64(turns->Value, 4));
+					auto steered = SQLITE_ROW;
+					while ((steered = sqlite3_step(steers->Value)) == SQLITE_ROW) {
+						turn.Steered.push_back({ .Text        = column_text(steers->Value, 0).value_or(""),
+												 .At          = static_cast<std::size_t>(sqlite3_column_int64(steers->Value, 1)),
+												 .AfterSteps  = static_cast<std::uint32_t>(sqlite3_column_int64(steers->Value, 2)),
+												 .Disposition = static_cast<core::agent_steer_disposition>(sqlite3_column_int(steers->Value, 3)) });
+					}
+					if (steered != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
 					view.Turns.push_back(std::move(turn));
 				}
 				if (status != SQLITE_DONE || !application::valid(view.Turns) || !detail::execute(db, "COMMIT")) {
@@ -1756,12 +1777,34 @@ namespace bpr::adapters::sqlite {
 				if (sqlite3_step(row->Value) != SQLITE_DONE) {
 					return false;
 				}
-				auto prune = detail::prepare(db, "DELETE FROM native_agent_turns WHERE conversation=?1 AND ordinal NOT IN (SELECT ordinal FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal DESC LIMIT 50)");
-				if (!prune) {
+				// [[BPR-2153]]. Its steered messages, under the turn just written.
+				if (!aTurn.Steered.empty()) {
+					auto steer = detail::prepare(db, "INSERT INTO native_agent_turn_steers SELECT ?1,max(ordinal),?2,?3,?4,?5,?6 FROM native_agent_turns WHERE conversation=?1");
+					if (!steer) {
+						return false;
+					}
+					for (std::size_t position = 0U; position < aTurn.Steered.size(); ++position) {
+						const auto& steered = aTurn.Steered[position];
+						sqlite3_reset(steer->Value);
+						bind_text(steer->Value, 1, aId);
+						sqlite3_bind_int64(steer->Value, 2, static_cast<sqlite3_int64>(position));
+						bind_text(steer->Value, 3, steered.Text);
+						sqlite3_bind_int64(steer->Value, 4, static_cast<sqlite3_int64>(steered.At));
+						sqlite3_bind_int64(steer->Value, 5, static_cast<sqlite3_int64>(steered.AfterSteps));
+						sqlite3_bind_int(steer->Value, 6, static_cast<int>(steered.Disposition));
+						if (sqlite3_step(steer->Value) != SQLITE_DONE) {
+							return false;
+						}
+					}
+				}
+				auto prune       = detail::prepare(db, "DELETE FROM native_agent_turns WHERE conversation=?1 AND ordinal NOT IN (SELECT ordinal FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal DESC LIMIT 50)");
+				auto pruneSteers = detail::prepare(db, "DELETE FROM native_agent_turn_steers WHERE conversation=?1 AND ordinal NOT IN (SELECT ordinal FROM native_agent_turns WHERE conversation=?1)");
+				if (!prune || !pruneSteers) {
 					return false;
 				}
 				bind_text(prune->Value, 1, aId);
-				return sqlite3_step(prune->Value) == SQLITE_DONE && detail::execute(db, "COMMIT");
+				bind_text(pruneSteers->Value, 1, aId);
+				return sqlite3_step(prune->Value) == SQLITE_DONE && sqlite3_step(pruneSteers->Value) == SQLITE_DONE && detail::execute(db, "COMMIT");
 			}
 			auto store(application::native_agent_session& aSession) -> bool override
 			{
