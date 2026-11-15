@@ -1124,6 +1124,11 @@ target_link_libraries(test_better_pull_review_agent_queue_host_tests PRIVATE Bet
 bpr_enable_hardening(test_better_pull_review_agent_queue_host_tests)
 bpr_enable_warnings(test_better_pull_review_agent_queue_host_tests)
 bpr_add_network_isolated_test(NAME application_agent_queue_host COMMAND test_better_pull_review_agent_queue_host_tests)
+bpr_add_executable(test_better_pull_review_review_agent_runtime_tests review_agent_runtime_tests.cpp)
+target_link_libraries(test_better_pull_review_review_agent_runtime_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_review_agent_runtime_tests)
+bpr_enable_warnings(test_better_pull_review_review_agent_runtime_tests)
+bpr_add_network_isolated_test(NAME application_review_agent_runtime COMMAND test_better_pull_review_review_agent_runtime_tests)
 set_tests_properties(application_agent_conversation_host PROPERTIES PASS_REGULAR_EXPRESSION "agent-conversation-host-tests:pass" TIMEOUT 30)
 # [[BPR-2185]] (review N1 of BPR-2179). The suggested prompts' host: a save
 # is written from the revision it names; stale and failed change nothing.
