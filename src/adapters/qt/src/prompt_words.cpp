@@ -77,7 +77,7 @@ namespace bpr::qt {
 		if (core::prompt_fact_kind(aCondition.Fact) == core::prompt_condition_kind::hides) {
 			return QObject::tr("While it is untrue the chip is not offered and the menu row is hidden.");
 		}
-		return QObject::tr("While it is untrue the chip is not offered and the menu row is greyed: “%1”").arg(prompt_condition_reason(aCondition));
+		return QObject::tr("While it is untrue the chip is not offered and the menu row is disabled: “%1”").arg(prompt_condition_reason(aCondition));
 	}
 
 	auto prompt_surface_name(const core::prompt_surface aSurface) -> QString

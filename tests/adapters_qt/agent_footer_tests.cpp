@@ -247,10 +247,12 @@ auto main(int argc, char** argv) -> int
 	settle();
 	expect(footer->run_where()->text() == QStringLiteral("Agent tab") && footer->run_doing()->text() == QStringLiteral("waiting on 2 helpers") && footer->run_elapsed()->text() == QStringLiteral("0:00") && footer->stop_button()->isVisible(),
 		   "one run: Agent tab, waiting on 2 helpers, its time, Stop");
+	// Look prompts-v002: one stop and one time; the run's stop is Stop all.
+	expect(footer->stop_button()->text() == QStringLiteral("Stop all") && !footer->stop_all_button()->isVisible(), "one stop control, Stop all, beside the one time");
 	expect(pickerAt() == idleAt, "the picker keeps its place while a run shows");
 	render(window, root, "one-run");
 	footer->stop_button()->click();
-	expect(stopped == "agent;", "Stop stops that run");
+	expect(stopped == "agent;", "Stop all stops that run");
 
 	// Quiet for two minutes: the tone and the words change, nothing moves.
 	auto quiet = status(qt::agent_run_stage::thinking, waiting_on_helpers());
@@ -443,9 +445,6 @@ auto main(int argc, char** argv) -> int
 		footer->present_run(qt::agent_footer_place::tour_chat, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, waiting_on_helpers()), .Started = started2, .Stop = [&stoppedAll] { stoppedAll += "tour;"; } });
 		settle();
 		expect(footer->stop_all_button()->isVisible() && footer->stop_all_button()->focusPolicy() != Qt::NoFocus, "and so does a running turn; it takes keyboard focus");
-		// Look prompts-v001: beside it, how long the turn has been thinking.
-		expect(footer->thinking_for()->isVisible() && footer->thinking_for()->text().startsWith(QStringLiteral("Thinking for ")) && footer->thinking_for()->text().endsWith(QStringLiteral("s")),
-			   "a running turn says how long it has been thinking: " + footer->thinking_for()->text().toStdString());
 		footer->stop_all_button()->click();
 		expect(stoppedAll == "agent;tour;" && pausedAll == 1, "it stops every run and pauses every queue: " + stoppedAll);
 		footer->present_run(qt::agent_footer_place::agent_tab, std::nullopt);

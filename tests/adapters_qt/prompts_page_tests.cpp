@@ -274,7 +274,7 @@ namespace {
 				kinds << label->text();
 			}
 		}
-		expect(kinds.contains(QStringLiteral("greys")) && kinds.contains(QStringLiteral("Thread is unresolved")), "a condition row shows its name and kind: " + kinds.join(QLatin1Char('|')).toStdString());
+		expect(kinds.contains(QStringLiteral("Disable")) && kinds.contains(QStringLiteral("Thread is unresolved")), "a condition row shows its name and kind: " + kinds.join(QLatin1Char('|')).toStdString());
 		expect(qt::prompt_condition_reason({ .Fact = core::prompt_fact::thread_unresolved }) == QStringLiteral("This thread is resolved."), "its greyed reason");
 		auto* const add = page.findChild<QPushButton*>(QStringLiteral("promptsAddCondition"));
 		page.edit_selected([](core::prompt_macro& aMacro) {
@@ -300,6 +300,21 @@ namespace {
 		}
 		const auto changed = std::ranges::find(page.library(), std::string{ "conversation.summarize" }, &core::prompt_macro::Id);
 		expect(changed->Body.Groups.front().Match == core::prompt_match::all && aHarness.Saves.back().first == page.library(), "a group's match is edited and saved");
+		// Look prompts-v002: Undo and Redo step through condition edits; the
+		// list itself offers no None; Add offers Condition and Group; the
+		// conditions do not scroll on their own.
+		expect(page.undo(), "Undo");
+		expect(std::ranges::find(page.library(), std::string{ "conversation.summarize" }, &core::prompt_macro::Id)->Body.Groups.front().Match == core::prompt_match::any, "Undo puts the group's match back");
+		expect(page.redo() && std::ranges::find(page.library(), std::string{ "conversation.summarize" }, &core::prompt_macro::Id)->Body.Groups.front().Match == core::prompt_match::all, "Redo does it again");
+		expect(page.findChild<QToolButton*>(QStringLiteral("promptsMatchNone"))->isHidden(), "the list itself offers no None");
+		auto addMenu = QMenu{ };
+		page.fill_condition_menu_for_test(addMenu);
+		auto words = QStringList{ };
+		for (const auto* const action : addMenu.actions()) {
+			words << action->text();
+		}
+		expect(words == QStringList{ QStringLiteral("Condition"), QStringLiteral("Group") }, "Add offers Condition and Group: " + words.join(QLatin1Char('|')).toStdString());
+		expect(page.findChild<QScrollArea*>(QStringLiteral("promptsConditionsScroll")) == nullptr && page.findChild<QWidget*>(QStringLiteral("promptsRemoveCondition")) != nullptr, "no inner scroll, and a trash can removes");
 		render(aHarness, QStringLiteral("03-conditions"));
 		page.reset_to_default("conversation.summarize");
 	}

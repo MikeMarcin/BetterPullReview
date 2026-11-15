@@ -49,6 +49,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStackedWidget>
 #include <QTabBar>
 #include <QToolButton>
 
@@ -477,6 +478,50 @@ namespace {
 				expect(window.agent_tab() != nullptr && window.agent_tab()->isVisible(), "the Agent tab shows" + at);
 				require_whole(*drawer, "the Agent tab" + at);
 				save(window, QStringLiteral("agent-%1-%2").arg(QString::fromLatin1(name)).arg(width));
+				// Look prompts-v002 (owner: "the drawer is back to having a
+				// horizontal panning/scrolling"): the pending list, with long
+				// messages, an edit in place and a long state, never makes the
+				// drawer wider than it is.
+				{
+					const auto words = QStringLiteral("Explain why the renderer clamps the resize before the next frame and whether the shaders under src/engine/shaders/post still compile");
+					auto       rows  = std::vector<qt::agent_tab_view::queue_row>{
+						{ .Id = 1U, .Label = words, .Sending = true },
+						{ .Id = 2U, .Label = words, .Text = words },
+						{ .Id = 3U, .Label = QStringLiteral("Explain this file") },
+					};
+					window.agent_tab()->present_queue_rows(rows, QStringLiteral("Paused: the queue waits for the agent's current answer and for you to resume it"), true);
+					settle();
+					// The window has no agent set up here, so the tab shows its
+					// setup; the conversation page, where the list lives, is put
+					// in front as a set-up agent's would be.
+					QStackedWidget* pages      = nullptr;
+					QWidget*        conversing = nullptr;
+					for (QWidget* w = window.agent_tab()->queue_list(); w != nullptr && w != window.agent_tab(); w = w->parentWidget()) {
+						if (auto* const stack = qobject_cast<QStackedWidget*>(w->parentWidget()); stack != nullptr) {
+							pages      = stack;
+							conversing = w;
+							break;
+						}
+					}
+					auto* const shown = pages != nullptr ? pages->currentWidget() : nullptr;
+					if (pages != nullptr) {
+						pages->setCurrentWidget(conversing);
+					}
+					settle();
+					expect(window.agent_tab()->queue_list()->isVisible(), "the pending list shows" + at);
+					require_whole(*drawer, "the Agent tab with its pending list" + at);
+					for (auto* const scroll : window.agent_tab()->findChildren<QScrollArea*>()) {
+						if (scroll->isVisible() && scroll->widget() != nullptr) {
+							expect(scroll->widget()->width() <= scroll->viewport()->width(), "the Agent tab never pans sideways" + at);
+						}
+					}
+					save(window, QStringLiteral("agent-queue-%1-%2").arg(QString::fromLatin1(name)).arg(width));
+					window.agent_tab()->present_queue_rows({ }, { }, false);
+					if (pages != nullptr && shown != nullptr) {
+						pages->setCurrentWidget(shown);
+					}
+					settle();
+				}
 				window.hide();
 			}
 		}

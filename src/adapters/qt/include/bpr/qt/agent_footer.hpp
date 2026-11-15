@@ -113,8 +113,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto runs_menu() const noexcept -> QMenu* { return RunsMenu; }
 		[[nodiscard]] auto settings_button() const noexcept -> QPushButton* { return SettingsButton; }
 		[[nodiscard]] auto stop_all_button() const noexcept -> QPushButton* { return StopAllButton; }
-		/// \brief "Thinking for 12s" beside Stop all while a turn runs.
-		[[nodiscard]] auto thinking_for() const noexcept -> QLabel* { return ThinkingFor; }
 		[[nodiscard]] auto cost_label() const noexcept -> QLabel* { return Cost; }
 		/// \brief The footer as words, left to right, for tests and the
 		/// accessible description.
@@ -131,6 +129,7 @@ namespace bpr::qt {
 		void refresh();
 		void match_fonts();
 		void tick();
+		void stop_all();
 		void rebuild_menu();
 
 		std::array<std::optional<agent_footer_run>, agent_footer_place_count> Runs;
@@ -143,7 +142,6 @@ namespace bpr::qt {
 		std::function<void()>                                                 StopAllDispatch;
 		std::size_t                                                           Queued         = 0U;
 		QPushButton*                                                          StopAllButton  = nullptr;
-		QLabel*                                                               ThinkingFor    = nullptr;
 		agent_run_settings_picker*                                            Picker         = nullptr;
 		QWidget*                                                              RunArea        = nullptr;
 		QLabel*                                                               Dot            = nullptr;

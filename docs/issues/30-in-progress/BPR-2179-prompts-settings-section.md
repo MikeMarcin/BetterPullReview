@@ -270,3 +270,24 @@ there; Reset and Undo reset stay).
 ### Look prompts-v002
 
 Look `prompts-v002` filed (2026-11-14): session `a91caa31b1f548e1c54a22f0dc1350ec`, state `/Users/jaeger/.attended-review-state/prompts-v002-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v002.bkog9vts` from `d92a6426e` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2179-nested-conditions`, `BPR-2151-queue-list-look`, `BPR-2151-drag-trash-pencil`, `BPR-2151-slow-fixture-ask` (type "Take your time"), `BPR-2151-thinking-for`.
+
+### Look prompts-v002 handed back (owner, 2026-11-14)
+
+Rejected, `BPR-2179-nested-conditions` ("very close"), verbatim: "None of
+these problem doesn't make sense for top level, i can't imagine where it would
+be useful. I don't undrestand the word "greys" here. The minus is not clear
+that it is a delete, should be an x or trash can. It needs undo/redo to work.
+And I would reduce the option to just Group in the Add since its so easy to
+change between all/any/none. And it looks like we're narrower than we need to
+be given hte layout of the dialog, seems like we have more room to work with
+and the scroll bar makes it harder to read some stuff than it should."
+
+Built: the prompt's own list offers All of these and Any of these only (None
+is a group's); a condition's tag says Disable or Hide (what an untrue one does
+to its menu row, in its tooltip), and the reasons say "disabled"; remove is a
+trash can, for a condition and a group; Undo and Redo (buttons by the
+heading, and the Undo and Redo keys there) step back through every edit of a
+prompt, a run of typing being one step; Add offers Condition (a submenu) and
+Group (a new group is All of these); the conditions column takes the room
+beside the text (no fixed width) and has no scroll of its own, the editor
+growing with them while the page scrolls.

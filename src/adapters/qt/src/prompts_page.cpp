@@ -5,6 +5,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
+#include "conversation_glyphs.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -19,6 +20,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -32,6 +34,7 @@
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
 #include <QTimer>
@@ -523,11 +526,10 @@ namespace bpr::qt {
 		}
 		// As drawn the body is 360 high; stacked, the list takes 240 and the
 		// editor its own 360.
-		LibraryList->setMaximumHeight(narrow ? 240 : 360);
+		LibraryList->setMaximumHeight(narrow ? 240 : QWIDGETSIZE_MAX);
 		const auto editor = narrow ? width() : width() - 284;
 		EditorColumns->setDirection(editor < 640 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
-		RightBox->setMaximumWidth(editor < 640 ? QWIDGETSIZE_MAX : 328);
-		RightBox->setMinimumWidth(editor < 640 ? 240 : 328);
+		RightBox->setMinimumWidth(editor < 640 ? 240 : 300);
 	}
 
 	void prompts_page::build_surfaces(QVBoxLayout& aColumn)
@@ -639,7 +641,7 @@ namespace bpr::qt {
 		}
 		aColumn.addLayout(tours);
 
-		auto* const legend = secondary(tr("◆ Has conditions. Its chip shows only while they hold; its menu row is greyed or hidden while they do not."), this);
+		auto* const legend = secondary(tr("◆ Has conditions. Its chip shows only while they hold; its menu row is disabled or hidden while they do not."), this);
 		legend->setObjectName(QStringLiteral("promptsLegend"));
 		aColumn.addWidget(legend);
 	}
@@ -758,7 +760,6 @@ namespace bpr::qt {
 		editor->setAutoFillBackground(true);
 		editor->setBackgroundRole(QPalette::AlternateBase);
 		editor->setMinimumHeight(360);
-		editor->setMaximumHeight(360);
 		build_editor(*editor);
 		body->addWidget(editor, 1);
 		aColumn.addLayout(body);
@@ -848,6 +849,18 @@ namespace bpr::qt {
 		auto* const conditionsHeader = new QHBoxLayout{ };
 		conditionsHeader->addWidget(heading(tr("Conditions"), page));
 		conditionsHeader->addStretch(1);
+		UndoButton = new quiet_tool_button{ page };
+		UndoButton->setObjectName(QStringLiteral("promptsUndo"));
+		UndoButton->setText(tr("Undo"));
+		UndoButton->setToolTip(tr("Undo the last change to this prompt (%1)").arg(QKeySequence{ QKeySequence::Undo }.toString(QKeySequence::NativeText)));
+		RedoButton = new quiet_tool_button{ page };
+		RedoButton->setObjectName(QStringLiteral("promptsRedo"));
+		RedoButton->setText(tr("Redo"));
+		RedoButton->setToolTip(tr("Redo (%1)").arg(QKeySequence{ QKeySequence::Redo }.toString(QKeySequence::NativeText)));
+		connect(UndoButton, &QToolButton::clicked, this, [this] { static_cast<void>(undo()); });
+		connect(RedoButton, &QToolButton::clicked, this, [this] { static_cast<void>(redo()); });
+		conditionsHeader->addWidget(UndoButton);
+		conditionsHeader->addWidget(RedoButton);
 		AddCondition = new QPushButton{ tr("Add"), page };
 		AddCondition->setObjectName(QStringLiteral("promptsAddCondition"));
 		AddCondition->setAccessibleName(tr("Add a condition or a group"));
@@ -865,40 +878,37 @@ namespace bpr::qt {
 		MatchNone->setObjectName(QStringLiteral("promptsMatchNone"));
 		matchRow->addWidget(MatchAll);
 		matchRow->addWidget(MatchAny);
-		matchRow->addWidget(MatchNone);
+		// Look prompts-v002 (owner: "None of these ... doesn't make sense for
+		// top level"): None is a group's choice only.
+		MatchNone->hide();
 		matchRow->addStretch(1);
 		right->addLayout(matchRow);
-		// Nested groups can outgrow the editor's height: the conditions
-		// scroll on their own rather than squeeze.
-		auto* const conditionsScroll = new QScrollArea{ page };
-		conditionsScroll->setObjectName(QStringLiteral("promptsConditionsScroll"));
-		conditionsScroll->setFrameShape(QFrame::NoFrame);
-		conditionsScroll->setWidgetResizable(true);
-		conditionsScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		auto* const conditionsBox = new QWidget{ conditionsScroll };
-		conditionsBox->setAutoFillBackground(false);
-		conditionsScroll->viewport()->setAutoFillBackground(false);
-		auto* const conditionsColumn = new QVBoxLayout{ conditionsBox };
-		conditionsColumn->setContentsMargins(0, 0, 0, 0);
-		conditionsColumn->setSpacing(0);
-		auto* const conditionsList = new QWidget{ conditionsBox };
-		Conditions                 = new QVBoxLayout{ conditionsList };
+		// Look prompts-v002 (owner: "we're narrower than we need ... the
+		// scroll bar makes it harder to read"): no scroll of their own; the
+		// editor grows with the conditions and the page scrolls.
+		auto* const conditionsList = new QWidget{ page };
+		conditionsList->setObjectName(QStringLiteral("promptsConditionsList"));
+		Conditions = new QVBoxLayout{ conditionsList };
 		Conditions->setContentsMargins(0, 0, 0, 0);
 		Conditions->setSpacing(2);
-		conditionsColumn->addWidget(conditionsList);
-		conditionsColumn->addStretch(1);
-		conditionsScroll->setWidget(conditionsBox);
-		right->addWidget(conditionsScroll, 1);
+		right->addWidget(conditionsList);
+		right->addStretch(1);
 		Problems = secondary({ }, page);
 		Problems->setObjectName(QStringLiteral("promptsProblems"));
 		right->addWidget(Problems);
 		auto* const rightBox = new QWidget{ page };
 		rightBox->setLayout(right);
-		rightBox->setMinimumWidth(240);
-		rightBox->setMaximumWidth(328);
-		rightBox->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+		rightBox->setMinimumWidth(300);
+		rightBox->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 		RightBox = rightBox;
-		columns->addWidget(rightBox);
+		// Undo and Redo keys while the conditions have the focus (a text
+		// field keeps its own).
+		for (const auto& [keys, back] : { std::pair{ QKeySequence::Undo, true }, std::pair{ QKeySequence::Redo, false } }) {
+			auto* const shortcut = new QShortcut{ QKeySequence{ keys }, rightBox };
+			shortcut->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(shortcut, &QShortcut::activated, this, [this, back] { static_cast<void>(back ? undo() : redo()); });
+		}
+		columns->addWidget(rightBox, 1);
 		column->addLayout(columns, 1);
 
 		auto* const footer = new QHBoxLayout{ };
@@ -1516,10 +1526,49 @@ namespace bpr::qt {
 			return;
 		}
 		const auto typing = macro->Body.Name != before.Body.Name || macro->Body.Template != before.Body.Template;
+		// Look prompts-v002 (owner: "It needs undo/redo to work"): each edit
+		// can be undone; a run of typing in one prompt is one step.
+		if (!(typing && UndoTyping && Typing->isActive() && !UndoSteps.empty() && UndoSteps.back().Id == before.Id)) {
+			UndoSteps.push_back(before);
+			if (UndoSteps.size() > 200U) {
+				UndoSteps.erase(UndoSteps.begin());
+			}
+		}
+		UndoTyping = typing;
+		RedoSteps.clear();
 		rebuild_surfaces();
 		rebuild_library();
 		refresh_editor();
 		changed(typing);
+	}
+
+	auto prompts_page::undo() -> bool { return step_back(UndoSteps, RedoSteps); }
+
+	auto prompts_page::redo() -> bool { return step_back(RedoSteps, UndoSteps); }
+
+	auto prompts_page::step_back(std::vector<core::prompt_macro>& aFrom, std::vector<core::prompt_macro>& aTo) -> bool
+	{
+		while (!aFrom.empty()) {
+			auto step = std::move(aFrom.back());
+			aFrom.pop_back();
+			auto* const macro = find(step.Id);
+			if (macro == nullptr) {
+				continue;
+			}
+			aTo.push_back(*macro);
+			macro->Body = step.Body;
+			macro->On   = step.On;
+			UndoTyping  = false;
+			Selected    = step.Id;
+			SelectedSystem.reset();
+			OpenConditions.clear();
+			rebuild_surfaces();
+			rebuild_library();
+			refresh_editor();
+			changed();
+			return true;
+		}
+		return false;
 	}
 
 	void prompts_page::select(const std::string& aId)
@@ -1771,7 +1820,7 @@ namespace bpr::qt {
 			EditorPages->setCurrentWidget(aShown ? static_cast<QWidget*>(System) : EditorPages->widget(0));
 			// A system prompt's editor (preview, test, save) takes the room
 			// it needs; the page scrolls.
-			EditorPages->parentWidget()->setMaximumHeight(aShown ? QWIDGETSIZE_MAX : 360);
+			EditorPages->parentWidget()->setMaximumHeight(QWIDGETSIZE_MAX);
 			EditorPages->parentWidget()->setMinimumHeight(aShown ? 560 : 360);
 		}
 	}
@@ -1860,6 +1909,8 @@ namespace bpr::qt {
 		Bytes->setWordWrap(false);
 		insert->addWidget(Bytes);
 
+		UndoButton->setEnabled(!UndoSteps.empty());
+		RedoButton->setEnabled(!RedoSteps.empty());
 		AddCondition->setEnabled(macro->Body.Conditions.size() < core::maximum_prompt_conditions || macro->Body.Groups.size() < core::maximum_prompt_conditions);
 		AddCondition->setToolTip(macro->Body.Conditions.size() < core::maximum_prompt_conditions ? tr("Add a condition or a group") : tr("A list holds four conditions; put more in a group."));
 		rebuild_conditions();
@@ -1981,14 +2032,20 @@ namespace bpr::qt {
 		}
 		const auto full    = leaf_count(body.Conditions, body.Groups) >= core::maximum_prompt_condition_leaves;
 		const auto crowded = group->Conditions->size() >= core::maximum_prompt_conditions;
+		// Look prompts-v002 (owner: "I would reduce the option to just Group
+		// in the Add since its so easy to change between all/any/none"): Add
+		// offers a condition (a submenu) or a group.
+		auto* const conditions = aMenu.addMenu(tr("Condition"));
+		conditions->setObjectName(QStringLiteral("promptsAddConditionMenu"));
+		conditions->setEnabled(!full && !crowded);
 		for (const auto& name : { tr("Pull request"), tr("File"), tr("Thread"), tr("Chat") }) {
-			aMenu.addSection(name);
+			conditions->addSection(name);
 			for (std::size_t fact = 0U; fact < core::prompt_fact_count; ++fact) {
 				const auto value = static_cast<core::prompt_fact>(fact);
 				if (prompt_fact_group(value) != name) {
 					continue;
 				}
-				auto* const action = aMenu.addAction(prompt_fact_name(value), this, [this, value, aPath] {
+				auto* const action = conditions->addAction(prompt_fact_name(value), this, [this, value, aPath] {
 					edit_selected([this, value, aPath](core::prompt_macro& aMacro) {
 						const auto into = group_at(aMacro.Body, aPath);
 						if (!into || into->Conditions->size() >= core::maximum_prompt_conditions || leaf_count(aMacro.Body.Conditions, aMacro.Body.Groups) >= core::maximum_prompt_condition_leaves) {
@@ -2006,18 +2063,17 @@ namespace bpr::qt {
 				action->setEnabled(!full && !crowded);
 			}
 		}
-		// Look prompts-v001: groups nest, as the owner's tag queries do.
-		aMenu.addSection(tr("Group"));
-		for (const auto match : { core::prompt_match::all, core::prompt_match::any, core::prompt_match::none }) {
-			auto* const action = aMenu.addAction(tr("Group: %1").arg(match_words(match)), this, [this, match, aPath] {
-				edit_selected([match, aPath](core::prompt_macro& aMacro) {
-					if (const auto into = group_at(aMacro.Body, aPath); into && into->Groups->size() < core::maximum_prompt_conditions && aPath.size() + 1U < core::maximum_prompt_condition_depth) {
-						into->Groups->push_back({ .Match = match });
-					}
-				});
+		// Groups nest, as the owner's tag queries do; a new one is All of
+		// these, changed in its own box.
+		auto* const groupAction = aMenu.addAction(tr("Group"), this, [this, aPath] {
+			edit_selected([aPath](core::prompt_macro& aMacro) {
+				if (const auto into = group_at(aMacro.Body, aPath); into && into->Groups->size() < core::maximum_prompt_conditions && aPath.size() + 1U < core::maximum_prompt_condition_depth) {
+					into->Groups->push_back({ .Match = core::prompt_match::all });
+				}
 			});
-			action->setEnabled(aPath.size() + 1U < core::maximum_prompt_condition_depth && group->Groups->size() < core::maximum_prompt_conditions);
-		}
+		});
+		groupAction->setObjectName(QStringLiteral("promptsAddGroup"));
+		groupAction->setEnabled(aPath.size() + 1U < core::maximum_prompt_condition_depth && group->Groups->size() < core::maximum_prompt_conditions);
 		aMenu.setToolTipsVisible(true);
 		if (full) {
 			aMenu.setToolTip(tr("A prompt can have twelve conditions."));
@@ -2063,13 +2119,22 @@ namespace bpr::qt {
 			disclosure->setAccessibleName(open ? tr("Close") : tr("Open"));
 			line->addWidget(disclosure);
 			line->addWidget(new QLabel{ prompt_fact_name(condition.Fact), row }, 1);
-			auto* const kind = secondary(core::prompt_fact_kind(condition.Fact) == core::prompt_condition_kind::hides ? tr("hides") : tr("greys"), row);
+			// Look prompts-v002 (owner: "I don't undrestand the word greys"):
+			// what an untrue condition does to its Ask menu row.
+			const auto  hides = core::prompt_fact_kind(condition.Fact) == core::prompt_condition_kind::hides;
+			auto* const kind  = secondary(hides ? tr("Hide") : tr("Disable"), row);
+			kind->setToolTip(hides ? tr("While this is untrue, the prompt's Ask menu row is hidden and its chip is not offered.")
+								   : tr("While this is untrue, the prompt's Ask menu row is shown disabled, with the reason, and its chip is not offered."));
 			kind->setWordWrap(false);
 			line->addWidget(kind);
 			auto* const removeButton = new quiet_tool_button{ row };
-			removeButton->setText(QStringLiteral("−"));
+			// Look prompts-v002 (owner: "The minus is not clear that it is a
+			// delete"): a trash can, as the pending list's.
+			removeButton->setIcon(conversation_icon(conversation_glyph::trash, palette()));
 			removeButton->setAutoRaise(true);
+			removeButton->setObjectName(QStringLiteral("promptsRemoveCondition"));
 			removeButton->setAccessibleName(tr("Remove %1").arg(prompt_fact_name(condition.Fact)));
+			removeButton->setToolTip(removeButton->accessibleName());
 			line->addWidget(removeButton);
 			column->addLayout(line);
 			connect(disclosure, &QToolButton::clicked, this, [this, key] {
@@ -2187,9 +2252,11 @@ namespace bpr::qt {
 			});
 			head->addWidget(add);
 			auto* const remove = new quiet_tool_button{ box };
-			remove->setText(QStringLiteral("−"));
+			remove->setIcon(conversation_icon(conversation_glyph::trash, palette()));
 			remove->setAutoRaise(true);
+			remove->setObjectName(QStringLiteral("promptsRemoveGroup"));
 			remove->setAccessibleName(tr("Remove this group"));
+			remove->setToolTip(remove->accessibleName());
 			connect(remove, &QToolButton::clicked, this, [this, aPath, at] {
 				OpenConditions.clear();
 				edit_selected([aPath, at](core::prompt_macro& aMacro) {

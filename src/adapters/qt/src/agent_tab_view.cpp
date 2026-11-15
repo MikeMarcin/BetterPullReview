@@ -2981,6 +2981,11 @@ namespace bpr::qt {
 			auto* const state = new QLabel{ aState, head };
 			state->setObjectName(QStringLiteral("agentQueueState"));
 			state->setForegroundRole(QPalette::PlaceholderText);
+			// Look prompts-v002 (owner: "the drawer is back to having a
+			// horizontal panning/scrolling"): words wrap, so no line in the
+			// list is ever wider than the drawer.
+			state->setWordWrap(true);
+			state->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 			heads->addWidget(state, 1, Qt::AlignRight);
 			auto* const toggle = button(head, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
 			connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
@@ -3018,6 +3023,7 @@ namespace bpr::qt {
 				line->setContentsMargins(8, 3, 4, 3);
 				auto* const field = new QLineEdit{ entry.Text, row };
 				field->setObjectName(QStringLiteral("agentQueueEditField"));
+				field->setMinimumWidth(40);
 				field->setAccessibleName(tr("Queued message"));
 				line->addWidget(field, 1);
 				auto* const save   = button(row, tr("Save"), QStringLiteral("agentQueueSave"), tr("Save the queued message"));
@@ -3048,6 +3054,8 @@ namespace bpr::qt {
 			label->setObjectName(QStringLiteral("agentQueueLabel"));
 			label->setText(entry.Held ? tr("%1 (being edited)").arg(entry.Label) : entry.Label);
 			label->setTextFormat(Qt::PlainText);
+			label->setWordWrap(true);
+			label->setMinimumWidth(1);
 			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
 			line->addWidget(label, 1);
 			if (entry.Sending) {
