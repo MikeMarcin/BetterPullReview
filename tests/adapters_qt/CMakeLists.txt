@@ -1138,6 +1138,22 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-launch-canary-tests:pass"
         TIMEOUT 120
 )
+# [[BPR-2153]], RFC-BPR-0126 AC05/AC07. Native steering through the real
+# launcher against the fixture agent run as Claude Code. No inference.
+if(TARGET bpr_fixture_agent)
+    bpr_add_executable(test_better_pull_review_qt_agent_steering_fixture_tests agent_steering_fixture_tests.cpp)
+    target_link_libraries(test_better_pull_review_qt_agent_steering_fixture_tests PRIVATE BetterPullReview::AdapterAgent BetterPullReview::Platform Qt6::Core $<$<PLATFORM_ID:Windows>:Advapi32>)
+    add_dependencies(test_better_pull_review_qt_agent_steering_fixture_tests bpr_fixture_agent)
+    bpr_enable_hardening(test_better_pull_review_qt_agent_steering_fixture_tests)
+    bpr_enable_warnings(test_better_pull_review_qt_agent_steering_fixture_tests)
+    bpr_add_network_isolated_test(NAME qt_agent_steering_fixture
+        COMMAND test_better_pull_review_qt_agent_steering_fixture_tests "${CMAKE_BINARY_DIR}/fixture-agent")
+    set_tests_properties(qt_agent_steering_fixture PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "agent-steering-fixture-tests:pass"
+        TIMEOUT 120)
+endif()
+
 # [[BPR-1301]]. The Claude process wrapper through the real launcher: path
 # checks on real files, and a recording copy of the canary that must receive
 # exactly what today's Claude launch does.

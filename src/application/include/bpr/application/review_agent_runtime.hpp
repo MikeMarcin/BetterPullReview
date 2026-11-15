@@ -53,6 +53,23 @@ namespace bpr::application {
 		/// \brief [[BPR-2181]]. Tries again to remove a workspace whose removal
 		/// was refused, as a window's shutdown poll does for its own host.
 		virtual void retry_cleanup() { }
+		/// \brief [[BPR-2153]]. Whether the run `aRun` could take a
+		/// correction now (`agent_invocation_host::steer_support`).
+		[[nodiscard]] virtual auto steer_support(const agent_invocation_projection_identity& aRun) const -> core::agent_steer_support
+		{
+			static_cast<void>(aRun);
+			return core::agent_steer_support::no_connection;
+		}
+		/// \brief [[BPR-2153]]. Hands a correction to the run
+		/// (`agent_invocation_host::steer`); answered once.
+		virtual void steer(const agent_invocation_projection_identity& aRun, std::string aText, agent_invocation_host::steer_answer aAnswer)
+		{
+			static_cast<void>(aRun);
+			static_cast<void>(aText);
+			if (aAnswer) {
+				aAnswer({ .Support = core::agent_steer_support::no_connection });
+			}
+		}
 	};
 
 	/// \brief The review a runtime builds a released message's request from:
@@ -141,6 +158,12 @@ namespace bpr::application {
 		/// \brief How the last turn's run ended: `failed` when it retired with
 		/// no finish (its machinery refused it before it started).
 		[[nodiscard]] auto last_finish() const -> core::queued_finish;
+		/// \brief [[BPR-2153]], RFC-BPR-0126 AC05. A queued message offered to
+		/// the session's running turn: none when it was handed to the run this
+		/// runtime runs, otherwise why not, in the Agent tab's words. A
+		/// hand-off the connection later finds unwritten goes back to
+		/// `aQueue`, first in line, and every attached window is told why.
+		[[nodiscard]] auto steer(const core::queued_entry& aEntry, agent_queue_host* aQueue) -> std::optional<std::string>;
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		void               shutdown();
 		/// \brief Retries a refused workspace removal of its machinery, and
@@ -195,6 +218,11 @@ namespace bpr::application {
 		std::vector<agent_conversation_turn>                                               Unshown;
 		std::function<void()>                                                              Done;
 		std::function<void(const agent_conversation_key&, const agent_conversation_turn&)> Keep;
+		/// [[BPR-2153]]. The run admitted for the running turn, which Steer
+		/// names.
+		std::optional<agent_invocation_projection_identity> Active;
+		/// Lets a late steer answer know the runtime is gone.
+		std::shared_ptr<bool> Alive = std::make_shared<bool>(true);
 	};
 
 	struct review_agent_runtime_dependencies

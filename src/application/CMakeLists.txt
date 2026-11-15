@@ -216,6 +216,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_queue_host.cpp
             src/agent_session_runner.cpp
             src/review_agent_runtime.cpp
+            src/agent_runtime_steer.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_scratch_folder.cpp

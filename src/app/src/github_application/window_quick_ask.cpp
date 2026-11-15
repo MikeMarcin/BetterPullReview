@@ -8,6 +8,7 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/application/agent_runtime_steer.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/agent_footer.hpp"
@@ -92,8 +93,8 @@ namespace bpr::app {
 				const auto steered = AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen);
 				if (steered.Refused != core::queue_refusal::none) {
 					Window->agent_panel()->refuse("Another window changed this queue first, so nothing changed here.");
-				} else if (!steered.Sent) {
-					Window->agent_panel()->refuse(steered.Why);
+				} else {
+					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
 				}
 			},
 			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen) {
@@ -106,8 +107,9 @@ namespace bpr::app {
 			.Discard = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId) { return aQueue.discard(aSession, aId, aSeen); }),
 		});
 		// Q4/Q5 as answered: a typed message while a turn runs or messages
-		// wait is queued on the session (Steer is not built: a driver that
-		// cannot steer keeps Queue and says so, Q17).
+		// wait is queued on the session; a steered one is then offered to the
+		// running turn by the host, as a queued message's Steer is
+		// ([[BPR-2153]]), and shows why when it goes next instead (Q17).
 		tab->set_follow_up([this](const QString& aText, const bool aSteer) {
 			const auto session = ask_session_key();
 			if (Closing || Window == nullptr || !AgentQueue || session.empty()) {
@@ -126,8 +128,10 @@ namespace bpr::app {
 																																: "That message can't be queued.");
 				return false;
 			}
-			if (aSteer) {
-				Window->agent_panel()->refuse("Steer isn't available for this agent yet, so the message was queued.");
+			if (const auto* const queue = AgentQueue->queue(session); aSteer && queue != nullptr && !queue->Entries.empty()) {
+				if (const auto steered = AgentQueue->steer(session, queue->Entries.back().Id); steered.Refused == core::queue_refusal::none) {
+					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
+				}
 			}
 			observe_ask_queue(false);
 			return true;
@@ -436,7 +440,7 @@ namespace bpr::app {
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(view.Turns.size());
 		for (const auto& turn : view.Turns) {
-			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered) });
+			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered), .Steered = turn.Steered });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		AgentConversation->record(std::move(view.Turns));

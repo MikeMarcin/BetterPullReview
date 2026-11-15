@@ -13,6 +13,7 @@
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/agent_setup.hpp"
+#include "bpr/core/agent_steering.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
@@ -961,6 +962,30 @@ namespace bpr::application {
 		auto operator<=>(const agent_helper_tracking&) const = default;
 	};
 
+	/// \brief [[BPR-2153]], RFC-BPR-0126. One correction handed to a running
+	/// turn: its input identity, the App Server request that carried it (zero
+	/// for Claude), and how far it has got.
+	struct agent_steer_record
+	{
+		std::string                   Identity;
+		std::uint64_t                 Response    = 0U;
+		core::agent_steer_disposition Disposition = core::agent_steer_disposition::sent;
+		/// App Server: `turn/steer` answered with this turn's identity.
+		bool Accepted = false;
+		/// App Server: its answer did not come within
+		/// `agent_steer_reply_deadline_milliseconds`; a late one is read past.
+		bool Expired = false;
+
+		auto operator<=>(const agent_steer_record&) const = default;
+	};
+
+	/// \brief A correction's wire frame and identity, as the decoder built it.
+	struct agent_steer_frame
+	{
+		std::string Identity;
+		std::string Frame;
+	};
+
 	class agent_protocol_decoder final
 	{
 	public:
@@ -1004,7 +1029,55 @@ namespace bpr::application {
 		/// \brief [[BPR-2004]]. The turn's helpers as reported so far.
 		[[nodiscard]] auto helpers() const noexcept -> const agent_helper_tracking& { return Helpers; }
 
+		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14. Builds a correction for the
+		/// running turn and records it as sent.
+		///
+		/// \details Claude: one UUID-bearing user message with `priority:
+		/// "next"`, taken after the current tool call or by a successor native
+		/// turn of the same run. Codex App Server: `turn/steer` naming the
+		/// thread and the running turn (`expectedTurnId`). The caller writes
+		/// the frame exactly once; nothing here retries, replays or restarts.
+		/// Refused, with why, when the turn is not running (not started,
+		/// already answered), the driver or its observed version is not
+		/// qualified, or the run has taken `core::maximum_steers_per_run`.
+		/// \param aText The reviewer's correction, already admitted by the host.
+		/// \param aConnected Whether the run is on a kept native connection.
+		[[nodiscard]] auto steer(std::string_view aText, bool aConnected)
+			-> std::expected<agent_steer_frame, core::agent_steer_support>;
+		/// \brief Every correction of this run, in the order handed off.
+		[[nodiscard]] auto steers() const noexcept -> const std::vector<agent_steer_record>& { return Steers; }
+		/// \brief The run's corrections, each counted once by disposition.
+		[[nodiscard]] auto steer_tally() const noexcept -> core::agent_steer_tally;
+		/// \brief The run has ended: a correction still open was never
+		/// correlated, and is unknown. Never resent.
+		void settle_steers() noexcept;
+		/// \brief An App Server `turn/steer` is still unanswered; the turn
+		/// cannot complete until it is answered or expires.
+		[[nodiscard]] auto awaiting_steer_reply() const noexcept -> bool;
+		/// \brief [[BPR-2153]]. The answer to every unanswered `turn/steer`
+		/// is overdue: each is unknown (never resent, the connection retired),
+		/// and an answer that still arrives is read past.
+		void expire_steer_replies() noexcept;
+		/// \brief The Claude Code version this connection reported, kept across
+		/// its turns; empty when it reported none.
+		[[nodiscard]] auto observed_tool_version() const -> std::string;
+
 	private:
+		/// Reads a steered run's receipts before ordinary decoding: App
+		/// Server's replies to `turn/steer`, which ordinary decoding refuses,
+		/// and Claude's `user_message_uuids`. True when the frame was a
+		/// receipt that ordinary decoding must not see.
+		[[nodiscard]] auto read_steer_receipt(std::string_view aFrame) -> std::expected<bool, agent_protocol_failure>;
+		/// After ordinary decoding: a Claude result that left a correction
+		/// open either keeps the run going for its successor turn or leaves
+		/// it unknown; a completed App Server turn consumed what it accepted.
+		void                            settle_after_frame();
+		std::vector<agent_steer_record> Steers;
+		std::string                     ToolVersion;
+		/// Claude's last result said input waits for another turn
+		/// (`queued_turn_count` above zero).
+		bool QueuedTurns = false;
+
 		[[nodiscard]] auto retain_output(std::vector<agent_protocol_event>&) -> bool;
 		[[nodiscard]] auto frame_limit() const noexcept -> std::size_t;
 		[[nodiscard]] auto stream_limit() const noexcept -> std::size_t;
@@ -1083,6 +1156,24 @@ namespace bpr::application {
 		activity,
 		/// A frame arrived and said nothing shown: "last activity" restarts.
 		heartbeat,
+		/// [[BPR-2153]]. The reviewer's message was steered into the turn,
+		/// in `Steered`: their words, shown as theirs where it went in.
+		steered,
+	};
+
+	/// \brief [[BPR-2153]]. One message steered into a run: its input
+	/// identity, the reviewer's words, how far the run had got when it went
+	/// in (assistant items started and the agent's own steps taken), and
+	/// what became of it.
+	struct agent_steered_input
+	{
+		std::string                   Identity;
+		std::string                   Text;
+		std::size_t                   AfterItems  = 0U;
+		std::uint32_t                 AfterSteps  = 0U;
+		core::agent_steer_disposition Disposition = core::agent_steer_disposition::sent;
+
+		auto operator<=>(const agent_steered_input&) const = default;
 	};
 
 	struct agent_stream_event
@@ -1093,6 +1184,8 @@ namespace bpr::application {
 		core::agent_run_id                         Run;
 		agent_stream_kind                          Kind = agent_stream_kind::text;
 		std::optional<core::agent_activity_update> Activity;
+		/// For `steered`.
+		std::optional<agent_steered_input> Steered;
 
 		auto operator<=>(const agent_stream_event&) const = default;
 	};
@@ -1168,6 +1261,18 @@ namespace bpr::application {
 		/// how they ended; those still running when the turn ended are
 		/// abandoned.
 		core::agent_helper_tally Helpers;
+		/// [[BPR-2153]], RFC-BPR-0126 AC07. The corrections steered into this
+		/// run, each counted once by how it ended. Their cost is already in
+		/// `ReportedCostUsd`: the run's figure covers every native part.
+		core::agent_steer_tally Steers;
+		/// [[BPR-2153]], RFC-BPR-0126. A correction was written and the run
+		/// ended without it being correlated: whether the agent took it is
+		/// unknown. The run's own outcome is unchanged; a queue pauses on this
+		/// (delivery unknown) rather than releasing its next message.
+		bool SteerDeliveryUnknown = false;
+		/// [[BPR-2153]]. The messages steered into this run, in the order
+		/// written, each with its terminal disposition.
+		std::vector<agent_steered_input> SteeredInputs;
 		/// The descriptions of the helpers still running when the runtime
 		/// ended, for `helpers_unfinished`; at most eight.
 		std::vector<std::string> UnfinishedHelpers;
@@ -1195,6 +1300,54 @@ namespace bpr::application {
 
 	using agent_output_sink = std::function<void(const agent_stream_event&)>;
 
+	/// \brief [[BPR-2153]], RFC-BPR-0126 Q14. A correction for the run now
+	/// working in one native conversation.
+	struct agent_steer_request
+	{
+		/// The native conversation (`agent_launch_request::NativeConversation`).
+		std::string Conversation;
+		/// The exact BPR run it corrects, by its run identity and its native
+		/// turn in the conversation; another run refuses it rather than
+		/// taking it.
+		core::agent_run_id Run;
+		std::uint64_t      NativeTurn = 0U;
+		/// The reviewer's text, already admitted by the host.
+		std::string Text;
+	};
+
+	/// \brief Whether a correction was handed to the runtime.
+	///
+	/// \details `sent` means written exactly once to the running turn, with
+	/// `Identity` its input identity; its terminal disposition arrives with
+	/// the run's result (`agent_run_result::Steers`). Otherwise it was never
+	/// written (`unsent`, with `Support` saying why) or the runtime refused
+	/// it without consuming it (`refused`): it may be queued instead.
+	struct agent_steer_receipt
+	{
+		std::string                   Identity;
+		core::agent_steer_disposition Disposition = core::agent_steer_disposition::unsent;
+		core::agent_steer_support     Support     = core::agent_steer_support::not_running;
+
+		auto operator<=>(const agent_steer_receipt&) const = default;
+	};
+
+	/// \brief [[BPR-2153]]. How long the protocol loop waits for Codex App
+	/// Server to answer a `turn/steer` before the correction is unknown. The
+	/// answer came within milliseconds on Codex 0.167.0; this bounds a dropped
+	/// one, so it cannot hold the turn and its workspace lease. (The whole
+	/// run's bound under delivery uncertainty is BPR-2152's, AC06.)
+	inline constexpr int agent_steer_reply_deadline_milliseconds = 30'000;
+
+	/// \brief Called once per correction, on the adapter's thread.
+	using agent_steer_answer = std::function<void(const agent_steer_receipt&)>;
+
+	/// \brief A correction waiting for its run's protocol loop.
+	struct agent_pending_steer
+	{
+		agent_steer_request Request;
+		agent_steer_answer  Answer;
+	};
+
 	/// \brief Adapter-owned serialized turn exchange for one supervised process.
 	class agent_native_connection_port
 	{
@@ -1206,6 +1359,12 @@ namespace bpr::application {
 		virtual void               retire() noexcept { }
 		[[nodiscard]] virtual auto timeout_milliseconds() const -> int = 0;
 		[[nodiscard]] virtual auto cancelled() const noexcept -> bool  = 0;
+		/// \brief [[BPR-2153]]. The next correction for the running turn, in
+		/// the order the host admitted them; none by default.
+		[[nodiscard]] virtual auto take_steer() -> std::optional<agent_pending_steer> { return std::nullopt; }
+		/// \brief [[BPR-2153]]. The version the running turn's runtime
+		/// reported (Claude's init), for `agent_process_port::steer_support`.
+		virtual void observe_tool_version(const std::string& aVersion) { static_cast<void>(aVersion); }
 	};
 
 	/// \brief Process effect boundary used by the agent application host.
@@ -1222,6 +1381,31 @@ namespace bpr::application {
 		virtual void cancel() noexcept                                   = 0;
 		/// \brief Whether all requested native connection shutdowns have settled.
 		[[nodiscard]] virtual auto native_connections_quiescent() const noexcept -> bool { return true; }
+		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14. Hands a correction to the
+		/// turn running in `aRequest.Conversation`, after its current tool
+		/// call.
+		///
+		/// \details Never blocks on the runtime: `aAnswer` is called exactly
+		/// once, possibly on another thread, when the correction was written
+		/// or refused. A port with no native connections refuses every
+		/// correction. Nothing here starts a turn, a process or a probe.
+		/// \brief [[BPR-2153]]. Whether the turn `aRequest` names (its
+		/// conversation, run and native turn; the text is not read) could
+		/// take a correction now, from what its runtime has reported:
+		/// `version_unknown` until Claude's init has said its version. A port
+		/// with no native connections answers `no_connection`.
+		[[nodiscard]] virtual auto steer_support(const agent_steer_request& aRequest) const -> core::agent_steer_support
+		{
+			static_cast<void>(aRequest);
+			return core::agent_steer_support::no_connection;
+		}
+		virtual void steer(agent_steer_request aRequest, agent_steer_answer aAnswer)
+		{
+			static_cast<void>(aRequest);
+			if (aAnswer) {
+				aAnswer({ .Support = core::agent_steer_support::no_connection });
+			}
+		}
 	};
 
 	/// \brief Applies the core's immutable session decision to a process result.

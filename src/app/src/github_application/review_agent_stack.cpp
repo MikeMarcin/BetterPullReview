@@ -193,6 +193,22 @@ namespace bpr::app {
 		}
 	}
 
+	auto review_agent_stack::steer_support(const application::agent_invocation_projection_identity& aRun) const -> core::agent_steer_support
+	{
+		return Agent != nullptr ? Agent->steer_support(aRun) : core::agent_steer_support::not_running;
+	}
+
+	void review_agent_stack::steer(const application::agent_invocation_projection_identity& aRun, std::string aText, application::agent_invocation_host::steer_answer aAnswer)
+	{
+		if (Agent == nullptr) {
+			if (aAnswer) {
+				aAnswer({ .Support = core::agent_steer_support::not_running });
+			}
+			return;
+		}
+		Agent->steer(aRun, std::move(aText), std::move(aAnswer));
+	}
+
 	/// The turn's machinery alone before shutdown, so background review work
 	/// never holds a turn running; every host once shut down.
 	auto review_agent_stack::is_quiescent() const -> bool

@@ -349,7 +349,9 @@ auto main(int argc, char** argv) -> int
 			expect(composer->toPlainText().isEmpty() && rowsOf().contains(QStringLiteral("First follow-up")) && rowsOf().contains(QStringLiteral("Second follow-up")),
 				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString());
 			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
-			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("Steer isn't available")),
+			// [[BPR-2153]]: no turn runs, so there is nothing to steer; the
+			// message is kept, goes next, and the panel says why (Q17).
+			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("goes next")),
 				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
 			render_showing(window, *list(), QStringLiteral("queue-pending-list"));
 			expect(pressIn(QStringLiteral("agentQueueEdit"), QStringLiteral("First follow-up")), "Edit a typed message");

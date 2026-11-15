@@ -4206,9 +4206,11 @@ namespace bpr::application {
 		// Preserve connection identities, but reset every bounded turn carrier.
 		auto       identities = std::move(NativeFrameTurns);
 		const auto reporting  = ReportActivity;
+		auto       version    = observed_tool_version();
 		*this                 = agent_protocol_decoder{ Protocol, WritingOnly, Purpose, ReadOnlyTools, Checks };
 		NativeFrameTurns      = std::move(identities);
 		ReportActivity        = reporting;
+		ToolVersion           = std::move(version);
 		ExpectedNativeHandle  = aHandle;
 		NativeTurn            = aTurn;
 		ConnectedNative       = true;
@@ -4223,12 +4225,217 @@ namespace bpr::application {
 
 	auto agent_protocol_decoder::turn_complete() const noexcept -> bool
 	{
-		return !Failed && Pending.empty() && ((Protocol == core::agent_protocol::claude_stream_json && Phase == 2U) || (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U));
+		// [[BPR-2153]]. An App Server turn is not over while a `turn/steer`
+		// it was sent is unanswered: the answer says whether it was taken.
+		return !Failed && Pending.empty() && !awaiting_steer_reply() && ((Protocol == core::agent_protocol::claude_stream_json && Phase == 2U) || (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U));
+	}
+
+	auto agent_protocol_decoder::observed_tool_version() const -> std::string
+	{
+		for (const auto& report : Metadata.ProtocolReported | std::views::reverse) {
+			if (report.ToolVersion) {
+				return *report.ToolVersion;
+			}
+		}
+		return ToolVersion;
+	}
+
+	auto agent_protocol_decoder::steer(const std::string_view aText, const bool aConnected)
+		-> std::expected<agent_steer_frame, core::agent_steer_support>
+	{
+		// The driver and connection first; the version only once the runtime
+		// has said it (Claude's init), so a turn not yet started is "not
+		// running", never "unqualified".
+		if (const auto shape = core::agent_steer_support_of(Protocol, aConnected, core::qualified_claude_steer_version); shape != core::agent_steer_support::available) {
+			return std::unexpected(shape);
+		}
+		// Running: Claude has named its session and the agent itself is
+		// working (waiting only on helpers is not steerable); App Server has
+		// started the turn.
+		const auto claudeRunning = Protocol == core::agent_protocol::claude_stream_json && Phase == 1U && !RemoteSession.empty();
+		const auto serverRunning = Protocol == core::agent_protocol::codex_app_server && Phase == 5U && !RemoteTurn.empty();
+		if (Failed || (!claudeRunning && !serverRunning)) {
+			return std::unexpected(core::agent_steer_support::not_running);
+		}
+		if (const auto support = core::agent_steer_support_of(Protocol, aConnected, observed_tool_version()); support != core::agent_steer_support::available) {
+			return std::unexpected(support);
+		}
+		if (Steers.size() >= core::maximum_steers_per_run) {
+			return std::unexpected(core::agent_steer_support::exhausted);
+		}
+		const auto ordinal = static_cast<std::uint32_t>(Steers.size());
+		auto       record  = agent_steer_record{ .Identity = core::agent_steer_identity(NativeTurn, ordinal) };
+		auto       frame   = std::string{ };
+		if (claudeRunning) {
+			// Q14: `next`, after the current tool call; never `now`, which can
+			// interrupt. Stop interrupts.
+			frame = "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"" + json_escape(aText) + "\"}]},\"uuid\":\"" + record.Identity + "\",\"priority\":\"next\"}\n";
+		} else {
+			// Above every turn/start request this conversation can number.
+			record.Response = (std::uint64_t{ 1U } << 40U) + (NativeTurn << 6U) + ordinal;
+			frame           = "{\"method\":\"turn/steer\",\"id\":" + std::to_string(record.Response) + ",\"params\":{\"threadId\":\"" + json_escape(RemoteThread) + "\",\"expectedTurnId\":\"" + json_escape(RemoteTurn)
+				+ "\",\"clientUserMessageId\":\"" + record.Identity + "\",\"input\":[{\"type\":\"text\",\"text\":\"" + json_escape(aText) + "\"}]}}\n";
+		}
+		Steers.push_back(record);
+		return agent_steer_frame{ .Identity = std::move(record.Identity), .Frame = std::move(frame) };
+	}
+
+	auto agent_protocol_decoder::steer_tally() const noexcept -> core::agent_steer_tally
+	{
+		auto tally = core::agent_steer_tally{ };
+		for (const auto& record : Steers) {
+			switch (record.Disposition) {
+			case core::agent_steer_disposition::unsent:   break;
+			case core::agent_steer_disposition::sent:     ++tally.Sent; break;
+			case core::agent_steer_disposition::refused:  ++tally.Refused; break;
+			case core::agent_steer_disposition::consumed: ++tally.Consumed; break;
+			case core::agent_steer_disposition::unknown:  ++tally.Unknown; break;
+			}
+		}
+		return tally;
+	}
+
+	void agent_protocol_decoder::settle_steers() noexcept
+	{
+		for (auto& record : Steers) {
+			if (record.Disposition == core::agent_steer_disposition::sent) {
+				record.Disposition = core::agent_steer_disposition::unknown;
+			}
+		}
+	}
+
+	auto agent_protocol_decoder::awaiting_steer_reply() const noexcept -> bool
+	{
+		return std::ranges::any_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Response != 0U && aSteer.Disposition == core::agent_steer_disposition::sent && !aSteer.Accepted; });
+	}
+
+	void agent_protocol_decoder::expire_steer_replies() noexcept
+	{
+		for (auto& record : Steers) {
+			if (record.Response != 0U && record.Disposition == core::agent_steer_disposition::sent && !record.Accepted) {
+				record.Disposition = core::agent_steer_disposition::unknown;
+				record.Expired     = true;
+			}
+		}
+	}
+
+	auto agent_protocol_decoder::read_steer_receipt(const std::string_view aFrame) -> std::expected<bool, agent_protocol_failure>
+	{
+		if (Steers.empty()) {
+			return false;
+		}
+		const auto start = aFrame.find_first_not_of(" \t\r");
+		if (start == std::string_view::npos || aFrame[start] != '{') {
+			return false;
+		}
+		const auto parsed = bounded_json_parser{ aFrame }.parse();
+		if (!parsed || parsed->Kind != json_kind::object_value) {
+			// Ordinary decoding refuses it by its own rule.
+			return false;
+		}
+		if (Protocol == core::agent_protocol::codex_app_server) {
+			const auto* id = member(*parsed, "id");
+			if (id == nullptr || id->Kind != json_kind::number_value) {
+				return false;
+			}
+			const auto found = std::ranges::find_if(Steers, [id](const agent_steer_record& aSteer) { return aSteer.Response != 0U && std::to_string(aSteer.Response) == id->Text; });
+			if (found == Steers.end()) {
+				return false;
+			}
+			if (found->Expired) {
+				// Overdue and already unknown: a late answer changes nothing.
+				return true;
+			}
+			if (found->Disposition != core::agent_steer_disposition::sent || found->Accepted) {
+				// One request, one answer.
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			if (member(*parsed, "error") != nullptr) {
+				// A definitive refusal (`expected active turn id ...`, or no
+				// such method on an older server): nothing was consumed.
+				found->Disposition = core::agent_steer_disposition::refused;
+				return true;
+			}
+			const auto* result = object_member(*parsed, "result");
+			const auto* turn   = result == nullptr ? nullptr : string_member(*result, "turnId");
+			if (turn == nullptr || *turn != RemoteTurn || Phase != 5U) {
+				// Taken by a turn other than this run's, or after it ended:
+				// never this run's success, and never resent.
+				found->Disposition = core::agent_steer_disposition::unknown;
+				return true;
+			}
+			found->Accepted = true;
+			return true;
+		}
+		const auto* type = string_member(*parsed, "type");
+		if (Protocol != core::agent_protocol::claude_stream_json || type == nullptr || *type != "result") {
+			return false;
+		}
+		// Claude names the inputs a result answered; the result's own `uuid`
+		// is a different fence and never settles a correction.
+		const auto consume = [this](const std::string& aIdentity) {
+			for (auto& record : Steers) {
+				if (record.Identity == aIdentity && record.Disposition == core::agent_steer_disposition::sent) {
+					record.Disposition = core::agent_steer_disposition::consumed;
+				}
+			}
+		};
+		if (const auto* one = string_member(*parsed, "user_message_uuid"); one != nullptr) {
+			consume(*one);
+		}
+		if (const auto* many = member(*parsed, "user_message_uuids"); many != nullptr && many->Kind == json_kind::array_value) {
+			for (const auto& element : many->Elements) {
+				if (element.Kind == json_kind::string_value) {
+					consume(element.Text);
+				}
+			}
+		}
+		if (const auto* queued = member(*parsed, "queued_turn_count"); queued != nullptr && queued->Kind == json_kind::number_value) {
+			QueuedTurns = queued->Text != "0";
+		} else {
+			QueuedTurns = false;
+		}
+		return false;
+	}
+
+	void agent_protocol_decoder::settle_after_frame()
+	{
+		if (Steers.empty() || Failed) {
+			return;
+		}
+		if (Protocol == core::agent_protocol::codex_app_server) {
+			// The turn that accepted a correction completed: it took it.
+			if (Phase == 6U) {
+				for (auto& record : Steers) {
+					if (record.Accepted && record.Disposition == core::agent_steer_disposition::sent) {
+						record.Disposition = core::agent_steer_disposition::consumed;
+					}
+				}
+			}
+			return;
+		}
+		const auto open = std::ranges::any_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Disposition == core::agent_steer_disposition::sent; });
+		if (Protocol != core::agent_protocol::claude_stream_json || Phase != 2U || !open) {
+			return;
+		}
+		// Claude answered without naming a correction it was sent. When it
+		// says input waits for another turn, that successor is this run's,
+		// under its lease and accounting: the run goes on (phase 3, as for a
+		// helper's report). Otherwise the correction cannot be reconciled and
+		// is unknown, and the connection is not reused.
+		if (QueuedTurns) {
+			Phase = 3U;
+			return;
+		}
+		settle_steers();
 	}
 
 	auto agent_protocol_decoder::native_connection_reusable() const noexcept -> bool
 	{
-		return turn_complete() && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
+		// [[BPR-2153]]. A correction that could not be reconciled may still
+		// start a native turn: the process is retired, never reused.
+		const auto reconciled = std::ranges::none_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Disposition == core::agent_steer_disposition::unknown; });
+		return turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
 	}
 
 	auto agent_protocol_decoder::native_handle() const noexcept -> const std::string&
@@ -4306,6 +4513,16 @@ namespace bpr::application {
 			}
 			auto frame = Pending.substr(0U, newline);
 			Pending.erase(0U, newline + 1U);
+			// [[BPR-2153]]. A steered run's receipts are read first.
+			const auto receipt = read_steer_receipt(frame);
+			if (!receipt) {
+				reject_line(frame);
+				Failed = true;
+				return std::unexpected(receipt.error());
+			}
+			if (*receipt) {
+				continue;
+			}
 			auto decoded = decode_structured_frame(
 				Protocol,
 				frame,
@@ -4332,6 +4549,7 @@ namespace bpr::application {
 				Failed = true;
 				return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
 			}
+			settle_after_frame();
 			if (!ReportActivity) {
 				std::erase_if(*decoded, [](const agent_protocol_event& aEvent) { return aEvent.Kind == agent_protocol_event_kind::activity; });
 			}

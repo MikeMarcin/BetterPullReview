@@ -105,6 +105,9 @@ namespace bpr::qt {
 		/// The cards its stored answer's findings block makes, when the host
 		/// read them; a turn whose cards this view still holds keeps those.
 		std::vector<agent_restored_finding_card> Cards;
+		/// [[BPR-2153]]. What the reviewer steered into it, shown as their own
+		/// messages where they went in.
+		std::vector<application::agent_steered_message> Steered;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
@@ -868,6 +871,9 @@ namespace bpr::qt {
 			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t    Note = 0U;
 			QPointer<QLabel> QuestionLabel;
+			/// [[BPR-2153]]. The reviewer's steered messages and where they show.
+			std::vector<application::agent_steered_message> Steered;
+			QPointer<QWidget>                               SteeredBox;
 			/// The one file the question names, which a bare "line 34" in the
 			/// answer is in.
 			QString ContextFile;
@@ -948,6 +954,9 @@ namespace bpr::qt {
 		std::vector<ended_turn> EndedTurns;
 		/// The question and the answer as shown, their references links.
 		void show_question(turn& aTurn);
+		/// [[BPR-2153]]. The turn's steered messages, each as the reviewer's
+		/// message, marked steered, with its state when the agent never took it.
+		void show_steered(turn& aTurn);
 		void show_answer(turn& aTurn);
 		/// RFC-BPR-0127, owner look v006. Shows the answer's Draft, struck
 		/// where nothing takes a draft, or Go to draft once drafted.

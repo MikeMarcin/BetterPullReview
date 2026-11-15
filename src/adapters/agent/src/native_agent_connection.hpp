@@ -4,6 +4,7 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 
 #include <atomic>
+#include <deque>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -91,14 +92,76 @@ namespace bpr::adapters::agent::detail {
 		}
 		void complete(application::agent_run_result aResult) override
 		{
-			auto job = std::shared_ptr<turn>{ };
+			auto job    = std::shared_ptr<turn>{ };
+			auto steers = std::deque<application::agent_pending_steer>{ };
 			{
 				const auto lock = std::scoped_lock{ Mutex };
 				job             = std::exchange(Current, { });
+				steers          = std::exchange(Steers, { });
 			}
+			// [[BPR-2153]]. A correction the loop did not take before the turn
+			// ended was never written: it may be queued instead.
+			refuse(steers, core::agent_steer_support::not_running);
 			if (job) {
 				job->Answer.set_value(std::move(aResult));
 			}
+		}
+
+		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14. Holds a correction for the
+		/// running turn's protocol loop, which writes it after its current
+		/// read; refuses it at once when no turn of `aRequest.Run` runs here.
+		void steer(application::agent_steer_request aRequest, application::agent_steer_answer aAnswer)
+		{
+			auto refusal = core::agent_steer_support::not_running;
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				if (!Stopping && !Done && Current && Current->Request.Run == aRequest.Run && Current->Request.NativeTurn == aRequest.NativeTurn) {
+					if (Steers.size() < core::maximum_steers_per_run) {
+						Steers.push_back({ .Request = std::move(aRequest), .Answer = std::move(aAnswer) });
+						return;
+					}
+					refusal = core::agent_steer_support::exhausted;
+				} else if (!Stopping && !Done && Current) {
+					refusal = core::agent_steer_support::other_run;
+				}
+			}
+			auto refused = std::deque<application::agent_pending_steer>{ };
+			refused.push_back({ .Request = std::move(aRequest), .Answer = std::move(aAnswer) });
+			refuse(refused, refusal);
+		}
+
+		void observe_tool_version(const std::string& aVersion) override
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			ToolVersion     = aVersion;
+		}
+
+		/// \brief [[BPR-2153]]. Whether the turn `aRequest` names runs here
+		/// and could take a correction, by the version its runtime reported.
+		[[nodiscard]] auto steer_support(const application::agent_steer_request& aRequest) const -> core::agent_steer_support
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (Stopping || Done || !Current) {
+				return core::agent_steer_support::not_running;
+			}
+			if (Current->Request.Run != aRequest.Run || Current->Request.NativeTurn != aRequest.NativeTurn) {
+				return core::agent_steer_support::other_run;
+			}
+			if (Steers.size() >= core::maximum_steers_per_run) {
+				return core::agent_steer_support::exhausted;
+			}
+			return core::agent_steer_support_of(Template.Protocol, true, ToolVersion);
+		}
+
+		[[nodiscard]] auto take_steer() -> std::optional<application::agent_pending_steer> override
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (Steers.empty()) {
+				return std::nullopt;
+			}
+			auto steer = std::move(Steers.front());
+			Steers.pop_front();
+			return steer;
 		}
 		[[nodiscard]] auto timeout_milliseconds() const -> int override
 		{
@@ -112,6 +175,16 @@ namespace bpr::adapters::agent::detail {
 		}
 
 	private:
+		static void refuse(std::deque<application::agent_pending_steer>& aSteers, const core::agent_steer_support aWhy) noexcept
+		{
+			for (auto& steer : aSteers) {
+				try {
+					if (steer.Answer) {
+						steer.Answer({ .Disposition = core::agent_steer_disposition::unsent, .Support = aWhy });
+					}
+				} catch (...) { }
+			}
+		}
 		void stream(const application::agent_stream_event& aEvent)
 		{
 			auto sink = application::agent_output_sink{ };
@@ -143,12 +216,15 @@ namespace bpr::adapters::agent::detail {
 			} catch (...) { }
 			auto pending = std::shared_ptr<turn>{ };
 			auto current = std::shared_ptr<turn>{ };
+			auto steers  = std::deque<application::agent_pending_steer>{ };
 			{
 				const auto lock = std::scoped_lock{ Mutex };
 				Done            = true;
 				pending         = std::exchange(Pending, { });
 				current         = std::exchange(Current, { });
+				steers          = std::exchange(Steers, { });
 			}
+			refuse(steers, core::agent_steer_support::not_running);
 			for (const auto& job : { current, pending }) {
 				if (job) {
 					try {
@@ -157,13 +233,15 @@ namespace bpr::adapters::agent::detail {
 				}
 			}
 		}
-		application::agent_launch_request Template;
-		mutable std::mutex                Mutex;
-		std::shared_ptr<turn>             Pending;
-		std::shared_ptr<turn>             Current;
-		std::atomic_bool                  Done     = false;
-		std::atomic_bool                  Stopping = false;
-		std::thread                       Worker;
+		application::agent_launch_request            Template;
+		mutable std::mutex                           Mutex;
+		std::shared_ptr<turn>                        Pending;
+		std::shared_ptr<turn>                        Current;
+		std::deque<application::agent_pending_steer> Steers;
+		std::string                                  ToolVersion;
+		std::atomic_bool                             Done     = false;
+		std::atomic_bool                             Stopping = false;
+		std::thread                                  Worker;
 	};
 }
 #endif

@@ -2905,6 +2905,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/public_preview_wire_transport.hpp"
         "src/github_application/queue_notifications.cpp"
         "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_agent_stack.cpp"
+        "src/github_application/review_agent_stack.hpp"
         "src/github_application/review_mutation_selection.cpp"
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
@@ -3092,6 +3094,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/public_preview_wire_transport.hpp"
         "src/github_application/queue_notifications.cpp"
         "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_agent_stack.cpp"
+        "src/github_application/review_agent_stack.hpp"
         "src/github_application/review_mutation_selection.cpp"
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
@@ -3738,8 +3742,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# BPR-2172, BPR-2173 and BPR-2175: the local draft look's environment can
 	# choose the Local comments look or Finish your review on the same
 	# fixture file instead (tests-only attended launch). No new effect or path.
+	# BPR-2153: the window's Steer forwards to the session queue host and its
+	# agent runtime's Steer is the application's (agent_runtime_steer); no new
+	# effect or path. A tests-on fixture session adds the fixture agent's
+	# entry, and the tests-on launcher probe forwards steering; neither is in
+	# a shipped build.
 	set(bpr_expected_production_app_manifest_digest
-        "b8d1051321e049532ded673cd4f1dce006633f15c3c722589a6c498aea405b7b"
+        "05b8a610aa3fddddadc4d77b8e153f32e5f2990631cd326ff527ab99a0b1e104"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

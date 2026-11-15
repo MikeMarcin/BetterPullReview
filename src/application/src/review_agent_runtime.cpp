@@ -1,5 +1,7 @@
 #include "bpr/application/review_agent_runtime.hpp"
 
+#include "bpr/application/agent_runtime_steer.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <utility>
@@ -234,8 +236,30 @@ namespace bpr::application {
 		present([aReason](agent_invocation_projection_port& aPort) { aPort.refuse(aReason); });
 	}
 
+	auto review_agent_runtime::steer(const core::queued_entry& aEntry, agent_queue_host* const aQueue) -> std::optional<std::string>
+	{
+		auto alive = std::weak_ptr<bool>{ Alive };
+		auto steer = agent_runtime_steer({
+			.Support  = [this](const agent_invocation_projection_identity& aRun) { return Turns ? Turns->steer_support(aRun) : core::agent_steer_support::not_running; },
+			.Steer    = [this](const agent_invocation_projection_identity& aRun, std::string aText, agent_invocation_host::steer_answer aAnswer) {
+                if (Turns) {
+                    Turns->steer(aRun, std::move(aText), std::move(aAnswer));
+                } else if (aAnswer) {
+                    aAnswer({ .Support = core::agent_steer_support::not_running });
+                } },
+			.Queue    = aQueue,
+			.Shown    = [this] { return Active; },
+			.Returned = [this, alive](const std::string&, const std::string& aWhy) {
+				if (!alive.expired()) {
+					refuse(aWhy);
+				} },
+		});
+		return steer(Session, aEntry);
+	}
+
 	void review_agent_runtime::admit(const agent_invocation_projection_identity& aIdentity)
 	{
+		Active = aIdentity;
 		present([&aIdentity](agent_invocation_projection_port& aPort) { aPort.admit(aIdentity); });
 	}
 
@@ -249,6 +273,11 @@ namespace bpr::application {
 		if (Turn && aEvent.Kind == agent_stream_kind::text) {
 			Turn->Answered += aEvent.Text;
 		}
+		// [[BPR-2153]]. The reviewer's steered message is part of the turn,
+		// where it went in.
+		if (Turn && aEvent.Kind == agent_stream_kind::steered && aEvent.Steered && Turn->Steered.size() < core::maximum_steers_per_run) {
+			Turn->Steered.push_back({ .Text = aEvent.Steered->Text, .At = Turn->Answered.size(), .AfterSteps = aEvent.Steered->AfterSteps });
+		}
 		present([&](agent_invocation_projection_port& aPort) { aPort.stream(aIdentity, aEvent); });
 	}
 
@@ -257,7 +286,14 @@ namespace bpr::application {
 		if (Running) {
 			Finished = queued_finish_of(aResult);
 		}
+		if (Active == std::optional{ aIdentity }) {
+			Active.reset();
+		}
 		if (Turn) {
+			// [[BPR-2153]]. Each steered message as it ended.
+			for (std::size_t index = 0U; index < Turn->Steered.size() && index < aResult.SteeredInputs.size(); ++index) {
+				Turn->Steered[index].Disposition = aResult.SteeredInputs[index].Disposition;
+			}
 			Turn->Ending  = std::string{ name(aResult.Outcome) };
 			Turn->Outcome = turn_outcome(aResult.Outcome);
 			if (Turn->Answered.empty()) {
@@ -323,7 +359,11 @@ namespace bpr::application {
 				.Start = [this](const std::string& aSession, const core::queued_entry& aEntry) {
 					auto* const runtime = find(aSession);
 					return runtime != nullptr && runtime->release(aEntry); },
-				.Steer = { },
+				// [[BPR-2153]]. A queued message offered to the session's
+				// running turn goes to the run its runtime runs.
+				.Steer = [this](const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> {
+					auto* const runtime = find(aSession);
+					return runtime == nullptr ? agent_steer_goes_next_words(core::agent_steer_support::not_running) : runtime->steer(aEntry, Dependencies.Queue); },
 			});
 		}
 		if (Dependencies.Queue != nullptr) {
