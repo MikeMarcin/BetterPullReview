@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2189"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0120 rewrite without evidence (owner, 2026-11-15): the check run and its report, for lane claude/v0-5-0-prerelease-targets-52265d",
+  "created": "2026-11-15T11:07:14.083236+00:00",
+  "base": "cce4d88772c9778d79a8b85c65ac491d576a2e03"
+}
