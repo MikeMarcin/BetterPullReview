@@ -410,6 +410,10 @@ namespace {
 		// was decided; one about the open file still waits for a window.
 		const auto withdrawn = app.Queue.withdraw(session, app.Queue.queue(session)->Entries.front().Id);
 		expect(withdrawn == core::queue_refusal::none, "the action's quick ask is taken off");
+		// With no work and no window the runtime was let go; the profile's
+		// runtime of the session holds the review again.
+		runtime = app.Runtimes->open(session);
+		runtime->adopt(review_snapshot());
 		auto offer      = core::prompt_offer{ .Id = "own.look-again", .Label = "Ready to look again?" };
 		offer.Expansion = core::prompt_expansion{ .Text = "Has it changed enough since my review?" };
 		static_cast<void>(app.Queue.enqueue(session, core::queued_input{ .QuickAsk = "own.look-again", .Scope = "pull-request", .Label = "Ready to look again?", .Prompt = offer }));
