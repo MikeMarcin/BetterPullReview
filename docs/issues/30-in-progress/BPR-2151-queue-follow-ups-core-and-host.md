@@ -113,3 +113,24 @@ fixture agent takes about twenty seconds, a read a second, on any question
 holding "Take your time".
 
 Look `prompts-v002` filed (2026-11-14): session `a91caa31b1f548e1c54a22f0dc1350ec`, state `/Users/jaeger/.attended-review-state/prompts-v002-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v002.bkog9vts` from `d92a6426e` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2179-nested-conditions`, `BPR-2151-queue-list-look`, `BPR-2151-drag-trash-pencil`, `BPR-2151-slow-fixture-ask` (type "Take your time"), `BPR-2151-thinking-for`.
+
+## Look prompts-v002 handed back (owner, 2026-11-14)
+
+Accepted: `BPR-2151-drag-trash-pencil`, `BPR-2151-slow-fixture-ask`.
+
+Accepted with a note, `BPR-2151-queue-list-look`, verbatim: "It looks good and
+works good except for the drawer is back to having a horizontal
+panning/scrolling. That needs to get fixed again." Fixed: the pending list's
+words wrap (a message, its state), so no card is wider than the drawer;
+`qt_drawer_surfaces_fit` now shows the Agent tab with a pending list of long
+messages, one being edited and a long state, at every width it checks, and
+fails if the drawer clips or the Agent tab's scroll content is wider than its
+view.
+
+Rejected, `BPR-2151-thinking-for`, verbatim: "I don't think we need 2
+different stops and 2 different times. Just make the left one into stop all
+since it looks better. Stopping an individual task is already easy to do from
+the composer." Built: one stop and one time. While one run shows, its stop
+button (the one with the red square, beside its time) is Stop all; the
+separate Stop all and "Thinking for" are gone. While several run, or only
+messages wait, the one Stop all shows in its place.
