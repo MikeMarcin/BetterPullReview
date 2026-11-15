@@ -679,6 +679,10 @@ namespace bpr::app {
 			 AgentWorkspaceParent;
 		bool AgentWorkspaceCleanupAttempted = false;
 		bool AgentWorkspaceCleanupFailed    = false;
+		/// [[BPR-2181]]. The epoch actors close after every agent runtime is
+		/// quiescent (`close_epoch_actors`).
+		bool EpochActorsClosed = false;
+		void close_epoch_actors();
 		// [[BPR-0875]]. The workspace recovery's refusal, as its enum value, or
 		// -1 when it did not refuse. A value, not a string, because it is set on
 		// a posted lane. [[BPR-0817]]: a refusal is presented in every window and

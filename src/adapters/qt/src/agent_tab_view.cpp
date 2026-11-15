@@ -3090,7 +3090,21 @@ namespace bpr::qt {
 			label->setToolTip(entry.Text.isEmpty() ? entry.Label : entry.Text);
 			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
 			line->addWidget(label, 1);
-			if (entry.Sending) {
+			if (entry.Uncertain) {
+				// RFC-BPR-0126 AC04: whether the agent took it is not known.
+				// The reviewer discards it; Resume does not send it again. The
+				// label says so and elides, and Discard is an icon with a tip,
+				// so the card is never wider than the drawer.
+				label->setText(tr("%1 (may not have been delivered)").arg(entry.Label));
+				auto* const discard = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueDiscard"), tr("Discard the message that may not have been delivered: %1").arg(entry.Label));
+				discard->setToolTip(tr("Discard: it may not have been delivered"));
+				connect(discard, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Discard) {
+						QueueDispatch.Discard(id);
+					}
+				});
+				line->addWidget(discard);
+			} else if (entry.Sending) {
 				line->addSpacing(6);
 				auto* const sending = new QLabel{ tr("Sending"), row };
 				sending->setObjectName(QStringLiteral("agentQueueSending"));

@@ -113,20 +113,20 @@ slice 1.
    turns no window saw join the session's conversation. Those turns are
    now written to the profile's own conversation store as they end, so a
    quit before a window reattaches loses none (see Evidence, 2026-11-15).
-   Retiring the window's own fallback host for turns waits on three
-   things the Evidence names (the fixture holds and a kept older
-   revision reaching the runtime's stack).
+   The window's own fallback host for turns is retired: with no runtime a
+   turn is refused with words and never runs on a window (see Evidence,
+   "Lane red since slice 2, fixed").
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses. Started
    2026-11-15: the typed finish and the core mapping landed, with the
    failure and Stop pauses and a refused turn that never stays sending.
-   Open: decoding the usage limit (Claude's `"error":"rate_limit"`
-   assistant frame, which the fixture agent writes), the admission's run
-   id, AC12, and the public courses on the fixture agent.
+   The usage limit is decoded and the fixture-agent public course for
+   failure and usage limit landed. Open: the admission's run id and AC12.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
    store refusal; store writes on the effect path. Started 2026-11-15:
-   Discard is a core transition and a host command. Open: the Agent tab's
-   Discard control and its public course, and the store refusal.
+   Discard is a core transition and a host command, and the Agent tab
+   offers it on an uncertain message. Open: a public course that reaches an
+   uncertain message through a crash, and the store refusal.
 5. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
    runner state; core queue-versus-send; Stop all on the host.
 6. AC13, AC11: facts assembled outside widgets, decided expansions carried by
@@ -407,3 +407,59 @@ slice 1.
   the crash reads back uncertain, Resume is refused, Discard removes it and
   the store keeps that, and Resume sends what waited). The Agent tab's
   control is still open.
+- **Lane red since slice 2, fixed (2026-11-15, second round):** the five
+  contracts the last handoff named failed for four reasons, none of them the
+  fixture holds. (1) `application_agent_invocation_composition_contract`:
+  the turn ran under the runtime stack's application session and the
+  course expected the window's. The context evidence now carries the
+  session the turn runs under (`agent_invocation_context_evidence::RunSession`)
+  and the expected supplement names it. (2) `_staleness_contract`: the
+  course moves the window's accepted revision itself
+  (`reaccept_fixture_revision`), past what the read host lends, so the
+  stack kept the older revision and the run never went stale. In a
+  tests-on build with a fixture, the lent handoff takes the window's
+  accepted snapshot, generation and head (`attach_agent_runtime`).
+  (3) `_workspace_diagnostic_contract` and
+  `application_agent_finding_dif_context_contract`: the Dif's cues matched
+  turns against the window's session and authority, and every turn now
+  runs under the stack's. The window tells the Dif the identity its turns
+  run under (`observe_agent_dif_context`): the stack's review once it
+  accepted it, told through a new presenter hook
+  (`review_agent_presenter::Accepted`, called from
+  `review_agent_runtime::ready`). (4) `_cleanup_retry_contract`: the
+  stack's epoch host is its agent host's workspace port, and the stack
+  shut it down with the agent host, so a refused workspace removal could
+  never be retried and the profile never finished shutting down. The stack
+  now closes its epoch and ledger hosts only once its agent host is
+  quiescent (`review_agent_stack::close_review_hosts`), the profile closes
+  its epoch actors (whose consumer that epoch host is) only once every
+  runtime is quiescent (`github_profile_runtime::close_epoch_actors`), the
+  profile's
+  shutdown poll retries every runtime's removal
+  (`review_agent_turn_port::retry_cleanup`, `review_agent_runtimes::retry_cleanup`)
+  and settles a turn whose run retired since. The fixture evidence reads the
+  window's last runtime after a close detached it
+  (`last_agent_stack`, `last_agent_runtime`). With those, the window's
+  fallback host for turns is gone: `send_agent_turn` with no runtime
+  refuses ("The agent isn't ready for this pull request yet. Nothing was
+  sent.") and never dispatches on the window's `AgentHost`.
+- **AC02 (usage limit, 2026-11-15):** `agent_protocol_failure::usage_limit`.
+  Claude's synthetic assistant frame naming `"error":"rate_limit"`, Codex
+  exec's `turn.failed` (or `error`) whose message names a usage limit, and
+  the app server's `error` notification whose `codexErrorInfo` is
+  `usageLimitExceeded` decode to it; the run says so
+  (`agent_usage_limit_words`), and `queued_finish_of` maps it to
+  `core::queued_finish::usage_limit`, which pauses the queue as usage
+  limit. Course `application_agent_queue_finish_pauses_public_path` on the
+  fixture agent: a message sent at once, then three queued; the queued
+  `FIXTURE_CRASH` run fails and the queue pauses as failed with both later
+  messages still queued; Resume, the `FIXTURE_USAGE_LIMIT` run pauses it as
+  usage limit with the last still queued; Resume, the last is answered.
+- **AC04 (Discard control, 2026-11-15):** a message whose delivery is
+  unknown shows "May not have been delivered" and Discard
+  (`agentQueueDiscard`) in the Agent tab's pending list; the press only
+  calls `queue_dispatch::Discard`, which the window forwards to
+  `agent_queue_host::discard`. Course `qt_drawer_surfaces_fit_scale_*`
+  (the pending list with an uncertain row: only it offers Discard, the
+  press asks for that message, and the drawer stays whole).
+

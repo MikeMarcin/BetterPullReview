@@ -849,15 +849,27 @@ namespace bpr::app {
 		/// join its conversation once it has loaded: one transcript, each turn
 		/// shown once.
 		void adopt_unshown_turns();
-		/// \brief Sends an Agent-tab turn through the session's runtime (its
-		/// one transport); with no runtime, on this window's own host.
+		/// \brief Sends an Agent-tab turn through the session's runtime, its
+		/// one transport. With no runtime (no review accepted yet) the turn is
+		/// refused with words; it never runs on this window's own host.
 		[[nodiscard]] auto send_agent_turn(application::agent_invocation_request aRequest) -> bool;
+		/// \brief The Dif's cues follow the identity this window's turns run
+		/// under: the runtime's review once its stack accepted it, otherwise
+		/// the window's own.
+		void observe_agent_dif_context();
 		/// \brief No Agent-tab turn of this window's session runs anywhere.
 		[[nodiscard]] auto agent_turn_quiescent() const -> bool;
 		/// \brief The live stack of the runtime this window presents, if any.
-		[[nodiscard]] auto               presented_agent_stack() const -> review_agent_stack*;
-		std::optional<std::uint64_t>     AgentPresenter;
-		std::string                      AgentPresenterSession;
+		[[nodiscard]] auto presented_agent_stack() const -> review_agent_stack*;
+		/// \brief The stack and runtime of the session this window last
+		/// presented, after a close detached it too.
+		[[nodiscard]] auto           last_agent_stack() const -> review_agent_stack*;
+		[[nodiscard]] auto           last_agent_runtime() const -> application::review_agent_runtime*;
+		std::optional<std::uint64_t> AgentPresenter;
+		std::string                  AgentPresenterSession;
+		/// The session whose runtime this window last presented, kept after it
+		/// detaches: its evidence still reads that runtime's stack.
+		std::string                      AgentRuntimeSession;
 		std::vector<core::agent_profile> ComposedAgentProfiles;
 		void                             present_ask_queue(const core::agent_queue& aQueue);
 		[[nodiscard]] auto               ask_queue_agent() const -> core::queue_agent;

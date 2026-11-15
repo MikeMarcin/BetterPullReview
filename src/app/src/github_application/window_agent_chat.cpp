@@ -216,11 +216,10 @@ namespace bpr::app {
 			.LeftEpoch   = comparison.Left.Identity.Epoch,
 			.RightEpoch  = comparison.Right.Identity.Epoch,
 		};
-		Window->observe_dif_context(
-			state.ApplicationSession, authority, observedBinding);
 		AgentHost->observe(
 			state.ApplicationSession, authority, observedBinding);
 		attach_agent_runtime(observedBinding);
+		observe_agent_dif_context();
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
 			present_tour_continuation();

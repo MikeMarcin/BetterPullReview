@@ -5582,3 +5582,10 @@ bpr_add_network_isolated_test(NAME application_agent_queue_restart_public_path
     COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --restart)
 set_tests_properties(application_agent_queue_restart_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-restart:pass")
+# RFC-BPR-0126 AC02 ([[BPR-2181]]). On the fixture agent, a failed run pauses
+# the queue as failed and a run past the usage limit pauses it as usage limit.
+bpr_add_network_isolated_test(NAME application_agent_queue_finish_pauses_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --finish-pauses)
+set_tests_properties(application_agent_queue_finish_pauses_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-finish-pauses:pass")

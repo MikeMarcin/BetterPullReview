@@ -101,6 +101,9 @@ namespace bpr::app {
 				return core::queue_refusal::none;
 			}),
 			.Resume = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen) { return aQueue.resume(aSession, aSeen); }),
+			// RFC-BPR-0126 AC04. A message that may not have been delivered is
+			// discarded by the host's core transition; the window forwards it.
+			.Discard = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId) { return aQueue.discard(aSession, aId, aSeen); }),
 		});
 		// Q4/Q5 as answered: a typed message while a turn runs or messages
 		// wait is queued on the session (Steer is not built: a driver that
@@ -392,8 +395,10 @@ namespace bpr::app {
 				.Projection = AgentProjections.get(),
 				.Release    = [this](const core::queued_entry& aEntry) { return release_queued(aEntry); },
 				.Ready      = [this] { return ask_queue_agent() == core::queue_agent::idle; },
+				.Accepted   = [this] { observe_agent_dif_context(); },
 			});
 			AgentPresenterSession = session;
+			AgentRuntimeSession   = session;
 			adopt_unshown_turns();
 		}
 		auto* const stack = Profile->agent_stack(session);
@@ -406,6 +411,16 @@ namespace bpr::app {
 			}
 		});
 		if (lent) {
+	#if defined(BPR_BUILD_TESTING)
+			// A fixture moves the window's accepted revision itself
+			// (`reaccept_fixture_revision`), past what the read host lends:
+			// the runtime is lent the revision the window accepted.
+			if (Fixture) {
+				lent->Handoff.Snapshot              = LastAcceptedHandoff->Snapshot;
+				lent->Handoff.PullRequestGeneration = LastAcceptedHandoff->PullRequestGeneration;
+				lent->Handoff.Head                  = LastAcceptedHandoff->Head;
+			}
+	#endif
 			stack->lend(std::move(*lent), aBinding);
 			AgentQueue->agent_changed(session);
 		}
@@ -448,13 +463,10 @@ namespace bpr::app {
 	{
 		auto* const runtime = agent_runtime();
 		if (runtime == nullptr) {
-			// [[BPR-2181]]. Until the session has a runtime (no accepted
-			// review yet), the window's own host runs the turn. Retiring this
-			// fallback waits on the runtime's readiness gating the tab, on the
-			// fixture holds reaching the runtime's host, and on a kept older
-			// revision reaching the runtime (see the card, 2026-11-15).
-			AgentHost->dispatch(std::move(aRequest));
-			return true;
+			// [[BPR-2181]]. No runtime: no review accepted yet, or the profile
+			// could take no further one. The turn never runs on this window.
+			Window->agent_panel()->refuse("The agent isn't ready for this pull request yet. Nothing was sent.");
+			return false;
 		}
 		// The review a queued message is sent on once no window shows the
 		// session: this turn's request, less what this turn asked.
@@ -470,7 +482,41 @@ namespace bpr::app {
 		return true;
 	}
 
+	void github_application::implementation::observe_agent_dif_context()
+	{
+		if (Closing || Window == nullptr || EpochHost == nullptr) {
+			return;
+		}
+		if (const auto* const stack = presented_agent_stack(); stack != nullptr) {
+			if (auto observed = stack->observed_review(); observed) {
+				Window->observe_dif_context(stack->session(), std::move(observed->first), observed->second);
+				return;
+			}
+		}
+		const auto& state = EpochHost->state();
+		if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+			return;
+		}
+		Window->observe_dif_context(state.ApplicationSession, *state.Authority,
+									core::agent_revision_binding{
+										.Host        = state.Authority->Host,
+										.Repository  = state.Authority->Repository,
+										.PullRequest = state.Authority->PullRequest,
+										.BaseOid     = state.AcceptedRevision->Base,
+										.HeadOid     = state.AcceptedRevision->Head,
+										.LeftEpoch   = state.AcceptedComparison->Left.Identity.Epoch,
+										.RightEpoch  = state.AcceptedComparison->Right.Identity.Epoch,
+									});
+	}
+
 	auto github_application::implementation::presented_agent_stack() const -> review_agent_stack* { return AgentPresenter ? Profile->agent_stack(AgentPresenterSession) : nullptr; }
+
+	auto github_application::implementation::last_agent_stack() const -> review_agent_stack* { return AgentRuntimeSession.empty() ? nullptr : Profile->agent_stack(AgentRuntimeSession); }
+
+	auto github_application::implementation::last_agent_runtime() const -> application::review_agent_runtime*
+	{
+		return AgentRuntimeSession.empty() || !Profile->AgentRuntimes ? nullptr : Profile->AgentRuntimes->find(AgentRuntimeSession);
+	}
 
 	auto github_application::implementation::agent_turn_quiescent() const -> bool
 	{
@@ -501,10 +547,11 @@ namespace bpr::app {
 			rows.push_back({
 				.Id = entry.Id,
 				// A typed message reads as its text, edited or not.
-				.Label   = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
-				.Text    = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
-				.Held    = entry.Held,
-				.Sending = entry.State != core::queued_state::queued,
+				.Label     = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
+				.Text      = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
+				.Held      = entry.Held,
+				.Sending   = entry.State != core::queued_state::queued,
+				.Uncertain = entry.State == core::queued_state::delivery_unknown,
 			});
 		}
 		const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")

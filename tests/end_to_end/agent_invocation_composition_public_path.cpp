@@ -438,8 +438,10 @@ namespace {
 	{
 		auto fields = context_fields{ };
 		put_number(fields, "schema", core::agent_supplement_schema_version);
+		// [[BPR-2181]]. The turn runs on the session's runtime, under its own
+		// application session rather than the window's.
 		put_number(
-			fields, "application_session", aEvidence.ApplicationSession.value());
+			fields, "application_session", aEvidence.RunSession.value());
 		put_number(fields, "session", aEvidence.NextSession.value());
 		put_number(
 			fields, "profile", core::external_terminal_profile_id.value());

@@ -753,17 +753,22 @@ namespace bpr::application {
 		/// What arrived is kept; `agent_run_result::UnfinishedHelpers`
 		/// names them.
 		helpers_unfinished,
+		/// RFC-BPR-0126 AC02 ([[BPR-2181]]). The agent's account reached its
+		/// usage limit (Claude's assistant frame naming `rate_limit`, Codex's
+		/// usage-limit error); no answer comes until it resets. The queue
+		/// pauses as usage limit rather than as failed.
+		usage_limit,
 	};
 
 	/// \brief The number of declared protocol failures.
 	///
 	/// \details Exists so a sweep over the causes can be exhaustive rather than
 	/// a sample: a new failure that nothing distinguishes fails the count.
-	inline constexpr std::size_t agent_protocol_failure_count = 17U;
+	inline constexpr std::size_t agent_protocol_failure_count = 18U;
 
 	static_assert(
 		static_cast<std::size_t>(
-			agent_protocol_failure::helpers_unfinished)
+			agent_protocol_failure::usage_limit)
 				+ 1U
 			== agent_protocol_failure_count,
 		"agent_protocol_failure_count must cover every declared failure");
@@ -1060,6 +1065,8 @@ namespace bpr::application {
 	[[nodiscard]] auto name(agent_run_outcome aOutcome) noexcept -> std::string_view;
 	/// \brief [[BPR-2142]], RFC-BPR-0103. What a run that ended on a failed
 	/// sign-in says (`agent_protocol_failure::not_signed_in`).
+	inline constexpr std::string_view agent_usage_limit_words
+		= "The agent's account has reached its usage limit. Nothing more is sent until it resets.";
 	inline constexpr std::string_view agent_sign_in_failure_words
 		= "The agent isn't signed in, or its wrapper couldn't get a sign-in token. Sign in again in a terminal, or try again later.";
 	/// \brief [[BPR-1847]]. How a turn that ran to this outcome ended, in the

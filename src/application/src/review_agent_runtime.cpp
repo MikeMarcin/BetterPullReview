@@ -26,6 +26,9 @@ namespace bpr::application {
 
 	auto queued_finish_of(const agent_run_result& aResult) noexcept -> core::queued_finish
 	{
+		if (aResult.Outcome == agent_run_outcome::protocol_failure && aResult.ProtocolFailure == agent_protocol_failure::usage_limit) {
+			return core::queued_finish::usage_limit;
+		}
 		switch (aResult.Outcome) {
 		case agent_run_outcome::success:
 		case agent_run_outcome::stale_result:            return core::queued_finish::went;
@@ -130,6 +133,13 @@ namespace bpr::application {
 
 	void review_agent_runtime::ready()
 	{
+		// A copy: a presenter may detach while it is told.
+		const auto presenters = Presenters;
+		for (const auto& [token, presenter] : presenters) {
+			if (presenter.Accepted) {
+				presenter.Accepted();
+			}
+		}
 		if (!Waiting || Turns == nullptr || !Turns->authorized()) {
 			return;
 		}
@@ -181,6 +191,17 @@ namespace bpr::application {
 		if (Turns != nullptr) {
 			Turns->shutdown();
 		}
+	}
+
+	void review_agent_runtime::retry_cleanup()
+	{
+		if (Turns != nullptr) {
+			Turns->retry_cleanup();
+		}
+		// Once shut down, the machinery is quiescent only after its review's
+		// hosts are too, which can be after its run announced retirement:
+		// the turn's retirement is looked at again here.
+		retired();
 	}
 
 	auto review_agent_runtime::unshown_turns() const -> const std::vector<agent_conversation_turn>& { return Unshown; }
@@ -396,6 +417,16 @@ namespace bpr::application {
 		for (const auto& [session, runtime] : Runtimes) {
 			runtime->cancel();
 			runtime->shutdown();
+		}
+	}
+
+	void review_agent_runtimes::retry_cleanup()
+	{
+		for (const auto& [session, runtime] : Runtimes) {
+			runtime->retry_cleanup();
+		}
+		for (const auto& runtime : Retiring) {
+			runtime->retry_cleanup();
 		}
 	}
 

@@ -506,6 +506,9 @@ namespace bpr::qt {
 			QString Text;
 			bool    Held    = false;
 			bool    Sending = false;
+			/// RFC-BPR-0126 AC04. Released before a crash or quit, and whether
+			/// the agent took it is not known: offered Discard.
+			bool Uncertain = false;
 		};
 		/// \brief What the pending list's controls ask of the session's queue.
 		struct queue_dispatch
@@ -519,6 +522,8 @@ namespace bpr::qt {
 			std::function<void(std::uint64_t)> Steer;
 			std::function<void()>              Pause;
 			std::function<void()>              Resume;
+			/// Discard a message that may not have been delivered.
+			std::function<void(std::uint64_t)> Discard;
 		};
 		void set_queue_dispatch(queue_dispatch aDispatch) { QueueDispatch = std::move(aDispatch); }
 		/// \brief The session's waiting messages, in order, with the queue's

@@ -626,6 +626,28 @@ namespace bpr::application {
 																			  : nullptr;
 		}
 
+		/// \brief RFC-BPR-0126 AC02 ([[BPR-2181]]). A failure frame's error
+		/// says the account's usage limit is reached: Codex's app server names
+		/// it in its error info (`usageLimitExceeded`), and `codex exec`'s JSONL
+		/// only in its message ("You've hit your usage limit").
+		[[nodiscard]] auto names_usage_limit(const json_value* aError) -> bool
+		{
+			constexpr auto words = std::string_view{ "usage limit" };
+			if (aError == nullptr) {
+				return false;
+			}
+			if (aError->Kind == json_kind::string_value) {
+				return aError->Text.find(words) != std::string::npos;
+			}
+			if (const auto* info = member(*aError, "codexErrorInfo"); info != nullptr) {
+				if ((info->Kind == json_kind::string_value && info->Text == "usageLimitExceeded") || member(*info, "usageLimitExceeded") != nullptr) {
+					return true;
+				}
+			}
+			const auto* message = string_member(*aError, "message");
+			return message != nullptr && message->find(words) != std::string::npos;
+		}
+
 		[[nodiscard]] auto turn_identity_and_status(const json_value& aTurn)
 			-> std::optional<std::pair<std::string, std::string>>
 		{
@@ -1155,7 +1177,8 @@ namespace bpr::application {
 				return events;
 			}
 			if (*method == "error") {
-				return std::unexpected(agent_protocol_failure::remote_failed);
+				const auto* errorParams = object_member(aRoot, "params");
+				return std::unexpected(errorParams != nullptr && names_usage_limit(member(*errorParams, "error")) ? agent_protocol_failure::usage_limit : agent_protocol_failure::remote_failed);
 			}
 			constexpr auto ignored = std::array{
 				// Advertised non-answer notifications in Codex 0.164.0.
@@ -1258,7 +1281,7 @@ namespace bpr::application {
 				return no_protocol_events();
 			}
 			if ((*type == "turn.failed" || *type == "error") && aPhase == 2U) {
-				return std::unexpected(agent_protocol_failure::remote_failed);
+				return std::unexpected(names_usage_limit(member(aRoot, *type == "error" ? "message" : "error")) ? agent_protocol_failure::usage_limit : agent_protocol_failure::remote_failed);
 			}
 			if (*type == "turn.completed" && aPhase == 2U) {
 				const auto* usage = object_member(aRoot, "usage");
@@ -1602,6 +1625,11 @@ namespace bpr::application {
 			// assistant frame naming `authentication_failed`; no model ran.
 			if (const auto* error = string_member(aRoot, "error"); *type == "assistant" && error != nullptr && *error == "authentication_failed") {
 				return std::unexpected(agent_protocol_failure::not_signed_in);
+			}
+			// RFC-BPR-0126 AC02. A Claude account past its usage limit answers
+			// with a synthetic assistant frame naming `rate_limit`.
+			if (const auto* error = string_member(aRoot, "error"); *type == "assistant" && error != nullptr && *error == "rate_limit") {
+				return std::unexpected(agent_protocol_failure::usage_limit);
 			}
 			if (*type == "assistant" || *type == "user") {
 				const auto* message = object_member(aRoot, "message");
@@ -4515,6 +4543,7 @@ namespace bpr::application {
 		case agent_protocol_failure::not_signed_in:                 return "not_signed_in";
 		case agent_protocol_failure::tool_refused:                  return "tool_refused";
 		case agent_protocol_failure::helpers_unfinished:            return "helpers_unfinished";
+		case agent_protocol_failure::usage_limit:                   return "usage_limit";
 		}
 		return "unknown";
 	}

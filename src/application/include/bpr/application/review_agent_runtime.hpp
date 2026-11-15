@@ -50,6 +50,9 @@ namespace bpr::application {
 		/// is still accepting the review it names: `authorized` follows
 		/// shortly, so a turn sent now waits rather than being refused.
 		[[nodiscard]] virtual auto accepting() const -> bool { return false; }
+		/// \brief [[BPR-2181]]. Tries again to remove a workspace whose removal
+		/// was refused, as a window's shutdown poll does for its own host.
+		virtual void retry_cleanup() { }
 	};
 
 	/// \brief The review a runtime builds a released message's request from:
@@ -79,6 +82,9 @@ namespace bpr::application {
 		/// Whether the window can release one now (its agent set up, its tab
 		/// free). Optional: without one, it always can.
 		std::function<bool()> Ready;
+		/// [[BPR-2181]]. Told each time the runtime's machinery accepted the
+		/// review (its turns then run under that review's identity). Optional.
+		std::function<void()> Accepted;
 
 		[[nodiscard]] auto releases() const -> bool { return Release && (!Ready || Ready()); }
 	};
@@ -137,6 +143,9 @@ namespace bpr::application {
 		[[nodiscard]] auto last_finish() const -> core::queued_finish;
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		void               shutdown();
+		/// \brief Retries a refused workspace removal of its machinery, and
+		/// settles a turn whose run has retired since.
+		void retry_cleanup();
 
 		/// \brief (c) The turns that ran while no window showed the session,
 		/// oldest first, and that no native history keeps; a window that
@@ -239,6 +248,10 @@ namespace bpr::application {
 		[[nodiscard]] auto sessions() const -> std::vector<std::string>;
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const -> bool;
+		/// \brief Retries every runtime's refused workspace removal, retiring
+		/// ones included: the profile's shutdown poll calls it while they are
+		/// not quiescent.
+		void retry_cleanup();
 
 	private:
 		[[nodiscard]] auto front(const std::string& aSession) const -> const core::queued_entry*;

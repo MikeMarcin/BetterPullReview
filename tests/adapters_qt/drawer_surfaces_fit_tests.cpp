@@ -57,6 +57,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -488,7 +489,12 @@ namespace {
 						{ .Id = 1U, .Label = words, .Sending = true },
 						{ .Id = 2U, .Label = words, .Text = words },
 						{ .Id = 3U, .Label = QStringLiteral("Explain this file") },
+						// RFC-BPR-0126 AC04: sent before a crash, not known to
+						// have arrived; it offers Discard.
+						{ .Id = 4U, .Label = words, .Sending = true, .Uncertain = true },
 					};
+					auto discarded = std::optional<std::uint64_t>{ };
+					window.agent_tab()->set_queue_dispatch(qt::agent_tab_view::queue_dispatch{ .Discard = [&discarded](const std::uint64_t aId) { discarded = aId; } });
 					window.agent_tab()->present_queue_rows(rows, QStringLiteral("Paused: the queue waits for the agent's current answer and for you to resume it"), true);
 					settle();
 					// The window has no agent set up here, so the tab shows its
@@ -522,6 +528,13 @@ namespace {
 						}
 					}
 					save(window, QStringLiteral("agent-queue-%1-%2").arg(QString::fromLatin1(name)).arg(width));
+					// Only the uncertain message offers Discard, and the press
+					// only asks the host (the tab decides nothing).
+					const auto discards = window.agent_tab()->queue_list()->findChildren<QAbstractButton*>(QStringLiteral("agentQueueDiscard"));
+					expect(discards.size() == 1 && discards.front()->isVisibleTo(window.agent_tab()->queue_list()), "the uncertain message alone offers Discard" + at);
+					discards.front()->click();
+					expect(discarded == std::optional<std::uint64_t>{ 4U }, "Discard asks to discard that message" + at);
+					window.agent_tab()->set_queue_dispatch({ });
 					window.agent_tab()->present_queue_rows({ }, { }, false);
 					if (pages != nullptr && shown != nullptr) {
 						pages->setCurrentWidget(shown);

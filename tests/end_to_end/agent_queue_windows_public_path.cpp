@@ -27,6 +27,11 @@
 /// request's Agent tab shows each turn once, in order. Then a message queued
 /// and the app quit; on relaunch the queue is read back from disk, paused
 /// because the app restarted, and nothing runs until the reviewer resumes it.
+///
+/// `--finish-pauses` (RFC-BPR-0126 AC02, [[BPR-2181]]): on the fixture agent,
+/// a run that fails pauses the queue as failed with the next message still
+/// queued; resumed, a run past the agent's usage limit pauses it as usage
+/// limit, the last message still queued; resumed again, that one answers.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -189,6 +194,7 @@ auto main(int argc, char** argv) -> int
 	const auto    loading     = mode == "--second-window-loading";
 	const auto    closeRunsOn = mode == "--close-runs-on";
 	const auto    restart     = mode == "--restart";
+	const auto    finishes    = mode == "--finish-pauses";
 	QTemporaryDir data;
 	auto          dataRoot = e2e::private_data_root(data);
 	if (!dataRoot) {
@@ -238,6 +244,44 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return desktop->is_quiescent(); }, "Quit drains every session and the profile's services");
 			desktop.reset();
 		};
+		if (finishes) {
+			const auto session = access::agent_session_key(*owner);
+			expect(!session.empty(), "the window shows the pull request's Agent-tab session");
+			auto* const tab = first->agent_tab();
+			// The fixture agent fails a question naming FIXTURE_CRASH, and
+			// answers one naming FIXTURE_USAGE_LIMIT as past its usage limit.
+			// The first is sent at once; the queue releases the rest.
+			type_and_return(*first, QStringLiteral("First message"));
+			wait([&] { return tab->state() == qt::agent_tab_state::working; }, "the first message runs: " + first->agent_panel()->status_text().toStdString());
+			type_and_return(*first, QStringLiteral("FIXTURE_CRASH fails"));
+			type_and_return(*first, QStringLiteral("FIXTURE_USAGE_LIMIT next"));
+			type_and_return(*first, QStringLiteral("Last message"));
+			expect(rows_of(*first).size() == 3, "three messages wait behind it: " + rows_of(*first).join(QLatin1Char('|')).toStdString());
+			const auto pausedAs = [&](const core::queue_pause aPause, const std::size_t aQueued) {
+				const auto now = access::agent_session(*owner, session);
+				return now.Paused == aPause && now.Queued == aQueued && !now.Sending && now.Quiescent;
+			};
+			const auto describe = [&] {
+				const auto now = access::agent_session(*owner, session);
+				return " paused=" + std::string{ core::stable_name(now.Paused) } + " queued=" + std::to_string(now.Queued) + " sending=" + std::to_string(now.Sending ? 1 : 0) + " rows=" + rows_of(*first).join(QLatin1Char('|')).toStdString();
+			};
+			if (!e2e::wait_until_plain([&] { return pausedAs(core::queue_pause::failed, 2U); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "a failed run pauses the queue as failed, both messages still queued:" + describe() };
+			}
+			expect(tab->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume"))->text() == QStringLiteral("Resume queue"), "the paused queue offers Resume");
+			expect(press_in(*first, QStringLiteral("agentQueuePauseResume")), "Resume after the failure");
+			if (!e2e::wait_until_plain([&] { return pausedAs(core::queue_pause::usage_limit, 1U); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "a run past the usage limit pauses the queue as usage limit, the last message still queued:" + describe() };
+			}
+			expect(rows_of(*first) == QStringList{ QStringLiteral("Last message") }, "the last message waits:" + describe());
+			expect(press_in(*first, QStringLiteral("agentQueuePauseResume")), "Resume after the usage limit");
+			if (!e2e::wait_until_plain([&] { return pausedAs(core::queue_pause::none, 0U) && tab->turn_count() >= 4U && tab->turn_outcome(tab->turn_count() - 1U) == core::agent_turn_outcome::answered; }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "resumed, the last message is answered:" + describe() };
+			}
+			quit(*first);
+			std::cout << "agent-queue-finish-pauses:pass\n";
+			return EXIT_SUCCESS;
+		}
 		if (closeRunsOn) {
 			const auto session = access::agent_session_key(*owner);
 			expect(!session.empty(), "the first window shows the pull request's Agent-tab session");

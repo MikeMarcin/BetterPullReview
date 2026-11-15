@@ -703,6 +703,7 @@ namespace {
 				 failure::not_signed_in,
 				 failure::tool_refused,
 				 failure::helpers_unfinished,
+				 failure::usage_limit,
 			 }) {
 			values.push_back(static_cast<std::uint8_t>(existing));
 		}

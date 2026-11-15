@@ -5,6 +5,7 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_run_diagnosis.hpp"
+#include "bpr/application/review_agent_runtime.hpp"
 #include "bpr/application/review_brief.hpp"
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/application/skill_catalog.hpp"
@@ -1862,6 +1863,20 @@ namespace {
 		expect(ok && *ok == 1U, "a ui_invalidate before init and a rate_limit_event after the turn are read past");
 		const auto signedOut = decode(true, init + R"({"type":"assistant","session_id":"s","error":"authentication_failed","message":{"id":"x","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"Not logged in · Please run /login"}]}})" + "\n" + R"({"type":"result","subtype":"success","session_id":"s","is_error":true,"result":"Not logged in · Please run /login"})" + "\n");
 		expect(!signedOut && signedOut.error() == application::agent_protocol_failure::not_signed_in, "a signed-out Claude is not_signed_in, not a malformed frame");
+		// RFC-BPR-0126 AC02. A Claude account past its usage limit.
+		const auto limited = decode(false, init + R"({"type":"assistant","session_id":"s","message":{"id":"limit","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"Claude AI usage limit reached|1893456000"}]},"error":"rate_limit","is_api_error_message":true})" + "\n" + R"({"type":"result","subtype":"success","is_error":true,"session_id":"s","result":"Claude AI usage limit reached|1893456000"})" + "\n");
+		expect(!limited && limited.error() == application::agent_protocol_failure::usage_limit, "a Claude past its usage limit is usage_limit, not a failed turn");
+		auto run = application::agent_run_result{ .Outcome = application::agent_run_outcome::protocol_failure, .ProtocolFailure = application::agent_protocol_failure::usage_limit };
+		expect(application::queued_finish_of(run) == core::queued_finish::usage_limit, "its run ends the queued message as usage limit");
+		run.ProtocolFailure = application::agent_protocol_failure::remote_failed;
+		expect(application::queued_finish_of(run) == core::queued_finish::failed, "another protocol failure ends it as failed");
+		// Codex exec's JSONL says it only in the failed turn's message.
+		auto       codex = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec, false };
+		const auto c     = codex.push(std::string{ R"({"type":"thread.started","thread_id":"t"})" } + "\n" + R"({"type":"turn.started"})" + "\n" + R"({"type":"turn.failed","error":{"message":"You've hit your usage limit. Try again later."}})" + "\n");
+		expect(!c && c.error() == application::agent_protocol_failure::usage_limit, "a Codex turn failed on its usage limit is usage_limit");
+		auto       other = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec, false };
+		const auto o     = other.push(std::string{ R"({"type":"thread.started","thread_id":"t"})" } + "\n" + R"({"type":"turn.started"})" + "\n" + R"({"type":"turn.failed","error":{"message":"stream disconnected"}})" + "\n");
+		expect(!o && o.error() == application::agent_protocol_failure::remote_failed, "any other failed Codex turn is still remote_failed");
 		const auto plugin = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
 		expect(plugin && *plugin == 1U, "[[BPR-1891]] a writing init frame that reports a plugin is read, not refused");
 		const auto memory = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);

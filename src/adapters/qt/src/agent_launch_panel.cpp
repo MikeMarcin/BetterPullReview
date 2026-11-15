@@ -81,6 +81,7 @@ namespace bpr::qt {
 			case failure::not_signed_in:                 return QStringLiteral("It isn't signed in.");
 			case failure::tool_refused:                  return QStringLiteral("It tried a tool a drafting run may not use, so the run was stopped.");
 			case failure::helpers_unfinished:            return QStringLiteral("It stopped before the helpers it started finished.");
+			case failure::usage_limit:                   return QStringLiteral("Its account has reached its usage limit.");
 			}
 			return QStringLiteral("Its output couldn't be read.");
 		}

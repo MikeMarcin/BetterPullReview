@@ -201,7 +201,7 @@ namespace bpr::app {
 		if (!Closing) {
 			return agent;
 		}
-		return agent && (Epoch == nullptr || Epoch->is_quiescent()) && (Ledger == nullptr || Ledger->is_quiescent());
+		return agent && ReviewHostsClosed && (Epoch == nullptr || Epoch->is_quiescent()) && (Ledger == nullptr || Ledger->is_quiescent());
 	}
 
 	void review_agent_stack::shutdown()
@@ -214,6 +214,19 @@ namespace bpr::app {
 		if (Agent != nullptr) {
 			Agent->shutdown();
 		}
+		close_review_hosts();
+	}
+
+	/// The epoch host is the agent host's workspace port, so it closes only
+	/// once the agent host is quiescent: a workspace whose removal was
+	/// refused is removed on a retry, never abandoned to a closed port. The
+	/// ledger host goes with it, as a window's shutdown orders its own.
+	void review_agent_stack::close_review_hosts()
+	{
+		if (!Closing || ReviewHostsClosed || (Agent != nullptr && !Agent->is_quiescent())) {
+			return;
+		}
+		ReviewHostsClosed = true;
 		if (Epoch != nullptr) {
 			Epoch->shutdown();
 		}
@@ -227,6 +240,22 @@ namespace bpr::app {
 	/// Lent, and the epoch host has not yet accepted the review: a window may
 	/// already say ready, so its turn waits for `observe_review`.
 	auto review_agent_stack::accepting() const -> bool { return !Closing && Lease.live() && !Observed.has_value(); }
+
+	void review_agent_stack::retry_cleanup()
+	{
+		if (Agent != nullptr) {
+			Agent->retry_cleanup();
+		}
+		close_review_hosts();
+	}
+
+	auto review_agent_stack::observed_review() const -> std::optional<std::pair<core::pull_request_authority, core::agent_revision_binding>>
+	{
+		if (Epoch == nullptr || !Observed || !Epoch->state().Authority) {
+			return std::nullopt;
+		}
+		return std::pair{ *Epoch->state().Authority, *Observed };
+	}
 
 	void review_agent_stack::admit(const application::agent_session_admission&                                                aAdmission,
 								   std::function<void(std::expected<core::agent_session, application::ledger_store_failure>)> aDone)

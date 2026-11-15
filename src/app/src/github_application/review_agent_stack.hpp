@@ -27,6 +27,7 @@
 	#include <mutex>
 	#include <optional>
 	#include <string>
+	#include <utility>
 	#include <vector>
 
 	#if defined(BPR_BUILD_TESTING)
@@ -115,6 +116,11 @@ namespace bpr::app {
 		void               shutdown() override;
 		[[nodiscard]] auto authorized() const -> bool override;
 		[[nodiscard]] auto accepting() const -> bool override;
+		void               retry_cleanup() override;
+		/// \brief The review the stack's epoch host accepted and its agent host
+		/// observes, with the stack's own session: the identity every turn of
+		/// it carries. None before the lent review is accepted.
+		[[nodiscard]] auto observed_review() const -> std::optional<std::pair<core::pull_request_authority, core::agent_revision_binding>>;
 
 		// agent_session_catalog_port, over the stack's own ledger host.
 		void admit(const application::agent_session_admission&                                                aAdmission,
@@ -126,6 +132,8 @@ namespace bpr::app {
 		struct receipt_sink;
 		review_agent_stack(core::application_session_id aSession, review_agent_stack_seed aSeed, const review_agent_stack_ports& aPorts, std::function<void()> aRetired, std::function<void()> aReady);
 		void observe_review();
+		/// Closes the epoch and ledger hosts once the agent host is quiescent.
+		void close_review_hosts();
 
 		core::application_session_id                Session;
 		review_agent_stack_seed                     Seed;
@@ -135,7 +143,8 @@ namespace bpr::app {
 		std::shared_ptr<bool>                       Alive = std::make_shared<bool>(true);
 		std::optional<core::agent_revision_binding> Observed;
 		std::optional<core::agent_revision_binding> LentFor;
-		bool                                        Closing = false;
+		bool                                        Closing           = false;
+		bool                                        ReviewHostsClosed = false;
 		application::lent_review_lease              Lease;
 		// Declared in dependency order: each is destroyed before what it holds.
 		std::unique_ptr<adapters::agent::agent_process_launcher> Launcher;

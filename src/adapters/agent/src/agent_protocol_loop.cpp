@@ -592,6 +592,9 @@ namespace bpr::adapters::agent::detail {
 					if (*ProtocolFailure == application::agent_protocol_failure::not_signed_in && Result.RefusalReason.empty()) {
 						Result.RefusalReason = std::string{ application::agent_sign_in_failure_words };
 					}
+					if (*ProtocolFailure == application::agent_protocol_failure::usage_limit && Result.RefusalReason.empty()) {
+						Result.RefusalReason = std::string{ application::agent_usage_limit_words };
+					}
 				} else {
 					Result.Outcome = ClassifiedOutcome.value_or(
 						application::agent_run_outcome::protocol_failure);
