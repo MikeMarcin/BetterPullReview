@@ -212,7 +212,7 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 [companion action contract](../issues/60-done/BPR-2033-provide-a-resumable-companion-action-contract.md) form a read-only milestone
 after local tour preparation; their acceptance covers preparation and needs
 neither publication nor an effectful action.
-[Effectful handoff and recovery](../issues/10-backlog/BPR-2034-hand-off-effectful-actions-and-recover-their.md) and
+[Effectful handoff and recovery](../issues/60-done/BPR-2034-hand-off-effectful-actions-and-recover-their.md) and
 [closeout](../issues/10-backlog/BPR-2035-close-rfc-0112.md) form the final [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json)
 after built-in publication, including the end-to-end independence check. The
 owner's answer on the effect route is in [Decisions](assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices).
