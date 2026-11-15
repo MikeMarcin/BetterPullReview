@@ -62,8 +62,15 @@ network, or process effects.
   library should be allowed instead. `src/core/AGENTS.md` says what the
   question must name.
 - Release work uses the `publish-release` skill
-  (`.codex/skills/publish-release/SKILL.md`, readable from any harness) and the
-  existing package paths. `packaging/AGENTS.md` holds the release rules.
+  (`.agents/skills/publish-release/SKILL.md`) and the existing package paths.
+  `packaging/AGENTS.md` holds the release rules.
+- A skill this repository owns lives once, in `.agents/skills/<name>/`, which
+  Codex reads. Claude Code reads `.claude/skills/<name>/SKILL.md`, which is a
+  pointer: the same `name` and `description` and a body that says to follow
+  the `.agents` copy. No symlink: releases run on Windows, where a checked-out
+  symlink can become a text file. `scripts/verify_documentation.py` refuses a
+  missing pointer, a drifted description or a second copy. MASK-deployed
+  skills are gitignored and not covered.
 
 ### Parking work on the owner
 
@@ -134,7 +141,7 @@ network, or process effects.
   `cliclick`, foreground windows): it may be screen-shared. Use offscreen
   renders and the frozen build; the owner looks themselves. The one exception
   is promotional capture: when the owner asks for promo assets in the session,
-  `.codex/skills/update-promo-assets` may run
+  `.agents/skills/update-promo-assets` may run
   `scripts/capture_promo_assets.py --confirm-desktop`, after saying so, for
   about a minute. It captures only the application's own window, never a
   screen region.

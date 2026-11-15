@@ -12,7 +12,7 @@ Packaging preserves the core/application/adapter/composition dependency graph.
   other platforms and managed packages retain manual distribution. This scoped
   exception grants no publication or installed-application replacement authority.
 - For release work, use the existing `publish-release` skill
-  (`.codex/skills/publish-release/SKILL.md`) and package paths. Bind the
+  (`.agents/skills/publish-release/SKILL.md`) and package paths. Bind the
   separate versioned corresponding-source asset as well as the binary, SPDX
   and installed notices; an offline audit is not trust or release approval.
 - Keep the open native, vault, crash and vulnerability gaps (RFC-BPR-0014

@@ -194,7 +194,7 @@ python3 scripts/run_test_suite.py --validate-request --profile normal --change-s
 This is syntax/scope admission only. The native runner still checks the actual
 configuration, row inventory, regex matches, scheduling, tooling bootstrap and
 all selected results. A well-formed expression can still match no native row and
-be refused there. The [execution procedure](../../.codex/skills/publish-release/references/execution.md#aim-for-a-two-hour-clean-release)
+be refused there. The [execution procedure](../../.agents/skills/publish-release/references/execution.md#aim-for-a-two-hour-clean-release)
 records the two-hour target and overlap-aware machine/wait accounting without
 changing any profile membership or acceptance.
 

@@ -51,10 +51,10 @@ The original failure block SHA-256 is
 
 The frozen58 producers and running suites remain untouched. No corrected
 native course, build or qualification verdict is claimed here. The existing
-[execution procedure](../../.codex/skills/publish-release/references/execution.md#compile-every-selected-platform-before-long-suites)
+[execution procedure](../../.agents/skills/publish-release/references/execution.md#compile-every-selected-platform-before-long-suites)
 allows an explicit policy-permitted bridge to completed unchanged evidence;
 its recovery rule requires matching relevant inputs. The
-[qualification profile](../../.codex/skills/publish-release/references/optimized-qualification.md#debug-residual-and-promotion-boundary)
+[qualification profile](../../.agents/skills/publish-release/references/optimized-qualification.md#debug-residual-and-promotion-boundary)
 requires both configurations for affected test/fixture cases plus meaningful
 negative controls.
 
