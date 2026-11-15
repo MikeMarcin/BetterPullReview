@@ -82,3 +82,38 @@ assigned to a dedicated frontend-design worker. Host 51673 (Tailscale child
 51681) stopped; root `workflow-v001.xlei1v22` removed with
 `freeze_attended_build.py remove`. AC07 and AC09 stay pending until
 `workflow-v002` asks all three questions again.
+
+## Design rounds after workflow-v001 (2026-11-15)
+
+Before engineering the rework, the author's checklist went to the owner as
+two design rounds (merged into this lane from
+`claude/local-draft-workflow-mockups` at `042e035a9`).
+
+- **Round 1** (`docs/design/local-draft-workflow-v1/`), session
+  `c5a05f972b30d5683c817e8ef18643b5`, state
+  `~/.attended-review-state/local-draft-workflow-mockups-v001-2026-11-15/state`,
+  decision at sequence 49: **selected "B, Workflow tab"**, with the note:
+
+  > Sent back is too strong, maybe that happens, maybe i just decide to make
+  > a change, maybe there's just a light optional nitpick to handle.
+  >
+  > Publish update is better than Publish response
+  >
+  > So on an open pull request I own, I get to this mode how? Is there a
+  > button to switch between it and the normal review bench?
+  >
+  > I think I like workflow, it should become the first tab and become
+  > active when we enter that mode. It's very close to A but doesn't confuse
+  > the user by making status have different meanings across surfaces.
+
+- **Round 2** (`docs/design/local-draft-workflow-v2/`: Revise as a fifth
+  mode), session `273f0aafcc76fd284605b51649bbdbdf`, state
+  `~/.attended-review-state/local-draft-workflow-mockups-v002-2026-11-15/state`,
+  decision at sequence 7: **Accepted**, with the note "Just one feedback, we
+  got rid of the notes tab so not sure why the mockup shows it." Revise's
+  drawer has no Notes tab. All six recommended defaults in the round's README
+  are accepted. Its host (PIDs 65438, 65447) was stopped with the
+  attended-review `stop` command.
+
+The accepted design is engineered as its own card (the author's mode,
+Revise) before `workflow-v002` asks this card's questions again.
