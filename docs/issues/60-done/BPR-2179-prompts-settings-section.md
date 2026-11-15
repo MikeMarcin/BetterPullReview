@@ -347,3 +347,31 @@ Evidence: `core_prompt_surfaces`, `core_prompt_macro`, `core_quick_ask`,
 `application_prompt_macros_public_path`, `application_ask_queue_public_path`,
 `qt_drawer_surfaces_fit_scale_100`. Frozen looks prompts-v001 to v004 (session
 IDs above).
+
+## Correction (2026-11-14, after the close)
+
+A critical architecture review of `03aae05cb` found that this card's page
+broke the split "the deterministic core decides; the imperative host
+performs; the Qt presentation adapter presents", and that the evidence above
+missed it. No course here failed a save, wrote from another window, undid an
+on/off or a placement, filled the library, or read a nested condition through
+the page. What it missed:
+
+- The save protocol lived in the widget. A failed write was replaced by the
+  stored set while the status said the edit was kept, and a projection that
+  arrived while edits waited was ignored, so the next write went out stamped
+  with the newer revision and erased another window's edits.
+- The editing model, undo and new identities (`QUuid`) lived in Qt. Undo
+  covered only text and was not scoped to Prompts for, and
+  `maximum_prompt_macros` was never checked.
+- Qt copies of condition rules had drifted from core: Use app-wide conditions,
+  Has conditions, the facts Add offers a tour prompt, the problem line's raw
+  stable name, and the thread-activity reason's polarity.
+- The differences were made in the application layer, and composition added
+  the repositories by hand.
+- Core: a Hide prompt at a wider scope was listed disabled; None of an
+  unknown fact held; the condition index moved with Hide it; nested group
+  count was unbounded; the store's conditions column was too small for a tree
+  at core's limits.
+
+Fixed by [[BPR-2185]].
