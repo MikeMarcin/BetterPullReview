@@ -3,7 +3,7 @@ schema: "implement-rfc.card.v1"
 id: "BPR-2082"
 title: "Run a planned check with the agent"
 status: "Done"
-rfcs: ["RFC-BPR-0120"]
+rfcs: ["RFC-BPR-0120", "RFC-BPR-0109"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2073--BPR-2085--88e53295c309.json","imported_from":"docs/rfcs/assets/agent-assistance-v1/cards/DRAFT-0010-run-a-planned-check-with-the-agent.md","resolution":"rejected"}
 depends_on: ["BPR-2024"]
 ---
