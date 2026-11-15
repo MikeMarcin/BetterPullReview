@@ -593,9 +593,7 @@ namespace bpr::qt {
 		if (StatusLabel != nullptr) {
 			// update_status_text calls here, so the line is recomputed rather
 			// than refreshed through it.
-			if (const auto line = status_line(); StatusLabel->text() != line) {
-				StatusLabel->setText(line);
-			}
+			present_status_line();
 		}
 		update_discovery_controls();
 		// [[BPR-0990]]. Arriving at Home asks discovery to catch up if its list
@@ -1869,8 +1867,21 @@ namespace bpr::qt {
 				refresh_home_open();
 			}
 		}
+		// [[BPR-2180]]. The read lane's account of a first read, part by part;
+		// each waiting pane maps its own part. Taken before the transition, so
+		// a page the transition clears is presented against the read it says.
+		if (aUpdate.Loading) {
+			LoadingReadiness = *aUpdate.Loading;
+			OverviewPage->present_loading_readiness(LoadingReadiness);
+		}
 		if (aUpdate.Transition.has_value()) {
 			apply_github_transition(*aUpdate.Transition);
+		}
+		// [[BPR-2180]]. The owner, 2026-11-14: "going to review the file list
+		// should be loaded becuase it's already loaded on overview". The files
+		// the read reported are the file rows until the review's replace them.
+		if (aUpdate.ProvisionalFiles) {
+			present_provisional_files(*aUpdate.ProvisionalFiles);
 		}
 		if (aUpdate.LoadingOverview && !HasGithubPullRequest
 			&& SessionPanel->status() == core::github_status::loading_pull_request) {
@@ -1891,23 +1902,6 @@ namespace bpr::qt {
 				// read while the rest of the review still loads.
 				if (LoadingOverviewShown) {
 					OverviewPage->present_observed_files(*aUpdate.LoadingOverview->Files);
-					// [[BPR-2180]]. The owner, 2026-11-14: "going to review the
-					// file list should be loaded becuase it's already loaded on
-					// overview". Review's Files drawer lists the same files by
-					// path, as [[BPR-0668]] does without a comparison; the
-					// accepted review's rows replace them.
-					if (FilesTree != nullptr && !FileRowsPresent && OverviewPage->observed_files()) {
-						auto rows = std::vector<workbench_drawer_row>{ };
-						rows.reserve(aUpdate.LoadingOverview->Files->size());
-						for (const auto& file : *aUpdate.LoadingOverview->Files) {
-							const auto path = QString::fromStdString(file.Path);
-							rows.push_back(workbench_drawer_row{ .Identity = path, .Title = path, .Detail = path, .File = core::file_identity_of(file.Path) });
-						}
-						ApplyingFileSelection = true;
-						FilesTree->apply(rows);
-						refresh_filter_notices();
-						ApplyingFileSelection = false;
-					}
 				}
 			} else {
 				OverviewPage->present_observation(*aUpdate.LoadingOverview);
@@ -1966,7 +1960,7 @@ namespace bpr::qt {
 			// [[BPR-0775]]. Home's line names the accepted session's login, which
 			// arrives after the transition that already decided the line.
 			if (StatusLabel != nullptr) {
-				StatusLabel->setText(status_line());
+				present_status_line();
 			}
 			// [[BPR-1017]]. So does the strip's account button. A window told the
 			// session in one presentation has no later transition to correct it.

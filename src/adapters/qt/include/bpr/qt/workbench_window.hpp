@@ -2699,8 +2699,23 @@ namespace bpr::qt {
 			core::workbench_command_id   aId,
 			core::workbench_drawer_state aState);
 		void update_status_text();
+		/// \brief [[BPR-2180]]. The status line's words and whether they say a
+		/// load, decided together so the mark beside them never disagrees.
+		struct status_line_words
+		{
+			QString Text;
+			bool    Waits = false;
+		};
 		/// \brief The status line for what the window shows now, computed without side effects.
-		[[nodiscard]] auto status_line() const -> QString;
+		[[nodiscard]] auto status_line() const -> status_line_words;
+		/// \brief [[BPR-2180]]. Shows the status line and turns its mark while it says a load.
+		void present_status_line();
+		/// \brief [[BPR-2180]]. A first read's reported files as the file rows,
+		/// through the ordinary file-row path; an empty list withdraws them.
+		void present_provisional_files(const std::vector<application::github_provisional_file>& aFiles);
+		/// \brief [[BPR-2180]]. Asks for the reported file the reviewer
+		/// clicked, now that a review lists the files; or takes its wait back.
+		void open_provisional_file();
 		/// \brief [[BPR-0775]]. Home's session line.
 		[[nodiscard]] auto home_session_line() const -> QString;
 		/// \brief Whether the session is signed in, with or without an account.
@@ -3943,6 +3958,12 @@ namespace bpr::qt {
 		bool                                                       ApplyingFileSelection = false;
 		/// The draft's own rows are being applied; a pull request's are kept aside.
 		bool ApplyingLocalRows = false;
+		/// [[BPR-2180]]. The read lane's account of the first read, as published.
+		core::github_loading_readiness LoadingReadiness;
+		/// [[BPR-2180]]. The file rows are a first read's reported files, not yet
+		/// the accepted review's; and the path a click on one asked to open.
+		std::vector<application::workbench_file_projection> ProvisionalFiles;
+		QString                                             ProvisionalOpen;
 		/// The file rows last published for a pull request, kept while a draft shows.
 		std::vector<application::workbench_file_projection> PublishedFiles;
 		bool                                                QueueReady = false;

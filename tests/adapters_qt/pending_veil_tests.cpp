@@ -282,6 +282,8 @@ namespace {
 		settle();
 		const auto veils = page.pending_veils();
 		page.present_loading();
+		// [[BPR-2180]]. The read lane's account of the read, as its host publishes it.
+		page.present_loading_readiness({ .FirstRead = true });
 		settle(20);
 		expect(veils.Header->busy() && veils.Description->busy() && veils.Files->busy() && veils.Side->busy(), "opening, every section waits");
 		page.present_observation(application::github_loading_overview_projection{
@@ -293,6 +295,7 @@ namespace {
 		page.set_read_waiting(QStringLiteral("the changed files, 3 pages so far"));
 		expect(veils.Files->words().Waiting == QStringLiteral("Still waiting for GitHub: the changed files, 3 pages so far."), "a slow wait names the read's step");
 		page.present(application::pull_request_overview_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Ready" });
+		page.present_loading_readiness({ });
 		settle(20);
 		expect(!veils.Header->busy() && !veils.Files->busy() && !veils.Side->busy(), "the accepted review makes every section ready");
 		page.present_loading();
@@ -330,11 +333,49 @@ namespace {
 		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready } } });
 		settle(20);
 		expect(!panes.Content->busy(), "a settled refresh lifts the veil");
-		expect(!panes.Status->turning() || status->text().contains(QStringLiteral("prepared")), "the mark stops with the read, unless the line says comparisons are being prepared");
+		// [[BPR-2180]]. The mark and the words are decided together.
+		expect(panes.Status->turning() == (status->text().contains(QStringLiteral("being prepared")) || status->text().startsWith(QStringLiteral("Loading"))), "the mark turns exactly while the line says a load");
 		window.adopt_dif(core::resolve_dif({ }, core::motion_observation::reduced));
 		expect(!window.pending_full_motion(), "the system's Reduce Motion stills every wait");
 		window.adopt_dif(core::resolve_dif({ }, core::motion_observation::full));
 		expect(window.pending_full_motion() && panes.Content->full_motion(), "full motion turns them");
+	}
+
+	// [[BPR-2180]]. A first read's reported files are the drawer's own rows,
+	// through the ordinary file-row path: listed uncovered, a click on one is
+	// remembered rather than dropped, and they go when the read opens no review.
+	void test_reported_files_are_the_drawers_rows()
+	{
+		auto window = qt::workbench_window{ };
+		window.resize(1'280, 820);
+		window.show();
+		settle();
+		const auto& panes  = window.pending_veils();
+		auto* const drawer = window.files_drawer();
+		const auto  file   = [](const char* aPath) { return application::github_provisional_file{ .File = core::file_identity_of(aPath), .Path = aPath }; };
+		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } },
+																.Loading    = core::github_loading_readiness{ .FirstRead = true } });
+		settle(20);
+		expect(panes.Files->busy() && drawer->contents()->rowCount() == 0, "before any file is reported the drawer waits");
+		window.publish(application::github_presentation_update{ .Loading          = core::github_loading_readiness{ .FirstRead = true, .Metadata = true, .Files = true },
+																.ProvisionalFiles = std::vector{ file("src/a.cpp"), file("src/b.cpp") } });
+		settle(20);
+		expect(drawer->contents()->rowCount() == 2 && window.files_tree()->model()->rowCount() > 0, "the reported files are the drawer's rows, in the list and the tree");
+		expect(panes.Files->look() == core::pending_look::quiet || panes.Files->look() == core::pending_look::partial, "and no veil covers them");
+		const auto selections = window.statistics().FileSelections;
+		drawer->contents_view()->setCurrentIndex(drawer->contents()->index(0, 0));
+		settle(20);
+		expect(panes.Files->words().Coming == QStringLiteral("Opening a.cpp once the review has loaded…"), "a click on a reported file is remembered and said");
+		expect(window.statistics().FileSelections == selections, "and nothing is asked of a comparison that does not exist yet");
+		auto* const code = window.comparison_surface()->comparison_veil();
+		expect(code->busy() && code->shape() == qt::pending_shape::code && window.comparison_surface()->waiting_path() == QStringLiteral("src/a.cpp"),
+			   "the comparison waits for it in the shape of code");
+		window.publish(application::github_presentation_update{ .Transition       = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::pull_request_failed } },
+																.Loading          = core::github_loading_readiness{ },
+																.ProvisionalFiles = std::vector<application::github_provisional_file>{ } });
+		settle(20);
+		expect(drawer->contents()->rowCount() == 0 && window.files_tree()->model()->rowCount() == 0, "a read that opened no review leaves none of its files listed");
+		expect(!panes.Files->busy() && !code->busy(), "and nothing waits");
 	}
 
 	void test_the_updates_line_turns_before_its_words()
@@ -429,19 +470,24 @@ namespace {
 				   && veils.People->shape() == qt::pending_shape::people,
 			   "each in its own shape");
 		page.present_loading();
+		page.present_loading_readiness({ .FirstRead = true });
 		page.present_observation(application::github_loading_overview_projection{ .Title = "Seven", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
 		settle(20);
 		for (auto* const veil : { veils.Merge, veils.MyReview, veils.Checks, veils.People }) {
 			expect(veil->busy() && veil->isVisible() && veil->height() > 0, "every section waits in its own place");
 		}
 		expect(veils.Side->look() == core::pending_look::quiet || veils.Side->look() == core::pending_look::partial, "the column is never covered whole: its plate says what is coming");
 		page.present_observed_checks(application::overview_checks_projection{ });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true });
 		settle(20);
 		expect(!veils.Checks->busy() && veils.People->busy() && veils.Merge->busy() && veils.MyReview->busy(), "the checks show while the other sections still wait");
 		page.present_observed_people(application::overview_people_projection{ });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true, .People = true });
 		settle(20);
 		expect(!veils.People->busy() && !veils.Roster->busy() && veils.Merge->busy(), "the people show on their own");
 		page.present(application::pull_request_overview_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Ready" });
+		page.present_loading_readiness({ });
 		settle(20);
 		for (auto* const veil : { veils.Merge, veils.MyReview, veils.Checks, veils.People, veils.Side }) {
 			expect(!veil->busy(), "the accepted review makes every section ready");
@@ -540,6 +586,7 @@ namespace {
 			page.show();
 			settle();
 			page.present_loading();
+			page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
 			page.present_observation(application::github_loading_overview_projection{ .Title = "Seven", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
 			settle(core::pending_reveal_milliseconds + 100);
 			page.grab().save(aDirectory + QStringLiteral("/overview-side-sections.png"));
@@ -584,6 +631,7 @@ try {
 	test_overview_sections_arrive_in_turn();
 	test_window_panes_follow_the_read();
 	test_the_updates_line_turns_before_its_words();
+	test_reported_files_are_the_drawers_rows();
 	test_cards_and_people_take_their_shape();
 	test_overview_side_sections_wait_on_their_own();
 	test_tour_and_finish_review_wait_in_shape();

@@ -399,5 +399,38 @@ int main()
 			return EXIT_FAILURE;
 		}
 	}
+	// [[BPR-2180]]. A first read's readiness, part by part, from the lane's
+	// own accepted observations; nothing once the read ends or for a refresh.
+	{
+		github_window_read reading{ first, application_session_id{ 80U } };
+		if (!reading.adopt(session) || reading.loading_readiness() != github_loading_readiness{ }) {
+			return EXIT_FAILURE;
+		}
+		const auto opening = reading.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 1U } });
+		if (!opening.Fetch || reading.loading_readiness() != github_loading_readiness{ .FirstRead = true }) {
+			return EXIT_FAILURE;
+		}
+		const auto& context = opening.Fetch->Context;
+		if (!reading.accept_overview_observation(first, context) || !reading.accept_files_observation(first, context)
+			|| reading.loading_readiness() != github_loading_readiness{ .FirstRead = true, .Metadata = true, .Files = true }) {
+			return EXIT_FAILURE;
+		}
+		if (!reading.accept_checks_observation(first, context) || !reading.accept_people_observation(first, context)
+			|| reading.loading_readiness() != github_loading_readiness{ .FirstRead = true, .Metadata = true, .Files = true, .Checks = true, .People = true }) {
+			return EXIT_FAILURE;
+		}
+		static_cast<void>(reading.apply(first, pull_request_load_failed_event{ context, github_failure::network }));
+		if (reading.loading_readiness() != github_loading_readiness{ }) {
+			return EXIT_FAILURE;
+		}
+		const auto again = reading.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 2U } });
+		if (!again.Fetch || reading.loading_readiness() != github_loading_readiness{ .FirstRead = true }) {
+			return EXIT_FAILURE;
+		}
+		static_cast<void>(reading.apply(first, pull_request_load_cancelled_event{ again.Fetch->Context }));
+		if (reading.loading_readiness() != github_loading_readiness{ }) {
+			return EXIT_FAILURE;
+		}
+	}
 	return EXIT_SUCCESS;
 }

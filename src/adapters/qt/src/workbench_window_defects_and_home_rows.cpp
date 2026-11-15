@@ -1592,8 +1592,10 @@ namespace bpr::qt {
 		// [[BPR-2180]]. Once the Overview lists the files GitHub reported, the
 		// Files drawer lists them too: readable, with what is still coming said
 		// on the plate at its foot rather than over the rows.
-		if (first && OverviewPage != nullptr && OverviewPage->observed_files() && FilesTree != nullptr && FilesTree->model() != nullptr && FilesTree->model()->rowCount() > 0) {
-			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = QStringLiteral("Files open once the review has loaded…") });
+		if (first && LoadingReadiness.FirstRead && LoadingReadiness.Files && !ProvisionalFiles.empty()) {
+			const auto coming = ProvisionalOpen.isEmpty() ? QStringLiteral("Files open once the review has loaded…")
+														  : QStringLiteral("Opening %1 once the review has loaded…").arg(ProvisionalOpen.section(QLatin1Char('/'), -1));
+			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = coming });
 		} else {
 			apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
 		}

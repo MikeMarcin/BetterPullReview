@@ -252,6 +252,12 @@ namespace bpr::qt {
 		/// it, by name, in place of "No file open". `aHistory` says the pull
 		/// request's history is still being fetched, which the slow line names.
 		void set_waiting(QString aPath, bool aHistory);
+		/// \brief [[BPR-2180]]. Holds the wait for a file the reviewer asked for
+		/// before it can be asked of the comparison: until the comparison is
+		/// asked for (`set_loading`) or the hold is released with an empty
+		/// path, clearing the comparison keeps saying the file is loading.
+		void               hold_waiting(QString aPath);
+		[[nodiscard]] auto held_waiting() const noexcept -> const QString&;
 		/// \brief [[BPR-1871]]. The opened file cannot open: `aSentence` says
 		/// why, in place of the panes, in the failure ink.
 		void set_waiting_failed(QString aPath, QString aSentence);
@@ -762,6 +768,7 @@ namespace bpr::qt {
 		/// [[BPR-1871]]. The opened file the wait names, whether the pull
 		/// request's history is what it waits on, and why it cannot open.
 		QString                   WaitingPath;
+		QString                   HeldWaitingPath;
 		bool                      WaitingHistory = false;
 		QString                   WaitingFailure;
 		std::array<bool, 2>       SyntaxAwaited{ };

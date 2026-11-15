@@ -45,6 +45,23 @@ namespace bpr::core {
 		auto operator<=>(const github_conversation_observation_facts&) const = default;
 	};
 
+	/// \brief [[BPR-2180]]. What a first read of a pull request has shown so
+	/// far, part by part, for the window to present each part's wait from.
+	/// \details `FirstRead` is true while this lane waits on a pull request it
+	/// is opening rather than refreshing; every other fact is false unless it
+	/// is. Each part is true once its observation was accepted for that read.
+	struct github_loading_readiness
+	{
+		bool FirstRead = false;
+		bool Metadata  = false;
+		bool Files     = false;
+		bool Checks    = false;
+		bool People    = false;
+		bool Merge     = false;
+
+		auto operator<=>(const github_loading_readiness&) const = default;
+	};
+
 	/// \brief Independently observed, complete conversation collections.
 	enum class github_conversation_observation_kind : std::uint8_t {
 		review_threads,
@@ -104,6 +121,9 @@ namespace bpr::core {
 		/// \details False with no adopted session, no pending read, or once
 		/// the read ends; a new pending read starts unobserved.
 		[[nodiscard]] auto loading_metadata_observed() const noexcept -> bool;
+		/// \brief [[BPR-2180]]. What the read this lane is opening has shown so
+		/// far; all false once it ends, or while a refresh runs.
+		[[nodiscard]] auto loading_readiness() const noexcept -> github_loading_readiness;
 		[[nodiscard]] auto state() const noexcept -> const github_state&;
 		[[nodiscard]] auto window() const noexcept -> bpr_window_context;
 

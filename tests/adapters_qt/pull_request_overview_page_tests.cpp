@@ -164,6 +164,7 @@ namespace {
 		};
 		page.present_loading();
 		page.present_observation(metadata);
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
 		page.present_observed_files({ { .Path = "file.cpp", .Change = core::cached_file_change::modified } });
 		auto early = application::overview_checks_projection{
 			.Checks    = { .Passed = 2U },
@@ -173,6 +174,7 @@ namespace {
 			.ChecksNote = "Merge rules and required checks are still loading."
 		};
 		page.present_observed_checks(early);
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true });
 		now = core::pending_reveal_milliseconds;
 		page.pending_veils().Side->advance();
 		QApplication::processEvents();
@@ -192,6 +194,7 @@ namespace {
 		final.CheckRows                    = early.CheckRows;
 		final.CheckRows.back().Requirement = "Optional";
 		page.present(final);
+		page.present_loading_readiness({ });
 		expect(page.projection() && !page.pending_veils().Side->busy() && disclosure->isChecked()
 				   && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("check:second") && open->isEnabled(),
 			   "final status preserves selection and disclosure and admits the ordinary link");
@@ -199,11 +202,13 @@ namespace {
 		page.present_loading();
 		++metadata.Number;
 		page.present_observation(metadata);
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true });
 		// [[BPR-2180]]. The section stands in its place and waits for its own
 		// results; nothing of the previous pull request's is listed.
 		expect(list->topLevelItemCount() == 0 && page.pending_veils().Checks->busy(),
 			   "another PR waits for its own results");
 		page.present_observed_checks({ .ChecksComplete = false, .ChecksNote = "Check runs unavailable." });
+		page.present_loading_readiness({ .FirstRead = true, .Metadata = true, .Checks = true });
 		expect(!page.status_section(qt::overview_status_section::checks)->isHidden() && list->topLevelItemCount() == 0
 				   && page.findChild<QLabel*>(QStringLiteral("overviewChecksNote"))->text().contains(QStringLiteral("unavailable")),
 			   "unavailable results are explicit and never reuse the previous PR");
@@ -258,6 +263,7 @@ namespace {
 			   "local completion keeps final counts, disclosure and check selection");
 		page.clear();
 		page.present_loading();
+		page.present_loading_readiness({ .FirstRead = true });
 		// [[BPR-2180]]. My review stands in its place and waits; nothing of the
 		// previous review's progress is shown in it.
 		expect(!page.projection() && files->text().isEmpty() && page.pending_veils().MyReview->busy(), "replacement does not retain the previous review's progress");

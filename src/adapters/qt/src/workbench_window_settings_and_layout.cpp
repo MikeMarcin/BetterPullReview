@@ -1618,7 +1618,7 @@ namespace bpr::qt {
 	void workbench_window::update_status_text()
 	{
 		update_review_readiness();
-		StatusLabel->setText(status_line());
+		present_status_line();
 		update_home_status();
 		update_strip_positions();
 		update_rail_summaries();
@@ -1669,36 +1669,36 @@ namespace bpr::qt {
 		if (OverviewPage != nullptr) {
 			OverviewPage->set_read_waiting(read_stage_words());
 		}
+		// The line says what it waits for as the wait changes, not only when a
+		// workbench projection lands.
+		present_status_line();
+	}
+
+	void workbench_window::present_status_line()
+	{
+		if (StatusLabel == nullptr) {
+			return;
+		}
 		// [[BPR-2180]]. The line turns the loading pattern's mark the Updates
-		// line does while it says a load: the pull request's read, or its
-		// comparisons being prepared. The words keep the mark's place whether
-		// it turns or not, so they never move when a wait starts or ends. The
-		// line is made after the window's panes, so its mark is made here.
-		if (PendingPanes.Status == nullptr && StatusLabel != nullptr) {
+		// line does while it says a load, as `status_line` decides with its
+		// words. The words keep the mark's place whether it turns or not, so
+		// they never move when a wait starts or ends. The line is made after
+		// the window's panes, so its mark is made here.
+		if (PendingPanes.Status == nullptr) {
 			PendingPanes.Status = new pending_mark{ StatusLabel };
 			PendingPanes.Status->setObjectName(QStringLiteral("workbenchStatusPendingMark"));
 			PendingPanes.Status->setForegroundRole(QPalette::WindowText);
 			PendingPanes.Status->lead(*StatusLabel);
 			PendingPanes.Status->set_full_motion(pending_full_motion());
 		}
-		if (PendingPanes.Status != nullptr && StatusLabel != nullptr) {
-			// The line says what it waits for as the wait changes, not only
-			// when a workbench projection lands.
-			StatusLabel->setText(status_line());
-			const auto local     = showing_local_cycle() || (showing_local_draft() && LocalDraft != nullptr);
-			const auto reading   = SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request;
-			const auto epoch     = EpochSelectors != nullptr ? EpochSelectors->status() : core::epoch_status::inactive;
-			const auto preparing = HasEpochState
-				&& (epoch == core::epoch_status::loading_catalog || epoch == core::epoch_status::preparing || epoch == core::epoch_status::committing
-					|| epoch == core::epoch_status::resolving || epoch == core::epoch_status::maintaining);
-			const auto failed = SessionPanel != nullptr && SessionPanel->status() == core::github_status::pull_request_failed;
-			const auto waits  = !local && !showing_home() && !StatusLabel->text().isEmpty()
-				&& (reading || (!HasCachedOverview && !failed && HasGithubPullRequest && (!HasCommands || !Cursor) && preparing));
-			PendingPanes.Status->set_turning(waits);
+		const auto line = status_line();
+		if (StatusLabel->text() != line.Text) {
+			StatusLabel->setText(line.Text);
 		}
+		PendingPanes.Status->set_turning(line.Waits && !line.Text.isEmpty());
 	}
 
-	auto workbench_window::status_line() const -> QString
+	auto workbench_window::status_line() const -> status_line_words
 	{
 		// [[BPR-1157]]. A local cycle is not waiting for a pull request; the
 		// cycle page says what it is doing itself.
@@ -1708,9 +1708,12 @@ namespace bpr::qt {
 		// Mockup A: a local draft's line is the window's status bar, as a
 		// pull request's is: where you are, and what GitHub lacks.
 		if (showing_local_draft() && LocalDraft != nullptr) {
-			return local_draft_status();
+			return { .Text = local_draft_status() };
 		}
 		auto status = QString{ };
+		// [[BPR-2180]]. Whether the line leads with a load, decided by the
+		// same branch that chooses its words.
+		auto waits = false;
 		// [[BPR-0775]]. On Home the line is the session's, and never that no
 		// pull request is open: Home is what the window shows when none is. A
 		// host's own failure is still said after it.
@@ -1721,6 +1724,7 @@ namespace bpr::qt {
 		// the owner the product was broken and gave them nothing to do.
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
 			status = EpochSelectors->readiness_text();
+			waits  = true;
 		} else if (!home && HasCachedOverview) {
 			status = QStringLiteral("Cached review data; freshness unknown. Current review state is unavailable offline.");
 		} else if (!home && HasGithubPullRequest && SessionPanel->status() == core::github_status::pull_request_failed) {
@@ -1740,6 +1744,7 @@ namespace bpr::qt {
 					|| EpochSelectors->status() == core::epoch_status::committing
 					|| EpochSelectors->status() == core::epoch_status::resolving
 					|| EpochSelectors->status() == core::epoch_status::maintaining);
+			waits  = working;
 			status = working
 				? QStringLiteral(
 					  "This pull request is open. Its comparison is being prepared.")
@@ -1786,7 +1791,7 @@ namespace bpr::qt {
 			status.append(QStringLiteral(" %1").arg(agent_workspaces_problem_text()));
 		}
 		if (home) {
-			return status;
+			return { .Text = status, .Waits = waits };
 		}
 		if (LedgerUnavailable) {
 			status.append(QStringLiteral(" Private review progress is unavailable."));
@@ -1817,7 +1822,7 @@ namespace bpr::qt {
 				status.append(QStringLiteral(" %1").arg(epochs));
 			}
 		}
-		return status;
+		return { .Text = status, .Waits = waits };
 	}
 
 	void workbench_window::announce_update()

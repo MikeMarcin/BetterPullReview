@@ -706,6 +706,11 @@ namespace bpr::qt {
 		if (PendingReviewPath.isEmpty() || !HasGithubPullRequest || !showing_overview()) {
 			return;
 		}
+		// [[BPR-2180]]. Rows a read only reported cannot be opened yet: the
+		// review's own rows bring this back when they replace them.
+		if (!ProvisionalFiles.empty()) {
+			return;
+		}
 		if (file_for_path(PendingReviewPath).has_value()) {
 			const auto path = std::exchange(PendingReviewPath, QString{ });
 			enter_review_at(path);

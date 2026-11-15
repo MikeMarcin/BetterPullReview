@@ -7,6 +7,7 @@
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/draft_state.hpp"
+#include "bpr/core/github_window_read.hpp"
 #include "bpr/core/reviewer_request.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -595,9 +596,10 @@ namespace bpr::qt {
 		/// meanwhile is remembered (`pending_open`) for the window to open once
 		/// the review is accepted.
 		void present_observed_files(const std::vector<core::cached_review_file>& aFiles);
-		/// \brief [[BPR-2180]]. Whether the file list GitHub reported is shown
-		/// while the rest of the review still loads.
-		[[nodiscard]] auto observed_files() const noexcept -> bool;
+		/// \brief [[BPR-2180]]. What the first read has shown so far, part by
+		/// part, as the read's lane decided: the side column's sections each
+		/// wait on their own part.
+		void present_loading_readiness(const core::github_loading_readiness& aReadiness);
 		/// \brief [[BPR-1895]]. Show complete results while other Status data loads.
 		void               present_observed_checks(const application::overview_checks_projection& aChecks);
 		void               present_observed_people(const application::overview_people_projection& aPeople);
@@ -1053,7 +1055,9 @@ namespace bpr::qt {
 		bool        Observing     = false;
 		std::size_t ReportedFiles = 0U;
 		/// [[BPR-1842]]. The provisional file list is shown.
-		bool                                                   ObservedFiles = false;
+		bool ObservedFiles = false;
+		/// [[BPR-2180]]. The read lane's own account of the first read.
+		core::github_loading_readiness                         Readiness;
 		std::optional<application::overview_checks_projection> ObservedChecks;
 		std::optional<application::overview_people_projection> ObservedPeople;
 		std::optional<application::overview_merge_projection>  ObservedMerge;

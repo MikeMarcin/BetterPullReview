@@ -3378,7 +3378,13 @@ Where it applies:
 - **The Files drawer**: rows while the first read runs. [[BPR-2180]]: once
   the Overview lists the files GitHub reported, the drawer lists the same
   files by path, readable, and its plate says "Files open once the review has
-  loaded…"; the accepted review's rows replace them. **The Comments drawer
+  loaded…"; the accepted review's rows replace them. A file clicked among them
+  is remembered ("Opening a.cpp once the review has loaded…"), the comparison
+  pane waits for it at once in the shape of code, and it opens when the
+  review lists it. A read that ends with no review takes its reported files
+  back. Which parts a first read has shown is the read lane's decision
+  (`core::github_loading_readiness`), published by the read host; each pane
+  maps its own part. **The Comments drawer
   (and Discuss, which shows the same panel) and Threads**: thread cards while
   the first read runs ([[BPR-2180]]).
 - **The private tour**: stop cards under its head while it loads

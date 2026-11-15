@@ -502,6 +502,16 @@ namespace bpr::application {
 				if (aSnapshot != nullptr) {
 					presentation.PullRequest = project_accepted_snapshot(*aSnapshot);
 				}
+				// [[BPR-2180]]. What the first read has shown, part by part; and
+				// the files it reported withdrawn once that read is gone with no
+				// review to replace them (failed, cancelled or superseded).
+				presentation.Loading = Policy.loading_readiness();
+				if (ProvisionalFilesShown && !presentation.Loading->Files && aSnapshot == nullptr) {
+					ProvisionalFilesShown         = false;
+					presentation.ProvisionalFiles = std::vector<github_provisional_file>{ };
+				} else if (ProvisionalFilesShown && !presentation.Loading->FirstRead) {
+					ProvisionalFilesShown = false;
+				}
 				if (error && (error->RetryAfterSeconds || has_observations(error->RateLimits))) {
 					presentation.HostDiagnostics.push_back(project_github_host_diagnostic({
 						.Reason            = core::reason_for(mapped_failure(error->Failure)),
@@ -1128,7 +1138,20 @@ namespace bpr::application {
 				if (!admitted) {
 					return;
 				}
-				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, github_presentation_update{ .LoadingOverview = std::move(projection) } });
+				auto presentation = github_presentation_update{ .LoadingOverview = std::move(projection), .Loading = Policy.loading_readiness() };
+				// [[BPR-2180]]. The reported files are the window's file rows
+				// until the accepted review's replace them, each under the
+				// identity its path has in a comparison.
+				if (aObservation.Files && presentation.LoadingOverview->Files) {
+					auto files = std::vector<github_provisional_file>{ };
+					files.reserve(presentation.LoadingOverview->Files->size());
+					for (const auto& file : *presentation.LoadingOverview->Files) {
+						files.push_back({ .File = core::file_identity_of(file.Path), .Path = file.Path });
+					}
+					presentation.ProvisionalFiles = std::move(files);
+					ProvisionalFilesShown         = true;
+				}
+				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, std::move(presentation) });
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
 			}
@@ -2057,12 +2080,14 @@ namespace bpr::application {
 				return core::markdown_link_result::failed;
 			}
 		}
-		std::uint64_t                                     MarkdownRevision  = 0;
-		bool                                              MarkdownExhausted = false;
-		std::unordered_set<std::string>                   MarkdownBodies;
-		std::unique_ptr<markdown_image_window>            Images;
-		std::unique_ptr<identity_avatar_window>           Avatars;
-		bool                                              SuppressPublication = false;
+		std::uint64_t                           MarkdownRevision  = 0;
+		bool                                    MarkdownExhausted = false;
+		std::unordered_set<std::string>         MarkdownBodies;
+		std::unique_ptr<markdown_image_window>  Images;
+		std::unique_ptr<identity_avatar_window> Avatars;
+		bool                                    SuppressPublication = false;
+		/// [[BPR-2180]]. Whether the window lists a first read's reported files.
+		bool                                              ProvisionalFilesShown = false;
 		core::github_window_read                          Policy;
 		const core::github_state&                         State;
 		core::application_session_id                      DiagnosticWindowSession;

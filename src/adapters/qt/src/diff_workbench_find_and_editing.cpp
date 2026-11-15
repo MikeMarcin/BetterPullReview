@@ -1590,6 +1590,8 @@ namespace bpr::qt {
 		}
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext          = aContext;
+		// [[BPR-2180]]. The comparison is asked for now: no wait is held.
+		HeldWaitingPath.clear();
 		set_idle(false);
 		clear_projection(aPath.isEmpty() ? QStringLiteral("Loading selected file comparison…") : QStringLiteral("Loading %1…").arg(aPath));
 		WaitingPath    = std::move(aPath);
@@ -1645,6 +1647,8 @@ namespace bpr::qt {
 		WaitingPath    = std::move(aPath);
 		WaitingHistory = false;
 		WaitingFailure = aSentence;
+		// [[BPR-2180]]. The file cannot open: no wait is held for it.
+		HeldWaitingPath.clear();
 		apply_pending();
 		announce_accessible_status(std::move(aSentence));
 		if (!hadSelection) {
@@ -1657,8 +1661,28 @@ namespace bpr::qt {
 		return WaitingPath;
 	}
 
+	void diff_workbench::hold_waiting(QString aPath)
+	{
+		HeldWaitingPath = std::move(aPath);
+		if (!HeldWaitingPath.isEmpty()) {
+			set_waiting(HeldWaitingPath, true);
+		}
+	}
+
+	auto diff_workbench::held_waiting() const noexcept -> const QString&
+	{
+		return HeldWaitingPath;
+	}
+
 	void diff_workbench::clear(QString aStatus)
 	{
+		// [[BPR-2180]]. A file the reviewer asked for keeps its wait through a
+		// plain clear (a selection being replaced, a catalogue changing) until
+		// it is asked of the comparison; a reason the host gives still shows.
+		if (!HeldWaitingPath.isEmpty() && aStatus.isEmpty()) {
+			set_waiting(HeldWaitingPath, true);
+			return;
+		}
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
 		WaitingPath.clear();

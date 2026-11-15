@@ -148,3 +148,47 @@ separately in its own shape.
   from 2ab3d74bd, same fixture and delays as v001. The v001 session's host is
   stopped and its candidates released (its verdicts stay recorded above); the
   v001 root is removed.
+
+## AC08 verdicts, look v002
+
+Session `ab148169e2487a6d3fec30a40e58d336`, handed back at sequence 19
+(2026-11-15T06:23:48Z), both decisions by the human actor, frozen build of
+2ab3d74bd:
+
+- `BPR-2180-side-sections-v002`: Accept, no note
+  (be5e216a-f5d1-4224-82b8-49c60fed784a). AC03 is accepted.
+- `BPR-2180-review-files-v002`: Reject, "The irony is the initial thing I
+  asked you to replicate, the main diff file pane, no longer shows the
+  loading." (7bd9a238-c83a-4f0b-9d43-0992be9f6a62)
+
+The cause: v002 listed the reported files in the Files tree only. A click on
+one looked the file up in the drawer list, which never received them, so the
+click was dropped: no file was opened, and the comparison pane never said it
+was loading one ([[BPR-1871]]'s code veil). Before v002 the drawer was covered
+while the read ran, so nothing could be clicked. No course clicked a file in
+Review while a first read ran: `application_pending_states_public_path`
+checked only the drawer's rows and veil, and the comparison veil's courses
+(`qt_pending_veil`, `qt_diff_workbench`) drive the comparison alone.
+
+## v003
+
+- Architecture review N2: the read lane (`core::github_window_read`) decides
+  what a first read has shown, part by part (`github_loading_readiness`); the
+  read host publishes it with every transition and admitted observation, and
+  publishes the reported files as provisional file rows (identities minted in
+  the host), withdrawing them when a read ends with no review. Qt maps the
+  readiness to each pane's wait and shows the rows through the ordinary
+  file-row path.
+- A click on a reported file is remembered, said on the Files plate, and
+  opened once the review lists it; from the click on the comparison pane
+  waits for it in the shape of code.
+- Architecture review N6: `status_line()` returns its words and whether they
+  say a load, and one `present_status_line()` sets both.
+- Courses: `core_github_window_read` (readiness through open, observations,
+  failure and cancellation); `qt_pending_veil` (reported files are the
+  drawer's rows, a click is remembered and the comparison waits as code, a
+  read with no review withdraws them; the status mark agrees with its
+  words); `application_pending_states_public_path` (Overview then Review
+  under a read delay: the drawer lists the files uncovered, a click shows the
+  code veil without a gap until the file arrives, and a superseded read that
+  fails leaves only the shown review's files).

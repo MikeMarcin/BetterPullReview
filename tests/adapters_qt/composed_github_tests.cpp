@@ -7507,7 +7507,8 @@ namespace {
 		const auto  load = [&] {
 			publish_first_read(window);
 			expect(list->topLevelItemCount() == 0, "a replacement read clears earlier checks before its metadata");
-			window.publish(application::github_presentation_update{ .LoadingOverview = metadata });
+			// [[BPR-2180]]. The read lane's account of the read, as its host publishes it.
+			window.publish(application::github_presentation_update{ .LoadingOverview = metadata, .Loading = core::github_loading_readiness{ .FirstRead = true, .Metadata = true } });
 			auto results   = metadata;
 			results.Checks = checks;
 			window.publish(application::github_presentation_update{ .LoadingOverview = std::move(results) });
@@ -7556,7 +7557,7 @@ namespace {
 			load();
 			showSections();
 			window.publish(application::github_presentation_update{
-				.Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = status } } });
+				.Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = status } }, .Loading = core::github_loading_readiness{ } });
 			expect(list->topLevelItemCount() == 0 && !page->projection() && !page->has_observed_status()
 					   && page->status_section(qt::overview_status_section::people)->isHidden() && page->status_section(qt::overview_status_section::attention)->isHidden(),
 				   "failed and cancelled opens clear independent results");
