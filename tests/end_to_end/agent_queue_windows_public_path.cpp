@@ -163,10 +163,15 @@ namespace {
 		if (!aLabel.isEmpty() && card == nullptr) {
 			return false;
 		}
-		auto* const button = in->findChild<QPushButton*>(aName);
-		if (button == nullptr || !button->isVisibleTo(list)) {
+		// A row the list rebuilt waits for deletion beside its replacement:
+		// the shown one is pressed.
+		const auto buttons = in->findChildren<QPushButton*>(aName);
+		const auto shown   = std::ranges::find_if(buttons, [list](const QPushButton* aButton) { return aButton->isVisibleTo(list); });
+		if (shown == buttons.end()) {
+			std::cerr << "agent-queue-windows: " << buttons.size() << " " << aName.toStdString() << " buttons, none shown\n";
 			return false;
 		}
+		auto* const button = *shown;
 		button->click();
 		QApplication::processEvents();
 		return true;
