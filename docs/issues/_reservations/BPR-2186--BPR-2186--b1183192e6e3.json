@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2186"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Machine-wide build jobserver: dev builds share one token pool",
+  "created": "2026-11-15T06:34:55.894373+00:00",
+  "base": "a9b635fb0368a07cfa99a6e0b14533ad1eccf1c5"
+}
