@@ -208,7 +208,7 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 
 ## Proposed delivery
 
-[Optional configurations](../issues/10-backlog/BPR-2032-share-optional-workflow-configurations.md) and the
+[Optional configurations](../issues/60-done/BPR-2032-share-optional-workflow-configurations.md) and the
 [companion action contract](../issues/10-backlog/BPR-2033-provide-a-resumable-companion-action-contract.md) form a read-only milestone
 after local tour preparation; their acceptance covers preparation and needs
 neither publication nor an effectful action.
