@@ -4071,3 +4071,26 @@ and store the decided expansion on the queued input at the press so the
 release (and the runtime with no window, `review_agent_runtime::state`)
 sends it without deciding again. Then AC11. Card the three
 comparison-shown chat contract failures with the BPR-2191/BPR-2180 owner.
+
+## BPR-2181: AC13, AC11 done; main merged into the lane; card Done (2026-11-15, fifth round)
+
+| Commit | What |
+|---|---|
+| `0dcfce828` | AC13: `core::chat_prompt_facts`, `core::decide_chat_prompts`, `core::decide_quick_ask_prompt`; the composition decides the Agent tab's and tour chats' offers (`prompt_source`), widgets hold no macros or facts; `core::queued_input::Prompt` stored (new `prompt` column) and sent as decided at release, windowless for a pull-request question; pushes since review true on a force push; author-is-me gathered. AC11: restored tour feedback returns to the tour chat as not sent, queue resumed; truthful notice. Courses `application_agent_queue_tour_feedback_crash_public_path`, Ready to look again? steps in `application_ask_queue_public_path` |
+| `e25a153b9` | App manifest pin resealed |
+| `6183d8934` | Qt window tests install the prompt source; runtime test; Windows-uncontained pins for the queue and steer rows |
+| `06d04bf69` | Card evidence; system architecture paragraph |
+| `bdd492c64` | Merge main into the v0.5.0 lane (clean) |
+| `db204d4ae` | Queue windows course presses the shown control (finish-pauses flake) |
+| `252023163` | Pin resealed after the merge |
+| (this commit) | BPR-2181 Done |
+
+Verification (scratch worktree, serial, 187 rows): after the merge 183 of 187,
+then the pin resealed; left failing only BPR-2192's three. Documentation gate
+passes; `architecture_boundaries` passes. AC08 public path not added (every
+public-path fixture serves one pull request). Pre-existing failures outside
+this card, identical at `cb4fdcb7e`: `qt_keyboard_shortcuts_scale_*`,
+`qt_workbench_open_review_from_home_scale_*`, `qt_workbench_conversation_reveal`.
+
+Next action: none for BPR-2181. Mirror branch `claude/BPR-2181-main-mirror`
+holds the card move for main.
