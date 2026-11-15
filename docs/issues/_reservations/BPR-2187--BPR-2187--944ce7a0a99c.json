@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2187"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0127 follow-up to BPR-2183: the agent setup note, Explain this file note and finding promotion take Local identities from the store",
+  "created": "2026-11-15T06:41:19.621452+00:00",
+  "base": "0e56fe41a56e523e3d360e7d499e5c72becccd2c"
+}
