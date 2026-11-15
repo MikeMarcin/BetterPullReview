@@ -2978,15 +2978,7 @@ namespace bpr::qt {
 			auto* const count   = new QLabel{ QString::number(waiting), head };
 			count->setForegroundRole(QPalette::PlaceholderText);
 			heads->addWidget(count);
-			auto* const state = new QLabel{ aState, head };
-			state->setObjectName(QStringLiteral("agentQueueState"));
-			state->setForegroundRole(QPalette::PlaceholderText);
-			// Look prompts-v002 (owner: "the drawer is back to having a
-			// horizontal panning/scrolling"): words wrap, so no line in the
-			// list is ever wider than the drawer.
-			state->setWordWrap(true);
-			state->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-			heads->addWidget(state, 1, Qt::AlignRight);
+			heads->addStretch(1);
 			auto* const toggle = button(head, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
 			connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
 				if (aPaused && QueueDispatch.Resume) {
@@ -2997,6 +2989,18 @@ namespace bpr::qt {
 			});
 			heads->addWidget(toggle);
 			column->addWidget(head);
+			// Look prompts-v002 (owner: "the drawer is back to having a
+			// horizontal panning/scrolling"): the queue's state is a line of
+			// its own under the head and wraps, so nothing in the list is
+			// wider than the drawer.
+			if (!aState.isEmpty()) {
+				auto* const state = new QLabel{ aState, QueueList };
+				state->setObjectName(QStringLiteral("agentQueueState"));
+				state->setForegroundRole(QPalette::PlaceholderText);
+				state->setWordWrap(true);
+				state->setContentsMargins(2, 0, 0, 2);
+				column->addWidget(state);
+			}
 		}
 		const auto move = [this](const std::uint64_t aId, const int aBy) {
 			if (QueueDispatch.Move) {
