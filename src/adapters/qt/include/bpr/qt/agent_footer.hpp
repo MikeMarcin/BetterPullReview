@@ -98,8 +98,9 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0126 AC09: how many messages wait in any session's
 		/// queue; Stop all shows while one does or a turn runs.
 		void present_queued(std::size_t aQueued);
-		/// \brief Stop all, after it has stopped every run it shows: the window
-		/// pauses every queue, so nothing starts next.
+		/// \brief Stop all: the profile's host stops every session's runs and
+		/// pauses every queue (RFC-BPR-0126 AC15), then the footer stops each
+		/// run it shows that the host does not run.
 		void set_stop_all_dispatch(std::function<void()> aDispatch);
 		/// \brief How long a finished run's ending stays, in milliseconds.
 		void set_finished_hold(int aMilliseconds);

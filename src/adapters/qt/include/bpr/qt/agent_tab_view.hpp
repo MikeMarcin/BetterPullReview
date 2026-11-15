@@ -484,7 +484,10 @@ namespace bpr::qt {
 		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
 		/// \brief docs/design/report-card-v4: while a report's tab is active,
 		/// its card's row is selected; none clears it.
-		void mark_open_report(std::optional<std::size_t> aTurn);
+		void mark_open_report(std::optional<std::uint64_t> aTurn);
+		/// \brief [[BPR-2184]] (review N5). Where the turn with stable identity
+		/// `aTurn` is in the list now; none once it is gone.
+		[[nodiscard]] auto turn_of(std::uint64_t aTurn) const -> std::optional<std::size_t>;
 		/// \brief RFC-BPR-0128 with RFC-BPR-0126's queue. Told when the agent
 		/// may take more: setup finished, or a turn settled.
 		/// `aSettled` is true when a turn has just settled.
@@ -543,9 +546,25 @@ namespace bpr::qt {
 		using follow_up = std::function<bool(const QString& aText, bool aSteer)>;
 		void set_follow_up(follow_up aFollowUp) { FollowUp = std::move(aFollowUp); }
 		void set_follow_up_steer(bool aSteer);
+		/// \brief [[BPR-2181]] (AC05). A message the queue could not keep
+		/// comes back to the composer as typed, ahead of anything typed since,
+		/// and the refusal says why.
+		void return_unqueued(const QString& aText, const QString& aWhy);
+		/// \brief RFC-BPR-0126 AC03 ([[BPR-2181]]). What the tab did with a
+		/// released message, as its own control flow decided it: never read
+		/// from the refusal note, which an earlier send may have left.
+		enum class release_outcome : std::uint8_t {
+			/// Handed to the send action: whether a turn started is the
+			/// runtime's to say.
+			sent,
+			/// A slash command, answered with no turn.
+			answered,
+			/// Refused before the send action.
+			refused,
+		};
 		/// \brief A queued typed message released: sent as typed, bypassing
-		/// the follow-up. Empty when it went.
-		[[nodiscard]] auto send_released(const QString& aText) -> QString;
+		/// the follow-up.
+		[[nodiscard]] auto send_released(const QString& aText) -> release_outcome;
 		[[nodiscard]] auto queue_note() const noexcept -> QLabel* { return QueueNote; }
 		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
 		void               open_report(std::size_t aTurn);
@@ -866,8 +885,12 @@ namespace bpr::qt {
 			QPointer<QLabel>              AnsweredTime;
 			QDateTime                     AskedAt;
 			QDateTime                     AnsweredAt;
-			/// Names the answer's body, so its code is coloured as its own.
+			/// Names the answer's body, so its code is coloured as its own; the
+			/// turn's stable identity, which its report is keyed by.
 			std::uint64_t Serial = 0U;
+			/// [[BPR-2184]] (review N5). How it ended, as its footer first says
+			/// it: its report's byline, as data.
+			QString Ending;
 			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t    Note = 0U;
 			QPointer<QLabel> QuestionLabel;
@@ -1097,6 +1120,7 @@ namespace bpr::qt {
 		bool                                         QueueOccupied = false;
 		bool                                         Opposite      = false;
 		bool                                         Releasing     = false;
+		release_outcome                              Released      = release_outcome::refused;
 		std::optional<std::uint64_t>                 EditingQueued;
 		void                                         refresh_send_label();
 		std::optional<core::returning_operation>     SendingReturning;

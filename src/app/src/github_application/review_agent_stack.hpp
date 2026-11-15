@@ -96,7 +96,11 @@ namespace bpr::app {
 
 		/// \brief [[BPR-2181]]. The review's authority lent in this stack's own
 		/// name: its handoff goes to the stack's epoch host, and its lease gates
-		/// every turn. A new loan replaces the last.
+		/// every turn. A new loan replaces the last. [[BPR-2193]]: a loan of the
+		/// same revision lent while a turn runs (the window's comparison moved
+		/// on) waits for that turn's run to retire, since accepting it again
+		/// re-authorizes the epoch host's blobs and a workspace being made
+		/// under the old authorization would end stale.
 		void lend(application::lent_review_authority aLent, core::agent_revision_binding aFor);
 		/// \brief A live loan was lent for the window's review at `aBinding`.
 		[[nodiscard]] auto lent_for(const core::agent_revision_binding& aBinding) const -> bool;
@@ -131,6 +135,10 @@ namespace bpr::app {
 		void session_catalog(std::function<void(std::expected<application::agent_session_catalog_state, application::ledger_store_failure>)> aDone) override;
 
 	private:
+		[[nodiscard]] auto lent_revision_observed() const -> bool;
+		void               apply_loan(application::lent_review_authority aLent, core::agent_revision_binding aFor);
+		/// Applies a loan that waited for the running turn, once none runs.
+		void apply_waiting_loan();
 		struct epoch_observer;
 		struct receipt_sink;
 		review_agent_stack(core::application_session_id aSession, review_agent_stack_seed aSeed, const review_agent_stack_ports& aPorts, std::function<void()> aRetired, std::function<void()> aReady);
@@ -146,9 +154,11 @@ namespace bpr::app {
 		std::shared_ptr<bool>                       Alive = std::make_shared<bool>(true);
 		std::optional<core::agent_revision_binding> Observed;
 		std::optional<core::agent_revision_binding> LentFor;
-		bool                                        Closing           = false;
-		bool                                        ReviewHostsClosed = false;
-		application::lent_review_lease              Lease;
+		/// [[BPR-2193]]. A loan of the same revision lent while a turn ran.
+		std::optional<std::pair<application::lent_review_authority, core::agent_revision_binding>> WaitingLoan;
+		bool                                                                                       Closing           = false;
+		bool                                                                                       ReviewHostsClosed = false;
+		application::lent_review_lease                                                             Lease;
 		// Declared in dependency order: each is destroyed before what it holds.
 		std::unique_ptr<adapters::agent::agent_process_launcher> Launcher;
 	#if defined(BPR_BUILD_TESTING)

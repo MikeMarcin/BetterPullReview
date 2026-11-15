@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QFile>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMouseEvent>
 #include <QTemporaryDir>
 #include <QTextBlock>
@@ -85,8 +86,10 @@ try {
 	const auto markdown = QStringLiteral("# Was this addressed?\n\nOne thread. ![diagram](%1) <img src=\"%1\"> [file](%1)\n\n## Partly\n\n### The clamp\n\n`src/engine/renderer.cpp:12`\n\n"
 										 "The width is clamped. ![inline](%1)\n\n<img src=\"%1\" width=\"40\">\n\n- `src/a.cpp:3` A row with ![x](%1).\n")
 							  .arg(address);
-	view.present({ .Turn = 1U, .Title = QStringLiteral("Was this addressed?"), .Markdown = markdown, .Question = QStringLiteral("Was this addressed?"), .Byline = { } });
+	view.present({ .Turn = 1U, .Title = QStringLiteral("Was this addressed?"), .Markdown = markdown, .Question = QStringLiteral("Was this addressed?"), .Byline = { .Ending = QStringLiteral("Claude answered in 12s"), .When = QStringLiteral("just now"), .Head = QStringLiteral("abc1234") } });
 	QApplication::processEvents();
+	// [[BPR-2184]] (review N5): the byline is data, joined by the view.
+	expect(view.findChild<QLabel*>(QStringLiteral("agentReportByline"))->text().contains(QStringLiteral("Claude answered in 12s · just now · at abc1234")), "the byline is said from its parts");
 	expect(view.dressed_shown(), "the report is drawn as a page");
 	auto* const page   = view.dressed_view();
 	auto        images = 0;

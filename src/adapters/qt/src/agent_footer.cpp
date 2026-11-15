@@ -291,18 +291,20 @@ namespace bpr::qt {
 
 	void agent_footer::stop_all()
 	{
-		// Each run's own Stop, then the window pauses every queue.
+		// RFC-BPR-0126 AC15: the host stops every session's runs and pauses
+		// every queue first, so nothing starts next; then each run this
+		// window shows (a tour's, which its window runs) is stopped too.
 		auto stops = std::vector<std::function<void()>>{ };
 		for (const auto& each : Runs) {
 			if (each && each->Stop) {
 				stops.push_back(each->Stop);
 			}
 		}
-		for (const auto& stopping : stops) {
-			stopping();
-		}
 		if (StopAllDispatch) {
 			StopAllDispatch();
+		}
+		for (const auto& stopping : stops) {
+			stopping();
 		}
 	}
 

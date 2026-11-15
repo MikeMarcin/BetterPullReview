@@ -516,6 +516,33 @@ namespace bpr::adapters::sqlite {
 			return std::string{ reinterpret_cast<const char*>(bytes), static_cast<std::size_t>(size) };
 		}
 
+		/// [[BPR-2181]] (AC06). A queued message's threads, one per line in
+		/// the store's `thread` column (a thread identity holds no line break).
+		[[nodiscard]] auto split_threads(const std::string& aText) -> std::vector<std::string>
+		{
+			auto threads = std::vector<std::string>{ };
+			for (auto rest = std::string_view{ aText }; !rest.empty();) {
+				const auto end = rest.find('\n');
+				if (const auto thread = rest.substr(0U, end); !thread.empty()) {
+					threads.emplace_back(thread);
+				}
+				rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+			}
+			return threads;
+		}
+
+		[[nodiscard]] auto joined_threads(const std::vector<std::string>& aThreads) -> std::string
+		{
+			auto text = std::string{ };
+			for (const auto& thread : aThreads) {
+				if (!text.empty()) {
+					text += '\n';
+				}
+				text += thread;
+			}
+			return text;
+		}
+
 		/// The most repository links one profile keeps.
 		constexpr std::int64_t maximum_repository_links = 1'000;
 
@@ -3183,7 +3210,7 @@ namespace bpr::adapters::sqlite {
 							.QuickAsk = column_text(entries->Value, 2).value_or(std::string{ }),
 							.Scope    = column_text(entries->Value, 3).value_or(std::string{ }),
 							.File     = column_text(entries->Value, 4).value_or(std::string{ }),
-							.Thread   = column_text(entries->Value, 5).value_or(std::string{ }),
+							.Threads  = split_threads(column_text(entries->Value, 5).value_or(std::string{ })),
 							.Label    = column_text(entries->Value, 6).value_or(std::string{ }),
 							.Text     = column_text(entries->Value, 7).value_or(std::string{ }),
 						};
@@ -3244,7 +3271,7 @@ namespace bpr::adapters::sqlite {
 							bind_text(row->Value, 4, entry.Input.QuickAsk);
 							bind_text(row->Value, 5, entry.Input.Scope);
 							bind_text(row->Value, 6, entry.Input.File);
-							bind_text(row->Value, 7, entry.Input.Thread);
+							bind_text(row->Value, 7, joined_threads(entry.Input.Threads));
 							bind_text(row->Value, 8, entry.Input.Label);
 							bind_text(row->Value, 9, entry.Input.Text);
 							bind_text(row->Value, 10, std::string{ core::stable_name(entry.State) });

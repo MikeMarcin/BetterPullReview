@@ -3755,8 +3755,21 @@ function(bpr_verify_app_source_tree app_source_root)
 	# epoch actors after its runtimes, usage-limit words, and fixture
 	# evidence. No review mutation or publication path changed; the
 	# mutation-branch pin is unchanged. Reviewed on BPR-2181.
+	# BPR-2181 fourth-round reseal (with BPR-2193 and BPR-2184 N4/N5): a
+	# queued release answers a typed admission keyed by the runtime's run
+	# (release_queued, the explain read and continuation realignment settle
+	# an awaiting release), the tour feedback's release says its admission,
+	# a message the queue store refused returns to the composer, sessions and
+	# an ask's threads are typed in core, Stop all is the runtimes', Q6's
+	# baseline comes from core in the Ask menus' facts, reports are keyed by
+	# the turn's identity, and the runtime's stack runs a turn only once it
+	# observed what was lent and holds a same-revision loan while a turn runs.
+	# The digest also covers 1eab5b868 and 8449ca67f (BPR-2191, BPR-2180: the
+	# workbench host holds a file asked for while its review loads), which
+	# landed beside it unsealed. No review mutation or publication path
+	# changed; the mutation-branch pin is unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "6773682b962648dfb29ec40f265d15fd9ac8b9efcfb027105e92f8ab9b7b3d82"
+        "b30f85bb1b46145c08cb79c8ce106adb417755b21f072a33ccf879bc645936c8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

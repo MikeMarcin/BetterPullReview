@@ -381,11 +381,12 @@ namespace {
 		const auto presenter = runtime->attach({
 			.Projection = &window,
 			.Release =
-				[&](const core::queued_entry& aEntry) {
+				[&](const core::queued_entry& aEntry, std::uint64_t) {
 					asked.push_back(aEntry.Input.Label);
 					auto request                = review_snapshot().Request;
 					request.Context.ChatMessage = "expanded: " + aEntry.Input.Label;
-					return runtime->dispatch(std::move(request));
+					static_cast<void>(runtime->dispatch(std::move(request)));
+					return application::queued_admission_kind::refused;
 				},
 		});
 		static_cast<void>(app.Queue.enqueue(session, core::queued_input{ .QuickAsk = "what-changed", .Scope = "pull-request", .Label = "What changed?" }));
@@ -459,10 +460,161 @@ namespace {
 		machinery.answer("two answered");
 		app.Lane.drain();
 	}
+	/// RFC-BPR-0126 AC03 and AC12 ([[BPR-2181]]). A release's admission is
+	/// keyed by its run and never read from a window's words. A queued
+	/// Explain this file whose material read is refused on a later pass, and
+	/// a slash command answered with no turn, leave nothing sending; the
+	/// awaited turn, once sent, takes the release's run and its retirement
+	/// settles it; a window closing while a release awaits its turn returns
+	/// it; and Resume after a stale refusal note sends the message once.
+	void test_release_admission_keyed_by_run()
+	{
+		auto       app       = profile{ };
+		const auto session   = std::string{ "agent-tab:github.com/o/r#12" };
+		auto*      runtime   = app.Runtimes->open(session);
+		auto&      machinery = app.Machinery[session];
+		runtime->adopt(review_snapshot());
+		auto window = shown_turns{ };
+		// The window's release: an explain awaits its material, a slash
+		// command is answered, a typed message is sent at once.
+		auto       awaited   = std::optional<std::uint64_t>{ };
+		const auto presenter = runtime->attach({
+			.Projection = &window,
+			.Release =
+				[&](const core::queued_entry& aEntry, const std::uint64_t aRun) {
+					if (aEntry.Input.QuickAsk == "explain-file") {
+						awaited = aRun;
+						return application::queued_admission_kind::awaiting;
+					}
+					if (aEntry.Input.Text.starts_with('/')) {
+						return application::queued_admission_kind::answered;
+					}
+					auto request                = review_snapshot().Request;
+					request.Context.ChatMessage = aEntry.Input.Text;
+					static_cast<void>(runtime->dispatch(std::move(request)));
+					// A stale note from an earlier refused send says
+					// nothing about this one: the runtime saw the turn.
+					return application::queued_admission_kind::refused;
+				},
+		});
+		const auto explain   = core::queued_input{ .QuickAsk = "explain-file", .Scope = "file", .File = "a.cpp", .Label = "Explain a.cpp" };
+
+		// A refused material read: back first, paused, not sending.
+		static_cast<void>(app.Queue.enqueue(session, explain));
+		expect(awaited.has_value() && app.Queue.sending(session) && runtime->state(nullptr) == core::queue_agent::busy, "an awaiting release holds the session");
+		runtime->refuse_release(*awaited + 1U);
+		expect(app.Queue.sending(session).has_value(), "a refusal of another run settles nothing");
+		runtime->refuse_release(*awaited);
+		app.Lane.drain();
+		expect(!app.Queue.sending(session) && app.Queue.queue(session)->Paused == core::queue_pause::failed && app.Queue.queue(session)->Entries.size() == 1U
+				   && app.Queue.queue(session)->Entries.front().State == core::queued_state::queued && machinery.Requests.empty(),
+			   "a refused material read leaves the message queued, paused, never sending");
+
+		// Resumed, the read succeeds this time: the turn sent on the later
+		// pass takes the release's run, and its retirement settles it.
+		expect(app.Queue.resume(session) == core::queue_refusal::none && app.Queue.sending(session), "resumed, it awaits again");
+		auto later                = review_snapshot().Request;
+		later.Context.ChatMessage = "Explain a.cpp";
+		expect(runtime->dispatch(later) && runtime->last_run() == *awaited, "the awaited turn takes the release's run");
+		machinery.answer("explained");
+		app.Lane.drain();
+		expect(!app.Queue.sending(session) && app.Queue.queue(session)->Entries.empty() && app.Queue.queue(session)->Paused == core::queue_pause::none, "its run's retirement settles it");
+
+		// A slash command is answered with no turn, and the queue goes on.
+		static_cast<void>(app.Queue.enqueue(session, typed("/model opus")));
+		app.Lane.drain();
+		expect(app.Queue.queue(session)->Entries.empty() && !app.Queue.sending(session) && machinery.Requests.size() == 1U, "a slash command never stays sending");
+
+		// Resume after a stale note sends once.
+		app.Queue.pause(session, core::queue_pause::reviewer);
+		static_cast<void>(app.Queue.enqueue(session, typed("once")));
+		const auto seen = app.Queue.queue(session)->Revision;
+		expect(app.Queue.resume(session, seen) == core::queue_refusal::none && machinery.Requests.size() == 2U && machinery.Requests.back().Context.ChatMessage == "once",
+			   "Resume sends the message, though the window's words said refused");
+		expect(app.Queue.resume(session, seen) == core::queue_refusal::stale && app.Queue.resume(session) == core::queue_refusal::none && machinery.Requests.size() == 2U,
+			   "a second Resume sends nothing more");
+		machinery.answer("once answered");
+		app.Lane.drain();
+		expect(app.Queue.queue(session)->Entries.empty() && app.Queue.queue(session)->Paused == core::queue_pause::none && machinery.Requests.size() == 2U, "it went once and settled");
+
+		// The window closes while a release awaits its turn: it goes back.
+		static_cast<void>(app.Queue.enqueue(session, explain));
+		expect(app.Queue.sending(session).has_value(), "awaiting again");
+		app.Runtimes->detach(session, presenter);
+		app.Lane.drain();
+		expect(!app.Queue.sending(session) && app.Queue.queue(session)->Entries.size() == 1U && app.Queue.queue(session)->Entries.front().State == core::queued_state::queued,
+			   "a release whose window closed before its turn went is queued again");
+	}
+	/// RFC-BPR-0126 AC15 ([[BPR-2181]]). Stop all is the host's, across the
+	/// profile: a turn no window shows and one a window shows both stop,
+	/// every queue pauses as stopped, and nothing starts next.
+	void test_stop_all_is_the_hosts()
+	{
+		auto       app    = profile{ };
+		const auto unseen = std::string{ "agent-tab:github.com/o/r#13" };
+		const auto shown  = std::string{ "agent-tab:github.com/o/r#14" };
+		for (const auto& session : { unseen, shown }) {
+			app.Runtimes->open(session)->adopt(review_snapshot());
+			static_cast<void>(app.Queue.enqueue(session, typed("running")));
+			static_cast<void>(app.Queue.enqueue(session, typed("waiting")));
+		}
+		auto window = shown_turns{ };
+		static_cast<void>(app.Runtimes->find(shown)->attach({ .Projection = &window }));
+		expect(app.Machinery[unseen].Requests.size() == 1U && app.Machinery[shown].Requests.size() == 1U, "each session runs its first message");
+		app.Runtimes->stop_all();
+		expect(app.Machinery[unseen].Cancels == 1U && app.Machinery[shown].Cancels == 1U, "every session's turn is stopped, shown or not");
+		app.Machinery[unseen].answer("cut", application::agent_run_outcome::cancelled);
+		app.Machinery[shown].answer("cut", application::agent_run_outcome::cancelled);
+		app.Lane.drain();
+		for (const auto& session : { unseen, shown }) {
+			expect(app.Queue.queue(session)->Paused == core::queue_pause::stopped && app.Queue.queue(session)->Entries.size() == 1U && app.Machinery[session].Requests.size() == 1U,
+				   "every queue pauses as stopped and nothing starts next");
+		}
+	}
+	/// RFC-BPR-0126 AC08 ([[BPR-2181]]). A window switches pull request in
+	/// the middle of a released turn: it detaches from the old session and
+	/// presents the new one. The old session's Sending message settles from
+	/// its own run's retirement, per session, and the new session runs
+	/// beside it; neither waits on the window.
+	void test_a_pull_request_switch_mid_turn_settles_per_session()
+	{
+		auto       app    = profile{ };
+		const auto before = std::string{ "agent-tab:github.com/o/r#15" };
+		const auto after  = std::string{ "agent-tab:github.com/o/r#16" };
+		auto*      old    = app.Runtimes->open(before);
+		old->adopt(review_snapshot());
+		auto       window    = shown_turns{ };
+		const auto presenter = old->attach({ .Projection = &window });
+		static_cast<void>(app.Queue.enqueue(before, typed("first")));
+		static_cast<void>(app.Queue.enqueue(before, typed("second")));
+		expect(app.Queue.sending(before).has_value() && app.Machinery[before].Requests.size() == 1U, "the first message runs");
+		// The switch: the window leaves the old session for the new one.
+		app.Runtimes->detach(before, presenter);
+		auto* next = app.Runtimes->open(after);
+		next->adopt(review_snapshot());
+		static_cast<void>(next->attach({ .Projection = &window }));
+		static_cast<void>(app.Queue.enqueue(after, typed("elsewhere")));
+		app.Lane.drain();
+		expect(app.Machinery[before].Cancels == 0U && app.Runtimes->find(before) != nullptr && app.Machinery[after].Requests.size() == 1U,
+			   "the old turn goes on untouched and the new session runs beside it");
+		app.Machinery[before].answer("first answered");
+		app.Lane.drain();
+		expect(app.Queue.queue(before)->Entries.size() == 1U && app.Queue.sending(before).has_value() && app.Machinery[before].Requests.back().Context.ChatMessage == "second",
+			   "its retirement settles the old session's message and its next goes, with no window");
+		app.Machinery[before].answer("second answered");
+		app.Machinery[after].answer("elsewhere answered");
+		app.Lane.drain();
+		expect(app.Queue.queue(before)->Entries.empty() && app.Queue.queue(after)->Entries.empty() && !app.Queue.sending(before) && !app.Queue.sending(after),
+			   "each session settles from its own run");
+		expect(app.Runtimes->find(before) != nullptr && app.Runtimes->find(before)->unshown_turns().size() == 2U, "the old session keeps both turns no window saw end");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_a_pull_request_switch_mid_turn_settles_per_session();
+	test_stop_all_is_the_hosts();
+	test_release_admission_keyed_by_run();
 	test_zero_windows_drain_and_keep_the_transcript();
 	test_unshown_turns_are_written_to_the_conversation();
 	test_a_run_finish_pauses_the_queue_with_its_reason();

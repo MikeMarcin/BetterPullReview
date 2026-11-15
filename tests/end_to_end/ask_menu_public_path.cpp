@@ -791,6 +791,11 @@ auto main(int argc, char** argv) -> int
 				   "the title is said once in the pane (defect 5)");
 			auto* const byline = report->findChild<QLabel*>(QStringLiteral("agentReportByline"));
 			expect(byline != nullptr && byline->text().contains(QStringLiteral("What changed since my review")), "the question under the title");
+			// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
+			// byline handed over as data.
+			expect(report->document().Turn != 0U && tab->turn_of(report->document().Turn).has_value() && !report->document().Byline.Ending.isEmpty()
+					   && byline->text().contains(report->document().Byline.Ending.toHtmlEscaped()),
+				   "the report names its turn by identity, and its byline is the turn's own ending: " + byline->text().toStdString());
 			expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
 			auto* const menuButton = report->menu_button();
 			expect(menuButton != nullptr && menuButton->isVisible() && menuButton->accessibleName() == QStringLiteral("Report menu") && menuButton->width() == 32 && menuButton->height() == 28,

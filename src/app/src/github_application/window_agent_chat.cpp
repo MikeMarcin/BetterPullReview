@@ -979,6 +979,8 @@ namespace bpr::app {
 		}
 		LastContinuationRealignment = "pending";
 		ContinuationRealignmentStop = stop;
+		// AC03: a released message's turn is sent once the alignment answers.
+		note_release_deferred();
 		// The wall-clock bound, armed on the gesture and disarmed by the
 		// completion resetting the handle it compares against. A timer
 		// that arrives after its own turn finished belongs to no request
@@ -1079,6 +1081,7 @@ namespace bpr::app {
 			aTurn.ExistingCheckoutChosen,
 			aTurn.Session,
 			std::move(aOutcome.Files)));
+		settle_pending_release();
 	}
 
 	/// \brief The frozen alignment facts one invocation is answered against.

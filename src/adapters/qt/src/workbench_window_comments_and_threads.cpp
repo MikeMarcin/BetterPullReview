@@ -1299,6 +1299,15 @@ namespace bpr::qt {
 
 	void workbench_window::publish(const application::document_tabs_projection& aProjection)
 	{
+		// [[BPR-2184]] (review N5). A report whose tab closed is dropped: one
+		// the last projection showed and this one does not. A report just
+		// opened, its tab not yet shown, stays.
+		if (TabsProjection) {
+			const auto has = [](const application::document_tabs_projection& aTabs, const std::string& aKey) {
+				return std::ranges::any_of(aTabs.Tabs, [&aKey](const auto& aTab) { return aTab.Report == aKey; });
+			};
+			std::erase_if(Reports, [&](const auto& aReport) { return has(*TabsProjection, aReport.first) && !has(aProjection, aReport.first); });
+		}
 		TabsProjection = aProjection;
 		update_go_to_line_action();
 		present_document_tabs();

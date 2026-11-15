@@ -1840,8 +1840,9 @@ namespace bpr::app {
 	/// on this pull request.
 	auto github_application::implementation::tour_queue_key() const -> std::string
 	{
-		const auto session = ask_session_key();
-		return session.empty() ? std::string{ } : "tour-feedback:" + session.substr(session.find(':') + 1U);
+		// AC06: the same pull request's session, of the tour-feedback kind.
+		const auto session = core::parse_session_key(ask_session_key());
+		return session ? core::session_key(core::with_kind(*session, core::queued_session_kind::tour_feedback)) : std::string{ };
 	}
 
 	/// The tour conversation takes its next turn only after Draft the tour
@@ -1858,10 +1859,10 @@ namespace bpr::app {
 	/// The feedback goes as the whole-tour conversation's next turn, with the
 	/// draft's answer as the Ask more seed and its proposal in the request,
 	/// so it revises that draft (Q1).
-	auto github_application::implementation::release_tour_feedback(const core::queued_entry& aEntry) -> bool
+	auto github_application::implementation::release_tour_feedback(const core::queued_entry& aEntry) -> application::queued_admission
 	{
 		if (Closing || Window == nullptr) {
-			return false;
+			return { };
 		}
 		TourFeedbackQueued = false;
 		TourAgent.Waiting.reset();
@@ -1870,16 +1871,12 @@ namespace bpr::app {
 		request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(aEntry.Input.Text), false);
 		if (!TourAskPending) {
 			// It could not run: the tour chat holds it as a turn that says
-			// why, with the feedback as written, so it settles once the
-			// runner has recorded the start.
+			// why, with the feedback as written, so it was answered.
 			TourQueueSending = false;
-			QTimer::singleShot(0, Window->tour_editor(), [this, key = tour_queue_key()] {
-				if (!Closing && AgentRuntime) {
-					AgentRunner.retired(*AgentRuntime, key, core::queued_finish::went);
-				}
-			});
+			return { .Kind = application::queued_admission_kind::answered };
 		}
-		return true;
+		// AC03: the turn's own retirement settles it, as this run.
+		return { .Kind = application::queued_admission_kind::started, .Run = ++TourQueueRun };
 	}
 
 	/// Releases the feedback once this window's draft has really ended. A
@@ -1914,7 +1911,7 @@ namespace bpr::app {
 			return;
 		}
 		if (std::exchange(TourQueueAnswered, false) && std::exchange(TourQueueSending, false)) {
-			AgentRunner.retired(*AgentRuntime, key, core::queued_finish::went);
+			AgentRunner.retired(*AgentRuntime, key, TourQueueRun, core::queued_finish::went);
 			return;
 		}
 		drain_tour_queue();

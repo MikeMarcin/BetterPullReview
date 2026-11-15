@@ -9,6 +9,7 @@
 #include <QWidget>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <vector>
@@ -26,13 +27,30 @@ namespace bpr::qt {
 	/// \brief What an opened report shows: the turn it came from, its title,
 	/// its Markdown (references already links), the question it answers and
 	/// who answered, when and at which head.
+	/// \brief [[BPR-2184]] (review N5). The line under a report's title, as
+	/// data: how its turn ended, when, and the head it was asked at.
+	struct agent_report_byline
+	{
+		/// How the turn ended, as its footer first says it ("Claude answered
+		/// in 12s").
+		QString Ending;
+		/// When it answered, as the tab says it.
+		QString When;
+		/// The head it was asked at, short.
+		QString Head;
+
+		auto operator==(const agent_report_byline&) const -> bool = default;
+	};
+
 	struct agent_report_document
 	{
-		std::size_t Turn = 0U;
-		QString     Title;
-		QString     Markdown;
-		QString     Question;
-		QString     Byline;
+		/// [[BPR-2184]] (review N5). The turn's stable identity in its Agent
+		/// tab, which a report is keyed by: never its place in the list.
+		std::uint64_t       Turn = 0U;
+		QString             Title;
+		QString             Markdown;
+		QString             Question;
+		agent_report_byline Byline;
 	};
 
 	/// \brief RFC-BPR-0128 ([[BPR-2166]], owner Q8: "file tab is more
@@ -69,7 +87,7 @@ namespace bpr::qt {
 		void set_dresser(std::function<void(markdown_body_view&)> aDresser);
 		/// \brief The question under the title, and Show in conversation: the
 		/// Agent tab at the report's turn.
-		void set_conversation_dispatch(std::function<void(std::size_t aTurn)> aDispatch);
+		void set_conversation_dispatch(std::function<void(std::uint64_t aTurn)> aDispatch);
 		/// \brief Scrolls so section `aIndex` of the menu (0: Summary, the
 		/// top) is at the top of the pane.
 		void go_to_heading(int aIndex);
@@ -157,7 +175,7 @@ namespace bpr::qt {
 		QListWidget*                             Sections   = nullptr;
 		std::function<void(const QString&)>      LinkDispatch;
 		std::function<void(markdown_body_view&)> Dresser;
-		std::function<void(std::size_t)>         ConversationDispatch;
+		std::function<void(std::uint64_t)>       ConversationDispatch;
 	};
 } // namespace bpr::qt
 

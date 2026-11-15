@@ -8,8 +8,10 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 /// \file
 /// \brief RFC-BPR-0126 ([[BPR-2151]], [[BPR-2181]]). The session queue host:
@@ -33,6 +35,33 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto store(const std::string& aSession, const core::agent_queue& aQueue) -> bool = 0;
 	};
 
+	/// \brief RFC-BPR-0126 AC03 ([[BPR-2181]]). How a released message was
+	/// taken. No window's words are read as the verdict: it is what the
+	/// runtime saw.
+	enum class queued_admission_kind : std::uint8_t {
+		/// Its run started: that run's retirement settles it.
+		started,
+		/// Its run starts on a later pass (its material is read first): that
+		/// run's retirement, or a typed refusal for the same run, settles it.
+		awaiting,
+		/// Answered with no run (a slash command): it went.
+		answered,
+		/// Nothing started: it goes back first and the queue pauses.
+		refused,
+	};
+	[[nodiscard]] auto stable_name(queued_admission_kind aKind) noexcept -> std::string_view;
+
+	/// \brief A release's admission, keyed by the run it was admitted as.
+	struct queued_admission
+	{
+		queued_admission_kind Kind = queued_admission_kind::refused;
+		/// The runtime's run identity; only that run's retirement or refusal
+		/// settles the message. Zero when nothing was admitted.
+		std::uint64_t Run = 0U;
+
+		auto operator<=>(const queued_admission&) const = default;
+	};
+
 	/// \brief Runs a session's turns: the agent runtime behind the queue.
 	/// The runner tells the host `agent_changed` when what the session's
 	/// agent can take changes, and `retired` when the run of a turn the host
@@ -44,8 +73,9 @@ namespace bpr::application {
 		/// \brief What the session's agent can take now. `busy` while a turn
 		/// of the session runs or its run has not retired.
 		[[nodiscard]] virtual auto state(const std::string& aSession) -> core::queue_agent = 0;
-		/// \brief Starts one released message's turn; whether it started.
-		[[nodiscard]] virtual auto start(const std::string& aSession, const core::queued_entry& aEntry) -> bool = 0;
+		/// \brief Starts one released message's turn, and says how it was
+		/// admitted (AC03).
+		[[nodiscard]] virtual auto start(const std::string& aSession, const core::queued_entry& aEntry) -> queued_admission = 0;
 		/// \brief RFC-BPR-0126 AC05 ([[BPR-2153]]). Gives the message to the
 		/// session's running turn. None when it was sent; otherwise why not,
 		/// in the words the Agent tab shows.
@@ -61,6 +91,10 @@ namespace bpr::application {
 		/// Messages waiting across every session (RFC-BPR-0126 AC09: Stop all
 		/// shows while any waits).
 		std::function<void(std::size_t aWaiting)> Waiting;
+		/// [[BPR-2181]] (AC05). The store refused to keep a message just
+		/// queued: it left the queue and is handed back as it was asked, so
+		/// the window that queued it can return it to its composer. Optional.
+		std::function<void(const std::string& aSession, const core::queued_input& aInput)> Unsaved;
 	};
 
 	struct agent_queue_dependencies
@@ -73,6 +107,10 @@ namespace bpr::application {
 		/// on, off the decision lane, each with the queue as it was committed.
 		/// Without one they run where the queue changed.
 		effect_executor* Effects = nullptr;
+		/// [[BPR-2181]] (AC05). Where a write the store refused on `Effects`
+		/// comes back to: a message it was queuing leaves the queue and is
+		/// handed back (`agent_queue_subscriber::Unsaved`). Optional.
+		decision_executor* DecisionLane = nullptr;
 	};
 
 	/// \brief What Steer did with a queued message.
@@ -91,6 +129,9 @@ namespace bpr::application {
 	{
 	public:
 		explicit agent_queue_host(agent_queue_dependencies aDependencies);
+		~agent_queue_host();
+		agent_queue_host(const agent_queue_host&)                    = delete;
+		auto operator=(const agent_queue_host&) -> agent_queue_host& = delete;
 
 		/// \brief Reads the stored queues, which open paused.
 		void load();
@@ -98,6 +139,9 @@ namespace bpr::application {
 		// Commands. `aSeen` is the revision the window last showed: an edit
 		// made from an older one is refused (another window changed the
 		// queue first). None is the current revision.
+		/// \brief Queues `aInput`. A store write refused while it runs here is
+		/// `not_saved` and nothing was queued; one refused on the effect lane
+		/// comes back as `agent_queue_subscriber::Unsaved` (AC05).
 		[[nodiscard]] auto enqueue(const std::string& aSession, core::queued_input aInput) -> core::queue_refusal;
 		[[nodiscard]] auto withdraw(const std::string& aSession, std::uint64_t aId, std::optional<std::uint64_t> aSeen = std::nullopt) -> core::queue_refusal;
 		[[nodiscard]] auto reorder(const std::string& aSession, std::uint64_t aId, int aBy, std::optional<std::uint64_t> aSeen = std::nullopt) -> core::queue_refusal;
@@ -144,7 +188,12 @@ namespace bpr::application {
 		[[nodiscard]] auto queued_count() const -> std::size_t;
 
 	private:
-		void commit(const std::string& aSession);
+		/// Writes and shows the session's queue. `aAdded`: the entry this
+		/// change queued, which leaves again if the store refuses it. Whether
+		/// a write that ran here was kept.
+		auto commit(const std::string& aSession, std::optional<std::uint64_t> aAdded = std::nullopt) -> bool;
+		void unsaved(const std::string& aSession, std::uint64_t aAdded);
+		void notify_waiting();
 		void drain(const std::string& aSession);
 
 		agent_queue_dependencies                        Dependencies;
@@ -153,6 +202,8 @@ namespace bpr::application {
 		std::map<std::uint64_t, agent_queue_subscriber> Subscribers;
 		std::uint64_t                                   LastSubscriber = 0U;
 		bool                                            Draining       = false;
+		/// Lets a refused write's verdict know the host is gone.
+		std::shared_ptr<bool> Alive = std::make_shared<bool>(true);
 	};
 } // namespace bpr::application
 

@@ -20,10 +20,11 @@ namespace bpr::application {
 	/// \brief One agent runtime: the sessions it runs and how.
 	struct agent_session_runtime
 	{
-		std::function<bool(const std::string& aSession)>                                         Runs;
-		std::function<core::queue_agent(const std::string& aSession)>                            State;
-		std::function<bool(const std::string& aSession, const core::queued_entry& aEntry)>       Start;
-		std::function<std::optional<std::string>(const std::string&, const core::queued_entry&)> Steer;
+		std::function<bool(const std::string& aSession)>              Runs;
+		std::function<core::queue_agent(const std::string& aSession)> State;
+		/// How the release was admitted, keyed by the run it was admitted as.
+		std::function<queued_admission(const std::string& aSession, const core::queued_entry& aEntry)> Start;
+		std::function<std::optional<std::string>(const std::string&, const core::queued_entry&)>       Steer;
 	};
 
 	class agent_session_runner final : public agent_turn_runner_port
@@ -35,9 +36,11 @@ namespace bpr::application {
 		/// stays this session's until its run retires (`retired`): nothing
 		/// else starts meanwhile.
 		void withdraw(std::uint64_t aRuntime);
-		/// \brief The run of the turn `aRuntime` started for `aSession`
-		/// retired and ended as `aFinish`.
-		void retired(std::uint64_t aRuntime, const std::string& aSession, core::queued_finish aFinish);
+		/// \brief The run `aRun` of the turn `aRuntime` started for `aSession`
+		/// retired and ended as `aFinish`. Only the run the release was
+		/// admitted as settles it (AC03): another run's retirement, a turn the
+		/// window sent directly, is not this message's.
+		void retired(std::uint64_t aRuntime, const std::string& aSession, std::uint64_t aRun, core::queued_finish aFinish);
 		/// \brief As `retired`, for a run that never took its message.
 		void               returned(std::uint64_t aRuntime, const std::string& aSession);
 		[[nodiscard]] auto running(const std::string& aSession) const -> std::optional<std::uint64_t>;
@@ -45,14 +48,21 @@ namespace bpr::application {
 		[[nodiscard]] auto running_on(std::uint64_t aRuntime) const -> std::vector<std::string>;
 
 		[[nodiscard]] auto state(const std::string& aSession) -> core::queue_agent override;
-		[[nodiscard]] auto start(const std::string& aSession, const core::queued_entry& aEntry) -> bool override;
+		[[nodiscard]] auto start(const std::string& aSession, const core::queued_entry& aEntry) -> queued_admission override;
 		[[nodiscard]] auto steer(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> override;
 
 	private:
 		agent_queue_host*                              Host = nullptr;
 		std::map<std::uint64_t, agent_session_runtime> Runtimes;
-		std::map<std::string, std::uint64_t>           Running;
-		std::uint64_t                                  LastRuntime = 0U;
+		struct running_release
+		{
+			std::uint64_t Runtime = 0U;
+			/// Zero until its admission names it: a run that retires inside
+			/// its own start settles it.
+			std::uint64_t Run = 0U;
+		};
+		std::map<std::string, running_release> Running;
+		std::uint64_t                          LastRuntime = 0U;
 	};
 } // namespace bpr::application
 

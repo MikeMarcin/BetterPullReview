@@ -49,7 +49,11 @@ namespace bpr::core {
 		std::string Scope;
 		/// The subject captured at the press; never retargeted.
 		std::string File;
-		std::string Thread;
+		/// [[BPR-2181]] (AC06). The review threads it carries, in the order
+		/// the press named them: one for a thread's ask or a message asked in
+		/// a thread's conversation, several for a wider scope's Was this
+		/// addressed?.
+		std::vector<std::string> Threads;
 		/// What the entry says in the queue (the quick ask's label, or the
 		/// message).
 		std::string Label;
@@ -58,6 +62,35 @@ namespace bpr::core {
 
 		auto operator<=>(const queued_input&) const = default;
 	};
+
+	/// \brief [[BPR-2181]] (AC06). Whose queue it is: the session a queue
+	/// belongs to, typed. Its `session_key` is the stable name the host, the
+	/// store and every window key the queue by.
+	enum class queued_session_kind : std::uint8_t {
+		/// The pull request's Agent tab.
+		agent_tab,
+		/// Feedback waiting for the pull request's tour draft.
+		tour_feedback,
+	};
+
+	struct queued_session
+	{
+		queued_session_kind Kind = queued_session_kind::agent_tab;
+		/// The pull request: its host name, owner, repository and number.
+		std::string   Host;
+		std::string   Owner;
+		std::string   Repository;
+		std::uint64_t Number = 0U;
+
+		auto operator<=>(const queued_session&) const = default;
+	};
+	/// \brief The stable key, `agent-tab:host/owner/name#number` (or
+	/// `tour-feedback:…`). Empty for a session that names no pull request.
+	[[nodiscard]] auto session_key(const queued_session& aSession) -> std::string;
+	/// \brief The session a stable key names; none for one this does not make.
+	[[nodiscard]] auto parse_session_key(std::string_view aKey) -> std::optional<queued_session>;
+	/// \brief The same pull request's session of another kind.
+	[[nodiscard]] auto with_kind(queued_session aSession, queued_session_kind aKind) -> queued_session;
 
 	struct queued_entry
 	{
@@ -110,6 +143,9 @@ namespace bpr::core {
 		unknown_entry,
 		/// Sending, sent or uncertain: no longer the reviewer's to change.
 		not_editable,
+		/// [[BPR-2181]] (AC05). The profile's store refused to keep it:
+		/// nothing was queued.
+		not_saved,
 	};
 	[[nodiscard]] auto stable_name(queue_refusal aRefusal) noexcept -> std::string_view;
 
@@ -171,13 +207,18 @@ namespace bpr::core {
 		stopped,
 		/// The run never took the message.
 		not_taken,
+		/// [[BPR-2181]] (AC03). The release was refused before any run took
+		/// it (its material could not be read, the agent refused the send):
+		/// it goes back first and the queue pauses as failed.
+		refused,
 	};
 	[[nodiscard]] auto stable_name(queued_finish aFinish) noexcept -> std::string_view;
 	/// \brief The pause a finish puts on what remains: none when the message
 	/// went or was not taken; otherwise its own reason.
 	[[nodiscard]] auto pause_for(queued_finish aFinish) noexcept -> queue_pause;
 	/// \brief The run started for the sending entry `aId` finished: a message
-	/// not taken goes back first, unpaused (`return_unsent`); any other leaves
+	/// not taken goes back first, unpaused (`return_unsent`); a refused one
+	/// goes back first and pauses the queue as failed; any other leaves
 	/// the queue, and a failure, usage limit or Stop pauses what remains. A
 	/// pause already in force (the reviewer's, a lost access) keeps its reason.
 	/// Nothing changes for an entry that is not sending.
@@ -190,6 +231,41 @@ namespace bpr::core {
 	/// \brief A restored queue opens paused; a sending entry becomes
 	/// uncertain.
 	void restore(agent_queue& aQueue);
+
+	/// \brief RFC-BPR-0126 AC10 ([[BPR-2181]]). What Return does with a
+	/// message typed in the Agent tab.
+	enum class follow_up : std::uint8_t {
+		/// Sent as the session's next turn.
+		send,
+		/// Queued behind what the session holds.
+		queue,
+		/// Offered to the running turn (it goes next if it cannot be).
+		steer,
+	};
+	[[nodiscard]] auto stable_name(follow_up aFollowUp) noexcept -> std::string_view;
+
+	struct follow_up_facts
+	{
+		/// The tab shows a turn of the session running.
+		bool TurnShown = false;
+		/// The session's queue holds a message: waiting, held, released and
+		/// not yet settled, or uncertain. A message released in the gap
+		/// before its turn shows is here, so a Return then is queued, never
+		/// sent as (or credited to) that message's turn.
+		bool QueueHolds = false;
+		/// Nothing was typed.
+		bool Empty = false;
+		/// The reviewer's setting: Return steers rather than queues.
+		bool SteerByDefault = false;
+		/// Cmd+Return (Ctrl+Return off macOS): the other one, once.
+		bool Opposite = false;
+	};
+	/// \brief Send while the session is free; otherwise a follow-up, queued or
+	/// steered by the setting and the modifier. Nothing typed is sent, and
+	/// the send decides its refusal.
+	[[nodiscard]] auto decide_follow_up(const follow_up_facts& aFacts) noexcept -> follow_up;
+	/// \brief The session's queue holds a message (`follow_up_facts::QueueHolds`).
+	[[nodiscard]] auto holds_messages(const agent_queue& aQueue) noexcept -> bool;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_QUEUE_HPP

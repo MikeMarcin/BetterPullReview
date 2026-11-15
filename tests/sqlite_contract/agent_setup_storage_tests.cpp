@@ -607,9 +607,11 @@ try {
 				auto entry       = core::queued_entry{ };
 				entry.Id         = 1U;
 				entry.Input.Text = "waiting";
-				auto queue       = core::agent_queue{ };
-				queue.LastId     = 1U;
-				queue.Paused     = pauses[index];
+				// AC06: a wider Was this addressed? carries its threads typed.
+				entry.Input.Threads = { "thread-a", "thread-b" };
+				auto queue          = core::agent_queue{ };
+				queue.LastId        = 1U;
+				queue.Paused        = pauses[index];
 				queue.Entries.push_back(entry);
 				expect(queueStore->store("session-" + std::to_string(index), queue), "a queue with each pause is saved");
 			}
@@ -619,6 +621,8 @@ try {
 		for (std::size_t index = 0U; reloaded && index < pauses.size(); ++index) {
 			const auto found = reloaded->find("session-" + std::to_string(index));
 			expect(found != reloaded->end() && found->second.Paused == pauses[index], "each pause reloads as itself, lost-access included");
+			expect(found != reloaded->end() && found->second.Entries.size() == 1U && found->second.Entries.front().Input.Threads == std::vector<std::string>{ "thread-a", "thread-b" },
+				   "a message's threads reload as they were queued (AC06)");
 		}
 	}
 	{

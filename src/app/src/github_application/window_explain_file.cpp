@@ -13,6 +13,8 @@
 #include "bpr/core/explain_file.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include <QScopeGuard>
+
 #include <limits>
 #include <memory>
 
@@ -129,6 +131,9 @@ namespace bpr::app {
 			if (read->Waiting != 0 || Closing || ExplainFile.Key != read->Key) {
 				return;
 			}
+			// AC03: a queued Explain this file whose turn this pass did not
+			// send was refused.
+			const auto settled = qScopeGuard([this] { settle_pending_release(); });
 			if (read->Failed) {
 				refuse_explain_file(read->Path, QStringLiteral("Not sent. This file's code can't be read here."));
 				return;
@@ -186,6 +191,10 @@ namespace bpr::app {
 				read->Failed = true;
 				--read->Waiting;
 			}
+		}
+		if (read->Waiting != 0) {
+			// The turn is sent once both sides are read.
+			note_release_deferred();
 		}
 		done();
 	}

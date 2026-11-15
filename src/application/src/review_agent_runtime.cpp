@@ -64,7 +64,29 @@ namespace bpr::application {
 		return token;
 	}
 
-	void review_agent_runtime::detach(const std::uint64_t aPresenter) { Presenters.erase(aPresenter); }
+	void review_agent_runtime::detach(const std::uint64_t aPresenter)
+	{
+		Presenters.erase(aPresenter);
+		if (AwaitingPresenter == std::optional{ aPresenter }) {
+			// The window that would send the awaited turn is gone: the
+			// message was never taken, so it goes back first.
+			settle_awaiting(core::queued_finish::not_taken);
+		}
+	}
+
+	void review_agent_runtime::settle_awaiting(const core::queued_finish aFinish)
+	{
+		if (!Awaiting) {
+			return;
+		}
+		Run = *Awaiting;
+		Awaiting.reset();
+		AwaitingPresenter.reset();
+		Finished = aFinish;
+		if (Done) {
+			Done();
+		}
+	}
 
 	auto review_agent_runtime::presented() const -> bool { return !Presenters.empty(); }
 
@@ -73,7 +95,7 @@ namespace bpr::application {
 		if (Turns == nullptr) {
 			return core::queue_agent::not_set_up;
 		}
-		if (Running || !Turns->is_quiescent()) {
+		if (Running || Awaiting || !Turns->is_quiescent()) {
 			return core::queue_agent::busy;
 		}
 		if (!Turns->authorized()) {
@@ -93,29 +115,73 @@ namespace bpr::application {
 		return Snapshot && aFront->Input.QuickAsk.empty() ? core::queue_agent::idle : core::queue_agent::not_set_up;
 	}
 
-	auto review_agent_runtime::release(const core::queued_entry& aEntry) -> bool
+	auto review_agent_runtime::release(const core::queued_entry& aEntry) -> queued_admission
 	{
 		if (state(&aEntry) != core::queue_agent::idle) {
-			return false;
+			return { };
 		}
-		for (const auto& [token, presenter] : Presenters) {
-			if (presenter.releases()) {
-				return presenter.Release(aEntry);
-			}
+		// Which window releases is asked before the run is reserved: its
+		// readiness reads this runtime's state, which a reservation makes busy.
+		const auto presenter = std::ranges::find_if(Presenters, [](const auto& aPresenter) { return aPresenter.second.releases(); });
+		if (presenter == Presenters.end() && !Snapshot) {
+			return { };
 		}
-		// (b) Built from the review the runtime holds: the Agent tab's turn on
-		// that review, asking what was typed.
-		auto request                = Snapshot->Request;
-		request.Context.ChatMessage = aEntry.Input.Text;
-		request.NativeQuestion.clear();
-		return dispatch(std::move(request));
+		// AC03: the run this release is admitted as. A turn dispatched while
+		// it is reserved takes it, so only that turn's retirement settles it.
+		const auto run = ++LastRun;
+		Awaiting       = run;
+		auto answer    = queued_admission_kind::refused;
+		if (presenter != Presenters.end()) {
+			AwaitingPresenter = presenter->first;
+			// A copy: the window may detach while it releases.
+			const auto release = presenter->second.Release;
+			answer             = release(aEntry, run);
+		} else {
+			// (b) Built from the review the runtime holds: the Agent tab's
+			// turn on that review, asking what was typed.
+			auto request                = Snapshot->Request;
+			request.Context.ChatMessage = aEntry.Input.Text;
+			request.NativeQuestion.clear();
+			static_cast<void>(dispatch(std::move(request)));
+		}
+		if (Running && Run == run) {
+			return { .Kind = queued_admission_kind::started, .Run = run };
+		}
+		if (Awaiting != std::optional{ run }) {
+			// Settled inside the call (its window detached): its finish has
+			// reached the queue already, as this run.
+			return { .Kind = queued_admission_kind::awaiting, .Run = run };
+		}
+		if (answer == queued_admission_kind::awaiting) {
+			return { .Kind = queued_admission_kind::awaiting, .Run = run };
+		}
+		Awaiting.reset();
+		AwaitingPresenter.reset();
+		return { .Kind = answer == queued_admission_kind::answered ? queued_admission_kind::answered : queued_admission_kind::refused, .Run = run };
 	}
+
+	void review_agent_runtime::refuse_release(const std::uint64_t aRun)
+	{
+		if (Awaiting == std::optional{ aRun }) {
+			settle_awaiting(core::queued_finish::refused);
+		}
+	}
+
+	auto review_agent_runtime::awaiting() const -> std::optional<std::uint64_t> { return Awaiting; }
+
+	auto review_agent_runtime::last_run() const -> std::uint64_t { return Run; }
 
 	auto review_agent_runtime::dispatch(agent_invocation_request aRequest) -> bool
 	{
 		if (Turns == nullptr || Running || !Turns->is_quiescent() || (!Turns->authorized() && !Turns->accepting())) {
 			return false;
 		}
+		Run = Awaiting.value_or(LastRun + 1U);
+		if (!Awaiting) {
+			++LastRun;
+		}
+		Awaiting.reset();
+		AwaitingPresenter.reset();
 		Running   = true;
 		TurnShown = presented();
 		Finished.reset();
@@ -152,6 +218,11 @@ namespace bpr::application {
 
 	void review_agent_runtime::cancel()
 	{
+		if (Awaiting) {
+			// A release whose turn was never sent stops here, as stopped.
+			settle_awaiting(core::queued_finish::stopped);
+			return;
+		}
 		if (Waiting) {
 			// A turn that never started stops here, as stopped.
 			Waiting.reset();
@@ -185,11 +256,13 @@ namespace bpr::application {
 
 	auto review_agent_runtime::last_finish() const -> core::queued_finish { return Finished.value_or(core::queued_finish::failed); }
 
-	auto review_agent_runtime::is_quiescent() const -> bool { return !Running && (Turns == nullptr || Turns->is_quiescent()); }
+	auto review_agent_runtime::is_quiescent() const -> bool { return !Running && !Awaiting && (Turns == nullptr || Turns->is_quiescent()); }
 
 	void review_agent_runtime::shutdown()
 	{
 		Waiting.reset();
+		Awaiting.reset();
+		AwaitingPresenter.reset();
 		if (Turns != nullptr) {
 			Turns->shutdown();
 		}
@@ -358,7 +431,7 @@ namespace bpr::application {
 					return runtime == nullptr ? core::queue_agent::not_set_up : runtime->state(front(aSession)); },
 				.Start = [this](const std::string& aSession, const core::queued_entry& aEntry) {
 					auto* const runtime = find(aSession);
-					return runtime != nullptr && runtime->release(aEntry); },
+					return runtime != nullptr ? runtime->release(aEntry) : queued_admission{ }; },
 				// [[BPR-2153]]. A queued message offered to the session's
 				// running turn goes to the run its runtime runs.
 				.Steer = [this](const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> {
@@ -440,6 +513,20 @@ namespace bpr::application {
 			runtime->cancel();
 		}
 		settle(aSession);
+	}
+
+	void review_agent_runtimes::stop_all()
+	{
+		if (Dependencies.Queue != nullptr) {
+			Dependencies.Queue->pause_all(core::queue_pause::stopped);
+		}
+		// A copy of the sessions: a stopped turn may settle and let its
+		// runtime go while this runs.
+		for (const auto& session : sessions()) {
+			if (auto* const runtime = find(session); runtime != nullptr && (runtime->running() || runtime->awaiting())) {
+				runtime->cancel();
+			}
+		}
 	}
 
 	auto review_agent_runtimes::sessions() const -> std::vector<std::string>
@@ -542,7 +629,7 @@ namespace bpr::application {
 		// sent directly frees the session for the queue's next.
 		if (Dependencies.Runner != nullptr && Offered && Dependencies.Runner->running(aSession) == Offered) {
 			const auto* const runtime = find(aSession);
-			Dependencies.Runner->retired(*Offered, aSession, runtime != nullptr ? runtime->last_finish() : core::queued_finish::failed);
+			Dependencies.Runner->retired(*Offered, aSession, runtime != nullptr ? runtime->last_run() : 0U, runtime != nullptr ? runtime->last_finish() : core::queued_finish::failed);
 		} else if (Dependencies.Queue != nullptr) {
 			Dependencies.Queue->agent_changed(aSession);
 		}

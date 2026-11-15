@@ -121,14 +121,17 @@ slice 1.
    2026-11-15: the typed finish and the core mapping landed, with the
    failure and Stop pauses and a refused turn that never stays sending.
    The usage limit is decoded and the fixture-agent public course for
-   failure and usage limit landed. Open: the admission's run id and AC12.
+   failure and usage limit landed. The typed admission keyed by run id and
+   AC12 landed in the fourth round (see Evidence, "AC03 and AC12").
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
    store refusal; store writes on the effect path. Started 2026-11-15:
    Discard is a core transition and a host command, and the Agent tab
-   offers it on an uncertain message. Open: a public course that reaches an
-   uncertain message through a crash, and the store refusal.
+   offers it on an uncertain message. The store refusal landed in the
+   fourth round (AC05). Open: a public course that reaches an uncertain
+   message through a crash.
 5. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
-   runner state; core queue-versus-send; Stop all on the host.
+   runner state; core queue-versus-send; Stop all on the host. Done in the
+   fourth round (see Evidence).
 6. AC13, AC11: facts assembled outside widgets, decided expansions carried by
    releases; tour feedback through the host. With it, [[BPR-2184]]'s N4
    (`quick_ask_facts` sets each thread's `Changed` and `CommitsSince` from
@@ -491,4 +494,72 @@ slice 1.
   `application_agent_invocation_*`, `application_agent_finding_dif*`,
   `application_agent_queue_*`, `qt_drawer_surfaces_fit*`,
   `application_agent_launch`, `application_agent_finding_protocol`): 34 of 34.
+- **AC03 and AC12 (fourth round, 2026-11-15):** a release returns a typed
+  admission keyed by the runtime's run id (`application::queued_admission`:
+  `started`, `awaiting`, `answered` or `refused`, with `Run`). The runtime
+  numbers its runs; a release reserves one, and a turn dispatched while it
+  is reserved takes it, so only that run's retirement settles the message
+  (`agent_session_runner` keeps the run and ignores another's retirement).
+  A release whose turn a later pass sends (Explain this file reads its
+  material first; a continuation realigns first) is `awaiting` and the
+  session is busy; the later pass either sends the turn, which takes the
+  run, or ends without one, and the window refuses that run
+  (`review_agent_runtime::refuse_release`), which settles as
+  `core::queued_finish::refused`: back first, the queue paused as failed.
+  A window that closes while a release awaits returns it (`not_taken`). A
+  slash command is `answered` with no run and leaves the queue as sent.
+  Nothing reads `send_refusal_text()` any more: the Agent tab says what it
+  did with a released message from its own control flow
+  (`agent_tab_view::release_outcome`), and whether a turn started is the
+  runtime's to say. So a refusal note an earlier send left is never a
+  verdict, and Resume cannot send twice. Courses: `core_agent_queue`
+  (`refused` goes back first, paused), `application_agent_queue_host`
+  (`test_admissions_settle_every_release`: a slash command never stays
+  sending and the next goes; a refused release is queued again, paused; an
+  awaiting one stays sending until its run's refusal; a second Resume sends
+  nothing) and `application_review_agent_runtime`
+  (`test_release_admission_keyed_by_run`: a refused material read leaves
+  the message queued and paused, never sending; a refusal of another run
+  settles nothing; the awaited turn takes the release's run and its
+  retirement settles it; a slash command never stays sending; Resume after
+  a window that answered "refused" though it sent sends once, and a second
+  Resume sends nothing; a window closing while a release awaits returns
+  it).
+- **AC05 (refusal, fourth round):** a store write the profile's store
+  refuses is returned. Run where the queue changed, `enqueue` answers
+  `core::queue_refusal::not_saved` and nothing was queued; run on the queue
+  lane, the refusal comes back on the decision lane, the message that write
+  queued leaves the queue and `agent_queue_subscriber::Unsaved` hands it
+  back as asked. The window puts a typed message back in the composer, ahead
+  of anything typed since, with a note saying it was not queued
+  (`agent_tab_view::return_unqueued`); a refused follow-up never clears the
+  composer. Course `application_agent_queue_host`
+  (`test_a_refused_write_on_the_effect_lane_hands_the_message_back`, and
+  the refused write in `test_restored_refused_and_limits`).
+- **AC06 (fourth round):** `core::queued_session` (kind, host, owner,
+  repository, number) with `session_key` and `parse_session_key`; the
+  window, the tour feedback's session and the profile's runtime registry
+  build and read keys only through it. `core::queued_input::Threads` holds
+  the threads an ask carries as a list; the store keeps them one per line
+  in its existing column. Courses: `core_agent_queue`
+  (`test_typed_session`) and `sqlite_agent_setup_storage` (threads reload
+  as queued).
+- **AC08 (fourth round):** course `application_review_agent_runtime`
+  (`test_a_pull_request_switch_mid_turn_settles_per_session`): a window
+  switches pull request mid-turn; the old turn is untouched, its retirement
+  settles that session's message and starts its next with no window, the
+  new session runs beside it, and the old session keeps both turns no
+  window saw end.
+- **AC10 (fourth round):** `core::decide_follow_up` over the turn the tab
+  shows, whether the session's queue holds a message (any entry, a
+  released one whose turn does not show yet included), the setting and the
+  modifier. The Agent tab asks it for Return and for its Send label. A
+  Return in the gap after a release is queued, never sent as or credited to
+  that message's turn. Course `core_agent_queue`
+  (`test_follow_up_decision`).
+- **AC15 (fourth round):** `review_agent_runtimes::stop_all` pauses every
+  session's queue as stopped, then stops every runtime's turn, shown in a
+  window or not. The footer's Stop all calls it first, then stops the runs
+  its window runs itself (a tour's). Course `application_review_agent_runtime`
+  (`test_stop_all_is_the_hosts`).
 

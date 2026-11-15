@@ -494,7 +494,9 @@ namespace bpr::app {
 			dependencies.Store   = AgentQueueStore.get();
 			dependencies.Runner  = &AgentRunner;
 			dependencies.Effects = &QueueEffects;
-			AgentQueue           = std::make_unique<application::agent_queue_host>(dependencies);
+			// AC05: a write the store refused comes back here.
+			dependencies.DecisionLane = &DecisionLane;
+			AgentQueue                = std::make_unique<application::agent_queue_host>(dependencies);
 			AgentRunner.bind(*AgentQueue);
 			AgentQueue->load();
 		}
@@ -514,7 +516,10 @@ namespace bpr::app {
 		dependencies.Queue        = AgentQueue.get();
 		dependencies.Runner       = &AgentRunner;
 		dependencies.DecisionLane = &DecisionLane;
-		dependencies.Runs         = [](const std::string& aSession) { return aSession.starts_with("agent-tab:"); };
+		dependencies.Runs         = [](const std::string& aSession) {
+			const auto session = core::parse_session_key(aSession);
+			return session && session->Kind == core::queued_session_kind::agent_tab;
+		};
 		// A turn no window saw joins its conversation on disk, so a quit
 		// before any window attaches loses none.
 		AgentConversationStore           = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
