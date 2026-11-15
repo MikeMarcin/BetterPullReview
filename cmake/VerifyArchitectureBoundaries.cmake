@@ -1859,13 +1859,15 @@ verify_effect_owner(
 # RFC-BPR-0114 as amended 2026-11-12. The author-Git runner's catalogue:
 # reads, staging, commit and a push that is never forced. No force, stash,
 # checkout, reset, tag or branch operation may appear as a Git argument, and
-# the push refuses a forcing argument before it runs.
+# the push runs only the command core::make_push_command rebuilds from its
+# own directory, URL and branch ([[BPR-2182]]), so an added option or a +
+# refspec is refused before it runs and a URL or branch naming "force" is not.
 if(EXISTS "${BPR_ROOT}/${author_git_runner_relative}")
     file(READ "${BPR_ROOT}/${author_git_runner_relative}" author_git_contents)
     if(author_git_contents MATCHES "\"(--force|--force-with-lease|--force-if-includes|stash|checkout|switch|reset|rebase|merge|tag|branch|clean|gc|prune)\"")
         message(FATAL_ERROR "The author-Git runner may not name a force, stash, checkout, reset, rebase, merge, tag, branch or clean operation")
     endif()
-    foreach(required_author_boundary "GIT_TERMINAL_PROMPT" "CreateNewSession" "unix_descriptor_sweep::bound()" "kill_process_group_and_reap" "aArgument.starts_with('+')")
+    foreach(required_author_boundary "GIT_TERMINAL_PROMPT" "CreateNewSession" "unix_descriptor_sweep::bound()" "kill_process_group_and_reap" "core::make_push_command(aCommand.Directory, aCommand.Url, aCommand.Branch)" "*rebuilt != aCommand")
         string(FIND "${author_git_contents}" "${required_author_boundary}" author_boundary_found)
         if(author_boundary_found LESS 0)
             message(FATAL_ERROR "The author-Git runner lost its ${required_author_boundary} boundary")
