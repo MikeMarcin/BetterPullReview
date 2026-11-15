@@ -82,3 +82,16 @@ Claimed once [[BPR-2164]] was Done.
   fixture has no published tour.
 - **Remaining:** the owner's look, after the coordinator's report-card design
   round (the card's look and RFC-BPR-0128 Q5's acceptance wait on it).
+
+## Progress (2026-11-14): the report templates
+
+Built from docs/design/report-templates-v1 and v2 with the owner's decisions:
+B, Dressed; Qt rich text; and the report's colours as six theme roles in
+Settings › Appearance (Reports). A report that keeps to the convention is a
+dressed page. It has verdict rules, a tally, numbered code, and suggestions
+as diffs with Add as draft comment. The shipped prompts ask for the
+convention, and the Fixture agent answers every report kind in it. The
+heading-level defect is fixed, and the ☰ menu works on the dressed page.
+Details and courses are in RFC-BPR-0128's verification on claude/v0-5-0-prerelease-targets-52265d.
+Asked in look report-templates-v003.
+
