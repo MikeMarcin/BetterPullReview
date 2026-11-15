@@ -2201,7 +2201,8 @@ namespace bpr::app {
 		// saved entry, preferred, so its Agent tab turns keep a native
 		// session, as a person's do, and can be queued to and steered. The
 		// stored list is read off the lane and replaces what is shown when it
-		// lands, so the entry is added whenever the list shows none.
+		// lands, so the entry is added whenever the list shows none. The Check
+		// below waits for it: adding a preferred entry starts the setup again.
 		if (FixtureAgentSession && ClaudeAgentExecutable && aProjection.Preferences.Agents.empty() && !FixtureEntryAdding) {
 			FixtureEntryAdding = true;
 			QTimer::singleShot(0, Window.get(), [this] {
@@ -2213,7 +2214,7 @@ namespace bpr::app {
 				}
 			});
 		}
-		if (FixtureAgentSession && !FixtureSetupChecked && AgentReview && aProjection.Step == core::setup_step::check && !aProjection.Checking
+		if (FixtureAgentSession && !FixtureSetupChecked && !aProjection.Preferences.Agents.empty() && AgentReview && aProjection.Step == core::setup_step::check && !aProjection.Checking
 			&& aProjection.State.AgentCheck.State == core::setup_check_state::not_run && aProjection.State.WorkspaceCheck.State == core::setup_check_state::not_run) {
 			FixtureSetupChecked = true;
 			QTimer::singleShot(0, Window.get(), [this] { check_agent_setup(true); });
