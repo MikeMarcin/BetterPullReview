@@ -1505,6 +1505,11 @@ set_tests_properties(test_runtime_root_contract PROPERTIES TIMEOUT 30)
 
 bpr_add_network_isolated_test(NAME command_correctness_registry_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/command_correctness_registry_tests.py")
+# The qualification case inventory is bound to its sources' hashes; run it so
+# a changed host or drawer source cannot leave it stale unnoticed.
+bpr_add_network_isolated_test(NAME qualification_case_inventory_contract
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/qualification_case_inventory_tests.py")
+set_tests_properties(qualification_case_inventory_contract PROPERTIES TIMEOUT 30)
 
 # [[BPR-1386]] keeps unclassified GUI/application courses exclusive. BPR-1670
 # permits only the audited correctness declarations below to share four slots.
