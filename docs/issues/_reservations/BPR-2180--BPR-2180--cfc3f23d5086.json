@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2180"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Loading skeletons for the Comments drawer, Threads, Overview people, Tour, Finish review and the status line",
+  "created": "2026-11-15T03:30:34.512013+00:00",
+  "base": "535d605ba74f252e4b35c9779252582836d294d1"
+}
