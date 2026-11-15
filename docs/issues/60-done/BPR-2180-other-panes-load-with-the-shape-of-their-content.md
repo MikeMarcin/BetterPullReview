@@ -289,3 +289,22 @@ comparison's state at a gap or a timeout. The double-click step and
 `application_progressive_open_public_path` share the helper. The acceptance
 records above are unchanged; the owner's accepted behaviour stands, with this
 intermittent fault in it.
+
+## Correction, 2026-11-15: the pending open moves to the workbench host (BPR-2191)
+
+[[BPR-2191]] closed without reproducing the stall on the current lane. Most
+of the failures measured earlier ran the arrival check that 4bb44f28f
+replaced, and the rest came from trees carrying uncommitted changes.
+
+This card's design is corrected all the same. The file clicked among the
+reported files, or double-clicked on the Overview while the review loads,
+was remembered in Qt (`ProvisionalOpen`). Qt opened it on any non-empty file
+publication, so Qt decided when the review had loaded. Since 1eab5b868 the
+workbench host holds that pending open, tied to the review that reported the
+file, and opens it once that review's own rows are accepted. A newer review,
+another selection or a read with no review cancels it, and Qt shows only the
+pending open the host publishes. The behaviour the owner accepted is
+unchanged: the drawer says "Opening a.cpp once the review has loaded…", the
+comparison waits in the shape of code from the click on, and the file opens
+when the review lists it.
+
