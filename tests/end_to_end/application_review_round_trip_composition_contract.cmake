@@ -3748,7 +3748,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# entry, and the tests-on launcher probe forwards steering; neither is in
 	# a shipped build.
 	set(bpr_expected_production_app_manifest_digest
-        "2a25291d261df4ccda26ce6cb10174457498c38b36951a84a0af079fa8167586"
+        "05b8a610aa3fddddadc4d77b8e153f32e5f2990631cd326ff527ab99a0b1e104"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
