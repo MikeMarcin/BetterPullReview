@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2190"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "The comparison keeps its height floor under the agent footer (regression from f51063b5b)",
+  "created": "2026-11-15T12:02:47.686199+00:00",
+  "base": "87da964fa93e92f852612eb5a0be6f972bca51ba"
+}
