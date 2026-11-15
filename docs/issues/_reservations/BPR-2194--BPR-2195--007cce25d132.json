@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2194",
+    "BPR-2195"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2191 follow-ups: Overview pending open to the workbench host; repair_required under heavy load",
+  "created": "2026-11-15T17:29:24.876635+00:00",
+  "base": "9bcc1f0e12c2465b7835d6553d6308d8fa9239f2"
+}
