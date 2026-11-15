@@ -3746,8 +3746,8 @@ for `lost-access`, then steps 2 to 6.
 
 | Commit | What |
 |---|---|
-| `scoped_private_agent_runs` commit (after `78c4c8605`) | `application::scoped_private_agent_runs`; `private_review_workflow` delegates admit, claim and finish to it; course `application_private_review_host` (`scoped_runs_without_a_panel`) |
-| queue-store commit (next) | The agent queue store saves: explicit entry delete, no cascade, old empty cascading tables made again; course `sqlite_agent_setup_storage` |
+| `2a2990650` | `application::scoped_private_agent_runs`; `private_review_workflow` delegates admit, claim and finish to it; course `application_private_review_host` (`scoped_runs_without_a_panel`) |
+| `3a548e4c1` | The agent queue store saves: explicit entry delete, no cascade, old empty cascading tables made again; course `sqlite_agent_setup_storage` |
 
 Found while writing the `lost-access` course: **no queue had ever been
 saved.** The hardened connection
