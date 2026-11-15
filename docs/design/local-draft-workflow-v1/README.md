@@ -246,9 +246,19 @@ reduced to 256 colours. `frame` is `model`, or a letter `a` to `d` joined to
 
 ## Status
 
-Filed for the owner on 2026-11-15 as attended review
-`local-draft-workflow-mockups-v001`: one question, a choice between A, B, C
-and D. External state directory
-`~/.attended-review-state/local-draft-workflow-mockups-v001-2026-11-15/`
-(`state/` is the session and holds its ID). Lifecycle: awaiting the owner's
-choice. Nothing is built until it is made.
+**Chosen: B, Workflow tab** (owner, 2026-11-15), with a note that
+[round 2](../local-draft-workflow-v2/README.md) quotes and answers: the
+Workflow tab comes first, "sent back" is too strong, and the handoff is
+Publish update. The recommendation above (A) was not taken; B's tab holds A's
+list.
+
+- Attended-review session `c5a05f972b30d5683c817e8ef18643b5`, candidate
+  `local-draft-workflow-mockups-v1` at revision `858fa2a905fc` (the commit
+  that added these mockups), decision `0a89b748-e2f5-49e5-bacf-b4beb1c24219`: select
+  "B, Workflow tab".
+- External state directory
+  `~/.attended-review-state/local-draft-workflow-mockups-v001-2026-11-15/`
+  (`state/` is the session, `material/` a copy of this folder at that
+  revision).
+- Lifecycle: handed back 2026-11-15 with the one candidate decided; the host
+  is stopped.
