@@ -98,8 +98,9 @@ slice 1.
 2. AC01 rest: a profile-level agent runtime, so a session no window shows
    still runs and keeps its transcript, a window close does not touch a
    running turn, and the Agent tab stops being the send transport.
-   Application layer done (`c1c80c1e6`, see Evidence); composition into
-   the app not started.
+   Application layer done (`c1c80c1e6`, see Evidence). The epoch actor
+   registry admits a profile-owned host (`9c7672579`). Composition into the
+   app waits on a lease the runtime holds in its own name (see Evidence).
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
@@ -138,7 +139,29 @@ slice 1.
   and a close stops touching a running turn. The public path is to queue
   two messages, close the window, let the turns run, then reopen and see
   them.
+- **AC01 (partial, slice 2, `9c7672579`), the composition's open risks
+  checked:** (1) The epoch actor registry did refuse a context that is not
+  a window. It admitted only the profile's live window observers, and every
+  consumer took one of the profile's 32 window places. It now admits a
+  profile-owned consumer (`attach_profile_owned`). That consumer is current
+  until it retires or the registry closes, and it is bounded apart from the
+  windows (`maximum_profile_owned_epoch_consumers`). `epoch_application_host`
+  attaches as one through its own constructor. Course `application_epoch_host`
+  (`profile_owned_host_holds_its_review_after_the_window_closes`): a
+  profile-owned host accepts the review with no window, reads it after the
+  window closed, and never takes a window's place. (2) Two ledger hosts on
+  one review file do not clash. Admission is one `BEGIN IMMEDIATE`
+  transaction over the scope's `agent_session_sequence` row, and every
+  connection waits up to 2 s for a busy writer. (3) A third conflict the
+  same course pins: the epoch host ingests only under a live lease, even
+  for objects the profile cache already holds, and a lease is bound to the
+  holder's application session. The window's lease is its read host's,
+  bound to the window's session and revoked with it. The runtime therefore
+  needs a lease lent in its own name by the GitHub host, and the profile
+  must revoke it when the account or identity changes. That is the next
+  step, at its owner (`github_window_read_host`, `github_application_host`).
 - **AC07:** `application_agent_queue_second_window_loading_public_path`
   passes (slice 1, `c65c59df0`). The runtime registry does not change it,
   because windows still run their own agent hosts until the composition
-  lands.
+  lands. Rechecked 2026-11-14 at `9c7672579`: nothing composed changed, so
+  that evidence stands.
