@@ -546,6 +546,17 @@ namespace bpr::qt {
 		}
 		choose_home(false);
 		choose_modality(review_modality::review);
+		// [[BPR-2180]]. Through the Files drawer's own selection, so a file the
+		// review has only reported so far waits for the review and then opens,
+		// as a click on it does; dispatched directly it named a file the
+		// comparison cannot be asked for, and stayed on the code skeleton.
+		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		for (int row = 0; model != nullptr && row < model->rowCount(); ++row) {
+			if (const auto index = model->index(row, 0); model->file_at(index) == file) {
+				dispatch_file_selection(index);
+				return true;
+			}
+		}
 		Dispatch(core::select_workbench_file_intent{ .File = *file });
 		return true;
 	}

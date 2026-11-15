@@ -9,6 +9,7 @@
 #include <iterator>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 namespace {
@@ -466,7 +467,29 @@ int main(int argc, char** argv)
 			return *ended;
 		}
 	} else if (withoutEffort != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
-		return 3;
+		// [[BPR-2181]]. An Agent-tab conversation turn (stream-JSON both ways,
+		// in its own session) is answered as a chat, so a queue that a failed
+		// run pauses goes on; any other launch is refused as before.
+		const auto has     = [&actual](const std::string_view aArgument) { return std::ranges::find(actual, std::string{ aArgument }) != actual.end(); };
+		const auto session = [&actual]() -> std::string {
+			for (const auto* const flag : { "--session-id", "--resume" }) {
+				if (const auto at = std::ranges::find(actual, std::string{ flag }); at != actual.end() && at + 1 != actual.end()) {
+					return *(at + 1);
+				}
+			}
+			return "stub-chat";
+		}();
+		// A writing launch (`--tools ""`, `--disallowedTools *`) is never a chat.
+		if (has("--disallowedTools") || !has("--input-format") || !has("--output-format") || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
+			return 3;
+		}
+		std::string line;
+		std::getline(std::cin, line);
+		std::cout << R"({"type":"system","subtype":"init","session_id":")" << session << R"(","tools":[],"mcp_servers":[],"plugins":[],"model":"default"})" << '\n'
+				  << R"({"type":"assistant","session_id":")" << session << R"(","message":{"role":"assistant","content":[{"type":"text","text":"CHAT_STUB_ANSWER"}]}})" << '\n'
+				  << R"({"type":"result","subtype":"success","is_error":false,"session_id":")" << session << R"(","result":"CHAT_STUB_ANSWER"})" << '\n'
+				  << std::flush;
+		return 0;
 	}
 	// [[BPR-1896]]. A writing launch turns auto-memory off in the
 	// environment too, where a wrapper's settings cannot reach it.
