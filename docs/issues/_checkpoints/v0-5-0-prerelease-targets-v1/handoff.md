@@ -3736,3 +3736,39 @@ What it composes, per runtime (`review_agent_runtime_dependencies::Compose`):
    transcript source, the public course plus reruns, a scratch build of
    HEAD). The window-side list in the section "the runtime's application
    layer landed" still holds.
+
+## BPR-2181 slice 2: the private-run boundary is free of Qt; the queue store saves; the app composition is next (2026-11-14)
+
+Coordinator (2026-11-14): accepted the single `identity_changed` cause and
+the rule that any attached window's 404 ends a loan. Asked for the
+private-run refactor in `src/application`, a sqlite save-and-reload course
+for `lost-access`, then steps 2 to 6.
+
+| Commit | What |
+|---|---|
+| `scoped_private_agent_runs` commit (after `78c4c8605`) | `application::scoped_private_agent_runs`; `private_review_workflow` delegates admit, claim and finish to it; course `application_private_review_host` (`scoped_runs_without_a_panel`) |
+| queue-store commit (next) | The agent queue store saves: explicit entry delete, no cascade, old empty cascading tables made again; course `sqlite_agent_setup_storage` |
+
+Found while writing the `lost-access` course: **no queue had ever been
+saved.** The hardened connection
+(`sqlite_connection.cpp`, `SQLITE_LIMIT_TRIGGER_DEPTH` 0) refuses the
+cascade's trigger program, so each save's first `DELETE FROM agent_queues`
+failed. The store's `bool` return was ignored as a refusal upstream, so
+nothing showed it. Restart restoration of queues (AC04, AC11) is therefore
+being exercised against disk for the first time. A restart course is worth
+adding when slice 4 (AC04, AC05) is taken up.
+
+Verification at this head (dev tree, app built): the step-5 rerun set
+passes (`application_ask_*` x4, `application_tour_feedback_queue_public_path`,
+`application_agent_queue_*` x3 including the host,
+`agent_workspace_ownership`), and so do `application_review_agent_runtime`,
+`application_private_review_host` and `sqlite_agent_setup_storage`.
+
+Next action: step 2, unchanged from the previous section's numbered plan,
+with item 1 done. The runtime's private runs are a
+`scoped_private_agent_runs` whose lookup returns the runtime's own store,
+opened on its effect lane with `adapters::sqlite::make_private_review_store`
+from the window's `private_review_configuration`. Its `Open` is
+`make_private_review_store(configuration, stop)`. Then the epoch host fed
+by the lent handoff, the ledger host, the process chain, and steps 3 to 6.
+Stopped here to keep context for a clean handoff, not because of a blocker.
