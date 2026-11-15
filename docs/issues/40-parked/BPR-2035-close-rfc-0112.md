@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2035"
 title: "Verify and close RFC-BPR-0112"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07","AC08","AC09"],"resolved_choices":["ACTIONS-01"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0020","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0047-close-optional-workflow-integration.md","draft_title":"Close optional workflow integration"}
 depends_on: ["BPR-2032", "BPR-2033", "BPR-2034"]
 closeout_for: ["RFC-BPR-0112"]
+parked_on: "human-review"
 ---
 
 # BPR-2035: Verify and close RFC-BPR-0112
@@ -48,3 +49,16 @@ RFC base: `dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`.
 | **AC09:** An extension action bound to an agent wears the agent accent and one bound to a script does not; importing a workflow configuration turns on builds for no agent without acceptance; and no handoff result is labelled observed. | The workflow course; owner look `workflow-v001` | Pass on automation; owner look pending | `dcb462ba1` |
 
 Ledger: [RFC-BPR-0112 verification](../../verification/RFC-BPR-0112.md).
+
+## Owner look filed (2026-11-15)
+
+Not waited on. Session `e9336c1caf748712f3c1056a633c4792`, state
+`/Users/jaeger/.attended-review-state/workflow-v001-2026-11-15/state` (URL in
+that directory's `serve.log`), cursor 9, host PID 51673 (Tailscale child
+51681). Candidates `BPR-2033-workflow-area` (AC07), `BPR-2032-workflow-import-preview`
+(AC02's preview) and `BPR-2033-agent-accent-on-actions` (AC09). Frozen root
+`/Users/jaeger/workflow-v001.xlei1v22` from `fcdd020a2ee1` (executable SHA-256
+`644e3c11b7c1…`; the launcher's own check reached
+`ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN`). Every criterion passes on automation;
+RFC-BPR-0112 closes once the owner accepts, or the look's notes are
+engineered.
