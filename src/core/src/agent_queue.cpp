@@ -241,6 +241,24 @@ namespace bpr::core {
 		return queue_refusal::none;
 	}
 
+	auto return_unsent(agent_queue& aQueue, const std::uint64_t aId) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::sending) {
+			return queue_refusal::not_editable;
+		}
+		auto entry  = *found;
+		entry.State = queued_state::queued;
+		aQueue.Entries.erase(found);
+		const auto first = std::ranges::find_if(aQueue.Entries, [](const queued_entry& aEntry) { return aEntry.State == queued_state::queued; });
+		aQueue.Entries.insert(first, std::move(entry));
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
 	void settle(agent_queue& aQueue, const std::uint64_t aId, const queue_pause aOutcome)
 	{
 		const auto found = find(aQueue, aId);

@@ -37,7 +37,9 @@ namespace bpr::application {
 		void withdraw(std::uint64_t aRuntime);
 		/// \brief The run of the turn `aRuntime` started for `aSession`
 		/// retired with `aOutcome`.
-		void               retired(std::uint64_t aRuntime, const std::string& aSession, core::queue_pause aOutcome);
+		void retired(std::uint64_t aRuntime, const std::string& aSession, core::queue_pause aOutcome);
+		/// \brief As `retired`, for a run that never took its message.
+		void               returned(std::uint64_t aRuntime, const std::string& aSession);
 		[[nodiscard]] auto running(const std::string& aSession) const -> std::optional<std::uint64_t>;
 		/// \brief The sessions whose turn `aRuntime` runs.
 		[[nodiscard]] auto running_on(std::uint64_t aRuntime) const -> std::vector<std::string>;

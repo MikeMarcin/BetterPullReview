@@ -26,6 +26,18 @@ namespace bpr::application {
 		}
 	}
 
+	void agent_session_runner::returned(const std::uint64_t aRuntime, const std::string& aSession)
+	{
+		const auto found = Running.find(aSession);
+		if (found == Running.end() || found->second != aRuntime) {
+			return;
+		}
+		Running.erase(found);
+		if (Host != nullptr) {
+			Host->returned(aSession);
+		}
+	}
+
 	auto agent_session_runner::running(const std::string& aSession) const -> std::optional<std::uint64_t>
 	{
 		const auto found = Running.find(aSession);

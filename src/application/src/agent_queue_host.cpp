@@ -92,10 +92,7 @@ namespace bpr::application {
 			// Proven before any write: it stays unsent, and the queue pauses so
 			// the reviewer sees why.
 			Sending.erase(aSession);
-			const auto again = std::ranges::find(Queues[aSession].Entries, *next, &core::queued_entry::Id);
-			if (again != Queues[aSession].Entries.end()) {
-				again->State = core::queued_state::queued;
-			}
+			static_cast<void>(core::return_unsent(Queues[aSession], *next));
 			core::pause(Queues[aSession], core::queue_pause::failed);
 			commit(aSession);
 		}
@@ -215,6 +212,17 @@ namespace bpr::application {
 		const auto found = Sending.find(aSession);
 		if (found != Sending.end()) {
 			core::settle(Queues[aSession], found->second, aOutcome);
+			Sending.erase(found);
+			commit(aSession);
+		}
+		drain(aSession);
+	}
+
+	void agent_queue_host::returned(const std::string& aSession)
+	{
+		const auto found = Sending.find(aSession);
+		if (found != Sending.end()) {
+			static_cast<void>(core::return_unsent(Queues[aSession], found->second));
 			Sending.erase(found);
 			commit(aSession);
 		}

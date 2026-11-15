@@ -93,8 +93,25 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	void test_return_unsent()
+	{
+		using namespace bpr::core;
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		static_cast<void>(enqueue(queue, { .Label = "b", .Text = "b" }, queue.Revision));
+		const auto a = queue.Entries.front().Id;
+		static_cast<void>(mark_sending(queue, a));
+		expect(return_unsent(queue, a) == queue_refusal::none && queue.Entries.front().Id == a && queue.Entries.front().State == queued_state::queued && queue.Paused == queue_pause::none,
+			   "[[BPR-2181]] a message its turn never took is queued again first, the queue not paused (Q10)");
+		expect(next_release(queue, queue_agent::idle) == a, "and goes next");
+		expect(return_unsent(queue, a) == queue_refusal::not_editable, "only a sending message returns");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_return_unsent();
 	test_order_and_release();
 	test_limits();
 	test_hold_pause_and_restore();

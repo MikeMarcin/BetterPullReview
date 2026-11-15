@@ -235,6 +235,10 @@ python3 scripts/build_jobserver.py stop
   every token is in use a build waits for one.
 - With no server, or a stale FIFO from a killed one, the same build runs at
   the preset's `-j 8`. It never fails or waits for a missing server.
+- One build per tree: the wrapper locks `.bpr-build.lock` in the build
+  directory, so a second build of the same tree prints whom it waits for and
+  runs after the first (two Ninjas in one tree corrupt its static archives).
+  Builds of different trees still run side by side on the shared tokens.
 - A tree configured before the wrapper joins after one `cmake --preset dev`.
 - Never build wider than `-j 8`, and never run `ninja` directly in a shared
   tree with a larger `-j`: a bare `ninja` outside the wrapper does not join.

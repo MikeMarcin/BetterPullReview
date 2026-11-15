@@ -61,9 +61,13 @@ own course.
 - **AC08 (second review):** Switching pull request mid-turn does not wedge
   the old session: its Sending entry and runner state settle from that run's
   retirement, per session, not per window. Course: switch mid-turn.
-- **AC09 (second review):** Closing a window stops its turn, which settles as
-  stopped only once its run has really retired; no other window starts the
-  next turn before then. Course: close mid-turn
+- **AC09 (second review; Q10):** Closing a window neither pauses a queue nor
+  hands it over. Once the agent runtime is the profile's (slice 6), a close
+  does not touch a running turn at all. Until then, a turn the close stops
+  returns its message to the front, queued (core `return_unsent`), and the
+  queue goes on only once that run has really retired; no other window starts
+  the next turn before then. Stop pauses only when the reviewer presses Stop
+  or Stop all. Course: close mid-turn
   (`application_agent_queue_windows_public_path`).
 - **AC10 (second review):** Queue-versus-send is a core decision over the
   queue and the run state, not the view's; a Return in the gap before a turn
@@ -86,19 +90,23 @@ own course.
 
 ## Plan (slices)
 
-1. AC07, AC09 and part of AC01: workspace owners outlive cache sessions; the
-   agent invocation host's retirement event; the host drains itself through a
-   runner port in `src/application` and settles on retirement; Steer on the
-   host (AC14, stubbed reason until [[BPR-2153]]).
-2. AC02, AC03, AC12: typed finish and admission with run id from the agent
-   invocation host; core outcome-to-pause mapping; failure and usage-limit
-   courses.
-3. AC04, AC05: core discard and back-to-queued; store refusal; store writes
-   on the effect path.
-4. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
+Approved by the coordinator 2026-11-14, with slice 6 moved first after
+slice 1.
+
+1. Done (`c65c59df0`, AC09 corrected in the next commit): AC07, AC09, part
+   of AC01 and AC14.
+2. AC01 rest: a profile-level agent runtime, so a session no window shows
+   still runs and keeps its transcript, a window close does not touch a
+   running turn, and the Agent tab stops being the send transport.
+3. AC02, AC03, AC12: typed finish and admission with run id; core
+   outcome-to-pause mapping; failure and usage-limit courses.
+4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
+   store refusal; store writes on the effect path.
+5. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
    runner state; core queue-versus-send; Stop all on the host.
-5. AC13, AC11: facts assembled outside widgets, decided expansions carried by
-   releases; tour feedback through the host.
-6. AC01 rest: a profile-level agent runtime, so a session no window shows
-   still runs and keeps its transcript; the Agent tab stops being the send
-   transport.
+6. AC13, AC11: facts assembled outside widgets, decided expansions carried by
+   releases; tour feedback through the host. With it, [[BPR-2184]]'s N4
+   (`quick_ask_facts` sets each thread's `Changed` and `CommitsSince` from
+   `core::thread_baseline` and `core::thread_progress_since`) and N5 (report
+   identity: a stable turn identity and structured byline, reports keyed by
+   it, dropped when their tab closes), recorded on BPR-2184 when done.

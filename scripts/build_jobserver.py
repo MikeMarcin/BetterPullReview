@@ -22,7 +22,10 @@ The server cannot tell who holds a token, so it reconciles when idle. Each
 build through jobserver_ninja.py holds a lease, a locked file under
 `clients/` that its Ninja inherits; every few seconds the server counts the
 leases still locked, and when there are none every token must be back, so it
-tops the FIFO up to N (or takes back a surplus). Limits: under back-to-back
+tops the FIFO up to N (or takes back a surplus). A build takes its lease only
+after its first token, so builds waiting for a drained pool do not hold off
+the refill. A lease inherited by a killed Ninja's still-running compilers
+keeps counting until they exit. Limits: under back-to-back
 overlapping builds a leaked token stays missing until the first idle moment;
 a Ninja given this MAKEFLAGS by hand holds no lease, so a reconciliation
 during its run can add tokens it holds (taken back at the next idle moment).

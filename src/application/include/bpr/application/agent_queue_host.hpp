@@ -116,6 +116,11 @@ namespace bpr::application {
 		/// \brief The run of the turn the host started for `aSession` retired
 		/// with `aOutcome` (none: it went; otherwise the queue pauses for it).
 		void retired(const std::string& aSession, core::queue_pause aOutcome);
+		/// \brief The run of the turn the host started for `aSession` retired
+		/// without the agent taking its message (a window close stopped it):
+		/// the message goes back first, the queue is not paused (Q10), and
+		/// the next turn may start.
+		void returned(const std::string& aSession);
 
 		// Semantic deltas.
 		[[nodiscard]] auto subscribe(agent_queue_subscriber aSubscriber) -> std::uint64_t;

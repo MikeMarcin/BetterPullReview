@@ -137,11 +137,12 @@ namespace bpr::app {
 		}
 		OtherShutdownBegun = true;
 #if defined(BPR_AGENT_INTEGRATIONS)
-		// The window's agent runs have retired: a turn the close stopped
-		// settles as stopped, and its queue pauses for it.
+		// The window's agent runs have retired. Q10: closing a window neither
+		// pauses nor hands over a queue; a turn the close stopped returns its
+		// message to the front, queued, and the queue goes on from here.
 		if (const auto runtime = std::exchange(AgentRuntime, std::nullopt); runtime) {
 			for (const auto& session : AgentRunner.running_on(*runtime)) {
-				AgentRunner.retired(*runtime, session, core::queue_pause::stopped);
+				AgentRunner.returned(*runtime, session);
 			}
 		}
 #endif

@@ -315,39 +315,43 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return rows_of(*first).contains(QStringLiteral("Third follow-up")) && rows_of(*first) == rows_of(*second); }, "typed in the second window, it shows in the first");
 
 		// Resume: the first window runs the next message. Closing it while it
-		// runs stops that turn; nothing else starts until its run has really
-		// retired, and then the queue is paused as stopped ([[BPR-2181]]). The
-		// second window resumes it and runs the rest in order.
+		// runs stops that turn (until the agent runtime is the profile's);
+		// nothing else starts until its run has really retired. Q10: the
+		// close neither pauses nor hands over the queue: the stopped message
+		// goes back first, queued, and the second window runs what is left,
+		// in order, with no Resume ([[BPR-2181]] AC09).
 		const auto before = second->agent_tab()->turn_count();
 		expect(press_in(*second, QStringLiteral("agentQueuePauseResume")), "Resume in the second window");
 		wait([&] { return first->agent_tab()->state() == qt::agent_tab_state::working || second->agent_tab()->state() == qt::agent_tab_state::working; }, "a turn starts");
 		expect(first->agent_tab()->state() == qt::agent_tab_state::working, "the first free window showing the session runs it");
+		const auto waiting = rows_of(*second);
 		first->close();
 		auto       startedBeforeRetired = false;
+		auto       everPaused           = false;
+		const auto toggle               = [&] { return second->agent_tab()->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume")); };
+		const auto watch                = [&] { everPaused = everPaused || (toggle() != nullptr && toggle()->text() == QStringLiteral("Resume queue")); };
 		const auto closed               = e2e::wait_until_plain([&] {
 			startedBeforeRetired = startedBeforeRetired || (owner->window(firstContext) != nullptr && second->agent_tab()->state() == qt::agent_tab_state::working);
+			watch();
 			return owner->window(firstContext) == nullptr && owner->windows().size() == 1U;
 		},
 																e2e::extended_agent_budget);
 		expect(closed, "the first window closes");
 		expect(!startedBeforeRetired, "no turn starts in the second window before the closed window's run retires");
-		const auto toggle = [&] { return second->agent_tab()->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume")); };
-		wait([&] { return toggle() != nullptr && toggle()->text() == QStringLiteral("Resume queue") && second->agent_tab()->queue_list()->findChildren<QLabel*>(QStringLiteral("agentQueueSending")).isEmpty(); },
-			 "the turn the close stopped leaves the queue and pauses it: " + rows_of(*second).join(QLatin1Char('|')).toStdString());
-		const auto left = rows_of(*second);
-		expect(!left.isEmpty() && left.back() == QStringLiteral("Third follow-up") && second->agent_tab()->turn_count() == before, "the rest waits, and nothing ran in the second window: " + left.join(QLatin1Char('|')).toStdString());
-		expect(press_in(*second, QStringLiteral("agentQueuePauseResume")), "Resume in the second window again");
 		if (!e2e::wait_until_plain([&] {
+				watch();
 				const auto asked = questions_of(*second->agent_tab());
 				// The first window is gone: only the second's state is read.
-				return static_cast<std::size_t>(asked.size()) >= before + static_cast<std::size_t>(left.size()) && asked.contains(QStringLiteral("Third follow-up")) && second->agent_tab()->state() != qt::agent_tab_state::working && rows_of(*second).isEmpty();
+				return asked.contains(QStringLiteral("Third follow-up")) && second->agent_tab()->state() != qt::agent_tab_state::working && rows_of(*second).isEmpty();
 			},
 								   e2e::extended_agent_budget)) {
-			throw std::runtime_error{ "the second window runs what is left: asked=" + questions_of(*second->agent_tab()).join(QLatin1Char('|')).toStdString() + " rows=" + rows_of(*second).join(QLatin1Char('|')).toStdString() + " state="
-									  + std::to_string(static_cast<int>(second->agent_tab()->state())) + " status=" + second->agent_panel()->status_text().toStdString() + " toggle=" + (toggle() != nullptr ? toggle()->text().toStdString() : std::string{ "none" }) };
+			throw std::runtime_error{ "the second window runs what is left: asked=" + questions_of(*second->agent_tab()).join(QLatin1Char('|')).toStdString() + " rows=" + rows_of(*second).join(QLatin1Char('|')).toStdString() + " status="
+									  + second->agent_panel()->status_text().toStdString() + " toggle=" + (toggle() != nullptr ? toggle()->text().toStdString() : std::string{ "none" }) };
 		}
+		expect(!everPaused, "closing the window never paused the queue");
 		const auto asked = questions_of(*second->agent_tab());
-		expect(asked.back() == left.back(), "in the order the list showed: " + asked.join(QLatin1Char('|')).toStdString());
+		expect(static_cast<std::size_t>(asked.size()) >= before + static_cast<std::size_t>(waiting.size()) - 1U && asked.back() == QStringLiteral("Third follow-up"),
+			   "every message ran, the stopped one again, in the order the list showed: " + asked.join(QLatin1Char('|')).toStdString() + " / waiting " + waiting.join(QLatin1Char('|')).toStdString());
 
 		second->findChild<QAction*>(QStringLiteral("quitProfilesAction"))->trigger();
 		wait([&] { return desktop->is_quiescent(); }, "Quit drains the last session and the profile's services");

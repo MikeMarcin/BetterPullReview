@@ -141,6 +141,11 @@ namespace bpr::core {
 	[[nodiscard]] auto next_release(const agent_queue& aQueue, queue_agent aAgent) -> std::optional<std::uint64_t>;
 	/// \brief The host claimed `aId` and is about to start its turn.
 	[[nodiscard]] auto mark_sending(agent_queue& aQueue, std::uint64_t aId) -> queue_refusal;
+	/// \brief [[BPR-2181]]. The turn released for `aId` never took it (it did
+	/// not start, or a window close stopped it before the agent answered):
+	/// it is queued again, first among the unsent, and the queue is not
+	/// paused for it (Q10).
+	[[nodiscard]] auto return_unsent(agent_queue& aQueue, std::uint64_t aId) -> queue_refusal;
 	/// \brief The turn `aId` started finished: sent and settled, it leaves
 	/// the queue. A failure, Stop or usage limit pauses what remains.
 	void settle(agent_queue& aQueue, std::uint64_t aId, queue_pause aOutcome);
