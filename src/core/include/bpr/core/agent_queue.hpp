@@ -20,6 +20,10 @@
 namespace bpr::core {
 	inline constexpr std::size_t maximum_queued_inputs = 16U;
 	inline constexpr std::size_t maximum_queue_bytes   = 256U * 1024U;
+	/// [[BPR-2181]]. The sessions whose queues hold messages at once, per
+	/// profile. Each has an agent runtime while its queue can drain, so this
+	/// also bounds the profile's runtimes.
+	inline constexpr std::size_t maximum_queued_sessions = 32U;
 	/// The existing question limit.
 	inline constexpr std::size_t maximum_queued_text_bytes = 16U * 1024U;
 

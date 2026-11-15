@@ -1,6 +1,7 @@
 #include "bpr/application/agent_queue_host.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <utility>
 #include <vector>
 
@@ -100,6 +101,13 @@ namespace bpr::application {
 
 	auto agent_queue_host::enqueue(const std::string& aSession, core::queued_input aInput) -> core::queue_refusal
 	{
+		// [[BPR-2181]]. A session not yet holding messages starts a queue only
+		// while fewer than `maximum_queued_sessions` hold any.
+		const auto found = Queues.find(aSession);
+		if ((found == Queues.end() || found->second.Entries.empty())
+			&& std::ranges::count_if(Queues, [](const auto& aQueue) { return !aQueue.second.Entries.empty(); }) >= static_cast<std::ptrdiff_t>(core::maximum_queued_sessions)) {
+			return core::queue_refusal::full;
+		}
 		auto&      queue   = Queues[aSession];
 		const auto refused = core::enqueue(queue, std::move(aInput), queue.Revision);
 		if (refused == core::queue_refusal::none) {

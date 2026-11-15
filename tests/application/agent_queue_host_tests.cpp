@@ -198,6 +198,13 @@ namespace {
 			static_cast<void>(host.enqueue("s", typed("more")));
 		}
 		expect(host.enqueue("s", typed("one too many")) == core::queue_refusal::full && host.queue("s")->Entries.size() == core::maximum_queued_inputs, "past the limit nothing is added");
+		for (std::size_t index = 1U; index < core::maximum_queued_sessions; ++index) {
+			agents.States["other-" + std::to_string(index)] = core::queue_agent::busy;
+			expect(host.enqueue("other-" + std::to_string(index), typed("waits")) == core::queue_refusal::none, "sessions up to the limit each hold a queue");
+		}
+		expect(host.enqueue("one-session-too-many", typed("refused")) == core::queue_refusal::full && host.queue("one-session-too-many") == nullptr,
+			   "a session past the session limit starts no queue");
+		expect(host.enqueue("other-1", typed("still taken")) == core::queue_refusal::none, "a session already holding messages still takes more");
 		agents.Refuses     = true;
 		agents.States["s"] = core::queue_agent::idle;
 		expect(host.resume("s") == core::queue_refusal::none && host.queue("s")->Paused == core::queue_pause::failed && !host.sending("s"),

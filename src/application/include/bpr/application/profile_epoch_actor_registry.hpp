@@ -3,6 +3,7 @@
 
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/core/agent_queue.hpp"
 #include "bpr/core/profile_window.hpp"
 
 #include <atomic>
@@ -75,8 +76,10 @@ namespace bpr::application {
 
 	/// \brief [[BPR-2181]]. The profile-owned consumers a registry admits at
 	/// once, apart from its windows: one per review agent runtime that holds an
-	/// accepted review while no window shows it.
-	inline constexpr std::size_t maximum_profile_owned_epoch_consumers = 32U;
+	/// accepted review while no window shows it. A runtime exists per session
+	/// with work, so this is the queue host's session limit; the registry
+	/// itself bounds only its actors (1,000), which is larger.
+	inline constexpr std::size_t maximum_profile_owned_epoch_consumers = core::maximum_queued_sessions;
 
 	/// \brief Window-local admission gate; retiring it never cancels another window.
 	class profile_epoch_actor_consumer final
