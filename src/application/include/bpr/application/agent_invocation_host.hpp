@@ -255,6 +255,24 @@ namespace bpr::application {
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();
+		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14/Q17. Whether the turn running
+		/// now could take a correction, from local observations only: a turn
+		/// on a kept native connection of a driver with a steering channel.
+		/// \details Claude's version is checked again when the correction is
+		/// handed off; an older one is refused then, never probed for.
+		[[nodiscard]] auto steer_support() const -> core::agent_steer_support;
+		/// \brief Answered once on the decision lane.
+		using steer_answer = std::function<void(const agent_steer_receipt&)>;
+		/// \brief [[BPR-2153]]. Hands the reviewer's correction to the running
+		/// turn, after its current tool call.
+		///
+		/// \details Keeps the run's conversation, workspace, model, effort,
+		/// permissions, deadline and limits (Q15, Q18): only the text goes.
+		/// Never starts a turn, a process or a probe; a correction that cannot
+		/// be handed off is answered `unsent` with why, and a refused one
+		/// `refused`, so the caller can queue it instead. Text over the
+		/// question limit is refused before anything is written.
+		void steer(std::string aText, steer_answer aAnswer);
 		void shutdown();
 		void retry_cleanup();
 		/// \brief [[BPR-2007]]. Where scratch folders are made, one per native

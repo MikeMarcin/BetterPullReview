@@ -57,6 +57,7 @@ namespace bpr::adapters::agent::detail {
 
 				while (!has_cause() && !ProcessExit) {
 					drain_available();
+					hand_off_steers();
 					if (IsAppServer && !native() && !has_cause() && Decoder.turn_complete() && !InputClosed) {
 						// Modern App Server treats EOF as cancellation. Retain stdin
 						// until this explicit one-shot turn has actually completed.
@@ -181,6 +182,44 @@ namespace bpr::adapters::agent::detail {
 				record_write(Transport.write(aBytes));
 				if (aPrivate && Request.PrivateInputClaim) {
 					Request.PrivateInputClaim->release();
+				}
+			}
+
+			/// \brief [[BPR-2153]], RFC-BPR-0126 Q14. Writes each correction the
+			/// host admitted for this run, once and in order, while its turn
+			/// runs; answers each as sent or as never written and why.
+			///
+			/// \details A correction for another run, or one the decoder will
+			/// not frame (the turn has not started or has answered, the driver
+			/// or its version is not qualified, the run's corrections are used
+			/// up), is never written. A write that failed part-way is still
+			/// sent: it may have been taken, so it is never retried, and the
+			/// run's own failure retires the connection.
+			void hand_off_steers()
+			{
+				auto* const connection = Request.NativeConnection;
+				if (connection == nullptr) {
+					return;
+				}
+				while (!has_cause()) {
+					auto pending = connection->take_steer();
+					if (!pending) {
+						return;
+					}
+					auto receipt = application::agent_steer_receipt{ };
+					if (pending->Request.Run != Request.Run || pending->Request.NativeTurn != Request.NativeTurn) {
+						receipt.Support = core::agent_steer_support::not_running;
+					} else if (auto frame = Decoder.steer(pending->Request.Text, true); !frame) {
+						receipt.Support = frame.error();
+					} else {
+						write_input(frame->Frame);
+						receipt = { .Identity = std::move(frame->Identity), .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available };
+					}
+					try {
+						if (pending->Answer) {
+							pending->Answer(receipt);
+						}
+					} catch (...) { }
 				}
 			}
 
@@ -405,7 +444,15 @@ namespace bpr::adapters::agent::detail {
 							return;
 						}
 					} else if (message.Kind == application::agent_protocol_event_kind::usage_report) {
-						Result.ReportedCostUsd = message.Text;
+						// [[BPR-2153]] AC07. A steered run may end in more than
+						// one result; its figure covers every part once, and a
+						// figure that went down leaves it unknown.
+						CostReading = core::read_run_cost_report(CostReading, core::parse_agent_cost(message.Text));
+						if (CostReading.Unknown) {
+							Result.ReportedCostUsd.reset();
+						} else {
+							Result.ReportedCostUsd = message.Text;
+						}
 					} else if (message.Kind == application::agent_protocol_event_kind::plugins_reported) {
 						// [[BPR-1891]]. Named in diagnostics, never refused.
 						Result.ReportedPlugins = message.Text;
@@ -551,6 +598,10 @@ namespace bpr::adapters::agent::detail {
 				if (native()) {
 					Result.NativeProcess = Transport.process_identity();
 				}
+				// [[BPR-2153]]. A correction the run never correlated is
+				// unknown: kept identifiable, never resent.
+				Decoder.settle_steers();
+				Result.Steers              = Decoder.steer_tally();
 				Result.AssistantItems      = Decoder.assistant_items();
 				Result.StandardOutputBytes = Decoder.pushed_bytes();
 				if (ProtocolFailure) {
@@ -622,6 +673,7 @@ namespace bpr::adapters::agent::detail {
 			application::agent_run_result                      Result;
 			application::agent_protocol_decoder                Decoder;
 			std::string                                        SavedNativeHandle;
+			core::agent_run_cost_reading                       CostReading;
 			std::array<char, protocol_buffer_bytes>            Buffer{ };
 			bool                                               InputClosed    = false;
 			std::size_t                                        IdleBytes      = 0U;

@@ -172,6 +172,12 @@ namespace bpr::application {
 			std::atomic_bool     CleanupScheduled    = false;
 			std::atomic_bool     Retired             = false;
 			std::atomic_bool     ExplicitlyCancelled = false;
+			/// [[BPR-2153]]. While the process runs: its protocol, and the kept
+			/// native connection and turn a correction is handed to (none for
+			/// a one-shot or replayed run).
+			mutable std::mutex                  SteerMutex;
+			std::optional<core::agent_protocol> SteerProtocol;
+			std::optional<agent_steer_request>  SteerTarget;
 		};
 
 		implementation(
@@ -1112,7 +1118,14 @@ namespace bpr::application {
 				// Owner decision 2026-10-23: no time limit unless the reviewer
 				// set one; Stop is always there.
 				aInvocation->NativeSubmitted = true;
-				auto result                  = Processes.run(
+				{
+					const auto lock            = std::scoped_lock{ aInvocation->SteerMutex };
+					aInvocation->SteerProtocol = launch->Protocol;
+					if (!launch->NativeConversation.empty()) {
+						aInvocation->SteerTarget = agent_steer_request{ .Conversation = launch->NativeConversation, .Run = launch->Run, .NativeTurn = launch->NativeTurn };
+					}
+				}
+				auto result = Processes.run(
 					*launch,
 					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
@@ -1122,6 +1135,11 @@ namespace bpr::application {
 						}
 					},
 					aInvocation->Stop->get_token());
+				{
+					const auto lock = std::scoped_lock{ aInvocation->SteerMutex };
+					aInvocation->SteerProtocol.reset();
+					aInvocation->SteerTarget.reset();
+				}
 				if (launch->PrivateInputClaim) {
 					launch->PrivateInputClaim->release();
 				}
@@ -1522,6 +1540,66 @@ namespace bpr::application {
 			static_cast<void>(active->Stop->request_stop());
 		}
 
+		/// [[BPR-2153]]. The running turn's steering channel, or why it has none.
+		[[nodiscard]] auto steer_target() const -> std::expected<std::pair<agent_steer_request, core::agent_protocol>, core::agent_steer_support>
+		{
+			auto active = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				active = ActiveInvocation;
+			}
+			if (!active || active->Stop->stop_requested()) {
+				return std::unexpected(core::agent_steer_support::not_running);
+			}
+			const auto lock = std::scoped_lock{ active->SteerMutex };
+			if (!active->SteerProtocol) {
+				return std::unexpected(core::agent_steer_support::not_running);
+			}
+			// Claude's version is the one observation the host does not hold:
+			// the protocol loop checks it at hand-off and refuses then.
+			const auto support = core::agent_steer_support_of(*active->SteerProtocol, active->SteerTarget.has_value(), core::qualified_claude_steer_version);
+			if (support != core::agent_steer_support::available) {
+				return std::unexpected(support);
+			}
+			return std::pair{ *active->SteerTarget, *active->SteerProtocol };
+		}
+
+		void steer(std::string aText, agent_invocation_host::steer_answer aAnswer)
+		{
+			const auto weak    = weak_from_this();
+			auto       deliver = [weak, answer = std::move(aAnswer)](const agent_steer_receipt& aReceipt) {
+				auto self = weak.lock();
+				if (!self || !answer) {
+					return;
+				}
+				++self->Probes;
+				try {
+					self->DecisionLane.post([weak, answer, aReceipt] {
+						if (auto lane = weak.lock()) {
+							--lane->Probes;
+							if (!lane->Closing) {
+								answer(aReceipt);
+							}
+						}
+					});
+				} catch (...) {
+					--self->Probes;
+				}
+			};
+			if (aText.empty() || aText.size() > core::maximum_chat_message_bytes) {
+				deliver({ .Support = core::agent_steer_support::available });
+				return;
+			}
+			auto target = steer_target();
+			if (!target) {
+				deliver({ .Support = target.error() });
+				return;
+			}
+			auto request = std::move(target->first);
+			request.Text = std::move(aText);
+			Processes.steer(std::move(request), std::move(deliver));
+		}
+
 		void supersede(const supersession_cause aCause)
 		{
 			auto active = std::shared_ptr<invocation>{ };
@@ -1848,6 +1926,18 @@ namespace bpr::application {
 	{
 		const auto implementation = Implementation;
 		implementation->cancel();
+	}
+
+	auto agent_invocation_host::steer_support() const -> core::agent_steer_support
+	{
+		const auto target = Implementation->steer_target();
+		return target ? core::agent_steer_support::available : target.error();
+	}
+
+	void agent_invocation_host::steer(std::string aText, steer_answer aAnswer)
+	{
+		const auto implementation = Implementation;
+		implementation->steer(std::move(aText), std::move(aAnswer));
 	}
 
 	void agent_invocation_host::shutdown()

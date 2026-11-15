@@ -357,6 +357,16 @@ namespace {
 			++Cancels;
 		}
 
+		/// [[BPR-2153]]. A correction is recorded and answered as sent.
+		void steer(application::agent_steer_request aRequest, application::agent_steer_answer aAnswer) override
+		{
+			Steered.push_back(std::move(aRequest));
+			if (aAnswer) {
+				aAnswer({ .Identity = "steer-identity", .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available });
+			}
+		}
+
+		std::vector<application::agent_steer_request>    Steered;
 		std::vector<std::string>                         AssistantItems;
 		std::size_t                                      Starts            = 0U;
 		std::size_t                                      Cancels           = 0U;
@@ -2227,6 +2237,53 @@ namespace {
 			   "the continued turn launches with the inspected guard identity, not the stored one");
 	}
 
+	/// [[BPR-2153]], RFC-BPR-0126 AC05. A running native turn takes a
+	/// correction on its own connection; nothing else does, and each says why.
+	void a_running_native_turn_takes_a_correction_and_others_say_why()
+	{
+		auto test                 = harness{ };
+		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.NativeAgentIdentity = "agent-a";
+		input.NativeScope         = "agent-tab";
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		expect(test.Host.steer_support() == core::agent_steer_support::not_running, "with nothing running there is nothing to steer");
+		auto       receipts = std::vector<application::agent_steer_receipt>{ };
+		auto       support  = core::agent_steer_support::not_running;
+		const auto answer   = [&receipts](const application::agent_steer_receipt& aReceipt) { receipts.push_back(aReceipt); };
+		test.Host.steer("too early", answer);
+		test.settle();
+		expect(receipts.size() == 1U && receipts.back().Disposition == core::agent_steer_disposition::unsent && receipts.back().Support == core::agent_steer_support::not_running && test.Processes.Steered.empty(),
+			   "a correction with no running turn is answered unsent, and starts nothing");
+		test.Processes.AfterStart = [&] {
+			support = test.Host.steer_support();
+			test.Host.steer("Look at b.cpp instead", answer);
+			test.Host.steer(std::string(core::maximum_chat_message_bytes + 1U, 'x'), answer);
+		};
+		test.Host.dispatch(input);
+		test.settle();
+		expect(support == core::agent_steer_support::available && test.Processes.Starts == 1U, "a native Claude turn can be steered while it runs");
+		expect(test.Processes.Steered.size() == 1U && test.Processes.Steered.front().Text == "Look at b.cpp instead" && test.Processes.Steered.front().Conversation == test.Processes.LastRequest->NativeConversation
+				   && test.Processes.Steered.front().NativeTurn == test.Processes.LastRequest->NativeTurn,
+			   "the correction goes to the exact run's connection and native turn, text only");
+		expect(receipts.size() == 3U && receipts[1].Disposition == core::agent_steer_disposition::sent && receipts[1].Identity == "steer-identity" && receipts[2].Disposition == core::agent_steer_disposition::unsent,
+			   "it is answered on the decision lane; text over the question limit is never handed off");
+		expect(test.Host.steer_support() == core::agent_steer_support::not_running, "once the turn ended, nothing is steerable");
+
+		auto terminal = harness{ };
+		terminal.Host.observe(core::application_session_id{ 1U }, authority(core::git_host_id{ 1U }), binding(core::git_host_id{ 1U }));
+		terminal.settle();
+		auto refused                  = std::vector<application::agent_steer_receipt>{ };
+		terminal.Processes.AfterStart = [&] {
+			support = terminal.Host.steer_support();
+			terminal.Host.steer("a correction", [&refused](const application::agent_steer_receipt& aReceipt) { refused.push_back(aReceipt); });
+		};
+		terminal.Host.dispatch(request(core::git_host_id{ 1U }, core::external_terminal_profile_id));
+		terminal.settle();
+		expect(support == core::agent_steer_support::protocol && refused.size() == 1U && refused.front().Support == core::agent_steer_support::protocol && terminal.Processes.Steered.empty(),
+			   "a driver with no steering channel keeps Queue and says why, with no probe");
+	}
+
 	void pr_workspace_is_shared_across_scopes_agents_and_windows()
 	{
 		auto test                 = harness{ };
@@ -2427,6 +2484,7 @@ auto main(const int aCount, char** aArguments) -> int
 	expect(aCount == 1, "only the dedicated entry course takes an argument");
 	native_workspace_and_identity_survive_window_activation();
 	shared_workspace_identity_isolates_authority_and_source();
+	a_running_native_turn_takes_a_correction_and_others_say_why();
 	pr_workspace_is_shared_across_scopes_agents_and_windows();
 	continued_turn_launches_with_the_reattached_guard();
 	native_storage_failures_remain_private();

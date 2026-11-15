@@ -1112,8 +1112,188 @@ namespace {
 	}
 }
 
+namespace {
+	/// [[BPR-2153]]. A kept connection with corrections waiting for its loop.
+	class steering_connection final : public application::agent_native_connection_port
+	{
+	public:
+		std::deque<application::agent_pending_steer>  Waiting;
+		std::vector<application::agent_steer_receipt> Receipts;
+		std::vector<application::agent_run_result>    Results;
+		bool                                          Retired = false;
+		auto                                          next() -> std::optional<application::agent_launch_request> override { return std::nullopt; }
+		void                                          complete(application::agent_run_result aResult) override { Results.push_back(std::move(aResult)); }
+		void                                          retire() noexcept override { Retired = true; }
+		auto                                          timeout_milliseconds() const -> int override { return 1000; }
+		auto                                          cancelled() const noexcept -> bool override { return true; }
+		auto                                          take_steer() -> std::optional<application::agent_pending_steer> override
+		{
+			if (Waiting.empty()) {
+				return std::nullopt;
+			}
+			auto steer = std::move(Waiting.front());
+			Waiting.pop_front();
+			return steer;
+		}
+		void wait_with(const core::agent_run_id aRun, std::string aText)
+		{
+			Waiting.push_back({ .Request = { .Conversation = "steered", .Run = aRun, .NativeTurn = 2U, .Text = std::move(aText) }, .Answer = [this](const application::agent_steer_receipt& aReceipt) { Receipts.push_back(aReceipt); } });
+		}
+	};
+
+	[[nodiscard]] auto claude_init(const std::string_view aVersion) -> std::string
+	{
+		return std::string{ R"({"type":"system","subtype":"init","session_id":"steer-s","model":"m","claude_code_version":")" } + std::string{ aVersion } + "\"}\n";
+	}
+
+	[[nodiscard]] auto claude_tool_use() -> std::string
+	{
+		return std::string{ R"({"type":"assistant","session_id":"steer-s","message":{"role":"assistant","id":"m1","content":[{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"a.cpp"}}]}})" } + "\n";
+	}
+
+	[[nodiscard]] auto claude_answer(const std::string_view aId, const std::string_view aText) -> std::string
+	{
+		return std::string{ R"({"type":"assistant","session_id":"steer-s","message":{"role":"assistant","id":")" } + std::string{ aId } + R"(","content":[{"type":"text","text":")" + std::string{ aText } + "\"}]}}\n";
+	}
+
+	[[nodiscard]] auto claude_result(const std::string_view aUuid, const std::string_view aInputs, const std::string_view aQueued, const std::string_view aCost) -> std::string
+	{
+		return std::string{ R"({"type":"result","subtype":"success","session_id":"steer-s","is_error":false,"result":"done","uuid":")" } + std::string{ aUuid } + R"(","user_message_uuids":[)" + std::string{ aInputs } + R"(],"queued_turn_count":)" + std::string{ aQueued }
+		+ R"(,"total_cost_usd":)" + std::string{ aCost } + "}\n";
+	}
+
+	/// The first native turn: the agent reads a file, a correction is
+	/// waiting, then whatever `aAfter` says Claude wrote.
+	[[nodiscard]] auto run_steered_claude(steering_connection& aPort, fake_transport& aWire, const std::string_view aVersion, const std::string& aAfter, const core::agent_run_id aSteeredRun = core::agent_run_id{ 9U })
+		-> application::agent_run_result
+	{
+		auto launched               = request(core::agent_protocol::claude_stream_json);
+		launched.Run                = core::agent_run_id{ 9U };
+		launched.NativeConversation = "steered";
+		launched.NativeConnection   = &aPort;
+		aPort.wait_with(aSteeredRun, "Look at b.cpp instead");
+		aWire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = claude_init(aVersion) + claude_tool_use() });
+		aWire.Output.push_back({ });
+		aWire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
+		aWire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = aAfter });
+		aWire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
+		aWire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
+		return run_agent_protocol_loop(launched, { }, aWire);
+	}
+
+	void test_claude_takes_a_correction_after_its_tool_call()
+	{
+		const auto identity = core::agent_steer_identity(2U, 0U);
+		auto       port     = steering_connection{ };
+		auto       wire     = fake_transport{ };
+		const auto result   = run_steered_claude(port, wire, "2.1.319", claude_answer("m2", "Read b.cpp.") + claude_result("r1", "\"first\",\"" + identity + "\"", "0", "0.0040"));
+		expect(port.Receipts.size() == 1U && port.Receipts.front().Disposition == core::agent_steer_disposition::sent && port.Receipts.front().Identity == identity, "the correction is answered as sent, with its identity");
+		expect(wire.Writes.size() == 2U && wire.Writes.back().find("\"priority\":\"next\"") != std::string::npos && wire.Writes.back().find("\"uuid\":\"" + identity + "\"") != std::string::npos
+				   && wire.Writes.back().find("Look at b.cpp instead") != std::string::npos && wire.Writes.back().find("\"now\"") == std::string::npos,
+			   "it is one UUID-bearing user message with priority next, written once");
+		expect(result.Outcome == application::agent_run_outcome::success && result.Steers == core::agent_steer_tally{ .Consumed = 1U }, "a result naming it settles it as consumed");
+		expect(result.ReportedCostUsd == "0.0040" && !port.Retired && wire.CloseInputCount == 0U, "the run keeps its connection and its one cost");
+	}
+
+	void test_a_successor_turn_stays_in_the_run_and_counts_once()
+	{
+		const auto identity = core::agent_steer_identity(2U, 0U);
+		auto       port     = steering_connection{ };
+		auto       wire     = fake_transport{ };
+		// Claude answered before taking the correction, said input waits,
+		// then took it in a successor native turn of the same session.
+		const auto after  = claude_answer("m2", "First answer.") + claude_result("r1", "\"first\"", "1", "0.0040") + claude_init("2.1.319") + claude_answer("m3", "Corrected answer.") + claude_result("r2", "\"" + identity + "\"", "0", "0.0065");
+		const auto result = run_steered_claude(port, wire, "2.1.319", after);
+		expect(result.Outcome == application::agent_run_outcome::success && result.Steers == core::agent_steer_tally{ .Consumed = 1U }, "the successor turn is the same run, and settles the correction");
+		expect(result.AssistantItems == std::vector<std::string>{ "First answer.", "\n\nCorrected answer." }, "both parts' answers are the run's, the later its own paragraph");
+		expect(result.ReportedCostUsd == "0.0065", "the run's cost is Claude's last cumulative figure: every part once, never summed");
+		expect(port.Results.size() == 1U && !port.Retired, "one terminal for the whole run");
+
+		auto       reset     = steering_connection{ };
+		auto       resetWire = fake_transport{ };
+		const auto down      = run_steered_claude(reset, resetWire, "2.1.319", claude_answer("m2", "First.") + claude_result("r1", "\"first\"", "1", "0.0040") + claude_init("2.1.319") + claude_answer("m3", "Second.") + claude_result("r2", "\"" + identity + "\"", "0", "0.0010"));
+		expect(down.Outcome == application::agent_run_outcome::success && !down.ReportedCostUsd, "a figure that went down mid-run leaves the run's cost unknown");
+	}
+
+	void test_an_unreconciled_correction_is_unknown_and_retires()
+	{
+		auto       port   = steering_connection{ };
+		auto       wire   = fake_transport{ };
+		const auto result = run_steered_claude(port, wire, "2.1.319", claude_answer("m2", "Answer.") + claude_result("r1", "\"first\"", "0", "0.0040"));
+		expect(result.Steers == core::agent_steer_tally{ .Unknown = 1U }, "a correction no result names, with nothing queued, is unknown");
+		expect(port.Retired && wire.Writes.size() == 2U, "the connection is retired, and nothing is resent");
+	}
+
+	void test_unqualified_or_other_runs_are_never_written()
+	{
+		auto       port   = steering_connection{ };
+		auto       wire   = fake_transport{ };
+		const auto result = run_steered_claude(port, wire, "2.1.314", claude_answer("m2", "Answer.") + claude_result("r1", "\"first\"", "0", "0.0040"));
+		expect(port.Receipts.size() == 1U && port.Receipts.front().Disposition == core::agent_steer_disposition::unsent && port.Receipts.front().Support == core::agent_steer_support::version, "an older Claude Code keeps Queue and says why");
+		expect(wire.Writes.size() == 1U && result.Steers == core::agent_steer_tally{ } && result.Outcome == application::agent_run_outcome::success, "nothing was written and the run is unchanged");
+
+		auto       other     = steering_connection{ };
+		auto       otherWire = fake_transport{ };
+		const auto otherRun  = run_steered_claude(other, otherWire, "2.1.319", claude_answer("m2", "Answer.") + claude_result("r1", "\"first\"", "0", "0.0040"), core::agent_run_id{ 10U });
+		expect(other.Receipts.size() == 1U && other.Receipts.front().Disposition == core::agent_steer_disposition::unsent && otherWire.Writes.size() == 1U && otherRun.Steers == core::agent_steer_tally{ }, "a correction for another run is never written to this one");
+
+		auto ended = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(ended.push(claude_init("2.1.319") + claude_answer("m1", "Done.") + claude_result("r1", "", "0", "0")).has_value() && ended.turn_complete(), "a turn that answered");
+		const auto late = ended.steer("too late", true);
+		expect(!late && late.error() == core::agent_steer_support::not_running, "a turn that has answered takes no correction");
+		auto oneShot = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(oneShot.push(claude_init("2.1.319")).has_value(), "a one-shot turn");
+		const auto unconnected = oneShot.steer("no channel", false);
+		expect(!unconnected && unconnected.error() == core::agent_steer_support::no_connection, "a run off a kept connection cannot be steered");
+		auto       exec      = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+		const auto execSteer = exec.steer("no channel", true);
+		expect(!execSteer && execSteer.error() == core::agent_steer_support::protocol, "Codex exec cannot be steered");
+	}
+
+	void test_app_server_steers_the_expected_turn()
+	{
+		const auto started   = std::string{ R"({"id":2,"result":{"turn":{"id":"turn-a","status":"inProgress","items":[]}}})" } + "\n";
+		const auto completed = std::string{ R"({"method":"item/completed","params":{"threadId":"thread-a","turnId":"turn-a","item":{"id":"i1","type":"agentMessage","text":"done"}}})" } + "\n"
+			+ R"({"method":"turn/completed","params":{"threadId":"thread-a","turn":{"id":"turn-a","status":"completed","items":[]}}})" + "\n";
+		const auto rpc = std::to_string((std::uint64_t{ 1U } << 40U) + (2U << 6U));
+
+		auto accepted = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		accepted.continue_native("thread-a", 2U);
+		expect(accepted.push(started).has_value(), "the turn starts");
+		const auto frame = accepted.steer("use the other file", true);
+		expect(frame.has_value() && frame->Frame.find(R"("method":"turn/steer")") != std::string::npos && frame->Frame.find(R"("threadId":"thread-a")") != std::string::npos
+				   && frame->Frame.find(R"("expectedTurnId":"turn-a")") != std::string::npos && frame->Frame.find("\"id\":" + rpc + ",") != std::string::npos
+				   && frame->Frame.find("\"clientUserMessageId\":\"" + frame->Identity + "\"") != std::string::npos,
+			   "turn/steer names the thread, the running turn and the correction's identity");
+		expect(accepted.push(completed).has_value() && !accepted.turn_complete(), "the turn is not over while its turn/steer is unanswered");
+		auto ordered = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		ordered.continue_native("thread-a", 2U);
+		expect(ordered.push(started).has_value() && ordered.steer("use the other file", true).has_value(), "a second connection");
+		expect(ordered.push("{\"id\":" + rpc + ",\"result\":{\"turnId\":\"turn-a\"}}\n").has_value() && ordered.push(completed).has_value() && ordered.turn_complete(), "accepted, then completed");
+		expect(ordered.steer_tally() == core::agent_steer_tally{ .Consumed = 1U } && ordered.native_connection_reusable(), "the turn that accepted it took it, and the connection stays");
+
+		auto refused = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		refused.continue_native("thread-a", 2U);
+		expect(refused.push(started).has_value() && refused.steer("too late", true).has_value(), "a third connection");
+		// Codex 0.167.0, 2026-11-14: the reply to a mismatched expectedTurnId.
+		expect(refused.push("{\"error\":{\"code\":-32600,\"message\":\"expected active turn id `x` but found `turn-a`\"},\"id\":" + rpc + "}\n").has_value() && refused.push(completed).has_value() && refused.turn_complete(), "a refusal is read, not a failure");
+		expect(refused.steer_tally() == core::agent_steer_tally{ .Refused = 1U }, "a refused correction was not consumed, and may be queued");
+		expect(!refused.push("{\"id\":" + rpc + ",\"result\":{\"turnId\":\"turn-a\"}}\n"), "one request has one answer");
+
+		auto elsewhere = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		elsewhere.continue_native("thread-a", 2U);
+		expect(elsewhere.push(started).has_value() && elsewhere.steer("hm", true).has_value() && elsewhere.push("{\"id\":" + rpc + ",\"result\":{\"turnId\":\"turn-b\"}}\n").has_value(), "an answer naming another turn");
+		expect(elsewhere.push(completed).has_value() && elsewhere.steer_tally() == core::agent_steer_tally{ .Unknown = 1U } && !elsewhere.native_connection_reusable(), "is never this run's success, and retires the connection");
+	}
+} // namespace
+
 int main()
 {
+	test_claude_takes_a_correction_after_its_tool_call();
+	test_a_successor_turn_stays_in_the_run_and_counts_once();
+	test_an_unreconciled_correction_is_unknown_and_retires();
+	test_unqualified_or_other_runs_are_never_written();
+	test_app_server_steers_the_expected_turn();
 	test_uuidless_terminal_retires_before_selecting_another_question();
 	test_connection_identity_capacity_never_forgets_old_turns();
 	test_connected_turns_retain_claude_frame_fences();

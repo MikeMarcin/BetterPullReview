@@ -113,6 +113,7 @@ add_library(
         src/tour_references.cpp
         src/agent_activity.cpp
         src/agent_cost.cpp
+        src/agent_steering.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp

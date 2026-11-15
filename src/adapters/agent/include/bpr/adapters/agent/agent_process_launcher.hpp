@@ -94,6 +94,10 @@ namespace bpr::adapters::agent {
 		/// toolkit and process-tree operations on its owning thread.
 		void               cancel() noexcept override;
 		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override;
+		/// \brief [[BPR-2153]]. Hands a correction to the turn running on the
+		/// kept connection of `aRequest.Conversation`; refuses it when there
+		/// is none. Never starts a process.
+		void steer(application::agent_steer_request aRequest, application::agent_steer_answer aAnswer) override;
 
 #if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)
 		/// \brief Forces the pre-resume Job Object assignment seam to fail.
