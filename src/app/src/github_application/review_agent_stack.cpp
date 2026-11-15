@@ -144,8 +144,9 @@ namespace bpr::app {
 
 	void review_agent_stack::apply_loan(application::lent_review_authority aLent, const core::agent_revision_binding aFor)
 	{
-		Lease   = std::move(aLent.Lease);
-		LentFor = aFor;
+		Lease       = std::move(aLent.Lease);
+		LentFor     = aFor;
+		LoanPending = true;
 		Epoch->accept(std::move(aLent.Handoff));
 	}
 
@@ -197,7 +198,16 @@ namespace bpr::app {
 			.LeftEpoch   = state.AcceptedComparison->Left.Identity.Epoch,
 			.RightEpoch  = state.AcceptedComparison->Right.Identity.Epoch,
 		};
+		// [[BPR-2193]]. The loan last lent is in once the epoch host has
+		// ingested it and accepts its revision.
+		const auto settled = LoanPending && !state.PendingIngestion && LentFor && binding.BaseOid == LentFor->BaseOid && binding.HeadOid == LentFor->HeadOid;
+		if (settled) {
+			LoanPending = false;
+		}
 		if (Observed == std::optional{ binding }) {
+			if (settled && Ready) {
+				Ready();
+			}
 			return;
 		}
 		Observed = binding;
@@ -291,11 +301,15 @@ namespace bpr::app {
 		}
 	}
 
-	/// [[BPR-2193]]. Whether the epoch host has accepted what was last lent.
+	/// [[BPR-2193]]. Whether the epoch host has taken in what was last lent.
 	/// Accepting a loan re-authorizes its blobs, and a workspace admitted
 	/// under the authorization before ends stale, so no turn starts until the
-	/// review lent is the one observed.
-	auto review_agent_stack::lent_revision_observed() const -> bool { return Observed.has_value() && (!LentFor || Observed == LentFor); }
+	/// loan's ingestion has settled on its revision. (The comparison's epochs
+	/// are the stack's own and need not be the window's.)
+	auto review_agent_stack::lent_revision_observed() const -> bool
+	{
+		return Observed.has_value() && !LoanPending && (!LentFor || (Observed->BaseOid == LentFor->BaseOid && Observed->HeadOid == LentFor->HeadOid));
+	}
 
 	auto review_agent_stack::authorized() const -> bool { return !Closing && Lease.live() && lent_revision_observed(); }
 

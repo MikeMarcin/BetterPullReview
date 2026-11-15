@@ -154,6 +154,9 @@ namespace bpr::app {
 		std::shared_ptr<bool>                       Alive = std::make_shared<bool>(true);
 		std::optional<core::agent_revision_binding> Observed;
 		std::optional<core::agent_revision_binding> LentFor;
+		/// [[BPR-2193]]. A loan was applied and the epoch host has not yet
+		/// settled its ingestion.
+		bool LoanPending = false;
 		/// [[BPR-2193]]. A loan of the same revision lent while a turn ran.
 		std::optional<std::pair<application::lent_review_authority, core::agent_revision_binding>> WaitingLoan;
 		bool                                                                                       Closing           = false;
