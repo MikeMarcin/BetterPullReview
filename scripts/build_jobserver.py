@@ -3,7 +3,7 @@
 
 Several agents build at once on one Mac, and full-width Ninja builds side by
 side once used 83 GB of RAM. This process owns a FIFO in a fixed per-user
-location and seeds it with N tokens (default 12). Ninja 1.13 and newer is a
+location and seeds it with N tokens (default 40). Ninja 1.13 and newer is a
 jobserver client of a FIFO named in MAKEFLAGS (`--jobserver-auth=fifo:PATH`):
 it takes a token before each job beyond its first and returns it afterwards.
 `scripts/jobserver_ninja.py`, the dev preset's CMAKE_MAKE_PROGRAM, joins a
@@ -56,7 +56,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_TOKENS = 12
+DEFAULT_TOKENS = 40
 FALLBACK_JOBS = 8
 TOKEN = b"+"
 RECONCILE_SECONDS = 5.0

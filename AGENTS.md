@@ -223,7 +223,7 @@ Start it once per login; `start` is idempotent and `stop` signals only the pid
 its own pidfile names:
 
 ```sh
-python3 scripts/build_jobserver.py start     # 12 tokens; --tokens N to change
+python3 scripts/build_jobserver.py start     # 40 tokens; --tokens N to change
 python3 scripts/build_jobserver.py status
 python3 scripts/build_jobserver.py stop
 ```
