@@ -3363,13 +3363,22 @@ Where it applies:
   shows one placeholder row per file GitHub reported and says how many; the
   side column waits for the accepted review; the comment counts by file are
   the last part and are said as partial. The files say once, politely, when
-  the Overview is ready. [[BPR-2180]]: once the column's other sections have
-  begun to show and the people have not, the People section stands in its
-  place and waits as faces, on its own line and in its roster.
+  the Overview is ready. [[BPR-2180]] (the owner, rejecting People alone on
+  2026-11-14: "It feels like there should be more that one section on the
+  status drawer with separate loading."): the side column is never covered
+  whole. Each section stands in its place under its heading from the first
+  answer and waits over its own body in its own shape: Needs attention as
+  pairs until the merge state arrives, My review as pairs until the accepted
+  review, Checks as rows until the check results, and People as faces (its
+  roster as faces and names) until the reviewers. The column's plate at its
+  foot names what is still coming.
 - **The comparison panes**: code placeholders while a file comparison loads,
   then "Colouring syntax…" as partial until its classification is adopted or
   fails. The status above the panes still says the outcome.
-- **The Files drawer**: rows while the first read runs. **The Comments drawer
+- **The Files drawer**: rows while the first read runs. [[BPR-2180]]: once
+  the Overview lists the files GitHub reported, the drawer lists the same
+  files by path, readable, and its plate says "Files open once the review has
+  loaded…"; the accepted review's rows replace them. **The Comments drawer
   (and Discuss, which shows the same panel) and Threads**: thread cards while
   the first read runs ([[BPR-2180]]).
 - **The private tour**: stop cards under its head while it loads

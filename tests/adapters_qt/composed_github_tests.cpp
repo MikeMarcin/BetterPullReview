@@ -9,6 +9,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -7530,7 +7531,9 @@ namespace {
 		load();
 		showSections();
 		load();
-		expect(page->status_section(qt::overview_status_section::people)->isHidden() && page->status_section(qt::overview_status_section::attention)->isHidden(),
+		// [[BPR-2180]]. The sections stand in their places and wait; nothing of
+		// the previous observation is shown in them.
+		expect(page->participant_rows().empty() && page->request_rows().empty() && page->pending_veils().People->busy() && page->pending_veils().Merge->busy(),
 			   "replacement clears people and merge before new observations");
 		page->status_section_header(qt::overview_status_section::checks)->click();
 		list->setCurrentItem(list->topLevelItem(1));

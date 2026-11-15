@@ -199,7 +199,9 @@ namespace {
 		page.present_loading();
 		++metadata.Number;
 		page.present_observation(metadata);
-		expect(list->topLevelItemCount() == 0 && page.status_section(qt::overview_status_section::checks)->isHidden(),
+		// [[BPR-2180]]. The section stands in its place and waits for its own
+		// results; nothing of the previous pull request's is listed.
+		expect(list->topLevelItemCount() == 0 && page.pending_veils().Checks->busy(),
 			   "another PR waits for its own results");
 		page.present_observed_checks({ .ChecksComplete = false, .ChecksNote = "Check runs unavailable." });
 		expect(!page.status_section(qt::overview_status_section::checks)->isHidden() && list->topLevelItemCount() == 0
@@ -256,7 +258,9 @@ namespace {
 			   "local completion keeps final counts, disclosure and check selection");
 		page.clear();
 		page.present_loading();
-		expect(!page.projection() && page.status_section(qt::overview_status_section::my_review)->isHidden(), "replacement does not retain the previous review's progress");
+		// [[BPR-2180]]. My review stands in its place and waits; nothing of the
+		// previous review's progress is shown in it.
+		expect(!page.projection() && files->text().isEmpty() && page.pending_veils().MyReview->busy(), "replacement does not retain the previous review's progress");
 	}
 
 	auto test_page_presents_the_projection_and_reports_its_gestures() -> void

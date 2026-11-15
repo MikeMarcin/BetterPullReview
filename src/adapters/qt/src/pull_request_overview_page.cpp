@@ -773,6 +773,7 @@ namespace bpr::qt {
 			bodyLayout->setContentsMargins(4, 0, 4, 0);
 			bodyLayout->setSpacing(2);
 			column->addWidget(body);
+			parts.Body                = body;
 			parts.Details             = new QWidget{ parts.Frame };
 			auto* const detailsLayout = new QVBoxLayout{ parts.Details };
 			detailsLayout->setContentsMargins(4, 8, 4, 2);
@@ -1049,14 +1050,26 @@ namespace bpr::qt {
 		Veils.Header->set_announces(false);
 		Veils.Description->set_announces(false);
 		Veils.Side->set_announces(false);
-		// [[BPR-2180]]. The People section waits as faces, on its own line and
-		// in its roster, once the rest of the column has shown.
-		Veils.People = new pending_veil{ *this, pending_shape::people, QStringLiteral("People"), PeopleSummary->parentWidget() };
-		Veils.Roster = new pending_veil{ *this, pending_shape::people, QStringLiteral("Participants"), Sections[static_cast<std::size_t>(overview_status_section::people)].Details };
-		for (auto* const veil : { Veils.People, Veils.Roster }) {
+		// [[BPR-2180]]. The owner, rejecting People alone on 2026-11-14: "It
+		// feels like there should be more that one section on the status
+		// drawer with separate loading." Each section stands in its place
+		// under its heading and waits in its own shape for its own part of
+		// the read; the heading names it, so its placeholders take the words'
+		// place.
+		const auto section = [this](const overview_status_section aSection, const pending_shape aShape, const QString& aName, const int aCount) {
+			auto* const veil = new pending_veil{ *this, aShape, aName, Sections[static_cast<std::size_t>(aSection)].Body };
 			veil->set_announces(false);
 			veil->set_words_beside(true);
-		}
+			veil->set_placeholder_count(aCount);
+			return veil;
+		};
+		Veils.Merge    = section(overview_status_section::attention, pending_shape::pairs, QStringLiteral("Needs attention"), 2);
+		Veils.MyReview = section(overview_status_section::my_review, pending_shape::pairs, QStringLiteral("My review"), 4);
+		Veils.Checks   = section(overview_status_section::checks, pending_shape::rows, QStringLiteral("Checks"), 2);
+		Veils.People   = section(overview_status_section::people, pending_shape::people, QStringLiteral("People"), 3);
+		Veils.Roster   = new pending_veil{ *this, pending_shape::people, QStringLiteral("Participants"), Sections[static_cast<std::size_t>(overview_status_section::people)].Details };
+		Veils.Roster->set_announces(false);
+		Veils.Roster->set_words_beside(true);
 		clear();
 	}
 }

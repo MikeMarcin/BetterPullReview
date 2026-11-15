@@ -1589,7 +1589,14 @@ namespace bpr::qt {
 		} else {
 			apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
 		}
-		apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+		// [[BPR-2180]]. Once the Overview lists the files GitHub reported, the
+		// Files drawer lists them too: readable, with what is still coming said
+		// on the plate at its foot rather than over the rows.
+		if (first && OverviewPage != nullptr && OverviewPage->observed_files() && FilesTree != nullptr && FilesTree->model() != nullptr && FilesTree->model()->rowCount() > 0) {
+			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = QStringLiteral("Files open once the review has loaded…") });
+		} else {
+			apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+		}
 		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
 		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
 		// Only a composed queue restores: without one nothing is on its way.

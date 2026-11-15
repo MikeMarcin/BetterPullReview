@@ -234,6 +234,48 @@ try {
 		asserted = true;
 	}
 
+	// ---- [[BPR-2180]] Overview, then Review, while the review still loads -----
+	// The owner, 2026-11-14: "going to review the file list should be loaded
+	// becuase it's already loaded on overview but now we see loading there
+	// instead of the file list." Once the Overview lists the files, Review's
+	// Files drawer lists the same files and no veil covers them.
+	{
+		const auto covering = [](const qt::pending_veil& aVeil) {
+			const auto look = aVeil.look();
+			return look == core::pending_look::placeholder || look == core::pending_look::loading || look == core::pending_look::loading_slow;
+		};
+		window->choose_modality(qt::review_modality::overview);
+		window->choose_home(true);
+		pause(100);
+		delay->Milliseconds     = 1'500U;
+		delay->PageMilliseconds = 1'200U;
+		double_click(row_of(*window, first));
+		wait_for([&] { return !window->showing_home(); }, "the pull request leaves Home once GitHub names it");
+		window->choose_modality(qt::review_modality::overview);
+		const auto veils = window->overview_page()->pending_veils();
+		// The side column waits section by section, each in its own place.
+		wait_for([&] { return window->overview_page()->isVisible(); }, "the Overview shows");
+		expect(veils.MyReview->busy() && veils.MyReview->isVisible(), "My review waits in its own place");
+		expect(veils.Merge != nullptr && veils.Checks != nullptr && veils.People != nullptr, "each side section has its own veil");
+		wait_for([&] { return window->overview_page()->observed_files(); }, "the Overview lists the files GitHub reported", 60'000);
+		expect(!window->overview_page()->projection().has_value(), "while the rest of the review still loads");
+		window->choose_modality(qt::review_modality::review);
+		pause(200);
+		auto* const files = window->pending_veils().Files;
+		auto* const tree  = window->files_tree();
+		expect(window->current_modality() == qt::review_modality::review && tree->isVisible(), "Review shows its Files drawer");
+		expect(!covering(*files), "Review's Files drawer is not covered once the Overview has the files");
+		expect(files->look() == core::pending_look::partial || !files->busy(), "what is still coming is said at its foot");
+		expect(tree->model()->rowCount() > 0, "Review's Files drawer lists the files");
+		renders(QStringLiteral("review-files-while-loading"));
+		wait_for([&] { return window->overview_page()->projection().has_value() && !veils.Files->busy(); }, "the accepted review arrives", 60'000);
+		pause(200);
+		expect(!files->busy() && !files->isVisible(), "the accepted review leaves the drawer with no veil");
+		expect(tree->model()->rowCount() > 0, "and its rows");
+		delay->Milliseconds     = 0U;
+		delay->PageMilliseconds = 0U;
+	}
+
 	static_cast<void>(QAccessible::installUpdateHandler(previous));
 	Announcements = nullptr;
 	owner->begin_shutdown();

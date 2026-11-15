@@ -1891,6 +1891,23 @@ namespace bpr::qt {
 				// read while the rest of the review still loads.
 				if (LoadingOverviewShown) {
 					OverviewPage->present_observed_files(*aUpdate.LoadingOverview->Files);
+					// [[BPR-2180]]. The owner, 2026-11-14: "going to review the
+					// file list should be loaded becuase it's already loaded on
+					// overview". Review's Files drawer lists the same files by
+					// path, as [[BPR-0668]] does without a comparison; the
+					// accepted review's rows replace them.
+					if (FilesTree != nullptr && !FileRowsPresent && OverviewPage->observed_files()) {
+						auto rows = std::vector<workbench_drawer_row>{ };
+						rows.reserve(aUpdate.LoadingOverview->Files->size());
+						for (const auto& file : *aUpdate.LoadingOverview->Files) {
+							const auto path = QString::fromStdString(file.Path);
+							rows.push_back(workbench_drawer_row{ .Identity = path, .Title = path, .Detail = path, .File = core::file_identity_of(file.Path) });
+						}
+						ApplyingFileSelection = true;
+						FilesTree->apply(rows);
+						refresh_filter_notices();
+						ApplyingFileSelection = false;
+					}
 				}
 			} else {
 				OverviewPage->present_observation(*aUpdate.LoadingOverview);

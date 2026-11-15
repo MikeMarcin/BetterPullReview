@@ -414,26 +414,38 @@ namespace {
 		expect(beside.Veil->retry_button()->isVisible() && beside.Veil->shown_text() == words().Failure, "a failure is still said in place");
 	}
 
-	// [[BPR-2180]]. The Overview's People section waits as faces once the
-	// rest of its column has shown.
-	void test_overview_people_wait_as_faces()
+	// [[BPR-2180]]. The Overview's side column waits section by section: each
+	// section stands in its place under its heading, in its own shape, and
+	// shows when its own part of the read arrives.
+	void test_overview_side_sections_wait_on_their_own()
 	{
 		auto page = qt::pull_request_overview_page{ };
 		page.resize(1'100, 720);
 		page.show();
 		settle();
 		const auto veils = page.pending_veils();
-		expect(veils.People != nullptr && veils.Roster != nullptr && veils.People->shape() == qt::pending_shape::people, "the People section has its own veils");
+		expect(veils.Merge != nullptr && veils.MyReview != nullptr && veils.Checks != nullptr && veils.People != nullptr && veils.Roster != nullptr, "every side section has its own veil");
+		expect(veils.Merge->shape() == qt::pending_shape::pairs && veils.MyReview->shape() == qt::pending_shape::pairs && veils.Checks->shape() == qt::pending_shape::rows
+				   && veils.People->shape() == qt::pending_shape::people,
+			   "each in its own shape");
 		page.present_loading();
 		page.present_observation(application::github_loading_overview_projection{ .Title = "Seven", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
 		settle(20);
-		expect(!veils.People->busy(), "before any section of the column shows, the column's own placeholders stand over People");
+		for (auto* const veil : { veils.Merge, veils.MyReview, veils.Checks, veils.People }) {
+			expect(veil->busy() && veil->isVisible() && veil->height() > 0, "every section waits in its own place");
+		}
+		expect(veils.Side->look() == core::pending_look::quiet || veils.Side->look() == core::pending_look::partial, "the column is never covered whole: its plate says what is coming");
 		page.present_observed_checks(application::overview_checks_projection{ });
 		settle(20);
-		expect(veils.People->busy() && veils.People->isVisible(), "the checks have shown and the people have not: People stands in its place as faces");
+		expect(!veils.Checks->busy() && veils.People->busy() && veils.Merge->busy() && veils.MyReview->busy(), "the checks show while the other sections still wait");
 		page.present_observed_people(application::overview_people_projection{ });
 		settle(20);
-		expect(!veils.People->busy() && !veils.Roster->busy(), "the people have arrived");
+		expect(!veils.People->busy() && !veils.Roster->busy() && veils.Merge->busy(), "the people show on their own");
+		page.present(application::pull_request_overview_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Ready" });
+		settle(20);
+		for (auto* const veil : { veils.Merge, veils.MyReview, veils.Checks, veils.People, veils.Side }) {
+			expect(!veil->busy(), "the accepted review makes every section ready");
+		}
 	}
 
 	// [[BPR-2180]]. The private tour waits as stop cards; Finish review holds
@@ -521,6 +533,17 @@ namespace {
 			people.advance(core::pending_reveal_milliseconds);
 			people.Window.grab().save(aDirectory + QStringLiteral("/veil-people-%1.png").arg(theme));
 		}
+		// [[BPR-2180]]. The Overview's side column, each section waiting.
+		{
+			auto page = qt::pull_request_overview_page{ };
+			page.resize(1'100, 720);
+			page.show();
+			settle();
+			page.present_loading();
+			page.present_observation(application::github_loading_overview_projection{ .Title = "Seven", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
+			settle(core::pending_reveal_milliseconds + 100);
+			page.grab().save(aDirectory + QStringLiteral("/overview-side-sections.png"));
+		}
 		// [[BPR-2180]]. The private tour and Finish review as they wait: both
 		// read local storage, which is usually done before the reveal.
 		auto tour = qt::review_tour_editor{ };
@@ -562,7 +585,7 @@ try {
 	test_window_panes_follow_the_read();
 	test_the_updates_line_turns_before_its_words();
 	test_cards_and_people_take_their_shape();
-	test_overview_people_wait_as_faces();
+	test_overview_side_sections_wait_on_their_own();
 	test_tour_and_finish_review_wait_in_shape();
 	render(at >= 0 ? arguments.value(at + 1) : QString{ });
 	std::cout << "pending-veil-tests:pass\n";

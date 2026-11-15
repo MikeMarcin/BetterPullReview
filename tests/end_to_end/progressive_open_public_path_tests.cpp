@@ -235,7 +235,9 @@ try {
 			mark(times.Checks, checksVisible, clock);
 			const auto* merge = overview->findChild<QLabel*>(QStringLiteral("overviewMergeState"));
 			mark(times.Merge, merge != nullptr && !merge->text().isEmpty() && overview->status_section(qt::overview_status_section::attention)->isVisibleTo(window), clock);
-			mark(times.People, overview->status_section(qt::overview_status_section::people)->isVisibleTo(window), clock);
+			// [[BPR-2180]]. The section stands in its place from the first
+			// answer; the people have arrived when it no longer waits.
+			mark(times.People, overview->status_section(qt::overview_status_section::people)->isVisibleTo(window) && !overview->pending_veils().People->busy(), clock);
 			if (!statusReleased && statusHeld && (checksVisible || clock.elapsed() > 15'000)) {
 				const auto partial = overview->pending_veils().Side->look() == core::pending_look::partial;
 				if (!checksVisible || !partial) {

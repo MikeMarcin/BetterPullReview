@@ -541,11 +541,18 @@ namespace bpr::qt {
 		/// The files table: the catalogue, then its comment counts.
 		pending_veil* Files = nullptr;
 		/// Merge, waiting on, participants, since my last review, checks.
+		/// [[BPR-2180]]: the plate at the column's foot saying what is still
+		/// coming; each section waits over its own place.
 		pending_veil* Side = nullptr;
-		/// [[BPR-2180]]. The People section's faces and its roster, while the
-		/// rest of the side column has shown and the people are still coming.
-		pending_veil* People = nullptr;
-		pending_veil* Roster = nullptr;
+		/// [[BPR-2180]]. Each section of the side column, waiting on its own
+		/// part of the read in its own shape: Needs attention (merge state)
+		/// as pairs, My review as pairs, Checks as rows, People as faces and
+		/// its roster as faces and names.
+		pending_veil* Merge    = nullptr;
+		pending_veil* MyReview = nullptr;
+		pending_veil* Checks   = nullptr;
+		pending_veil* People   = nullptr;
+		pending_veil* Roster   = nullptr;
 	};
 
 	/// \brief [[BPR-1774]]. Save pressed in the description's editor: the body
@@ -588,6 +595,9 @@ namespace bpr::qt {
 		/// meanwhile is remembered (`pending_open`) for the window to open once
 		/// the review is accepted.
 		void present_observed_files(const std::vector<core::cached_review_file>& aFiles);
+		/// \brief [[BPR-2180]]. Whether the file list GitHub reported is shown
+		/// while the rest of the review still loads.
+		[[nodiscard]] auto observed_files() const noexcept -> bool;
 		/// \brief [[BPR-1895]]. Show complete results while other Status data loads.
 		void               present_observed_checks(const application::overview_checks_projection& aChecks);
 		void               present_observed_people(const application::overview_people_projection& aPeople);
@@ -968,6 +978,7 @@ namespace bpr::qt {
 		{
 			drawer_section_header* Header  = nullptr;
 			QWidget*               Frame   = nullptr;
+			QWidget*               Body    = nullptr;
 			QWidget*               Details = nullptr;
 		};
 		status_section_parts       Sections[overview_status_section_count]{ };

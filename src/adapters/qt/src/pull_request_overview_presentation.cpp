@@ -671,7 +671,7 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::set_pending_appearance(const bool aFullMotion, const bool aHighContrast, const QColor& aFailureInk)
 	{
-		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side, Veils.People, Veils.Roster }) {
+		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side, Veils.Merge, Veils.MyReview, Veils.Checks, Veils.People, Veils.Roster }) {
 			if (veil != nullptr) {
 				veil->set_full_motion(aFullMotion);
 				veil->set_high_contrast(aHighContrast);
@@ -697,7 +697,12 @@ namespace bpr::qt {
 		// received yet keeps its own loading presentation.
 		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
 		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
-		if (Loading && has_observed_status()) {
+		// [[BPR-2180]]. The column is never covered whole: each section stands
+		// in its place under its heading and waits over its own body for its
+		// own part of the read, and the column's plate says what is still
+		// coming. A section whose part has arrived shows while others wait.
+		if (Loading) {
+			// The words are BPR-1895's; review progress always comes last.
 			auto remaining = QStringList{ };
 			if (!ObservedPeople) {
 				remaining.push_back(QStringLiteral("reviewers"));
@@ -705,22 +710,30 @@ namespace bpr::qt {
 			if (!ObservedChecks) {
 				remaining.push_back(QStringLiteral("checks"));
 			}
+			// Merge rules finish only with the accepted review.
 			remaining.push_back(QStringLiteral("merge rules"));
 			Veils.Side->present(core::pending_activity::loading, true, true,
 								{ .Waiting = waiting, .Coming = QStringLiteral("Loading %1 and review progress…").arg(remaining.join(QStringLiteral(", "))) });
 		} else {
-			section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
+			Veils.Side->present_ready();
 		}
-		// [[BPR-2180]]. Once the column's other sections have begun to show
-		// and the people have not, the People section stands in its place and
-		// waits as faces, rather than appearing later and pushing the rest
-		// down. Before then the whole column's placeholders stand over it.
-		const auto people = Loading && has_observed_status() && !ObservedPeople;
-		if (people) {
-			Sections[static_cast<std::size_t>(overview_status_section::people)].Frame->show();
-		}
-		section(*Veils.People, people, QStringLiteral("Loading reviewers…"));
-		section(*Veils.Roster, people, QStringLiteral("Loading participants…"));
+		const auto line  = QFontMetrics{ font() }.height();
+		const auto waits = [&](const overview_status_section aSection, pending_veil& aVeil, const bool aPending, const int aHeight, QString aLoading) {
+			auto& parts = Sections[static_cast<std::size_t>(aSection)];
+			if (aPending) {
+				parts.Frame->show();
+			}
+			// The section's body holds a place for its placeholders while it
+			// waits, however little of its own it has yet.
+			parts.Body->setMinimumHeight(aPending ? aHeight : 0);
+			section(aVeil, aPending, std::move(aLoading));
+		};
+		const auto pairs = (pending_veil::inset / 2) + 4;
+		waits(overview_status_section::attention, *Veils.Merge, Loading && !ObservedMerge, pairs + (2 * (line + 6)), QStringLiteral("Loading the merge state…"));
+		waits(overview_status_section::my_review, *Veils.MyReview, Loading, pairs + (4 * (line + 6)), QStringLiteral("Loading my review…"));
+		waits(overview_status_section::checks, *Veils.Checks, Loading && !ObservedChecks, pairs + (2 * (((line * 3) / 2) + 4)), QStringLiteral("Loading checks…"));
+		waits(overview_status_section::people, *Veils.People, Loading && !ObservedPeople, line + 12, QStringLiteral("Loading reviewers…"));
+		section(*Veils.Roster, Loading && !ObservedPeople, QStringLiteral("Loading participants…"));
 		// As many placeholder rows as GitHub reported files, once it has.
 		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
 		if (Loading && ObservedFiles) {
@@ -835,6 +848,11 @@ namespace bpr::qt {
 	auto pull_request_overview_page::has_observed_status() const noexcept -> bool
 	{
 		return ObservedChecks.has_value() || ObservedPeople.has_value() || ObservedMerge.has_value();
+	}
+
+	auto pull_request_overview_page::observed_files() const noexcept -> bool
+	{
+		return Loading && ObservedFiles;
 	}
 
 	void pull_request_overview_page::present_observed_files(const std::vector<core::cached_review_file>& aFiles)
