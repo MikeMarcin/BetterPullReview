@@ -1827,6 +1827,11 @@ namespace bpr::application {
 		Implementation->restore_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aChoice), std::move(aLegacy));
 	}
 
+	void agent_invocation_host::native_history_changed()
+	{
+		Implementation->NativeRestoreKey.clear();
+	}
+
 	void agent_invocation_host::clear()
 	{
 		const auto implementation = Implementation;

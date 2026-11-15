@@ -822,19 +822,30 @@ namespace {
 			}
 			const auto processAt = answer.find(" process=");
 			answer.insert(processAt, " backend=" + handle + (line.find("remember-tool-observation") != std::string::npos ? " memory=" + backend->Observation : ""));
-			if (line.find("bpr.tour-ask.v1") != std::string::npos || line.find("bpr.tour-revise.v1") != std::string::npos) {
+			// [[BPR-2140]]. A built-in prompt's instructions (the schema it
+			// must answer in) reach Claude as its appended system prompt, not
+			// in the message; both are read.
+			const auto instructions = argument_after(aCount, aArguments, "--append-system-prompt");
+			const auto asked        = [&line, &instructions](const std::string_view aSchema) { return line.find(aSchema) != std::string::npos || instructions.find(aSchema) != std::string::npos; };
+			if (asked("bpr.tour-ask.v1") || asked("bpr.tour-revise.v1")) {
 				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
 				if (line.find("update-source-explanation") != std::string::npos) {
 					answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"Proposed an explanation update.\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[{\"stop\":1,\"explanation\":\"Source-preserving update from fixture.\"}]}");
 				}
-			} else if (line.find("bpr.tour-draft.v1") != std::string::npos) {
+			} else if (asked("bpr.tour-draft.v1")) {
 				answer = json_escape("{\"schema\":\"bpr.tour-draft.v1\",\"problem\":\"Native drafted problem\",\"solution\":\"Native drafted solution\",\"stops\":[]}");
 			}
 			if (protocol == protocol::claude_stream_json) {
+				// [[BPR-2141]]. A tool-free run (Draft Tour, `--tools ""`) lists
+				// no tool, uses none, and so reports no tool result.
+				const auto toolFree = argument_after(aCount, aArguments, "--disallowedTools") == "*";
 				if (turn == 1U) {
-					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\",\"tools\":[\"Read\",\"Grep\",\"Glob\",\"Bash\"],\"mcp_servers\":[]}\n";
+					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\",\"tools\":" << (toolFree ? "[]" : "[\"Read\",\"Grep\",\"Glob\",\"Bash\"]") << ",\"mcp_servers\":[]"
+							  << (toolFree ? ",\"plugins\":[]" : "") << "}\n";
 				}
-				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"" << backend->Observation << "\"}]}}\n";
+				if (!toolFree) {
+					std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"" << backend->Observation << "\"}]}}\n";
+				}
 				std::cout << "{\"type\":\"assistant\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"assistant\",\"id\":\"m" << turn << "\",\"content\":[{\"type\":\"text\",\"text\":\"" << answer << "\"}]}}\n";
 				std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"" << handle << "\",\"is_error\":false,\"result\":\"done\"";
 				if (!uuidless) {

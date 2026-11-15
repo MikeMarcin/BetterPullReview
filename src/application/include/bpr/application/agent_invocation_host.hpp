@@ -247,6 +247,11 @@ namespace bpr::application {
 			core::agent_revision_binding aBinding);
 		/// \brief Loads only the selected native binding; viewing never starts a process.
 		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt, std::optional<agent_conversation_key> aLegacy = std::nullopt);
+		/// \brief [[BPR-2181]]. Another host (the session's profile-owned
+		/// runtime) recorded a turn in the native store this host restores
+		/// from: the next `restore_native` reads the store again rather than
+		/// keeping the history it last presented. Call on the decision lane.
+		void native_history_changed();
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();

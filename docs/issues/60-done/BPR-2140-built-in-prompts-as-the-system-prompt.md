@@ -38,3 +38,20 @@ switch, the App Server and the 24 KiB bound paste. Canary: the installed
 Claude applied a rule given only in the system prompt. The owner's rerun
 through the corporate wrapper is still theirs to make; the per-agent switch
 is the fallback. Record: the [RFC-BPR-0107 ledger](../../verification/RFC-BPR-0107.md).
+
+## Regression found later (2026-11-15, under [[BPR-2181]])
+
+`application_native_agent_sessions` failed at `tour-native-first-answer`
+from `b8c371613` on: its parent `b8e2adeac` passes and `b8c371613` fails,
+each built in a scratch worktree. The tour conversation's instructions,
+with the schema the answer must use, moved into Claude's
+`--append-system-prompt`, but the agent canary looked for the schema only
+in the message it read, so it answered in plain text and the tour said the
+answer could not be read. The same commit made Draft Tour one tool-free
+call ([[BPR-2141]]), and the canary still listed tools in its `init` frame
+and reported a tool result there, which a tool-free run refuses. The
+product was right both times; the fixture was not. The canary now reads
+the appended system prompt too, and a tool-free run (`--disallowedTools
+*`) lists no tools and reports no tool result
+(`tests/fixtures/agent/agent_canary_main.cpp`). The course passes again.
+Fixed in BPR-2181's round.
