@@ -23,7 +23,7 @@ chose it and the owner has not separately confirmed it.
 | P04: Explain this file answers in a card at the file header | Explain-file RFC AC02, AC03 | Proposed. The first answer said only "without a trip to the Agent tab". | A new card in Review; the turn still lives in the Agent tab's history. | DRAFT-0004 |
 | P05: the checks core makes before an agent's replacement is shown as a suggestion | Suggested-change RFC AC02, AC03 | Proposed. | A reply that does not match the lines byte for byte is never shown as a suggestion. | DRAFT-0006 |
 | P06: BPR downloads no check log; the agent uses its own GitHub access | Check RFC AC02 to AC04 | Proposed. Keeps RFC-BPR-0068's boundary and RFC-BPR-0011's rule that BPR passes no credential. | An agent without access answers from the summary. | DRAFT-0008 |
-| P07: an agent-run check is a reported result, never observed | Agent-run-checks RFC AC02, AC04 | Proposed. Follows RFC-BPR-0109's own rule. | The observed class stays reserved. | DRAFT-0010 |
+| P07: an agent-run check is a reported result, never observed | Agent-run-checks RFC AC02, AC04 | Withdrawn 2026-11-15: RFC-BPR-0120 was rewritten without evidence (owner: "Rewrite without evidence"), so there is no result class to decide. Its report states the outcome as the agent's report of its run. | None. | DRAFT-0010 |
 | P08: what the Agents section counts, and that it ranks nothing | Insights RFC AC01 to AC05 | Proposed. | Corrects the first answer, which said Insights "already tracks cost": it tracks what BetterPullReview costs the computer and the rate limit, and nothing about agents. | DRAFT-0012 |
 
 ## Open frontier and explicit deferrals

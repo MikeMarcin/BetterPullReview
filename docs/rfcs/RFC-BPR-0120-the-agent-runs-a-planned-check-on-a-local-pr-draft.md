@@ -2,103 +2,181 @@
 id: "RFC-BPR-0120"
 title: "The agent runs a planned check on a local PR draft"
 status: "Proposed"
-metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0005","inspected_revision":"90785ae34aeccf63724b9e5e7a70446f89341ec5","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"a9663a706fd72061f60b615bd8e749ee0ddb66b5"}
-depends_on: ["RFC-BPR-0103", "RFC-BPR-0104", "RFC-BPR-0109", "RFC-BPR-0110", "RFC-BPR-0115"]
+metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0005; rewritten 2026-11-15 without evidence at the owner's direction (\"Rewrite without evidence\")","inspected_revision":"775bd2d764e1651750d06e2ea798ea4d66934996","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"775bd2d764e1651750d06e2ea798ea4d66934996"}
+depends_on: ["RFC-BPR-0101", "RFC-BPR-0103", "RFC-BPR-0104", "RFC-BPR-0107", "RFC-BPR-0108", "RFC-BPR-0110", "RFC-BPR-0128"]
 ---
 
 # The agent runs a planned check on a local PR draft
 
-Note, 2026-11-15: [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is
-Rejected. The owner cut it from 0.5.0 on 2026-11-12 ("Mockups; cut
-Evidence"), its implementation was removed, and on 2026-11-15 the owner
-rejected it outright: "it shouldnt be deferred it should be rejected or
-something stronger so it doesnt come back". This RFC runs a planned check
-from that RFC's Evidence and records the result into its evidence record, and
-every criterion below depends on that record, so it cannot close as written
-and there is no reactivation to wait for. [BPR-2082](../issues/60-done/BPR-2082-run-a-planned-check-with-the-agent.md)
-is closed as rejected (moot), and [BPR-2083](../issues/50-blocked/BPR-2083-close-rfc-0120.md)
-is Blocked until the owner decides whether this RFC is rejected too or
-replaced by a new RFC that stands without evidence. The text below is kept
-unchanged as the design that was proposed.
+## Rewritten without evidence (owner, 2026-11-15)
+
+The first version of this RFC ran a check out of an evidence record and
+filed the result back into it. The owner rejected that evidence design ("that
+seemed like useless"; of its look, "I have no idea what I'm looking at here.
+This doesn't seem useful, unless you can explain how it's valuable to me")
+and, asked what to do with this RFC, answered "Rewrite without evidence".
+This text replaces the earlier one entirely and takes nothing from the
+rejected design: there is no evidence record, no claim, no citation, and no
+reported-versus-observed classification. The earlier text and criteria are
+in Git history; [BPR-2082](../issues/60-done/BPR-2082-run-a-planned-check-with-the-agent.md)
+stays closed as rejected.
+
+## Why this is worth having
+
+Before you open a pull request you want to know your change builds and its
+tests pass. Today you find out from CI after the pull request is public, or
+you stop writing and run things yourself. With this, you ask the agent from
+the draft, in plain words ("run the parser tests", "check it still builds
+without the optional feature") or with no words at all. It tells you which
+commands it will run, and you press **Run**. It runs them in a throwaway copy
+of exactly the change you are about to publish, so you keep working and your
+folder, branch and editor are never touched. When it finishes you get one
+page, read like any other agent report: Passed or Failed, the commands it
+ran, the lines of output that matter with links into your code, and what it
+did not check. If it failed, you ask about the failure in the same
+conversation. Nothing is recorded, scored or published; the page is the
+answer.
 
 ## Problem and grounded current behavior
 
-A local draft's evidence can hold planned checks, and an agent can already
-propose them: "a proposed claim or planned check is a record the author
-accepts or rejects, whatever produced it: the author, an import, or later an
-agent conversation"
-([RFC-BPR-0109](RFC-BPR-0109-author-evidence.md)), and a whole-change
-conversation proposes them under
-[RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md).
+- A local draft's agent conversations run tool-free: one request composed
+  from the captured candidate, no tools, an empty folder, so the agent
+  cannot run anything
+  ([RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md#implementation-record),
+  `compose_local_draft_agent` in
+  [window_tours.cpp](../../src/app/src/github_application/window_tours.cpp)).
+  The candidate workspace RFC-BPR-0110 describes is not built.
+- In a pull request review an agent can already write scripts in its scratch
+  folder and, with **Allow build and run tests** on, build and test in its
+  disposable checkout, a copy materialized from an immutable revision so
+  nothing the reviewer does afterwards affects it
+  ([RFC-BPR-0104](RFC-BPR-0104-agent-scratch-folder-and-opt-in-builds.md),
+  [agent_workspace.cpp](../../src/application/src/agent_workspace.cpp)).
+  BPR never lets an agent write into the user's own working tree.
+- A long agent answer is read as a **report** in a file tab, opened from a
+  report card where it was asked
+  ([RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md);
+  the report kind of `document_tabs.hpp`, `report_page.hpp`).
+- The owner's original idea was that the agent "proposes checks for a local
+  PR draft, runs them" ([note 2](assets/agent-assistance-v1/SOURCE_NOTES.md)),
+  held to the rule that "every agent output lands as something the
+  application already has".
 
-Nothing in the application runs one. RFC-BPR-0109 "adds no runner, and a
-handoff to the author's full agent or terminal runs where BPR does not watch
-it". The author runs the check elsewhere and types or imports the result.
-
-[RFC-BPR-0115](RFC-BPR-0115-agent-changes-in-a-local-pr-draft-worktree.md)
-now gives an agent a run in the author's own worktree, with builds and tests
-where the author has turned them on. The owner asked that the agent run
-proposed checks and record the results as reported evidence
-([notes 2 and 3](assets/agent-assistance-v1/SOURCE_NOTES.md)).
+So the parts exist (a disposable copy, the build grant, the report tab), but
+nothing puts them together for a local draft, and nothing runs a check there.
 
 ## Proposed behavior and boundaries
 
-A planned check in a local draft's Evidence that states a command or a
-method offers **Run with agent**, an agent control.
+### Plan, then run
 
-- It is a change run under RFC-BPR-0115's **Edits this worktree** grant, and
-  it needs **Build and run tests** on for that agent. Where either is
-  missing the control is unavailable and says which.
-- It starts only when the worktree holds what the current candidate
-  describes, so the result has something to be bound to.
-- The agent is asked to perform that one check and to report its outcome,
-  the commands it ran and anything that limits the result. Its activity
-  shows the commands as
+- The draft's whole-change conversation (the Tour panel's chat on the whole
+  change) offers **Plan a check…**, an agent control in the agent accent of
+  [RFC-BPR-0101](RFC-BPR-0101-agent-chat-conventions.md). It takes the
+  author's words, or none: an empty request asks the agent to choose the
+  checks that matter most for this change.
+- The agent first reads the check copy (below) and answers with a **plan
+  card**: the commands in order, one line each on what it shows, which of
+  the two grants it needs, and what the plan will not cover. Nothing has run
+  yet. Reading for the plan uses read-only tools.
+- The plan card has **Run** and **Discard**. Run is unavailable, with the
+  reason, while a grant the plan needs is off (naming the toggle), while
+  another check is running in this draft, or while the draft has no
+  candidate. To change a plan the author says so in the conversation and the
+  agent plans again.
+- Run starts the check: the agent is told to run that plan. A running check
+  shows its commands as
   [RFC-BPR-0103](RFC-BPR-0103-agent-work-is-visible-and-a-turn-ends-when-the-work-does.md)
-  defines.
-- The result is recorded as a **reported** result with the agent as its
-  origin, in RFC-BPR-0109's terms. It is never an observed execution: that
-  RFC's rule stands, that "reported success never becomes an observed
-  execution solely because an agent emits structured JSON". Pass, fail,
-  inconclusive, not run and interrupted are recorded as they happened, and a
-  failed result is kept.
-- The result is bound to the candidate only when the worktree's content
-  equals the candidate both before and after the run. A run that changed
-  files leaves the result unbound, says so, and lists the run's changes
-  under RFC-BPR-0115.
-- The result enters the evidence record only when the author accepts it,
-  like any proposal. Nothing is published by running a check.
-- It is briefed by a built-in prompt of its own,
-  `local-draft.run-check` (P02, settled 2026-11-12; see the
-  [decision record](assets/agent-assistance-v1/DECISIONS.md#decisions)).
+  defines and ends in one of its three ways; **Stop** ends it.
+- Only the author starts a plan or a run. Nothing runs on open, on refresh,
+  on a new candidate or on a schedule, and there is no "check everything".
 
-Running every planned check at once, running on a schedule or on refresh,
-and observed executions that BPR supervises itself are not in this RFC.
+### The check copy
 
-### Owner decisions of 2026-11-12
+- A check runs in a **check copy**: a disposable checkout of the draft's
+  current candidate, its committed head plus the captured bytes of its
+  selected uncommitted files, materialized the way a pull request's agent
+  workspace is. It is never the author's worktree, and the live worktree is
+  never copied.
+- The agent's scratch folder and **Allow build and run tests** apply to the
+  check copy as RFC-BPR-0104 applies them to a disposable checkout: the two
+  toggles are remembered for this local draft and agent, building is off
+  until turned on, and the first build in a draft asks "Building runs this
+  change's code on this computer with your account's rights. Allow for this
+  local draft?" Network access stays as the agent's own configuration has it,
+  and BPR's wording never calls the copy a sandbox.
+- The author can edit, save, refresh and capture a new candidate while a
+  check runs; the check keeps its own copy and candidate.
+- Check copies count toward RFC-BPR-0104's storage limit and are cleaned up
+  with it; discarding the draft removes them.
 
-- P02 is settled: this action has one editable prompt of its own. Its
-  instructions reach Claude as an inline `--append-system-prompt` and Codex
-  `exec` as `developer_instructions`, pasted where unverified or switched off
-  (RFC-BPR-0107's amendment of 2026-11-12).
-- Its first answer is a fresh run (RFC-BPR-0101's amendment of 2026-11-12):
-  no native session, nothing saved. This action runs the planned check, so it keeps the tools the check needs; it is still fresh. Ask more on the answer promotes it into a
-  resumed session whose first turn carries the answer.
+### The report
+
+- A finished, failed or stopped check ends as a **report card** in the
+  whole-change conversation, and the card opens the **report** as a file tab,
+  as RFC-BPR-0128 defines both.
+- The report leads with one outcome word, **Passed**, **Failed**, **Couldn't
+  tell**, **Didn't run** or **Stopped**, stated as the agent's report of its
+  run, and the candidate it checked ("candidate 3"). Below it: every command
+  run, with its exit status where the agent's activity carries one, and any
+  command not in the plan marked so; the output lines that explain a failure;
+  and what the check did not cover. A code reference opens the candidate at
+  that line, as the draft's other links do.
+- A check that changed files Git tracks in its copy lists them: the change
+  was not tested as written. The copy, and those changes, go with it.
+- When the draft has a newer candidate than the one checked, the report says
+  so ("Checked candidate 3; the draft is now at candidate 4") and offers
+  **Run again**, which runs the same plan on the latest candidate.
+- The report is a turn of the conversation: it survives restart with the
+  conversation, a later question there reads it, and New session and history
+  treat it as any turn. It never enters the description, the tour, the public
+  preview or GitHub, and running a check publishes nothing.
+
+### Its prompt
+
+The plan and the run are briefed by one built-in prompt of their own,
+`local-draft.run-check` (P02, settled 2026-11-12; see the
+[decision record](assets/agent-assistance-v1/DECISIONS.md#decisions)). It is
+listed under Built-in prompts › Local drafts, with the editor, default,
+version and Reset the others have, and it is an item of the sharing format of
+[RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md). Its instructions
+reach Claude as an inline `--append-system-prompt` and Codex `exec` as
+`developer_instructions`, pasted where unverified or switched off. Each plan
+and each run is a fresh run with the tools it needs and no native session;
+its card joins the conversation, which carries follow-ups as RFC-BPR-0110
+does.
+
+### Not in this RFC
+
+Running in the author's own worktree and fixing a failure (both RFC-BPR-0115's
+change runs, if and when they exist; nothing here waits on them); checks on a
+pull request review, where the Agent tab already builds and tests; CI; and any
+record of results beyond the conversation.
+
+## Open questions for the owner
+
+Each is built as its default unless the owner answers otherwise.
+
+| # | Question | Recommended default |
+|---|---|---|
+| Q1 | Should every check show its plan and wait for Run, or may a check run straight away? | Always plan first: a check runs code with your rights, so you see the commands before they run. |
+| Q2 | With no words, does the agent choose which checks to run? | Yes: an empty Plan a check… asks for the checks that matter most for this change, and the plan shows its choice before anything runs. |
+| Q3 | Can the author edit the plan's commands before Run? | No: say what to change in the conversation and the agent plans again. An editable command list is a second editor to build and to explain. |
+| Q4 | Is one check copy kept per candidate and reused, so a second check reuses the first one's build output? | Yes, one per candidate, removed when a newer candidate is captured and no check is using it. A fresh copy for every check is cleaner but makes each build start cold. |
+| Q5 | Where else is a check started? | Only from the whole-change conversation for now. A quick ask in RFC-BPR-0128's Ask menu waits until local drafts have that menu. |
 
 ## Acceptance criteria
 
-- **AC01:** Run with agent is offered on a planned check with a command or method, and is unavailable with the specific reason when the worktree grant or Build and run tests is missing or the worktree does not hold the candidate.
-- **AC02:** The result is recorded as reported, with the agent as its origin, the commands the run's activity shows and its stated limitations, and no agent-run result is ever recorded as observed.
-- **AC03:** Failed, inconclusive, not-run and interrupted outcomes are recorded as such and remain visible in preparation.
-- **AC04:** The result is bound to the candidate only when the worktree's content equals the candidate before and after the run; a run that changed files leaves it unbound with that reason and lists the changes.
-- **AC05:** The result enters the evidence record only on the author's acceptance, and running a check publishes nothing.
-- **AC06:** The operation is briefed by its own built-in prompt, whose edit reaches the next check run and no other prompt.
-- **AC07:** On a frozen build with a fixture agent, the owner accepts the control, a passing result, a failing one and an unbound one.
+- **AC01:** Plan a check…, with words or none, returns a plan card naming each command, what it shows and the grants it needs, and nothing executes before Run; Run is unavailable with the specific reason when a needed grant is off, another check is running in the draft, or there is no candidate.
+- **AC02:** A run executes in a check copy of the current candidate: the author's worktree, branch and index are unchanged by it, and editing, saving and capturing a new candidate during the run do not change what it checks.
+- **AC03:** The report opens as a file tab from its card and shows the outcome word, the candidate checked, each command with its exit status where carried and out-of-plan commands marked, the output explaining a failure, code references that open the candidate at the line, and what was not covered.
+- **AC04:** Failed, Couldn't tell, Didn't run and Stopped reports are kept like Passed ones; a check that changed tracked files in its copy lists them; a report on an older candidate says so and Run again checks the latest candidate with the same plan.
+- **AC05:** Reports survive restart with the conversation and a follow-up question there reads them; nothing from a check reaches the description, the tour, the public preview or GitHub; check copies count toward the storage limit and are removed with the draft.
+- **AC06:** Plans and runs are briefed by `local-draft.run-check`, whose edit reaches the next plan and run and no other prompt, and which round-trips through the sharing format.
+- **AC07:** On a frozen build with the fixture agent, the owner accepts, one question each, the plan card, a passing report, a failing report, and a report on an older candidate.
 
 ## Proposed delivery
 
-[Run with agent](../issues/60-done/BPR-2082-run-a-planned-check-with-the-agent.md) and
-[closeout](../issues/50-blocked/BPR-2083-close-rfc-0120.md) form the fifth
-[milestone](plans/agent-assistance-v1/milestone-plan.json). BPR-2082 is closed
-as rejected (its prerequisite RFC-BPR-0109 is Rejected); BPR-2083 is Blocked
-on `rejected-prerequisite`.
+[Plan and run a check, and its report](../issues/40-parked/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
+and [closeout](../issues/10-backlog/BPR-2083-close-rfc-0120.md) form the
+fifth [milestone](plans/agent-assistance-v1/milestone-plan.json). BPR-2189 is
+Parked until the owner has reviewed this rewrite; no build starts before then.

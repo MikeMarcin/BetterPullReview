@@ -40,6 +40,8 @@ With no evidence record there is nothing for it to do, so it is moot. It is
 closed in Done only because Done is the board's one terminal lane (its other
 dependency, BPR-2068, is dropped: a closed card waits on nothing):
 `metadata.resolution` is `"rejected"`, nothing was delivered, and it is not to
-be reopened. The owner has not separately ruled on
-[RFC-BPR-0120](../../rfcs/RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md);
-its closeout BPR-2083 is Blocked until they do.
+be reopened. The owner then directed, the same day, "Rewrite without evidence":
+[RFC-BPR-0120](../../rfcs/RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md)
+was rewritten and its new implementation is
+[BPR-2189](../40-parked/BPR-2189-plan-and-run-a-check-on-a-local-draft.md). This
+card stays closed as rejected; nothing depends on it.
