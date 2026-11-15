@@ -746,15 +746,28 @@ namespace bpr::adapters::sqlite::detail {
 	{
 		std::optional<local_comment_record> current;
 		try {
-			require(application::valid(aComment) && aScope > 0 && (!aExpected || valid_private_id(*aExpected)));
+			// [[BPR-2183]]. A new comment with no identity takes the next free
+			// one here, in the transaction that stores it, as Keep local does:
+			// two windows writing at once never mint the same one.
+			const auto allocates = !aExpected && aComment.Id.value() == 0U;
+			auto       accepted  = aComment;
+			if (allocates) {
+				accepted.Id = local_comment_id{ 1U };
+			}
+			require(application::valid(accepted) && aScope > 0 && (!aExpected || valid_private_id(*aExpected)));
 			transaction      tx{ aHandle };
 			private_database db{ aHandle, aScope };
 			db.ensure_state();
-			auto s  = db.read_state();
-			current = db.local_comment(aComment.Id.value());
+			auto s = db.read_state();
+			if (allocates) {
+				auto last = db.sql("SELECT COALESCE(MAX(id),0) FROM private_local_comment WHERE scope_id=?1", aScope);
+				require(last.row() && last.integer(0) < maximum_private_identity, error::quota);
+				accepted.Id = local_comment_id{ last.integer(0) + 1U };
+				last.done();
+			}
+			current = db.local_comment(accepted.Id.value());
 			require(!current || current->Revision.value() <= s.NoteRevision, error::integrity);
 			require(aExpected ? (current && current->Revision == *aExpected) : !current, error::conflict);
-			auto accepted = aComment;
 			if (current) {
 				// An edit changes the words. Where the comment is, its range and
 				// its thread are kept exactly; a path once kept stays.
@@ -1693,7 +1706,7 @@ namespace bpr::adapters::sqlite::detail {
 					// The core refused a held, publishing or published draft; the
 					// store holds the same line against a stale decision.
 					require(d.Draft.Draft.State == core::review_draft_state::drafting && !core::held_by_review(d.Draft.Draft), error::conflict);
-					require(aKeep.Comment.Body == d.Draft.Draft.Body, error::conflict);
+					require(aKeep.Reworded || aKeep.Comment.Body == d.Draft.Draft.Body, error::conflict);
 					auto refs = db.sql("SELECT 1 FROM private_publication WHERE scope_id=?1 AND draft_id=?2 LIMIT 1", Scope, aKeep.Draft.value());
 					require(!refs.row(), error::references_present);
 					refs.done();

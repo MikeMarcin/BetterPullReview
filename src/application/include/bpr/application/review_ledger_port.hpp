@@ -295,6 +295,9 @@ namespace bpr::application {
 			= 0;
 
 		/// \brief Creates a note when no revision is supplied, otherwise compares and replaces.
+		/// \details A new note whose identity is zero takes the next free one
+		/// in the transaction that stores it ([[BPR-2183]]); the answer
+		/// carries it.
 		[[nodiscard]] virtual auto store_local_comment(const local_comment_record&           aNote,
 													   std::optional<local_comment_revision> aExpectedRevision = std::nullopt)
 			-> std::expected<local_comment_record, local_comment_failure> = 0;

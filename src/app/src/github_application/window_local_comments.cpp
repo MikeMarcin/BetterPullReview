@@ -64,14 +64,23 @@ namespace bpr::app {
 		return drafts;
 	}
 
+	auto github_application::implementation::shown_alignment() const -> const core::file_alignment*
+	{
+		if (!AcceptedDiff || !SelectedDiffPublication || AcceptedDiff->Alignment.Key != SelectedDiffPublication->Key) {
+			return nullptr;
+		}
+		return &AcceptedDiff->Alignment;
+	}
+
 	auto github_application::implementation::make_draft_input_of(const application::local_comment_record& aComment) const -> core::make_draft_input
 	{
 		const auto* const surface   = Window != nullptr ? Window->comparison_surface() : nullptr;
-		const auto*       alignment = surface != nullptr && surface->current_result() != nullptr ? &surface->current_result()->Alignment : nullptr;
+		const auto* const alignment = shown_alignment();
 		auto              input     = core::make_draft_input{ .Anchor = application::local_comment_place_of(aComment), .Placement = core::place_note(application::local_comment_anchor_of(aComment), alignment) };
 		if (alignment != nullptr) {
 			input.Shown = alignment->Digest;
 		}
+		// The reviewer's selected line is a gesture the comparison carries.
 		if (surface != nullptr && surface->selection().has_value() && alignment != nullptr && surface->selection()->PreferredLine.Comparison == alignment->Digest) {
 			input.Selected = surface->selection()->PreferredLine;
 		}
@@ -221,9 +230,8 @@ namespace bpr::app {
 			// composer's unsaved draft, which nothing else knows, goes. A draft the store holds, even one still
 			// empty there, moves instead (below), so its identity is kept.
 			if (aGesture.Action == qt::card_action::save_local && aGesture.Anchor && draft == drafts.end()) {
-				const auto* const surface = Window->comparison_surface();
-				if (!shown || shown->Comparison != aGesture.Anchor->Comparison || surface == nullptr || surface->current_result() == nullptr
-					|| surface->current_result()->Alignment.Digest != aGesture.Anchor->Comparison) {
+				const auto* const alignment = shown_alignment();
+				if (!shown || shown->Comparison != aGesture.Anchor->Comparison || alignment == nullptr || alignment->Digest != aGesture.Anchor->Comparison) {
 					refuse(QStringLiteral("Return to the comment's comparison to save it. Your text is kept."));
 					return;
 				}
@@ -231,12 +239,9 @@ namespace bpr::app {
 					refuse(QStringLiteral("Write something to save it. Nothing changed."));
 					return;
 				}
-				auto next = std::uint64_t{ 1U };
-				for (const auto& comment : AcceptedPrivateNotes) {
-					next = std::max(next, comment.Id.value() + 1U);
-				}
-				auto attachment  = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(surface->current_result()->Alignment, aGesture.Anchor->Side, aGesture.Anchor->Line) };
-				auto comment     = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Attachment = attachment, .Body = aGesture.Body, .StartLine = aGesture.StartLine, .ReplyToThread = aGesture.ReplyToThread };
+				// The store gives the new comment its identity ([[BPR-2183]]).
+				auto attachment  = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(*alignment, aGesture.Anchor->Side, aGesture.Anchor->Line) };
+				auto comment     = application::local_comment_record{ .Attachment = attachment, .Body = aGesture.Body, .StartLine = aGesture.StartLine, .ReplyToThread = aGesture.ReplyToThread };
 				comment.FilePath = SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt;
 				ReviewLedgerHost->persist(comment, std::nullopt, ledger_answer([this, refuse](const std::expected<application::local_comment_record, application::local_comment_failure>& aStored) {
 											  if (!aStored) {
@@ -270,9 +275,8 @@ namespace bpr::app {
 			if (aGesture.Action == qt::card_action::save_local && !aGesture.Body.empty()) {
 				input.Draft.Body = aGesture.Body;
 			}
-			const auto* const surface = Window->comparison_surface();
-			if (onShown && surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == draft->Draft.Anchor.Comparison) {
-				if (const auto line = core::note_line_anchor_at(surface->current_result()->Alignment, draft->Draft.Anchor.Side, draft->Draft.Anchor.Line); line.has_value()) {
+			if (const auto* const alignment = shown_alignment(); onShown && alignment != nullptr && alignment->Digest == draft->Draft.Anchor.Comparison) {
+				if (const auto line = core::note_line_anchor_at(*alignment, draft->Draft.Anchor.Side, draft->Draft.Anchor.Line); line.has_value()) {
 					input.ShownBlob = line->Blob;
 				}
 			}
@@ -290,37 +294,26 @@ namespace bpr::app {
 				comment.Attachment = application::local_comment_attachment{ .File = *decided->Place.File, .Comparison = *decided->Place.Comparison, .Line = decided->Place.Line };
 				comment.FilePath   = filePath;
 			}
-			// Save with words the store has not seen yet: they are the
-			// draft's first, then the draft moves with them.
-			auto move = [this, refuse, id = draft->Draft.Id, comment](const std::uint64_t aRevision) {
-				PrivateReview->keep_local(id, aRevision, comment, [this, refuse](auto aKept) {
-					if (!aKept) {
-						refuse(QStringLiteral("Keep local was refused: the draft changed or is being sent. Nothing changed."));
+			// [[BPR-2183]]. Save with words the store has not seen yet keeps
+			// them with the move, in its one transaction. The composer
+			// closes once the store has answered, and stays open with its
+			// words when it refuses.
+			const auto saving = aGesture.Action == qt::card_action::save_local;
+			PrivateReview->keep_local(draft->Draft.Id, draft->Revision, comment, input.Draft.Body != draft->Draft.Body, [this, refuse, saving](auto aKept) {
+				if (!aKept) {
+					refuse(QStringLiteral("Keep local was refused: the draft changed or is being sent. Nothing changed."));
+				}
+				reload_local_comments();
+				// As after Delete ([[BPR-1862]]): the kept draft ended
+				// discarded, so it is no longer its line's draft, and a new
+				// comment there is a new draft.
+				if (aKept) {
+					if (saving && Window != nullptr) {
+						Window->close_drawer_composer(false);
 					}
-					reload_local_comments();
-					// As after Delete ([[BPR-1862]]): the kept draft ended
-					// discarded, so it is no longer its line's draft, and a new
-					// comment there is a new draft.
-					if (aKept) {
-						leave_deleted_draft();
-					}
-				});
-			};
-			if (input.Draft.Body != draft->Draft.Body) {
-				PrivateReview->change_draft({ { draft->Draft.Id, core::review_draft_command_kind::edit, input.Draft.Body }, draft->Revision, false, { }, draft->Scope },
-											[move, refuse](auto aCommit) {
-												if (!aCommit || aCommit->records().empty()) {
-													refuse(QStringLiteral("Keep local was refused: the draft changed. Nothing changed."));
-													return;
-												}
-												move(aCommit->records().front().Draft.Revision);
-											});
-			} else {
-				move(draft->Revision);
-			}
-			if (aGesture.Action == qt::card_action::save_local) {
-				Window->close_drawer_composer(false);
-			}
+					leave_deleted_draft();
+				}
+			});
 			return;
 		}
 		default:
@@ -335,11 +328,7 @@ namespace bpr::app {
 		if (!ReviewLedgerHost || (aWholeFile && !shown)) {
 			return false;
 		}
-		auto next = std::uint64_t{ 1U };
-		for (const auto& comment : AcceptedPrivateNotes) {
-			next = std::max(next, comment.Id.value() + 1U);
-		}
-		auto comment = application::local_comment_record{ .Id = application::local_comment_id{ next }, .Body = aBody };
+		auto comment = application::local_comment_record{ .Body = aBody };
 		if (aWholeFile) {
 			comment.Attachment = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison };
 			comment.FilePath   = SelectedDiffPublication ? std::optional{ SelectedDiffPublication->Request.File.PresentationPath } : std::nullopt;
@@ -350,21 +339,17 @@ namespace bpr::app {
 
 	auto github_application::implementation::seed_local_replies_for_look(const std::string& aThread, const core::source_line_ref aLine) -> bool
 	{
-		const auto  shown   = current_note_attachment();
-		auto* const surface = Window != nullptr ? Window->comparison_surface() : nullptr;
-		if (!shown || shown->Comparison != aLine.Comparison || surface == nullptr || surface->current_result() == nullptr || !ReviewLedgerHost || !PrivateReview) {
+		const auto        shown     = current_note_attachment();
+		const auto* const alignment = shown_alignment();
+		if (!shown || shown->Comparison != aLine.Comparison || alignment == nullptr || !ReviewLedgerHost || !PrivateReview) {
 			return false;
 		}
-		auto next = std::uint64_t{ 1U };
-		for (const auto& comment : AcceptedPrivateNotes) {
-			next = std::max(next, comment.Id.value() + 1U);
-		}
-		auto       attachment = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(surface->current_result()->Alignment, aLine.Side, aLine.Line) };
-		const auto reply      = [&](const std::uint64_t aId, std::string aBody) {
-			return application::local_comment_record{ .Id = application::local_comment_id{ aId }, .Attachment = attachment, .Body = std::move(aBody), .ReplyToThread = aThread };
+		auto       attachment = application::local_comment_attachment{ .File = shown->File, .Comparison = shown->Comparison, .Line = core::note_line_anchor_at(*alignment, aLine.Side, aLine.Line) };
+		const auto reply      = [&](std::string aBody) {
+			return application::local_comment_record{ .Attachment = attachment, .Body = std::move(aBody), .ReplyToThread = aThread };
 		};
-		const auto first  = reply(next, "Check retained() after a resize before believing this. Ask at standup.");
-		const auto second = reply(next + 1U, "Thanks. Does begin_frame() also skip it after forget()?");
+		const auto first  = reply("Check retained() after a resize before believing this. Ask at standup.");
+		const auto second = reply("Thanks. Does begin_frame() also skip it after forget()?");
 		ReviewLedgerHost->persist(first, std::nullopt, ledger_answer([this, second, aLine, aThread](const std::expected<application::local_comment_record, application::local_comment_failure>& aFirst) {
 									  if (!aFirst) {
 										  return;

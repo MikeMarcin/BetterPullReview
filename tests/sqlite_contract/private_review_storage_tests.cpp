@@ -6,6 +6,7 @@
 #include "bpr/application/agent_launch.hpp"
 #include "review_ledger_legacy_fixture.hpp"
 #include "scratch_root.hpp"
+#include <algorithm>
 #include <barrier>
 #include <fstream>
 #include <iostream>
@@ -474,6 +475,30 @@ namespace {
 		expect(store->load_draft(draft.Draft.Draft.Id) && store->load_draft(draft.Draft.Draft.Id)->Draft.Draft.Body == kept->Body, "the draft has the comment's text");
 		observed = (*ledger)->load_private();
 		expect(observed && std::ranges::none_of(observed->LocalComments, [&](const local_comment_record& aComment) { return aComment.Id == kept->Id; }), "the Local comment is gone");
+
+		// [[BPR-2183]]. Save as Local with changed words is one transaction:
+		// changed words without Reworded move nothing; with it the comment
+		// has the new words and the draft ends, in the same commit.
+		const auto fourth   = put_draft("Draft words.");
+		auto       reworded = private_keep_local{ .Draft = fourth.Draft.Draft.Id, .ExpectedRevision = 1, .Comment = { .Attachment = local_comment_attachment{ file, *binding.Comparison, note_line_anchor{ diff_side::right, 1, std::nullopt } }, .Body = "Changed words." } };
+		expect(store->keep_local(reworded).error() == private_store_failure::conflict && store->load_draft(fourth.Draft.Draft.Id)->Draft.Revision == 1U, "other words without Reworded keep nothing local");
+		reworded.Reworded = true;
+		const auto saved  = store->keep_local(reworded);
+		expect(saved.has_value() && saved->Body == "Changed words.", "Reworded keeps the composer's words");
+		const auto fourthEnded = store->load_draft(fourth.Draft.Draft.Id);
+		expect(fourthEnded && fourthEnded->Draft.Draft.State == review_draft_state::discarded && fourthEnded->Draft.Revision == 2U, "the draft ends in the same commit, one revision on");
+
+		// [[BPR-2183]]. A new comment with no identity takes the next free one
+		// from the store; two in a row never share one.
+		observed     = (*ledger)->load_private();
+		auto highest = std::uint64_t{ 0U };
+		for (const auto& comment : observed->LocalComments) {
+			highest = std::max(highest, comment.Id.value());
+		}
+		const auto one = (*ledger)->store_local_comment({ .Body = "first new" });
+		const auto two = (*ledger)->store_local_comment({ .Body = "second new" });
+		expect(one.has_value() && two.has_value() && one->Id.value() == highest + 1U && two->Id.value() == highest + 2U, "the store allocates new Local identities in order");
+		expect(!(*ledger)->store_local_comment({ .Body = "an edit needs its identity" }, one->Revision), "an edit without an identity is refused");
 	}
 	void migration_bytes()
 	{

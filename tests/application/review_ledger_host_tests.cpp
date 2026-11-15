@@ -156,6 +156,14 @@ namespace {
 			}
 			auto accepted     = aNote;
 			accepted.Revision = application::local_comment_revision{ NextNoteRevision++ };
+			// As the durable store: a new note without an identity takes the next free one.
+			if (!aExpectedRevision && accepted.Id.value() == 0U) {
+				auto last = std::uint64_t{ 0U };
+				for (const auto& comment : Private.LocalComments) {
+					last = std::max(last, comment.Id.value());
+				}
+				accepted.Id = application::local_comment_id{ last + 1U };
+			}
 			if (found == Private.LocalComments.end()) {
 				Private.LocalComments.push_back(accepted);
 			} else {
@@ -1012,6 +1020,26 @@ namespace {
 				&& rigged.Host.statistics().PrivateFailures == 4U
 				&& rigged.Host.statistics().Operations == 1U,
 			"validation failures are counted without false writes, deletes or storage work");
+	}
+
+	/// \brief [[BPR-2183]]. A new note may leave its identity to the store:
+	/// the host lets it through and adopts the identity the store answers.
+	/// An edit still names the note it edits.
+	void test_a_new_note_takes_its_identity_from_the_store()
+	{
+		auto log    = event_log{ };
+		auto store  = recording_store{ log };
+		auto rigged = rig{ store, log };
+
+		auto unnamed      = private_note();
+		unnamed.Id        = application::local_comment_id{ };
+		const auto first  = rigged.persist(unnamed);
+		const auto second = rigged.persist(unnamed);
+		expect(first.has_value() && second.has_value() && first->Id.value() == 1U && second->Id.value() == 2U, "the store names each new note, in order");
+		const auto observed = rigged.private_observation();
+		expect(observed.has_value() && observed->LocalComments.size() == 2U && observed->LocalComments.back().Id == second->Id, "the host adopts the store's identities");
+		const auto edit = rigged.persist(unnamed, first->Revision);
+		expect(!edit && edit.error().Reason == application::ledger_store_failure::invalid_record, "an edit without an identity is refused before the store");
 	}
 
 	/// \brief RFC-BPR-0089 M2. Generated marks are stored, replaced and
@@ -2194,6 +2222,7 @@ auto main() -> int
 	test_an_unchanged_command_is_not_a_write();
 	test_statistics_account_for_every_command();
 	test_private_records_are_validated_before_the_store();
+	test_a_new_note_takes_its_identity_from_the_store();
 	test_private_records_round_trip_and_delete_through_the_host();
 	test_generated_marks_round_trip_through_the_host();
 	test_material_observation_loads_carries_and_publishes_in_order();

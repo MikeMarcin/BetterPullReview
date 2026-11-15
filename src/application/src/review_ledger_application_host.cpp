@@ -1320,7 +1320,13 @@ namespace bpr::application {
 		};
 		self->enqueue(impl::operation{
 			.Begin = [self, aNote, aExpectedRevision, done = std::move(aDone)](impl::outcome& aOutcome) mutable {
-				if (!valid(aNote) || (aExpectedRevision && !durable_integer(aExpectedRevision->value()))) {
+				// A new note may leave its identity to the store ([[BPR-2183]]);
+				// everything else about it is checked here.
+				auto checked = aNote;
+				if (!aExpectedRevision && checked.Id.value() == 0U) {
+					checked.Id = local_comment_id{ 1U };
+				}
+				if (!valid(checked) || (aExpectedRevision && !durable_integer(aExpectedRevision->value()))) {
 					++self->Statistics.PrivateFailures;
 					aOutcome.Terminal = [done] {
 						impl::answer(done, std::expected<local_comment_record, local_comment_failure>{ std::unexpected(local_comment_failure{ .Reason = ledger_store_failure::invalid_record }) });

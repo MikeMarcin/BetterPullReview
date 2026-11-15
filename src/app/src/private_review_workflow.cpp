@@ -891,12 +891,12 @@ namespace bpr::app {
 				 }
 			 });
 	}
-	void private_review_workflow::keep_local(const core::review_draft_id aDraft, const std::uint64_t aRevision, application::local_comment_record aComment, local_completion aDone)
+	void private_review_workflow::keep_local(const core::review_draft_id aDraft, const std::uint64_t aRevision, application::local_comment_record aComment, const bool aReworded, local_completion aDone)
 	{
 		auto kept = std::make_shared<std::optional<application::local_comment_record>>();
-		post([aDraft, aRevision, comment = std::move(aComment), kept](context& aContext) {
+		post([aDraft, aRevision, comment = std::move(aComment), aReworded, kept](context& aContext) {
 			result output;
-			*kept          = take(aContext.Store->keep_local({ .Draft = aDraft, .ExpectedRevision = aRevision, .Comment = comment }));
+			*kept          = take(aContext.Store->keep_local({ .Draft = aDraft, .ExpectedRevision = aRevision, .Comment = comment, .Reworded = aReworded }));
 			output.Drafts  = accepted(application::review_composition_application_host(*aContext.Store).restore(std::nullopt, aDraft));
 			output.Refresh = false;
 			return output; },

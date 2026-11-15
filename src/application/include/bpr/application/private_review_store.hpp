@@ -225,6 +225,11 @@ namespace bpr::application {
 		core::review_draft_id Draft;
 		std::uint64_t         ExpectedRevision = 0;
 		local_comment_record  Comment;
+		/// [[BPR-2183]]. Save as Local with changed words: `Comment.Body` is
+		/// the composer's words, kept in the same transaction. Otherwise it
+		/// must be the draft's own words. The ended draft keeps the words it
+		/// was stored with either way.
+		bool Reworded = false;
 	};
 	/// \brief One durable authority, accessed on the owning storage lane. No remote capabilities.
 	class private_review_store_port

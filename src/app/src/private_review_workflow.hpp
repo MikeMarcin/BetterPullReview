@@ -70,9 +70,11 @@ namespace bpr::app {
 		/// \brief RFC-BPR-0127 ([[BPR-2158]]). Keep local: the draft at its
 		/// revision becomes `aComment` in one store transaction; the draft's
 		/// end fans out to every window. Answers on the decision lane with
-		/// the stored comment, or the refusal.
+		/// the stored comment, or the refusal. With `aReworded` (Save as
+		/// Local with changed words, [[BPR-2183]]) the comment keeps its own
+		/// words in that same transaction.
 		using local_completion = std::function<void(application::private_run_result<application::local_comment_record>)>;
-		void keep_local(core::review_draft_id, std::uint64_t aRevision, application::local_comment_record aComment, local_completion);
+		void keep_local(core::review_draft_id, std::uint64_t aRevision, application::local_comment_record aComment, bool aReworded, local_completion);
 		/// \brief RFC-BPR-0127. Make draft: the Local comment at its revision
 		/// becomes a new draft at `aAnchor` (its range and reply target), not
 		/// in the review, in one store transaction; the draft fans out.

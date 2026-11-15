@@ -331,6 +331,8 @@ namespace bpr::application {
 		void load_private(ledger_completion<void> aDone);
 
 		/// \brief Persists one validated local note.
+		/// \details Without `aExpectedRevision` it is new; an identity of zero
+		/// asks the store for the next free one, which the answer carries.
 		void persist(const local_comment_record&                    aNote,
 					 std::optional<local_comment_revision>          aExpectedRevision,
 					 local_comment_completion<local_comment_record> aDone);

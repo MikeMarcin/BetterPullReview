@@ -1857,6 +1857,10 @@ namespace bpr::app {
 		/// RFC-BPR-0127 ([[BPR-2158]]). My Local comments in Comments, and
 		/// their moves (window_local_comments.cpp).
 		[[nodiscard]] auto shown_drafts() const -> std::vector<core::review_comment_draft>;
+		/// [[BPR-2183]]. The shown comparison's alignment, from the diff
+		/// host's accepted publication, not the comparison widget; null
+		/// until that comparison's publication has arrived.
+		[[nodiscard]] auto shown_alignment() const -> const core::file_alignment*;
 		[[nodiscard]] auto make_draft_input_of(const application::local_comment_record& aComment) const -> core::make_draft_input;
 		void               present_local_comments();
 		void               reload_local_comments();
@@ -2110,6 +2114,9 @@ namespace bpr::app {
 		std::string                                                 PublishedHostname;
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
+		/// [[BPR-2183]]. The diff host's last accepted publication, what
+		/// `shown_alignment` reads.
+		std::shared_ptr<const core::computed_file_diff> AcceptedDiff;
 
 		decltype(github_profile_runtime::Profiles)&                 Profiles                 = Profile->Profiles;
 		decltype(github_profile_runtime::ProfileOptions)&           ProfileOptions           = Profile->ProfileOptions;
