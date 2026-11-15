@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2196"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Revise: the author's mode (RFC-BPR-0112, accepted design local-draft-workflow-v2)",
+  "created": "2026-11-15T22:38:05.360267+00:00",
+  "base": "21c417054fb8828e223ea83e9591542333dff068"
+}
