@@ -3776,8 +3776,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# returns tour feedback a crash left (also covers the BPR-2191 correction
 	# a9e612a3a, which landed unsealed). No review mutation or publication
 	# path changed; the mutation-branch pin is unchanged.
+	# Merge of main into the v0.5.0 lane (bdd492c64): main's src/app changes
+	# joined the lane's. No review mutation or publication path changed here.
 	set(bpr_expected_production_app_manifest_digest
-        "8fcaff61d9497215b4b817921e64faa0839cf8517f680aff7794407373d3b87e"
+        "84a0b8bc9808ec42ee923b8df8c541e1f76992f5d374d95d8260f8cd8ad0cd02"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
