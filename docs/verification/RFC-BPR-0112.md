@@ -1,0 +1,45 @@
+# RFC-BPR-0112 verification
+
+Mandate `v0-5-0-prerelease-targets-r1`, milestones `workflow-companion-contract`
+([[BPR-2032]], [[BPR-2033]]) and `workflow-effectful-actions` ([[BPR-2034]],
+closeout [[BPR-2035]]). RFC_BASE_SHA: `dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`.
+Frontend-design was loaded before the Qt work. RFC-BPR-0109 is Rejected:
+nothing here stores, imports or names evidence; a check's findings are
+shown with its outcome as reported. ACTIONS-01 is implemented as settled:
+interactive handoff, no BPR-supervised effectful action. Debug timings are
+nongating; nothing below is a timing claim.
+
+## What was built
+
+| Layer | What |
+|---|---|
+| Core (`core/workflow_configuration.hpp`) | A workflow (ID, name, origin, guidance, up to 16 actions: slot, task, agent or command binding, declared effects, required); its `workflows` item list in the agent configuration file, which is written at version 2 when present so an earlier importer refuses it as newer; item problems (`unsupported`, `invalid`, `duplicate`, `agent_effect`, `unknown_agent`); the revision (SHA-256 of its canonical encoding); local bindings (an absolute program per command action, an agent name per agent action); `workflow_differences` (including `effects_widened`); `apply_workflow_choices` (all or none; replace keeps an unchanged program name's binding); `action_prerequisite`; `workflow_command` (whole-argument `{request}`/`{response}` only) and `shell_line` |
+| Core (`core/workflow_action.hpp`) | The draft's pinned `draft_workflow` and action records; `select_workflow`, `accept_workflow_update`, `choose_publisher`; `begin_action` (an answer only continues a question); the bounded request (`bpr.workflow-request` v1) and response (`bpr.workflow-response` v1, 16 MiB, strict); `admit_workflow_response` (current invocation only; proposals bound to the field revisions the invocation read); `required_checks` (never run, pending, earlier candidate, earlier configuration, upstream changed, finding, limitation); `hand_off_publication`, `external_publication_open`, `reconcile_external_publication` (links through `adopt_local_pull_request` after a read), `hand_off_follow_up`, `reconcile_follow_up`, `mark_action_lost`. `local_publication_refusal::external_publisher` keeps the built-in route aside |
+| Storage | `workflow_configurations` in the agent setup database, written in the import's transaction and compared for `changed_since`; the draft record's `workflow` member |
+| Application | `export_agent_configuration` with workflows (their agents travel with them), `default_workflow_agents`, host `apply` with workflow choices; the workbench's workflow commands, its Workflow projection and `workflow_exchange_port`; `reconcile_external_local_publication` (reads the open pull requests from the draft's branch; writes nothing to GitHub) |
+| Qt | `local_draft_workflow_area` in Overview's Status tab above the publish steps; Settings' export rows and import page for workflows. Agent actions wear the agent accent; command actions use the ordinary roles |
+| App | `local_draft_workflow_exchange` (owner-private `workflow-exchange/DRAFT/INVOCATION/` files; starts nothing), `read_workflow_profile`, the desktop's dispatch and agent-bound Ask, the reload after a Settings import, `--attended-local-draft-workflow` for an attended look |
+| Fixture | `tests/fixtures/workflow_companion`: the synthetic organization companion, its upstream tool (rules, a callable helper, the self-review marker) and the shared configuration |
+
+## Criteria
+
+| Criterion | Evidence | Result |
+|---|---|---|
+| AC01 | `application_local_draft_workflow_desktop_public_path`: with no workflow, Description and Tour prepare and the area says none is needed; after the organization's file is imported, the open unrelated draft and its stored record have no workflow. `application_local_draft_{desktop,tour,author,publication}_desktop_public_path` pass unchanged | Pass |
+| AC02 | `core_workflow` (version 2, unknown action named and refused, relative program refused, replace keeps a binding, leave changes nothing); `qt_agent_configuration_dialogs` (a workflow exported with its agent and no program path; previewed with origin, actions, who acts and declared effects; program bound here; an update with a widened effect named and taken only when chosen); the course (import and selection run nothing, builds stay off without acceptance) | Pass |
+| AC03 | Course: context asks the author, a check runs meanwhile, Continue reruns only the asking action, the proposal on a field edited since is stale and Accept refuses it; `core_workflow`: an earlier invocation's answer is refused | Pass |
+| AC04 | Course: the upstream-only review marker and a changed upstream rule leave the required check unmet and its publisher unhanded; the companion's own rules and validator are outside BPR. `core_workflow`: missing helper and no dry run are limitations | Pass |
+| AC05 | Course: the workflow's publisher chosen, the built-in creation refuses and GitHub sees none; the exact plan (digest, title, body) reaches the publisher; BPR names the command and starts nothing; the area says the program is neither started nor restricted by BPR | Pass |
+| AC06 | Course: lost answer, no handoff before Check GitHub, nothing found reopens under a new confirmation, the report links only after the read (as not created by BPR); a partly failed follow-up keeps its results, is retried only after reconciliation and makes only what is missing | Pass |
+| AC07 | Course and renders (`build/dev/tests/end_to_end/local-draft-workflow-desktop/`): origin, the selected context a handoff sent, who acts, declared effect scope and current outcome in Overview's Status tab; no PR created and no enterprise account or script | Pass; owner look pending |
+| AC08 | `application_local_draft_publication_desktop_public_path` (worktree to linked draft pull request with no workflow, Workflow area composed); the workflow course keeps an unrelated draft free of the integration. RFC-BPR-0111's live BPR-Test run (#179) is reused: the built-in route changed only by a guard a draft without a workflow never meets | Pass |
+| AC09 | Course: Ask (agent action) is an agent run control, Hand off is not; the file's builds request is off without acceptance; results read "Reported by the companion; not observed by BetterPullReview" | Pass; owner look pending |
+
+## Not done, and why
+
+- An in-app editor for defining a workflow: Settings defines workflows by
+  import, as the shared file is their definition (design question 1 in the
+  handoff).
+- A remembered workflow per repository (the RFC's "may offer"): not built.
+- `shell_line` quotes for a POSIX shell; Windows has no course (the course is
+  `NOT WIN32`, as the companion is a script with a shebang).
