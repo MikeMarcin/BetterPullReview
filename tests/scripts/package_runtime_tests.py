@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Closed-data tests for package selection and fail-closed evidence generation."""
+import base64
 import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
 import sys
 import subprocess
 import tarfile
@@ -66,6 +68,84 @@ class PackageRuntimeTests(unittest.TestCase):
             refused = subprocess.run(["cmake", "-P", str(script)], capture_output=True, text=True)
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn("review dual-context package scope", refused.stderr)
+
+    @unittest.skipUnless(sys.platform == "win32", "native Windows CPack/WiX authoring check")
+    def test_windows_dual_scope_compiles_and_passes_ice105(self):
+        # Compile the production settings and patch with an inert payload. This
+        # catches WiX symbol/schema failures without building or installing BPR.
+        for tool in ("cmake", "cpack", "wix"):
+            if not shutil.which(tool):
+                self.skipTest(f"native installer authoring requires {tool}")
+        version = subprocess.run(["wix", "--version"], check=True, capture_output=True, text=True)
+        self.assertRegex(version.stdout, r"^5\.0\.2[+\s]")
+        config = (ROOT / "packaging/Install.cmake").read_text()
+        start = config.index("set(CPACK_PACKAGE_NAME BetterPullReview)")
+        end = config.index("\nelse()", start)
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / "payload"
+            payload.mkdir()
+            (payload / "better_pull_review.exe").write_text("Inert installer authoring fixture; not an application.\n")
+            script = root / "configure.cmake"
+            script.write_text(
+                f'set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")\n'
+                'set(PROJECT_VERSION 0.5.0)\nset(BPR_VENDOR_NAME GameCoreTech)\n'
+                'set(PROJECT_HOMEPAGE_URL https://github.com/MikeMarcin/BetterPullReview)\n'
+                'set(BPR_RELEASE_MSI_VERSION 0.5.0)\nset(BPR_RELEASE_ASSET_VERSION 0.5.0)\n'
+                'set(CPACK_INSTALL_CMAKE_PROJECTS "")\n'
+                f'set(CPACK_INSTALLED_DIRECTORIES "{payload.as_posix()};.")\n'
+                + config[start:end] + '\nendif()\ninclude(CPack)\n')
+
+            def run(*args):
+                result = subprocess.run(args, cwd=root, capture_output=True, text=True, timeout=60)
+                logs = "" if result.returncode == 0 else "\n".join(
+                    log.read_text() for log in root.rglob("wix.log"))
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr + logs)
+                return result.stdout
+
+            run("cmake", "-P", str(script))
+            run("cpack", "--config", str(root / "CPackConfig.cmake"), "-B", str(root / "output"))
+            msi = root / "output/BetterPullReview-0.5.0-windows-x64.msi"
+            run("wix", "msi", "validate", "-ice", "ICE105", str(msi))
+            path = base64.b64encode(str(msi).encode()).decode()
+            query = """$ErrorActionPreference='Stop'
+$path=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('PATH'))
+$installer=New-Object -ComObject WindowsInstaller.Installer
+$db=$installer.OpenDatabase($path,0)
+$tables=@{}
+$counts=@{Property=2;Registry=6;InstallUISequence=3;InstallExecuteSequence=3;CustomAction=4}
+foreach($table in $counts.Keys){
+  $view=$db.OpenView('SELECT * FROM `'+$table+'`');$view.Execute();$rows=@()
+  while($row=$view.Fetch()){
+    $values=@();for($i=1;$i -le $counts[$table];$i++){$values+=@($row.StringData($i))}
+    $rows+=,@($values)
+    [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($row)
+  }
+  $tables[$table]=$rows;$view.Close()
+  [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($view)
+}
+$summary=$db.SummaryInformation(0)
+$tables['summary']=@{installer_version=$summary.Property(14);word_count=$summary.Property(15)}
+foreach($object in @($summary,$db,$installer)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($object)}
+$tables | ConvertTo-Json -Depth 10 -Compress
+""".replace("PATH", path)
+            encoded = base64.b64encode(query.encode("utf-16le")).decode()
+            tables = json.loads(run("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded))
+            properties = dict(tables["Property"])
+            self.assertEqual((properties["ALLUSERS"], properties["MSIINSTALLPERUSER"]), ("2", "1"))
+            self.assertIn("INSTALL_ROOT", properties["SecureCustomProperties"].split(";"))
+            self.assertEqual(tables["summary"]["installer_version"], 500)
+            self.assertFalse(tables["summary"]["word_count"] & 8)  # Everyone may elevate.
+            self.assertEqual({row[1] for row in tables["Registry"]}, {"-1"})  # HKMU
+            for name in ("InstallUISequence", "InstallExecuteSequence"):
+                sequence = {row[0]: int(row[2]) for row in tables[name]}
+                self.assertLess(sequence["AppSearch"], sequence["BprRestoreUserRoot"])
+                self.assertLess(sequence["BprRestoreUserRoot"], sequence["FindRelatedProducts"])
+                self.assertLess(sequence["FindRelatedProducts"], sequence["CostInitialize"])
+            ui_sequence = {row[0]: int(row[2]) for row in tables["InstallUISequence"]}
+            self.assertLess(ui_sequence["BprInstallScopeDlg"], ui_sequence["CostInitialize"])
+            actions = {row[0]: int(row[1]) for row in tables["CustomAction"]}
+            self.assertTrue(actions["BprRestoreUserRoot"] & 256)  # First sequence only.
 
     def test_windows_scope_is_chosen_before_costing_and_both_choices_are_visible(self):
         product = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot().find("./CPackWiXFragment[@Id='#PRODUCT']")

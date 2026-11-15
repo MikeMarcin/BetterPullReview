@@ -4,8 +4,8 @@
      upgrades; MSI does not upgrade between contexts. [[BPR-1788]] -->
 <CPackWiXPatch>
     <CPackWiXFragment Id="#PRODUCT">
-        <Property Id="INSTALL_ROOT" Secure="yes"/>
-        <Property Id="MSIINSTALLPERUSER" Secure="yes"/>
+        <!-- CPack already defines secure INSTALL_ROOT; WiX's dual package
+             scope defines the standard MSIINSTALLPERUSER property. -->
         <Property Id="BPR_MACHINE_INSTALL_ROOT" Secure="yes">
             <RegistrySearch Id="BprMachineInstallRoot" Root="HKLM" Bitness="always64"
                 Key="Software\GameCoreTech\BetterPullReview" Name="InstallRoot" Type="raw"/>
