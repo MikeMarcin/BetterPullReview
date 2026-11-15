@@ -460,7 +460,7 @@ namespace bpr::core {
 	auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>
 	{
 		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))
-			|| (aInput.CommentFormat && !valid_comment_format(*aInput.CommentFormat))) {
+			|| (aInput.CommentFormat && !valid_comment_format(*aInput.CommentFormat)) || (aInput.ReportFormat && !valid_comment_format(*aInput.ReportFormat))) {
 			return std::nullopt;
 		}
 		auto brief = supplement_brief{
@@ -470,6 +470,7 @@ namespace bpr::core {
 			.Skill      = std::move(aInput.Skill),
 		};
 		brief.CommentFormat = std::move(aInput.CommentFormat);
+		brief.ReportFormat  = std::move(aInput.ReportFormat);
 		if (aInput.Description.size() <= maximum_brief_description_bytes) {
 			brief.Description = std::move(aInput.Description);
 		} else {
@@ -528,7 +529,7 @@ namespace bpr::core {
 		if (aBrief.Title.size() > maximum_brief_title_bytes || aBrief.Description.size() > maximum_brief_description_bytes
 			|| aBrief.BaseBranch.size() > maximum_brief_branch_bytes || aBrief.Files.size() > maximum_brief_files
 			|| !enumerator_at_most(aBrief.Workspace, brief_workspace::private_snapshot) || (aBrief.Skill && !valid_skill(*aBrief.Skill))
-			|| (aBrief.CommentFormat && !valid_comment_format(*aBrief.CommentFormat))) {
+			|| (aBrief.CommentFormat && !valid_comment_format(*aBrief.CommentFormat)) || (aBrief.ReportFormat && !valid_comment_format(*aBrief.ReportFormat))) {
 			return false;
 		}
 		if (std::ranges::any_of(aBrief.Files, [](const brief_changed_file& aFile) {

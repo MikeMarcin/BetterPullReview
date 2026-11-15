@@ -552,3 +552,78 @@ assertions), `application_ask_addressed_public_path`,
 `application_ask_report_public_path`, `application_explain_file_public_path`.
 
 Host 44048/44130 stopped; root `ask-v008.wfugolhe` removed.
+
+## The report templates, built (2026-11-14)
+
+The owner's decisions, relayed by the coordinator: round 1's **B, Dressed**
+([report-templates-v1](../design/report-templates-v1/README.md)); render engine
+**(a), Qt rich text**, no new dependency, so Add as draft comment is a link
+([report-templates-v2](../design/report-templates-v2/README.md)); and the
+palette as the theme's own colours, the owner's note verbatim: "I dunno if
+it's too crazy to add the review colors as configurable settings in
+appearance for our themes." Frontend-design was loaded.
+
+- **Core** (`core_agent_report`): `dress_report` reads an answer by the
+  shared convention. It reads the title, the summary, and each section and
+  its tone (a section named for a verdict: Not addressed, Partly, Likely,
+  Must fix, Good and the rest). Each item carries its Conventional Comments
+  label or its section's verdict, its place (`path:line` alone on the line
+  under its heading, or that place made a link), a quote, its reasons, rows
+  (a bold label, a place, the rest), code numbered from the item's place, a
+  suggestion with the lines it replaces, and a `**Check:**` line. The tally
+  counts verdicts or labels in the order they appear, or, for What changed,
+  the rows of each area. The `bpr-claims` and `bpr-findings` blocks are not
+  shown. An answer with no sections is not dressed; it shows as written.
+- **The page** (`qt::report_page_html`, `agent_report_view`): one page of Qt
+  rich text in the hand of round 2's Qt frames. The reading text is a serif
+  (Charter, then Iowan Old Style, Cambria, Georgia), labels are sans and
+  places mono. There is a rule at the left of every verdict, the meter and its
+  counts under the summary, and code in a box with line numbers. A suggestion
+  is drawn as a diff (only what changes) with **Add as draft comment**, a
+  link; it drafts the comment at the item's lines through a finding card's
+  own path, and nothing is published. The title is set in the serif at 28.
+  The report menu (☰) finds each heading by the anchor its paragraph
+  carries. View source still shows the Markdown.
+- **Colours** (`core_appearance_*`, `qt_appearance_*`): six new appearance
+  roles, appended for ordinal compatibility and defaulting on import:
+  `report_paper`, `report_ink`, `report_verdict_open`,
+  `report_verdict_partial`, `report_verdict_done` and `report_code_wash`.
+  Their defaults are the v2 slate: paper on slate by day, chalk on slate by
+  night, with stronger values for the two high-contrast themes. The
+  contrast floor holds ink on paper and on the wash, and each verdict colour
+  on paper. Settings › Appearance lists them under a new group, **Reports**,
+  per theme, each overridable, with Reset all. The window passes them to the
+  report page.
+- **System prompts** (docs/design/report-templates-v1/prompts):
+  - The shipped What changed since my review (`review-latest-upload-v2`) and
+    Explain this file (`review-explain-file-v2`) prompts now begin with the
+    shared report format, then their template.
+  - Was this addressed? (`review-proposed-fix-v2`) gains the several-threads
+    template.
+  - What could this change break? and a review carry the shared format and
+    their two templates in every Agent tab request's brief
+    (`brief.report_format`, `report-templates-v1`). These two are shipped
+    text and not yet library entries; making them editable System prompts
+    needs two new prompts in the workbench store (a schema change), which is
+    left for a later round.
+- **The heading-level defect** (look ask-v008): `dress_headings` selected a
+  heading with `BlockUnderCursor`, which starts at the separator before the
+  block, so its block format reached the paragraph above. That paragraph took
+  the heading's level. It now formats the heading's own block only.
+- **The Fixture agent** answers each report kind in its template.
+- **The every-ask check** checks each report as it runs:
+  - It opens every report the run gives: What changed, Explain this file,
+    What could break, both Was this addressed?, Review this pull request and
+    Review the file. That is ten.
+  - It fails `ATTENDED_FIXTURE_AGENT_FAILED:not-dressed` unless the report
+    shows dressed.
+  - It chooses each section of the report's menu and checks that the
+    heading lands at the top.
+
+Courses: `core_agent_report`, `core_appearance_contrast`, `core_theme_exchange`,
+`qt_appearance_role_display`, `qt_colour_role_list`, `qt_appearance_settings_panel`,
+`application_appearance_theme_customization_contract` and
+`application_appearance_older_theme_contract` (the report colours filled from
+the base on import), `application_agent_launch_policy`, `fixture_agent_answers`,
+`application_fixture_agent_every_ask` (`menus=10`), the ask and returning
+courses.

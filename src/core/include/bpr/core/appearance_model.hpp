@@ -193,6 +193,20 @@ namespace bpr::core {
 		// leaves it unassigned and reads the built-in value
 		// (`defaults_on_import`).
 		agent_accent,
+
+		// RFC-BPR-0128 (docs/design/report-templates-v2; owner, 2026-11-14:
+		// the report's colours are the theme's, overridable per theme). A
+		// report's page: its paper and ink, the three verdict colours (what
+		// still needs work, what is half done or asked, what is done or good)
+		// and the wash code sits on. Appended for durable ordinal
+		// compatibility, so an older palette or theme leaves them unassigned
+		// and reads the built-in values (`defaults_on_import`).
+		report_paper,
+		report_ink,
+		report_verdict_open,
+		report_verdict_partial,
+		report_verdict_done,
+		report_code_wash,
 	};
 
 	/// \brief The opacity the code panes composite the selection wash at.
@@ -229,10 +243,10 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 65U;
+	inline constexpr std::size_t appearance_role_count = 71U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role::agent_accent) + 1U == appearance_role_count,
+		static_cast<std::size_t>(appearance_role::report_code_wash) + 1U == appearance_role_count,
 		"appearance_role_count must cover every declared role");
 
 	/// \brief The first of the twelve label tint roles, in catalog order.

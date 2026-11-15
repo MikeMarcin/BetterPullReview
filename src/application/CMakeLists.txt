@@ -23,7 +23,9 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-propo
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-explain-file.md" WRITING_REVIEW_EXPLAIN_FILE)
 # RFC-BPR-0118: Suggest the change's prompt.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-suggest-change.md" WRITING_REVIEW_SUGGEST_CHANGE)
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change)
+# RFC-BPR-0128: the report shape the Agent tab's requests carry.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/report-templates.md" WRITING_REPORT_TEMPLATES)
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change report-templates)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)

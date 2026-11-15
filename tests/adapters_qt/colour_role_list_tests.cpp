@@ -137,8 +137,8 @@ namespace {
 		show(list);
 
 		expect(
-			list.listed_roles().size() == 63U && core::appearance_role_count == 65U,
-			"63 of the 65 roles the core declares are listed, the agent accent among them (BPR-2000)");
+			list.listed_roles().size() == 69U && core::appearance_role_count == 71U,
+			"69 of the 71 roles the core declares are listed, the agent accent (BPR-2000) and the six report colours (RFC-BPR-0128) among them");
 		for (const auto unoffered :
 			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
 			expect(
@@ -289,7 +289,7 @@ namespace {
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == 63U
+			list.listed_roles().size() == 69U
 				&& list.group_count_text(group::syntax) == QStringLiteral("28")
 				&& list.group_count_text(group::review_states) == QStringLiteral("7"),
 			"clearing the filter lists every offered role again");

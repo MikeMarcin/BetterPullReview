@@ -343,7 +343,8 @@ namespace {
 						 return aPair.Foreground == appearance_role::agent_accent && aPair.Background == appearance_role::application_surface && aPair.Kind == contrast_kind::text;
 					 })),
 					 1U, "the agent accent is held to the text floor on the application surface");
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 711U,
+		// RFC-BPR-0128: five report pairs.
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 716U,
 					 "the checked set is the four fixed pairs, the boundary rule, "
 					 "28 syntax roles over "
 					 "bare canvas backgrounds and under the selection and two Find "

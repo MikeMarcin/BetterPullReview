@@ -13,17 +13,23 @@
 #include <QListWidget>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyledItemDelegate>
 #include <QTextBlock>
+#include <QTextBrowser>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QToolButton>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
+#include <map>
+#include <string_view>
 
 namespace bpr::qt {
 	namespace {
@@ -248,6 +254,25 @@ namespace bpr::qt {
 			}
 		});
 		column->addWidget(Body);
+		// docs/design/report-templates-v2 (owner, 2026-11-14: B, Dressed, in
+		// Qt's rich text): a report that follows the convention is drawn as
+		// a page; the Markdown above stays for View source and for a report
+		// that does not.
+		Dressed = new QTextBrowser{ Column };
+		Dressed->setObjectName(QStringLiteral("agentReportPage"));
+		Dressed->setAccessibleName(tr("Report"));
+		Dressed->setFrameShape(QFrame::NoFrame);
+		Dressed->setOpenLinks(false);
+		Dressed->setOpenExternalLinks(false);
+		Dressed->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Dressed->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Dressed->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+		Dressed->viewport()->setAutoFillBackground(false);
+		Dressed->setAttribute(Qt::WA_TranslucentBackground, true);
+		Dressed->document()->setDocumentMargin(0.0);
+		Dressed->setVisible(false);
+		connect(Dressed, &QTextBrowser::anchorClicked, this, [this](const QUrl& aUrl) { follow(aUrl.toString()); });
+		column->addWidget(Dressed);
 		column->addStretch(1);
 		// Look ask-v008: room under the last section, made when a section is
 		// chosen, so any section can come to the top however short the
@@ -338,29 +363,14 @@ namespace bpr::qt {
 		dress_headings();
 		Headings.clear();
 		Tail->setFixedHeight(0);
-		// Look ask-v008 (the menu went nowhere): a section is found by the
-		// block its heading renders as, in order, and named as it reads
-		// there. Its Markdown title ("`src/main.cpp:6`: Not addressed") is not
-		// the rendered text, and a block's heading level is no guide: the
-		// paragraph under a heading can carry its level too.
-		HeadingBlocks.clear();
-		if (auto* const view = Body->rendered_view(); view != nullptr) {
-			auto block = view->document()->begin();
-			for (const auto& section : card.Outline) {
-				const auto wanted = plain_heading(QString::fromStdString(section.Title));
-				while (block.isValid() && block.text().trimmed() != wanted) {
-					block = block.next();
-				}
-				if (!block.isValid()) {
-					break;
-				}
-				HeadingBlocks.push_back(block.blockNumber());
-				block = block.next();
-			}
-			if (HeadingBlocks.size() != card.Outline.size()) {
-				HeadingBlocks.clear();
-			}
+		Dress = core::dress_report(text, aDocument.Title.toStdString());
+		DraftNotes.clear();
+		render_dressed();
+		OutlineTitles.clear();
+		for (const auto& section : card.Outline) {
+			OutlineTitles.push_back(QString::fromStdString(section.Title));
 		}
+		locate_headings();
 		const QSignalBlocker blocker{ Sections };
 		Sections->clear();
 		const auto add = [this](const QString& aText, const int aKind, const int aIndex, const int aIndent) {
@@ -377,10 +387,7 @@ namespace bpr::qt {
 		add(tr("Summary"), kind_section, 0, 0);
 		auto index = 1;
 		for (const auto& section : card.Outline) {
-			auto name = plain_heading(QString::fromStdString(section.Title));
-			if (!HeadingBlocks.empty()) {
-				name = Body->rendered_view()->document()->findBlockByNumber(HeadingBlocks[static_cast<std::size_t>(index - 1)]).text().trimmed();
-			}
+			const auto name = plain_heading(QString::fromStdString(section.Title));
 			Headings.push_back(name);
 			// A sub-section's row is indented 14 points.
 			add(name, kind_section, index++, static_cast<int>(std::min<std::uint32_t>(section.Depth, 3U)));
@@ -393,6 +400,54 @@ namespace bpr::qt {
 		Scroll->verticalScrollBar()->setValue(0);
 		fit_body();
 		place_menu_button();
+	}
+
+	/// Where each heading of the menu stands in what shows.
+	void agent_report_view::locate_headings()
+	{
+		// Look ask-v008 (the menu went nowhere): a section is found by the
+		// block its heading renders as, in order, and named as it reads
+		// there. Its Markdown title ("`src/main.cpp:6`: Not addressed") is not
+		// the rendered text, and a block's heading level is no guide: the
+		// paragraph under a heading can carry its level too.
+		HeadingBlocks.clear();
+		if (dressed_shown()) {
+			// The dressed page: each heading's paragraph carries its anchor.
+			auto found = std::map<int, int>{ };
+			for (auto block = Dressed->document()->begin(); block.isValid(); block = block.next()) {
+				for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+					for (const auto& name : fragment.fragment().charFormat().anchorNames()) {
+						if (name.startsWith(QString::fromLatin1(report_heading_anchor))) {
+							found.emplace(name.mid(static_cast<qsizetype>(std::string_view{ report_heading_anchor }.size())).toInt(), block.blockNumber());
+						}
+					}
+				}
+			}
+			for (auto index = 1; index <= static_cast<int>(OutlineTitles.size()); ++index) {
+				const auto at = found.find(index);
+				if (at == found.end()) {
+					HeadingBlocks.clear();
+					break;
+				}
+				HeadingBlocks.push_back(at->second);
+			}
+		} else if (auto* const view = Body->rendered_view(); view != nullptr) {
+			auto block = view->document()->begin();
+			for (const auto& title : OutlineTitles) {
+				const auto wanted = plain_heading(title);
+				while (block.isValid() && block.text().trimmed() != wanted) {
+					block = block.next();
+				}
+				if (!block.isValid()) {
+					break;
+				}
+				HeadingBlocks.push_back(block.blockNumber());
+				block = block.next();
+			}
+			if (HeadingBlocks.size() != OutlineTitles.size()) {
+				HeadingBlocks.clear();
+			}
+		}
 	}
 
 	void agent_report_view::set_link_dispatch(std::function<void(const QString&)> aDispatch) { LinkDispatch = std::move(aDispatch); }
@@ -422,8 +477,13 @@ namespace bpr::qt {
 			if (level <= 0) {
 				continue;
 			}
+			// The heading's own text and block only. A BlockUnderCursor
+			// selection starts at the separator before the block, so its
+			// block format reached the paragraph above the heading too: that
+			// paragraph took the heading's level (look ask-v008's report,
+			// whose reasons read as headings to the menu).
 			auto cursor = QTextCursor{ block };
-			cursor.select(QTextCursor::BlockUnderCursor);
+			cursor.setPosition(block.position() + block.length() - 1, QTextCursor::KeepAnchor);
 			auto format = QTextCharFormat{ };
 			format.setFontPointSize(level == shallowest ? 15.0 : 14.0);
 			format.setFontWeight(QFont::DemiBold);
@@ -440,6 +500,117 @@ namespace bpr::qt {
 	{
 		const auto width = std::max(1, Column->width());
 		Body->setFixedHeight(Body->heightForWidth(width));
+		if (Dressed != nullptr) {
+			Dressed->document()->setTextWidth(width);
+			Dressed->setFixedHeight(static_cast<int>(std::ceil(Dressed->document()->size().height())) + 4);
+		}
+	}
+
+	auto agent_report_view::dressed_shown() const noexcept -> bool { return !Dress.Sections.empty() && !Body->source_visible(); }
+
+	auto agent_report_view::shown_text() const -> QTextEdit* { return dressed_shown() ? static_cast<QTextEdit*>(Dressed) : Body->rendered_view(); }
+
+	/// The page in the report's colours, and which of the page and the
+	/// Markdown shows.
+	void agent_report_view::render_dressed()
+	{
+		const auto shown = dressed_shown();
+		if (!Dress.Sections.empty()) {
+			const auto top = Scroll->verticalScrollBar()->value();
+			Dressed->document()->setDefaultFont(QFont{ QStringLiteral("Charter"), 13 });
+			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes));
+			Scroll->verticalScrollBar()->setValue(top);
+		}
+		Dressed->setVisible(shown);
+		Body->setVisible(!shown);
+		apply_colours();
+		fit_body();
+		locate_headings();
+	}
+
+	/// The page's paper and ink, and the title in the report's serif, when
+	/// the page shows; the pane's own colours otherwise.
+	void agent_report_view::apply_colours()
+	{
+		auto*      page    = Scroll->widget();
+		auto       colours = palette();
+		const auto shown   = dressed_shown();
+		if (shown) {
+			colours.setColor(QPalette::Base, Colours.Paper);
+			colours.setColor(QPalette::Window, Colours.Paper);
+			colours.setColor(QPalette::Text, Colours.Ink);
+			colours.setColor(QPalette::WindowText, Colours.Ink);
+		}
+		page->setPalette(colours);
+		Scroll->viewport()->setPalette(colours);
+		Title->setPalette(colours);
+		Byline->setPalette(colours);
+		auto big = Title->font();
+		if (shown) {
+			big.setFamilies({ QStringLiteral("Charter"), QStringLiteral("Iowan Old Style"), QStringLiteral("Bitstream Charter"), QStringLiteral("Cambria"), QStringLiteral("Georgia") });
+			big.setPixelSize(28);
+			big.setWeight(QFont::DemiBold);
+		} else {
+			big = font();
+			big.setPointSizeF(22.0);
+			big.setBold(true);
+		}
+		Title->setFont(big);
+	}
+
+	void agent_report_view::set_report_colours(const report_colours& aColours)
+	{
+		if (Colours == aColours) {
+			return;
+		}
+		Colours = aColours;
+		render_dressed();
+	}
+
+	void agent_report_view::set_draft_dispatch(report_draft_dispatch aDispatch) { DraftDispatch = std::move(aDispatch); }
+
+	/// A link of the page: Add as draft comment, or a place or address.
+	void agent_report_view::follow(const QString& aLink)
+	{
+		if (!aLink.startsWith(QString::fromLatin1(report_draft_scheme))) {
+			if (LinkDispatch) {
+				LinkDispatch(aLink);
+			}
+			return;
+		}
+		const auto outline = aLink.mid(static_cast<qsizetype>(std::string_view{ report_draft_scheme }.size())).toUInt();
+		for (const auto& section : Dress.Sections) {
+			for (const auto& item : section.Items) {
+				if (item.Outline != outline) {
+					continue;
+				}
+				const auto place = core::read_report_place(item.Place);
+				const auto it    = std::ranges::find(item.Body, core::dressed_block_kind::suggestion, &core::dressed_block::Kind);
+				if (!place || it == item.Body.end() || !DraftDispatch) {
+					return;
+				}
+				auto words = QString::fromStdString(item.Label.empty() ? item.Heading : item.Label + ": " + item.Heading);
+				if (const auto reason = std::ranges::find(item.Body, core::dressed_block_kind::paragraph, &core::dressed_block::Kind); reason != item.Body.end()) {
+					words += QStringLiteral("\n\n") + QString::fromStdString(reason->Text);
+				}
+				auto lines = QStringList{ };
+				for (const auto& line : it->Lines) {
+					lines << QString::fromStdString(line);
+				}
+				words += QStringLiteral("\n\n```suggestion\n") + lines.join(QLatin1Char{ '\n' }) + QStringLiteral("\n```");
+				DraftNotes[outline] = tr("Adding as a draft comment…");
+				render_dressed();
+				DraftDispatch({ .Path = QString::fromStdString(place->Path), .First = place->First, .Last = place->Last, .Comment = words },
+							  [this, outline, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
+								  if (alive.isNull()) {
+									  return;
+								  }
+								  DraftNotes[outline] = aDrafted ? tr("Added as a draft comment. Nothing is published.") : aWhy;
+								  render_dressed();
+							  });
+				return;
+			}
+		}
 	}
 
 	void agent_report_view::resizeEvent(QResizeEvent* aEvent)
@@ -460,7 +631,7 @@ namespace bpr::qt {
 		if (aIndex <= 0 || static_cast<std::size_t>(aIndex) > Headings.size()) {
 			return 0;
 		}
-		auto* const view = Body->rendered_view();
+		auto* const view = shown_text();
 		if (view == nullptr) {
 			return -1;
 		}
@@ -589,7 +760,7 @@ namespace bpr::qt {
 			break;
 		case kind_source:
 			Body->show_source(!Body->source_visible());
-			fit_body();
+			render_dressed();
 			break;
 		case kind_copy: Body->copy_source(); break;
 		default:        break;

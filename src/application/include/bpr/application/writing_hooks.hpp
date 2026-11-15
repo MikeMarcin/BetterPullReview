@@ -82,11 +82,11 @@ namespace bpr::application {
 	inline constexpr std::string_view local_commit_message_hook_version = "local-commit-message-v1";
 	/// \brief RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). Versions of the
 	/// returning questions' prompts, `resources/review-preparation/review-*.md`.
-	inline constexpr std::string_view review_latest_upload_hook_version = "review-latest-upload-v1";
-	inline constexpr std::string_view review_proposed_fix_hook_version  = "review-proposed-fix-v1";
+	inline constexpr std::string_view review_latest_upload_hook_version = "review-latest-upload-v2";
+	inline constexpr std::string_view review_proposed_fix_hook_version  = "review-proposed-fix-v2";
 	/// \brief RFC-BPR-0117 ([[BPR-2076]]). Version of Explain this file's
 	/// prompt, `resources/review-preparation/review-explain-file.md`.
-	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v1";
+	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v2";
 	/// \brief RFC-BPR-0118 ([[BPR-2078]]). Version of Suggest the change's
 	/// prompt, `resources/review-preparation/review-suggest-change.md`.
 	inline constexpr std::string_view review_suggest_change_hook_version = "review-suggest-change-v1";
@@ -125,6 +125,13 @@ namespace bpr::application {
 	/// request's brief carries: the profile's override, or the shipped
 	/// default, with its version and which of the two it is.
 	[[nodiscard]] auto suggested_comment_format(const core::writing_hook_settings& aSettings) -> std::optional<core::supplement_feedback_guidance>;
-	[[nodiscard]] auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
+	/// \brief RFC-BPR-0128 (docs/design/report-templates-v1). The report shape an
+	/// Agent tab request carries for the asks answered as reports outside the
+	/// returning questions (What could this change break?, a review): the
+	/// shared rules and those two templates,
+	/// `resources/review-preparation/report-templates.md`.
+	inline constexpr std::string_view report_templates_version = "report-templates-v1";
+	[[nodiscard]] auto                report_templates_guidance() -> core::supplement_feedback_guidance;
+	[[nodiscard]] auto                workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }
 #endif

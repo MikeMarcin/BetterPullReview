@@ -102,6 +102,9 @@
 #include <QWindow>
 
 #if defined(BPR_BUILD_TESTING)
+	#include "bpr/qt/appearance_settings_panel.hpp"
+	#include "bpr/qt/colour_role_list.hpp"
+	#include "bpr/qt/settings_window.hpp"
 	#include <QFont>
 	#include <QGuiApplication>
 	#include <QImage>
@@ -113,7 +116,9 @@
 	#include <QPalette>
 	#include <QPersistentModelIndex>
 	#include <QPlainTextEdit>
+	#include <QRegularExpression>
 	#include <QScrollArea>
+	#include <QScrollBar>
 	#include <QSplitter>
 	#include <QStyle>
 	#include <QStyleHints>
@@ -8078,6 +8083,32 @@ namespace {
 			const auto evidence = access::agent_invocation_evidence(aApplication);
 			if (!state->Waiting) {
 				if (state->Next == state->Steps.size()) {
+					// The look's picture of Settings > Appearance's report
+					// colours, the six roles filtered.
+					if (const auto shots = qEnvironmentVariable("BPR_ATTENDED_SHOT_DIR"); !shots.isEmpty()) {
+						window.open_settings(bpr::qt::settings_page::appearance);
+						QCoreApplication::processEvents();
+						if (auto* const appearance = window.appearance_settings(); appearance != nullptr && appearance->colours() != nullptr && window.settings() != nullptr) {
+							appearance->colours()->apply_filter(QStringLiteral("Report"));
+							window.settings()->resize(1180, 980);
+							for (auto pass = 0; pass < 5; ++pass) {
+								QCoreApplication::processEvents();
+							}
+							for (auto* parent = appearance->colours()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+								if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr) {
+									scroll->ensureWidgetVisible(appearance->colours(), 0, 0);
+									scroll->verticalScrollBar()->setValue(std::min(scroll->verticalScrollBar()->maximum(), scroll->verticalScrollBar()->value() + 420));
+									break;
+								}
+							}
+							for (auto pass = 0; pass < 5; ++pass) {
+								QCoreApplication::processEvents();
+							}
+							static_cast<void>(window.settings()->grab().save(shots + QStringLiteral("/appearance-report-colours.png")));
+							appearance->colours()->apply_filter({ });
+							window.settings()->hide();
+						}
+					}
 					auto* const footer = window.agent_footer_widget();
 					state->Footer      = footer != nullptr && footer->picker() != nullptr ? footer->picker()->property("agentRunSettingsText").toString() : QString{ };
 					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_ANSWERED:%1:footer=%2:asks=%3:skipped=%4:report=%5:menus=%6")
@@ -8132,7 +8163,8 @@ namespace {
 			// The first step, What changed, is named for the person.
 			const auto reported = state->Next == 0U || current.Name.contains(QStringLiteral("what-changed")) || current.Name.contains(QStringLiteral("explain-file"))
 				|| current.Name.contains(QStringLiteral("what-could-break")) || current.Name.contains(QStringLiteral("was-addressed_pull-request"))
-				|| current.Name.contains(QStringLiteral("was-addressed_file"));
+				|| current.Name.contains(QStringLiteral("was-addressed_file")) || current.Name.contains(QStringLiteral("review-pull-request"))
+				|| current.Name.contains(QStringLiteral("review-open-file"));
 			if (reported && tab->turn_count() > state->TurnsBefore) {
 				const auto* const card = tab->turn_report_card(tab->turn_count() - 1U);
 				if (card == nullptr || card->isHidden()) {
@@ -8208,6 +8240,18 @@ namespace {
 				}
 				open->click();
 				QCoreApplication::processEvents();
+				// docs/design/report-templates-v1 and v2: every report keeps to
+				// its template, so every one is dressed.
+				if (!report->dressed_shown() || report->dressed().Sections.empty()) {
+					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-dressed:step=%1").arg(current.Name));
+					return;
+				}
+				// The look's pictures: each report as it opens.
+				{
+					auto slug = current.Name.section(QLatin1Char{ '.' }, -1);
+					slug.replace(QRegularExpression{ QStringLiteral("[^A-Za-z0-9_-]+") }, QStringLiteral("-"));
+					shoot(QStringLiteral("report-%1.png").arg(state->Next == 0U ? QStringLiteral("what-changed") : slug));
+				}
 				auto sections = 0;
 				while (sections < report->outline()->count() && !report->outline()->item(sections)->data(Qt::AccessibleTextRole).toString().isEmpty()) {
 					++sections;

@@ -341,6 +341,9 @@ namespace bpr::core {
 		/// [[BPR-2059]]. How the agent writes the comments it suggests: the
 		/// profile's suggested-comment prompt or its shipped default.
 		std::optional<supplement_feedback_guidance> CommentFormat;
+		/// RFC-BPR-0128. The report shape the asks answered as reports keep
+		/// to (docs/design/report-templates-v1).
+		std::optional<supplement_feedback_guidance> ReportFormat;
 		/// The earlier turns, oldest first.
 		std::vector<brief_turn> Conversation;
 
@@ -367,6 +370,8 @@ namespace bpr::core {
 		std::optional<brief_review_skill> Skill;
 		/// [[BPR-2059]]. The suggested-comment format, as the input gave it.
 		std::optional<supplement_feedback_guidance> CommentFormat;
+		/// RFC-BPR-0128. The report shape, as the input gave it.
+		std::optional<supplement_feedback_guidance> ReportFormat;
 		/// The earlier turns kept, oldest first, and how many older ones
 		/// were left out.
 		std::vector<brief_turn> Conversation;

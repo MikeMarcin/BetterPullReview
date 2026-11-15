@@ -553,6 +553,13 @@ namespace bpr::app {
 			if (!brief.CommentFormat) {
 				brief.CommentFormat = application::suggested_comment_format(core::writing_hook_settings{ });
 			}
+			// RFC-BPR-0128 (docs/design/report-templates-v1). The report shape
+			// What could this change break? and a review keep to; the
+			// returning questions and Explain this file carry theirs in their
+			// own prompts.
+			if (!firstAnswer) {
+				brief.ReportFormat = application::report_templates_guidance();
+			}
 
 			observation.Brief = core::bound_review_brief(std::move(brief));
 			// A fresh first answer carries no earlier conversation.

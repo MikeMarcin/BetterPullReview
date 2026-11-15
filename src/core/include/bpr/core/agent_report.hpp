@@ -138,6 +138,148 @@ namespace bpr::core {
 	/// (24 commits), changed this pull request's files" lines, then each
 	/// area's commits.
 	[[nodiscard]] auto render_commit_listing(const commit_listing& aListing) -> std::string;
+
+	/// \brief docs/design/report-templates-v1 and v2 (owner, 2026-11-14: B,
+	/// Dressed, in Qt's rich text). What a verdict or label means, for its
+	/// colour: what still needs work, what is half done or asked, what is
+	/// done or good, or nothing in particular.
+	enum class report_tone : std::uint8_t {
+		neutral,
+		open,
+		partial,
+		done,
+	};
+
+	/// \brief A short row: a list item, its bold label first where the
+	/// template gives one, then its place in backticks, then what to know.
+	struct dressed_row
+	{
+		std::string Label;
+		report_tone Tone = report_tone::neutral;
+		std::string Place;
+		/// Where the place's link goes, when the answer made it one
+		/// (`[`place`](link)`).
+		std::string PlaceLink;
+		/// The rest of the row, Markdown kept.
+		std::string Text;
+
+		auto operator<=>(const dressed_row&) const = default;
+	};
+
+	enum class dressed_block_kind : std::uint8_t {
+		/// A paragraph, Markdown kept.
+		paragraph,
+		/// A quotation of the comment.
+		quote,
+		/// A run of rows.
+		rows,
+		/// Fenced code that names its language.
+		code,
+		/// A fenced `suggestion`: the lines as they should read.
+		suggestion,
+		/// A `**Check:**` line.
+		check,
+	};
+
+	struct dressed_block
+	{
+		dressed_block_kind Kind = dressed_block_kind::paragraph;
+		/// A paragraph's, a quote's or a check's text, Markdown kept.
+		std::string              Text;
+		std::string              Language;
+		std::vector<std::string> Lines;
+		/// The first line code is numbered from: the item's place, when the
+		/// code follows one.
+		std::optional<std::uint32_t> FirstLine;
+		/// A suggestion's: the lines it replaces, from the item's code above
+		/// it when that code holds them.
+		std::vector<std::string> Replaced;
+		std::vector<dressed_row> Rows;
+
+		auto operator<=>(const dressed_block&) const = default;
+	};
+
+	/// \brief A level-three heading and what is under it.
+	struct dressed_item
+	{
+		/// The verdict or Conventional Comments label the item carries
+		/// ("Partly", "issue (blocking)"), or none.
+		std::string Label;
+		report_tone Tone = report_tone::neutral;
+		/// The heading without its label, Markdown kept.
+		std::string Heading;
+		/// The line that is only a place: `path:line` or `path:first-last`.
+		std::string                Place;
+		std::string                PlaceLink;
+		std::vector<dressed_block> Body;
+		/// Its row in the report's menu, counted from 1 (0 is the summary).
+		std::uint32_t Outline = 0U;
+
+		auto operator<=>(const dressed_item&) const = default;
+	};
+
+	/// \brief A level-two heading and what is under it.
+	struct dressed_section
+	{
+		std::string Name;
+		/// A section named for a verdict ("Not addressed", "Likely") carries
+		/// its colour.
+		report_tone Tone = report_tone::neutral;
+		/// What stands before its first item.
+		std::vector<dressed_block> Intro;
+		std::vector<dressed_item>  Items;
+		std::uint32_t              Outline = 0U;
+
+		auto operator<=>(const dressed_section&) const = default;
+	};
+
+	/// \brief One count of the tally under the summary.
+	struct dressed_count
+	{
+		std::string   Word;
+		std::uint32_t Count = 0U;
+		report_tone   Tone  = report_tone::neutral;
+
+		auto operator<=>(const dressed_count&) const = default;
+	};
+
+	/// \brief A report read by the shared convention: what the app dresses.
+	/// Only what is recognised is dressed; the rest shows as written.
+	struct dressed_report
+	{
+		std::string                  Title;
+		std::string                  Summary;
+		std::vector<dressed_section> Sections;
+		/// By verdict or label, in the order they first appear; else by the
+		/// areas a section's items group rows into. Empty when neither.
+		std::vector<dressed_count> Tally;
+
+		auto operator<=>(const dressed_report&) const = default;
+	};
+
+	/// \brief The colour a verdict, section name or Conventional Comments
+	/// label means; neutral for anything else.
+	[[nodiscard]] auto report_tone_of(std::string_view aWord) -> report_tone;
+
+	/// \brief Reads `aAnswer` by the report convention: the title (the
+	/// heading it opens with, else `aTitle`), the summary, each section and
+	/// its items, rows, code and suggestions, and the tally. The
+	/// machine-read blocks (`bpr-claims`, `bpr-findings`) are left out. No
+	/// sections: an answer that does not follow the convention, which is
+	/// shown as written.
+	[[nodiscard]] auto dress_report(std::string_view aAnswer, std::string_view aTitle = { }) -> dressed_report;
+
+	/// \brief A place's path and its lines: `src/a.cpp:12` or
+	/// `src/a.cpp:12-14`; none when it is not one.
+	struct report_place
+	{
+		std::string   Path;
+		std::uint32_t First = 0U;
+		std::uint32_t Last  = 0U;
+
+		auto operator<=>(const report_place&) const = default;
+	};
+	[[nodiscard]] auto read_report_place(std::string_view aPlace) -> std::optional<report_place>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP

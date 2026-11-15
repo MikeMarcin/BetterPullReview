@@ -100,10 +100,12 @@ namespace {
 			if (holds(aRequest, "addressed_threads")) {
 				// Look ask-v007: a report, a section a thread (its file and
 				// line, its claim, why), then the claims block.
-				static constexpr auto claims  = std::array{ "Partly", "Addressed", "Not addressed", "Cannot tell" };
-				static constexpr auto reasons = std::array{ "The clamp is in; no test covers the zero-width case yet.", "The change the thread asked for is in the push.",
-															"Nothing changed on these lines since the thread started.", "The file moved, so its lines can't be compared." };
-				const auto            value   = [&aRequest](const std::size_t aFrom, const std::string_view aField) {
+				static constexpr auto claims   = std::array{ "Partly", "Addressed", "Not addressed", "Cannot tell" };
+				static constexpr auto headings = std::array{ "Clamp the size to at least one pixel", "Name the magic number", "Should this clamp to the maximum?", "Is the threshold still right after the move?",
+															 "Cover the zero-size resize with a test", "Say who owns the target" };
+				static constexpr auto reasons  = std::array{ "The width is clamped. The height still goes to `Target.resize` as it arrives.", "The change the thread asked for is in the push.",
+															 "The lines are as they were when you commented, and no follow-up is linked.", "The file moved, so its lines cannot be compared with the ones you commented on." };
+				const auto            value    = [&aRequest](const std::size_t aFrom, const std::string_view aField) {
 					const auto found = aRequest.find(aField, aFrom);
 					if (found == std::string::npos) {
 						return std::string{ };
@@ -113,44 +115,74 @@ namespace {
 					const auto end = aRequest.find_first_of("\\\n\"", start);
 					return aRequest.substr(start, end - start);
 				};
-				auto sections = std::string{ };
-				auto block    = std::string{ "```bpr-claims\n" };
-				auto index    = std::size_t{ 0U };
+				// docs/design/report-templates-v1: a section a verdict, the
+				// threads that still need work first, an item a thread.
+				auto items = std::array<std::string, 4>{ };
+				auto block = std::string{ "```bpr-claims\n" };
+				auto index = std::size_t{ 0U };
 				for (auto found = aRequest.find(".identity"); found != std::string::npos; found = aRequest.find(".identity", found + 1U)) {
 					const auto identity = value(found, ".identity");
 					const auto path     = value(found, ".path");
 					const auto line     = value(found, ".line");
-					const auto claim    = claims[index % claims.size()];
-					sections += "## `" + path + ":" + line + "`: " + claim + "\n\n" + reasons[index % reasons.size()] + "\n\n";
-					block += identity + ": " + claim + "\n";
+					const auto claim    = index % claims.size();
+					items[claim] += std::string{ "### " } + headings[index % headings.size()] + "\n\n`" + path + ":" + line + "`\n\n" + reasons[claim] + "\n\n";
+					if (claim == 2U) {
+						items[claim] += "```cpp\nValue = aValue;\nif (Value > Maximum) { notify_overflow(); }\n```\n\n";
+					}
+					block += identity + ": " + claims[claim] + "\n";
 					++index;
 				}
-				return "# Was this addressed?\n\nOf these threads, some are done and some are not; each has its section below.\n\n" + sections + block + "```\n\n_Fixture agent: a canned answer, nothing was spent._";
+				auto report = std::string{ "# Was this addressed?\n\nOf " } + std::to_string(index) + " threads, some are addressed and some are not; what is left is listed first.\n\n";
+				for (const auto claim : { 2U, 0U, 3U, 1U }) {
+					if (!items[claim].empty()) {
+						report += std::string{ "## " } + claims[claim] + "\n\n" + items[claim];
+					}
+				}
+				return report + block + "```\n\n_Fixture agent: a canned answer, nothing was spent._";
 			}
 			if (holds(aRequest, "proposed_fix")) {
 				return "**Partly**\n\nThe resize is clamped to one pixel at `src/engine/renderer.cpp:12`, as the thread asked; no test covers the zero-width case yet.\n\n"
 					   "_Fixture agent: a canned answer, nothing was spent._";
 			}
-			return "# What changed since your review\n\nTwo commits since your review, and one merge of main.\n\n"
-				   "## Rendering\n\n`src/engine/renderer.cpp:12` now clamps the width and height to at least one pixel before resizing.\n\n"
-				   "## Merged main\n\nThe merge touched none of this pull request's files.\n\n"
-				   "## Your conversations\n\nThe thread at `src/engine/renderer.cpp:12` is touched by this change.\n\n"
+			return "# What changed since your review\n\n"
+				   "Two commits and one merge of main since you reviewed at `b20cb44`. The resize is now clamped to one pixel, as you asked, and a tonemap pass is new. Nothing else you read has changed.\n\n"
+				   "## Changed\n\n### Rendering\n\n"
+				   "- `src/engine/renderer.cpp:12` The width is clamped to at least one pixel before the resize. The height is not.\n"
+				   "- `src/engine/renderer.h:4` The comment on `resize()` now states the one-pixel floor.\n\n"
+				   "```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n"
+				   "### Shaders\n\n- `src/engine/shaders/post/tonemap.frag:1-5` A new pass that samples `uScene` and writes it straight through.\n\n"
+				   "### Tests\n\n- `tests/engine/renderer_tests.cpp:6` A zero-width resize is covered. A zero height is not.\n\n"
+				   "## Merged main\n\n- Merged main (9 commits). None touched this pull request's files.\n\n"
+				   "## Your conversations\n\n"
+				   "- **Lines changed** `src/engine/renderer.cpp:12` Clamp the size to at least one pixel.\n"
+				   "- **Replied** `src/ui/widgets/slider.cpp:3` Should this clamp to the maximum? The lines are as they were.\n"
+				   "- **Unchanged** `src/ui/widgets/button.cpp:5` nitpick: name the magic number.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
 		// Look ask-v002: an explanation and a what-could-break answer are long
 		// enough to be reports (two headings or more), so a look sees the
 		// report card and its tab.
 		if (holds(aRequest, "explain.path")) {
-			return "# What this file does\n\n`src/engine/renderer.cpp` draws each view between `begin_frame()` and `present()`.\n\n"
-				   "## What changed\n\nThe resize at `src/engine/renderer.cpp:12` is the one behavioural change: the width and height are clamped to one pixel.\n\n"
-				   "## How it fits\n\n`src/engine/renderer.h` declares what it defines; `src/main.cpp` calls `draw()` once a frame.\n\n"
+			return "# What renderer.cpp does\n\n"
+				   "`src/engine/renderer.cpp` draws one frame: it sizes the swap chain, then paints each layer between `begin_frame()` and `present()`. This pull request moves it into `src/engine/` and adds a one-pixel clamp to the resize.\n\n"
+				   "## How it works\n\n### resize()\n\n`src/engine/renderer.cpp:9-14`\n\nClamps the width to one pixel and resizes the target. It runs whenever the window's extent changes, including when the window is minimised.\n\n"
+				   "```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n"
+				   "### draw()\n\n`src/engine/renderer.cpp:3-7`\n\nBegins the frame, draws the scene and presents it. Nothing is drawn outside that bracket.\n\n"
+				   "## What this pull request changes\n\n- `src/engine/renderer.cpp:1` The include path follows the move to `src/engine/`.\n- `src/engine/renderer.cpp:12` The width clamp is new.\n\n"
+				   "## How it fits\n\n- **Declared in** `src/engine/renderer.h:3`\n- **Called by** `src/main.cpp:6` Once a frame.\n- **Tested by** `tests/engine/renderer_tests.cpp:6`\n\n"
+				   "## Worth knowing\n\n- `src/engine/renderer.cpp:13` A zero height reaches `Target.resize` unclamped.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
 		if (holds(aRequest, "What could this change break")) {
 			return "# What this change could break\n\n"
-				   "## Rendering\n\n- A zero-size window now draws one pixel instead of asserting (`src/engine/renderer.cpp:12`).\n- `draw_scene()` runs before `present()`, so a scene that read the old frame sees the new one.\n\n"
-				   "## Shaders\n\n- `src/engine/shaders/post/bloom.frag` trusts `uScene`; a missing binding samples black.\n\n"
-				   "## Widgets\n\n- `src/ui/widgets/slider.cpp` accepts a value past its maximum.\n\n"
+				   "The move itself is safe: every include resolves. One thing is likely to break where no test looks: the packaging script still collects shaders from the old folder. Two more are possible.\n\n"
+				   "## Likely\n\n### A packaged build starts with no shaders\n\n`tools/build/scripts/package.py:2`\n\nThe script collects `src/shaders/*.frag`. After the move that matches nothing, and nothing fails: the archive is built without them.\n\n"
+				   "```python\nSHADERS = glob(\"src/shaders/*.frag\")\n```\n\n**Check:** Run the packaging script and list the archive's `shaders/` folder.\n\n"
+				   "## Possible\n\n### A minimised window asserts\n\n`src/engine/renderer.cpp:13`\n\nThe width is clamped to one pixel but the height is not, and the swap chain asserts on a zero extent.\n\n"
+				   "**Check:** Add a zero-height resize beside the zero-width one in `tests/engine/renderer_tests.cpp:6`.\n\n"
+				   "### Code outside this repository that includes the old paths\n\n`src/engine/renderer.h:1`\n\nAnything that includes `renderer.h` by its old path stops compiling.\n\n**Check:** Search the dependants for `#include \"renderer.h\"`.\n\n"
+				   "## Unlikely\n\n### The bloom pass samples black\n\n`src/engine/shaders/post/bloom.frag:3`\n\nIt trusts `uScene` to be bound; the move did not change the binding.\n\n**Check:** Open a scene with bloom on.\n\n"
+				   "## Not checked\n\n- Windows and Linux builds: only the macOS paths were read.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
 		if (holds(aRequest, "bpr.tour-draft.v1")) {
@@ -168,7 +200,19 @@ namespace {
 		// A review (the review skill asks every turn for findings it finds;
 		// only a review is answered with them).
 		if (holds(aRequest, "bpr-findings") && (holds(aRequest, "Review this pull request") || holds(aRequest, "Review src/") || holds(aRequest, "run_ai_review"))) {
-			return "I read the renderer and its header. Two findings below; one comes with a comment you could post.\n\n"
+			// docs/design/report-templates-v1: a review is a report, its
+			// findings block after it.
+			return "# Review of #21\n\n"
+				   "The move is clean: the files moved without a change in behaviour. One thing must be fixed before this merges: a zero height still asserts. The new tonemap pass raises a question.\n\n"
+				   "## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\n"
+				   "The width is clamped, but the height goes to `Target.resize` as it arrives. A minimised window reports a height of zero, and the swap chain asserts on it.\n\n"
+				   "```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n"
+				   "```suggestion\nconst auto width = std::max(aSize.Width, 1);\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n\n"
+				   "## Worth a look\n\n### question: Is the tonemap pass meant to ignore exposure?\n\n`src/engine/shaders/post/tonemap.frag:5`\n\nIt writes the scene straight through. Either it is a placeholder, or `uExposure` was lost in the move.\n\n"
+				   "### nitpick: The comment says what, not why\n\n`src/engine/renderer.cpp:11`\n\n\"A minimised window reports zero\" would be more use as \"the swap chain asserts on a zero extent\".\n\n"
+				   "## Good\n\n### praise: The frame bracket is easy to read\n\n`src/engine/renderer.cpp:3-7`\n\nBegin, draw, present, and nothing else. It is hard to get the order wrong.\n\n"
+				   "## Questions for the author\n\n- `src/engine/shaders/post/tonemap.frag:5` Is this pass a placeholder for now?\n\n"
+				   "## Not reviewed\n\n- `docs/api/v2/endpoints.md` and `docs/api/reference.md`. Prose only.\n\n"
 				   "```bpr-findings\n"
 				   R"({"findings": [{"path": "src/engine/renderer.cpp", "startLine": 1, "endLine": 2, "severity": "major", "category": "correctness", "confidence": "medium", )"
 				   R"("claim": "The frame budget resets on every call.", "evidence": "draw_pass checks it after begin_frame restored it.", "suggestedComment": "suggestion: reset the budget once per request, not per frame."}, )"

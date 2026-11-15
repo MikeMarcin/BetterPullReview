@@ -177,6 +177,24 @@ namespace bpr::app {
 		if (auto* const report = Window->report_view(); report != nullptr) {
 			report->set_link_dispatch([tab](const QString& aLink) { tab->open_reference(aLink); });
 			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
+			// docs/design/report-templates-v2: a suggestion's Add as draft
+			// comment drafts it at its lines as a finding card's does. Nothing
+			// is published.
+			report->set_draft_dispatch([this](const qt::report_draft& aDraft, qt::report_draft_done aDone) {
+				auto request                     = qt::agent_finding_card_request{ };
+				request.Finding.Path             = aDraft.Path.toStdString();
+				request.Finding.Lines            = { .Begin = aDraft.First > 0U ? aDraft.First - 1U : 0U, .End = aDraft.Last };
+				request.Finding.Claim            = aDraft.Comment.toStdString();
+				request.Finding.SuggestedComment = aDraft.Comment.toStdString();
+				request.Action                   = qt::agent_finding_card_action::draft_comment;
+				act_on_agent_card(request, [aDone](const qt::agent_finding_card_state aState, const QString& aWhy, std::uint64_t) {
+					if (aState == qt::agent_finding_card_state::drafted) {
+						aDone(true, { });
+					} else if (aState == qt::agent_finding_card_state::refused) {
+						aDone(false, aWhy);
+					}
+				});
+			});
 			// docs/design/report-card-v4: the question under the title and
 			// Show in conversation: the Agent tab at the turn, the report's tab
 			// staying open and active.

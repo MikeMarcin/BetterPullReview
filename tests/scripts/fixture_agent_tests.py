@@ -51,13 +51,16 @@ def main() -> int:
     cases = {
         "returning.operation\tproposed_fix": "**Partly**",
         "returning.operation\taddressed_threads\nreturning.thread.0.identity\treview-thread:PRRT_cc_1\nreturning.thread.1.identity\treview-thread:PRRT_cc_2\n": "```bpr-claims\nreview-thread:PRRT_cc_1: Partly",
+        # docs/design/report-templates-v1: each report keeps to its template.
+        "returning.operation\taddressed_threads\nreturning.thread.0.identity\treview-thread:PRRT_cc_1\n": "## Partly\n\n### ",
         "returning.operation\tlatest_upload": "# What changed since your review",
-        "explain.path\tsrc/engine/renderer.cpp": "## What changed",
-        "What could this change break?": "## Rendering",
+        "explain.path\tsrc/engine/renderer.cpp": "## How it works\n\n### resize()",
+        "What could this change break?": "## Likely\n\n### A packaged build starts with no shaders",
         "bpr.tour-draft.v1": '"schema":"bpr.tour-draft.v1"',
         "bpr.review-preparation": '"kind":"rewrite"',
         "Write a commit message": "Clamp the resize",
         "Review this pull request; answer with a ```bpr-findings block": "```bpr-findings",
+        "Review this pull request (findings in a ```bpr-findings block)": "## Must fix\n\n### issue (blocking): A zero height still asserts",
         "What is this? (findings go in a ```bpr-findings block)": "Fixture answer",
         "What does this change do?": "Fixture answer",
     }

@@ -85,6 +85,10 @@ namespace bpr::application {
 	}
 	static_assert(core::maximum_writing_instruction_bytes <= core::maximum_feedback_guidance_bytes, "every valid feedback override fits a workshop request");
 	static_assert(review_feedback_hook_version.size() <= core::maximum_feedback_guidance_version_bytes);
+	auto report_templates_guidance() -> core::supplement_feedback_guidance
+	{
+		return core::supplement_feedback_guidance{ .Source = core::feedback_guidance_source::shipped, .Version = std::string{ report_templates_version }, .Text = std::string{ detail::ReportTemplates } };
+	}
 	auto suggested_comment_format(const core::writing_hook_settings& aSettings) -> std::optional<core::supplement_feedback_guidance>
 	{
 		const auto text = effective_writing_hook(aSettings, core::writing_hook::suggested_comment);

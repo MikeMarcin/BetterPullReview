@@ -334,6 +334,33 @@ namespace bpr::core {
 				.Background = appearance_role::application_surface,
 				.Kind       = contrast_kind::text,
 			},
+			// RFC-BPR-0128. A report's words on its paper and on its code
+			// wash, and its verdict words on its paper.
+			contrast_pair{
+				.Foreground = appearance_role::report_ink,
+				.Background = appearance_role::report_paper,
+				.Kind       = contrast_kind::text,
+			},
+			contrast_pair{
+				.Foreground = appearance_role::report_ink,
+				.Background = appearance_role::report_code_wash,
+				.Kind       = contrast_kind::text,
+			},
+			contrast_pair{
+				.Foreground = appearance_role::report_verdict_open,
+				.Background = appearance_role::report_paper,
+				.Kind       = contrast_kind::text,
+			},
+			contrast_pair{
+				.Foreground = appearance_role::report_verdict_partial,
+				.Background = appearance_role::report_paper,
+				.Kind       = contrast_kind::text,
+			},
+			contrast_pair{
+				.Foreground = appearance_role::report_verdict_done,
+				.Background = appearance_role::report_paper,
+				.Kind       = contrast_kind::text,
+			},
 			contrast_pair{
 				.Foreground = appearance_role::code_line_number_text,
 				.Background = appearance_role::code_gutter_background,

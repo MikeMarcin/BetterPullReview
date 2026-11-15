@@ -1,17 +1,23 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_REPORT_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_REPORT_VIEW_HPP
 
+#include "bpr/core/agent_report.hpp"
+#include "bpr/qt/report_page.hpp"
+
 #include <QString>
 #include <QWidget>
 
 #include <cstddef>
 #include <functional>
+#include <map>
 #include <vector>
 
 class QFrame;
 class QLabel;
 class QListWidget;
 class QScrollArea;
+class QTextBrowser;
+class QTextEdit;
 class QToolButton;
 
 namespace bpr::qt {
@@ -37,6 +43,20 @@ namespace bpr::qt {
 	/// report's sections (the one being read marked) and its other actions
 	/// (Show in conversation, View source, Copy source). It reads only what
 	/// it is given.
+	/// \brief A report item's Add as draft comment: where and what.
+	struct report_draft
+	{
+		QString       Path;
+		std::uint32_t First = 0U;
+		std::uint32_t Last  = 0U;
+		/// The comment: the item's label and heading, its reasons and the
+		/// suggestion block.
+		QString Comment;
+	};
+	/// \brief How a draft went: made, or why not.
+	using report_draft_done     = std::function<void(bool aDrafted, const QString& aWhy)>;
+	using report_draft_dispatch = std::function<void(const report_draft& aDraft, report_draft_done aDone)>;
+
 	class agent_report_view final : public QWidget
 	{
 	public:
@@ -62,6 +82,20 @@ namespace bpr::qt {
 		/// the top of what shows; -1 when the report has no such heading.
 		[[nodiscard]] auto section_top(int aIndex) const -> int;
 
+		/// \brief docs/design/report-templates-v2. The report's colours, the
+		/// theme's roles; the page is drawn again in them.
+		void               set_report_colours(const report_colours& aColours);
+		[[nodiscard]] auto colours() const noexcept -> const report_colours& { return Colours; }
+		/// \brief Where a suggestion's Add as draft comment goes.
+		void set_draft_dispatch(report_draft_dispatch aDispatch);
+		/// \brief The report as read by the convention; its page shows when it
+		/// has sections (`dressed_shown`), else the Markdown as written.
+		[[nodiscard]] auto dressed() const noexcept -> const core::dressed_report& { return Dress; }
+		[[nodiscard]] auto dressed_shown() const noexcept -> bool;
+		[[nodiscard]] auto dressed_view() const noexcept -> QTextBrowser* { return Dressed; }
+		/// \brief Follows a link of the page as a press does.
+		void follow(const QString& aLink);
+
 		[[nodiscard]] auto outline() const noexcept -> QListWidget* { return Sections; }
 		[[nodiscard]] auto menu_button() const noexcept -> QToolButton* { return MenuButton; }
 		[[nodiscard]] auto popover() const noexcept -> QFrame* { return Popover; }
@@ -78,6 +112,10 @@ namespace bpr::qt {
 		void               fit_body();
 		void               dress_headings();
 		void               choose(int aRow);
+		void               render_dressed();
+		void               locate_headings();
+		void               apply_colours();
+		[[nodiscard]] auto shown_text() const -> QTextEdit*;
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
 
 		agent_report_document Document;
@@ -85,8 +123,14 @@ namespace bpr::qt {
 		/// The rendered heading blocks, in the outline's order; empty when
 		/// the rendering and the outline disagree on how many there are.
 		std::vector<int>                         HeadingBlocks;
-		QWidget*                                 Column     = nullptr;
-		QWidget*                                 Tail       = nullptr;
+		std::vector<QString>                     OutlineTitles;
+		QWidget*                                 Column  = nullptr;
+		QWidget*                                 Tail    = nullptr;
+		QTextBrowser*                            Dressed = nullptr;
+		core::dressed_report                     Dress;
+		report_colours                           Colours;
+		std::map<std::uint32_t, QString>         DraftNotes;
+		report_draft_dispatch                    DraftDispatch;
 		QLabel*                                  Title      = nullptr;
 		QLabel*                                  Byline     = nullptr;
 		QScrollArea*                             Scroll     = nullptr;

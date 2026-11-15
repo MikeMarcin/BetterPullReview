@@ -3,6 +3,8 @@
 #include <string_view>
 namespace bpr::application::detail {
 inline constexpr std::string_view WritingContract = R"BPR(@WRITING_CONTRACT@)BPR";
+// RFC-BPR-0128: the report shape the Agent tab's requests carry.
+inline constexpr std::string_view ReportTemplates = R"BPR(@WRITING_REPORT_TEMPLATES@)BPR";
 inline constexpr std::array<std::string_view, 15> WritingDefaults = {
 R"BPR(@WRITING_PROBLEM@)BPR", R"BPR(@WRITING_SOLUTION@)BPR",
 R"BPR(@WRITING_OUTLINE@)BPR", R"BPR(@WRITING_COMMENT@)BPR",

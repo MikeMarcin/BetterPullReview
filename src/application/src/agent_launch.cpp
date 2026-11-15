@@ -2814,7 +2814,7 @@ namespace bpr::application {
 				// RFC-BPR-0128 as amended (look ask-v005): every thread in one
 				// ask, and the one form its answer lists the claims in.
 				append_field(aResult, "returning.answer_format",
-							 "Answer as a report: a one-paragraph summary, then one section a thread, headed with its file and line and your claim, saying why. After the sections, list one line a thread in a ```bpr-claims block: the thread's identity, a colon and a space, then Addressed, Partly, Not addressed or Cannot tell, then why in a few words.");
+							 "Answer as the report your instructions give for several threads: the title, a summary, then a section a verdict (Not addressed, Partly, Cannot tell, Addressed) holding an item a thread. After the report, list one line a thread in a ```bpr-claims block: the thread's identity, a colon and a space, then Addressed, Partly, Not addressed or Cannot tell, then why in a few words.");
 				append_number(aResult, "returning.thread.count", aReturning.Threads.size());
 				for (std::size_t index = 0U; index < aReturning.Threads.size(); ++index) {
 					const auto& thread = aReturning.Threads[index];
@@ -2927,6 +2927,12 @@ namespace bpr::application {
 				append_field(aResult, "brief.comment_format.source", core::stable_name(aBrief.CommentFormat->Source));
 				append_field(aResult, "brief.comment_format.version", aBrief.CommentFormat->Version);
 				append_field(aResult, "brief.comment_format.text", aBrief.CommentFormat->Text);
+			}
+			// RFC-BPR-0128. The report shape What could this change break?
+			// and a review are answered in.
+			if (aBrief.ReportFormat) {
+				append_field(aResult, "brief.report_format.version", aBrief.ReportFormat->Version);
+				append_field(aResult, "brief.report_format.text", aBrief.ReportFormat->Text);
 			}
 		}
 

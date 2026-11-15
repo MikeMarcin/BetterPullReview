@@ -2889,6 +2889,9 @@ bpr_add_network_isolated_test(
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-theme-customization-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
+        # RFC-BPR-0128. The theme predates the report colours, so the import
+        # fills them from its base's (Dark's) built-ins.
+        "-DBPR_THEME_FILLED_ROLES=report_paper #20272bff,report_ink #ebe6daff,report_verdict_open #e5a093ff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff,report_code_wash #192024ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
@@ -2918,7 +2921,7 @@ bpr_add_network_isolated_test(
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-older-theme-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
-        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff"
+        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff,report_paper #20272bff,report_ink #ebe6daff,report_verdict_open #e5a093ff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff,report_code_wash #192024ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
