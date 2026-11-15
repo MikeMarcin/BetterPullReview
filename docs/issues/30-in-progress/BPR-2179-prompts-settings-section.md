@@ -317,3 +317,7 @@ library's filters, Answer as, All/Any, a group's All/Any/None, Hide it / Show
 it disabled) and Settings › Agents & context's Follow-up behaviour are drawn
 as the Overview's Open and All: the chosen one a quiet chip, the others their
 words alone.
+
+### Look prompts-v004
+
+Look `prompts-v004` filed (2026-11-14): session `8a2a32701c0cb2bdeed967bb7585124e`, state `/Users/jaeger/.attended-review-state/prompts-v004-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v004.mooeae56` from `7d17b1122` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2151-queue-one-line`, `BPR-2151-queue-steer`, `BPR-2151-one-stop-all`, `BPR-2179-choice-styling`, `BPR-2179-hide-or-disable`.

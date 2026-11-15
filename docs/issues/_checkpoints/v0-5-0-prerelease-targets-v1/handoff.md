@@ -3319,3 +3319,35 @@ Look `prompts-v003`, filed and not waited on: session
 `/Users/jaeger/prompts-v003.dpoz1ap3` from `37f9eabf1`. Three questions.
 
 Next: on prompts-v003's handback read from cursor 9.
+
+## prompts-v003 handed back; reworked; prompts-v004 filed (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `7d17b1122` | Hide it / Show it disabled is the prompt's (the coordinator's proposal; per-condition kinds gone; stored rows migrated by their lean); choices drawn as the Overview's Open and All (Prompts page, Follow-up behaviour); one Stop all in every state; queued messages on one elided line; Steer on each waiting card (goes next until BPR-2153). **prompts-v004 frozen commit** |
+| main `cca7822b4` | Card mirror (v003 notes, what was built) |
+
+Runs (dev, Debug, macOS), passing: core_prompt_surfaces, core_prompt_macro,
+core_quick_ask, sqlite_agent_setup_storage (with an earlier build's row
+migrating to Hide it), qt_prompts_page, qt_settings_window,
+qt_feedback_label_settings, qt_agent_footer, qt_ask_menu,
+qt_prompt_macro_chips, qt_button_faces, qt_quiet_buttons,
+qt_drawer_surfaces_fit_scale_100, application_prompt_macros_public_path,
+application_ask_queue_public_path, qt_workbench_window_scale_100.
+architecture_boundaries fails on another writer's uncommitted
+`agent_report_view.cpp` (QUrl), not in the frozen commit.
+
+Steer on a queued card cannot steer natively yet: BPR-2153 (Backlog) builds
+native correction for Claude and Codex with installed-agent qualification.
+Until then Steer moves the message to go next and says so.
+
+Disk: about 10 to 12 GiB free during this round (ccache 19 GiB at
+~/Library/Caches/bpr-compiler-cache, shared, not touched).
+
+Look `prompts-v004`, filed and not waited on: session
+`8a2a32701c0cb2bdeed967bb7585124e`, state
+`/Users/jaeger/.attended-review-state/prompts-v004-2026-11-14/state` (URL in
+`serve.log`), cursor 15, host PID 71642. Root
+`/Users/jaeger/prompts-v004.mooeae56` from `7d17b1122`. Five questions.
+
+Next: on prompts-v004's handback read from cursor 15.

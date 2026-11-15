@@ -158,3 +158,5 @@ different buttons for one running and 2 running. Just have the same button
 with the stop icon for everything." Built: one control, the stop-icon chip
 named Stop all, the same with one turn running, several, or only messages
 waiting.
+
+Look `prompts-v004` filed (2026-11-14): session `8a2a32701c0cb2bdeed967bb7585124e`, state `/Users/jaeger/.attended-review-state/prompts-v004-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v004.mooeae56` from `7d17b1122` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2151-queue-one-line`, `BPR-2151-queue-steer`, `BPR-2151-one-stop-all`, `BPR-2179-choice-styling`, `BPR-2179-hide-or-disable`.
