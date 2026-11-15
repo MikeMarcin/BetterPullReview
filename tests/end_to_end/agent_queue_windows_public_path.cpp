@@ -249,6 +249,13 @@ auto main(int argc, char** argv) -> int
 		auto* const heldThere = card_of(*first, QStringLiteral("First follow-up (being edited)"));
 		expect(heldThere != nullptr && heldThere->findChild<QPushButton*>(QStringLiteral("agentQueueEdit")) == nullptr && heldThere->findChild<QPushButton*>(QStringLiteral("agentQueueRemove")) == nullptr,
 			   "with no Edit or Remove there while it is edited");
+		// With `BPR_QUEUE_WINDOWS_RENDER_ROOT` set, each window's Agent tab is
+		// saved there (the owner's look; native with BPR_NATIVE_LOOK=1).
+		if (const auto root = qEnvironmentVariable("BPR_QUEUE_WINDOWS_RENDER_ROOT"); !root.isEmpty()) {
+			QApplication::processEvents();
+			static_cast<void>(first->agent_tab()->grab().save(root + QStringLiteral("/first-window.png")));
+			static_cast<void>(second->agent_tab()->grab().save(root + QStringLiteral("/second-window.png")));
+		}
 		auto* const field = second->agent_tab()->queue_list()->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
 		expect(field != nullptr && field->text() == QStringLiteral("First follow-up"), "edited in place in the second window");
 		field->setText(QStringLiteral("First follow-up, edited"));
