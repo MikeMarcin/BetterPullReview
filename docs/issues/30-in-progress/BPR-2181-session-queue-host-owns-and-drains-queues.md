@@ -105,10 +105,10 @@ slice 1.
    authority in its own name and ends it on identity invalidation, on a 404
    or refused permission for its pull request, on shutdown, or when the
    runtime lets go, and an ended authority pauses the queue with
-   `lost_access` and starts no turn (`32fb55c83`). Composition into the app
-   is next. Before it, the runtime needs a private-run port that is free of
-   Qt: today the window's `private_review_workflow` serves it, and that
-   class holds the Qt panel.
+   `lost_access` and starts no turn (`32fb55c83`). The private-run port is
+   now free of Qt (`application::scoped_private_agent_runs`; the window's
+   `private_review_workflow` delegates to it), the boundary fix the
+   architecture asks for. Composition into the app is next.
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
@@ -206,6 +206,37 @@ slice 1.
   `application_agent_queue_second_window_loading_public_path` pass, along
   with `application_agent_queue_host`, `application_epoch_host`,
   `application_github_window_read_host` and `core_agent_queue`.
+- **AC01 (partial, slice 2), the private-run boundary:**
+  `application::scoped_private_agent_runs`
+  (`private_review_application_host.hpp`) runs `admit`, `claim` and
+  `finish` over a scope lookup under the ledger-file gate, with no Qt. A
+  claim opens its own connection. `private_review_workflow` now delegates
+  its `private_agent_run_port` to it, so the window keeps the panel and the
+  run boundary is shared with the profile's runtime (coordinator,
+  2026-11-14). Course `application_private_review_host`
+  (`scoped_runs_without_a_panel`): a turn through it is admitted, claimed
+  and finished durably, and a scope the lookup does not find is refused
+  before any process starts.
+- **AC05 (store, found under this card):** the agent queue store never
+  saved a queue. Its entries cascaded from their queue, a cascade is a
+  trigger program, and the hardened connection sets the trigger depth to 0,
+  so every save failed with "triggers nested too deep". The store now
+  deletes the entries explicitly, and the reference has no cascade. A file
+  with the old tables can only hold them empty, so it is dropped and made
+  again on open. Course `sqlite_agent_setup_storage`: every
+  `core::queue_pause` value, `lost-access` included, saves and reloads as
+  itself, and a file with the old cascading tables saves twice and reads
+  back. Restored queues (AC04, AC11) were therefore never read from disk
+  before this fix. Courses that claimed otherwise did not reach the store.
+- **Rerun at this round's head (dev tree, app built):**
+  `application_ask_menu_public_path`, `application_ask_addressed_public_path`,
+  `application_ask_report_public_path`, `application_ask_queue_public_path`,
+  `application_tour_feedback_queue_public_path`,
+  `application_agent_queue_windows_public_path`,
+  `application_agent_queue_second_window_loading_public_path`,
+  `application_agent_queue_host`, `application_review_agent_runtime`,
+  `application_private_review_host`, `sqlite_agent_setup_storage` and
+  `agent_workspace_ownership` pass.
 - **AC07:** `application_agent_queue_second_window_loading_public_path`
   passes (slice 1, `c65c59df0`). The runtime registry does not change it,
   because windows still run their own agent hosts until the composition
