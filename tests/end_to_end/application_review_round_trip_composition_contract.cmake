@@ -3771,8 +3771,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# BPR-2193 follow-up reseal: the runtime's stack waits for a loan's
 	# ingestion to settle rather than for the window's comparison epochs,
 	# which its own epoch host need not reach. Nothing else changed.
+	# BPR-2181 AC13/AC11 reseal: the window composition decides the chats'
+	# suggested prompts and a queued prompt's expansion at its press, and
+	# returns tour feedback a crash left (also covers the BPR-2191 correction
+	# a9e612a3a, which landed unsealed). No review mutation or publication
+	# path changed; the mutation-branch pin is unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "b24ff1c2f525af2cf7a1c1cd74ea0910ef7eb256463c7840cbffd16e491fd86b"
+        "8fcaff61d9497215b4b817921e64faa0839cf8517f680aff7794407373d3b87e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
