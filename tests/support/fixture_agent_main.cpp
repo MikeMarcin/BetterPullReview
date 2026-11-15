@@ -17,10 +17,14 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <condition_variable>
 #include <cstdlib>
+#include <deque>
 #include <filesystem>
 #include <iostream>
 #include <iterator>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -310,6 +314,141 @@ namespace {
 		return 0;
 	}
 
+	/// [[BPR-2153]]. Standard input, read on a thread of its own, so a turn
+	/// can look for a correction between its tool calls without blocking.
+	class input_lines final
+	{
+	public:
+		input_lines()
+			: Reader{ [this] { read(); } }
+		{ }
+		~input_lines() { Reader.join(); }
+		input_lines(const input_lines&)                    = delete;
+		auto operator=(const input_lines&) -> input_lines& = delete;
+
+		/// The next line, waiting for it; empty once input has ended.
+		auto wait() -> std::optional<std::string>
+		{
+			auto lock = std::unique_lock{ Mutex };
+			Changed.wait(lock, [this] { return !Lines.empty() || Closed; });
+			return take();
+		}
+		/// The next line already read, without waiting.
+		auto poll() -> std::optional<std::string>
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			return take();
+		}
+
+	private:
+		auto take() -> std::optional<std::string>
+		{
+			if (Lines.empty()) {
+				return std::nullopt;
+			}
+			auto line = std::move(Lines.front());
+			Lines.pop_front();
+			return line;
+		}
+		void read()
+		{
+			for (auto line = std::string{ }; std::getline(std::cin, line);) {
+				const auto lock = std::scoped_lock{ Mutex };
+				Lines.push_back(line);
+				Changed.notify_all();
+			}
+			const auto lock = std::scoped_lock{ Mutex };
+			Closed          = true;
+			Changed.notify_all();
+		}
+		std::mutex              Mutex;
+		std::condition_variable Changed;
+		std::deque<std::string> Lines;
+		bool                    Closed = false;
+		std::thread             Reader;
+	};
+
+	/// A string field of one stream-JSON line, unescaped; empty when absent.
+	auto field(const std::string& aLine, const std::string_view aName) -> std::string
+	{
+		const auto key   = "\"" + std::string{ aName } + "\":\"";
+		const auto found = aLine.find(key);
+		if (found == std::string::npos) {
+			return { };
+		}
+		auto value = std::string{ };
+		for (auto index = found + key.size(); index < aLine.size() && aLine[index] != '"'; ++index) {
+			if (aLine[index] == '\\' && index + 1U < aLine.size()) {
+				++index;
+				value += aLine[index] == 'n' ? '\n' : aLine[index] == 't' ? '\t'
+																		  : aLine[index];
+				continue;
+			}
+			value += aLine[index];
+		}
+		return value;
+	}
+
+	/// [[BPR-2153]], RFC-BPR-0126 Q14 (`BPR_FIXTURE_AGENT_STEERABLE=1`). Claude
+	/// Code 2.1.319 as a kept stream-JSON connection observed it: it reports
+	/// its version, answers each user message as a turn, takes a correction
+	/// written while it works (a UUID-bearing user message, priority `next`)
+	/// after its current tool call, and names every input a result answered
+	/// in `user_message_uuids`. Its answer says what it was steered with.
+	auto serve_steerable_claude(const std::string& aArguments, const std::vector<std::string>& aTools) -> int
+	{
+		auto       input   = input_lines{ };
+		auto       results = 0;
+		const auto reads   = std::ranges::find(aTools, std::string{ "Read" }) != aTools.end();
+		while (auto line = input.wait()) {
+			if (line->find("\"type\":\"user\"") == std::string::npos) {
+				continue;
+			}
+			const auto request = aArguments + *line + '\n';
+			auto       inputs  = std::vector<std::string>{ };
+			if (const auto uuid = field(*line, "uuid"); !uuid.empty()) {
+				inputs.push_back(uuid);
+			}
+			auto listed = std::string{ };
+			for (const auto& tool : aTools) {
+				listed += (listed.empty() ? "\"" : ",\"") + tool + "\"";
+			}
+			std::cout << R"({"type":"system","subtype":"init","session_id":"fixture-agent","tools":[)" << listed << R"(],"mcp_servers":[],"plugins":[],"model":"fixture","claude_code_version":"2.1.319"})" << '\n'
+					  << std::flush;
+			auto       steered = std::string{ };
+			const auto steps   = slow(request) ? slow_steps : 1;
+			for (int step = 1; step <= steps; ++step) {
+				slow(request) ? slow_step() : pause();
+				if (reads) {
+					const auto id = "steer-" + std::to_string(results) + "-" + std::to_string(step);
+					std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-)" << id << R"(","role":"assistant","content":[{"type":"tool_use","id":")" << id
+							  << R"(","name":"Read","input":{"file_path":"src/engine/step-)" << step << R"(.cpp"}}]}})" << '\n'
+							  << R"({"type":"user","session_id":"fixture-agent","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" << id << R"(","content":"fixture file"}]}})" << '\n'
+							  << std::flush;
+				}
+				// After the tool call: the corrections written meanwhile.
+				while (auto correction = input.poll()) {
+					if (correction->find("\"type\":\"user\"") == std::string::npos) {
+						continue;
+					}
+					inputs.push_back(field(*correction, "uuid"));
+					steered += "\n\nSteered after step " + std::to_string(step) + ": " + field(*correction, "text");
+				}
+			}
+			const auto encoded = escape(answer_for(request) + steered);
+			auto       named   = std::string{ };
+			for (const auto& identity : inputs) {
+				named += (named.empty() ? "\"" : ",\"") + identity + "\"";
+			}
+			++results;
+			std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-answer-)" << results << R"(","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
+			std::cout << R"({"type":"result","subtype":"success","session_id":"fixture-agent","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1},"uuid":"fixture-result-)" << results
+					  << R"(","user_message_uuids":[)" << named << R"(],"queued_turn_count":0,"result":")" << encoded << "\"}\n"
+					  << std::flush;
+		}
+		return EXIT_SUCCESS;
+	}
+
 	auto run_codex(const std::string& aRequest) -> int
 	{
 		std::cout << R"({"type":"thread.started","thread_id":"fixture-agent"})" << '\n'
@@ -375,6 +514,9 @@ auto main(int argc, char** argv) -> int
 	for (const auto& argument : arguments) {
 		request += argument;
 		request += '\n';
+	}
+	if (!codex && environment("BPR_FIXTURE_AGENT_STEERABLE") == "1") {
+		return serve_steerable_claude(request, tools_of(arguments));
 	}
 	for (auto line = std::string{ }; std::getline(std::cin, line);) {
 		request += line;

@@ -4244,9 +4244,11 @@ namespace bpr::application {
 	auto agent_protocol_decoder::steer(const std::string_view aText, const bool aConnected)
 		-> std::expected<agent_steer_frame, core::agent_steer_support>
 	{
-		const auto support = core::agent_steer_support_of(Protocol, aConnected, observed_tool_version());
-		if (support != core::agent_steer_support::available) {
-			return std::unexpected(support);
+		// The driver and connection first; the version only once the runtime
+		// has said it (Claude's init), so a turn not yet started is "not
+		// running", never "unqualified".
+		if (const auto shape = core::agent_steer_support_of(Protocol, aConnected, core::qualified_claude_steer_version); shape != core::agent_steer_support::available) {
+			return std::unexpected(shape);
 		}
 		// Running: Claude has named its session and the agent itself is
 		// working (waiting only on helpers is not steerable); App Server has
@@ -4255,6 +4257,9 @@ namespace bpr::application {
 		const auto serverRunning = Protocol == core::agent_protocol::codex_app_server && Phase == 5U && !RemoteTurn.empty();
 		if (Failed || (!claudeRunning && !serverRunning)) {
 			return std::unexpected(core::agent_steer_support::not_running);
+		}
+		if (const auto support = core::agent_steer_support_of(Protocol, aConnected, observed_tool_version()); support != core::agent_steer_support::available) {
+			return std::unexpected(support);
 		}
 		if (Steers.size() >= core::maximum_steers_per_run) {
 			return std::unexpected(core::agent_steer_support::exhausted);

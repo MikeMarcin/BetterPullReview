@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 
@@ -35,6 +36,53 @@ def claude_answer(output: str) -> str:
     results = [frame for frame in frames(output) if frame.get("type") == "result"]
     expect(len(results) == 1, f"one result frame:\n{output}")
     return results[0]["result"]
+
+
+def check_steerable(claude: Path) -> None:
+    """[[BPR-2153]]. `BPR_FIXTURE_AGENT_STEERABLE=1`: a kept connection that
+    takes a priority-next correction after its current tool call and names
+    it in the result's `user_message_uuids`, then answers a second turn."""
+    env = dict(os.environ)
+    env.update({"BPR_FIXTURE_AGENT_STEERABLE": "1", "BPR_FIXTURE_AGENT_SLOW_STEP_MS": "40", "BPR_FIXTURE_AGENT_PAUSE_MS": "1"})
+    process = subprocess.Popen([str(claude), "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"],
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+    message = lambda text, uuid, priority=None: json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": text}]}, "uuid": uuid, **({"priority": priority} if priority else {})}, separators=(",", ":")) + "\n"
+    first, correction, second = "aaaaaaaa-0000-4000-8000-000000000001", "b5ee7e00-0000-4000-8000-000002000000", "cccccccc-0000-4000-8000-000000000003"
+    watchdog = threading.Timer(60, process.kill)
+    watchdog.start()
+    try:
+        process.stdin.write(message("Take your time", first))
+        process.stdin.flush()
+        seen = []
+        while True:
+            line = process.stdout.readline()
+            expect(line != "", f"the steerable fixture answers: {seen}")
+            frame = json.loads(line)
+            seen.append(frame)
+            if frame.get("type") == "system":
+                expect(frame.get("claude_code_version") == "2.1.319", "it reports the qualified version")
+            if frame.get("type") == "assistant" and len(seen) == 2:
+                process.stdin.write(message("Look at b.cpp instead", correction, "next"))
+                process.stdin.flush()
+            if frame.get("type") == "result":
+                break
+        result = seen[-1]
+        expect(result["user_message_uuids"] == [first, correction] and result["queued_turn_count"] == 0, f"the result names both inputs: {result}")
+        expect("Steered after step" in result["result"] and "Look at b.cpp instead" in result["result"], "the correction was taken after a tool call")
+        expect(sum(1 for frame in seen if frame.get("type") == "result") == 1, "one turn, one result")
+        process.stdin.write(message("What does this change do?", second))
+        process.stdin.flush()
+        while True:
+            frame = json.loads(process.stdout.readline())
+            if frame.get("type") == "result":
+                expect(frame["user_message_uuids"] == [second] and frame["uuid"] != result["uuid"], "the kept process answers a second turn under a new result identity")
+                break
+        process.stdin.close()
+        expect(process.wait(timeout=30) == 0, "it ends when its input does")
+    finally:
+        watchdog.cancel()
+        if process.poll() is None:
+            process.kill()
 
 
 def main() -> int:
@@ -94,6 +142,7 @@ def main() -> int:
     expect(limited.returncode != 0 and "usage limit" in claude_answer(limited.stdout), "a scripted usage limit says so")
     limited = run(codex, ["exec"], "FIXTURE_USAGE_LIMIT")
     expect(limited.returncode != 0 and "usage limit" in limited.stdout, "codex's usage limit says so")
+    check_steerable(claude)
     print("fixture-agent-answers:pass")
     return 0
 
