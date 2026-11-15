@@ -23,6 +23,22 @@ Codex App Server `turn/steer` with `threadId` and `expectedTurnId`; Claude bidir
 - **AC05:** Qualified installed Claude and Codex App Server each accept a native correction on their existing conversation without transcript replay or a deliberate process restart. Unsupported configurations keep Queue and report Steer as unavailable without a paid discovery probe.
 - **AC07:** All native parts of a steered run contribute once to the existing turn/session accounting and limits. Unreported costs remain unknown, and pending-input management adds no model request, summarizer or keep-alive call.
 
+### Acceptance record
+
+- **AC05: accepted.** Installed agents: paid probes on 2026-11-14 (Claude
+  Code 2.1.319 took a mid-turn `priority: "next"` correction and named it in
+  `user_message_uuids`; Codex 0.167.0 App Server applied `turn/steer` within
+  the running turn); see Evidence. Through BPR: look steer-v002 (session
+  `2f71ab85765e5e310eedcafc88ad275a`, frozen from `c7b853ba3`) handed back
+  2026-11-15 at cursor 11 with both questions **Accepted** by the owner, no
+  notes: `BPR-2153-steer` (Steer sends a follow-up into the running turn)
+  and `BPR-2153-transcript` (the steered message shows as the reviewer's,
+  once, and survives a restart). Unsupported configurations keep Queue and
+  say why: `application_agent_steer_unavailable_public_path`.
+- **AC07:** covered by `core_agent_steering`, `application_agent_protocol_loop`
+  and the paid Claude probe's single cumulative figure; no separate look.
+- The card stays in Backlog: it depends on BPR-2152, which is not Done.
+
 ## Notes
 
 Owner questions: Q3, Q14, Q15, Q17, Q18.
@@ -144,9 +160,9 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   and loop against the fixture agent's steerable mode), and
   `fixture_agent_answers`.
 
-## Pending
+## Looks
 
-- The owner's look at Steer (steer-v001): Accept or Reject. Filed
+- The owner's look at Steer (steer-v001). Filed
   2026-11-15, not waited on: session `1e6b0468f60fc61d6480addad7ea6224`,
   state `/Users/jaeger/.attended-review-state/steer-v001-2026-11-15/state`
   (URL in `serve.log` beside it), cursor 3, served on the tailnet (host PID
@@ -209,6 +225,9 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   `BPR-2153-steer` (Steer) and `BPR-2153-transcript` (the steered message
   in the transcript, and after a restart). steer-v001's host was stopped and
   its root removed.
+- steer-v002 handed back 2026-11-15 (cursor 11): `BPR-2153-steer`
+  **Accepted**, `BPR-2153-transcript` **Accepted**, no notes. Its host
+  (82984/82991) was stopped and its root removed.
 
 ## Progress (fixture session, 2026-11-15)
 
