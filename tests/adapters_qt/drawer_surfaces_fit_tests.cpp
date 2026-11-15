@@ -510,6 +510,12 @@ namespace {
 					settle();
 					expect(window.agent_tab()->queue_list()->isVisible(), "the pending list shows" + at);
 					require_whole(*drawer, "the Agent tab with its pending list" + at);
+					// Look prompts-v004: the card's controls are icons alone,
+					// each with a tooltip, so the message keeps the width.
+					for (const auto* const controlName : { "agentQueueEdit", "agentQueueSteer", "agentQueueRemove" }) {
+						auto* const control = window.agent_tab()->queue_list()->findChild<QAbstractButton*>(QString::fromLatin1(controlName));
+						expect(control != nullptr && control->text().isEmpty() && !control->toolTip().isEmpty() && control->width() <= 24, std::string{ controlName } + " is an icon with a tooltip" + at);
+					}
 					for (auto* const scroll : window.agent_tab()->findChildren<QScrollArea*>()) {
 						if (scroll->isVisible() && scroll->widget() != nullptr) {
 							expect(scroll->widget()->width() <= scroll->viewport()->width(), "the Agent tab never pans sideways" + at);

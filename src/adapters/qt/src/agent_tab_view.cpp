@@ -2985,8 +2985,9 @@ namespace bpr::qt {
 			made->setIcon(conversation_icon(aGlyph, palette()));
 			made->setIconSize(QSize{ 14, 14 });
 			// An icon alone takes an icon's room, so the message keeps the
-			// rest of the line.
-			made->setFixedSize(QSize{ 26, 24 });
+			// rest of the line (look prompts-v004: "a bit of wasted space
+			// around these icons we could claw back").
+			made->setFixedSize(QSize{ 22, 22 });
 			return made;
 		};
 		// The panel's head: what waits, how many, the queue's state, and
@@ -3047,8 +3048,8 @@ namespace bpr::qt {
 			row->setAccessibleName(tr("Queued %1 of %2: %3").arg(index + 1U).arg(aRows.size()).arg(entry.Label));
 			row->setAccessibleDescription(entry.Sending ? tr("Sending") : tr("Drag, or Option-Up and Option-Down, to reorder; Delete removes it"));
 			auto* const line = new QHBoxLayout{ row };
-			line->setContentsMargins(22, 3, 4, 3);
-			line->setSpacing(2);
+			line->setContentsMargins(22, 3, 2, 3);
+			line->setSpacing(0);
 			if (EditingQueued == entry.Id && entry.Held) {
 				// Edited in place, held: never sent, and nothing passes it.
 				line->setContentsMargins(8, 3, 4, 3);
@@ -3090,6 +3091,7 @@ namespace bpr::qt {
 			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
 			line->addWidget(label, 1);
 			if (entry.Sending) {
+				line->addSpacing(6);
 				auto* const sending = new QLabel{ tr("Sending"), row };
 				sending->setObjectName(QStringLiteral("agentQueueSending"));
 				apply_agent_accent(*sending, palette());
@@ -3097,6 +3099,7 @@ namespace bpr::qt {
 			} else {
 				if (!entry.Text.isEmpty()) {
 					auto* const edit = glyph(row, conversation_glyph::edit, QStringLiteral("agentQueueEdit"), tr("Edit the queued message: %1").arg(entry.Label));
+					edit->setToolTip(tr("Edit"));
 					connect(edit, &QPushButton::clicked, this, [this, id] {
 						EditingQueued = id;
 						if (QueueDispatch.Edit) {
@@ -3108,10 +3111,10 @@ namespace bpr::qt {
 				// Look prompts-v003 (owner: "Queued items need the ability to
 				// say steer instead"): Steer sends it into the running turn
 				// rather than after it (RFC-BPR-0126 Q14).
-				auto* const steer = button(row, tr("Steer"), QStringLiteral("agentQueueSteer"), tr("Steer the running turn with it instead of waiting: %1").arg(entry.Label));
-				steer->setIcon(conversation_icon(conversation_glyph::send, palette()));
-				steer->setIconSize(QSize{ 14, 14 });
-				steer->setFixedSize(QSize{ steer->fontMetrics().horizontalAdvance(steer->text()) + 34, 24 });
+				// Look prompts-v004 (owner: "I like your steer icon I don't
+				// think we need the word. Just add tooltips"): the icon alone.
+				auto* const steer = glyph(row, conversation_glyph::send, QStringLiteral("agentQueueSteer"), tr("Steer the running turn with it instead of waiting: %1").arg(entry.Label));
+				steer->setToolTip(tr("Steer: send it into the running turn instead of waiting"));
 				connect(steer, &QPushButton::clicked, this, [this, id] {
 					if (QueueDispatch.Steer) {
 						QueueDispatch.Steer(id);
@@ -3119,6 +3122,7 @@ namespace bpr::qt {
 				});
 				line->addWidget(steer);
 				auto* const remove = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
+				remove->setToolTip(tr("Remove from the queue"));
 				connect(remove, &QPushButton::clicked, this, [this, id] {
 					if (QueueDispatch.Remove) {
 						QueueDispatch.Remove(id);
