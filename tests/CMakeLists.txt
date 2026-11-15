@@ -1510,6 +1510,17 @@ bpr_add_network_isolated_test(NAME command_correctness_registry_contract
 bpr_add_network_isolated_test(NAME qualification_case_inventory_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/qualification_case_inventory_tests.py")
 set_tests_properties(qualification_case_inventory_contract PROPERTIES TIMEOUT 30)
+# Hermetic script contracts that ran only by hand: no secret, application,
+# Git or network (the isolation wrapper refuses the network).
+bpr_add_network_isolated_test(NAME profile_recovery_connection_lifetime_contract
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/profile_recovery_connection_lifetime_tests.py")
+set_tests_properties(profile_recovery_connection_lifetime_contract PROPERTIES TIMEOUT 30)
+bpr_add_network_isolated_test(NAME record_rfc0017_anonymous_contracts_recorder
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/record_rfc0017_anonymous_contracts_tests.py")
+set_tests_properties(record_rfc0017_anonymous_contracts_recorder PROPERTIES TIMEOUT 120)
+bpr_add_network_isolated_test(NAME settings_inventory_comparison_contract
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/settings_inventory_comparison_tests.py")
+set_tests_properties(settings_inventory_comparison_contract PROPERTIES TIMEOUT 30)
 
 # [[BPR-1386]] keeps unclassified GUI/application courses exclusive. BPR-1670
 # permits only the audited correctness declarations below to share four slots.
