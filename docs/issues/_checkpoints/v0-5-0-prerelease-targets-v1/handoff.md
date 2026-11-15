@@ -3967,3 +3967,46 @@ runtime's dispatch, keyed by run id, replacing `send_refusal_text()` in
 three pre-existing failures with their owners (enhance, tour link, tour CLI
 stop).
 
+
+## BPR-2181: coordinator follow-ups — staleness path, merge of native steering, failing courses carded (2026-11-15, third round)
+
+| Commit | What |
+|---|---|
+| `9e6efb2c8` | `lend_review_authority` takes the window's accepted handoff and lends its revision in every build; the tests-only branch in `attach_agent_runtime` is gone |
+| `98c2e9f30` | Merge native steering (BPR-2153) into the lane, no conflicts |
+| `f65bfa1e2` | Production app manifest pin resealed over `5434d6010..98c2e9f30` |
+| `36b05997b` | BPR-2192 and BPR-2193 Backlog; mirrored to main as `89df1e8e5` (allocation made on main) |
+
+Staleness: the runtime follows the window's accepted revision through one
+path in every build; course `application_github_host`
+(`test_a_lent_review_authority_follows_the_windows_accepted_revision`). The
+staleness course still moves the window's revision with
+`reaccept_fixture_revision`: the public-path fixture serves one pull request
+head per run, so no read-host path can serve a live head move (on the card).
+
+Merge checks (dev tree, after the merge): `application_agent_steer_sent_public_path`,
+`application_agent_steer_unavailable_public_path`,
+`application_fixture_agent_guard_public_path`, `application_ask_queue_public_path`,
+`application_review_agent_runtime`, `application_agent_queue_host` pass. The
+round-trip contract drifted; the dev tree also holds another writer's
+uncommitted window edits, so the pin was printed from a clean `git archive`
+of HEAD and verified by building and running the contract in a clean scratch
+worktree at `f65bfa1e2`: passes.
+
+Before the merge, on `9e6efb2c8`'s code: `application_github_host`, the five
+invocation and Dif contracts and the five queue courses pass.
+
+Bisects (scratch worktree, `git bisect run`, good `f51063b5b`, bad
+`4bb44f28f`; many commits skipped as unbuildable): enhance and the tour CLI
+stop both end on {merge `75ab1e0fa`, `d47362061`, `153e28d0f`
+(+`bb8560026`)}. The tour link crash is the merge meeting `93b1045a8`'s
+removal of `tourReturn`. One card, BPR-2192. The continued chat contract
+passed 11 of 20 (failure: second turn `stale_result`, not quiescent): BPR-2193,
+in BPR-2181's area. None was fixed this round.
+
+Not done: AC03/AC12, AC05, slices 5 and 6, BPR-2193.
+
+Next action: AC03/AC12 typed admission (replace `send_refusal_text()` in
+`release_queued` with an admission from `send_agent_turn` keyed by run id,
+settled later for a quick ask that starts on a later pass), then BPR-2193,
+AC05, slices 5 and 6.
