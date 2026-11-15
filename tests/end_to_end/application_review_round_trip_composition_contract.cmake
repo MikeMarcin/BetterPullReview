@@ -3740,9 +3740,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# fixture file instead (tests-only attended launch). No new effect or path.
 	# BPR-2153: the window's Steer forwards to the session queue host and its
 	# agent runtime's Steer is the application's (agent_runtime_steer); no new
-	# effect or path.
+	# effect or path. A tests-on fixture session adds the fixture agent's
+	# entry, and the tests-on launcher probe forwards steering; neither is in
+	# a shipped build.
 	set(bpr_expected_production_app_manifest_digest
-        "59baf96c97937f4a7ec9d46ebe966366fc63e93c37958657c2ee797a84315cba"
+        "0049bcfd9befd4240dc8601945f8dbde35935ead56a097694dd23532e8b30fa4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

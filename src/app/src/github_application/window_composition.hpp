@@ -2235,7 +2235,9 @@ namespace bpr::app {
 		/// [[BPR-2177]]. Which agent programs a fixture build may start.
 		[[nodiscard]] auto fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>;
 		/// [[BPR-2177]], look ask-v002. The fixture agent's Check ran once.
-		bool FixtureSetupChecked               = false;
+		bool FixtureSetupChecked = false;
+		/// [[BPR-2153]]. Adding the fixture agent's entry is under way.
+		bool FixtureEntryAdding                = false;
 		bool ReviewLedgerWasPresentOnEntry     = false;
 		bool ReviewLedgerRoundTripPassed       = false;
 		bool FixtureReviewMutationHostComposed = false;

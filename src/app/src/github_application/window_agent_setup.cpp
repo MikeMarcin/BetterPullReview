@@ -656,7 +656,9 @@ namespace bpr::app {
 		// alone, Claude's protocol first.
 		if (FixtureAgentSession) {
 			std::erase_if(offered, [](const core::agent_profile& aProfile) { return !aProfile.DisplayName.starts_with("Fixture agent"); });
-			std::ranges::stable_partition(offered, [](const core::agent_profile& aProfile) { return aProfile.Id == core::claude_stream_json_profile_id; });
+			// [[BPR-2153]]: its added entry first (the one a person's setup
+			// would choose), then the built-in Claude.
+			std::ranges::stable_partition(offered, [](const core::agent_profile& aProfile) { return core::is_agent_entry_profile(aProfile.Id) || aProfile.Id == core::claude_stream_json_profile_id; });
 		}
 	#endif
 		return offered;
@@ -2195,6 +2197,22 @@ namespace bpr::app {
 		// to have a mack agent for testing now?"). A person's session on a
 		// tests-on build opens with the fixture agent set up: its Check runs
 		// once, by itself, as soon as a review gives it a workspace to make.
+		// [[BPR-2153]]. It is added as a person's setup adds Claude Code: a
+		// saved entry, preferred, so its Agent tab turns keep a native
+		// session, as a person's do, and can be queued to and steered. The
+		// stored list is read off the lane and replaces what is shown when it
+		// lands, so the entry is added whenever the list shows none.
+		if (FixtureAgentSession && ClaudeAgentExecutable && aProjection.Preferences.Agents.empty() && !FixtureEntryAdding) {
+			FixtureEntryAdding = true;
+			QTimer::singleShot(0, Window.get(), [this] {
+				FixtureEntryAdding = false;
+				if (!Closing && AgentSetup && ClaudeAgentExecutable && AgentSetup->projection().Preferences.Agents.empty()) {
+					auto entry = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, ClaudeAgentExecutable->string());
+					entry.Name = "Fixture agent";
+					AgentSetup->add_agent(std::move(entry), true);
+				}
+			});
+		}
 		if (FixtureAgentSession && !FixtureSetupChecked && AgentReview && aProjection.Step == core::setup_step::check && !aProjection.Checking
 			&& aProjection.State.AgentCheck.State == core::setup_check_state::not_run && aProjection.State.WorkspaceCheck.State == core::setup_check_state::not_run) {
 			FixtureSetupChecked = true;

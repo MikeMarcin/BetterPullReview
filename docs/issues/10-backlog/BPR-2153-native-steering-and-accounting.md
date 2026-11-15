@@ -146,19 +146,27 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
 
 ## Pending
 
-- AC05 through BPR itself, with the Fixture agent: the wiring is on the
-  session queue host (BPR-2181's `agent_queue_host::steer` and
-  `agent_session_runtime::Steer`, filled by `application::agent_runtime_steer`),
-  and `application_agent_steer_unavailable_public_path` passes. The sent
-  course (`application_agent_steer_sent_public_path`) is registered disabled:
-  a tests-on fixture session's Agent tab runs on the built-in Claude profile
-  (profile 3) with no agent entry in the setup's preferences, so the window
-  asks for no native session (`NativeAgentIdentity` empty) and no turn keeps
-  a connection to steer. A person's setup adds an entry and gets native
-  sessions. The fixture session needs an agent entry (BPR-2177's
-  composition) before the sent course and a steer look can run.
-- The steer look (steer-v001) waits on the same: a look at Steer on a
-  Fixture agent that can't be steered would show only the refusal.
+- The owner's look at Steer (steer-v001): Accept or Reject.
+
+## Progress (fixture session, 2026-11-15)
+
+- The blocker: a tests-on fixture session's Agent tab ran on the built-in
+  Claude profile (profile 3) with no agent entry, so the window asked for no
+  native session and no turn could be steered. Fixed test-only (under
+  `BPR_BUILD_TESTING`, never in a shipped build): a fixture session adds the
+  fixture agent as a person's setup adds Claude Code, a saved entry named
+  "Fixture agent", preferred, whenever the setup's list shows none (the
+  stored list is read off the lane and replaces what is shown when it
+  lands); the picker offers that entry first.
+- A second gap the sent course found: the four application process-port
+  wrappers between the host and the launcher (`wrapped_claude_process`,
+  `diagnosed_agent_process`, `located_agent_process`, `agent_entry_process`)
+  and the tests-on probe did not forward `steer_support` and `steer`, so
+  every run answered `no_connection`. Each now forwards them; the entry
+  process asks its direct port, then the others.
+- `application_agent_steer_sent_public_path` is enabled and passes: the
+  follow-up steered into the steerable fixture's running Agent tab turn is
+  taken after a tool call, leaves the queue, and no second turn runs.
 
 ## Progress (wiring)
 

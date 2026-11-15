@@ -5518,10 +5518,6 @@ if(APPLE OR UNIX)
         set_tests_properties(application_agent_steer_${bpr_steer_mode}_public_path PROPERTIES
             ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "agent-steer-${bpr_steer_mode}:pass")
     endforeach()
-    # The sent course waits on the fixture session: its Agent tab runs on the
-    # built-in Claude profile with no agent entry, so no turn keeps a native
-    # session and none can be steered (BPR-2153, reported 2026-11-15).
-    set_tests_properties(application_agent_steer_sent_public_path PROPERTIES DISABLED TRUE)
 endif()
 # [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on build runs
 # the fixture agent and can never start a real one.
