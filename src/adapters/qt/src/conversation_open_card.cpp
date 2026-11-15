@@ -3210,6 +3210,7 @@ namespace bpr::qt {
 		discard->set_style(Style);
 		EnhancePanel->set_buttons(use, discard);
 		Enhance          = new enhance_binding{ *ReplyBox, aSurface, *EnhanceButton, *EnhancePanel, this };
+		EnhanceSurface   = aSurface;
 		Enhance->Changed = [this] {
 			if (HeightChanged) {
 				HeightChanged();
@@ -3443,6 +3444,11 @@ namespace bpr::qt {
 		}
 		const auto changed = LocalChosen != aLocal;
 		LocalChosen        = aLocal;
+		// [[BPR-2192]]. Enhance on a Local comment or reply asks as a note:
+		// the agent writes for the reviewer, not for the author.
+		if (Enhance != nullptr) {
+			Enhance->ask_as(aLocal ? enhance_surface::note : EnhanceSurface);
+		}
 		// Local's foot: Delete and Save, and the sentence. Draft's is today's.
 		if (Publish != nullptr && ReviewAction != nullptr && SplitAction != nullptr) {
 			ReviewAction->setVisible(!aLocal && ConvertWords.isEmpty());

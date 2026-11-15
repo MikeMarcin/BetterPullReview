@@ -1373,7 +1373,7 @@ auto main(int argc, char** argv) -> int
 			// once more, from wherever the reader went.
 			const auto before = *editor.shown().Draft;
 			editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
-			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			editor.trigger(qt::tour_editor_action::navigate_stop); // [[BPR-2013]] the file-and-lines link; Show in code is gone
 			window.choose_modality(qt::review_modality::overview);
 			wait([&] { return window.showing_overview(); }, "back on Overview");
 			click_description_link(*window.overview_page()->body_view(), link);
