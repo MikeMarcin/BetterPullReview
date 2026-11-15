@@ -380,6 +380,7 @@ namespace bpr::application {
 		{
 			if (!Stopped) {
 				Projection.AgentAvailable = AgentRunner && AgentLane != nullptr;
+				project_workflow();
 				Port.publish(Projection);
 			}
 		}
@@ -598,26 +599,195 @@ namespace bpr::application {
 					auto current = stored->find(draft.Id);
 					return { written, current ? std::optional{ std::move(*current) } : std::nullopt };
 				},
-				[](implementation& aSelf, std::pair<local_draft_store_result<void>, std::optional<core::local_draft>> aResult) {
-					aSelf.Projection.Reread = !aResult.first && aResult.first.error().Failure == local_draft_store_failure::stale;
-					aSelf.Projection.Store  = aResult.first ? std::nullopt : std::optional{ aResult.first.error() };
-					if (aResult.second) {
-						aSelf.Projection.Draft = std::move(aResult.second);
-						if (const auto* latest = core::latest_candidate(*aSelf.Projection.Draft); latest != nullptr && aResult.first) {
-							if (aSelf.Projection.Shown != latest->Ordinal) {
-								aSelf.Projection.Shown = latest->Ordinal;
-								aSelf.Projection.File.reset();
-							}
+				[](implementation& aSelf, std::pair<local_draft_store_result<void>, std::optional<core::local_draft>> aResult) { aSelf.stored(std::move(aResult)); });
+		}
+
+		/// What a write left in the store, shown.
+		void stored(std::pair<local_draft_store_result<void>, std::optional<core::local_draft>> aResult)
+		{
+			Projection.Reread = !aResult.first && aResult.first.error().Failure == local_draft_store_failure::stale;
+			Projection.Store  = aResult.first ? std::nullopt : std::optional{ aResult.first.error() };
+			if (aResult.second) {
+				Projection.Draft = std::move(aResult.second);
+				if (const auto* latest = core::latest_candidate(*Projection.Draft); latest != nullptr && aResult.first) {
+					if (Projection.Shown != latest->Ordinal) {
+						Projection.Shown = latest->Ordinal;
+						Projection.File.reset();
+					}
+				}
+			}
+			update_refresh();
+			project_plan();
+			publish();
+			if (!Projection.File) {
+				open_first_file();
+			}
+			refresh_home();
+		}
+
+		// --- RFC-BPR-0112: optional workflows -------------------------------
+
+		[[nodiscard]] auto profile_workflow(const std::string_view aId) const -> const core::local_workflow*
+		{
+			const auto found = std::ranges::find_if(WorkflowProfile.Workflows, [aId](const core::local_workflow& aWorkflow) { return aWorkflow.Workflow.PortableId == aId; });
+			return found == WorkflowProfile.Workflows.end() ? nullptr : &*found;
+		}
+
+		/// The Workflow area from the draft and the profile's bindings.
+		void project_workflow()
+		{
+			auto& view    = Projection.Workflow;
+			auto  refusal = view.Refusal;
+			auto  failure = std::move(view.Failure);
+			view          = local_draft_workflow_view{ .Refusal = refusal, .Failure = std::move(failure) };
+			for (const auto& workflow : WorkflowProfile.Workflows) {
+				view.Available.push_back({ .Id = workflow.Workflow.PortableId, .Name = workflow.Workflow.Name, .Origin = workflow.Workflow.Origin });
+			}
+			if (!Projection.Draft || !Projection.Draft->Workflow) {
+				return;
+			}
+			const auto& selected = *Projection.Draft->Workflow;
+			const auto* local    = profile_workflow(selected.Workflow.PortableId);
+			view.UpdateAvailable = local != nullptr && core::workflow_revision(local->Workflow) != selected.Revision;
+			for (const auto& action : selected.Workflow.Actions) {
+				auto        item    = local_draft_workflow_action_view{ .Action = action };
+				const auto* program = local == nullptr ? nullptr : core::bound_program(*local, action.Id);
+				const auto* agent   = local == nullptr ? nullptr : core::bound_agent(*local, action.Id);
+				item.AgentName      = agent == nullptr ? std::string{ } : agent->AgentName;
+				if (local == nullptr) {
+					item.Prerequisite = action.Binding == core::workflow_binding::agent ? core::workflow_prerequisite::agent_missing : core::workflow_prerequisite::program_unbound;
+				} else {
+					item.Prerequisite = core::action_prerequisite(*local, action, program != nullptr && std::ranges::contains(WorkflowProfile.Programs, program->Program),
+																  agent != nullptr && std::ranges::contains(WorkflowProfile.Agents, agent->AgentName));
+				}
+				if (const auto* record = core::find_record(selected, action.Id); record != nullptr) {
+					item.Record = *record;
+					if (record->Invocation != 0U && Exchange != nullptr && action.Binding == core::workflow_binding::command) {
+						const auto paths  = Exchange->locate(Projection.Draft->Id.Value, record->Invocation);
+						item.RequestPath  = paths.Request;
+						item.ResponsePath = paths.Response;
+						if (program != nullptr) {
+							item.Command     = core::workflow_command(program->Program, action.Arguments, paths.Request, paths.Response);
+							item.CommandLine = core::shell_line(item.Command);
 						}
 					}
-					aSelf.update_refresh();
-					aSelf.project_plan();
-					aSelf.publish();
-					if (!aSelf.Projection.File) {
-						aSelf.open_first_file();
+				}
+				view.Actions.push_back(std::move(item));
+			}
+			view.Checks = core::required_checks(*Projection.Draft);
+		}
+
+		void reload_workflows()
+		{
+			if (!WorkflowSource) {
+				return;
+			}
+			auto self = shared_from_this();
+			++WorkflowPending;
+			Effects.post([self, source = WorkflowSource] {
+				auto profile = source();
+				self->Decisions.post([host = self, read = std::move(profile)]() mutable {
+					--host->WorkflowPending;
+					if (host->Stopped) {
+						return;
 					}
-					aSelf.refresh_home();
+					host->WorkflowProfile = std::move(read);
+					host->publish();
 				});
+			});
+		}
+
+		/// Writes a workflow transition and, for a handoff, the action's request file.
+		void commit_workflow(std::expected<core::local_draft, core::workflow_refusal> aChanged, std::string aRequest = { })
+		{
+			if (!Projection.Draft) {
+				return;
+			}
+			if (!aChanged) {
+				Projection.Workflow.Refusal = aChanged.error();
+				publish();
+				return;
+			}
+			Projection.Workflow.Refusal.reset();
+			Projection.Workflow.Failure.clear();
+			struct written
+			{
+				std::pair<local_draft_store_result<void>, std::optional<core::local_draft>> Stored;
+				bool                                                                        RequestFailed = false;
+			};
+			const auto previous = Projection.Draft->Version;
+			run(
+				[draft = std::move(*aChanged), previous, action = std::move(aRequest)](implementation& aSelf, std::stop_token) -> written {
+					auto* stored = aSelf.store();
+					if (stored == nullptr) {
+						return { .Stored = { std::unexpected{ local_draft_store_error{ } }, std::nullopt } };
+					}
+					auto put = stored->put(draft, previous, { });
+					if (!put) {
+						auto current = stored->find(draft.Id);
+						return { .Stored = { put, current ? std::optional{ std::move(*current) } : std::nullopt } };
+					}
+					auto out = written{ .Stored = { put, draft } };
+					if (!action.empty()) {
+						const auto* record = core::find_record(*draft.Workflow, action);
+						const auto  bytes  = core::encode_workflow_request(draft, action);
+						out.RequestFailed  = aSelf.Exchange == nullptr || record == nullptr || !bytes
+							|| !aSelf.Exchange->write_request(aSelf.Exchange->locate(draft.Id.Value, record->Invocation), *bytes);
+					}
+					return out;
+				},
+				[](implementation& aSelf, written aResult) {
+					if (aResult.RequestFailed) {
+						aSelf.Projection.Workflow.Failure = "The request file could not be written; hand the action off again.";
+					}
+					aSelf.stored(std::move(aResult.Stored));
+				});
+		}
+
+		void read_answer(std::string aAction)
+		{
+			const auto* record = Projection.Draft && Projection.Draft->Workflow ? core::find_record(*Projection.Draft->Workflow, aAction) : nullptr;
+			if (record == nullptr || record->Invocation == 0U || Exchange == nullptr) {
+				Projection.Workflow.Refusal = core::workflow_refusal::state;
+				publish();
+				return;
+			}
+			const auto paths = Exchange->locate(Projection.Draft->Id.Value, record->Invocation);
+			run([paths](implementation& aSelf, std::stop_token) { return aSelf.Exchange->read_response(paths, core::maximum_workflow_response_bytes); },
+				[paths](implementation& aSelf, std::optional<std::string> aBytes) {
+					if (!aSelf.Projection.Draft) {
+						return;
+					}
+					if (!aBytes) {
+						aSelf.Projection.Workflow.Failure = "No answer yet at " + paths.Response + ".";
+						aSelf.publish();
+						return;
+					}
+					auto response = core::decode_workflow_response(*aBytes);
+					if (!response) {
+						aSelf.Projection.Workflow.Failure = std::string{ core::describe(response.error()) };
+						aSelf.publish();
+						return;
+					}
+					aSelf.commit_workflow(core::admit_workflow_response(*aSelf.Projection.Draft, aSelf.Projection.Draft->Version, *response, aSelf.Now()));
+				});
+		}
+
+		/// An agent action's answer, recorded on its action as the agent's
+		/// own report; its proposals are the conversation's.
+		[[nodiscard]] auto settle_agent_action(core::local_draft aDraft, const std::string& aAction, const bool aAnswered, const std::string& aWords) -> core::local_draft
+		{
+			const auto* record = aDraft.Workflow ? core::find_record(*aDraft.Workflow, aAction) : nullptr;
+			if (aAction.empty() || record == nullptr) {
+				return aDraft;
+			}
+			const auto response = core::workflow_response{ .Invocation = record->Invocation,
+														   .Draft      = aDraft.Id.Value,
+														   .Action     = aAction,
+														   .Outcome    = aAnswered ? core::workflow_outcome::completed : core::workflow_outcome::failed,
+														   .Message    = aWords.substr(0U, std::min(aWords.size(), std::size_t{ 2048U })) };
+			auto       admitted = core::admit_workflow_response(aDraft, aDraft.Version, response, Now());
+			return admitted ? std::move(*admitted) : std::move(aDraft);
 		}
 
 		void choose_target(core::local_draft_target aTarget)
@@ -1087,6 +1257,7 @@ namespace bpr::application {
 			view.Asking = false;
 			view.AskingThread.clear();
 			view.AskingText.clear();
+			const auto action = std::exchange(PendingAgentAction, std::string{ });
 			if (aGeneration != Generation || !view.Draft) {
 				publish();
 				return;
@@ -1095,6 +1266,11 @@ namespace bpr::application {
 			if (latest == nullptr || latest->Ordinal != aOrdinal) {
 				view.AskFailure = "The draft was refreshed while the agent answered. Ask again on this candidate.";
 				publish();
+				return;
+			}
+			if (!aAnswer.Answered && !action.empty()) {
+				view.AskFailure = aAnswer.Failure.empty() ? std::string{ "The agent did not answer." } : aAnswer.Failure;
+				prepare(settle_agent_action(*view.Draft, action, false, view.AskFailure));
 				return;
 			}
 			if (!aAnswer.Answered) {
@@ -1138,6 +1314,9 @@ namespace bpr::application {
 			if (!reply) {
 				prepare(std::unexpected{ reply.error() });
 				return;
+			}
+			if (!action.empty()) {
+				reply->first = settle_agent_action(std::move(reply->first), action, true, parsed.Prose);
 			}
 			// [[BPR-2138]]. The discussion's session, kept to resume next turn.
 			if (core::session_mode_of(aPath) == core::agent_session_mode::resumed && !aAnswer.Handle.empty()) {
@@ -1251,13 +1430,14 @@ namespace bpr::application {
 				publish();
 				return;
 			}
-			view.Checked          = true;
-			view.Branch           = aStep.Branch;
-			view.Push             = std::move(aStep.Push);
-			view.Refusal          = aStep.Refusal;
-			view.Existing         = std::move(aStep.Existing);
-			view.AccountAvailable = account().has_value();
-			view.Failure          = aStep.Provider ? publication_failure_words(*aStep.Provider) : std::string{ };
+			view.Checked                = true;
+			view.Branch                 = aStep.Branch;
+			view.Push                   = std::move(aStep.Push);
+			view.Refusal                = aStep.Refusal;
+			view.Existing               = std::move(aStep.Existing);
+			view.AccountAvailable       = account().has_value();
+			view.Failure                = aStep.Provider ? publication_failure_words(*aStep.Provider) : std::string{ };
+			Projection.Workflow.Refusal = aStep.Workflow;
 			if (aStep.Store) {
 				Projection.Store  = aStep.Store;
 				Projection.Reread = aStep.Store->Failure == local_draft_store_failure::stale;
@@ -1382,6 +1562,14 @@ namespace bpr::application {
 		effect_executor*                                           PublishLane = nullptr;
 		std::stop_source                                           PublishStop;
 		std::atomic<std::uint64_t>                                 PublishPending{ 0U };
+		/// RFC-BPR-0112. The profile's workflows, read on the effect lane, and
+		/// the exchange files (used on the effect lane only).
+		local_draft_workflow_source  WorkflowSource;
+		workflow_exchange_port*      Exchange = nullptr;
+		local_draft_workflow_profile WorkflowProfile;
+		std::atomic<std::uint64_t>   WorkflowPending{ 0U };
+		/// The agent action whose question is with the agent (decision lane).
+		std::string PendingAgentAction;
 
 		/// Decision lane.
 		local_draft_workbench_projection     Projection;
@@ -1650,6 +1838,146 @@ namespace bpr::application {
 		}
 	}
 
+	void local_draft_workbench::set_workflows(local_draft_workflow_source aSource, workflow_exchange_port* const aExchange)
+	{
+		Implementation->WorkflowSource = std::move(aSource);
+		Implementation->Exchange       = aExchange;
+		Implementation->reload_workflows();
+	}
+
+	void local_draft_workbench::reload_workflows()
+	{
+		Implementation->reload_workflows();
+	}
+
+	void local_draft_workbench::select_workflow(std::optional<std::string> aId)
+	{
+		auto& self = *Implementation;
+		if (!self.Projection.Draft) {
+			return;
+		}
+		const auto* local = aId ? self.profile_workflow(*aId) : nullptr;
+		if (aId && local == nullptr) {
+			self.commit_workflow(std::unexpected{ core::workflow_refusal::unknown });
+			return;
+		}
+		self.commit_workflow(core::select_workflow(*self.Projection.Draft, self.Projection.Draft->Version, local == nullptr ? std::nullopt : std::optional{ local->Workflow }, self.Now()));
+	}
+
+	void local_draft_workbench::accept_workflow_update()
+	{
+		auto& self = *Implementation;
+		if (!self.Projection.Draft || !self.Projection.Draft->Workflow) {
+			return;
+		}
+		const auto* local = self.profile_workflow(self.Projection.Draft->Workflow->Workflow.PortableId);
+		if (local == nullptr) {
+			self.commit_workflow(std::unexpected{ core::workflow_refusal::unknown });
+			return;
+		}
+		self.commit_workflow(core::accept_workflow_update(*self.Projection.Draft, self.Projection.Draft->Version, local->Workflow, self.Now()));
+	}
+
+	void local_draft_workbench::choose_publisher(const core::workflow_publisher aPublisher)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.commit_workflow(core::choose_publisher(*self.Projection.Draft, self.Projection.Draft->Version, aPublisher, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::hand_off(std::string aAction, std::string aAnswer)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			auto changed = core::begin_action(*self.Projection.Draft, self.Projection.Draft->Version, aAction, std::move(aAnswer), self.Now());
+			self.commit_workflow(std::move(changed), std::move(aAction));
+		}
+	}
+
+	void local_draft_workbench::ask_for_action(std::string aAction, local_draft_question aQuestion)
+	{
+		auto& self = *Implementation;
+		if (!self.Projection.Draft || !self.Projection.Draft->Workflow || self.Projection.Asking || !self.AgentRunner) {
+			return;
+		}
+		const auto* action = core::find_action(*self.Projection.Draft->Workflow, aAction);
+		if (action == nullptr || action->Binding != core::workflow_binding::agent) {
+			self.commit_workflow(std::unexpected{ core::workflow_refusal::unknown });
+			return;
+		}
+		auto changed = core::begin_action(*self.Projection.Draft, self.Projection.Draft->Version, aAction, { }, self.Now());
+		if (!changed) {
+			self.commit_workflow(std::move(changed));
+			return;
+		}
+		const auto& guidance = self.Projection.Draft->Workflow->Workflow.Guidance;
+		aQuestion.Thread     = std::string{ core::local_change_thread };
+		aQuestion.Subject    = core::local_subject::whole_change;
+		aQuestion.Text       = guidance.empty() ? action->Prompt : guidance + "\n\n" + action->Prompt;
+		self.commit_workflow(std::move(changed));
+		self.PendingAgentAction = std::move(aAction);
+		self.ask(std::move(aQuestion));
+		if (!self.Projection.Asking) {
+			self.PendingAgentAction.clear();
+		}
+	}
+
+	void local_draft_workbench::read_answer(std::string aAction)
+	{
+		Implementation->read_answer(std::move(aAction));
+	}
+
+	void local_draft_workbench::mark_lost(std::string aAction)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.commit_workflow(core::mark_action_lost(*self.Projection.Draft, self.Projection.Draft->Version, aAction, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::hand_off_publication(std::string aAction, std::string aDigest)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			auto changed = core::hand_off_publication(*self.Projection.Draft, self.Projection.Draft->Version, aAction, aDigest, self.Now());
+			self.commit_workflow(std::move(changed), std::move(aAction));
+		}
+	}
+
+	void local_draft_workbench::reconcile_publication(std::string aAction)
+	{
+		auto& self     = *Implementation;
+		auto  signedIn = self.account();
+		if (!signedIn) {
+			self.Projection.Publishing.AccountAvailable = false;
+			self.publish();
+			return;
+		}
+		self.publishing(
+			[chosen = std::move(*signedIn), action = std::move(aAction)](local_draft_store& aStore, const core::local_draft& aDraft, const std::int64_t aNow, std::stop_token aStop) {
+				return reconcile_external_local_publication(aStore, aDraft, chosen, action, aNow, aStop);
+			},
+			true);
+	}
+
+	void local_draft_workbench::hand_off_follow_up(std::string aAction)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			auto changed = core::hand_off_follow_up(*self.Projection.Draft, self.Projection.Draft->Version, aAction, self.Now());
+			self.commit_workflow(std::move(changed), std::move(aAction));
+		}
+	}
+
+	void local_draft_workbench::reconcile_follow_up(std::string aAction)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.commit_workflow(core::reconcile_follow_up(*self.Projection.Draft, self.Projection.Draft->Version, aAction, self.Now()));
+		}
+	}
+
 	void local_draft_workbench::carry_tour(core::local_draft_id aDraft, core::review_tour aTarget, std::function<void(core::local_tour_carry)> aDone)
 	{
 		auto& self = *Implementation;
@@ -1728,6 +2056,7 @@ namespace bpr::application {
 
 	auto local_draft_workbench::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Pending == 0U && Implementation->HomePending == 0U && Implementation->AgentPending == 0U && Implementation->PublishPending == 0U;
+		return Implementation->Pending == 0U && Implementation->HomePending == 0U && Implementation->AgentPending == 0U && Implementation->PublishPending == 0U
+			&& Implementation->WorkflowPending == 0U;
 	}
 }

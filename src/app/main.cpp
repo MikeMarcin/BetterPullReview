@@ -286,6 +286,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-author" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-workflow", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-pull-request", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
@@ -5645,7 +5646,9 @@ namespace {
 	/// The owner's redesign, 2026-11-12: author state, with GitHub checked
 	/// once as the author would, and optionally the draft associated with a
 	/// pull request so the window is a pull request opened by its author.
-	bool          AttendedLocalDraftAuthor      = false;
+	bool AttendedLocalDraftAuthor = false;
+	/// RFC-BPR-0112. A workflow file the look imports and selects on the draft.
+	std::string   AttendedLocalDraftWorkflow;
 	std::uint64_t AttendedLocalDraftPullRequest = 0U;
 	void          prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* aTimer);
 	void          schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
@@ -6392,6 +6395,24 @@ namespace {
 					timer->stop();
 					timer->deleteLater();
 					prepare_attended_local_draft_tour(aApplication, new QTimer{ &window });
+					return;
+				}
+				if (!AttendedLocalDraftWorkflow.empty()) {
+					// RFC-BPR-0112: imported once, then selected on the draft; nothing runs.
+					static auto imported = false;
+					if (!imported) {
+						imported = true;
+						if (!aApplication.import_workflow_for_look(AttendedLocalDraftWorkflow)) {
+							finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:workflow-import"));
+						}
+						return;
+					}
+					if (!aApplication.select_workflow_for_look()) {
+						return;
+					}
+					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN:%1:actions=%2")
+							   .arg(QString::fromStdString(AttendedLocalDraftPath))
+							   .arg(page->projection().Workflow.Actions.size()));
 					return;
 				}
 				if (AttendedLocalDraftAuthor) {
@@ -13574,6 +13595,9 @@ auto main(int argc, char** argv) -> int
 						AttendedLocalDraftPath   = std::string{ *attendedLocalDraft };
 						AttendedLocalDraftTour   = launch.has("--attended-local-draft-tour");
 						AttendedLocalDraftAuthor = launch.has("--attended-local-draft-author");
+						if (const auto workflow = launch.value("--attended-local-draft-workflow"); workflow.has_value()) {
+							AttendedLocalDraftWorkflow = std::string{ *workflow };
+						}
 						if (const auto number = launch.value("--attended-local-draft-pull-request"); number.has_value()) {
 							AttendedLocalDraftPullRequest = std::strtoull(std::string{ *number }.c_str(), nullptr, 10);
 						}

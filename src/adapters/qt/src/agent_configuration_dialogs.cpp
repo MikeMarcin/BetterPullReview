@@ -29,6 +29,17 @@ namespace bpr::qt {
 		constexpr int IndexRole  = Qt::UserRole + 1;
 		constexpr int AgentKind  = 1;
 		constexpr int PromptKind = 2;
+		/// [[BPR-2032]].
+		constexpr int WorkflowKind = 3;
+
+		[[nodiscard]] auto effects_text(const core::workflow_action& aAction) -> QString
+		{
+			auto words = QStringList{ };
+			for (const auto effect : aAction.Effects) {
+				words << QString::fromUtf8(core::describe(effect).data());
+			}
+			return words.join(QStringLiteral(", "));
+		}
 
 		[[nodiscard]] auto text_of(const std::string_view aText) -> QString { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); }
 
@@ -223,6 +234,19 @@ namespace bpr::qt {
 				row->setCheckState(0, edited ? Qt::Checked : Qt::Unchecked);
 			}
 		}
+		// [[BPR-2032]]. Workflows start unchosen; a chosen one brings its agents.
+		if (!Snapshot.Workflows.empty()) {
+			auto* const workflows = new QTreeWidgetItem{ Items, { tr("Workflows") } };
+			workflows->setFlags(Qt::ItemIsEnabled);
+			for (std::size_t index = 0U; index < Snapshot.Workflows.size(); ++index) {
+				const auto& workflow = Snapshot.Workflows[index].Workflow;
+				auto* const row      = new QTreeWidgetItem{ workflows, { text_of(workflow.Name), tr("Its actions and guidance, with the agents it asks; no program paths") } };
+				row->setData(0, ItemRole, WorkflowKind);
+				row->setData(0, IndexRole, static_cast<qulonglong>(index));
+				row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
+				row->setCheckState(0, Qt::Unchecked);
+			}
+		}
 		Items->expandAll();
 		column->addWidget(Items, 3);
 		auto* const tools = new QHBoxLayout{ };
@@ -300,15 +324,27 @@ namespace bpr::qt {
 		return chosen;
 	}
 
+	auto agent_configuration_export_dialog::workflows() const -> std::vector<std::string>
+	{
+		auto chosen = std::vector<std::string>{ };
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == WorkflowKind && (*it)->checkState(0) == Qt::Checked) {
+				chosen.push_back(Snapshot.Workflows[(*it)->data(0, IndexRole).toULongLong()].Workflow.PortableId);
+			}
+		}
+		return chosen;
+	}
+
 	void agent_configuration_export_dialog::refresh()
 	{
-		const auto chosenAgents  = agents();
-		const auto chosenPrompts = prompts();
-		const auto encoded       = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy);
-		Bytes                    = encoded.value_or(std::string{ });
+		const auto chosenAgents    = agents();
+		const auto chosenPrompts   = prompts();
+		const auto chosenWorkflows = workflows();
+		const auto encoded         = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows);
+		Bytes                      = encoded.value_or(std::string{ });
 		Exact->setPlainText(text_of(Bytes));
-		const auto nothing = chosenAgents.empty() && chosenPrompts.empty();
-		Size->setText(!encoded      ? tr("Too large: a configuration file holds at most 1 MiB. Choose fewer prompts.")
+		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty();
+		Size->setText(!encoded      ? tr("Too large, or a chosen workflow's agent is no longer here: a configuration file holds at most 1 MiB.")
 						  : nothing ? tr("Choose at least one agent or prompt.")
 									: tr("%1 and %2, %3.")
 										  .arg(counted(chosenAgents.size(), tr("1 agent"), tr("%1 agents")), counted(chosenPrompts.size(), tr("1 prompt"), tr("%1 prompts")),
@@ -324,6 +360,7 @@ namespace bpr::qt {
 		, Facts{ std::move(aFacts) }
 		, Agents(Preview.File.Agents.size())
 		, Prompts(Preview.File.Prompts.size(), false)
+		, Workflows(Preview.File.Workflows.size())
 	{
 		setWindowTitle(tr("Import configuration"));
 		setObjectName(QStringLiteral("agentConfigurationImport"));
@@ -340,6 +377,13 @@ namespace bpr::qt {
 			// kept until you choose otherwise.
 			Prompts[index] = !item.Problem && item.Local && Preview.Prompts[*item.Local].Override.empty() && item.Prompt.Text != Preview.Prompts[*item.Local].BuiltIn;
 		}
+		// [[BPR-2032]]. A new workflow starts added; an update to one here
+		// is compared and taken only when chosen.
+		for (std::size_t index = 0U; index < Workflows.size(); ++index) {
+			if (!Preview.File.Workflows[index].Problem && !workflow_exists(index)) {
+				Workflows[index].Action = core::workflow_import_action::add;
+			}
+		}
 		auto* const column = new QVBoxLayout{ this };
 		const auto  from   = Preview.File.Label.empty() ? tr("This file") : tr("“%1”").arg(text_of(Preview.File.Label));
 		column->addWidget(note(tr("%1 was exported by %2. Nothing is saved until you choose Import selected, and nothing is run: check an agent afterwards from Agents & context.")
@@ -353,11 +397,19 @@ namespace bpr::qt {
 		Items->setHeaderLabels({ tr("Item"), tr("When imported") });
 		Items->setRootIsDecorated(false);
 		Items->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-		auto* const agentGroup  = new QTreeWidgetItem{ Items, { tr("Agents") } };
-		auto* const promptGroup = new QTreeWidgetItem{ Items, { tr("Prompts") } };
-		auto* const otherGroup  = new QTreeWidgetItem{ Items, { tr("Not supported by this version") } };
-		for (auto* const group : { agentGroup, promptGroup, otherGroup }) {
+		auto* const agentGroup    = new QTreeWidgetItem{ Items, { tr("Agents") } };
+		auto* const promptGroup   = new QTreeWidgetItem{ Items, { tr("Prompts") } };
+		auto* const workflowGroup = new QTreeWidgetItem{ Items, { tr("Workflows") } };
+		auto* const otherGroup    = new QTreeWidgetItem{ Items, { tr("Not supported by this version") } };
+		for (auto* const group : { agentGroup, promptGroup, workflowGroup, otherGroup }) {
 			group->setFlags(Qt::ItemIsEnabled);
+		}
+		for (std::size_t index = 0U; index < Preview.File.Workflows.size(); ++index) {
+			const auto& item   = Preview.File.Workflows[index];
+			auto* const parent = item.Problem == core::workflow_problem::unsupported ? otherGroup : workflowGroup;
+			auto* const row    = new QTreeWidgetItem{ parent, { text_of(item.Workflow.Name) } };
+			row->setData(0, ItemRole, WorkflowKind);
+			row->setData(0, IndexRole, static_cast<qulonglong>(index));
 		}
 		for (std::size_t index = 0U; index < Preview.File.Agents.size(); ++index) {
 			const auto& item   = Preview.File.Agents[index];
@@ -373,7 +425,7 @@ namespace bpr::qt {
 			row->setData(0, ItemRole, PromptKind);
 			row->setData(0, IndexRole, static_cast<qulonglong>(index));
 		}
-		for (auto* const group : { agentGroup, promptGroup, otherGroup }) {
+		for (auto* const group : { agentGroup, promptGroup, workflowGroup, otherGroup }) {
 			group->setHidden(group->childCount() == 0);
 		}
 		Items->expandAll();
@@ -450,6 +502,33 @@ namespace bpr::qt {
 		problemCol->addWidget(ProblemText);
 		problemCol->addStretch(1);
 		Detail->addWidget(problemPage);
+		// Page 4: a workflow ([[BPR-2032]]).
+		auto* const workflowPage = new QWidget{ Detail };
+		auto* const workflowCol  = new QVBoxLayout{ workflowPage };
+		WorkflowTitle            = heading({ }, workflowPage);
+		WorkflowOrigin           = note({ }, workflowPage);
+		workflowCol->addWidget(WorkflowTitle);
+		workflowCol->addWidget(WorkflowOrigin);
+		auto* const workflowForm = new QFormLayout{ };
+		WorkflowAction           = new QComboBox{ workflowPage };
+		WorkflowAction->setObjectName(QStringLiteral("agentConfigurationWorkflowAction"));
+		workflowForm->addRow(tr("When i&mported"), WorkflowAction);
+		workflowCol->addLayout(workflowForm);
+		WorkflowActions = new QTreeWidget{ workflowPage };
+		WorkflowActions->setObjectName(QStringLiteral("agentConfigurationWorkflowActions"));
+		WorkflowActions->setAccessibleName(tr("The workflow's actions"));
+		WorkflowActions->setColumnCount(3);
+		WorkflowActions->setHeaderLabels({ tr("Action"), tr("Who acts"), tr("It says it") });
+		WorkflowActions->setRootIsDecorated(false);
+		workflowCol->addWidget(WorkflowActions, 1);
+		WorkflowProgram = new quiet_push_button{ tr("Choose program for the selected action…"), workflowPage };
+		WorkflowProgram->setObjectName(QStringLiteral("agentConfigurationWorkflowProgram"));
+		workflowCol->addWidget(WorkflowProgram, 0, Qt::AlignLeft);
+		WorkflowChanges = note({ }, workflowPage);
+		WorkflowChanges->setObjectName(QStringLiteral("agentConfigurationWorkflowChanges"));
+		WorkflowChanges->setForegroundRole(QPalette::WindowText);
+		workflowCol->addWidget(WorkflowChanges);
+		Detail->addWidget(workflowPage);
 		Items->setMinimumWidth(330);
 		Items->header()->setStretchLastSection(true);
 		split->setStretchFactor(0, 2);
@@ -503,6 +582,30 @@ namespace bpr::qt {
 			if (!Showing && ShownAgent) {
 				Agents[*ShownAgent].AcceptBuilds = aOn;
 				show_agent(*ShownAgent);
+			}
+		});
+		connect(WorkflowAction, &QComboBox::currentIndexChanged, this, [this](const int aIndex) {
+			if (Showing || !ShownWorkflow || aIndex < 0) {
+				return;
+			}
+			Workflows[*ShownWorkflow].Action = static_cast<core::workflow_import_action>(WorkflowAction->itemData(aIndex).toInt());
+			refresh_rows();
+		});
+		connect(WorkflowProgram, &QPushButton::clicked, this, [this] {
+			auto* const current = WorkflowActions->currentItem();
+			if (!ShownWorkflow || !Chooser || current == nullptr || !current->data(0, IndexRole).isValid()) {
+				return;
+			}
+			const auto& action = Preview.File.Workflows[*ShownWorkflow].Workflow.Actions[current->data(0, IndexRole).toULongLong()];
+			if (action.Binding != core::workflow_binding::command) {
+				return;
+			}
+			const auto chosen = Chooser(text_of(action.ProgramName));
+			if (!chosen.isEmpty()) {
+				auto& programs = Workflows[*ShownWorkflow].Programs;
+				std::erase_if(programs, [&action](const core::workflow_program& aProgram) { return aProgram.Action == action.Id; });
+				programs.push_back({ .Action = action.Id, .Program = chosen.toStdString() });
+				show_workflow(*ShownWorkflow);
 			}
 		});
 		connect(UsePrompt, &QCheckBox::toggled, this, [this](const bool aOn) {
@@ -561,6 +664,95 @@ namespace bpr::qt {
 		return chosen;
 	}
 
+	auto agent_configuration_import_dialog::workflow_exists(const std::size_t aItem) const -> bool
+	{
+		return std::ranges::any_of(Preview.Snapshot.Workflows,
+								   [this, aItem](const core::local_workflow& aLocal) { return aLocal.Workflow.PortableId == Preview.File.Workflows[aItem].Workflow.PortableId; });
+	}
+
+	auto agent_configuration_import_dialog::workflow_choices() const -> std::vector<core::workflow_import_choice>
+	{
+		auto choices = std::vector<core::workflow_import_choice>{ };
+		for (std::size_t index = 0U; index < Workflows.size(); ++index) {
+			if (!Preview.File.Workflows[index].Problem && Workflows[index].Action != core::workflow_import_action::leave) {
+				choices.push_back({ .Item = index, .Action = Workflows[index].Action, .Programs = Workflows[index].Programs, .Agents = { } });
+			}
+		}
+		return choices;
+	}
+
+	void agent_configuration_import_dialog::select_workflow(const std::size_t aItem)
+	{
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == WorkflowKind && (*it)->data(0, IndexRole).toULongLong() == aItem) {
+				Items->setCurrentItem(*it);
+			}
+		}
+	}
+
+	void agent_configuration_import_dialog::show_workflow(const std::size_t aItem)
+	{
+		const auto& item     = Preview.File.Workflows[aItem];
+		const auto& workflow = item.Workflow;
+		if (item.Problem) {
+			ProblemTitle->setText(text_of(workflow.Name));
+			auto why = text_of(core::describe(*item.Problem));
+			if (!item.Unsupported.empty()) {
+				why += QLatin1Char(' ') + tr("It names “%1”.").arg(text_of(item.Unsupported));
+			}
+			if (item.Action && *item.Action < workflow.Actions.size()) {
+				why += QLatin1Char(' ') + tr("Action: %1.").arg(text_of(workflow.Actions[*item.Action].Id));
+			}
+			ProblemText->setText(why);
+			Detail->setCurrentIndex(3);
+			return;
+		}
+		ShownWorkflow = aItem;
+		Showing       = true;
+		WorkflowTitle->setText(text_of(workflow.Name));
+		WorkflowOrigin->setText(tr("Says it comes from %1. Importing or selecting it runs nothing and changes no credential; each action is yours to start, in a draft.")
+									.arg(workflow.Origin.empty() ? tr("no one in particular") : text_of(workflow.Origin)));
+		WorkflowAction->clear();
+		WorkflowAction->addItem(tr("Leave out"), static_cast<int>(core::workflow_import_action::leave));
+		const auto exists = workflow_exists(aItem);
+		WorkflowAction->addItem(exists ? tr("Replace yours with this revision") : tr("Add"),
+								static_cast<int>(exists ? core::workflow_import_action::replace : core::workflow_import_action::add));
+		WorkflowAction->setCurrentIndex(Workflows[aItem].Action == core::workflow_import_action::leave ? 0 : 1);
+		WorkflowActions->clear();
+		for (std::size_t index = 0U; index < workflow.Actions.size(); ++index) {
+			const auto& action  = workflow.Actions[index];
+			const auto  program = std::ranges::find(Workflows[aItem].Programs, action.Id, &core::workflow_program::Action);
+			const auto  who     = action.Binding == core::workflow_binding::agent ? tr("Agent “%1”, read-only").arg(text_of(action.Agent))
+				: program != Workflows[aItem].Programs.end()                      ? tr("You run %1").arg(text_of(program->Program))
+																				  : tr("You run %1 (choose it here or later)").arg(text_of(action.ProgramName));
+			auto* const row     = new QTreeWidgetItem{ WorkflowActions, { text_of(action.Task) + (action.Required ? tr(" (required)") : QString{ }), who, effects_text(action) } };
+			row->setData(0, IndexRole, static_cast<qulonglong>(index));
+		}
+		auto changes = QStringList{ };
+		if (exists) {
+			const auto local = std::ranges::find_if(Preview.Snapshot.Workflows, [&workflow](const core::local_workflow& aLocal) { return aLocal.Workflow.PortableId == workflow.PortableId; });
+			for (const auto& difference : core::workflow_differences(local->Workflow, workflow)) {
+				const auto action = text_of(difference.Action);
+				switch (difference.Change) {
+				case core::workflow_change::name:            changes << tr("Its name changes."); break;
+				case core::workflow_change::origin:          changes << tr("Where it says it comes from changes."); break;
+				case core::workflow_change::guidance:        changes << tr("Its writing guidance changes."); break;
+				case core::workflow_change::action_added:    changes << tr("Adds the action %1.").arg(action); break;
+				case core::workflow_change::action_removed:  changes << tr("Removes the action %1.").arg(action); break;
+				case core::workflow_change::action_changed:  changes << tr("Changes the action %1.").arg(action); break;
+				case core::workflow_change::effects_widened: changes << tr("The action %1 now says it does more.").arg(action); break;
+				}
+			}
+			if (changes.isEmpty()) {
+				changes << tr("Same as yours.");
+			}
+			changes << tr("Drafts that selected the earlier revision keep it until you accept the update there.");
+		}
+		WorkflowChanges->setText(changes.join(QLatin1Char('\n')));
+		Showing = false;
+		Detail->setCurrentIndex(4);
+	}
+
 	auto agent_configuration_import_dialog::row_state(const std::size_t aItem) const -> QString
 	{
 		const auto& item = Preview.File.Agents[aItem];
@@ -589,6 +781,10 @@ namespace bpr::qt {
 			const auto index = static_cast<std::size_t>((*it)->data(0, IndexRole).toULongLong());
 			if (kind == AgentKind) {
 				(*it)->setText(1, row_state(index));
+			} else if (kind == WorkflowKind) {
+				(*it)->setText(1, Preview.File.Workflows[index].Problem ? tr("Cannot be imported") : Workflows[index].Action == core::workflow_import_action::add ? tr("Added")
+								   : Workflows[index].Action == core::workflow_import_action::replace                                                             ? tr("Replaces yours")
+																																								  : tr("Left out"));
 			} else if (kind == PromptKind) {
 				const auto& item = Preview.File.Prompts[index];
 				(*it)->setText(1, item.Problem ? tr("Cannot be imported") : item.Local && item.Prompt.Text == (Preview.Prompts[*item.Local].Override.empty() ? Preview.Prompts[*item.Local].BuiltIn : Preview.Prompts[*item.Local].Override) ? tr("Same as yours")
@@ -603,9 +799,16 @@ namespace bpr::qt {
 		for (const auto& item : Preview.File.Prompts) {
 			unsupported += item.Problem ? 1U : 0U;
 		}
-		agents             = agent_choices().size();
-		const auto prompts = prompt_choices().size();
-		auto       words   = tr("Will import %1 and %2.").arg(counted(agents, tr("1 agent"), tr("%1 agents")), counted(prompts, tr("1 prompt"), tr("%1 prompts")));
+		for (const auto& item : Preview.File.Workflows) {
+			unsupported += item.Problem ? 1U : 0U;
+		}
+		agents               = agent_choices().size();
+		const auto prompts   = prompt_choices().size();
+		const auto workflows = workflow_choices().size();
+		auto       words     = tr("Will import %1 and %2.").arg(counted(agents, tr("1 agent"), tr("%1 agents")), counted(prompts, tr("1 prompt"), tr("%1 prompts")));
+		if (workflows > 0U) {
+			words += QLatin1Char(' ') + counted(workflows, tr("And 1 workflow, which runs nothing until you start its actions in a draft."), tr("And %1 workflows, which run nothing until you start their actions in a draft."));
+		}
 		if (waiting > 0U) {
 			words += QLatin1Char(' ') + counted(waiting, tr("1 agent waits for a program and is left out until it has one."), tr("%1 agents wait for a program and are left out until they have one."));
 		}
@@ -613,7 +816,7 @@ namespace bpr::qt {
 			words += QLatin1Char(' ') + counted(unsupported, tr("1 item cannot be imported by this version."), tr("%1 items cannot be imported by this version."));
 		}
 		Summary->setText(words);
-		ApplyButton->setEnabled(agents + prompts > 0U);
+		ApplyButton->setEnabled(agents + prompts + workflows > 0U);
 	}
 
 	void agent_configuration_import_dialog::select_agent(const std::size_t aItem)
@@ -638,12 +841,15 @@ namespace bpr::qt {
 	{
 		ShownAgent.reset();
 		ShownPrompt.reset();
+		ShownWorkflow.reset();
 		if (aItem == nullptr || !aItem->data(0, ItemRole).isValid()) {
 			Detail->setCurrentIndex(0);
 			return;
 		}
 		const auto index = static_cast<std::size_t>(aItem->data(0, IndexRole).toULongLong());
-		if (aItem->data(0, ItemRole).toInt() == AgentKind) {
+		if (aItem->data(0, ItemRole).toInt() == WorkflowKind) {
+			show_workflow(index);
+		} else if (aItem->data(0, ItemRole).toInt() == AgentKind) {
 			show_agent(index);
 		} else {
 			show_prompt(index);

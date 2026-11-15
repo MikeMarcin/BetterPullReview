@@ -14,6 +14,7 @@ add_library(
         src/suggestion_composer.cpp
         src/review_cycle_view.cpp
         src/local_draft_publication_area.cpp
+        src/local_draft_workflow_area.cpp
         src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp

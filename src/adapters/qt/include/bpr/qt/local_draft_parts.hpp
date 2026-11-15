@@ -32,6 +32,7 @@ class QWidget;
 namespace bpr::qt {
 	class disclosure_button;
 	class local_draft_publication_area;
+	class local_draft_workflow_area;
 	class suggestion_editor;
 
 	/// \brief The gestures a local draft's additions send to their host.
@@ -192,6 +193,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto create_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto branch_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto publication() const noexcept -> local_draft_publication_area*;
+		/// \brief RFC-BPR-0112. The optional workflow, above the publish steps.
+		[[nodiscard]] auto workflow() const noexcept -> local_draft_workflow_area*;
 
 		/// \brief Called after any presentation, so the window lays its slots out again.
 		std::function<void()> Changed;
@@ -248,6 +251,7 @@ namespace bpr::qt {
 		QPushButton*                                                          Save              = nullptr;
 		suggestion_editor*                                                    Editor            = nullptr;
 		local_draft_publication_area*                                         PublicationArea   = nullptr;
+		local_draft_workflow_area*                                            WorkflowArea      = nullptr;
 		local_draft_page_links                                                Links;
 		std::function<void(const std::string&, std::uint32_t, std::uint32_t)> RevealInComparison;
 

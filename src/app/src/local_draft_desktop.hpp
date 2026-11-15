@@ -113,6 +113,8 @@ namespace bpr::app {
 		/// every review submission (X22).
 		using publication_account = std::function<std::optional<application::github_publication_account>()>;
 		void set_publishing(publication_account aAccount);
+		/// \brief RFC-BPR-0112. Reads the profile's workflows again, after Settings imported some.
+		void reload_workflows();
 		/// \brief Replaces the clipboard for the named push, for a course.
 		void set_copier(std::function<void(const std::string&)> aCopier);
 		/// \brief Shows a draft another interface opened (`bpr draft open`).
@@ -187,14 +189,18 @@ namespace bpr::app {
 		/// The view last presented, for the panel's proposals by index.
 		std::optional<core::local_tour_view> TourView;
 		void                                 ask_local(application::local_draft_question aQuestion);
-		qt::workbench_window&                Window;
+		/// RFC-BPR-0112. An agent action asks the agent it is bound to.
+		void                  ask_for_action(const std::string& aAction);
+		qt::workbench_window& Window;
 		/// RFC-BPR-0111. Create draft PR's own lane; outlives the host's work on it.
 		std::unique_ptr<worker_executor>        PublishLane;
 		std::function<void(const std::string&)> Copier;
 		/// The window owns the page; a window torn down first takes it with it.
 		QPointer<qt::local_draft_parts>                     View;
 		std::unique_ptr<application::workspace_source_port> Source;
-		std::unique_ptr<application::local_draft_workbench> Host;
+		/// RFC-BPR-0112. Workflow request and answer files; outlives the host's use of it.
+		std::unique_ptr<application::workflow_exchange_port> Exchange;
+		std::unique_ptr<application::local_draft_workbench>  Host;
 		/// Author state: the author's own Git, the one file Save writes, and
 		/// the one-time question's answers (`author-git-consent.txt`).
 		std::unique_ptr<application::author_git_port>    AuthorGit;

@@ -322,6 +322,8 @@ namespace bpr::core {
 		configuration_apply_refusal        Refusal = configuration_apply_refusal::unusable_item;
 		std::size_t                        Item    = 0U;
 		std::optional<agent_entry_refusal> Entry;
+		/// [[BPR-2032]]. A workflow choice the profile's workflows refuse.
+		std::optional<workflow_apply_error> Workflow;
 
 		auto operator<=>(const configuration_apply_error&) const = default;
 	};

@@ -48,6 +48,8 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto agents() const -> std::vector<std::uint32_t>;
 		[[nodiscard]] auto prompts() const -> std::vector<application::exported_prompt>;
+		/// \brief [[BPR-2032]]. The workflows chosen, by ID; their agents travel with them.
+		[[nodiscard]] auto workflows() const -> std::vector<std::string>;
 		/// \brief The exact bytes the current choice writes; empty when over the bound.
 		[[nodiscard]] auto bytes() const -> const std::string& { return Bytes; }
 		[[nodiscard]] auto chosen_path() const -> const QString& { return Path; }
@@ -102,11 +104,19 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto agent_choices() const -> std::vector<core::agent_import_choice>;
 		[[nodiscard]] auto prompt_choices() const -> std::vector<std::size_t>;
+		/// \brief [[BPR-2032]]. The workflows chosen, with the programs bound
+		/// here; agents are bound by the agent choices.
+		[[nodiscard]] auto workflow_choices() const -> std::vector<core::workflow_import_choice>;
 		[[nodiscard]] auto preview() const -> const application::agent_configuration_preview& { return Preview; }
 
 		/// \brief Shows one file item: an agent's index, or a prompt's.
 		void               select_agent(std::size_t aItem);
 		void               select_prompt(std::size_t aItem);
+		void               select_workflow(std::size_t aItem);
+		[[nodiscard]] auto workflow_action() const noexcept -> QComboBox* { return WorkflowAction; }
+		[[nodiscard]] auto workflow_actions() const noexcept -> QTreeWidget* { return WorkflowActions; }
+		[[nodiscard]] auto workflow_program_button() const noexcept -> QPushButton* { return WorkflowProgram; }
+		[[nodiscard]] auto workflow_changes() const noexcept -> QLabel* { return WorkflowChanges; }
 		[[nodiscard]] auto items() const noexcept -> QTreeWidget* { return Items; }
 		[[nodiscard]] auto action() const noexcept -> QComboBox* { return Action; }
 		[[nodiscard]] auto program_button() const noexcept -> QPushButton* { return ProgramButton; }
@@ -137,6 +147,8 @@ namespace bpr::qt {
 		void                                     show_item(QTreeWidgetItem* aItem);
 		void                                     show_agent(std::size_t aItem);
 		void                                     show_prompt(std::size_t aItem);
+		void                                     show_workflow(std::size_t aItem);
+		[[nodiscard]] auto                       workflow_exists(std::size_t aItem) const -> bool;
 		void                                     refresh_rows();
 		[[nodiscard]] auto                       needs_program(std::size_t aItem) const -> bool;
 		[[nodiscard]] auto                       bound(std::size_t aItem) const -> bool;
@@ -145,31 +157,45 @@ namespace bpr::qt {
 		facts                                    Facts;
 		std::vector<agent_state>                 Agents;
 		std::vector<bool>                        Prompts;
-		std::vector<action_option>               Options;
-		std::optional<std::size_t>               ShownAgent;
-		std::optional<std::size_t>               ShownPrompt;
-		bool                                     Showing = false;
-		std::function<QString(const QString&)>   Chooser;
-		QTreeWidget*                             Items         = nullptr;
-		QStackedWidget*                          Detail        = nullptr;
-		QLabel*                                  Title         = nullptr;
-		QLabel*                                  Kind          = nullptr;
-		QComboBox*                               Action        = nullptr;
-		QLabel*                                  ProgramLine   = nullptr;
-		QPushButton*                             ProgramButton = nullptr;
-		QCheckBox*                               Relaxed       = nullptr;
-		QCheckBox*                               Builds        = nullptr;
-		QLabel*                                  Changes       = nullptr;
-		QLabel*                                  PromptTitle   = nullptr;
-		QCheckBox*                               UsePrompt     = nullptr;
-		QLabel*                                  PromptNote    = nullptr;
-		QPlainTextEdit*                          Yours         = nullptr;
-		QPlainTextEdit*                          Theirs        = nullptr;
-		QLabel*                                  ProblemTitle  = nullptr;
-		QLabel*                                  ProblemText   = nullptr;
-		QLabel*                                  Summary       = nullptr;
-		QLabel*                                  Problem       = nullptr;
-		QPushButton*                             ApplyButton   = nullptr;
+		/// [[BPR-2032]]. Each file workflow's choice and the programs bound for it.
+		struct workflow_state
+		{
+			core::workflow_import_action        Action = core::workflow_import_action::leave;
+			std::vector<core::workflow_program> Programs;
+		};
+		std::vector<workflow_state>            Workflows;
+		std::optional<std::size_t>             ShownWorkflow;
+		QLabel*                                WorkflowTitle   = nullptr;
+		QLabel*                                WorkflowOrigin  = nullptr;
+		QComboBox*                             WorkflowAction  = nullptr;
+		QTreeWidget*                           WorkflowActions = nullptr;
+		QPushButton*                           WorkflowProgram = nullptr;
+		QLabel*                                WorkflowChanges = nullptr;
+		std::vector<action_option>             Options;
+		std::optional<std::size_t>             ShownAgent;
+		std::optional<std::size_t>             ShownPrompt;
+		bool                                   Showing = false;
+		std::function<QString(const QString&)> Chooser;
+		QTreeWidget*                           Items         = nullptr;
+		QStackedWidget*                        Detail        = nullptr;
+		QLabel*                                Title         = nullptr;
+		QLabel*                                Kind          = nullptr;
+		QComboBox*                             Action        = nullptr;
+		QLabel*                                ProgramLine   = nullptr;
+		QPushButton*                           ProgramButton = nullptr;
+		QCheckBox*                             Relaxed       = nullptr;
+		QCheckBox*                             Builds        = nullptr;
+		QLabel*                                Changes       = nullptr;
+		QLabel*                                PromptTitle   = nullptr;
+		QCheckBox*                             UsePrompt     = nullptr;
+		QLabel*                                PromptNote    = nullptr;
+		QPlainTextEdit*                        Yours         = nullptr;
+		QPlainTextEdit*                        Theirs        = nullptr;
+		QLabel*                                ProblemTitle  = nullptr;
+		QLabel*                                ProblemText   = nullptr;
+		QLabel*                                Summary       = nullptr;
+		QLabel*                                Problem       = nullptr;
+		QPushButton*                           ApplyButton   = nullptr;
 	};
 } // namespace bpr::qt
 

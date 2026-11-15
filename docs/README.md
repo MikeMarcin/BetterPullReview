@@ -12,6 +12,7 @@ start. This index lists the rest of the documentation, grouped by who it is for.
 | [Review Cycles workflow](ux/review-cycles-workflow.md) | Reviewing a local folder, file or checkout across rounds |
 | [Review Cycles CLI](development/cycle-cli.md) | Working with local review rounds through `bpr cycle` |
 | [Local PR drafts CLI](development/draft-cli.md) | Handing a worktree to a local PR draft with `bpr draft open` |
+| [Optional workflows and companion skills](development/workflow-companion.md) | Sharing an author workflow and the companion request and answer files (RFC-BPR-0112) |
 | [Review Tours](development/review-tours.md) | Writing, previewing and publishing a guided review |
 | [Insights](ux/insights.md) | Local storage, GitHub rate-limit use, review activity, energy and performance figures |
 | [Source-line comments](development/source-line-comments.md) | Commenting on changed and unchanged lines of a pull request's text files |

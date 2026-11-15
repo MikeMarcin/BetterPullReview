@@ -281,6 +281,49 @@ namespace bpr::application {
 		return step;
 	}
 
+	auto reconcile_external_local_publication(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, const std::string& aAction,
+											  const std::int64_t aNow, std::stop_token aStop) -> local_publication_step
+	{
+		auto step = local_publication_step{ .Draft = aDraft, .Branch = core::hosted_branch_state::matches };
+		if (!aAccount.Provider || !aDraft.Publication || aAccount.Account != aDraft.Publication->Plan.Destination.Account) {
+			step.Refusal = core::local_publication_refusal::authority_changed;
+			return step;
+		}
+		auto found = open_pulls(*aAccount.Provider, target_of(aDraft, aAccount), aDraft, aStop);
+		if (!found) {
+			// Unread stays unresolved: nothing is recorded.
+			step.Provider = found.error();
+			return step;
+		}
+		auto ours = std::optional<core::local_publication_link>{ };
+		if (const auto match = std::ranges::find_if(*found, [&aDraft](const core::local_publication_link& aLink) { return core::local_pull_request_matches(aDraft.Publication->Plan, aLink); });
+			match != found->end()) {
+			ours = *match;
+		}
+		auto current = aDraft;
+		for (auto attempt = 0; attempt < 4; ++attempt) {
+			auto next = core::reconcile_external_publication(current, current.Version, aAction, ours, aNow);
+			if (!next) {
+				step.Workflow = next.error();
+				step.Draft    = std::move(current);
+				return step;
+			}
+			auto written = aStore.put(*next, current.Version, { });
+			if (written) {
+				step.Draft = std::move(*next);
+				step.Store.reset();
+				return step;
+			}
+			step.Store  = written.error();
+			auto reread = aStore.find(current.Id);
+			if (written.error().Failure != local_draft_store_failure::stale || !reread) {
+				return step;
+			}
+			current = std::move(*reread);
+		}
+		return step;
+	}
+
 	auto associate_local_pull_request(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, const std::uint64_t aNumber,
 									  const std::int64_t aNow, std::stop_token aStop) -> local_publication_step
 	{

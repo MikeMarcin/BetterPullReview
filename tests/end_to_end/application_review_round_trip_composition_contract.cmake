@@ -3156,6 +3156,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/local_draft_handoff.hpp"
         "src/local_draft_search.cpp"
         "src/local_draft_search.hpp"
+        "src/local_draft_workflow_exchange.cpp"
+        "src/local_draft_workflow_exchange.hpp"
         "src/pane_find_controller.cpp"
         "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
@@ -3778,8 +3780,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# path changed; the mutation-branch pin is unchanged.
 	# Merge of main into the v0.5.0 lane (bdd492c64): main's src/app changes
 	# joined the lane's. No review mutation or publication path changed here.
+	# RFC-BPR-0112 ([[BPR-2032]] to [[BPR-2034]]): local_draft_workflow_exchange
+	# (the companion's request and answer files; it starts nothing), the
+	# draft desktop's Workflow area, Settings' workflow import and export, and
+	# the attended workflow look. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "84a0b8bc9808ec42ee923b8df8c541e1f76992f5d374d95d8260f8cd8ad0cd02"
+        "5391825b8c5ddebe7f1af9c6f408849a552bf16c226b74cc3eb5efab95f5e030"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

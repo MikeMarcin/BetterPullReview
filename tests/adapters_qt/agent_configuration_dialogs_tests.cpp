@@ -21,6 +21,7 @@
 #include <QPushButton>
 #include <QStyleHints>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 
 #include <cstdlib>
 #include <iostream>
@@ -206,6 +207,68 @@ namespace {
 		render(dialog, aRoot, QStringLiteral("import-prompt"));
 		expect(dialog.apply_button()->isEnabled(), "Import selected is offered");
 	}
+	/// [[BPR-2032]], RFC-BPR-0112. A workflow exported with the agent it
+	/// asks, previewed with its origin, actions and declared effects, its
+	/// program bound here, and an update compared before it is taken.
+	void test_workflow(const std::string& aRoot)
+	{
+		auto snapshot      = sender();
+		auto workflow      = core::local_workflow{ };
+		workflow.Workflow  = { .PortableId = "synthetic-org",
+							   .Name       = "Synthetic Org pull request",
+							   .Origin     = "Synthetic Org",
+							   .Guidance   = "Say why.",
+							   .Actions    = { { .Id = "describe", .Slot = core::workflow_slot::propose_description, .Task = "Draft the description", .Binding = core::workflow_binding::agent, .Agent = "x", .Prompt = "Draft it.", .Effects = { core::workflow_effect::read_context, core::workflow_effect::write_proposal } },
+											   { .Id = "template", .Slot = core::workflow_slot::check_preparation, .Task = "Check the template", .Binding = core::workflow_binding::command, .ProgramName = "org-companion", .Arguments = { "{request}", "{response}" }, .Effects = { core::workflow_effect::run_check }, .Required = true } } };
+		workflow.Programs  = { { .Action = "template", .Program = "/opt/org/org-companion" } };
+		workflow.Agents    = { { .Action = "describe", .AgentName = "Work Claude" } };
+		snapshot.Workflows = { workflow };
+		auto  exporter     = qt::agent_configuration_export_dialog{ snapshot, { }, "BetterPullReview test" };
+		auto* workflowRow  = static_cast<QTreeWidgetItem*>(nullptr);
+		for (QTreeWidgetItemIterator it{ exporter.items() }; *it != nullptr; ++it) {
+			if ((*it)->text(0) == QStringLiteral("Synthetic Org pull request")) {
+				workflowRow = *it;
+			}
+			if ((*it)->text(0) == QStringLiteral("Work Claude") || (*it)->text(0) == QStringLiteral("Lint bot")) {
+				(*it)->setCheckState(0, Qt::Unchecked);
+			}
+		}
+		expect(workflowRow != nullptr && workflowRow->checkState(0) == Qt::Unchecked, "a workflow is offered for export, unchosen");
+		workflowRow->setCheckState(0, Qt::Checked);
+		const auto bytes = exporter.bytes();
+		expect(bytes.find("\"version\": 2") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
+			   "the workflow travels with the agent it asks, without its program path");
+		render(exporter, aRoot, QStringLiteral("export-workflow"));
+
+		auto mine     = application::agent_configuration_snapshot{ };
+		auto preview  = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
+		preview.File  = core::decode_agent_configuration(bytes, preview.Prompts, application::prompt_aliases()).value();
+		auto importer = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { } } };
+		importer.set_program_chooser([](const QString& aHint) { return aHint == QStringLiteral("org-companion") ? QStringLiteral("/usr/local/bin/org-companion") : QString{ }; });
+		importer.select_workflow(0U);
+		expect(importer.workflow_action()->currentText() == QStringLiteral("Add"), "a new workflow starts added");
+		const auto* actions = importer.workflow_actions();
+		expect(actions->topLevelItemCount() == 2 && actions->topLevelItem(1)->text(0).contains(QStringLiteral("(required)"))
+				   && actions->topLevelItem(1)->text(2) == QStringLiteral("runs checks in your workspace"),
+			   "each action, who acts and what it says it does");
+		importer.workflow_actions()->setCurrentItem(importer.workflow_actions()->topLevelItem(1));
+		importer.workflow_program_button()->click();
+		const auto choices = importer.workflow_choices();
+		expect(choices.size() == 1U && choices[0].Programs.size() == 1U && choices[0].Programs[0].Program == "/usr/local/bin/org-companion", "the program is bound on this computer");
+		expect(importer.summary()->text().contains(QStringLiteral("runs nothing until you start its actions")), "importing runs nothing, and says so");
+		render(importer, aRoot, QStringLiteral("import-workflow"));
+
+		// The same workflow again, with a widened action: compared, and left until chosen.
+		mine.Workflows      = { workflow };
+		auto updatedPreview = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
+		auto widened        = preview.File;
+		widened.Workflows[0].Workflow.Actions[1].Effects.push_back(core::workflow_effect::change_ticket);
+		updatedPreview.File = widened;
+		auto updater        = qt::agent_configuration_import_dialog{ updatedPreview, { .Skills = { }, .Found = { } } };
+		updater.select_workflow(0U);
+		expect(updater.workflow_action()->currentText() == QStringLiteral("Leave out") && updater.workflow_choices().empty(), "an update is taken only when chosen");
+		expect(updater.workflow_changes()->text().contains(QStringLiteral("The action template now says it does more.")), "a widened effect is named");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -215,6 +278,7 @@ auto main(int argc, char** argv) -> int
 	test_share_row(root);
 	const auto bytes = test_export(root);
 	test_import(bytes, root);
+	test_workflow(root);
 	std::cout << "agent-configuration-dialogs:pass\n";
 	return EXIT_SUCCESS;
 }

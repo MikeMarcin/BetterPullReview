@@ -85,12 +85,24 @@ namespace bpr::application {
 	}
 
 	auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, const std::span<const std::uint32_t> aAgents, const std::span<const exported_prompt> aPrompts,
-									std::string aLabel, std::string aExportedBy) -> std::optional<std::string>
+									std::string aLabel, std::string aExportedBy, const std::span<const std::string> aWorkflows) -> std::optional<std::string>
 	{
+		// [[BPR-2032]]. A chosen workflow's agents travel with it.
+		auto workflows = std::vector<const core::local_workflow*>{ };
+		auto needed    = std::set<std::string>{ };
+		for (const auto& workflow : aSnapshot.Workflows) {
+			if (!std::ranges::contains(aWorkflows, workflow.Workflow.PortableId)) {
+				continue;
+			}
+			workflows.push_back(&workflow);
+			for (const auto& binding : workflow.Agents) {
+				needed.insert(binding.AgentName);
+			}
+		}
 		auto chosen = std::vector<const core::agent_entry*>{ };
 		auto names  = std::vector<std::string>{ };
 		for (const auto& entry : aSnapshot.Agents.Agents) {
-			if (std::ranges::contains(aAgents, entry.Id)) {
+			if (std::ranges::contains(aAgents, entry.Id) || needed.contains(entry.Name)) {
 				chosen.push_back(&entry);
 				names.push_back(entry.Name);
 			}
@@ -107,7 +119,56 @@ namespace bpr::application {
 				configuration.Prompts.push_back(core::portable_prompt_of(prompt, pick->BuiltIn));
 			}
 		}
+		for (const auto* const workflow : workflows) {
+			auto shared = workflow->Workflow;
+			for (auto& action : shared.Actions) {
+				if (action.Binding != core::workflow_binding::agent) {
+					continue;
+				}
+				const auto* const binding = core::bound_agent(*workflow, action.Id);
+				const auto        named   = binding == nullptr ? names.end() : std::ranges::find(names, binding->AgentName);
+				if (named == names.end()) {
+					return std::nullopt;
+				}
+				action.Agent = ids[static_cast<std::size_t>(named - names.begin())];
+			}
+			configuration.Workflows.push_back(std::move(shared));
+		}
 		return core::encode_agent_configuration(configuration);
+	}
+
+	auto default_workflow_agents(const agent_configuration_preview& aPreview, const std::span<const core::agent_import_choice> aAgents, const std::size_t aItem)
+		-> std::vector<core::workflow_agent_binding>
+	{
+		auto bindings = std::vector<core::workflow_agent_binding>{ };
+		if (aItem >= aPreview.File.Workflows.size()) {
+			return bindings;
+		}
+		const auto& entries = aPreview.Snapshot.Agents.Agents;
+		for (const auto& action : aPreview.File.Workflows[aItem].Workflow.Actions) {
+			if (action.Binding != core::workflow_binding::agent) {
+				continue;
+			}
+			const auto item = std::ranges::find_if(aPreview.File.Agents, [&action](const core::decoded_agent& aAgent) { return aAgent.Agent.PortableId == action.Agent; });
+			if (item == aPreview.File.Agents.end()) {
+				continue;
+			}
+			const auto index  = static_cast<std::size_t>(item - aPreview.File.Agents.begin());
+			const auto choice = std::ranges::find(aAgents, index, &core::agent_import_choice::Item);
+			auto       name   = std::string{ };
+			if (choice != aAgents.end() && choice->Action == core::agent_import_action::add) {
+				name = choice->Name.empty() ? item->Agent.Name : choice->Name;
+			} else if (choice != aAgents.end() && choice->Action != core::agent_import_action::leave) {
+				const auto target = std::ranges::find(entries, choice->Target, &core::agent_entry::Id);
+				name              = target == entries.end() ? std::string{ } : target->Name;
+			} else if (const auto* const existing = core::colliding_agent(entries, item->Agent); existing != nullptr) {
+				name = existing->Name;
+			}
+			if (!name.empty()) {
+				bindings.push_back({ .Action = action.Id, .AgentName = std::move(name) });
+			}
+		}
+		return bindings;
 	}
 
 	auto snapshot_after_import(const agent_configuration_snapshot& aBefore, const core::agent_configuration_result& aResult, const std::span<const std::uint32_t> aReplaced,
@@ -260,7 +321,7 @@ namespace bpr::application {
 	}
 
 	void agent_configuration_host::apply(const agent_configuration_preview& aPreview, std::vector<core::agent_import_choice> aAgents, std::vector<std::size_t> aPrompts,
-										 std::function<void(applied)> aAnswered)
+										 std::function<void(applied)> aAnswered, std::vector<core::workflow_import_choice> aWorkflows)
 	{
 		auto result = core::apply_agent_configuration(aPreview.Snapshot.Agents.Agents, aPreview.Prompts, aPreview.File, aAgents, aPrompts);
 		if (!result) {
@@ -269,7 +330,21 @@ namespace bpr::application {
 			}
 			return;
 		}
-		auto        after = snapshot_after_import(aPreview.Snapshot, *result, result->Replaced, Implementation->Dependencies.MintIdentity);
+		// [[BPR-2032]]. Workflows apply with the same choice, all or none.
+		for (auto& choice : aWorkflows) {
+			if (choice.Agents.empty()) {
+				choice.Agents = default_workflow_agents(aPreview, aAgents, choice.Item);
+			}
+		}
+		auto workflows = core::apply_workflow_choices(aPreview.Snapshot.Workflows, aPreview.File.Workflows, aWorkflows);
+		if (!workflows) {
+			if (aAnswered) {
+				aAnswered(std::unexpected(core::configuration_apply_error{ .Refusal = core::configuration_apply_refusal::unusable_item, .Item = workflows.error().Item, .Workflow = workflows.error() }));
+			}
+			return;
+		}
+		auto after        = snapshot_after_import(aPreview.Snapshot, *result, result->Replaced, Implementation->Dependencies.MintIdentity);
+		after.Workflows   = std::move(*workflows);
 		auto* const store = Implementation->Dependencies.Store;
 		Implementation->off_lane(
 			[store, before = aPreview.Snapshot, after]() { return store == nullptr ? agent_configuration_outcome::storage_failed : store->apply(before, after); },

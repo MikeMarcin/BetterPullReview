@@ -11,8 +11,10 @@
 #include "bpr/core/git_objects.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/local_draft_workflow_area.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_search.hpp"
+#include "local_draft_workflow_exchange.hpp"
 #include "pr_search_controller.hpp"
 #include "syntax_text_sources.hpp"
 
@@ -161,6 +163,31 @@ namespace bpr::app {
 					}
 				},
 			.Consent = [this](const bool aAllow) { Changes->answer_consent(aAllow); },
+		});
+		// RFC-BPR-0112 ([[BPR-2032]] to [[BPR-2034]]). Optional workflows: the
+		// profile's, read on the effect lane, and the exchange files under it.
+		Exchange = std::make_unique<local_draft_workflow_exchange>(aProfileRoot);
+		Host->set_workflows([root = aProfileRoot] { return read_workflow_profile(root); }, Exchange.get());
+		View->workflow()->set_dispatch({
+			.Select            = [this](std::optional<std::string> aId) { Host->select_workflow(std::move(aId)); },
+			.AcceptUpdate      = [this] { Host->accept_workflow_update(); },
+			.Publisher         = [this](const core::workflow_publisher aPublisher) { Host->choose_publisher(aPublisher); },
+			.HandOff           = [this](const std::string& aAction, const std::string& aAnswer) { Host->hand_off(aAction, aAnswer); },
+			.Ask               = [this](const std::string& aAction) { ask_for_action(aAction); },
+			.ReadAnswer        = [this](const std::string& aAction) { Host->read_answer(aAction); },
+			.Lost              = [this](const std::string& aAction) { Host->mark_lost(aAction); },
+			.Publish           = [this](const std::string& aAction, const std::string& aDigest) { Host->hand_off_publication(aAction, aDigest); },
+			.Reconcile         = [this](const std::string& aAction) { Host->reconcile_publication(aAction); },
+			.FollowUp          = [this](const std::string& aAction) { Host->hand_off_follow_up(aAction); },
+			.ReconcileFollowUp = [this](const std::string& aAction) { Host->reconcile_follow_up(aAction); },
+			.Copy =
+				[this](const std::string& aCommand) {
+					if (Copier) {
+						Copier(aCommand);
+					} else if (auto* const clipboard = QGuiApplication::clipboard()) {
+						clipboard->setText(QString::fromStdString(aCommand));
+					}
+				},
 		});
 		View->set_dispatch({
 			.OpenFile      = [this](const std::string& aPath) { Host->open_file(aPath); },
@@ -413,6 +440,28 @@ namespace bpr::app {
 		aQuestion.Version      = describing ? choice->DescriptionVersion : choice->DiscussionVersion;
 		aQuestion.Delivery     = choice->Delivery;
 		Host->ask(std::move(aQuestion));
+	}
+
+	void local_draft_desktop::ask_for_action(const std::string& aAction)
+	{
+		const auto& projection = Host->projection();
+		const auto  action     = std::ranges::find(projection.Workflow.Actions, aAction, [](const application::local_draft_workflow_action_view& aView) { return aView.Action.Id; });
+		const auto  choice     = AgentChooser ? AgentChooser() : std::nullopt;
+		// The action runs as the agent it is bound to: the window's choice must be that one.
+		if (action == projection.Workflow.Actions.end() || !choice || choice->Name != action->AgentName) {
+			if (auto* const editor = Window.tour_editor(); editor != nullptr && action != projection.Workflow.Actions.end()) {
+				editor->show_notice(QStringLiteral("This action runs as %1. Choose it in the status bar, then ask again.").arg(QString::fromStdString(action->AgentName)));
+			}
+			return;
+		}
+		Host->ask_for_action(aAction, { .Agent = choice->Identity, .AgentName = choice->Name, .Profile = choice->Profile, .Instructions = choice->Description, .Version = choice->DescriptionVersion, .Delivery = choice->Delivery });
+	}
+
+	void local_draft_desktop::reload_workflows()
+	{
+		if (Host) {
+			Host->reload_workflows();
+		}
 	}
 
 	void local_draft_desktop::tour_ask(const qt::tour_ask& aAsk)
@@ -783,6 +832,7 @@ namespace bpr::app {
 			Window.set_local_change_dispatch({ });
 			View->set_dispatch({ });
 			View->publication()->set_dispatch({ });
+			View->workflow()->set_dispatch({ });
 			View->local_changes()->set_dispatch({ });
 			Window.set_local_draft_entry_dispatch({ }, { });
 		}

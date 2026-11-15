@@ -2,6 +2,7 @@
 
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/local_draft_workflow_area.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 #include "conversation_glyphs.hpp"
 
@@ -305,8 +306,16 @@ namespace bpr::qt {
 		status->setFrameShape(QFrame::NoFrame);
 		status->setWidgetResizable(true);
 		status->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		PublicationArea = new local_draft_publication_area{ status };
-		status->setWidget(PublicationArea);
+		// RFC-BPR-0112: the draft's optional workflow above the publish steps.
+		auto* const statusColumn = new QWidget{ status };
+		auto* const statusLayout = new QVBoxLayout{ statusColumn };
+		statusLayout->setContentsMargins(0, 0, 0, 0);
+		WorkflowArea    = new local_draft_workflow_area{ statusColumn };
+		PublicationArea = new local_draft_publication_area{ statusColumn };
+		statusLayout->addWidget(WorkflowArea);
+		statusLayout->addWidget(PublicationArea);
+		statusLayout->addStretch(1);
+		status->setWidget(statusColumn);
 		status->hide();
 		StatusPage = status;
 
@@ -540,6 +549,7 @@ namespace bpr::qt {
 			WorkingDisclosure->setChecked(false);
 		}
 		PublicationArea->present(aProjection);
+		WorkflowArea->present(aProjection);
 		present_header();
 		present_recovery();
 		present_working();
@@ -986,6 +996,7 @@ namespace bpr::qt {
 	auto local_draft_parts::create_button() const noexcept -> QPushButton* { return Create; }
 	auto local_draft_parts::branch_button() const noexcept -> QToolButton* { return Branch; }
 	auto local_draft_parts::publication() const noexcept -> local_draft_publication_area* { return PublicationArea; }
+	auto local_draft_parts::workflow() const noexcept -> local_draft_workflow_area* { return WorkflowArea; }
 
 	auto local_draft_parts::candidate_actions() const -> QList<QAction*>
 	{

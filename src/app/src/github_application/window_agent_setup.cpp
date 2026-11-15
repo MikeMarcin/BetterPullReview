@@ -2641,6 +2641,10 @@ namespace bpr::app {
 				if (ReviewSkill) {
 					ReviewSkill->load();
 				}
+				// RFC-BPR-0112. A draft's Workflow list follows the profile's.
+				if (DraftDesktop) {
+					DraftDesktop->reload_workflows();
+				}
 				Window->agent_programs()->present_exchange((agents > 0U ? QObject::tr("Imported %1 and %2. Check a new agent before you ask it anything.") : QObject::tr("Imported %1 and %2."))
 															   .arg(configuration_count(agents, true), configuration_count(prompts, false)));
 				break;
@@ -2650,8 +2654,7 @@ namespace bpr::app {
 			case application::agent_configuration_outcome::storage_failed:
 				Window->agent_programs()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
 				break;
-			}
-		});
+			} }, aDialog.workflow_choices());
 	}
 #endif
 }

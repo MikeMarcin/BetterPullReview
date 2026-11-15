@@ -5472,6 +5472,22 @@ if(TARGET Git::Git)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-publication-desktop"
         PASS_REGULAR_EXPRESSION "local-draft-publication-desktop-public-path:pass"
         TIMEOUT 180)
+    # RFC-BPR-0112 ([[BPR-2032]], [[BPR-2033]], [[BPR-2034]]): the synthetic
+    # organization companion, run as the author's terminal would.
+    if(NOT WIN32)
+        bpr_add_executable(test_local_draft_workflow_desktop_public_path local_draft_workflow_desktop_public_path.cpp)
+        target_link_libraries(test_local_draft_workflow_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+        target_include_directories(test_local_draft_workflow_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+        target_compile_features(test_local_draft_workflow_desktop_public_path PRIVATE cxx_std_23)
+        bpr_enable_hardening(test_local_draft_workflow_desktop_public_path)
+        bpr_enable_warnings(test_local_draft_workflow_desktop_public_path)
+        bpr_add_network_isolated_test(NAME application_local_draft_workflow_desktop_public_path
+            COMMAND test_local_draft_workflow_desktop_public_path --git "$<TARGET_FILE:Git::Git>" --companion "${PROJECT_SOURCE_DIR}/tests/fixtures/workflow_companion")
+        set_tests_properties(application_local_draft_workflow_desktop_public_path PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-workflow-desktop"
+            PASS_REGULAR_EXPRESSION "local-draft-workflow-desktop-public-path:pass"
+            TIMEOUT 180)
+    endif()
 endif()
 # RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]]). The Ask menus, on
 # returning-review-v1 at its next push, with the scoped writing stub as the
