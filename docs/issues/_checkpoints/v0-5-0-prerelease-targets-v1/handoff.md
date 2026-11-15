@@ -3418,3 +3418,44 @@ nothing new, so it has no question.
 
 Next: on the handback read from cursor 3; on Accept, finish BPR-2151 (AC02 to
 AC04) and mirror to main; remove the root and stop the host.
+
+## BPR-2151 Done; BPR-2181 slice 1 and AC09 landed; next: the profile-level agent runtime (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `bc101ae23`, main `dbdeaf1e9` | BPR-2151 finished (owner Accept of `BPR-2151-queue-across-windows`, decision at sequence 5) |
+| main `18b9ba764`, `831bd2f5d`, `a6c27bc99` | BPR-2181 allocated; every review finding a criterion; slice order |
+| `c65c59df0` | Slice 1: session queue host drains through `application::agent_session_runner` and settles on `agent_invocation_host::set_retired_observer`; Steer on the host; Git cache keeps workspace owners across cache sessions (`application_agent_queue_second_window_loading_public_path`) |
+| `6c48283d0` | AC09 follows Q10: core `return_unsent`; a close returns the stopped message first, queued, no pause |
+
+Verification: `core_agent_queue`, `application_agent_queue_host` (zero
+windows), `application_agent_queue_windows_public_path` (3 of 3),
+`application_agent_queue_second_window_loading_public_path`,
+`application_ask_queue_public_path`, `application_tour_feedback_queue_public_path`,
+`agent_workspace_ownership`.
+
+Stable for the steering implementer: `agent_turn_runner_port::steer(session,
+entry) -> std::optional<std::string>` and `agent_queue_host::steer(session, id,
+seen) -> agent_queue_steer_result`.
+
+Next, slice 2 (the profile-level agent runtime, AC01 rest), not started. What
+it has to move out of the window: the agent invocation host's construction
+(`window_construction.cpp` around 880 to 960: process launcher, wrappers,
+profiles, policies, workspace neighbourhood, session catalog port, the
+window's `EpochHost` as workspace port, `AgentProjections`), the request
+building and dispatch (`window_agent_chat.cpp` 381 to 870:
+`dispatch_agent_invocation`, `launch_agent_invocation`, which read the
+window's accepted snapshot, selection, private review and MCP helper), and the
+conversation recording (`agent_conversation_host`, per window today, store
+shared). Shape: a profile-owned review agent runtime per pull-request
+authority, kept alive while its session's queue holds work or a turn runs
+even after its last window closes, holding its own epoch handoff for that
+review; windows subscribe to its turn projections and the queue host's
+deltas. Sub-slices: (a) runtime registry and lifetime with the existing
+window-composed host moved behind it; (b) request building from a review
+snapshot the runtime owns; (c) transcript recording for unshown sessions;
+(d) the Agent tab sends through the host, not as the transport.
+
+Workspace note: other writers' uncommitted files share this checkout (their
+`NEXT_ID` currently fails the documentation gate as a rewind); stage only
+your own, and window_composition.hpp holds their BPR-2184 hunks.
