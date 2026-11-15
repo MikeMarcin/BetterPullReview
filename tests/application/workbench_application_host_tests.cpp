@@ -1526,6 +1526,45 @@ namespace {
 		expect(harnessed.Settings->Stores == 0U, "restoring never writes back");
 	}
 
+	/// \brief [[BPR-2180]]. The owner, 2026-11-15: "I don't know why the
+	/// respositories drawer suddenly pops open after its done loading." A
+	/// window that opened on Overview and entered Review while its pull
+	/// request loaded has its drawers arranged by the reviewer; the layout
+	/// restored once the workbench activates opens none of them over it.
+	void test_a_late_restore_opens_no_drawer_over_review_entered_while_loading()
+	{
+		auto harnessed             = harness{ };
+		harnessed.Settings->Stored = { .Repositories = core::workbench_drawer_state::expanded };
+		harnessed.Host.restore();
+		harnessed.settle();
+		harnessed.Host.apply(core::set_workbench_modality_intent{ .Modality = core::workbench_modality::overview, .Entry = core::workbench_modality_entry::enter });
+		harnessed.Host.apply(core::set_workbench_modality_intent{ .Modality = core::workbench_modality::review, .Entry = core::workbench_modality_entry::choose });
+		harnessed.settle();
+		harnessed.Observations.Files = { file(1U) };
+		harnessed.Host.observe(authority());
+		harnessed.settle();
+		harnessed.Host.apply(core::set_workbench_modality_intent{ .Modality = core::workbench_modality::review, .Entry = core::workbench_modality_entry::enter });
+		harnessed.settle();
+		expect(harnessed.Host.state().Modality == core::workbench_modality::review
+				   && harnessed.Host.state().RepositoriesDrawer == core::workbench_drawer_state::collapsed,
+			   "the repositories drawer stays as Review arranged it when the review arrives");
+		expect(harnessed.Host.state().FilesDrawer == core::workbench_drawer_state::expanded, "and Review's own preset stands");
+	}
+
+	/// \brief [[BPR-2180]]. A layout restored on a window that is not yet in
+	/// Review still applies: the saved layout at launch decides the drawers.
+	void test_a_late_restore_still_applies_before_review_is_entered()
+	{
+		auto harnessed             = harness{ };
+		harnessed.Settings->Stored = { .Files = core::workbench_drawer_state::collapsed };
+		harnessed.Host.restore();
+		harnessed.settle();
+		harnessed.Observations.Files = { file(1U) };
+		harnessed.Host.observe(authority());
+		harnessed.settle();
+		expect(harnessed.Host.state().FilesDrawer == core::workbench_drawer_state::collapsed, "the saved layout decides the drawers at launch");
+	}
+
 	void test_layout_survives_a_restart()
 	{
 		auto durable = fake_settings{ };
@@ -2493,6 +2532,115 @@ namespace {
 		}
 	}
 
+	// [[BPR-2191]]. A file asked for from a first read's reported files waits
+	// in the host for the review that reported it, and only that review opens it.
+	[[nodiscard]] auto review(const std::uint32_t aNumber = 17U, std::string aOwner = "octo-org") -> application::workbench_review_key
+	{
+		return { .Host = core::git_host_id{ 30U }, .Account = core::github_account_id{ 40U }, .Repository = { .Owner = std::move(aOwner), .Name = "review-repository" }, .Number = core::pull_request_number{ aNumber } };
+	}
+
+	[[nodiscard]] auto last_pending_open(const recording_projections& aProjections) -> std::optional<application::workbench_pending_open_projection>
+	{
+		for (auto published = aProjections.Published.rbegin(); published != aProjections.Published.rend(); ++published) {
+			if (published->PendingOpen) {
+				return published->PendingOpen;
+			}
+		}
+		return std::nullopt;
+	}
+
+	void test_a_pending_open_opens_once_its_reviews_rows_are_accepted()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U) };
+		// GitHub's answer may spell the repository differently from the read.
+		value.Host.open_when_listed({ .Review = review(17U, "Octo-Org"), .Path = "file-2.cpp" });
+		expect(last_pending_open(value.Projections) == application::workbench_pending_open_projection{ .Path = "file-2.cpp" },
+			   "the host publishes the file it waits for");
+		expect(!value.Host.selected().has_value() && value.SelectedProjections.Begun.empty(), "nothing is selected or compared before the review is accepted");
+
+		value.Host.observe(authority(), review());
+		expect(last_pending_open(value.Projections)->Path == std::optional<std::string>{ "file-2.cpp" } && !value.Host.selected().has_value(),
+			   "accepting the review keeps the open waiting for that review's own rows");
+		value.settle();
+		expect(value.Host.selected() == file(2U), "the review's own rows open the file as the reviewer's selection");
+		expect(value.SelectedDiffs.Requests.size() == 1U && value.SelectedDiffs.Requests.front().File.File == file(2U)
+				   && value.SelectedProjections.Published.size() == 1U && value.SelectedProjections.Published.front().Key.File == file(2U),
+			   "and its comparison is asked for and published");
+		expect(last_pending_open(value.Projections) == application::workbench_pending_open_projection{ .Path = std::nullopt, .Opened = true },
+			   "the host publishes that the open ended by opening its file");
+
+		// A review that does not list the file cancels the open.
+		auto missing               = selected_harness{ };
+		missing.Observations.Files = { file(1U) };
+		missing.Host.open_when_listed({ .Review = review(), .Path = "file-9.cpp" });
+		missing.Host.observe(authority(), review());
+		missing.settle();
+		expect(!missing.Host.selected().has_value() && missing.SelectedDiffs.Requests.empty()
+				   && last_pending_open(missing.Projections) == application::workbench_pending_open_projection{ },
+			   "a file the review does not list is cancelled, not opened");
+	}
+
+	void test_a_newer_review_cancels_a_pending_open()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U) };
+		value.Host.open_when_listed({ .Review = review(17U), .Path = "file-2.cpp" });
+		value.Host.observe(authority(18U), review(18U));
+		expect(last_pending_open(value.Projections) == application::workbench_pending_open_projection{ }, "another review accepted cancels the open at once");
+		value.settle();
+		expect(!value.Host.selected().has_value() && value.SelectedDiffs.Requests.empty(),
+			   "and that review's rows open nothing, though they list the same path");
+
+		// A review still shown while the asked one loads is not it either.
+		auto shown               = selected_harness{ };
+		shown.Observations.Files = { file(1U), file(2U) };
+		shown.Host.observe(authority(18U), review(18U));
+		shown.settle();
+		shown.Host.open_when_listed({ .Review = review(17U), .Path = "file-2.cpp" });
+		shown.settle();
+		expect(!shown.Host.selected().has_value() && last_pending_open(shown.Projections)->Path == std::optional<std::string>{ "file-2.cpp" },
+			   "the rows of the review shown before do not open a file asked for from another");
+
+		// An observation with no review named cancels it as well.
+		auto unnamed               = selected_harness{ };
+		unnamed.Observations.Files = { file(1U), file(2U) };
+		unnamed.Host.open_when_listed({ .Review = review(), .Path = "file-2.cpp" });
+		unnamed.Host.observe(authority());
+		unnamed.settle();
+		expect(!unnamed.Host.selected().has_value() && last_pending_open(unnamed.Projections) == application::workbench_pending_open_projection{ },
+			   "an accepted review the host cannot tie to the read cancels the open");
+
+		// The read ends with no review.
+		auto ended = selected_harness{ };
+		ended.Host.open_when_listed({ .Review = review(), .Path = "file-2.cpp" });
+		ended.Host.cancel_pending_open();
+		expect(last_pending_open(ended.Projections) == application::workbench_pending_open_projection{ }, "a read that opened no review cancels the open");
+	}
+
+	void test_a_new_selection_cancels_a_pending_open()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U) };
+		value.Host.open_when_listed({ .Review = review(), .Path = "file-2.cpp" });
+		value.Host.observe(authority(), review());
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		expect(last_pending_open(value.Projections) == application::workbench_pending_open_projection{ }, "another file chosen cancels the open");
+		value.settle();
+		expect(value.Host.selected() != std::optional{ file(2U) } && std::ranges::none_of(value.SelectedDiffs.Requests, [](const application::workbench_selected_diff_request& aRequest) {
+				   return aRequest.File.File == file(2U);
+			   }),
+			   "the review's rows then open nothing the reviewer has moved away from");
+
+		// With the review's rows already accepted, a file asked for opens at once;
+		// a later choice is the reviewer's.
+		value.Host.open_when_listed({ .Review = review(), .Path = "file-2.cpp" });
+		value.settle();
+		expect(value.Host.selected() == file(2U), "a file asked for once its review's rows are accepted opens at once");
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.settle();
+		expect(value.Host.selected() == file(1U), "and a later selection stands");
+	}
 } // namespace
 
 auto main() -> int
@@ -2533,6 +2681,8 @@ auto main() -> int
 	test_cancellation_withholds_publication();
 	test_failed_and_inexact_observations();
 	test_restore_applies_when_the_workbench_activates();
+	test_a_late_restore_opens_no_drawer_over_review_entered_while_loading();
+	test_a_late_restore_still_applies_before_review_is_entered();
 	test_layout_survives_a_restart();
 	test_review_behaviour_persists_publishes_and_refuses_outside_the_vocabulary();
 	test_home_view_persists_publishes_and_refuses_outside_the_vocabulary();
@@ -2545,6 +2695,9 @@ auto main() -> int
 	test_orderly_shutdown_drains_a_held_fold();
 	test_settings_failure_is_reported();
 	test_shutdown_withholds_publication_and_quiesces();
+	test_a_pending_open_opens_once_its_reviews_rows_are_accepted();
+	test_a_newer_review_cancels_a_pending_open();
+	test_a_new_selection_cancels_a_pending_open();
 	std::cout << "workbench application host tests passed\n";
 	return EXIT_SUCCESS;
 }

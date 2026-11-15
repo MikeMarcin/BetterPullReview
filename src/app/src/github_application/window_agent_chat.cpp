@@ -216,11 +216,10 @@ namespace bpr::app {
 			.LeftEpoch   = comparison.Left.Identity.Epoch,
 			.RightEpoch  = comparison.Right.Identity.Epoch,
 		};
-		Window->observe_dif_context(
-			state.ApplicationSession, authority, observedBinding);
 		AgentHost->observe(
 			state.ApplicationSession, authority, observedBinding);
 		attach_agent_runtime(observedBinding);
+		observe_agent_dif_context();
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
 			present_tour_continuation();
@@ -980,6 +979,8 @@ namespace bpr::app {
 		}
 		LastContinuationRealignment = "pending";
 		ContinuationRealignmentStop = stop;
+		// AC03: a released message's turn is sent once the alignment answers.
+		note_release_deferred();
 		// The wall-clock bound, armed on the gesture and disarmed by the
 		// completion resetting the handle it compares against. A timer
 		// that arrives after its own turn finished belongs to no request
@@ -1080,6 +1081,7 @@ namespace bpr::app {
 			aTurn.ExistingCheckoutChosen,
 			aTurn.Session,
 			std::move(aOutcome.Files)));
+		settle_pending_release();
 	}
 
 	/// \brief The frozen alignment facts one invocation is answered against.

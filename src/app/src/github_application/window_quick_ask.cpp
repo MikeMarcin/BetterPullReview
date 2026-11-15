@@ -8,6 +8,7 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/application/agent_runtime_steer.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/agent_footer.hpp"
@@ -92,8 +93,8 @@ namespace bpr::app {
 				const auto steered = AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen);
 				if (steered.Refused != core::queue_refusal::none) {
 					Window->agent_panel()->refuse("Another window changed this queue first, so nothing changed here.");
-				} else if (!steered.Sent) {
-					Window->agent_panel()->refuse(steered.Why);
+				} else {
+					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
 				}
 			},
 			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen) {
@@ -101,10 +102,14 @@ namespace bpr::app {
 				return core::queue_refusal::none;
 			}),
 			.Resume = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen) { return aQueue.resume(aSession, aSeen); }),
+			// RFC-BPR-0126 AC04. A message that may not have been delivered is
+			// discarded by the host's core transition; the window forwards it.
+			.Discard = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const seen aSeen, const std::uint64_t aId) { return aQueue.discard(aSession, aId, aSeen); }),
 		});
 		// Q4/Q5 as answered: a typed message while a turn runs or messages
-		// wait is queued on the session (Steer is not built: a driver that
-		// cannot steer keeps Queue and says so, Q17).
+		// wait is queued on the session; a steered one is then offered to the
+		// running turn by the host, as a queued message's Steer is
+		// ([[BPR-2153]]), and shows why when it goes next instead (Q17).
 		tab->set_follow_up([this](const QString& aText, const bool aSteer) {
 			const auto session = ask_session_key();
 			if (Closing || Window == nullptr || !AgentQueue || session.empty()) {
@@ -116,15 +121,19 @@ namespace bpr::app {
 			}
 			auto input = core::queued_input{ .Scope = "message", .File = Window->active_document_path().toStdString(), .Label = label.toStdString(), .Text = aText.toStdString() };
 			if (AskedConversation) {
-				input.Thread = AskedConversation->Identity;
+				input.Threads = { AskedConversation->Identity };
 			}
 			if (const auto refused = AgentQueue->enqueue(session, std::move(input)); refused != core::queue_refusal::none) {
 				Window->agent_panel()->refuse(refused == core::queue_refusal::full || refused == core::queue_refusal::too_large ? "The queue is full: nothing more was queued."
+												  : refused == core::queue_refusal::not_saved                                   ? "This message couldn't be saved to the queue, so it wasn't queued."
 																																: "That message can't be queued.");
+				// The tab keeps the composer's text.
 				return false;
 			}
-			if (aSteer) {
-				Window->agent_panel()->refuse("Steer isn't available for this agent yet, so the message was queued.");
+			if (const auto* const queue = AgentQueue->queue(session); aSteer && queue != nullptr && !queue->Entries.empty()) {
+				if (const auto steered = AgentQueue->steer(session, queue->Entries.back().Id); steered.Refused == core::queue_refusal::none) {
+					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
+				}
 			}
 			observe_ask_queue(false);
 			return true;
@@ -160,10 +169,10 @@ namespace bpr::app {
 			// docs/design/report-card-v4: the question under the title and
 			// Show in conversation: the Agent tab at the turn, the report's tab
 			// staying open and active.
-			report->set_conversation_dispatch([this, tab](const std::size_t aTurn) {
-				if (!Closing && Window != nullptr) {
+			report->set_conversation_dispatch([this, tab](const std::uint64_t aTurn) {
+				if (const auto at = tab->turn_of(aTurn); !Closing && Window != nullptr && at) {
 					Window->open_agent_question();
-					tab->reveal_turn(aTurn);
+					tab->reveal_turn(*at);
 				}
 			});
 		}
@@ -212,19 +221,25 @@ namespace bpr::app {
 		for (const auto& file : snapshot->Files) {
 			facts.Files.push_back(file.Path);
 		}
-		const auto head = std::string{ snapshot->PullRequest.HeadOid.value() };
+		const auto head    = std::string{ snapshot->PullRequest.HeadOid.value() };
+		auto       commits = std::vector<std::string>{ };
+		commits.reserve(snapshot->Commits.size());
+		for (const auto& commit : snapshot->Commits) {
+			commits.emplace_back(commit.Oid.value());
+		}
 		for (const auto& thread : snapshot->ReviewThreads) {
 			auto entry         = core::quick_ask_thread{ .Identity = thread_identity(thread), .Path = thread.Path };
 			entry.TakesReplies = thread.ViewerReplyPermission != application::github_permission_state::denied;
-			// Q6: the baseline is the commit the thread started on.
-			if (!thread.Comments.empty()) {
-				const auto& first    = thread.Comments.front().Observation;
-				const auto  baseline = !first.OriginalCommit.empty() ? first.OriginalCommit : first.Commit;
-				if (!baseline.empty()) {
-					entry.Changed      = baseline != head;
-					entry.CommitsSince = commits_after(snapshot->Commits, baseline);
-				}
+			// [[BPR-2184]] (review N4). Q6 is core's: the thread's baseline and
+			// the head's progress past it, the calls the returning review's
+			// offers make, so the menu and the press agree.
+			auto said = std::vector<core::thread_baseline_comment>{ };
+			for (const auto& comment : thread.Comments) {
+				said.push_back({ .Deleted = comment.Deleted, .OriginalCommit = comment.Observation.OriginalCommit, .Commit = comment.Observation.Commit });
 			}
+			const auto progress = core::thread_progress_since(core::thread_baseline(said), head, commits);
+			entry.Changed       = progress.Changed;
+			entry.CommitsSince  = progress.CommitsSince;
 			facts.Threads.push_back(std::move(entry));
 		}
 		return facts;
@@ -248,7 +263,14 @@ namespace bpr::app {
 		if (!AgentReview) {
 			return { };
 		}
-		return "agent-tab:" + AgentReview->Hostname + "/" + AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name + "#" + std::to_string(AgentReview->Number.value());
+		// AC06: the session is typed in core; this is its stable key.
+		return core::session_key(core::queued_session{
+			.Kind       = core::queued_session_kind::agent_tab,
+			.Host       = AgentReview->Hostname,
+			.Owner      = AgentReview->Locator.Owner,
+			.Repository = AgentReview->Locator.Name,
+			.Number     = static_cast<std::uint64_t>(AgentReview->Number.value()),
+		});
 	}
 
 	/// RFC-BPR-0126 AC04 ([[BPR-2151]], [[BPR-2181]]). The owner: "Queues
@@ -288,6 +310,17 @@ namespace bpr::app {
 						}
 					});
 				} },
+			// AC05: a message the store could not keep is returned where it
+			// was queued from, with its text.
+			.Unsaved = [this](const std::string& aSession, const core::queued_input& aInput) {
+				if (Closing || Window == nullptr || aSession.empty() || aSession != ask_session_key()) {
+					return;
+				}
+				if (aInput.QuickAsk.empty()) {
+					Window->agent_tab()->return_unqueued(QString::fromStdString(aInput.Text), QStringLiteral("This message couldn't be saved to the queue, so it wasn't queued. It's back here."));
+				} else {
+					Window->agent_panel()->refuse(aInput.Label + " couldn't be saved to the queue, so it wasn't queued.");
+				} },
 		});
 		// What this window runs: a tour's feedback, through the window whose
 		// draft it waits for (until slice 6). The Agent tab's session runs on
@@ -307,8 +340,15 @@ namespace bpr::app {
 		// RFC-BPR-0126 AC09: Stop all, after the footer stopped every run,
 		// pauses every queue, so nothing starts next.
 		if (auto* const footer = Window->agent_footer_widget(); footer != nullptr) {
+			// AC15: a host operation over every session and run of the
+			// profile, shown in this window or not.
 			footer->set_stop_all_dispatch([this] {
-				if (!Closing && AgentQueue) {
+				if (Closing || !AgentQueue) {
+					return;
+				}
+				if (Profile->AgentRuntimes) {
+					Profile->AgentRuntimes->stop_all();
+				} else {
 					AgentQueue->pause_all(core::queue_pause::stopped);
 				}
 			});
@@ -390,21 +430,26 @@ namespace bpr::app {
 		if (!AgentPresenter) {
 			AgentPresenter        = runtime->attach(application::review_agent_presenter{
 				.Projection = AgentProjections.get(),
-				.Release    = [this](const core::queued_entry& aEntry) { return release_queued(aEntry); },
+				.Release    = [this](const core::queued_entry& aEntry, const std::uint64_t aRun) { return release_queued(aEntry, aRun); },
 				.Ready      = [this] { return ask_queue_agent() == core::queue_agent::idle; },
+				.Accepted   = [this] { observe_agent_dif_context(); },
 			});
 			AgentPresenterSession = session;
+			AgentRuntimeSession   = session;
 			adopt_unshown_turns();
 		}
 		auto* const stack = Profile->agent_stack(session);
 		if (stack == nullptr || stack->lent_for(aBinding)) {
 			return;
 		}
-		auto lent = Host->lend_review_authority(WindowRead, stack->session(), [registry = std::weak_ptr<application::review_agent_runtimes>{ Profile->AgentRuntimes }, session](application::lent_review_authority_end) {
-			if (const auto runtimes = registry.lock()) {
-				runtimes->authority_ended(session);
-			}
-		});
+		// The runtime follows the revision this window accepted.
+		auto lent = Host->lend_review_authority(
+			WindowRead, stack->session(), [registry = std::weak_ptr<application::review_agent_runtimes>{ Profile->AgentRuntimes }, session](application::lent_review_authority_end) {
+				if (const auto runtimes = registry.lock()) {
+					runtimes->authority_ended(session);
+				}
+			},
+			&*LastAcceptedHandoff);
 		if (lent) {
 			stack->lend(std::move(*lent), aBinding);
 			AgentQueue->agent_changed(session);
@@ -428,7 +473,7 @@ namespace bpr::app {
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(view.Turns.size());
 		for (const auto& turn : view.Turns) {
-			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered) });
+			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered), .Steered = turn.Steered });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		AgentConversation->record(std::move(view.Turns));
@@ -448,8 +493,10 @@ namespace bpr::app {
 	{
 		auto* const runtime = agent_runtime();
 		if (runtime == nullptr) {
-			AgentHost->dispatch(std::move(aRequest));
-			return true;
+			// [[BPR-2181]]. No runtime: no review accepted yet, or the profile
+			// could take no further one. The turn never runs on this window.
+			Window->agent_panel()->refuse("The agent isn't ready for this pull request yet. Nothing was sent.");
+			return false;
 		}
 		// The review a queued message is sent on once no window shows the
 		// session: this turn's request, less what this turn asked.
@@ -457,7 +504,7 @@ namespace bpr::app {
 		snapshot.Context.ChatMessage.clear();
 		snapshot.Context.Skills.clear();
 		snapshot.NativeQuestion.clear();
-		runtime->adopt(application::review_agent_snapshot{ .Request = std::move(snapshot) });
+		runtime->adopt(application::review_agent_snapshot{ .Request = std::move(snapshot), .Conversation = AgentConversation ? AgentConversation->projection().Key : std::nullopt });
 		if (!runtime->dispatch(std::move(aRequest))) {
 			Window->agent_panel()->refuse(runtime->running() ? "The agent is still answering. Nothing was sent." : "The agent isn't ready for this pull request yet. Nothing was sent.");
 			return false;
@@ -465,7 +512,41 @@ namespace bpr::app {
 		return true;
 	}
 
+	void github_application::implementation::observe_agent_dif_context()
+	{
+		if (Closing || Window == nullptr || EpochHost == nullptr) {
+			return;
+		}
+		if (const auto* const stack = presented_agent_stack(); stack != nullptr) {
+			if (auto observed = stack->observed_review(); observed) {
+				Window->observe_dif_context(stack->session(), std::move(observed->first), observed->second);
+				return;
+			}
+		}
+		const auto& state = EpochHost->state();
+		if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+			return;
+		}
+		Window->observe_dif_context(state.ApplicationSession, *state.Authority,
+									core::agent_revision_binding{
+										.Host        = state.Authority->Host,
+										.Repository  = state.Authority->Repository,
+										.PullRequest = state.Authority->PullRequest,
+										.BaseOid     = state.AcceptedRevision->Base,
+										.HeadOid     = state.AcceptedRevision->Head,
+										.LeftEpoch   = state.AcceptedComparison->Left.Identity.Epoch,
+										.RightEpoch  = state.AcceptedComparison->Right.Identity.Epoch,
+									});
+	}
+
 	auto github_application::implementation::presented_agent_stack() const -> review_agent_stack* { return AgentPresenter ? Profile->agent_stack(AgentPresenterSession) : nullptr; }
+
+	auto github_application::implementation::last_agent_stack() const -> review_agent_stack* { return AgentRuntimeSession.empty() ? nullptr : Profile->agent_stack(AgentRuntimeSession); }
+
+	auto github_application::implementation::last_agent_runtime() const -> application::review_agent_runtime*
+	{
+		return AgentRuntimeSession.empty() || !Profile->AgentRuntimes ? nullptr : Profile->AgentRuntimes->find(AgentRuntimeSession);
+	}
 
 	auto github_application::implementation::agent_turn_quiescent() const -> bool
 	{
@@ -496,10 +577,11 @@ namespace bpr::app {
 			rows.push_back({
 				.Id = entry.Id,
 				// A typed message reads as its text, edited or not.
-				.Label   = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
-				.Text    = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
-				.Held    = entry.Held,
-				.Sending = entry.State != core::queued_state::queued,
+				.Label     = QString::fromStdString(entry.Input.QuickAsk.empty() && !entry.Input.Text.empty() ? entry.Input.Text.substr(0U, entry.Input.Text.find('\n')) : entry.Input.Label),
+				.Text      = QString::fromStdString(entry.Input.QuickAsk.empty() ? entry.Input.Text : std::string{ }),
+				.Held      = entry.Held,
+				.Sending   = entry.State != core::queued_state::queued,
+				.Uncertain = entry.State == core::queued_state::delivery_unknown,
 			});
 		}
 		const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")
@@ -556,24 +638,26 @@ namespace bpr::app {
 		// RFC-BPR-0128 as amended (look ask-v005): Was this addressed? at a
 		// file or the pull request is one ask carrying every thread, its
 		// answer one claim a thread.
-		if (row->Action == core::prompt_action::was_addressed && row->Scope != core::prompt_scope::thread && !row->Each.empty()) {
-			auto joined = std::string{ };
-			for (const auto& item : row->Each) {
-				joined += (joined.empty() ? "" : "\n") + item;
-			}
-			items = { joined };
+		const auto every = row->Action == core::prompt_action::was_addressed && row->Scope != core::prompt_scope::thread && !row->Each.empty();
+		if (every) {
+			items = { std::string{ } };
 		}
 		for (const auto& item : items) {
-			auto input = core::queued_input{ .QuickAsk = row->Id, .Scope = scope, .File = aRequest.File.toStdString(), .Thread = aRequest.Thread.toStdString(), .Label = row->Label };
-			if (byThread && !item.empty()) {
-				input.Thread = item;
+			auto input = core::queued_input{ .QuickAsk = row->Id, .Scope = scope, .File = aRequest.File.toStdString(), .Label = row->Label };
+			// AC06: the threads it carries, typed.
+			if (every) {
+				input.Threads = row->Each;
+			} else if (byThread && !item.empty()) {
+				input.Threads = { item };
+			} else if (!aRequest.Thread.isEmpty()) {
+				input.Threads = { aRequest.Thread.toStdString() };
 			}
 			if (byFile && !item.empty()) {
 				input.File = item;
 			}
-			if (AgentQueue->enqueue(session, std::move(input)) != core::queue_refusal::none) {
+			if (const auto refused = AgentQueue->enqueue(session, std::move(input)); refused != core::queue_refusal::none) {
 				Window->open_agent_question();
-				Window->agent_panel()->refuse("The queue is full: nothing more was queued.");
+				Window->agent_panel()->refuse(refused == core::queue_refusal::not_saved ? "This question couldn't be saved to the queue, so it wasn't queued." : "The queue is full: nothing more was queued.");
 				break;
 			}
 		}
@@ -632,28 +716,45 @@ namespace bpr::app {
 	/// opens the Agent tab at it (owner look ask-v001, img 1: "just opening
 	/// the agent drawer in the session and scrolling to the question and
 	/// response").
-	auto github_application::implementation::release_queued(const core::queued_entry& aEntry) -> bool
+	auto github_application::implementation::release_queued(const core::queued_entry& aEntry, const std::uint64_t aRun) -> application::queued_admission_kind
 	{
+		using admission = application::queued_admission_kind;
 		if (Closing || Window == nullptr) {
-			return false;
+			return admission::refused;
 		}
+		// AC03: what this release did is read from the paths it took. A turn
+		// sent now the runtime sees itself; one a later pass sends is
+		// awaiting; anything else was refused.
+		ReleasingRun     = aRun;
+		ReleaseDeferred  = false;
+		const auto taken = [this, aRun](const bool aAnswered) {
+			ReleasingRun.reset();
+			if (aAnswered) {
+				return admission::answered;
+			}
+			if (std::exchange(ReleaseDeferred, false)) {
+				PendingRelease = aRun;
+				return admission::awaiting;
+			}
+			return admission::refused;
+		};
 		auto* const tab = Window->agent_tab();
 		// RFC-BPR-0126: a typed message, sent as typed on the subject it was
 		// queued with.
 		if (aEntry.Input.QuickAsk.empty()) {
 			const auto turns = tab->turn_count();
-			if (!aEntry.Input.Thread.empty()) {
-				ask_agent_about_thread(aEntry.Input.Thread);
+			if (!aEntry.Input.Threads.empty()) {
+				ask_agent_about_thread(aEntry.Input.Threads.front());
 			}
 			Window->open_agent_question();
-			const auto refused = tab->send_released(QString::fromStdString(aEntry.Input.Text));
+			const auto outcome = tab->send_released(QString::fromStdString(aEntry.Input.Text));
 			QTimer::singleShot(0, Window.get(), [this, turns] {
 				if (!Closing && Window != nullptr && Window->agent_tab()->turn_count() > turns) {
 					Window->agent_tab()->reveal_turn(Window->agent_tab()->turn_count() - 1U);
 					observe_ask_queue(false);
 				}
 			});
-			return refused.isEmpty();
+			return taken(outcome == qt::agent_tab_view::release_outcome::answered);
 		}
 		// [[BPR-2179]]. The copy on the menu it was queued from: placement
 		// decides what it asks about.
@@ -666,7 +767,7 @@ namespace bpr::app {
 			macro = std::ranges::find(set, aEntry.Input.QuickAsk, &core::prompt_macro::Id);
 		}
 		if (macro == set.end()) {
-			return false;
+			return taken(false);
 		}
 		const auto turns = tab->turn_count();
 		const auto id    = QString::fromStdString(macro->Id);
@@ -677,21 +778,15 @@ namespace bpr::app {
 			break;
 		case core::prompt_action::explain_file: ask_explain_file(aEntry.Input.File); break;
 		case core::prompt_action::was_addressed:
-			if (aEntry.Input.Thread.find('\n') != std::string::npos || aEntry.Input.Scope != "thread") {
-				auto threads = std::vector<std::string>{ };
-				for (auto rest = std::string_view{ aEntry.Input.Thread }; !rest.empty();) {
-					const auto end = rest.find('\n');
-					threads.emplace_back(rest.substr(0U, end));
-					rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
-				}
-				ask_were_addressed(threads);
+			if (aEntry.Input.Threads.size() != 1U || aEntry.Input.Scope != "thread") {
+				ask_were_addressed(aEntry.Input.Threads);
 			} else {
-				ask_was_addressed(aEntry.Input.Thread);
+				ask_was_addressed(aEntry.Input.Threads.front());
 			}
 			break;
 		case core::prompt_action::none:
 			if (macro->Body.Subject == core::prompt_subject::conversation) {
-				ask_agent_about_thread(aEntry.Input.Thread);
+				ask_agent_about_thread(aEntry.Input.Threads.empty() ? std::string{ } : aEntry.Input.Threads.front());
 			} else {
 				if (macro->Body.Subject == core::prompt_subject::open_file && !aEntry.Input.File.empty()) {
 					static_cast<void>(Window->open_file_in_review(QString::fromStdString(aEntry.Input.File)));
@@ -712,9 +807,26 @@ namespace bpr::app {
 				observe_ask_queue(false);
 			}
 		});
-		// A turn may start on the next pass (Explain this file reads its
-		// material first): the press went out unless the tab refused it.
-		return tab->send_refusal_text().isEmpty();
+		// A turn may start on a later pass (Explain this file reads its
+		// material first): that path said so.
+		return taken(false);
+	}
+
+	void github_application::implementation::note_release_deferred()
+	{
+		if (ReleasingRun) {
+			ReleaseDeferred = true;
+		}
+	}
+
+	void github_application::implementation::settle_pending_release()
+	{
+		// A turn the later pass sent took the run already, and the runtime
+		// ignores a refusal of any run it is not awaiting.
+		const auto run = std::exchange(PendingRelease, std::nullopt);
+		if (auto* const runtime = agent_runtime(); run && runtime != nullptr) {
+			runtime->refuse_release(*run);
+		}
 	}
 
 	/// RFC-BPR-0128 ([[BPR-2165]]). A Was this addressed? answer's claim

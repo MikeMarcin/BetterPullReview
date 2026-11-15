@@ -60,6 +60,18 @@ namespace bpr::app {
 		};
 	}
 
+	auto workbench_review(const application::accepted_pull_request_handoff& aHandoff)
+		-> application::workbench_review_key
+	{
+		return { .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Locator, .Number = aHandoff.Number };
+	}
+
+	auto workbench_review(const core::pull_request_request_context& aRead)
+		-> application::workbench_review_key
+	{
+		return { .Host = aRead.Host, .Account = aRead.Account, .Repository = aRead.Repository, .Number = aRead.Number };
+	}
+
 	void composition_appearance_projections::set_span_sink(span_sink aSink)
 	{
 		SpanSink = std::move(aSink);

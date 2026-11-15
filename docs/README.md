@@ -13,6 +13,7 @@ start. This index lists the rest of the documentation, grouped by who it is for.
 | [Review Cycles CLI](development/cycle-cli.md) | Working with local review rounds through `bpr cycle` |
 | [Local PR drafts CLI](development/draft-cli.md) | Handing a worktree to a local PR draft with `bpr draft open` |
 | [Review Tours](development/review-tours.md) | Writing, previewing and publishing a guided review |
+| [Insights](ux/insights.md) | Local storage, GitHub rate-limit use, review activity, energy and performance figures |
 | [Source-line comments](development/source-line-comments.md) | Commenting on changed and unchanged lines of a pull request's text files |
 | [Storage and removal](development/storage-and-diagnostics.md) | Local data, diagnostics, profile purge and uninstall |
 | [Application updates](development/application-updates.md) | Updates and recovery on eligible macOS installations |

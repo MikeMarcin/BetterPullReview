@@ -42,15 +42,19 @@ namespace {
 			const auto found = States.find(aSession);
 			return found == States.end() ? core::queue_agent::idle : found->second;
 		}
-		[[nodiscard]] auto start(const std::string& aSession, const core::queued_entry& aEntry) -> bool override
+		[[nodiscard]] auto start(const std::string& aSession, const core::queued_entry& aEntry) -> application::queued_admission override
 		{
 			if (Refuses) {
-				return false;
+				return { };
 			}
 			Ran.push_back(aSession + ":" + aEntry.Input.Text);
+			// A slash command is answered with no run.
+			if (aEntry.Input.Text.starts_with('/')) {
+				return { .Kind = application::queued_admission_kind::answered, .Run = ++LastRun };
+			}
 			// A started turn keeps the session busy until its run retires.
 			States[aSession] = core::queue_agent::busy;
-			return true;
+			return { .Kind = Awaits ? application::queued_admission_kind::awaiting : application::queued_admission_kind::started, .Run = ++LastRun };
 		}
 		[[nodiscard]] auto steer(const std::string&, const core::queued_entry& aEntry) -> std::optional<std::string> override
 		{
@@ -58,7 +62,7 @@ namespace {
 			return SteerWhy;
 		}
 		/// The run retires: its own event, given to the host.
-		void retire(application::agent_queue_host& aHost, const std::string& aSession, const core::queue_pause aOutcome = core::queue_pause::none)
+		void retire(application::agent_queue_host& aHost, const std::string& aSession, const core::queued_finish aOutcome = core::queued_finish::went)
 		{
 			States[aSession] = core::queue_agent::idle;
 			aHost.retired(aSession, aOutcome);
@@ -69,6 +73,8 @@ namespace {
 		std::vector<std::string>                 Steered;
 		std::optional<std::string>               SteerWhy;
 		bool                                     Refuses = false;
+		bool                                     Awaits  = false;
+		std::uint64_t                            LastRun = 0U;
 	};
 
 	/// A window: what it was shown.
@@ -106,7 +112,7 @@ namespace {
 		expect(agents.Ran.size() == 3U && host.queue(session)->Entries.empty() && host.queue(session)->Paused == core::queue_pause::none, "the queue drains in order with no window");
 		static_cast<void>(host.enqueue(session, typed("four")));
 		static_cast<void>(host.enqueue(session, typed("five")));
-		agents.retire(host, session, core::queue_pause::usage_limit);
+		agents.retire(host, session, core::queued_finish::usage_limit);
 		expect(host.queue(session)->Paused == core::queue_pause::usage_limit && agents.Ran.size() == 4U, "a run that retired on a usage limit pauses what remains");
 	}
 
@@ -193,8 +199,10 @@ namespace {
 		expect(host.queue("s")->Paused == core::queue_pause::restarted && agents.Ran.empty(), "a restored queue opens paused and starts nothing");
 		store.Refuses      = true;
 		agents.States["s"] = core::queue_agent::busy;
-		expect(host.enqueue("s", typed("third")) == core::queue_refusal::none && host.queue("s")->Entries.size() == 3U && host.queue("s")->Entries.front().Input.Text == "kept as typed",
-			   "a refused write keeps the earlier messages and the new one as typed");
+		expect(host.enqueue("s", typed("third")) == core::queue_refusal::not_saved && host.queue("s")->Entries.size() == 2U && host.queue("s")->Entries.front().Input.Text == "kept as typed",
+			   "a refused write is a refusal: the earlier messages stay and nothing was queued (AC05)");
+		store.Refuses = false;
+		expect(host.enqueue("s", typed("third")) == core::queue_refusal::none && host.queue("s")->Entries.size() == 3U, "kept, it is queued");
 		for (auto index = host.queue("s")->Entries.size(); index < core::maximum_queued_inputs; ++index) {
 			static_cast<void>(host.enqueue("s", typed("more")));
 		}
@@ -227,8 +235,50 @@ namespace {
 		std::vector<std::function<void()>> Tasks;
 	};
 
+	/// The decision lane a refused write's verdict comes back on.
+	class held_decisions final : public application::decision_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
+		void run()
+		{
+			auto tasks = std::move(Tasks);
+			Tasks.clear();
+			for (auto& task : tasks) {
+				task();
+			}
+		}
+		std::vector<std::function<void()>> Tasks;
+	};
+
 	/// [[BPR-2181]] (AC05). With a lane, a queue's writes run on it, in the
 	/// order the queue changed, and not where it changed.
+	/// RFC-BPR-0126 AC04 ([[BPR-2181]] slice 4). A message that was sending
+	/// when the app stopped is uncertain after the restart; Discard removes it
+	/// (a core transition), the change is stored, and Resume goes on.
+	void test_discard_an_uncertain_message_after_a_crash()
+	{
+		auto store  = memory_store{ };
+		auto agents = runner{ };
+		{
+			auto host = application::agent_queue_host{ { .Store = &store, .Runner = &agents } };
+			static_cast<void>(host.enqueue("s", typed("was sending")));
+			agents.States["s"] = core::queue_agent::busy;
+			static_cast<void>(host.enqueue("s", typed("waits")));
+			expect(host.sending("s").has_value(), "the first message is sending when the app stops");
+		}
+		agents.States["s"] = core::queue_agent::idle;
+		auto host          = application::agent_queue_host{ { .Store = &store, .Runner = &agents } };
+		host.load();
+		const auto* queue = host.queue("s");
+		expect(queue->Paused == core::queue_pause::restarted && queue->Entries.front().State == core::queued_state::delivery_unknown && host.resume("s") == core::queue_refusal::not_editable,
+			   "after the crash the message is uncertain and Resume is refused");
+		const auto uncertain = queue->Entries.front().Id;
+		expect(host.discard("s", queue->Entries.back().Id) == core::queue_refusal::not_editable, "a queued message is not discarded as uncertain");
+		expect(host.discard("s", uncertain) == core::queue_refusal::none && host.queue("s")->Entries.size() == 1U && store.Kept["s"].Entries.size() == 1U, "Discard removes it, and the store keeps that");
+		expect(host.resume("s") == core::queue_refusal::none && agents.Ran.size() == 2U && agents.Ran.back() == "s:waits", "Resume sends what was waiting");
+	}
+
 	void test_writes_run_on_the_effect_lane()
 	{
 		auto store         = memory_store{ };
@@ -242,14 +292,80 @@ namespace {
 		lane.run();
 		expect(store.Kept.contains("s") && store.Kept["s"].Entries.size() == 2U && store.Kept["s"].Entries.back().Input.Text == "second", "the lane writes each change in order, the last as committed");
 	}
+	/// RFC-BPR-0126 AC05 ([[BPR-2181]]). The store refuses a write on the
+	/// effect lane: the message that write queued leaves the queue and is
+	/// handed back as asked, to return to the composer; a later write that
+	/// changes nothing new hands nothing back.
+	void test_a_refused_write_on_the_effect_lane_hands_the_message_back()
+	{
+		auto store  = memory_store{ };
+		auto agents = runner{ };
+		auto lane   = held_decisions{ };
+		auto writes = held_lane{ };
+		auto host   = application::agent_queue_host{ { .Store = &store, .Runner = &agents, .Effects = &writes, .DecisionLane = &lane } };
+		auto shown  = window{ };
+		auto back   = std::vector<std::string>{ };
+		auto sub    = shown.subscriber();
+		sub.Unsaved = [&back](const std::string& aSession, const core::queued_input& aInput) { back.push_back(aSession + ":" + aInput.Text); };
+		static_cast<void>(host.subscribe(std::move(sub)));
+		agents.States["s"] = core::queue_agent::busy;
+		static_cast<void>(host.enqueue("s", typed("kept")));
+		writes.run();
+		lane.run();
+		store.Refuses = true;
+		expect(host.enqueue("s", typed("typed in the composer")) == core::queue_refusal::none && host.queue("s")->Entries.size() == 2U, "queued at once; the write runs on the lane");
+		writes.run();
+		lane.run();
+		expect(back == std::vector<std::string>{ "s:typed in the composer" } && host.queue("s")->Entries.size() == 1U && host.queue("s")->Entries.front().Input.Text == "kept"
+				   && shown.Shown["s"].Entries.size() == 1U,
+			   "the refused message leaves the queue and comes back as typed");
+		host.pause("s", core::queue_pause::reviewer);
+		writes.run();
+		lane.run();
+		expect(back.size() == 1U, "a refused write that queued nothing hands nothing back");
+	}
+
+	/// RFC-BPR-0126 AC03 ([[BPR-2181]]). A release's admission settles it:
+	/// one answered with no run (a slash command) went at once and the queue
+	/// goes on; one refused goes back first, paused; one whose turn a later
+	/// pass sends stays sending until that run retires. None is left sending.
+	void test_admissions_settle_every_release()
+	{
+		auto agents        = runner{ };
+		auto host          = application::agent_queue_host{ { .Runner = &agents } };
+		agents.States["s"] = core::queue_agent::busy;
+		static_cast<void>(host.enqueue("s", typed("/model opus")));
+		static_cast<void>(host.enqueue("s", typed("after the command")));
+		agents.States["s"] = core::queue_agent::idle;
+		host.agent_changed("s");
+		expect(agents.Ran == std::vector<std::string>{ "s:/model opus", "s:after the command" } && host.queue("s")->Entries.size() == 1U && host.sending("s"),
+			   "a slash command is answered, leaves the queue, and the next goes");
+		agents.retire(host, "s");
+		expect(host.queue("s")->Entries.empty() && !host.sending("s"), "the next settles on its run's retirement");
+
+		agents.Refuses = true;
+		static_cast<void>(host.enqueue("s", typed("refused")));
+		expect(!host.sending("s") && host.queue("s")->Paused == core::queue_pause::failed && host.queue("s")->Entries.front().State == core::queued_state::queued,
+			   "a refused release is never left sending: it is queued again, paused");
+		agents.Refuses = false;
+		agents.Awaits  = true;
+		expect(host.resume("s") == core::queue_refusal::none && host.sending("s"), "an awaiting release is sending");
+		expect(host.resume("s") == core::queue_refusal::none && agents.Ran.size() == 3U, "a second Resume sends nothing more");
+		agents.retire(host, "s", core::queued_finish::refused);
+		expect(!host.sending("s") && host.queue("s")->Paused == core::queue_pause::failed && host.queue("s")->Entries.size() == 1U,
+			   "its refusal settles it: back first, paused, never sending");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_admissions_settle_every_release();
+	test_a_refused_write_on_the_effect_lane_hands_the_message_back();
 	test_no_window_drains_on_retirement();
 	test_windows_show_and_edit_one_queue();
 	test_steer();
 	test_restored_refused_and_limits();
+	test_discard_an_uncertain_message_after_a_crash();
 	test_writes_run_on_the_effect_lane();
 	std::cout << "agent-queue-host-tests:pass\n";
 	return EXIT_SUCCESS;

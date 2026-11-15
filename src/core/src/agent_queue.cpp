@@ -4,13 +4,18 @@
 
 #include <algorithm>
 #include <iterator>
+#include <string>
 #include <utility>
 
 namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto bytes_of(const queued_input& aInput) noexcept -> std::size_t
 		{
-			return aInput.QuickAsk.size() + aInput.Scope.size() + aInput.File.size() + aInput.Thread.size() + aInput.Label.size() + aInput.Text.size();
+			auto threads = std::size_t{ 0U };
+			for (const auto& thread : aInput.Threads) {
+				threads += thread.size() + 1U;
+			}
+			return aInput.QuickAsk.size() + aInput.Scope.size() + aInput.File.size() + threads + aInput.Label.size() + aInput.Text.size();
 		}
 
 		[[nodiscard]] auto unsent(const queued_entry& aEntry) noexcept -> bool { return aEntry.State == queued_state::queued; }
@@ -59,6 +64,7 @@ namespace bpr::core {
 		case queue_refusal::stale:         return "stale";
 		case queue_refusal::unknown_entry: return "unknown-entry";
 		case queue_refusal::not_editable:  return "not-editable";
+		case queue_refusal::not_saved:     return "not-saved";
 		}
 		return "unknown";
 	}
@@ -277,6 +283,79 @@ namespace bpr::core {
 		++aQueue.Revision;
 	}
 
+	auto stable_name(const queued_finish aFinish) noexcept -> std::string_view
+	{
+		switch (aFinish) {
+		case queued_finish::went:        return "went";
+		case queued_finish::failed:      return "failed";
+		case queued_finish::usage_limit: return "usage-limit";
+		case queued_finish::stopped:     return "stopped";
+		case queued_finish::not_taken:   return "not-taken";
+		case queued_finish::refused:     return "refused";
+		}
+		return "unknown";
+	}
+
+	auto pause_for(const queued_finish aFinish) noexcept -> queue_pause
+	{
+		switch (aFinish) {
+		case queued_finish::went:
+		case queued_finish::not_taken:   return queue_pause::none;
+		case queued_finish::failed:
+		case queued_finish::refused:     return queue_pause::failed;
+		case queued_finish::usage_limit: return queue_pause::usage_limit;
+		case queued_finish::stopped:     return queue_pause::stopped;
+		}
+		return queue_pause::failed;
+	}
+
+	auto finish(agent_queue& aQueue, const std::uint64_t aId, const queued_finish aFinish) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::sending) {
+			return queue_refusal::not_editable;
+		}
+		if (aFinish == queued_finish::not_taken) {
+			return return_unsent(aQueue, aId);
+		}
+		if (aFinish == queued_finish::refused) {
+			// Nothing reached the agent: it goes back first, and the queue
+			// pauses so a refusal that would recur is not released again.
+			const auto returned = return_unsent(aQueue, aId);
+			if (aQueue.Paused == queue_pause::none) {
+				aQueue.Paused = pause_for(aFinish);
+				++aQueue.Revision;
+			}
+			return returned;
+		}
+		aQueue.Entries.erase(found);
+		if (aQueue.Paused == queue_pause::none) {
+			aQueue.Paused = pause_for(aFinish);
+		}
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto discard_uncertain(agent_queue& aQueue, const std::uint64_t aId, const std::uint64_t aFrom) -> queue_refusal
+	{
+		if (aFrom != aQueue.Revision) {
+			return queue_refusal::stale;
+		}
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::delivery_unknown) {
+			return queue_refusal::not_editable;
+		}
+		aQueue.Entries.erase(found);
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
 	void restore(agent_queue& aQueue)
 	{
 		for (auto& entry : aQueue.Entries) {
@@ -288,5 +367,86 @@ namespace bpr::core {
 		if (!aQueue.Entries.empty()) {
 			aQueue.Paused = queue_pause::restarted;
 		}
+	}
+
+	auto stable_name(const follow_up aFollowUp) noexcept -> std::string_view
+	{
+		switch (aFollowUp) {
+		case follow_up::send:  return "send";
+		case follow_up::queue: return "queue";
+		case follow_up::steer: return "steer";
+		}
+		return "unknown";
+	}
+
+	auto decide_follow_up(const follow_up_facts& aFacts) noexcept -> follow_up
+	{
+		if (aFacts.Empty || (!aFacts.TurnShown && !aFacts.QueueHolds)) {
+			return follow_up::send;
+		}
+		return aFacts.SteerByDefault != aFacts.Opposite ? follow_up::steer : follow_up::queue;
+	}
+
+	auto holds_messages(const agent_queue& aQueue) noexcept -> bool { return !aQueue.Entries.empty(); }
+
+	namespace {
+		[[nodiscard]] auto kind_prefix(const queued_session_kind aKind) noexcept -> std::string_view
+		{
+			switch (aKind) {
+			case queued_session_kind::agent_tab:     return "agent-tab:";
+			case queued_session_kind::tour_feedback: return "tour-feedback:";
+			}
+			return "agent-tab:";
+		}
+	} // namespace
+
+	auto session_key(const queued_session& aSession) -> std::string
+	{
+		if (aSession.Host.empty() || aSession.Owner.empty() || aSession.Repository.empty() || aSession.Number == 0U) {
+			return { };
+		}
+		return std::string{ kind_prefix(aSession.Kind) } + aSession.Host + "/" + aSession.Owner + "/" + aSession.Repository + "#" + std::to_string(aSession.Number);
+	}
+
+	auto parse_session_key(const std::string_view aKey) -> std::optional<queued_session>
+	{
+		auto session = queued_session{ };
+		auto rest    = aKey;
+		if (rest.starts_with(kind_prefix(queued_session_kind::agent_tab))) {
+			rest.remove_prefix(kind_prefix(queued_session_kind::agent_tab).size());
+		} else if (rest.starts_with(kind_prefix(queued_session_kind::tour_feedback))) {
+			session.Kind = queued_session_kind::tour_feedback;
+			rest.remove_prefix(kind_prefix(queued_session_kind::tour_feedback).size());
+		} else {
+			return std::nullopt;
+		}
+		const auto hash = rest.rfind('#');
+		if (hash == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto path   = rest.substr(0U, hash);
+		const auto digits = rest.substr(hash + 1U);
+		const auto first  = path.find('/');
+		const auto second = first == std::string_view::npos ? std::string_view::npos : path.find('/', first + 1U);
+		if (second == std::string_view::npos || path.find('/', second + 1U) != std::string_view::npos || digits.empty()
+			|| !std::ranges::all_of(digits, [](const char aDigit) { return aDigit >= '0' && aDigit <= '9'; }) || digits.size() > 18U) {
+			return std::nullopt;
+		}
+		session.Host       = std::string{ path.substr(0U, first) };
+		session.Owner      = std::string{ path.substr(first + 1U, second - first - 1U) };
+		session.Repository = std::string{ path.substr(second + 1U) };
+		for (const auto digit : digits) {
+			session.Number = session.Number * 10U + static_cast<std::uint64_t>(digit - '0');
+		}
+		if (session_key(session) != aKey) {
+			return std::nullopt;
+		}
+		return session;
+	}
+
+	auto with_kind(queued_session aSession, const queued_session_kind aKind) -> queued_session
+	{
+		aSession.Kind = aKind;
+		return aSession;
 	}
 } // namespace bpr::core

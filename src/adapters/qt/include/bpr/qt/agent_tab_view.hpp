@@ -105,6 +105,9 @@ namespace bpr::qt {
 		/// The cards its stored answer's findings block makes, when the host
 		/// read them; a turn whose cards this view still holds keeps those.
 		std::vector<agent_restored_finding_card> Cards;
+		/// [[BPR-2153]]. What the reviewer steered into it, shown as their own
+		/// messages where they went in.
+		std::vector<application::agent_steered_message> Steered;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
@@ -481,7 +484,10 @@ namespace bpr::qt {
 		void set_report_dispatch(report_dispatch aDispatch) { ReportDispatch = std::move(aDispatch); }
 		/// \brief docs/design/report-card-v4: while a report's tab is active,
 		/// its card's row is selected; none clears it.
-		void mark_open_report(std::optional<std::size_t> aTurn);
+		void mark_open_report(std::optional<std::uint64_t> aTurn);
+		/// \brief [[BPR-2184]] (review N5). Where the turn with stable identity
+		/// `aTurn` is in the list now; none once it is gone.
+		[[nodiscard]] auto turn_of(std::uint64_t aTurn) const -> std::optional<std::size_t>;
 		/// \brief RFC-BPR-0128 with RFC-BPR-0126's queue. Told when the agent
 		/// may take more: setup finished, or a turn settled.
 		/// `aSettled` is true when a turn has just settled.
@@ -506,6 +512,9 @@ namespace bpr::qt {
 			QString Text;
 			bool    Held    = false;
 			bool    Sending = false;
+			/// RFC-BPR-0126 AC04. Released before a crash or quit, and whether
+			/// the agent took it is not known: offered Discard.
+			bool Uncertain = false;
 		};
 		/// \brief What the pending list's controls ask of the session's queue.
 		struct queue_dispatch
@@ -519,6 +528,8 @@ namespace bpr::qt {
 			std::function<void(std::uint64_t)> Steer;
 			std::function<void()>              Pause;
 			std::function<void()>              Resume;
+			/// Discard a message that may not have been delivered.
+			std::function<void(std::uint64_t)> Discard;
 		};
 		void set_queue_dispatch(queue_dispatch aDispatch) { QueueDispatch = std::move(aDispatch); }
 		/// \brief The session's waiting messages, in order, with the queue's
@@ -535,9 +546,25 @@ namespace bpr::qt {
 		using follow_up = std::function<bool(const QString& aText, bool aSteer)>;
 		void set_follow_up(follow_up aFollowUp) { FollowUp = std::move(aFollowUp); }
 		void set_follow_up_steer(bool aSteer);
+		/// \brief [[BPR-2181]] (AC05). A message the queue could not keep
+		/// comes back to the composer as typed, ahead of anything typed since,
+		/// and the refusal says why.
+		void return_unqueued(const QString& aText, const QString& aWhy);
+		/// \brief RFC-BPR-0126 AC03 ([[BPR-2181]]). What the tab did with a
+		/// released message, as its own control flow decided it: never read
+		/// from the refusal note, which an earlier send may have left.
+		enum class release_outcome : std::uint8_t {
+			/// Handed to the send action: whether a turn started is the
+			/// runtime's to say.
+			sent,
+			/// A slash command, answered with no turn.
+			answered,
+			/// Refused before the send action.
+			refused,
+		};
 		/// \brief A queued typed message released: sent as typed, bypassing
-		/// the follow-up. Empty when it went.
-		[[nodiscard]] auto send_released(const QString& aText) -> QString;
+		/// the follow-up.
+		[[nodiscard]] auto send_released(const QString& aText) -> release_outcome;
 		[[nodiscard]] auto queue_note() const noexcept -> QLabel* { return QueueNote; }
 		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
 		void               open_report(std::size_t aTurn);
@@ -858,11 +885,18 @@ namespace bpr::qt {
 			QPointer<QLabel>              AnsweredTime;
 			QDateTime                     AskedAt;
 			QDateTime                     AnsweredAt;
-			/// Names the answer's body, so its code is coloured as its own.
+			/// Names the answer's body, so its code is coloured as its own; the
+			/// turn's stable identity, which its report is keyed by.
 			std::uint64_t Serial = 0U;
+			/// [[BPR-2184]] (review N5). How it ended, as its footer first says
+			/// it: its report's byline, as data.
+			QString Ending;
 			/// The Local comment Keep local made; 0 for none.
 			std::uint64_t    Note = 0U;
 			QPointer<QLabel> QuestionLabel;
+			/// [[BPR-2153]]. The reviewer's steered messages and where they show.
+			std::vector<application::agent_steered_message> Steered;
+			QPointer<QWidget>                               SteeredBox;
 			/// The one file the question names, which a bare "line 34" in the
 			/// answer is in.
 			QString ContextFile;
@@ -943,6 +977,9 @@ namespace bpr::qt {
 		std::vector<ended_turn> EndedTurns;
 		/// The question and the answer as shown, their references links.
 		void show_question(turn& aTurn);
+		/// [[BPR-2153]]. The turn's steered messages, each as the reviewer's
+		/// message, marked steered, with its state when the agent never took it.
+		void show_steered(turn& aTurn);
 		void show_answer(turn& aTurn);
 		/// RFC-BPR-0127, owner look v006. Shows the answer's Draft, struck
 		/// where nothing takes a draft, or Go to draft once drafted.
@@ -1083,6 +1120,7 @@ namespace bpr::qt {
 		bool                                         QueueOccupied = false;
 		bool                                         Opposite      = false;
 		bool                                         Releasing     = false;
+		release_outcome                              Released      = release_outcome::refused;
 		std::optional<std::uint64_t>                 EditingQueued;
 		void                                         refresh_send_label();
 		std::optional<core::returning_operation>     SendingReturning;

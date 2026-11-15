@@ -131,7 +131,8 @@ def main():
     assert platform["os"] == expected_os, platform
     assert platform["qualification"] == "not yet qualified", platform
     assert platform["package"] == "development install; no release package", platform
-    assert platform["gh_transport"] == ("explicit opt-in" if expected_os == "macos" else "unavailable"), platform
+    # [[BPR-1791]] gh is offered on all three; only macOS denies its file writes.
+    assert platform["gh_transport"] == ("explicit opt-in" if expected_os == "macos" else "explicit opt-in; gh file writes not denied"), platform
     assert f"Platform: {expected_os}, not yet qualified." in human.stdout, human.stdout
     refused = subprocess.run([binary, "tour", "capabilities", "--yes", "--json"],
                              env=environment, capture_output=True, text=True, timeout=15)

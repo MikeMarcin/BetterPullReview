@@ -813,7 +813,22 @@ namespace bpr::app {
 		void               queue_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               draft_quick_ask(const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow);
 		void               observe_ask_queue(bool aSettled);
-		[[nodiscard]] auto release_queued(const core::queued_entry& aEntry) -> bool;
+		/// RFC-BPR-0126 AC03 ([[BPR-2181]]). Releases one queued entry as the
+		/// runtime's run `aRun`, saying how it was taken by what this window
+		/// did, never by the tab's refusal note.
+		[[nodiscard]] auto release_queued(const core::queued_entry& aEntry, std::uint64_t aRun) -> application::queued_admission_kind;
+		/// A release in progress (its run) and whether a path it took sends
+		/// its turn on a later pass.
+		std::optional<std::uint64_t> ReleasingRun;
+		bool                         ReleaseDeferred = false;
+		/// The release whose turn a later pass sends (Explain this file reads
+		/// its material first; a continuation realigns first).
+		std::optional<std::uint64_t> PendingRelease;
+		/// A path that sends its turn on a later pass says so.
+		void note_release_deferred();
+		/// The later pass ended: a release still awaiting its turn was
+		/// refused, and the runtime settles it as refused.
+		void settle_pending_release();
 		/// RFC-BPR-0126 AC04 ([[BPR-2181]]): the profile's session queue host.
 		/// This window subscribes to its deltas and sends it commands, and
 		/// offers its agent runtime to the profile's runner; it never decides
@@ -830,6 +845,8 @@ namespace bpr::app {
 		void tour_runtime_retired();
 		/// A tour-feedback turn released here has answered.
 		bool TourQueueAnswered = false;
+		/// The run a released tour feedback was admitted as.
+		std::uint64_t TourQueueRun = 0U;
 		/// The revision of the session's queue this window last showed: an
 		/// edit made from it is refused once another window changed it.
 		std::uint64_t AgentQueueSeen = 0U;
@@ -849,15 +866,27 @@ namespace bpr::app {
 		/// join its conversation once it has loaded: one transcript, each turn
 		/// shown once.
 		void adopt_unshown_turns();
-		/// \brief Sends an Agent-tab turn through the session's runtime (its
-		/// one transport); with no runtime, on this window's own host.
+		/// \brief Sends an Agent-tab turn through the session's runtime, its
+		/// one transport. With no runtime (no review accepted yet) the turn is
+		/// refused with words; it never runs on this window's own host.
 		[[nodiscard]] auto send_agent_turn(application::agent_invocation_request aRequest) -> bool;
+		/// \brief The Dif's cues follow the identity this window's turns run
+		/// under: the runtime's review once its stack accepted it, otherwise
+		/// the window's own.
+		void observe_agent_dif_context();
 		/// \brief No Agent-tab turn of this window's session runs anywhere.
 		[[nodiscard]] auto agent_turn_quiescent() const -> bool;
 		/// \brief The live stack of the runtime this window presents, if any.
-		[[nodiscard]] auto               presented_agent_stack() const -> review_agent_stack*;
-		std::optional<std::uint64_t>     AgentPresenter;
-		std::string                      AgentPresenterSession;
+		[[nodiscard]] auto presented_agent_stack() const -> review_agent_stack*;
+		/// \brief The stack and runtime of the session this window last
+		/// presented, after a close detached it too.
+		[[nodiscard]] auto           last_agent_stack() const -> review_agent_stack*;
+		[[nodiscard]] auto           last_agent_runtime() const -> application::review_agent_runtime*;
+		std::optional<std::uint64_t> AgentPresenter;
+		std::string                  AgentPresenterSession;
+		/// The session whose runtime this window last presented, kept after it
+		/// detaches: its evidence still reads that runtime's stack.
+		std::string                      AgentRuntimeSession;
 		std::vector<core::agent_profile> ComposedAgentProfiles;
 		void                             present_ask_queue(const core::agent_queue& aQueue);
 		[[nodiscard]] auto               ask_queue_agent() const -> core::queue_agent;
@@ -867,7 +896,7 @@ namespace bpr::app {
 		/// Ask more seed.
 		[[nodiscard]] auto tour_queue_key() const -> std::string;
 		[[nodiscard]] auto tour_queue_agent() const -> core::queue_agent;
-		[[nodiscard]] auto release_tour_feedback(const core::queued_entry& aEntry) -> bool;
+		[[nodiscard]] auto release_tour_feedback(const core::queued_entry& aEntry) -> application::queued_admission;
 		void               drain_tour_queue();
 		/// Feedback that cannot go (the draft did not propose a tour, or the
 		/// app closed first) lands in the tour chat as not sent, as written.
@@ -2223,7 +2252,9 @@ namespace bpr::app {
 		/// [[BPR-2177]]. Which agent programs a fixture build may start.
 		[[nodiscard]] auto fixture_agent_admission() const -> std::function<std::optional<std::string>(const std::string&)>;
 		/// [[BPR-2177]], look ask-v002. The fixture agent's Check ran once.
-		bool FixtureSetupChecked               = false;
+		bool FixtureSetupChecked = false;
+		/// [[BPR-2153]]. Adding the fixture agent's entry is under way.
+		bool FixtureEntryAdding                = false;
 		bool ReviewLedgerWasPresentOnEntry     = false;
 		bool ReviewLedgerRoundTripPassed       = false;
 		bool FixtureReviewMutationHostComposed = false;

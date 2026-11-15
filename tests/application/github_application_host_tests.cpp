@@ -7631,6 +7631,30 @@ namespace {
 		}
 	};
 
+	/// [[BPR-2181]]. The loan follows the revision the lending window
+	/// accepted, which may be newer than its last read; a revision naming
+	/// another pull request is not lent.
+	void test_a_lent_review_authority_follows_the_windows_accepted_revision()
+	{
+		lending_course course;
+		const auto     lender   = course.open_window(2U, 27U);
+		auto           accepted = lender->lend_epoch_handoff(core::application_session_id{ 900 });
+		expect(accepted.has_value(), "the window holds an accepted revision");
+		if (!accepted) {
+			return;
+		}
+		accepted->Snapshot              = core::provider_snapshot_id{ accepted->Snapshot.value() + 1U };
+		accepted->PullRequestGeneration = core::request_generation{ accepted->PullRequestGeneration.value() + 1U };
+		accepted->Head                  = accepted->Base;
+		const auto lent                 = course.Fixture.Host.lend_review_authority(lender, core::application_session_id{ 900 }, { }, &*accepted);
+		expect(lent && lent->Lease.live() && lent->Handoff.Snapshot == accepted->Snapshot && lent->Handoff.PullRequestGeneration == accepted->PullRequestGeneration
+				   && lent->Handoff.Head == accepted->Head && lent->Handoff.ApplicationSession == core::application_session_id{ 900 },
+			   "the loan carries the window's accepted revision in the holder's session");
+		auto other         = lender->lend_epoch_handoff(core::application_session_id{ 900 });
+		other->PullRequest = core::pull_request_id{ other->PullRequest.value() + 1U };
+		expect(!course.Fixture.Host.lend_review_authority(lender, core::application_session_id{ 901 }, { }, &*other), "a revision of another pull request is not lent");
+	}
+
 	void test_a_lent_review_authority_is_the_holders_and_ends_when_it_lets_go()
 	{
 		lending_course course;
@@ -7751,6 +7775,7 @@ auto main() -> int
 {
 	bpr::tests::report_qualification_build();
 	bpr::tests::run_qualification_case("test_a_lent_review_authority_is_the_holders_and_ends_when_it_lets_go", &test_a_lent_review_authority_is_the_holders_and_ends_when_it_lets_go);
+	bpr::tests::run_qualification_case("test_a_lent_review_authority_follows_the_windows_accepted_revision", &test_a_lent_review_authority_follows_the_windows_accepted_revision);
 	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_account_signs_out", &test_a_lent_review_authority_ends_when_the_account_signs_out);
 	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_account_changes", &test_a_lent_review_authority_ends_when_the_account_changes);
 	bpr::tests::run_qualification_case("test_a_lent_review_authority_ends_when_the_identity_generation_changes", &test_a_lent_review_authority_ends_when_the_identity_generation_changes);

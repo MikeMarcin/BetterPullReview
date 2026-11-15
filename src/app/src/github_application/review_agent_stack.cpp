@@ -107,8 +107,13 @@ namespace bpr::app {
 			self.Agent->set_scratch_root(self.Seed.ScratchRoot);
 		}
 		self.Agent->set_retired_observer([alive = std::weak_ptr<bool>{ self.Alive }, &self] {
-			if (const auto live = alive.lock(); live && *live && self.Retired) {
-				self.Retired();
+			if (const auto live = alive.lock(); live && *live) {
+				// [[BPR-2193]]. A loan that waited for this run goes in first,
+				// so the next turn waits for its acceptance.
+				self.apply_waiting_loan();
+				if (self.Retired) {
+					self.Retired();
+				}
 			}
 		});
 		return stack;
@@ -125,12 +130,48 @@ namespace bpr::app {
 		if (Closing || Epoch == nullptr) {
 			return;
 		}
-		Lease   = std::move(aLent.Lease);
-		LentFor = aFor;
+		// [[BPR-2193]]. The same revision lent again while a turn runs (the
+		// window's comparison epochs moved): accepting it now would bump the
+		// epoch host's blob authorization under that turn's workspace.
+		const auto sameRevision = LentFor && LentFor->BaseOid == aFor.BaseOid && LentFor->HeadOid == aFor.HeadOid;
+		if (sameRevision && Lease.live() && Agent != nullptr && !Agent->is_quiescent()) {
+			WaitingLoan.emplace(std::move(aLent), aFor);
+			return;
+		}
+		WaitingLoan.reset();
+		apply_loan(std::move(aLent), aFor);
+	}
+
+	void review_agent_stack::apply_loan(application::lent_review_authority aLent, const core::agent_revision_binding aFor)
+	{
+		Lease       = std::move(aLent.Lease);
+		LentFor     = aFor;
+		LoanPending = true;
 		Epoch->accept(std::move(aLent.Handoff));
 	}
 
-	auto review_agent_stack::lent_for(const core::agent_revision_binding& aBinding) const -> bool { return !Closing && Lease.live() && LentFor == std::optional{ aBinding }; }
+	void review_agent_stack::apply_waiting_loan()
+	{
+		if (!WaitingLoan || Closing || Epoch == nullptr || Agent == nullptr || !Agent->is_quiescent()) {
+			return;
+		}
+		auto waiting = std::move(*WaitingLoan);
+		WaitingLoan.reset();
+		if (waiting.first.Lease.live()) {
+			apply_loan(std::move(waiting.first), waiting.second);
+		}
+	}
+
+	auto review_agent_stack::lent_for(const core::agent_revision_binding& aBinding) const -> bool
+	{
+		if (Closing) {
+			return false;
+		}
+		if (WaitingLoan) {
+			return WaitingLoan->first.Lease.live() && WaitingLoan->second == aBinding;
+		}
+		return Lease.live() && LentFor == std::optional{ aBinding };
+	}
 
 	auto review_agent_stack::statistics() const -> application::agent_invocation_host_statistics { return Agent != nullptr ? Agent->statistics() : application::agent_invocation_host_statistics{ }; }
 
@@ -157,7 +198,16 @@ namespace bpr::app {
 			.LeftEpoch   = state.AcceptedComparison->Left.Identity.Epoch,
 			.RightEpoch  = state.AcceptedComparison->Right.Identity.Epoch,
 		};
+		// [[BPR-2193]]. The loan last lent is in once the epoch host has
+		// ingested it and accepts its revision.
+		const auto settled = LoanPending && !state.PendingIngestion && LentFor && binding.BaseOid == LentFor->BaseOid && binding.HeadOid == LentFor->HeadOid;
+		if (settled) {
+			LoanPending = false;
+		}
 		if (Observed == std::optional{ binding }) {
+			if (settled && Ready) {
+				Ready();
+			}
 			return;
 		}
 		Observed = binding;
@@ -193,6 +243,22 @@ namespace bpr::app {
 		}
 	}
 
+	auto review_agent_stack::steer_support(const application::agent_invocation_projection_identity& aRun) const -> core::agent_steer_support
+	{
+		return Agent != nullptr ? Agent->steer_support(aRun) : core::agent_steer_support::not_running;
+	}
+
+	void review_agent_stack::steer(const application::agent_invocation_projection_identity& aRun, std::string aText, application::agent_invocation_host::steer_answer aAnswer)
+	{
+		if (Agent == nullptr) {
+			if (aAnswer) {
+				aAnswer({ .Support = core::agent_steer_support::not_running });
+			}
+			return;
+		}
+		Agent->steer(aRun, std::move(aText), std::move(aAnswer));
+	}
+
 	/// The turn's machinery alone before shutdown, so background review work
 	/// never holds a turn running; every host once shut down.
 	auto review_agent_stack::is_quiescent() const -> bool
@@ -201,7 +267,7 @@ namespace bpr::app {
 		if (!Closing) {
 			return agent;
 		}
-		return agent && (Epoch == nullptr || Epoch->is_quiescent()) && (Ledger == nullptr || Ledger->is_quiescent());
+		return agent && ReviewHostsClosed && (Epoch == nullptr || Epoch->is_quiescent()) && (Ledger == nullptr || Ledger->is_quiescent());
 	}
 
 	void review_agent_stack::shutdown()
@@ -214,6 +280,19 @@ namespace bpr::app {
 		if (Agent != nullptr) {
 			Agent->shutdown();
 		}
+		close_review_hosts();
+	}
+
+	/// The epoch host is the agent host's workspace port, so it closes only
+	/// once the agent host is quiescent: a workspace whose removal was
+	/// refused is removed on a retry, never abandoned to a closed port. The
+	/// ledger host goes with it, as a window's shutdown orders its own.
+	void review_agent_stack::close_review_hosts()
+	{
+		if (!Closing || ReviewHostsClosed || (Agent != nullptr && !Agent->is_quiescent())) {
+			return;
+		}
+		ReviewHostsClosed = true;
 		if (Epoch != nullptr) {
 			Epoch->shutdown();
 		}
@@ -222,7 +301,37 @@ namespace bpr::app {
 		}
 	}
 
-	auto review_agent_stack::authorized() const -> bool { return !Closing && Lease.live() && Observed.has_value(); }
+	/// [[BPR-2193]]. Whether the epoch host has taken in what was last lent.
+	/// Accepting a loan re-authorizes its blobs, and a workspace admitted
+	/// under the authorization before ends stale, so no turn starts until the
+	/// loan's ingestion has settled on its revision. (The comparison's epochs
+	/// are the stack's own and need not be the window's.)
+	auto review_agent_stack::lent_revision_observed() const -> bool
+	{
+		return Observed.has_value() && !LoanPending && (!LentFor || (Observed->BaseOid == LentFor->BaseOid && Observed->HeadOid == LentFor->HeadOid));
+	}
+
+	auto review_agent_stack::authorized() const -> bool { return !Closing && Lease.live() && lent_revision_observed(); }
+
+	/// Lent, and the epoch host has not yet accepted the revision lent: a
+	/// window may already say ready, so its turn waits for `observe_review`.
+	auto review_agent_stack::accepting() const -> bool { return !Closing && Lease.live() && !lent_revision_observed(); }
+
+	void review_agent_stack::retry_cleanup()
+	{
+		if (Agent != nullptr) {
+			Agent->retry_cleanup();
+		}
+		close_review_hosts();
+	}
+
+	auto review_agent_stack::observed_review() const -> std::optional<std::pair<core::pull_request_authority, core::agent_revision_binding>>
+	{
+		if (Epoch == nullptr || !Observed || !Epoch->state().Authority) {
+			return std::nullopt;
+		}
+		return std::pair{ *Epoch->state().Authority, *Observed };
+	}
 
 	void review_agent_stack::admit(const application::agent_session_admission&                                                aAdmission,
 								   std::function<void(std::expected<core::agent_session, application::ledger_store_failure>)> aDone)

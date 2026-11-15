@@ -32,6 +32,31 @@ namespace bpr::application {
 	}
 
 	namespace {
+		/// [[BPR-2153]]. The messages steered into a run, as its stored turn
+		/// keeps them: each where it went in, as bytes of the stored answer
+		/// (the assistant items written before it; with only the last item
+		/// kept, before it unless that item had begun).
+		[[nodiscard]] auto steered_messages(const agent_run_result& aResult, const bool aLastItemOnly, const std::string& aAnswer) -> std::vector<agent_steered_message>
+		{
+			auto messages = std::vector<agent_steered_message>{ };
+			for (const auto& input : aResult.SteeredInputs) {
+				if (messages.size() >= core::maximum_steers_per_run || input.Text.empty()) {
+					break;
+				}
+				auto at = std::size_t{ 0U };
+				if (aLastItemOnly) {
+					at = input.AfterItems >= aResult.AssistantItems.size() ? aAnswer.size() : 0U;
+				} else {
+					const auto written = std::min(input.AfterItems, aResult.AssistantItems.size());
+					for (std::size_t item = 0U; item < written; ++item) {
+						at += aResult.AssistantItems[item].size();
+					}
+				}
+				messages.push_back({ .Text = input.Text, .At = std::min(at, aAnswer.size()), .AfterSteps = input.AfterSteps, .Disposition = input.Disposition });
+			}
+			return messages;
+		}
+
 		// Read only this selected catalog generation, never an in-memory cache of other chats.
 		auto prose_replay(const native_agent_history_projection& aHistory, const bool aTour) -> core::transcript_replay
 		{
@@ -172,6 +197,12 @@ namespace bpr::application {
 			std::atomic_bool     CleanupScheduled    = false;
 			std::atomic_bool     Retired             = false;
 			std::atomic_bool     ExplicitlyCancelled = false;
+			/// [[BPR-2153]]. While the process runs: its protocol, and the kept
+			/// native connection and turn a correction is handed to (none for
+			/// a one-shot or replayed run).
+			mutable std::mutex                  SteerMutex;
+			std::optional<core::agent_protocol> SteerProtocol;
+			std::optional<agent_steer_request>  SteerTarget;
 		};
 
 		implementation(
@@ -1112,7 +1143,14 @@ namespace bpr::application {
 				// Owner decision 2026-10-23: no time limit unless the reviewer
 				// set one; Stop is always there.
 				aInvocation->NativeSubmitted = true;
-				auto result                  = Processes.run(
+				{
+					const auto lock            = std::scoped_lock{ aInvocation->SteerMutex };
+					aInvocation->SteerProtocol = launch->Protocol;
+					if (!launch->NativeConversation.empty()) {
+						aInvocation->SteerTarget = agent_steer_request{ .Conversation = launch->NativeConversation, .Run = launch->Run, .NativeTurn = launch->NativeTurn };
+					}
+				}
+				auto result = Processes.run(
 					*launch,
 					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
@@ -1122,6 +1160,11 @@ namespace bpr::application {
 						}
 					},
 					aInvocation->Stop->get_token());
+				{
+					const auto lock = std::scoped_lock{ aInvocation->SteerMutex };
+					aInvocation->SteerProtocol.reset();
+					aInvocation->SteerTarget.reset();
+				}
 				if (launch->PrivateInputClaim) {
 					launch->PrivateInputClaim->release();
 				}
@@ -1159,10 +1202,14 @@ namespace bpr::application {
 					}
 					auto turn     = agent_conversation_turn{ };
 					turn.Asked    = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion;
+					turn.Steered  = steered_messages(result, aRequest.ReadOnlyTools && !result.AssistantItems.empty(), answer);
 					turn.Answered = std::move(answer);
 					turn.Ending   = std::string{ name(result.Outcome) };
 					turn.Outcome  = result.Outcome == agent_run_outcome::success ? core::agent_turn_outcome::answered : core::agent_turn_outcome::ended_without_answer;
 					auto bounded  = bound_conversation({ std::move(turn) });
+					for (auto& steered : bounded.front().Steered) {
+						steered.At = std::min(steered.At, bounded.front().Answered.size());
+					}
 					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)) {
 						result.Outcome       = agent_run_outcome::private_storage_failure;
 						result.StandardError = "The question ended, but native session storage failed. Its submission remains uncertain; it will not be resent.";
@@ -1522,6 +1569,83 @@ namespace bpr::application {
 			static_cast<void>(active->Stop->request_stop());
 		}
 
+		/// [[BPR-2153]]. The steering channel of `aRun`, which must be the
+		/// active run, or why it has none. The version is the one its runtime
+		/// reported to the process port, never assumed.
+		[[nodiscard]] auto steer_target(const agent_invocation_projection_identity& aRun) const -> std::expected<agent_steer_request, core::agent_steer_support>
+		{
+			auto active = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				active = ActiveInvocation;
+			}
+			if (!active) {
+				return std::unexpected(core::agent_steer_support::not_running);
+			}
+			if (active->Identity != aRun) {
+				return std::unexpected(core::agent_steer_support::other_run);
+			}
+			if (active->Stop->stop_requested()) {
+				return std::unexpected(core::agent_steer_support::not_running);
+			}
+			auto target = std::optional<agent_steer_request>{ };
+			{
+				const auto lock = std::scoped_lock{ active->SteerMutex };
+				if (!active->SteerProtocol) {
+					return std::unexpected(core::agent_steer_support::not_running);
+				}
+				// Driver and connection first; the version is the port's to say.
+				if (const auto shape = core::agent_steer_support_of(*active->SteerProtocol, active->SteerTarget.has_value(), core::qualified_claude_steer_version); shape != core::agent_steer_support::available) {
+					return std::unexpected(shape);
+				}
+				target = active->SteerTarget;
+			}
+			if (const auto support = Processes.steer_support(*target); support != core::agent_steer_support::available) {
+				return std::unexpected(support);
+			}
+			return std::move(*target);
+		}
+
+		void steer(const agent_invocation_projection_identity& aRun, std::string aText, agent_invocation_host::steer_answer aAnswer)
+		{
+			const auto weak    = weak_from_this();
+			auto       deliver = [weak, answer = std::move(aAnswer)](const agent_steer_receipt& aReceipt) {
+				auto self = weak.lock();
+				if (!self || !answer) {
+					return;
+				}
+				++self->Probes;
+				try {
+					self->DecisionLane.post([weak, answer, aReceipt] {
+						if (auto lane = weak.lock()) {
+							--lane->Probes;
+							if (!lane->Closing) {
+								answer(aReceipt);
+							}
+						}
+					});
+				} catch (...) {
+					--self->Probes;
+				}
+			};
+			if (aText.find_first_not_of(" \t\r\n") == std::string::npos) {
+				deliver({ .Support = core::agent_steer_support::empty_text });
+				return;
+			}
+			if (aText.size() > core::maximum_chat_message_bytes) {
+				deliver({ .Support = core::agent_steer_support::text_too_long });
+				return;
+			}
+			auto target = steer_target(aRun);
+			if (!target) {
+				deliver({ .Support = target.error() });
+				return;
+			}
+			auto request = std::move(*target);
+			request.Text = std::move(aText);
+			Processes.steer(std::move(request), std::move(deliver));
+		}
+
 		void supersede(const supersession_cause aCause)
 		{
 			auto active = std::shared_ptr<invocation>{ };
@@ -1827,6 +1951,11 @@ namespace bpr::application {
 		Implementation->restore_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aChoice), std::move(aLegacy));
 	}
 
+	void agent_invocation_host::native_history_changed()
+	{
+		Implementation->NativeRestoreKey.clear();
+	}
+
 	void agent_invocation_host::clear()
 	{
 		const auto implementation = Implementation;
@@ -1843,6 +1972,18 @@ namespace bpr::application {
 	{
 		const auto implementation = Implementation;
 		implementation->cancel();
+	}
+
+	auto agent_invocation_host::steer_support(const agent_invocation_projection_identity& aRun) const -> core::agent_steer_support
+	{
+		const auto target = Implementation->steer_target(aRun);
+		return target ? core::agent_steer_support::available : target.error();
+	}
+
+	void agent_invocation_host::steer(const agent_invocation_projection_identity& aRun, std::string aText, steer_answer aAnswer)
+	{
+		const auto implementation = Implementation;
+		implementation->steer(aRun, std::move(aText), std::move(aAnswer));
 	}
 
 	void agent_invocation_host::shutdown()

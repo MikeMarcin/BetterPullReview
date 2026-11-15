@@ -351,7 +351,8 @@ namespace bpr::application {
 		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, const bool aFreshSnapshot);
 		void detach_window(const core::bpr_window_context aContext);
 		auto lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender, core::application_session_id aHolder,
-								   std::function<void(lent_review_authority_end)> aRevoked) -> std::optional<lent_review_authority>;
+								   std::function<void(lent_review_authority_end)> aRevoked, const accepted_pull_request_handoff* aAccepted)
+			-> std::optional<lent_review_authority>;
 		/// \brief [[BPR-2181]]. Ends every live loan \p aEnds selects: revokes
 		/// its lease at once, then posts its holder's callback with \p aCause.
 		void end_lent_authorities(lent_review_authority_end aCause, const std::function<bool(const lent_review_record&)>& aEnds) noexcept;

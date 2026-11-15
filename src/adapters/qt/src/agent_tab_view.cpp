@@ -8,6 +8,7 @@
 
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_queue.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/local_comment.hpp"
@@ -71,6 +72,7 @@
 
 #include <algorithm>
 #include <array>
+#include <tuple>
 #include <utility>
 
 namespace bpr::qt {
@@ -1652,7 +1654,9 @@ namespace bpr::qt {
 
 	void agent_tab_view::add_turn_widgets(turn& aTurn)
 	{
-		aTurn.Serial    = NextSerial++;
+		if (aTurn.Serial == 0U) {
+			aTurn.Serial = NextSerial++;
+		}
 		auto* const box = new QWidget{ Thread };
 		box->setObjectName(QStringLiteral("agentTurn"));
 		auto* const column = new QVBoxLayout{ box };
@@ -1733,6 +1737,18 @@ namespace bpr::qt {
 			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
 		}
 		column->addWidget(asked);
+		// [[BPR-2153]], look steer-v001 (owner: "I would have expected to see
+		// Two show up as something I had sent"). What the reviewer steered
+		// into the turn shows as their own messages, after the question and
+		// before the reply the agent wrote after taking it.
+		auto* const steered = new QWidget{ box };
+		steered->setObjectName(QStringLiteral("agentTurnSteeredMessages"));
+		auto* const steeredColumn = new QVBoxLayout{ steered };
+		steeredColumn->setContentsMargins(0, 0, 0, 0);
+		steeredColumn->setSpacing(4);
+		steered->hide();
+		column->addWidget(steered);
+		aTurn.SteeredBox = steered;
 		// Owner look v003 ("the response contained in something we could
 		// copy"): the reply in its own card, its footer as the agent apps
 		// have it: Copy and its one keep action, then who answered and when.
@@ -2225,6 +2241,52 @@ namespace bpr::qt {
 		fit_answer(*aTurn.Answer);
 	}
 
+	void agent_tab_view::show_steered(turn& aTurn)
+	{
+		if (aTurn.SteeredBox == nullptr) {
+			return;
+		}
+		auto* const column = qobject_cast<QVBoxLayout*>(aTurn.SteeredBox->layout());
+		while (column != nullptr && column->count() > 0) {
+			auto* const item = column->takeAt(0);
+			if (auto* const widget = item->widget(); widget != nullptr) {
+				widget->hide();
+				widget->deleteLater();
+			}
+			delete item;
+		}
+		for (const auto& message : aTurn.Steered) {
+			auto* const bubble = new rounded{ rounded::look::field, aTurn.SteeredBox };
+			bubble->setObjectName(QStringLiteral("agentTurnSteered"));
+			auto* const bubbleColumn = new QVBoxLayout{ bubble };
+			bubbleColumn->setContentsMargins(10, 6, 10, 6);
+			bubbleColumn->setSpacing(2);
+			const auto after = message.AfterSteps == 0U ? tr("Steered before the agent's first step") : tr("Steered after step %1").arg(message.AfterSteps);
+			auto       state = after;
+			switch (message.Disposition) {
+			case core::agent_steer_disposition::refused:  state = tr("%1. The agent refused it, so it went back to the queue.").arg(after); break;
+			case core::agent_steer_disposition::unknown:  state = tr("%1. The agent may not have taken it.").arg(after); break;
+			case core::agent_steer_disposition::unsent:   state = tr("%1. It was not sent.").arg(after); break;
+			case core::agent_steer_disposition::sent:
+			case core::agent_steer_disposition::consumed: break;
+			}
+			auto* const label = new QLabel{ state, bubble };
+			label->setObjectName(QStringLiteral("agentTurnSteeredState"));
+			label->setForegroundRole(QPalette::PlaceholderText);
+			label->setWordWrap(true);
+			bubbleColumn->addWidget(label);
+			auto* const text = new QLabel{ QString::fromStdString(message.Text), bubble };
+			text->setObjectName(QStringLiteral("agentTurnSteeredText"));
+			text->setTextFormat(Qt::PlainText);
+			text->setWordWrap(true);
+			text->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			bubbleColumn->addWidget(text);
+			bubble->setAccessibleName(tr("You steered: %1. %2").arg(QString::fromStdString(message.Text), state));
+			column->addWidget(bubble);
+		}
+		aTurn.SteeredBox->setVisible(!aTurn.Steered.empty());
+	}
+
 	void agent_tab_view::show_question(turn& aTurn)
 	{
 		if (aTurn.QuestionLabel == nullptr) {
@@ -2378,18 +2440,33 @@ namespace bpr::qt {
 				kept.Widget->deleteLater();
 			}
 		}
+		// [[BPR-2184]] (review N5). A turn drawn again in its place keeps its
+		// identity and ending, so a report keyed by it still finds it.
+		auto before = std::vector<std::tuple<QString, std::uint64_t, QString>>{ };
+		before.reserve(Turns.size());
+		for (const auto& kept : Turns) {
+			before.emplace_back(kept.Question, kept.Serial, kept.Ending);
+		}
 		Turns.clear();
 		// A turn's cards went with its widgets.
 		std::erase_if(CardEntries, [](const card_entry& aEntry) { return aEntry.Turn.has_value(); });
 		for (const auto& shown : aTurns) {
-			auto next       = turn{ };
+			auto next = turn{ };
+			if (const auto at = Turns.size(); at < before.size() && std::get<0>(before[at]) == shown.Question) {
+				next.Serial = std::get<1>(before[at]);
+				next.Ending = std::get<2>(before[at]);
+			} else {
+				next.Ending = shown.Footer.section(QStringLiteral(" · "), 0, 0);
+			}
 			next.Question   = shown.Question;
 			next.Name       = shown.Name;
 			next.Done       = true;
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
 			next.Outcome    = shown.Outcome;
+			next.Steered    = shown.Steered;
 			add_turn_widgets(next);
+			show_steered(next);
 			// [[BPR-1860]]. Kept before its answer is shown: the code host
 			// answers a text it has seen from its cache inside the ask, and
 			// `apply_code_syntax` hands spans only to the turns kept here.
@@ -2562,7 +2639,8 @@ namespace bpr::qt {
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
 								   .AnsweredAt = kept.AnsweredAt,
-								   .Outcome    = kept.Outcome });
+								   .Outcome    = kept.Outcome,
+								   .Steered    = kept.Steered });
 			}
 		}
 		return result;
@@ -2890,6 +2968,17 @@ namespace bpr::qt {
 
 	auto agent_tab_view::ready_to_send() const -> bool { return State != agent_tab_state::working && Chat.send_action() != nullptr && Chat.send_action()->isEnabled(); }
 
+	void agent_tab_view::return_unqueued(const QString& aText, const QString& aWhy)
+	{
+		if (!panels_alive()) {
+			return;
+		}
+		const auto typed = Chat.composer()->toPlainText();
+		draft_text(typed.trimmed().isEmpty() ? aText : aText + QStringLiteral("\n\n") + typed);
+		Notice->setText(aWhy);
+		Notice->show();
+	}
+
 	void agent_tab_view::draft_text(const QString& aText)
 	{
 		if (!panels_alive()) {
@@ -2916,7 +3005,7 @@ namespace bpr::qt {
 		if (send == nullptr) {
 			return;
 		}
-		const auto following = FollowUp && (State == agent_tab_state::working || QueueOccupied);
+		const auto following = FollowUp && core::decide_follow_up({ .TurnShown = State == agent_tab_state::working, .QueueHolds = QueueOccupied }) != core::follow_up::send;
 		const auto other     = QStringLiteral("%1Return").arg(QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText));
 		const auto words     = !following ? tr("Send")
 			: FollowUpSteer               ? tr("Steer (Return) · Queue (%1)").arg(other)
@@ -2926,28 +3015,31 @@ namespace bpr::qt {
 															  : tr("Queue"));
 	}
 
-	auto agent_tab_view::send_released(const QString& aText) -> QString
+	auto agent_tab_view::send_released(const QString& aText) -> release_outcome
 	{
 		if (!panels_alive()) {
-			return tr("Not sent.");
+			return release_outcome::refused;
 		}
 		auto* const composer = Chat.composer();
 		const auto  draft    = composer->toPlainText();
 		composer->setPlainText(aText);
 		KeepingDraft = !draft.trimmed().isEmpty();
 		Releasing    = true;
+		Released     = release_outcome::refused;
 		ask();
 		Releasing = false;
 		if (KeepingDraft) {
 			composer->setPlainText(draft);
 		}
 		KeepingDraft = false;
-		return send_refusal_text();
+		return Released;
 	}
 
 	void agent_tab_view::present_queue_rows(std::vector<queue_row> aRows, const QString& aState, const bool aPaused)
 	{
-		QueueOccupied = std::ranges::any_of(aRows, [](const queue_row& aRow) { return !aRow.Sending; });
+		// AC10: a released message whose turn does not show yet holds the
+		// session too.
+		QueueOccupied = !aRows.empty();
 		refresh_send_label();
 		if (QueueList == nullptr) {
 			return;
@@ -3090,7 +3182,21 @@ namespace bpr::qt {
 			label->setToolTip(entry.Text.isEmpty() ? entry.Label : entry.Text);
 			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
 			line->addWidget(label, 1);
-			if (entry.Sending) {
+			if (entry.Uncertain) {
+				// RFC-BPR-0126 AC04: whether the agent took it is not known.
+				// The reviewer discards it; Resume does not send it again. The
+				// label says so and elides, and Discard is an icon with a tip,
+				// so the card is never wider than the drawer.
+				label->setText(tr("%1 (may not have been delivered)").arg(entry.Label));
+				auto* const discard = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueDiscard"), tr("Discard the message that may not have been delivered: %1").arg(entry.Label));
+				discard->setToolTip(tr("Discard: it may not have been delivered"));
+				connect(discard, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Discard) {
+						QueueDispatch.Discard(id);
+					}
+				});
+				line->addWidget(discard);
+			} else if (entry.Sending) {
 				line->addSpacing(6);
 				auto* const sending = new QLabel{ tr("Sending"), row };
 				sending->setObjectName(QStringLiteral("agentQueueSending"));
@@ -3294,30 +3400,31 @@ namespace bpr::qt {
 		}
 		const auto& turn = Turns[aTurn];
 		// References are links in the report as they are in the answer.
-		const auto shown  = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
-		auto       byline = turn.Footer != nullptr ? turn.Footer->text().section(QStringLiteral(" · "), 0, 0) : QString{ };
-		if (const auto when = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt); !when.isEmpty()) {
-			byline += (byline.isEmpty() ? QString{ } : QStringLiteral(" · ")) + when;
-		}
-		if (Head != nullptr && !Head->text().isEmpty()) {
-			byline += (byline.isEmpty() ? QString{ } : QStringLiteral(" · ")) + tr("at %1").arg(Head->text());
-		}
+		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+		// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
+		// byline handed over as data.
 		ReportDispatch(agent_report_document{
-			.Turn     = aTurn,
+			.Turn     = turn.Serial,
 			.Title    = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
 			.Markdown = shown,
 			.Question = turn.Question,
-			.Byline   = byline,
+			.Byline   = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
 		});
 	}
 
-	void agent_tab_view::mark_open_report(const std::optional<std::size_t> aTurn)
+	void agent_tab_view::mark_open_report(const std::optional<std::uint64_t> aTurn)
 	{
-		for (std::size_t index = 0U; index < Turns.size(); ++index) {
-			if (auto* const row = static_cast<report_attachment_row*>(Turns[index].ReportOpen.data()); row != nullptr) {
-				row->set_selected(aTurn == index);
+		for (const auto& each : Turns) {
+			if (auto* const row = static_cast<report_attachment_row*>(each.ReportOpen.data()); row != nullptr) {
+				row->set_selected(aTurn == each.Serial);
 			}
 		}
+	}
+
+	auto agent_tab_view::turn_of(const std::uint64_t aTurn) const -> std::optional<std::size_t>
+	{
+		const auto found = std::ranges::find(Turns, aTurn, &turn::Serial);
+		return found == Turns.end() ? std::nullopt : std::optional{ static_cast<std::size_t>(std::distance(Turns.begin(), found)) };
 	}
 
 	auto agent_tab_view::turn_report_card(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].ReportCard.data() : nullptr; }
@@ -3346,7 +3453,13 @@ namespace bpr::qt {
 		if (Turns.empty() || Turns.back().Done || Turns.back().Answer == nullptr || Turns.back().Footer == nullptr) {
 			return;
 		}
-		auto&      current = Turns.back();
+		auto& current = Turns.back();
+		// [[BPR-2153]]. The running turn's steered messages, as its run's
+		// turn events said them, and how each ended.
+		if (current.Steered != Launch.steered()) {
+			current.Steered = Launch.steered();
+			show_steered(current);
+		}
 		const auto agent   = Launch.profile_selector()->currentText();
 		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
 		const auto written = Launch.output_text().trimmed();
@@ -3480,6 +3593,7 @@ namespace bpr::qt {
 		}
 		current.Footer->settle(footer, succeeded);
 		current.Footer->setToolTip(detail);
+		current.Ending = parts.front();
 		// [[BPR-2051]]. The window's footer says how it ended, for a moment,
 		// after where it started: "answered in 1:12 · $0.41 · 2 findings".
 		// RFC-BPR-0126: a settled turn may release the next queued input.
@@ -4636,14 +4750,17 @@ namespace bpr::qt {
 		// read as `/model` or `/effort`: it is sent as text.
 		const auto direct = SendingMacro && SendingMacro->SkillText;
 		if (!direct && run_slash_command(text)) {
+			Released = release_outcome::answered;
 			return;
 		}
 		// RFC-BPR-0126 Q4/Q5 as answered: while a turn runs or messages wait,
 		// a typed message is a follow-up (Queue by default, Steer by the
 		// setting; Cmd+Return the other for one message).
 		const auto typed = !SendingMacro && !SendingReturning && SendingExplain.isEmpty() && SendingSuggest.isEmpty() && !DraftedMacro && !Releasing;
-		if (typed && FollowUp && !text.isEmpty() && (State == agent_tab_state::working || QueueOccupied)) {
-			if (FollowUp(text, FollowUpSteer != Opposite)) {
+		// AC10: the core decides, over the run the tab shows and the queue.
+		const auto followUp = core::decide_follow_up({ .TurnShown = State == agent_tab_state::working, .QueueHolds = QueueOccupied, .Empty = text.isEmpty(), .SteerByDefault = FollowUpSteer, .Opposite = Opposite });
+		if (typed && FollowUp && followUp != core::follow_up::send) {
+			if (FollowUp(text, followUp == core::follow_up::steer)) {
 				Chat.composer()->clear();
 				return;
 			}
@@ -4688,6 +4805,7 @@ namespace bpr::qt {
 		}
 		Chat.set_question(LastQuestion);
 		Chat.set_skill_text(SendingMacro ? SendingMacro->SkillText : std::nullopt);
+		Released = release_outcome::sent;
 		Chat.send_action()->trigger();
 		Chat.set_skill_text(std::nullopt);
 		if (drafted) {

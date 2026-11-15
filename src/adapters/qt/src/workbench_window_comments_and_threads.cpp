@@ -546,6 +546,17 @@ namespace bpr::qt {
 		}
 		choose_home(false);
 		choose_modality(review_modality::review);
+		// [[BPR-2180]]. Through the Files drawer's own selection, so a file the
+		// review has only reported so far waits for the review and then opens,
+		// as a click on it does; dispatched directly it named a file the
+		// comparison cannot be asked for, and stayed on the code skeleton.
+		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		for (int row = 0; model != nullptr && row < model->rowCount(); ++row) {
+			if (const auto index = model->index(row, 0); model->file_at(index) == file) {
+				dispatch_file_selection(index);
+				return true;
+			}
+		}
 		Dispatch(core::select_workbench_file_intent{ .File = *file });
 		return true;
 	}
@@ -1288,6 +1299,15 @@ namespace bpr::qt {
 
 	void workbench_window::publish(const application::document_tabs_projection& aProjection)
 	{
+		// [[BPR-2184]] (review N5). A report whose tab closed is dropped: one
+		// the last projection showed and this one does not. A report just
+		// opened, its tab not yet shown, stays.
+		if (TabsProjection) {
+			const auto has = [](const application::document_tabs_projection& aTabs, const std::string& aKey) {
+				return std::ranges::any_of(aTabs.Tabs, [&aKey](const auto& aTab) { return aTab.Report == aKey; });
+			};
+			std::erase_if(Reports, [&](const auto& aReport) { return has(*TabsProjection, aReport.first) && !has(aProjection, aReport.first); });
+		}
 		TabsProjection = aProjection;
 		update_go_to_line_action();
 		present_document_tabs();

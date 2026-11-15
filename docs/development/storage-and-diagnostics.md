@@ -16,13 +16,24 @@ remove it.
 | Windows | `%LOCALAPPDATA%\BetterPullReview\BetterPullReview` |
 | Linux | `~/.local/share/BetterPullReview/BetterPullReview` (or under `$XDG_DATA_HOME`) |
 
-Other profiles live in `profiles/<id>` under it. Private notes, drafts, tours
-and Review Cycles exist only here and cannot be rebuilt from GitHub. They are
+Other profiles live in `profiles/<id>` under it. Private notes, drafts, tours,
+local PR drafts, Review Cycles and agent conversations exist only here and
+cannot be rebuilt from GitHub. They are
 not encrypted; the folders are readable only by your account.
 
 To back up, quit BetterPullReview and copy the whole profile folder, including
 every `-wal` and `-shm` file. Never edit live databases or delete lock files.
 Back up before changing versions: an older version may not open newer data.
+
+Agent scratch folders, where an agent may write and run scripts, sit outside
+the profile folder: beside it, in a folder named after it with
+`-agent-scratch-v1` appended. When that path contains a space, as macOS's
+`Application Support` does, they go under the user's cache folder instead, in
+`betterpullreview-agent-scratch-v1/<hash>` (on macOS,
+`~/Library/Caches/betterpullreview-agent-scratch-v1`). Windows has no scratch
+folders. By default a folder unused for 30 days is removed when
+BetterPullReview starts, and a folder's limit is 256 MiB. Both are set, and
+the folders cleared, in [Settings > Agents & context](settings.md#agents).
 
 Sign-in tokens live in the operating system's credential store. Manual tokens
 are dropped when you quit. Credentials held by `gh` or an AI agent are never

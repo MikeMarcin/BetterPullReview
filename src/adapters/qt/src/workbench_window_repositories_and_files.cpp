@@ -289,6 +289,9 @@ namespace bpr::qt {
 			Cursor = aProjection.Selection->Cursor;
 			apply_file_selection();
 		}
+		if (aProjection.PendingOpen) {
+			present_pending_open(*aProjection.PendingOpen);
+		}
 		if (ConversationPanel != nullptr && previousAnchor != conversation_anchor_file()) {
 			if (heldRefresh && !RefreshConversationAnchor.has_value() && !conversation_anchor_file().has_value()) {
 				schedule_conversation_anchor();
@@ -472,45 +475,53 @@ namespace bpr::qt {
 		if (!PendingReviewPath.isEmpty()) {
 			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
 		}
-		// [[BPR-2180]]. A file clicked while it was only reported opens now that
-		// the review lists it.
-		if (ProvisionalFiles.empty() && !ProvisionalOpen.isEmpty() && !ApplyingLocalRows) {
-			open_provisional_file();
+	}
+
+	void workbench_window::wait_for_review_at(const QString& aPath)
+	{
+		// The reviewer's gesture moves the window now; the host decides when
+		// the file opens ([[BPR-2191]]).
+		choose_modality(review_modality::review);
+		PendingReviewPath.clear();
+		if (PendingOpenDispatch) {
+			PendingOpenDispatch(aPath);
 		}
 	}
 
-	void workbench_window::open_provisional_file()
+	void workbench_window::set_pending_open_dispatch(workbench_pending_open_dispatch aDispatch)
 	{
-		const auto path = std::exchange(ProvisionalOpen, QString{ });
-		if (path.isEmpty()) {
-			return;
-		}
-		if (const auto file = file_for_path(path); file.has_value() && Dispatch) {
-			++Statistics.FileSelections;
-			Dispatch(core::select_workbench_file_intent{ .File = *file });
-			return;
-		}
-		// The review does not list it: its wait is taken back.
-		if (ComparisonSurface != nullptr && ComparisonSurface->held_waiting() == path) {
-			ComparisonSurface->hold_waiting({ });
-			if (!ComparisonSurface->current_context().has_value()) {
-				ComparisonSurface->clear();
-			}
-		}
+		PendingOpenDispatch = std::move(aDispatch);
 	}
 
-	void workbench_window::present_provisional_files(const std::vector<application::github_provisional_file>& aFiles)
+	void workbench_window::present_pending_open(const application::workbench_pending_open_projection& aPending)
 	{
-		if (aFiles.empty()) {
-			// The read ended with no review: its reported files go, and with
-			// them any file asked for from them and the comparison's wait.
-			if (ComparisonSurface != nullptr && !ProvisionalOpen.isEmpty() && ComparisonSurface->held_waiting() == ProvisionalOpen) {
+		const auto previous = std::exchange(PendingOpenPath, aPending.Path ? QString::fromStdString(*aPending.Path) : QString{ });
+		if (ComparisonSurface != nullptr) {
+			if (!PendingOpenPath.isEmpty()) {
+				// The owner, rejecting v002 on 2026-11-14: "the main diff file
+				// pane, no longer shows the loading." The comparison says it is
+				// loading the file, in the shape of code, from the click on.
+				ComparisonSurface->hold_waiting(PendingOpenPath);
+			} else if (aPending.Opened) {
+				// The file opened: its wait goes on as that file's own until
+				// its comparison is asked for.
+				++Statistics.PendingOpensOpened;
+			} else if (!previous.isEmpty() && ComparisonSurface->held_waiting() == previous) {
+				// Cancelled: its wait is taken back.
 				ComparisonSurface->hold_waiting({ });
 				if (!ComparisonSurface->current_context().has_value()) {
 					ComparisonSurface->clear();
 				}
 			}
-			ProvisionalOpen.clear();
+		}
+		update_pending_panes();
+	}
+
+	void workbench_window::present_provisional_files(const std::vector<application::github_provisional_file>& aFiles)
+	{
+		if (aFiles.empty()) {
+			// The read ended with no review: its reported files go. The host
+			// cancels any file asked for from them ([[BPR-2191]]).
 			if (!ProvisionalFiles.empty()) {
 				ProvisionalFiles.clear();
 				if (!LocalDraftShown) {
@@ -599,20 +610,13 @@ namespace bpr::qt {
 			}
 			return;
 		}
-		// [[BPR-2180]]. A file only reported so far has no comparison to open:
-		// it is remembered, said on the Files plate, and opened once the
-		// review lists it, as the Overview's own pending open is.
-		// Until the review's own rows replace them, a reported file is not yet
-		// one a comparison can be asked for.
+		// [[BPR-2180]]. A file only reported so far has no comparison to open.
+		// [[BPR-2191]]. It is asked of the host, which opens it once the review
+		// that reported it lists it; what waits is what the host publishes.
 		if (const auto reported = std::ranges::find(ProvisionalFiles, *file, &application::workbench_file_projection::File); reported != ProvisionalFiles.end()) {
-			ProvisionalOpen = QString::fromStdString(reported->Path);
-			// The owner, rejecting v002 on 2026-11-14: "the main diff file
-			// pane, no longer shows the loading." The comparison says it is
-			// loading the file, in the shape of code, from the click on.
-			if (ComparisonSurface != nullptr) {
-				ComparisonSurface->hold_waiting(ProvisionalOpen);
+			if (PendingOpenDispatch) {
+				PendingOpenDispatch(QString::fromStdString(reported->Path));
 			}
-			update_pending_panes();
 			return;
 		}
 		if (!Dispatch) {

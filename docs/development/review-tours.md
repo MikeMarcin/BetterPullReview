@@ -17,28 +17,58 @@ Reading or collapsing the stop withholds that action; no code is copied.
 
 ## Before you publish
 
-- Nothing reaches GitHub until you confirm the publication plan. **Ready** on
-  a stop is a private checkmark for you.
+- **Publish…** in the tour's head opens the tour page with what GitHub will
+  show. Nothing reaches GitHub until you choose **Publish tour** there.
+- Publishing needs every stop **Accepted**. **Accept** takes a stop as it is
+  now, once it has a title, an explanation and chosen lines; if its lines
+  changed or are gone at the current head, choose them again first. A stop
+  whose text, lines or code there changes reads **Changed since accepted**
+  until you accept it again; an unchanged stop stays accepted across a new
+  head. No agent can accept a stop for you.
 - The Markdown you see is exactly what is published.
 - GitHub accepts at most 100 line comments and 64 KiB per review.
   BetterPullReview never truncates a tour to fit, so a large tour may not
   publish.
-- Editing the pull-request description changes only its Problem and Solution
-  sections.
+- With **Update PR description after publishing** on, Problem and Solution go
+  into the pull-request description under the tour link, and only its Problem
+  and Solution sections are edited. Off, they go in the tour comment and the
+  description is not touched.
 - Not yet tested against live GitHub: file-level stops, stops outside the
   diff, edits to the **Start here** comment, and GitHub Enterprise Server.
 
-If publication stops, its status says which preparation or server read failed
-and preserves your draft. A status saying this attempt sent nothing applies to
-that attempt; earlier staged or published work is retained. **Check status**
-reconciles a possibly sent operation, and **Resume** requires a fresh preview.
+If publication stops, a banner at the top of the publication panel names the
+step, the reason, and what is and is not on GitHub, and the head reads
+**Publishing stopped at step N of M**. Your draft is kept. A refusal before
+the first write reads **Not published**; it applies to that attempt, and
+earlier staged or published work is retained. **Check status** reconciles a
+possibly sent operation, and **Resume** previews the captured plan before it
+continues.
 Use **Help > Export anonymized diagnostics…** to inspect the publication stages
 and classified failure without including your Problem, Solution or stop text.
 
+## How the tour is published
+
+The plan uses the first form that carries every stop on the current
+connection:
+
+1. one review;
+2. a mixed tour: one review plus standalone file or conversation comments;
+3. compatibility comments.
+
+The publication panel states the choice and the stops that forced it, for
+example "Stop 2 points at an earlier version of the code, so it is sent as a
+conversation comment." A stop outside the lines the diff shows is sent as a
+file comment when the connection's recorded facts allow one. A tour that no
+form can carry on this connection is refused before anything is sent; the
+banner names the stops, what they need, and the two ways out, **Move those
+stops** and **Use another connection**.
+
 ## Repairing a destination before publication
 
-**Preview** lists each stop that cannot join the review, with its number,
-title and reason. Select its linked title to open and scroll to that stop.
+When the chosen form is not one review, **Keep it to one review instead**
+lists each stop that cannot join the review, with its number, title and
+reason, and the moves it already has. It changes nothing until you move a
+stop. Select its linked title to open and scroll to that stop.
 
 - **Re-pin to current head** is available for an earlier revision only when
   the exact Git mapping proves the selected bytes unchanged at the current
@@ -56,24 +86,25 @@ title and reason. Select its linked title to open and scroll to that stop.
   reaffirmation; other prose stays ready. The source preview expires if you
   edit the draft before applying it.
 
-Repairing every blocker keeps **Keep single-review publication**: preview again
-and publish every stop in one COMMENT review. Previewing or repairing sends
-nothing.
+Once every stop is repaired, preview again: every stop is published in one
+COMMENT review. Previewing or repairing sends nothing.
 
-If you keep a historical or other incompatible destination, explicitly choose
-**Publish a mixed tour (non-atomic)**. Eligible stops go into one pending review;
-only the remainder become conversation comments opening with source permalinks.
+If you keep a historical or other incompatible destination, the tour is
+published as a mixed tour, which is non-atomic. Eligible stops go into one
+pending review; only the remainder become standalone comments, a conversation
+comment opening with a source permalink or a file comment.
 The review body lists the complete route, and Previous/Next crosses between both
 kinds. The preview names exactly which stops will be outside Files changed.
 Those conversation comments become visible before the final review submission,
 so interruption can leave a partial tour.
 
-**Publish with compatibility comments (non-atomic)** is the last explicit
-choice. It publishes the entire route as visible conversation comments.
+Compatibility comments are the last form, used only when a mixed tour cannot
+carry every stop. They publish the entire route as visible conversation
+comments, also non-atomically.
 
-**Publish as file comment** appears only when the provider has exact supported
-file-operation facts for that source and scope. It is an ordinary undoable choice;
-then preview the mixed outcome explicitly. A standalone file comment is a separate
+**Publish as file comment** appears on a stop only when the provider has exact
+supported file-operation facts for that source and scope. It is an ordinary
+undoable choice; then preview the mixed outcome. A standalone file comment is a separate
 visible write, with its own discussion identity, outside the pending review.
 General tour support, a painted file or a line never proves this capability.
 Unknown or denied operations leave the action unavailable. Current production
@@ -82,8 +113,10 @@ the positive recorded fixture is implementation evidence, not server enablement.
 
 ## Updating a published tour
 
-Reopening a tour reads it back from GitHub. If someone edited it on the
-website, you choose between your version and theirs. Removing a stop leaves
+Once a published tour has changes not on GitHub, the head offers **Update on
+GitHub…**, which previews the update before anything is sent; an update
+chooses the form the same way for the stops it adds. Reopening a tour reads
+it back from GitHub. If someone edited it on the website, you choose between your version and theirs. Removing a stop leaves
 its old comment and replies on GitHub. Mixed tours keep their original review
 overview and both comment kinds through updates; the overview is changed last.
 
@@ -125,8 +158,8 @@ previously sent context, even after its selection is removed; New session begins
 without that older memory and receives the current selected context.
 
 Each explicit tour message carries BPR's versioned guide and a complete current
-snapshot. The snapshot separates confirmed lines, preparation **Ready**, and
-publication eligibility, and includes pending proposals and recorded decisions.
+snapshot. The snapshot separates confirmed lines, preparation **Ready**, your
+acceptance of each stop, and publication eligibility, and includes pending proposals and recorded decisions.
 **Source needs attention** describes changed, ambiguous, missing or unavailable
 source evidence. **Lines not confirmed** means there is no confirmed source
 binding; accepting an explanation does not supply one. To confirm a proposed

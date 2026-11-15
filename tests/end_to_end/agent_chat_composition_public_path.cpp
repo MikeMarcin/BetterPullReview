@@ -1373,7 +1373,10 @@ auto main(int argc, char** argv) -> int
 	// own workspace or its own frozen snapshot.
 	const auto source        = bpr::tests::read_composition_source(std::filesystem::path{ BPR_COMPOSITION_SOURCE });
 	const auto oneLaunchPath = !source.empty()
-		&& occurrences(source, "AgentHost->dispatch(") == 1U
+		// [[BPR-2181]]. The one launch is the session runtime's: a window's
+		// own agent host runs no turn.
+		&& occurrences(source, "AgentHost->dispatch(") == 0U
+		&& occurrences(source, "runtime->dispatch(") == 1U
 		&& occurrences(source, "application::agent_chat_session_host>(") == 1U
 		// One declaration and exactly six call sites: the launch panel's
 		// start gesture, the chat host's turn dispatcher, BPR-0533's
@@ -1381,7 +1384,7 @@ auto main(int argc, char** argv) -> int
 		// sources (f55e39e72), and the tour writing hook and its saved-hook
 		// test (9b71342a0, 1d84e59c2; writing-only, no private context).
 		// [[BPR-1245]] reviewed the last three. Six gestures, one launch path —
-		// which is what `AgentHost->dispatch(` being pinned at one above
+		// which is what `runtime->dispatch(` being pinned at one above
 		// already says, and what this count guards from the other side: a
 		// gesture that grew its own launch would not appear here at all.
 		// [[BPR-2051]] (821307015) added the seventh call site: Enhance on a

@@ -90,6 +90,10 @@ namespace bpr::app {
 		[[nodiscard]] auto refusals() const noexcept -> std::size_t { return Refusals.load(); }
 
 		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Launcher.native_connections_quiescent(); }
+		/// \brief [[BPR-2153]]. Steering goes to the launcher's kept
+		/// connections, as without the probe; it starts no program.
+		[[nodiscard]] auto steer_support(const application::agent_steer_request& aRequest) const -> core::agent_steer_support override { return Launcher.steer_support(aRequest); }
+		void               steer(application::agent_steer_request aRequest, application::agent_steer_answer aAnswer) override { Launcher.steer(std::move(aRequest), std::move(aAnswer)); }
 
 	private:
 		adapters::agent::agent_process_launcher&                      Launcher;

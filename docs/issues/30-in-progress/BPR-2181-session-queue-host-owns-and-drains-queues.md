@@ -113,22 +113,24 @@ slice 1.
    turns no window saw join the session's conversation. Those turns are
    now written to the profile's own conversation store as they end, so a
    quit before a window reattaches loses none (see Evidence, 2026-11-15).
-   Retiring the window's own fallback host for turns waits on three
-   things the Evidence names (the fixture holds and a kept older
-   revision reaching the runtime's stack).
+   The window's own fallback host for turns is retired: with no runtime a
+   turn is refused with words and never runs on a window (see Evidence,
+   "Lane red since slice 2, fixed").
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses. Started
    2026-11-15: the typed finish and the core mapping landed, with the
    failure and Stop pauses and a refused turn that never stays sending.
-   Open: decoding the usage limit (Claude's `"error":"rate_limit"`
-   assistant frame, which the fixture agent writes), the admission's run
-   id, AC12, and the public courses on the fixture agent.
+   The usage limit is decoded and the fixture-agent public course for
+   failure and usage limit landed. The typed admission keyed by run id and
+   AC12 landed in the fourth round (see Evidence, "AC03 and AC12").
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
    store refusal; store writes on the effect path. Started 2026-11-15:
-   Discard is a core transition and a host command. Open: the Agent tab's
-   Discard control and its public course, and the store refusal.
+   Discard is a core transition and a host command, and the Agent tab
+   offers it on an uncertain message. The store refusal landed in the
+   fourth round (AC05), and the crash course (AC04) with it.
 5. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
-   runner state; core queue-versus-send; Stop all on the host.
+   runner state; core queue-versus-send; Stop all on the host. Done in the
+   fourth round (see Evidence).
 6. AC13, AC11: facts assembled outside widgets, decided expansions carried by
    releases; tour feedback through the host. With it, [[BPR-2184]]'s N4
    (`quick_ask_facts` sets each thread's `Changed` and `CommitsSince` from
@@ -407,3 +409,168 @@ slice 1.
   the crash reads back uncertain, Resume is refused, Discard removes it and
   the store keeps that, and Resume sends what waited). The Agent tab's
   control is still open.
+- **Lane red since slice 2, fixed (2026-11-15, second round):** the five
+  contracts the last handoff named failed for four reasons, none of them the
+  fixture holds. (1) `application_agent_invocation_composition_contract`:
+  the turn ran under the runtime stack's application session and the
+  course expected the window's. The context evidence now carries the
+  session the turn runs under (`agent_invocation_context_evidence::RunSession`)
+  and the expected supplement names it. (2) `_staleness_contract`: the
+  course moves the window's accepted revision itself
+  (`reaccept_fixture_revision`), past what the read host lends, so the
+  stack kept the older revision and the run never went stale. The loan
+  now follows the revision the window accepted, in every build and on one
+  path: `github_application_host::lend_review_authority` takes the
+  window's accepted handoff (`aAccepted`), checks that it names the
+  lender's pull request under the same identity, and lends its revision
+  (course `application_github_host`,
+  `test_a_lent_review_authority_follows_the_windows_accepted_revision`).
+  The tests-only branch that first did this is gone. The course still
+  moves the window's revision with `reaccept_fixture_revision` rather than
+  through the read host: the public-path fixture serves one pull request
+  head per run (its epoch phase is chosen at start), so a live head move
+  through the read host has no fixture to serve it.
+  (3) `_workspace_diagnostic_contract` and
+  `application_agent_finding_dif_context_contract`: the Dif's cues matched
+  turns against the window's session and authority, and every turn now
+  runs under the stack's. The window tells the Dif the identity its turns
+  run under (`observe_agent_dif_context`): the stack's review once it
+  accepted it, told through a new presenter hook
+  (`review_agent_presenter::Accepted`, called from
+  `review_agent_runtime::ready`). (4) `_cleanup_retry_contract`: the
+  stack's epoch host is its agent host's workspace port, and the stack
+  shut it down with the agent host, so a refused workspace removal could
+  never be retried and the profile never finished shutting down. The stack
+  now closes its epoch and ledger hosts only once its agent host is
+  quiescent (`review_agent_stack::close_review_hosts`), the profile closes
+  its epoch actors (whose consumer that epoch host is) only once every
+  runtime is quiescent (`github_profile_runtime::close_epoch_actors`), the
+  profile's
+  shutdown poll retries every runtime's removal
+  (`review_agent_turn_port::retry_cleanup`, `review_agent_runtimes::retry_cleanup`)
+  and settles a turn whose run retired since. The fixture evidence reads the
+  window's last runtime after a close detached it
+  (`last_agent_stack`, `last_agent_runtime`). With those, the window's
+  fallback host for turns is gone: `send_agent_turn` with no runtime
+  refuses ("The agent isn't ready for this pull request yet. Nothing was
+  sent.") and never dispatches on the window's `AgentHost`.
+- **AC02 (usage limit, 2026-11-15):** `agent_protocol_failure::usage_limit`.
+  Claude's synthetic assistant frame naming `"error":"rate_limit"`, Codex
+  exec's `turn.failed` (or `error`) whose message names a usage limit, and
+  the app server's `error` notification whose `codexErrorInfo` is
+  `usageLimitExceeded` decode to it; the run says so
+  (`agent_usage_limit_words`), and `queued_finish_of` maps it to
+  `core::queued_finish::usage_limit`, which pauses the queue as usage
+  limit. Course `application_agent_queue_finish_pauses_public_path` on the
+  fixture agent: a message sent at once, then three queued; the queued
+  `FIXTURE_CRASH` run fails and the queue pauses as failed with both later
+  messages still queued; Resume, the `FIXTURE_USAGE_LIMIT` run pauses it as
+  usage limit with the last still queued; Resume, the last is answered.
+- **AC04 (Discard control, 2026-11-15):** a message whose delivery is
+  unknown shows "May not have been delivered" and Discard
+  (`agentQueueDiscard`) in the Agent tab's pending list; the press only
+  calls `queue_dispatch::Discard`, which the window forwards to
+  `agent_queue_host::discard`. Course `qt_drawer_surfaces_fit_scale_*`
+  (the pending list with an uncertain row: only it offers Discard, the
+  press asks for that message, and the drawer stays whole).
+- **Verification, second round (2026-11-15):** a scratch worktree of
+  `d9962f2ff`, configured and built from nothing, ran the agent and queue
+  course set serially (ctest `-R "agent|queue|ask_|tour_feedback|prompt_macros|explain_file|suggest_change|review_tour|enhance_comment|returning_review|application_logging|qt_drawer_surfaces_fit"`):
+  168 of 176 passed. Of the 8 that failed, four chat contracts
+  (`application_agent_chat_{composition,stale,anchored_continuation,conversation}_contract`)
+  pinned the window's `AgentHost->dispatch(` as the one launch path; the
+  pin now names the runtime's (`0d70ff618`) and they pass. Four fail on
+  this round's parent `4bb44f28f` too, built in the same scratch tree:
+  `application_agent_chat_continued_contract` (it passed at `0d70ff618`,
+  so it is intermittent), `application_enhance_comment_note_public_path`
+  ("Use puts it in the Local comment to save"),
+  `application_review_tour_link_public_path` (exit -11) and
+  `application_review_tour_cli_ordinary_stop` ("consented to the chosen
+  account ... no read question opened"). The writing-stub courses
+  (tour writing, writing wrapper, ask courses, explain, suggest, returning
+  review) and `application_logging*` pass. At `0d70ff618`, the scratch tree
+  rebuilt and ran the 34 courses this round touched (`application_agent_chat_*`,
+  `application_agent_invocation_*`, `application_agent_finding_dif*`,
+  `application_agent_queue_*`, `qt_drawer_surfaces_fit*`,
+  `application_agent_launch`, `application_agent_finding_protocol`): 34 of 34.
+- **AC03 and AC12 (fourth round, 2026-11-15):** a release returns a typed
+  admission keyed by the runtime's run id (`application::queued_admission`:
+  `started`, `awaiting`, `answered` or `refused`, with `Run`). The runtime
+  numbers its runs; a release reserves one, and a turn dispatched while it
+  is reserved takes it, so only that run's retirement settles the message
+  (`agent_session_runner` keeps the run and ignores another's retirement).
+  A release whose turn a later pass sends (Explain this file reads its
+  material first; a continuation realigns first) is `awaiting` and the
+  session is busy; the later pass either sends the turn, which takes the
+  run, or ends without one, and the window refuses that run
+  (`review_agent_runtime::refuse_release`), which settles as
+  `core::queued_finish::refused`: back first, the queue paused as failed.
+  A window that closes while a release awaits returns it (`not_taken`). A
+  slash command is `answered` with no run and leaves the queue as sent.
+  Nothing reads `send_refusal_text()` any more: the Agent tab says what it
+  did with a released message from its own control flow
+  (`agent_tab_view::release_outcome`), and whether a turn started is the
+  runtime's to say. So a refusal note an earlier send left is never a
+  verdict, and Resume cannot send twice. Courses: `core_agent_queue`
+  (`refused` goes back first, paused), `application_agent_queue_host`
+  (`test_admissions_settle_every_release`: a slash command never stays
+  sending and the next goes; a refused release is queued again, paused; an
+  awaiting one stays sending until its run's refusal; a second Resume sends
+  nothing) and `application_review_agent_runtime`
+  (`test_release_admission_keyed_by_run`: a refused material read leaves
+  the message queued and paused, never sending; a refusal of another run
+  settles nothing; the awaited turn takes the release's run and its
+  retirement settles it; a slash command never stays sending; Resume after
+  a window that answered "refused" though it sent sends once, and a second
+  Resume sends nothing; a window closing while a release awaits returns
+  it).
+- **AC05 (refusal, fourth round):** a store write the profile's store
+  refuses is returned. Run where the queue changed, `enqueue` answers
+  `core::queue_refusal::not_saved` and nothing was queued; run on the queue
+  lane, the refusal comes back on the decision lane, the message that write
+  queued leaves the queue and `agent_queue_subscriber::Unsaved` hands it
+  back as asked. The window puts a typed message back in the composer, ahead
+  of anything typed since, with a note saying it was not queued
+  (`agent_tab_view::return_unqueued`); a refused follow-up never clears the
+  composer. Course `application_agent_queue_host`
+  (`test_a_refused_write_on_the_effect_lane_hands_the_message_back`, and
+  the refused write in `test_restored_refused_and_limits`).
+- **AC06 (fourth round):** `core::queued_session` (kind, host, owner,
+  repository, number) with `session_key` and `parse_session_key`; the
+  window, the tour feedback's session and the profile's runtime registry
+  build and read keys only through it. `core::queued_input::Threads` holds
+  the threads an ask carries as a list; the store keeps them one per line
+  in its existing column. Courses: `core_agent_queue`
+  (`test_typed_session`) and `sqlite_agent_setup_storage` (threads reload
+  as queued).
+- **AC08 (fourth round):** course `application_review_agent_runtime`
+  (`test_a_pull_request_switch_mid_turn_settles_per_session`): a window
+  switches pull request mid-turn; the old turn is untouched, its retirement
+  settles that session's message and starts its next with no window, the
+  new session runs beside it, and the old session keeps both turns no
+  window saw end.
+- **AC10 (fourth round):** `core::decide_follow_up` over the turn the tab
+  shows, whether the session's queue holds a message (any entry, a
+  released one whose turn does not show yet included), the setting and the
+  modifier. The Agent tab asks it for Return and for its Send label. A
+  Return in the gap after a release is queued, never sent as or credited to
+  that message's turn. Course `core_agent_queue`
+  (`test_follow_up_decision`).
+- **AC15 (fourth round):** `review_agent_runtimes::stop_all` pauses every
+  session's queue as stopped, then stops every runtime's turn, shown in a
+  window or not. The footer's Stop all calls it first, then stops the runs
+  its window runs itself (a tour's). Course `application_review_agent_runtime`
+  (`test_stop_all_is_the_hosts`).
+- **AC04 (crash course, fourth round, `10e168b99`):**
+  `application_agent_queue_restart_public_path` goes on past its restart:
+  the store is left holding a message as sending (as a crash leaves it; a
+  quit stops and settles the turn) with one waiting behind it. On the next
+  launch the queue opens paused, the message that was sending shows "May not
+  have been delivered" with Discard, Resume is refused, Discard removes it,
+  and Resume sends the waiting message once; the discarded one is never
+  sent.
+- **BPR-2193 (fourth round, `c0bdc7297`, `1af5aba43`):** the runtime's stack
+  runs a turn only once the epoch host has settled the ingestion of the
+  loan last lent, and holds a same-revision loan while a turn runs; the
+  continued chat contract passes 20 of 20 (card in Done).
+

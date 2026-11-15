@@ -94,11 +94,28 @@ namespace bpr::app {
 			AgentRuntimes->shutdown();
 		}
 #endif
-		if (EpochActors) {
-			EpochActors->shutdown();
-		}
+		close_epoch_actors();
 		if (Images) {
 			Images->shutdown();
+		}
+	}
+
+	/// [[BPR-2181]]. A runtime's agent workspace is removed through its
+	/// stack's epoch host, a consumer of these actors: they close only once
+	/// every runtime is quiescent, so a refused removal can still be retried.
+	void github_profile_runtime::close_epoch_actors()
+	{
+#if defined(BPR_AGENT_INTEGRATIONS)
+		if (AgentRuntimes && !AgentRuntimes->is_quiescent()) {
+			return;
+		}
+#endif
+		if (EpochActorsClosed) {
+			return;
+		}
+		EpochActorsClosed = true;
+		if (EpochActors) {
+			EpochActors->shutdown();
 		}
 	}
 
@@ -107,6 +124,16 @@ namespace bpr::app {
 		if (!ServicesClosing || ShutdownComplete) {
 			return;
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		if (AgentRuntimes && !AgentRuntimes->is_quiescent()) {
+			// [[BPR-2181]]. A runtime's workspace whose removal was refused is
+			// tried again, as a window's shutdown poll does for its own host,
+			// while the epoch actors it is removed through are still open.
+			AgentRuntimes->retry_cleanup();
+			return;
+		}
+#endif
+		close_epoch_actors();
 		if (InsightsInitializing || !InsightsEffects.idle() || (InsightsHost && !InsightsHost->quiescent()) || (Diagnostics && !Diagnostics->quiescent()) || (Maintenance && !Maintenance->quiescent())) {
 			return;
 		}

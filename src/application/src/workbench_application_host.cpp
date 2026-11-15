@@ -17,6 +17,7 @@
 #include <span>
 #include <stdexcept>
 #include <stop_token>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -59,7 +60,19 @@ namespace bpr::application {
 
 		struct deferred_workbench_observe
 		{
-			workbench_pull_request_authority Authority;
+			workbench_pull_request_authority    Authority;
+			std::optional<workbench_review_key> Review;
+		};
+
+		/// [[BPR-2191]].
+		struct deferred_workbench_pending_open
+		{
+			workbench_pending_open Open;
+		};
+
+		/// [[BPR-2191]].
+		struct deferred_workbench_pending_open_cancel
+		{
 		};
 
 		struct deferred_workbench_invalidate
@@ -150,6 +163,8 @@ namespace bpr::application {
 
 		using deferred_workbench_ingress = std::variant<deferred_workbench_restore,
 														deferred_workbench_observe,
+														deferred_workbench_pending_open,
+														deferred_workbench_pending_open_cancel,
 														deferred_workbench_invalidate,
 														deferred_workbench_selected_diff_refresh,
 														deferred_workbench_actionability_refresh,
@@ -282,7 +297,22 @@ namespace bpr::application {
 				: workbench_host_failure::observation_unavailable;
 		}
 
+		[[nodiscard]] auto ascii_lower(const char aCharacter) noexcept -> char
+		{
+			return aCharacter >= 'A' && aCharacter <= 'Z' ? static_cast<char>(aCharacter - 'A' + 'a') : aCharacter;
+		}
+
+		[[nodiscard]] auto same_name(const std::string_view aLeft, const std::string_view aRight) noexcept -> bool
+		{
+			return std::ranges::equal(aLeft, aRight, [](const char aOne, const char aOther) { return ascii_lower(aOne) == ascii_lower(aOther); });
+		}
 	} // namespace
+
+	auto same_review(const workbench_review_key& aLeft, const workbench_review_key& aRight) noexcept -> bool
+	{
+		return aLeft.Host == aRight.Host && aLeft.Account == aRight.Account && aLeft.Number == aRight.Number
+			&& same_name(aLeft.Repository.Owner, aRight.Repository.Owner) && same_name(aLeft.Repository.Name, aRight.Repository.Name);
+	}
 
 	auto valid(const workbench_file_observation_entry& aEntry) noexcept -> bool
 	{
@@ -415,7 +445,12 @@ namespace bpr::application {
 					if constexpr (std::is_same_v<ingress_type, deferred_workbench_restore>) {
 						restore_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_observe>) {
-						observe_now(aTyped.Authority);
+						observe_now(aTyped.Authority, aTyped.Review);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_pending_open>) {
+						open_when_listed_now(std::move(aTyped.Open));
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_pending_open_cancel>) {
+						end_pending_open(false);
+						publish_changes(local_context());
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_invalidate>) {
 						invalidate_now(aTyped.Authority);
 					} else if constexpr (std::is_same_v<
@@ -1100,7 +1135,7 @@ namespace bpr::application {
 			submit_settings_load();
 		}
 
-		void observe_now(const workbench_pull_request_authority& aAuthority)
+		void observe_now(const workbench_pull_request_authority& aAuthority, const std::optional<workbench_review_key>& aReview)
 		{
 			if (Closing) {
 				return;
@@ -1108,6 +1143,13 @@ namespace bpr::application {
 			if (!valid(aAuthority)) {
 				publish_failure(local_context(), workbench_host_failure::host_failure);
 				return;
+			}
+			// [[BPR-2191]]. A file asked for from another review's reported
+			// files is not this review's to open.
+			Review = aReview;
+			if (PendingOpen && !(aReview && same_review(PendingOpen->Review, *aReview))) {
+				end_pending_open(false);
+				publish_changes(local_context());
 			}
 			const auto hadAuthorityBoundState = !Files.empty() || Selected.has_value()
 				|| State.Navigation.has_value();
@@ -1275,6 +1317,9 @@ namespace bpr::application {
 				   workbench_terminal_rejection::superseded);
 			Generation = core::request_generation{ Generation.value() + 1U };
 			Authority.reset();
+			// [[BPR-2191]]. A pending open waits for a review not yet accepted;
+			// the one retired here is not it.
+			Review.reset();
 			SourceFiles.clear();
 			Actionable.clear();
 			Files.clear();
@@ -1299,7 +1344,11 @@ namespace bpr::application {
 				return;
 			}
 			const auto output = core::transition(State, aIntent);
-			LastReason        = output.Reason;
+			// [[BPR-2191]]. Another file chosen is the reviewer's choice now.
+			if (output.Decision.has_value() || std::holds_alternative<core::select_workbench_file_intent>(aIntent)) {
+				end_pending_open(false);
+			}
+			LastReason = output.Reason;
 			if (output.Decision.has_value()) {
 				execute_decision(*output.Decision);
 			}
@@ -1655,6 +1704,7 @@ namespace bpr::application {
 			PendingLayout.reset();
 			retire_all(workbench_terminal_rejection::cancelled);
 			Generation = core::request_generation{ Generation.value() + 1U };
+			end_pending_open(false);
 			if (OwnedPreferences) {
 				OwnedPreferences->cancel();
 			}
@@ -1714,6 +1764,12 @@ namespace bpr::application {
 				return;
 			}
 			if (aObservation.Status != workbench_observation_status::available) {
+				// [[BPR-2191]]. The review's files will not arrive: nothing
+				// waits for one of them.
+				if (PendingOpen) {
+					end_pending_open(false);
+					publish_changes(aObservation.Context);
+				}
 				publish_failure(aObservation.Context,
 								failure_for_status(aObservation.Status));
 				return;
@@ -1757,7 +1813,63 @@ namespace bpr::application {
 				&workbench_file_observation_entry::File);
 			observe_cursor();
 			apply_restored_drawers();
+			// [[BPR-2191]]. The review that reported the file has its own rows
+			// now: the file opens as the reviewer's choice would.
+			const auto opened = open_pending();
 			publish_changes(aObservation.Context);
+			if (opened) {
+				submit_selected_diff();
+			}
+		}
+
+		/// \brief [[BPR-2191]]. Starts waiting for `aOpen`; opens it at once
+		/// when its review's own rows are already accepted.
+		void open_when_listed_now(workbench_pending_open aOpen)
+		{
+			if (Closing) {
+				return;
+			}
+			PendingOpen       = std::move(aOpen);
+			PendingOpenOpened = false;
+			const auto opened = CatalogueAvailable && open_pending();
+			publish_changes(local_context());
+			if (opened) {
+				submit_selected_diff();
+			}
+		}
+
+		/// \brief [[BPR-2191]]. Decides the pending open against the files
+		/// observed for the accepted review. Only that review's files open it;
+		/// a review that does not list the file cancels it. True when the file
+		/// was selected and its comparison is owed.
+		[[nodiscard]] auto open_pending() -> bool
+		{
+			if (!PendingOpen || !Review || !same_review(PendingOpen->Review, *Review)) {
+				return false;
+			}
+			const auto listed = std::ranges::find(Files, PendingOpen->Path, &workbench_file_observation_entry::PresentationPath);
+			if (listed == Files.end()) {
+				end_pending_open(false);
+				return false;
+			}
+			const auto output = core::transition(State, core::workbench_interaction_intent{ core::select_workbench_file_intent{ .File = listed->File } });
+			LastReason        = output.Reason;
+			if (!output.Decision.has_value()) {
+				end_pending_open(false);
+				return false;
+			}
+			clear_change_navigation();
+			execute_decision(*output.Decision);
+			end_pending_open(true);
+			return true;
+		}
+
+		void end_pending_open(const bool aOpened) noexcept
+		{
+			if (PendingOpen) {
+				PendingOpen.reset();
+				PendingOpenOpened = aOpened;
+			}
 		}
 
 		[[nodiscard]] auto numbered_catalogue() const -> bool
@@ -1999,9 +2111,16 @@ namespace bpr::application {
 				return;
 			}
 			RestorePending = false;
-			set_drawer(core::workbench_drawer::files, Layout.Files);
-			set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
-			set_drawer(core::workbench_drawer::repositories, Layout.Repositories);
+			// [[BPR-2180]]. The owner, 2026-11-15: "I don't know why the
+			// respositories drawer suddenly pops open after its done loading."
+			// A reviewer who entered Review while the pull request loaded has
+			// Review's arrangement already: a restore that waited for the
+			// workbench opens no drawer over it.
+			if (!State.ReviewEntered) {
+				set_drawer(core::workbench_drawer::files, Layout.Files);
+				set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
+				set_drawer(core::workbench_drawer::repositories, Layout.Repositories);
+			}
 			set_line_numbers(Layout.LineNumbers);
 			set_one_pane(Layout.OnePane);
 		}
@@ -2152,11 +2271,19 @@ namespace bpr::application {
 				PublishedFiles = std::move(files);
 				FilesDirty     = false;
 			}
+			const auto pendingOpen = workbench_pending_open_projection{
+				.Path   = PendingOpen ? std::optional{ PendingOpen->Path } : std::nullopt,
+				.Opened = !PendingOpen && PendingOpenOpened,
+			};
+			if (PublishedPendingOpen != pendingOpen) {
+				projection.PendingOpen = pendingOpen;
+			}
 			projection.Refusal = std::exchange(PendingRefusal, std::nullopt);
 			if (empty(projection)) {
 				return;
 			}
 			PublishedSelection     = selection;
+			PublishedPendingOpen   = pendingOpen;
 			PublishedDrawers       = drawers;
 			PublishedDrawerRestore = restore;
 			PublishedLineNumbers   = lineNumbers;
@@ -2231,8 +2358,15 @@ namespace bpr::application {
 		std::optional<core::workbench_file_id>                              Selected;
 		std::optional<workbench_file_observation_entry>                     SelectedFile;
 		/// RFC-BPR-0089 M3. Which of a split selected file's diffs is read.
-		std::size_t                                                                     SelectedSegment = 0U;
-		std::optional<workbench_pull_request_authority>                                 Authority;
+		std::size_t                                     SelectedSegment = 0U;
+		std::optional<workbench_pull_request_authority> Authority;
+		/// [[BPR-2191]]. The accepted review the files are observed for, and
+		/// the file asked for from a first read's reported files, waiting for
+		/// that read's review.
+		std::optional<workbench_review_key>                                             Review;
+		std::optional<workbench_pending_open>                                           PendingOpen;
+		bool                                                                            PendingOpenOpened = false;
+		workbench_pending_open_projection                                               PublishedPendingOpen;
 		std::vector<std::pair<core::comparison_pair, workbench_file_observation_entry>> SourceFiles;
 		std::optional<workbench_selected_diff_request>                                  AcceptedSelectedDiff;
 		workbench_layout_settings                                                       Layout;
@@ -2323,9 +2457,19 @@ namespace bpr::application {
 		Implementation->enqueue(deferred_workbench_restore{ });
 	}
 
-	void workbench_application_host::observe(workbench_pull_request_authority aAuthority)
+	void workbench_application_host::observe(workbench_pull_request_authority aAuthority, std::optional<workbench_review_key> aReview)
 	{
-		Implementation->enqueue(deferred_workbench_observe{ std::move(aAuthority) });
+		Implementation->enqueue(deferred_workbench_observe{ .Authority = std::move(aAuthority), .Review = std::move(aReview) });
+	}
+
+	void workbench_application_host::open_when_listed(workbench_pending_open aOpen)
+	{
+		Implementation->enqueue(deferred_workbench_pending_open{ std::move(aOpen) });
+	}
+
+	void workbench_application_host::cancel_pending_open()
+	{
+		Implementation->enqueue(deferred_workbench_pending_open_cancel{ });
 	}
 
 	void workbench_application_host::invalidate(workbench_pull_request_authority aAuthority)

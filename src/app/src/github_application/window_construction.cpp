@@ -799,6 +799,12 @@ namespace bpr::app {
 					settle_comment_workshop(
 						aIdentity.Session.Id, aResult.Outcome);
 					Window->finish_dif_invocation(aIdentity, aResult.Outcome);
+					// [[BPR-2181]]. The session's runtime ran this turn on its
+					// own host, so the native history this window's host last
+					// read no longer holds it: the next look reads it again.
+					if (AgentHost != nullptr) {
+						AgentHost->native_history_changed();
+					}
 				},
 				[this](const application::prepared_workspace& aWorkspace) {
 					LastAgentWorkspacePath = aWorkspace.Path;

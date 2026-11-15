@@ -187,6 +187,9 @@ namespace bpr::qt {
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
+	/// \brief [[BPR-2191]]. A file asked for from a first read's reported
+	/// files, by path; the host decides when it opens.
+	using workbench_pending_open_dispatch = std::function<void(const QString&)>;
 
 	/// \brief Carries one semantic change-navigation gesture out of the toolbar.
 	///
@@ -320,13 +323,15 @@ namespace bpr::qt {
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
 	{
-		std::uint64_t Publications          = 0U;
-		std::uint64_t Failures              = 0U;
-		std::uint64_t CommandUpdates        = 0U;
-		std::uint64_t Announcements         = 0U;
-		std::uint64_t DrawerUpdates         = 0U;
-		std::uint64_t FileRowUpdates        = 0U;
-		std::uint64_t FileSelections        = 0U;
+		std::uint64_t Publications   = 0U;
+		std::uint64_t Failures       = 0U;
+		std::uint64_t CommandUpdates = 0U;
+		std::uint64_t Announcements  = 0U;
+		std::uint64_t DrawerUpdates  = 0U;
+		std::uint64_t FileRowUpdates = 0U;
+		std::uint64_t FileSelections = 0U;
+		/// [[BPR-2191]]. Pending opens the host published as opened.
+		std::uint64_t PendingOpensOpened    = 0U;
 		std::uint64_t LayoutUpdates         = 0U;
 		std::uint64_t EpochUpdates          = 0U;
 		std::uint64_t FocusOrderUpdates     = 0U;
@@ -783,6 +788,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto profiles_menu() const noexcept -> QMenu*;
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
+		/// \brief [[BPR-2191]]. Where a click on a reported file, or a file
+		/// double-clicked on the Overview while the review loads, is sent.
+		void set_pending_open_dispatch(workbench_pending_open_dispatch aDispatch);
 		/// \brief Window PR Search commands; the composition owns query effects and exact opens.
 		void               set_pr_search_dispatch(std::function<void(source_find_gesture)> aDispatch);
 		[[nodiscard]] auto pr_search() const -> source_search_panel*;
@@ -2713,9 +2721,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-2180]]. A first read's reported files as the file rows,
 		/// through the ordinary file-row path; an empty list withdraws them.
 		void present_provisional_files(const std::vector<application::github_provisional_file>& aFiles);
-		/// \brief [[BPR-2180]]. Asks for the reported file the reviewer
-		/// clicked, now that a review lists the files; or takes its wait back.
-		void open_provisional_file();
+		/// \brief [[BPR-2191]]. Presents the host's pending open: the file's
+		/// wait while it is pending, kept when it opened, taken back when it
+		/// was cancelled.
+		void present_pending_open(const application::workbench_pending_open_projection& aPending);
+		/// \brief [[BPR-2180]]. A file asked for while its review still loads:
+		/// Review at once, and the file asked of the host, which opens it when
+		/// the review lists it ([[BPR-2191]]).
+		void wait_for_review_at(const QString& aPath);
 		/// \brief [[BPR-0775]]. Home's session line.
 		[[nodiscard]] auto home_session_line() const -> QString;
 		/// \brief Whether the session is signed in, with or without an account.
@@ -2890,6 +2903,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto central_sizes() const -> QList<int>;
 
 		workbench_intent_dispatch                Dispatch;
+		workbench_pending_open_dispatch          PendingOpenDispatch;
 		workbench_change_dispatch                ChangeDispatch;
 		workbench_drawer_width_dispatch          WidthDispatch;
 		workbench_receipt_dispatch               ReceiptDispatch;
@@ -3961,9 +3975,10 @@ namespace bpr::qt {
 		/// [[BPR-2180]]. The read lane's account of the first read, as published.
 		core::github_loading_readiness LoadingReadiness;
 		/// [[BPR-2180]]. The file rows are a first read's reported files, not yet
-		/// the accepted review's; and the path a click on one asked to open.
+		/// the accepted review's; and ([[BPR-2191]]) the path the host has
+		/// pending, as it published it.
 		std::vector<application::workbench_file_projection> ProvisionalFiles;
-		QString                                             ProvisionalOpen;
+		QString                                             PendingOpenPath;
 		/// The file rows last published for a pull request, kept while a draft shows.
 		std::vector<application::workbench_file_projection> PublishedFiles;
 		bool                                                QueueReady = false;

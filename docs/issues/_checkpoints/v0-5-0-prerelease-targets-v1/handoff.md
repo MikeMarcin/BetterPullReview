@@ -3846,3 +3846,228 @@ to), and look at `application_native_agent_sessions`'s
 own `AgentHost` still serves `restore_native`, `probe_workspace`, the
 offerings and the catalog. Retiring it is not required by AC01 and was
 not done.
+
+## BPR-2181: the native-sessions regression named and fixed; unseen turns are durable; slices 3 and 4 started (2026-11-15)
+
+Coordinator (2026-11-15): regression check first, then the transcript
+gap, slices 3 to 6, and retiring the window's fallback host, ending with a
+scratch build of HEAD.
+
+| Commit | What |
+|---|---|
+| `02922adba` | Canary reads `--append-system-prompt` and answers tool-free runs with no tools; `agent_invocation_host::native_history_changed`; note on BPR-2140 |
+| `2b38556f0` | Unseen turns written to the profile's conversation store; restart course extended; `core::queued_finish`, `pause_for`, `finish`, `discard_uncertain`; typed finish through host, runner and runtime; `agent_queue_host::discard`; a turn waits while the lent review is accepted (`accepting`, `ready`); queue courses on the fixture agent |
+| `124253364` | `open_file_in_review` through the Files drawer's selection; the writing stub answers Agent-tab chat turns |
+
+Regression, `application_native_agent_sessions`. Built in a scratch
+worktree: `7c8d39c54` fails at `tour-native-first-answer`, `b8c371613`
+fails the same way, its parent `b8e2adeac` passes. `b8c371613` (BPR-2140,
+BPR-2141) moved the tour's instructions into `--append-system-prompt` and
+made Draft Tour tool-free; the canary read the schema only from the
+message and listed tools in a tool-free run. The canary is fixed (recorded
+on BPR-2140). On the lane, slice 2 (`32946c58e`) also broke
+`native-current-generation` (the window's host kept stale native history
+after a runtime turn); fixed with `agent_invocation_host::native_history_changed`.
+The course passes on the dev tree.
+
+Transcript gap: closed. The profile's own conversation store takes each
+turn no window saw, on the workbench lane. The restart course's first
+part proves a quit before a window reattaches loses none.
+
+Slices 3 and 4, started: `core::queued_finish`, `pause_for`, `finish`,
+`discard_uncertain`; the host and runner take a typed finish; the runtime
+maps its run's result; a refused turn settles as failed; Discard on the
+host. A turn sent while the runtime is still accepting its lent review
+waits for it (`review_agent_turn_port::accepting`, `review_agent_runtime::ready`)
+instead of being refused.
+
+Coordinator's three regressions (relayed from the steering implementer):
+(1) the restart course passes; (2) a question sent before the runtime has
+accepted its lent review waits and then runs, no re-send needed; (3)
+`open_file_in_review` on a reported-only file now waits and opens
+(course-only; no BPR-2180 correction needed). The last round's "42 of 43
+pass" was wrong: at `121c32f58` (scratch, from nothing) 14 agent contract
+courses failed; most pass now.
+
+Verification on the dev tree at `124253364`'s code: `core_agent_queue`,
+`application_agent_queue_host`, `application_review_agent_runtime`,
+`application_native_agent_sessions`, `application_agent_queue_*` x4,
+`application_ask_*` x4, `application_prompt_macros_public_path`,
+`application_explain_file_public_path`, `application_suggest_change_public_path`,
+`application_agent_keep_action_public_path`,
+`application_fixture_agent_guard_public_path`, the chat contracts, the
+finding contracts but one, `application_agent_materialization_crash_recovery`
+and `application_progressive_open_public_path` pass. Still failing and
+not from this round: `application_agent_invocation_{composition,staleness,cleanup_retry,workspace_diagnostic}_contract`,
+`application_agent_finding_dif_context_contract` (fixture holds and a kept
+older revision on the runtime's stack) and
+`application_pending_states_public_path` ("the clicked file arrives";
+fails with the `121c32f58` binary and with the runtime attach compiled
+out). The window's fallback host stays until the holds and the kept
+revision reach the runtime's stack. Documentation gate passes.
+
+Next action: route the fixture effect holds and a kept older revision to
+the runtime's stack, then retire the window fallback; usage-limit decode
+and the fixture-agent public courses for AC02; the admission run id and
+AC12; Discard's control; slices 5 and 6. Look at
+`application_pending_states_public_path` with BPR-2180's owner.
+
+Not done this round: usage-limit decode (`"error":"rate_limit"`), the
+admission run id and AC12, Discard's control in the Agent tab, the store
+refusal (AC05), slices 5 and 6 (AC06, AC08, AC10, AC13, AC11, AC15,
+BPR-2184 N4 and N5).
+
+## BPR-2181: lane green again, window fallback retired, usage limit decoded, Discard shown (2026-11-15, second round)
+
+Coordinator (2026-11-15): priority 1 the five red contracts and retiring
+the window's fallback host for turns, then AC02, AC03/AC12, AC04/AC05,
+slices 5 and 6; the writing-stub courses; finish with a scratch build of
+HEAD and the full agent and queue course set.
+
+| Commit | What |
+|---|---|
+| `d9962f2ff` | The five contracts pass; `send_agent_turn` never runs a turn on the window; usage-limit decode and pause with its fixture-agent course; Discard on an uncertain message |
+| `0d70ff618` | The chat composition course pins the runtime's dispatch as the one launch path |
+
+Causes of the five (the last handoff's "fixture holds" diagnosis was
+wrong): the context evidence expected the window's session, a fixture's
+re-accepted revision never reached the lent handoff, the Dif matched the
+window's session and authority, and the stack's epoch host (its agent
+host's workspace port) and the profile's epoch actors closed before a
+refused workspace removal could be retried. Each fix is on the card.
+
+Another writer works in this worktree on BPR-2180/BPR-2191 (commit
+`4bb44f28f`, and uncommitted `window_navigation.cpp`,
+`window_workbench.cpp`, `workbench_application_host.cpp`). This round
+committed only its own paths. The dev tree's course runs include that
+writer's uncommitted edits; the scratch run below does not.
+
+Verification (scratch worktree, built from nothing, serial): the agent
+and queue course set at `d9962f2ff`, 168 of 176 pass. Four chat contracts
+failed on a source pin and pass at `0d70ff618`; four fail at the parent
+`4bb44f28f` too (`application_agent_chat_continued_contract`, intermittent;
+`application_enhance_comment_note_public_path`,
+`application_review_tour_link_public_path`,
+`application_review_tour_cli_ordinary_stop`). At `0d70ff618` the 34
+courses this round touched pass, 34 of 34. The writing-stub courses
+(tour writing and its wrapper, the ask courses, explain, suggest,
+returning review) and `application_logging*` pass. Documentation gate
+passes. Scratch worktree removed.
+
+Not done this round: AC03 and AC12 (the release still reads the tab's
+refusal text as its verdict; a typed admission with the run id needs the
+runner's start to settle asynchronously for a quick ask whose turn starts
+on a later pass), a public course reaching an uncertain message through a
+crash (AC04), the store refusal returned to the composer (AC05), slices 5
+and 6 (AC06, AC08, AC10, AC15, AC13, AC11, BPR-2184 N4 and N5).
+
+Next action: AC03/AC12 (typed admission from `send_agent_turn` and the
+runtime's dispatch, keyed by run id, replacing `send_refusal_text()` in
+`release_queued`), then AC05's refusal, then slices 5 and 6. Look at the
+three pre-existing failures with their owners (enhance, tour link, tour CLI
+stop).
+
+
+## BPR-2181: coordinator follow-ups — staleness path, merge of native steering, failing courses carded (2026-11-15, third round)
+
+| Commit | What |
+|---|---|
+| `9e6efb2c8` | `lend_review_authority` takes the window's accepted handoff and lends its revision in every build; the tests-only branch in `attach_agent_runtime` is gone |
+| `98c2e9f30` | Merge native steering (BPR-2153) into the lane, no conflicts |
+| `f65bfa1e2` | Production app manifest pin resealed over `5434d6010..98c2e9f30` |
+| `36b05997b` | BPR-2192 and BPR-2193 Backlog; mirrored to main as `89df1e8e5` (allocation made on main) |
+
+Staleness: the runtime follows the window's accepted revision through one
+path in every build; course `application_github_host`
+(`test_a_lent_review_authority_follows_the_windows_accepted_revision`). The
+staleness course still moves the window's revision with
+`reaccept_fixture_revision`: the public-path fixture serves one pull request
+head per run, so no read-host path can serve a live head move (on the card).
+
+Merge checks (dev tree, after the merge): `application_agent_steer_sent_public_path`,
+`application_agent_steer_unavailable_public_path`,
+`application_fixture_agent_guard_public_path`, `application_ask_queue_public_path`,
+`application_review_agent_runtime`, `application_agent_queue_host` pass. The
+round-trip contract drifted; the dev tree also holds another writer's
+uncommitted window edits, so the pin was printed from a clean `git archive`
+of HEAD and verified by building and running the contract in a clean scratch
+worktree at `f65bfa1e2`: passes.
+
+Before the merge, on `9e6efb2c8`'s code: `application_github_host`, the five
+invocation and Dif contracts and the five queue courses pass.
+
+Bisects (scratch worktree, `git bisect run`, good `f51063b5b`, bad
+`4bb44f28f`; many commits skipped as unbuildable): enhance and the tour CLI
+stop both end on {merge `75ab1e0fa`, `d47362061`, `153e28d0f`
+(+`bb8560026`)}. The tour link crash is the merge meeting `93b1045a8`'s
+removal of `tourReturn`. One card, BPR-2192. The continued chat contract
+passed 11 of 20 (failure: second turn `stale_result`, not quiescent): BPR-2193,
+in BPR-2181's area. None was fixed this round.
+
+Not done: AC03/AC12, AC05, slices 5 and 6, BPR-2193.
+
+Next action: AC03/AC12 typed admission (replace `send_refusal_text()` in
+`release_queued` with an admission from `send_agent_turn` keyed by run id,
+settled later for a quick ask that starts on a later pass), then BPR-2193,
+AC05, slices 5 and 6.
+
+
+## BPR-2181: typed admission, BPR-2193 fixed, slice 5, BPR-2184 N4/N5 (2026-11-15, fourth round)
+
+Coordinator (2026-11-15): AC03/AC12, then BPR-2193, then AC05, then slices
+5 and 6 with BPR-2184 N4/N5; close BPR-2181 when every AC has evidence.
+
+| Commit | What |
+|---|---|
+| `c0bdc7297` | Typed admission keyed by run (AC03, AC12); store refusal back to the composer (AC05); typed sessions and threads (AC06); core queue-versus-send (AC10); Stop all on the runtimes (AC15); switch-mid-turn course (AC08); BPR-2193 fix in `review_agent_stack`; BPR-2184 N4 and N5; app manifest pin resealed (also covers the unsealed `1eab5b868`/`8449ca67f`) |
+| `b16fd02d4` | BPR-2193 and BPR-2184 Done; mirrored to main as `88180d1d1` |
+| `10e168b99` | AC04's crash course: the restart course leaves a message sending in the store, then Discard and Resume |
+| `1af5aba43` | BPR-2193 follow-up: the stack waits for a loan's ingestion to settle, not for the window's epochs (waiting for the window's exact epochs broke `application_fixture_agent_every_ask`); pin resealed |
+
+BPR-2193's cause (instrumented): the window lends the runtime's stack the
+same head a third time with new comparison epochs; accepting it bumps the
+stack's epoch host blob authorization, and a continued turn's workspace
+being made under the earlier generation ends `stale` (no process,
+`stale_result`). The stack now runs a turn only once it observed exactly
+what was lent, and holds a same-revision loan while a turn runs (applied
+when that run retires). 20 of 20 after the fix and 20 of 20 again at
+`1af5aba43`; the first attempt (holding only for a moved head) failed 1 of
+20.
+
+Verification at `1af5aba43` (scratch worktree, serial; ctest `-R
+"agent|queue|ask_|tour_feedback|prompt_macros|explain_file|suggest_change|review_tour|enhance_comment|returning_review|application_logging|qt_drawer_surfaces_fit|sqlite_agent_setup_storage|qt_agent_report_view|round_trip_composition|architecture_boundaries|core_returning_review"`):
+176 of 182 pass. The six that fail: BPR-2192's three
+(`application_enhance_comment_note_public_path`,
+`application_review_tour_link_public_path`,
+`application_review_tour_cli_ordinary_stop`) and three chat contracts that
+fail at "selected-diff comparison-shown=false"
+(`application_agent_chat_custom_agent_contract`,
+`_custom_agent_refused_contract`, `_setup_list_contract`). Those three
+passed in this round's first set on `0c3ef7af6` with this round's queue
+changes, and fail on every tree based on `12aa86eb6` (the other writer's
+BPR-2191/BPR-2180 commits: the workbench host holds a file asked for while
+its review loads), with either version of the stack check; attributed to
+those commits by elimination, not bisected. Not carded this round.
+Documentation gate passes. Scratch worktree removed.
+
+Another writer committed BPR-2191/BPR-2180 work in this worktree
+(`32c0850e0..12aa86eb6`) during the round; its in-progress edits broke the
+dev tree's build for a while, so this round built and tested in a scratch
+worktree (`git worktree add --detach`, removed at the end of the round).
+
+Not done: AC13 (prompt facts assembled outside the widgets, decided offers
+handed to the tab and the tour side chat, releases carrying the decided
+expansion; course: a prompt conditioned on PushesSinceReview pressed and
+received) and AC11 (tour feedback through the host, resumable after a
+crash). BPR-2181 stays In Progress.
+
+Next action: AC13. The tab's `refresh_suggestions` decides offers from
+facts it assembles itself and never sets `PushesSinceReview` (nor the
+thread and file facts); a queued quick ask's release calls
+`tab->send_prompt(id)`, which looks the id up among those offers. Move the
+facts to the window composition (`quick_ask_facts` already builds them with
+`with_review_facts`), hand the tab and the tour side chat decided offers,
+and store the decided expansion on the queued input at the press so the
+release (and the runtime with no window, `review_agent_runtime::state`)
+sends it without deciding again. Then AC11. Card the three
+comparison-shown chat contract failures with the BPR-2191/BPR-2180 owner.

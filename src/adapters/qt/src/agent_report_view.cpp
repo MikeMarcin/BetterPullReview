@@ -400,8 +400,15 @@ namespace bpr::qt {
 	{
 		Document = aDocument;
 		Title->setText(aDocument.Title);
+		auto said = QStringList{ };
+		for (const auto& part : { aDocument.Byline.Ending, aDocument.Byline.When, aDocument.Byline.Head.isEmpty() ? QString{ } : tr("at %1").arg(aDocument.Byline.Head) }) {
+			if (!part.isEmpty()) {
+				said << part;
+			}
+		}
+		const auto byline = said.join(QStringLiteral(" · "));
 		Byline->setText(QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none\">%1</a>%2")
-							.arg(aDocument.Question.toHtmlEscaped(), aDocument.Byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + aDocument.Byline.toHtmlEscaped()));
+							.arg(aDocument.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped()));
 		Byline->setToolTip(tr("Show in conversation"));
 		const auto text = aDocument.Markdown.toStdString();
 		if (Dresser) {
@@ -517,7 +524,7 @@ namespace bpr::qt {
 
 	void agent_report_view::set_dresser(std::function<void(markdown_body_view&)> aDresser) { Dresser = std::move(aDresser); }
 
-	void agent_report_view::set_conversation_dispatch(std::function<void(std::size_t)> aDispatch) { ConversationDispatch = std::move(aDispatch); }
+	void agent_report_view::set_conversation_dispatch(std::function<void(std::uint64_t)> aDispatch) { ConversationDispatch = std::move(aDispatch); }
 
 	auto agent_report_view::title() const -> QString { return Title->text(); }
 

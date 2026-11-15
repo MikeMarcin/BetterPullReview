@@ -1282,6 +1282,11 @@ ReadStateCache.reset();
 DefectThreadNames.reset();
 }
 				publish_review_conversations(aUpdate.Presentation);
+				// [[BPR-2191]]. The read ended with no review: nothing waits for a
+				// file it reported.
+				if (aUpdate.Presentation.ProvisionalFiles && aUpdate.Presentation.ProvisionalFiles->empty() && WorkbenchHost != nullptr) {
+					WorkbenchHost->cancel_pending_open();
+				}
 				// [[BPR-1357]]. In the same turn as the transition, so the row or
 				// bar that asked shows it before control returns to the event loop.
 				if (HomeOpen) {
@@ -1295,6 +1300,16 @@ DefectThreadNames.reset();
 				if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
 				schedule_link_location();
 				schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests, Profile->Images.get(), Profile->Provider.get());
+		// [[BPR-2191]]. A file asked for from a first read's reported files
+		// waits in the workbench host for the review that read names.
+		Window->set_pending_open_dispatch([this, weak](const QString& aPath) {
+			if (weak.expired() || Closing || !Profile->current_window(DraftWindow) || WorkbenchHost == nullptr) {
+				return;
+			}
+			if (const auto& read = WindowRead->state().PendingPullRequest; read.has_value()) {
+				WorkbenchHost->open_when_listed(application::workbench_pending_open{ .Review = workbench_review(*read), .Path = aPath.toStdString() });
+			}
+		});
 		Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
 			if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 				WindowRead->read_cached_source(aPath.toStdString());

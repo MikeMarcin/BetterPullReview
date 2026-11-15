@@ -6,6 +6,17 @@
 #include <vector>
 
 namespace bpr::application {
+	auto stable_name(const queued_admission_kind aKind) noexcept -> std::string_view
+	{
+		switch (aKind) {
+		case queued_admission_kind::started:  return "started";
+		case queued_admission_kind::awaiting: return "awaiting";
+		case queued_admission_kind::answered: return "answered";
+		case queued_admission_kind::refused:  return "refused";
+		}
+		return "unknown";
+	}
+
 	agent_queue_host::agent_queue_host(agent_queue_dependencies aDependencies)
 		: Dependencies{ aDependencies }
 	{ }
@@ -28,20 +39,45 @@ namespace bpr::application {
 		}
 	}
 
-	void agent_queue_host::commit(const std::string& aSession)
+	agent_queue_host::~agent_queue_host() { *Alive = false; }
+
+	auto agent_queue_host::commit(const std::string& aSession, const std::optional<std::uint64_t> aAdded) -> bool
 	{
+		auto kept = true;
 		if (Dependencies.Store != nullptr && Dependencies.Effects != nullptr) {
 			// The lane is serial, so the store sees each session's writes in
 			// the order the queue changed.
 			try {
-				Dependencies.Effects->post([store = Dependencies.Store, aSession, queue = Queues[aSession]] { static_cast<void>(store->store(aSession, queue)); });
+				Dependencies.Effects->post([store = Dependencies.Store, lane = Dependencies.DecisionLane, alive = std::weak_ptr<bool>{ Alive }, this, aSession, aAdded, queue = Queues[aSession]] {
+					if (store->store(aSession, queue) || !aAdded || lane == nullptr) {
+						return;
+					}
+					try {
+						lane->post([alive, this, aSession, added = *aAdded] {
+							if (const auto live = alive.lock(); live && *live) {
+								unsaved(aSession, added);
+							}
+						});
+					} catch (...) {
+						// A closed lane: the profile is going; nothing is shown.
+					}
+				});
 			} catch (...) {
 				// A closed lane takes no more writes; the queue stays as it is.
 			}
 		} else if (Dependencies.Store != nullptr) {
-			static_cast<void>(Dependencies.Store->store(aSession, Queues[aSession]));
+			kept = Dependencies.Store->store(aSession, Queues[aSession]);
+		}
+		if (!kept && aAdded) {
+			return false;
 		}
 		show(aSession);
+		notify_waiting();
+		return kept;
+	}
+
+	void agent_queue_host::notify_waiting()
+	{
 		const auto waiting = queued_count();
 		// A copy of the tokens: a subscriber may leave while it is told.
 		auto tokens = std::vector<std::uint64_t>{ };
@@ -51,6 +87,32 @@ namespace bpr::application {
 		for (const auto token : tokens) {
 			if (const auto found = Subscribers.find(token); found != Subscribers.end() && found->second.Waiting) {
 				found->second.Waiting(waiting);
+			}
+		}
+	}
+
+	/// AC05. The store refused the write that queued `aAdded`: a message
+	/// still waiting leaves the queue and is handed back as it was asked. One
+	/// already released went to the agent and stays as it is.
+	void agent_queue_host::unsaved(const std::string& aSession, const std::uint64_t aAdded)
+	{
+		auto&      queue = Queues[aSession];
+		const auto entry = std::ranges::find(queue.Entries, aAdded, &core::queued_entry::Id);
+		if (entry == queue.Entries.end() || entry->State != core::queued_state::queued) {
+			return;
+		}
+		const auto input = entry->Input;
+		if (core::withdraw(queue, aAdded, queue.Revision) != core::queue_refusal::none) {
+			return;
+		}
+		static_cast<void>(commit(aSession));
+		auto tokens = std::vector<std::uint64_t>{ };
+		for (const auto& [token, subscriber] : Subscribers) {
+			tokens.push_back(token);
+		}
+		for (const auto token : tokens) {
+			if (const auto found = Subscribers.find(token); found != Subscribers.end() && found->second.Unsaved) {
+				found->second.Unsaved(aSession, input);
 			}
 		}
 	}
@@ -94,16 +156,25 @@ namespace bpr::application {
 		const auto released = entry != Queues[aSession].Entries.end() ? std::optional{ *entry } : std::nullopt;
 		// A runner that answers `agent_changed` synchronously must not start
 		// a second turn inside this one.
-		Draining           = true;
-		const auto started = released && Dependencies.Runner->start(aSession, *released);
-		Draining           = false;
-		if (!started) {
-			// Proven before any write: it stays unsent, and the queue pauses so
-			// the reviewer sees why.
-			Sending.erase(aSession);
-			static_cast<void>(core::return_unsent(Queues[aSession], *next));
-			core::pause(Queues[aSession], core::queue_pause::failed);
-			commit(aSession);
+		Draining             = true;
+		const auto admission = released ? Dependencies.Runner->start(aSession, *released) : queued_admission{ };
+		Draining             = false;
+		// AC03: a started or awaiting release is settled by its own run's
+		// retirement (`retired`), which may already have come.
+		if (admission.Kind == queued_admission_kind::started || admission.Kind == queued_admission_kind::awaiting) {
+			return;
+		}
+		const auto still = Sending.find(aSession);
+		if (still == Sending.end() || still->second != *next) {
+			return;
+		}
+		Sending.erase(still);
+		// Answered with no run, it went; refused, it goes back first and the
+		// queue pauses so the reviewer sees why.
+		static_cast<void>(core::finish(Queues[aSession], *next, admission.Kind == queued_admission_kind::answered ? core::queued_finish::went : core::queued_finish::refused));
+		commit(aSession);
+		if (admission.Kind == queued_admission_kind::answered) {
+			drain(aSession);
 		}
 	}
 
@@ -117,11 +188,17 @@ namespace bpr::application {
 			return core::queue_refusal::full;
 		}
 		auto&      queue   = Queues[aSession];
+		auto       before  = queue;
 		const auto refused = core::enqueue(queue, std::move(aInput), queue.Revision);
-		if (refused == core::queue_refusal::none) {
-			commit(aSession);
-			drain(aSession);
+		if (refused != core::queue_refusal::none) {
+			return refused;
 		}
+		if (!commit(aSession, queue.LastId)) {
+			// AC05: a store that refused it here queued nothing.
+			Queues[aSession] = std::move(before);
+			return core::queue_refusal::not_saved;
+		}
+		drain(aSession);
 		return refused;
 	}
 
@@ -223,26 +300,31 @@ namespace bpr::application {
 
 	void agent_queue_host::agent_changed(const std::string& aSession) { drain(aSession); }
 
-	void agent_queue_host::retired(const std::string& aSession, const core::queue_pause aOutcome)
+	void agent_queue_host::retired(const std::string& aSession, const core::queued_finish aFinish)
 	{
 		const auto found = Sending.find(aSession);
 		if (found != Sending.end()) {
-			core::settle(Queues[aSession], found->second, aOutcome);
+			static_cast<void>(core::finish(Queues[aSession], found->second, aFinish));
 			Sending.erase(found);
 			commit(aSession);
 		}
 		drain(aSession);
 	}
 
-	void agent_queue_host::returned(const std::string& aSession)
+	void agent_queue_host::returned(const std::string& aSession) { retired(aSession, core::queued_finish::not_taken); }
+
+	auto agent_queue_host::discard(const std::string& aSession, const std::uint64_t aId, const std::optional<std::uint64_t> aSeen) -> core::queue_refusal
 	{
-		const auto found = Sending.find(aSession);
-		if (found != Sending.end()) {
-			static_cast<void>(core::return_unsent(Queues[aSession], found->second));
-			Sending.erase(found);
-			commit(aSession);
+		const auto found = Queues.find(aSession);
+		if (found == Queues.end()) {
+			return core::queue_refusal::unknown_entry;
 		}
-		drain(aSession);
+		const auto refused = core::discard_uncertain(found->second, aId, aSeen.value_or(found->second.Revision));
+		if (refused == core::queue_refusal::none) {
+			commit(aSession);
+			drain(aSession);
+		}
+		return refused;
 	}
 
 	auto agent_queue_host::subscribe(agent_queue_subscriber aSubscriber) -> std::uint64_t

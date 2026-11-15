@@ -349,7 +349,9 @@ auto main(int argc, char** argv) -> int
 			expect(composer->toPlainText().isEmpty() && rowsOf().contains(QStringLiteral("First follow-up")) && rowsOf().contains(QStringLiteral("Second follow-up")),
 				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString());
 			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
-			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("Steer isn't available")),
+			// [[BPR-2153]]: no turn runs, so there is nothing to steer; the
+			// message is kept, goes next, and the panel says why (Q17).
+			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("goes next")),
 				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
 			render_showing(window, *list(), QStringLiteral("queue-pending-list"));
 			expect(pressIn(QStringLiteral("agentQueueEdit"), QStringLiteral("First follow-up")), "Edit a typed message");
@@ -789,6 +791,11 @@ auto main(int argc, char** argv) -> int
 				   "the title is said once in the pane (defect 5)");
 			auto* const byline = report->findChild<QLabel*>(QStringLiteral("agentReportByline"));
 			expect(byline != nullptr && byline->text().contains(QStringLiteral("What changed since my review")), "the question under the title");
+			// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
+			// byline handed over as data.
+			expect(report->document().Turn != 0U && tab->turn_of(report->document().Turn).has_value() && !report->document().Byline.Ending.isEmpty()
+					   && byline->text().contains(report->document().Byline.Ending.toHtmlEscaped()),
+				   "the report names its turn by identity, and its byline is the turn's own ending: " + byline->text().toStdString());
 			expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
 			auto* const menuButton = report->menu_button();
 			expect(menuButton != nullptr && menuButton->isVisible() && menuButton->accessibleName() == QStringLiteral("Report menu") && menuButton->width() == 32 && menuButton->height() == 28,

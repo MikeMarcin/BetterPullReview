@@ -50,6 +50,35 @@
 namespace {
 	using namespace bpr;
 	using bpr::tests::expect;
+
+	/// \brief [[BPR-2180]]. Waits until the comparison shows a file's result,
+	/// failing at once if the code veil lifts before then; true once it does.
+	/// \details The result is the arrival: the veil may stay as the partial
+	/// "Colouring syntax…" plate after it, which under load can outlast any
+	/// wait and is not the file failing to arrive.
+	[[nodiscard]] auto shows_file_without_gap(qt::diff_workbench& aComparison, const char* const aGap) -> bool
+	{
+		auto* const code  = aComparison.comparison_veil();
+		auto        clock = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 90'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 10);
+			if (aComparison.current_context().has_value() && aComparison.current_result() != nullptr) {
+				return true;
+			}
+			if (!code->busy()) {
+				std::cerr << "comparison at the gap, " << clock.elapsed() << " ms: waiting '" << aComparison.waiting_path().toStdString() << "' held '"
+						  << aComparison.held_waiting().toStdString() << "' context " << aComparison.current_context().has_value() << " result "
+						  << (aComparison.current_result() != nullptr) << " look " << static_cast<int>(code->look()) << '\n';
+			}
+			expect(code->busy(), aGap);
+			QThread::msleep(5);
+		}
+		std::cerr << "comparison after 90 s: waiting '" << aComparison.waiting_path().toStdString() << "' held '" << aComparison.held_waiting().toStdString()
+				  << "' context " << aComparison.current_context().has_value() << " result " << (aComparison.current_result() != nullptr) << " look "
+				  << static_cast<int>(code->look()) << '\n';
+		return false;
+	}
 	using access = app::detail::github_application_fixture_access;
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const int aTimeoutMs = 60000)
@@ -438,13 +467,29 @@ try {
 		}
 	}
 	expect(listed.isValid(), "the provisional list names a file");
-	emit table->activated(listed);
-	expect(!overview->pending_open().isEmpty() && overview->pending_veils().Files->busy()
-			   && overview->pending_veils().Files->words().Coming.startsWith(QStringLiteral("Opening ")),
-		   "the file waits for the review, and the plate says it will open");
-	wait_for([&] { return overview->projection().has_value(); }, "the review is accepted");
+	// [[BPR-2180]]. The owner, 2026-11-15: "When I double click a file on
+	// overview I expect an immediate transition to review with that loading
+	// view". Within one turn of the event loop Review is current and the
+	// comparison waits for that file in the shape of code, until it opens.
+	auto* const surface = window->comparison_surface();
+	const auto  path    = listed.data(qt::overview_file_model::path_role).toString();
+	emit        table->activated(listed);
+	QApplication::processEvents();
+	expect(window->current_modality() == qt::review_modality::review && !window->showing_overview(), "Review is current at once");
+	expect(surface->comparison_veil()->busy() && surface->comparison_veil()->shape() == qt::pending_shape::code && surface->waiting_path() == path,
+		   "the comparison waits for the file in the shape of code");
+	expect(overview->pending_open().isEmpty(), "the Overview keeps no open of its own");
+	const auto repositoriesShown = window->repositories_drawer()->isVisibleTo(window);
+	expect(shows_file_without_gap(*surface, "the code veil shows until the file arrives"), "the double-clicked file arrives");
+	expect(overview->projection().has_value(), "the review is accepted");
+	for (auto settled = QElapsedTimer{ }; !settled.isValid() || settled.elapsed() < 1'000;) {
+		if (!settled.isValid()) {
+			settled.start();
+		}
+		QApplication::processEvents(QEventLoop::AllEvents, 10);
+	}
+	expect(window->repositories_drawer()->isVisibleTo(window) == repositoriesShown, "no drawer opens by itself when the load ends");
 	delay->EveryReadMilliseconds = 0U;
-	auto* const surface          = window->comparison_surface();
 	wait_for([&] { return !window->showing_overview() && surface->current_result() != nullptr && surface->current_context().has_value(); }, "the waiting file opens once the review is accepted");
 	expect(overview->pending_open().isEmpty(), "nothing waits once it has opened");
 	wait_for([&] { return overview->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "reopened progress finishes loading");

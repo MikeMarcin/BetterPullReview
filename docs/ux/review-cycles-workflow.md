@@ -76,3 +76,7 @@ exactly what would go out before **Publish Pull Request** sends it.
   before anything is sent again. **Cancel Publishing** keeps what was already
   sent.
 - GitHub Enterprise Server pull requests cannot be published or linked yet.
+
+Once the cycle has a pull request, **Share notes > Add Notes to Review Tour…**
+adds the notes you choose, in their own words, as stops of that pull request's
+[Review Tour](../development/review-tours.md). Nothing is sent to GitHub.

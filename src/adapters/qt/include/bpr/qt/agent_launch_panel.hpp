@@ -198,6 +198,14 @@ namespace bpr::qt {
 		/// keeps saying it runs, so the composer can say a send was refused.
 		[[nodiscard]] auto refusal_count() const noexcept -> std::uint64_t { return Refusals; }
 		[[nodiscard]] auto last_refusal() const -> QString { return LastRefusal; }
+		/// \brief [[BPR-2153]]. What the reviewer steered into the run this
+		/// panel shows, in the order sent: each where it went in (characters
+		/// of the output so far), its step, and, once the run ended, its
+		/// disposition. Cleared when a run is admitted.
+		[[nodiscard]] auto steered() const -> const std::vector<application::agent_steered_message>& { return Steered; }
+		/// \brief [[BPR-2153]]. The run this panel shows as running (the
+		/// identity it was admitted with), for Steer to name; none when idle.
+		[[nodiscard]] auto active_invocation() const -> const std::optional<application::agent_invocation_projection_identity>& { return ActiveInvocation; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
@@ -261,7 +269,8 @@ namespace bpr::qt {
 		std::vector<std::function<void()>>                      ProgressObservers;
 		void                                                    progressed();
 		std::optional<application::agent_invocation_projection_identity>
-			ActiveInvocation;
+														ActiveInvocation;
+		std::vector<application::agent_steered_message> Steered;
 
 		agent_launch_panel_statistics Statistics;
 	};

@@ -294,9 +294,40 @@ namespace bpr::application {
 		}
 	}
 
+	namespace {
+		/// [[BPR-2181]]. The loan carries the revision the lender's window
+		/// accepted, when that revision names the lender's pull request under
+		/// the same identity; only its revision fields are taken.
+		[[nodiscard]] auto follow_accepted_revision(accepted_pull_request_handoff& aLent, const accepted_pull_request_handoff& aAccepted) -> bool
+		{
+			if (aAccepted.Profile != aLent.Profile || aAccepted.ProfileRevision.value() != aLent.ProfileRevision.value() || aAccepted.Host != aLent.Host
+				|| aAccepted.HostAuthority != aLent.HostAuthority || aAccepted.Account != aLent.Account || aAccepted.Viewer != aLent.Viewer
+				|| aAccepted.Repository != aLent.Repository || aAccepted.PullRequest != aLent.PullRequest || aAccepted.Number != aLent.Number
+				|| aAccepted.IdentityGeneration != aLent.IdentityGeneration || aAccepted.Mode != aLent.Mode) {
+				return false;
+			}
+			aLent.Snapshot              = aAccepted.Snapshot;
+			aLent.PullRequestGeneration = aAccepted.PullRequestGeneration;
+			aLent.Origin                = aAccepted.Origin;
+			aLent.ObjectFormat          = aAccepted.ObjectFormat;
+			aLent.BaseBranch            = aAccepted.BaseBranch;
+			aLent.BaseRef               = aAccepted.BaseRef;
+			aLent.Base                  = aAccepted.Base;
+			aLent.Head                  = aAccepted.Head;
+			aLent.CurrentViewerReview   = aAccepted.CurrentViewerReview;
+			aLent.TimelineAvailability  = aAccepted.TimelineAvailability;
+			aLent.ForcePushes           = aAccepted.ForcePushes;
+			aLent.Shape                 = aAccepted.Shape;
+			aLent.RecordedBase          = aAccepted.RecordedBase;
+			aLent.BaseBasis             = aAccepted.BaseBasis;
+			return true;
+		}
+	} // namespace
+
 	auto github_application_host::implementation::lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender,
 																		const core::application_session_id              aHolder,
-																		std::function<void(lent_review_authority_end)>  aRevoked)
+																		std::function<void(lent_review_authority_end)>  aRevoked,
+																		const accepted_pull_request_handoff*            aAccepted)
 		-> std::optional<lent_review_authority>
 	{
 		std::erase_if(LentAuthorities, [](const auto& aRecord) { return !aRecord->live(); });
@@ -311,6 +342,9 @@ namespace bpr::application {
 		if (!handoff || handoff->IdentityGeneration != State.IdentityGeneration || handoff->Profile != session->ProfileAuthority.Profile
 			|| handoff->ProfileRevision.value() != session->ProfileAuthority.ProfileRevision.value() || handoff->Account != session->Session.Viewer.Account
 			|| handoff->Mode != State.AccessMode) {
+			return std::nullopt;
+		}
+		if (aAccepted != nullptr && !follow_accepted_revision(*handoff, *aAccepted)) {
 			return std::nullopt;
 		}
 		auto state = std::make_shared<smart_authority_state>();

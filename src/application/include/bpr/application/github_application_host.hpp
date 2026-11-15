@@ -264,9 +264,17 @@ namespace bpr::application {
 		/// with no accepted pull request of this session, a holder that is
 		/// zero or a window's own session, and once
 		/// `maximum_lent_review_authorities` loans are live. Decision lane only.
+		///
+		/// \p aAccepted, when given, is the revision the lender's window
+		/// accepted (its own handoff, which may be newer than the read the
+		/// lender last answered): the loan carries that revision, so the holder
+		/// follows the window rather than the read. Its identity (profile,
+		/// host, account, viewer, repository, pull request, identity generation
+		/// and mode) must be the lender's; otherwise nothing is lent.
 		[[nodiscard]] auto lend_review_authority(const std::shared_ptr<github_window_read_host>& aLender,
 												 core::application_session_id                    aHolder,
-												 std::function<void(lent_review_authority_end)>  aRevoked)
+												 std::function<void(lent_review_authority_end)>  aRevoked,
+												 const accepted_pull_request_handoff*            aAccepted = nullptr)
 			-> std::optional<lent_review_authority>;
 		/// \brief Retires an explicit attachment before considering the standalone legacy read slot.
 		void detach_window(core::bpr_window_context aWindow);

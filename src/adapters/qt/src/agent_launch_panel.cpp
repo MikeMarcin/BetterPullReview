@@ -81,6 +81,7 @@ namespace bpr::qt {
 			case failure::not_signed_in:                 return QStringLiteral("It isn't signed in.");
 			case failure::tool_refused:                  return QStringLiteral("It tried a tool a drafting run may not use, so the run was stopped.");
 			case failure::helpers_unfinished:            return QStringLiteral("It stopped before the helpers it started finished.");
+			case failure::usage_limit:                   return QStringLiteral("Its account has reached its usage limit.");
 			}
 			return QStringLiteral("Its output couldn't be read.");
 		}
@@ -464,6 +465,7 @@ namespace bpr::qt {
 		}
 		ActiveInvocation = aIdentity;
 		Output->clear();
+		Steered.clear();
 		StopReason.clear();
 		KeptText.clear();
 		LastFailure.reset();
@@ -542,6 +544,10 @@ namespace bpr::qt {
 		if (aEvent.Kind == application::agent_stream_kind::text) {
 			Output->appendPlainText(QString::fromStdString(aEvent.Text));
 		}
+		// [[BPR-2153]]. The reviewer's steered message, where it went in.
+		if (aEvent.Kind == application::agent_stream_kind::steered && aEvent.Steered && Steered.size() < core::maximum_steers_per_run) {
+			Steered.push_back({ .Text = aEvent.Steered->Text, .At = static_cast<std::size_t>(Output->toPlainText().trimmed().size()), .AfterSteps = aEvent.Steered->AfterSteps });
+		}
 		progressed();
 	}
 
@@ -553,6 +559,10 @@ namespace bpr::qt {
 			ActiveInvocation != std::optional{ aIdentity }
 			|| aResult.Session != aIdentity.Session.Id) {
 			return;
+		}
+		// [[BPR-2153]]. Each steered message as it ended.
+		for (std::size_t index = 0U; index < Steered.size() && index < aResult.SteeredInputs.size(); ++index) {
+			Steered[index].Disposition = aResult.SteeredInputs[index].Disposition;
 		}
 		// [[BPR-2004]]. Stopped, or ended under its helpers: what arrived is
 		// kept for the turn.

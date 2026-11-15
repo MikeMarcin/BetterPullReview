@@ -1822,7 +1822,9 @@ namespace bpr::app::detail {
 
 	struct agent_invocation_context_evidence
 	{
-		core::application_session_id                        ApplicationSession;
+		core::application_session_id ApplicationSession;
+		/// [[BPR-2181]]. The session the turn runs under: its runtime stack's.
+		core::application_session_id                        RunSession;
 		core::pull_request_authority                        Authority;
 		core::agent_session_id                              NextSession;
 		core::agent_revision_binding                        Binding;

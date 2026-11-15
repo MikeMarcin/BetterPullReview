@@ -1527,6 +1527,11 @@ namespace bpr::qt {
 				}
 			});
 		}
+		// [[BPR-2180]]. A file asked for on the Overview while its review loads
+		// is waited for in Review, which the gesture opens at once.
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_waiting_open_dispatch([this](const QString& aPath) { wait_for_review_at(aPath); });
+		}
 		apply_pending_appearance();
 	}
 
@@ -1593,8 +1598,8 @@ namespace bpr::qt {
 		// Files drawer lists them too: readable, with what is still coming said
 		// on the plate at its foot rather than over the rows.
 		if (first && LoadingReadiness.FirstRead && LoadingReadiness.Files && !ProvisionalFiles.empty()) {
-			const auto coming = ProvisionalOpen.isEmpty() ? QStringLiteral("Files open once the review has loaded…")
-														  : QStringLiteral("Opening %1 once the review has loaded…").arg(ProvisionalOpen.section(QLatin1Char('/'), -1));
+			const auto coming = PendingOpenPath.isEmpty() ? QStringLiteral("Files open once the review has loaded…")
+														  : QStringLiteral("Opening %1 once the review has loaded…").arg(PendingOpenPath.section(QLatin1Char('/'), -1));
 			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = coming });
 		} else {
 			apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });

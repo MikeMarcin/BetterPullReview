@@ -2905,6 +2905,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/public_preview_wire_transport.hpp"
         "src/github_application/queue_notifications.cpp"
         "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_agent_stack.cpp"
+        "src/github_application/review_agent_stack.hpp"
         "src/github_application/review_mutation_selection.cpp"
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
@@ -3092,6 +3094,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/public_preview_wire_transport.hpp"
         "src/github_application/queue_notifications.cpp"
         "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_agent_stack.cpp"
+        "src/github_application/review_agent_stack.hpp"
         "src/github_application/review_mutation_selection.cpp"
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
@@ -3738,8 +3742,37 @@ function(bpr_verify_app_source_tree app_source_root)
 	# BPR-2172, BPR-2173 and BPR-2175: the local draft look's environment can
 	# choose the Local comments look or Finish your review on the same
 	# fixture file instead (tests-only attended launch). No new effect or path.
+	# BPR-2153: the window's Steer forwards to the session queue host and its
+	# agent runtime's Steer is the application's (agent_runtime_steer); no new
+	# effect or path. A tests-on fixture session adds the fixture agent's
+	# entry, and the tests-on launcher probe forwards steering; neither is in
+	# a shipped build.
+	# BPR-2181 reseal over 5434d6010..98c2e9f30 (d9962f2ff, 0d70ff618,
+	# e755fe8a0, 9e6efb2c8 and the merge of native steering): the window
+	# sends every Agent-tab turn through its session's runtime and no longer
+	# on its own host, the Dif follows the runtime's identity, the runtime's
+	# loan follows the window's accepted revision, the profile closes its
+	# epoch actors after its runtimes, usage-limit words, and fixture
+	# evidence. No review mutation or publication path changed; the
+	# mutation-branch pin is unchanged. Reviewed on BPR-2181.
+	# BPR-2181 fourth-round reseal (with BPR-2193 and BPR-2184 N4/N5): a
+	# queued release answers a typed admission keyed by the runtime's run
+	# (release_queued, the explain read and continuation realignment settle
+	# an awaiting release), the tour feedback's release says its admission,
+	# a message the queue store refused returns to the composer, sessions and
+	# an ask's threads are typed in core, Stop all is the runtimes', Q6's
+	# baseline comes from core in the Ask menus' facts, reports are keyed by
+	# the turn's identity, and the runtime's stack runs a turn only once it
+	# observed what was lent and holds a same-revision loan while a turn runs.
+	# The digest also covers 1eab5b868 and 8449ca67f (BPR-2191, BPR-2180: the
+	# workbench host holds a file asked for while its review loads), which
+	# landed beside it unsealed. No review mutation or publication path
+	# changed; the mutation-branch pin is unchanged.
+	# BPR-2193 follow-up reseal: the runtime's stack waits for a loan's
+	# ingestion to settle rather than for the window's comparison epochs,
+	# which its own epoch host need not reach. Nothing else changed.
 	set(bpr_expected_production_app_manifest_digest
-        "b8d1051321e049532ded673cd4f1dce006633f15c3c722589a6c498aea405b7b"
+        "b24ff1c2f525af2cf7a1c1cd74ea0910ef7eb256463c7840cbffd16e491fd86b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

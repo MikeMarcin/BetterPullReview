@@ -349,7 +349,7 @@ A draft no window has open answers `interaction_required` (exit 3); open the pul
 request in the desktop and retry. `open`, refresh, publish and recover answer
 `interaction_required` while a desktop owns the profile, and `assist --sources`
 and `labels counts` do too. The channel is a same-user local socket on macOS and Linux and an
-owner-private named pipe on Windows ([[BPR-1168]]), protocol 6; an owner of
+owner-private named pipe on Windows ([[BPR-1168]]), protocol 8; an owner of
 another protocol version answers `owner_protocol_unsupported` before anything is
 sent. The same channel
 carries `bpr cycle` commands ([Review Cycles terminal](cycle-cli.md)).

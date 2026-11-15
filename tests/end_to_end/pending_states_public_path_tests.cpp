@@ -16,10 +16,12 @@
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractItemView>
 #include <QAccessible>
 #include <QAccessibleEvent>
 #include <QApplication>
@@ -97,6 +99,48 @@ namespace {
 		QApplication::sendEvent(aRow.View->viewport(), &release);
 		QApplication::sendEvent(aRow.View->viewport(), &doubled);
 		QApplication::sendEvent(aRow.View->viewport(), &release);
+	}
+
+	void double_click(QAbstractItemView* const aView, const QModelIndex& aIndex)
+	{
+		const auto point   = QPointF{ aView->visualRect(aIndex).center() };
+		const auto global  = aView->viewport()->mapToGlobal(point);
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		auto       doubled = QMouseEvent{ QEvent::MouseButtonDblClick, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(aView->viewport(), &press);
+		QApplication::sendEvent(aView->viewport(), &release);
+		QApplication::sendEvent(aView->viewport(), &doubled);
+		QApplication::sendEvent(aView->viewport(), &release);
+	}
+
+	/// \brief [[BPR-2180]]. Waits until the comparison shows a file's result,
+	/// failing at once if the code veil lifts before then; true once it does.
+	/// \details The result is the arrival: the veil may stay as the partial
+	/// "Colouring syntax…" plate after it, which under load can outlast any
+	/// wait and is not the file failing to arrive.
+	[[nodiscard]] auto shows_file_without_gap(qt::diff_workbench& aComparison, const char* const aGap) -> bool
+	{
+		auto* const code  = aComparison.comparison_veil();
+		auto        clock = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 90'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 10);
+			if (aComparison.current_context().has_value() && aComparison.current_result() != nullptr) {
+				return true;
+			}
+			if (!code->busy()) {
+				std::cerr << "comparison at the gap, " << clock.elapsed() << " ms: waiting '" << aComparison.waiting_path().toStdString() << "' held '"
+						  << aComparison.held_waiting().toStdString() << "' context " << aComparison.current_context().has_value() << " result "
+						  << (aComparison.current_result() != nullptr) << " look " << static_cast<int>(code->look()) << '\n';
+			}
+			expect(code->busy(), aGap);
+			QThread::msleep(5);
+		}
+		std::cerr << "comparison after 90 s: waiting '" << aComparison.waiting_path().toStdString() << "' held '" << aComparison.held_waiting().toStdString()
+				  << "' context " << aComparison.current_context().has_value() << " result " << (aComparison.current_result() != nullptr) << " look "
+				  << static_cast<int>(code->look()) << '\n';
+		return false;
 	}
 
 	std::vector<QString>* Announcements = nullptr;
@@ -275,7 +319,8 @@ try {
 		expect(tree->model()->rowCount() > 0 && drawer->contents()->rowCount() > 0, "the reported files are the drawer's own rows, in the list and the tree");
 		renders(QStringLiteral("review-files-while-loading"));
 		// A click on a reported file is remembered, said, and opened later.
-		const auto selections = window->statistics().FileSelections;
+		const auto selections  = window->statistics().FileSelections;
+		const auto opensBefore = window->statistics().PendingOpensOpened;
 		drawer->contents_view()->setCurrentIndex(drawer->contents()->index(0, 0));
 		pause(50);
 		expect(files->words().Coming.startsWith(QStringLiteral("Opening ")), "the drawer says it opens the clicked file once the review has loaded");
@@ -287,22 +332,11 @@ try {
 		auto* const code       = comparison->comparison_veil();
 		expect(code->busy() && code->shape() == qt::pending_shape::code && comparison->waiting_path() == drawer->contents()->index(0, 0).data().toString(),
 			   "the comparison waits for the clicked file in the shape of code");
-		{
-			auto clock = QElapsedTimer{ };
-			clock.start();
-			auto arrived = false;
-			while (clock.elapsed() < 90'000) {
-				QApplication::processEvents(QEventLoop::AllEvents, 10);
-				arrived = comparison->current_context().has_value() && !code->busy();
-				if (arrived) {
-					break;
-				}
-				expect(code->busy(), "the code veil shows until the file arrives");
-				QThread::msleep(5);
-			}
-			expect(arrived, "the clicked file arrives");
-		}
-		expect(window->overview_page()->projection().has_value() && window->statistics().FileSelections > selections, "it opened once the review listed it");
+		expect(shows_file_without_gap(*comparison, "the code veil shows until the file arrives"), "the clicked file arrives");
+		// [[BPR-2191]]. The host opened it, once the review that reported it
+		// listed it; the window only showed what the host published.
+		expect(window->overview_page()->projection().has_value() && window->statistics().PendingOpensOpened > opensBefore && window->statistics().FileSelections == selections,
+			   "it opened once the review listed it");
 		expect(!files->busy() && !files->isVisible(), "the accepted review leaves the drawer with no veil");
 		// A read that is superseded and then fails opens no review: the files
 		// it reported go, and the drawer lists the review still shown.
@@ -331,6 +365,54 @@ try {
 		expect(window->pending_veils().Files->words().Coming.isEmpty() || !window->pending_veils().Files->busy(), "nothing reported stays said");
 		expect(paths() == shown, "a read that opened no review leaves none of its reported files behind");
 		delay->FailNumber       = 0U;
+		delay->Milliseconds     = 0U;
+		delay->PageMilliseconds = 0U;
+	}
+
+	// ---- [[BPR-2180]] A double-click on the Overview while the review loads ---
+	// The owner, 2026-11-15: "When I double click a file on overview I expect an
+	// immediate transition to review with that loading view". Within one turn
+	// of the event loop Review is current and the comparison waits for the
+	// file in the shape of code, without a gap, until it arrives. And: "I
+	// don't know why the respositories drawer suddenly pops open after its
+	// done loading": no drawer opens by itself when the load ends.
+	{
+		window->choose_modality(qt::review_modality::overview);
+		window->choose_home(true);
+		pause(100);
+		delay->Milliseconds     = 1'500U;
+		delay->PageMilliseconds = 1'200U;
+		double_click(row_of(*window, first));
+		wait_for([&] { return !window->showing_home(); }, "the pull request leaves Home once GitHub names it");
+		window->choose_modality(qt::review_modality::overview);
+		auto* const overview = window->overview_page();
+		wait_for([&] { return overview->file_model()->rowCount() > 0 && !overview->projection().has_value(); }, "the Overview lists the reported files", 60'000);
+		auto* const table  = overview->files_view();
+		auto        listed = QModelIndex{ };
+		for (auto parent = QModelIndex{ }; !listed.isValid() && table->model()->rowCount(parent) > 0;) {
+			const auto index = table->model()->index(0, 0, parent);
+			if (table->model()->hasChildren(index)) {
+				table->expand(index);
+				parent = index;
+			} else {
+				listed = index;
+			}
+		}
+		expect(listed.isValid(), "the Overview names a file");
+		const auto path = listed.data(qt::overview_file_model::path_role).toString();
+		double_click(table, listed);
+		QApplication::processEvents();
+		auto* const comparison = window->comparison_surface();
+		auto* const code       = comparison->comparison_veil();
+		expect(window->current_modality() == qt::review_modality::review && !window->showing_overview(), "the double-click goes to Review at once");
+		expect(code->busy() && code->shape() == qt::pending_shape::code && comparison->waiting_path() == path, "where the comparison waits for the file in the shape of code");
+		expect(!overview->projection().has_value(), "before the review has loaded");
+		const auto repositoriesShown = window->repositories_drawer()->isVisibleTo(window);
+		renders(QStringLiteral("overview-double-click-while-loading"));
+		expect(shows_file_without_gap(*comparison, "the code veil shows until the double-clicked file arrives") && overview->projection().has_value(),
+			   "the double-clicked file arrives once the review has loaded");
+		pause(1'000);
+		expect(window->repositories_drawer()->isVisibleTo(window) == repositoriesShown, "no drawer opens by itself when the load ends");
 		delay->Milliseconds     = 0U;
 		delay->PageMilliseconds = 0U;
 	}

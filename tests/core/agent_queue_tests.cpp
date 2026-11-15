@@ -5,8 +5,10 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace {
 	using namespace bpr::core;
@@ -109,8 +111,109 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// RFC-BPR-0126 AC02 ([[BPR-2181]] slice 3): the core maps how a run
+	/// ended to the queue's pause.
+	void test_finish_maps_to_pause()
+	{
+		using namespace bpr::core;
+		expect(pause_for(queued_finish::went) == queue_pause::none && pause_for(queued_finish::not_taken) == queue_pause::none && pause_for(queued_finish::failed) == queue_pause::failed
+				   && pause_for(queued_finish::usage_limit) == queue_pause::usage_limit && pause_for(queued_finish::stopped) == queue_pause::stopped,
+			   "each finish has its pause");
+		const auto run = [](const queued_finish aFinish) {
+			auto queue = agent_queue{ };
+			static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+			static_cast<void>(enqueue(queue, { .Label = "b", .Text = "b" }, queue.Revision));
+			const auto a = queue.Entries.front().Id;
+			static_cast<void>(mark_sending(queue, a));
+			const auto refused = finish(queue, a, aFinish);
+			return std::pair{ refused, queue };
+		};
+		const auto [failedRefusal, failed] = run(queued_finish::failed);
+		expect(failedRefusal == queue_refusal::none && failed.Paused == queue_pause::failed && failed.Entries.size() == 1U && failed.Entries.front().Input.Label == "b" && failed.Entries.front().State == queued_state::queued,
+			   "a failed run pauses the queue as failed, the second message still queued");
+		expect(run(queued_finish::usage_limit).second.Paused == queue_pause::usage_limit, "a usage limit pauses as usage limit");
+		expect(run(queued_finish::stopped).second.Paused == queue_pause::stopped, "Stop pauses as stopped");
+		const auto [wentRefusal, went] = run(queued_finish::went);
+		expect(wentRefusal == queue_refusal::none && went.Paused == queue_pause::none && went.Entries.size() == 1U, "a message that went leaves, unpaused");
+		const auto [notTakenRefusal, notTaken] = run(queued_finish::not_taken);
+		expect(notTakenRefusal == queue_refusal::none && notTaken.Paused == queue_pause::none && notTaken.Entries.size() == 2U && notTaken.Entries.front().State == queued_state::queued,
+			   "a message not taken goes back first, unpaused");
+		const auto [refusedRefusal, refused] = run(queued_finish::refused);
+		expect(refusedRefusal == queue_refusal::none && refused.Paused == queue_pause::failed && refused.Entries.size() == 2U && refused.Entries.front().Input.Label == "a"
+				   && refused.Entries.front().State == queued_state::queued,
+			   "a refused release goes back first and pauses as failed (AC03)");
+
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		const auto a = queue.Entries.front().Id;
+		static_cast<void>(mark_sending(queue, a));
+		pause(queue, queue_pause::lost_access);
+		expect(finish(queue, a, queued_finish::stopped) == queue_refusal::none && queue.Paused == queue_pause::lost_access, "a pause in force keeps its reason");
+		expect(finish(queue, a, queued_finish::went) == queue_refusal::unknown_entry, "a settled entry is not finished twice");
+	}
+
+	/// RFC-BPR-0126 AC06 ([[BPR-2181]]): a queue's session is typed; its key
+	/// is the stable name of that type, read back as itself.
+	void test_typed_session()
+	{
+		using namespace bpr::core;
+		const auto tab = queued_session{ .Kind = queued_session_kind::agent_tab, .Host = "github.com", .Owner = "o", .Repository = "r", .Number = 7U };
+		expect(session_key(tab) == "agent-tab:github.com/o/r#7" && parse_session_key(session_key(tab)) == std::optional{ tab }, "an Agent tab's session round-trips");
+		const auto tour = with_kind(tab, queued_session_kind::tour_feedback);
+		expect(session_key(tour) == "tour-feedback:github.com/o/r#7" && parse_session_key(session_key(tour)) == std::optional{ tour }, "the tour feedback session of the same pull request");
+		expect(session_key(queued_session{ }).empty() && !parse_session_key("agent-tab:github.com/o#7") && !parse_session_key("agent-tab:github.com/o/r#x")
+				   && !parse_session_key("other:github.com/o/r#7") && !parse_session_key("agent-tab:github.com/o/r#07"),
+			   "anything else names no session");
+		auto queue = agent_queue{ };
+		expect(enqueue(queue, { .QuickAsk = "was-addressed", .Scope = "file", .Threads = { "t1", "t2" }, .Label = "Were these addressed?" }, 0U) == queue_refusal::none
+				   && queue.Entries.front().Input.Threads.size() == 2U,
+			   "an ask carries its threads typed");
+	}
+
+	/// RFC-BPR-0126 AC10 ([[BPR-2181]]): queue-versus-send is the core's,
+	/// over the queue and the run; a Return in the gap after a release and
+	/// before its turn shows is queued.
+	void test_follow_up_decision()
+	{
+		using namespace bpr::core;
+		expect(decide_follow_up({ }) == follow_up::send, "a free session sends");
+		expect(decide_follow_up({ .TurnShown = true }) == follow_up::queue && decide_follow_up({ .TurnShown = true, .SteerByDefault = true }) == follow_up::steer
+				   && decide_follow_up({ .TurnShown = true, .Opposite = true }) == follow_up::steer && decide_follow_up({ .TurnShown = true, .SteerByDefault = true, .Opposite = true }) == follow_up::queue,
+			   "while a turn runs it is a follow-up, by the setting and the modifier");
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		static_cast<void>(mark_sending(queue, queue.Entries.front().Id));
+		expect(decide_follow_up({ .TurnShown = false, .QueueHolds = holds_messages(queue) }) == follow_up::queue, "released, its turn not shown yet: the Return is queued");
+		expect(decide_follow_up({ .TurnShown = true, .Empty = true }) == follow_up::send, "nothing typed goes to the send, which refuses it");
+	}
+
+	/// RFC-BPR-0126 AC04 ([[BPR-2181]] slice 4): a message whose delivery is
+	/// not known after a crash can be discarded.
+	void test_discard_uncertain()
+	{
+		using namespace bpr::core;
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		static_cast<void>(enqueue(queue, { .Label = "b", .Text = "b" }, queue.Revision));
+		const auto a = queue.Entries.front().Id;
+		const auto b = queue.Entries.back().Id;
+		static_cast<void>(mark_sending(queue, a));
+		restore(queue);
+		expect(discard_uncertain(queue, b, queue.Revision) == queue_refusal::not_editable, "only an uncertain message is discarded this way");
+		expect(discard_uncertain(queue, a, queue.Revision - 1U) == queue_refusal::stale, "from an older revision nothing changes");
+		expect(discard_uncertain(queue, a, queue.Revision) == queue_refusal::none && queue.Entries.size() == 1U && queue.Entries.front().Id == b && queue.Paused == queue_pause::restarted,
+			   "discarded, it leaves; the queue stays paused");
+		expect(resume(queue, queue.Revision) == queue_refusal::none && next_release(queue, queue_agent::idle) == b, "and Resume goes on with the next");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_finish_maps_to_pause();
+	test_follow_up_decision();
+	test_typed_session();
+	test_discard_uncertain();
 	test_return_unsent();
 	test_order_and_release();
 	test_limits();
