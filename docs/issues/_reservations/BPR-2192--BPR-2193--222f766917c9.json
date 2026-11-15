@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2192",
+    "BPR-2193"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Courses broken since merge 75ab1e0fa; intermittent continued chat contract",
+  "created": "2026-11-15T16:17:28.654894+00:00",
+  "base": "c2e51d5f56730d3f11693d3be3b0e8a047cecfb4"
+}
