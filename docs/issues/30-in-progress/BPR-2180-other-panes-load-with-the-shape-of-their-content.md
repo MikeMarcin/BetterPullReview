@@ -83,9 +83,11 @@ read runs. Discuss shows the Comments panel itself, so it shares that veil.
   `workbench_window_defects_and_home_rows.cpp:547` predate this card);
   documentation gate passes.
 - AC08 pending: look `bpr-2180-loading-shapes-v001`, attended session
-  `8d3a3be6af32e5b2071a1de01e1b71da` (state
-  `/Users/jaeger/.mask/attended-review/bpr-2180-loading-shapes-v001`, served on
-  loopback, cursor 15), five candidates, one Accept/Reject each: comments
+  `fb9faa4cfc98dcf7ec58cb025cc4746f` (state
+  `/Users/jaeger/.attended-review-state/bpr-2180-loading-shapes-v001-2026-11-14`,
+  served on the tailnet and listed on the review hub, cursor 15; it replaces
+  the loopback-only session `8d3a3be6af32e5b2071a1de01e1b71da`, stopped and
+  released with no decisions), five candidates, one Accept/Reject each: comments
   cards, Overview people, status mark, tour, Finish review. Frozen root
   `/Users/jaeger/bpr-2180-loading-shapes-v001.2g5nxy8y` from 209d124b6
   (tests-on, fixture `promo-v1` opened on its Overview, read delay 1500 ms,
