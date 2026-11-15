@@ -275,6 +275,18 @@ namespace bpr::qt {
 				}
 			}
 			const auto state = action.Record ? action.Record->State : core::workflow_action_state::idle;
+			// The selected context the request carried, and where it is.
+			if (action.Record && action.Record->Invocation != 0U && !action.RequestPath.empty() && Projection.Draft) {
+				const auto& draft = *Projection.Draft;
+				const auto* shown = core::latest_candidate(draft);
+				column->addWidget(secondary(label(QObject::tr("Sent candidate %1: the title, the description, the tour's problem and solution, %2 notes and %3 changed paths%4. In %5.")
+													  .arg(action.Record->Candidate)
+													  .arg(draft.Notes.size())
+													  .arg(shown == nullptr ? 0U : shown->Changes.size())
+													  .arg(action.Record->PlanDigest.empty() ? QString{ } : QObject::tr(", and the plan %1").arg(text_of(action.Record->PlanDigest.substr(0U, 12U))))
+													  .arg(text_of(action.RequestPath)),
+												  group, QStringLiteral("localDraftWorkflowSent"))));
+			}
 			if (!action.CommandLine.empty() && (state == core::workflow_action_state::handed_off || state == core::workflow_action_state::uncertain)) {
 				auto* const commandRow = new QHBoxLayout{ };
 				auto* const command    = new QLineEdit{ text_of(action.CommandLine), group };

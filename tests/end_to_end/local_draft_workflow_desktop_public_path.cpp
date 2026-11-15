@@ -374,6 +374,7 @@ try {
 	expect(first.Record && first.Record->State == core::workflow_action_state::handed_off && !first.Command.empty() && first.Command.front() == companion.string() && !ran(),
 		   "handed off: BPR names the command and starts nothing");
 	expect(std::filesystem::exists(first.RequestPath) && first.CommandLine.find("Searches kept running") == std::string::npos, "the request is a file; no draft text reaches the command");
+	expect(area->text().contains(QStringLiteral("Sent candidate 1: the title, the description")), "AC07: the selected context sent is shown");
 	run_as_author(first.Command);
 	button(*area, "context", "localDraftWorkflowRead")->click();
 	settle(lanes);

@@ -4,7 +4,8 @@
 # of the synthetic organization companion beside it, whose upstream folder
 # the owner may change. Usage, from the source tree: make_look.sh ROOT.
 set -eu
-root="$1"
+mkdir -p "$1"
+root="$(cd "$1" && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
 sh "$here/../local-draft/make_worktree.sh" "$root"
 rm -rf "$root/companion"
