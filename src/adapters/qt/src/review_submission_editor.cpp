@@ -1280,6 +1280,8 @@ namespace bpr::qt {
 		// [[BPR-2180]]. While the pending comments are read, their place holds
 		// comment rows under the heading, which already says they are loading.
 		{
+			// The veil takes its ground from the place it covers: the box's.
+			Pending->setBackgroundRole(QPalette::Base);
 			auto* const veil = new pending_veil{ *Pending, pending_shape::rows, tr("Pending comments") };
 			veil->setObjectName(QStringLiteral("wholeReviewPendingVeil"));
 			veil->set_words_beside(true);

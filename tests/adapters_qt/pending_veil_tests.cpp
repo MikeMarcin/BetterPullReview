@@ -521,6 +521,27 @@ namespace {
 			people.advance(core::pending_reveal_milliseconds);
 			people.Window.grab().save(aDirectory + QStringLiteral("/veil-people-%1.png").arg(theme));
 		}
+		// [[BPR-2180]]. The private tour and Finish review as they wait: both
+		// read local storage, which is usually done before the reveal.
+		auto tour = qt::review_tour_editor{ };
+		tour.resize(720, 560);
+		tour.show();
+		settle();
+		tour.present(application::tour_presentation{ .Loading = true });
+		settle(core::pending_reveal_milliseconds + 100);
+		tour.grab().save(aDirectory + QStringLiteral("/tour-loading.png"));
+		auto       editor        = qt::review_submission_editor{ [](auto) { } };
+		const auto head          = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01");
+		const auto draft         = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ 1U },
+																  .Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head.value() },
+																  .ActingAccount = core::github_account_id{ 4U } };
+		auto       controls      = core::controls(draft);
+		controls.CommentsUnknown = true;
+		editor.resize(900, 640);
+		editor.show();
+		editor.present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = controls });
+		settle(core::pending_reveal_milliseconds + 100);
+		editor.grab().save(aDirectory + QStringLiteral("/finish-review-loading.png"));
 	}
 } // namespace
 
