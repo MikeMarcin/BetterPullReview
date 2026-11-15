@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2153"
 title: "Claude and Codex App Server accept a native correction on the running turn, counted once"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0126"]
 depends_on: ["BPR-2152"]
 priority: "P2"
@@ -26,3 +26,10 @@ Codex App Server `turn/steer` with `threadId` and `expectedTurnId`; Claude bidir
 ## Notes
 
 Owner questions: Q3, Q14, Q15, Q17, Q18.
+
+## Progress
+
+- 2026-11-14: started by coordinator assignment on branch
+  `claude/native-steering`, ahead of BPR-2152 (durable handoff, Backlog).
+  This card builds the native mechanism, the typed capability and the
+  accounting; the durable Sending/Delivery-unknown records stay BPR-2152's.
