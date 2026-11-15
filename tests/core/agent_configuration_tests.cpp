@@ -152,7 +152,7 @@ namespace {
 		expect(core::decode_agent_configuration("\xff", local).error() == core::configuration_file_refusal::not_text, "not UTF-8");
 		expect(core::decode_agent_configuration("{\"format\":", local).error() == core::configuration_file_refusal::malformed, "malformed");
 		expect(core::decode_agent_configuration(R"({"format":"x","version":1})", local).error() == core::configuration_file_refusal::not_a_configuration, "foreign");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.agent-configuration","version":2,"future":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
+		expect(core::decode_agent_configuration(R"({"format":"bpr.agent-configuration","version":3,"future":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
 			   "newer");
 		expect(core::decode_agent_configuration(R"({"format":"bpr.agent-configuration","version":1,"exported_by":"","agents":[],"prompts":[],"secret":"x"})", local).error()
 				   == core::configuration_file_refusal::malformed,

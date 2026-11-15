@@ -1911,3 +1911,11 @@ bpr_enable_hardening(test_better_pull_review_agent_queue_core_tests)
 bpr_enable_warnings(test_better_pull_review_agent_queue_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_queue COMMAND test_better_pull_review_agent_queue_core_tests)
 set_tests_properties(core_agent_queue PROPERTIES PASS_REGULAR_EXPRESSION "agent-queue-tests:pass")
+# RFC-BPR-0112 ([[BPR-2032]], [[BPR-2033]], [[BPR-2034]]): optional workflows,
+# the companion contract and the interactive publication handoff.
+bpr_add_executable(test_better_pull_review_workflow_core_tests workflow_tests.cpp)
+target_link_libraries(test_better_pull_review_workflow_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_workflow_core_tests)
+bpr_enable_warnings(test_better_pull_review_workflow_core_tests)
+bpr_add_network_isolated_test(NAME core_workflow COMMAND test_better_pull_review_workflow_core_tests)
+set_tests_properties(core_workflow PROPERTIES PASS_REGULAR_EXPRESSION "workflow-tests:pass")

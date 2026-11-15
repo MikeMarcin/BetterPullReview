@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONFIGURATION_HPP
 
 #include "bpr/core/agent_entry.hpp"
+#include "bpr/core/workflow_configuration.hpp"
 
 #include <array>
 #include <cstddef>
@@ -25,9 +26,13 @@
 /// agent ID, host-minted identity, account, workspace, history or other
 /// profile setting.
 namespace bpr::core {
-	inline constexpr std::string_view agent_configuration_format        = "bpr.agent-configuration";
-	inline constexpr std::uint32_t    agent_configuration_version       = 1U;
-	inline constexpr std::size_t      maximum_agent_configuration_bytes = 1024U * 1024U;
+	inline constexpr std::string_view agent_configuration_format  = "bpr.agent-configuration";
+	inline constexpr std::uint32_t    agent_configuration_version = 1U;
+	/// [[BPR-2032]], RFC-BPR-0112. A file that carries workflows is written
+	/// at this version, so an importer from before them refuses it as newer
+	/// instead of dropping its actions; a file without any stays at 1.
+	inline constexpr std::uint32_t agent_configuration_workflow_version = 2U;
+	inline constexpr std::size_t   maximum_agent_configuration_bytes    = 1024U * 1024U;
 	/// The free-text label an exporter gives the file, and its own name.
 	inline constexpr std::size_t maximum_agent_configuration_label_bytes = 128U;
 	inline constexpr std::size_t maximum_portable_id_bytes               = 64U;
@@ -94,6 +99,8 @@ namespace bpr::core {
 		std::string                  ExportedBy;
 		std::vector<portable_agent>  Agents;
 		std::vector<portable_prompt> Prompts;
+		/// [[BPR-2032]]. Each agent action names an agent in `Agents`.
+		std::vector<workflow_configuration> Workflows;
 
 		auto operator<=>(const agent_configuration&) const = default;
 	};
@@ -199,6 +206,8 @@ namespace bpr::core {
 		std::string                 ExportedBy;
 		std::vector<decoded_agent>  Agents;
 		std::vector<decoded_prompt> Prompts;
+		/// [[BPR-2032]]. A workflow with a problem is listed and cannot be applied.
+		std::vector<decoded_workflow> Workflows;
 
 		auto operator<=>(const decoded_configuration&) const = default;
 	};

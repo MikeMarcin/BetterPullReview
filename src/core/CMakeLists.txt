@@ -135,6 +135,8 @@ add_library(
         src/local_presentation.cpp
         src/local_draft_publication.cpp
         src/local_draft_tour.cpp
+        src/workflow_configuration.cpp
+        src/workflow_action.cpp
         src/local_tour_view.cpp
         src/review_skill.cpp
         src/agent_session.cpp

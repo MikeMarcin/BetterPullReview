@@ -9,6 +9,7 @@
 #include <glaze/glaze.hpp>
 
 #include <algorithm>
+#include <iterator>
 #include <ranges>
 #include <set>
 #include <utility>
@@ -49,6 +50,8 @@ namespace bpr::core::detail {
 		std::string                ExportedBy;
 		std::vector<wire_agent>    Agents;
 		std::vector<wire_prompt>   Prompts;
+		/// [[BPR-2032]]. Present only at version 2.
+		std::optional<glz::raw_json> Workflows;
 	};
 	/// Only the head, read first so a newer or foreign file is named as such.
 	struct wire_head
@@ -79,7 +82,7 @@ struct glz::meta<bpr::core::detail::wire_file>
 {
 	using value_type            = bpr::core::detail::wire_file;
 	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "label", &value_type::Label, "exported_by", &value_type::ExportedBy, "agents", &value_type::Agents,
-										 "prompts", &value_type::Prompts);
+										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_head>
@@ -381,6 +384,18 @@ namespace bpr::core {
 			wire.Text                 = prompt.Text;
 			file.Prompts.push_back(std::move(wire));
 		}
+		if (!aConfiguration.Workflows.empty()) {
+			auto       workflows = encode_workflows(aConfiguration.Workflows);
+			const auto carried   = [&aConfiguration](const workflow_action& aAction) {
+				return aAction.Binding != workflow_binding::agent || std::ranges::find(aConfiguration.Agents, aAction.Agent, &portable_agent::PortableId) != aConfiguration.Agents.end();
+			};
+			const auto agentsCarried = std::ranges::all_of(aConfiguration.Workflows, [&carried](const workflow_configuration& aWorkflow) { return std::ranges::all_of(aWorkflow.Actions, carried); });
+			if (!workflows || !agentsCarried) {
+				return std::nullopt;
+			}
+			file.Version   = agent_configuration_workflow_version;
+			file.Workflows = glz::raw_json{ std::move(*workflows) };
+		}
 		auto bytes = std::string{ };
 		if (glz::write<write_options>(file, bytes) || bytes.size() + 1U > maximum_agent_configuration_bytes) {
 			return std::nullopt;
@@ -409,7 +424,7 @@ namespace bpr::core {
 		if (head.Format != agent_configuration_format) {
 			return std::unexpected(configuration_file_refusal::not_a_configuration);
 		}
-		if (head.Version != agent_configuration_version) {
+		if (head.Version != agent_configuration_version && head.Version != agent_configuration_workflow_version) {
 			return std::unexpected(configuration_file_refusal::unsupported_version);
 		}
 		auto file = detail::wire_file{ };
@@ -418,6 +433,10 @@ namespace bpr::core {
 		}
 		if (file.Agents.size() > maximum_configuration_agents || file.Prompts.size() > maximum_configuration_prompts) {
 			return std::unexpected(configuration_file_refusal::too_many_items);
+		}
+		// Workflows only at version 2, and a version 2 file carries them.
+		if ((file.Version == agent_configuration_workflow_version) != file.Workflows.has_value()) {
+			return std::unexpected(configuration_file_refusal::malformed);
 		}
 		auto decoded       = decoded_configuration{ };
 		decoded.Label      = file.Label.value_or(std::string{ });
@@ -501,6 +520,15 @@ namespace bpr::core {
 				item.Problem = configuration_item_problem::duplicate;
 			}
 			decoded.Prompts.push_back(std::move(item));
+		}
+		if (file.Workflows) {
+			auto agents = std::vector<std::string>{ };
+			std::ranges::transform(decoded.Agents, std::back_inserter(agents), [](const decoded_agent& aAgent) { return aAgent.Agent.PortableId; });
+			auto workflows = decode_workflows(file.Workflows->str, agents);
+			if (!workflows) {
+				return std::unexpected(configuration_file_refusal::malformed);
+			}
+			decoded.Workflows = std::move(*workflows);
 		}
 		return decoded;
 	}
