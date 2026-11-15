@@ -34,4 +34,4 @@ the desktop.
 
 Evidence, and `--evidence` with it, is not part of 0.5.0: the owner cut it on
 2026-11-12 and [RFC-BPR-0109](../rfcs/RFC-BPR-0109-author-evidence.md) is
-deferred. `bpr draft open --evidence` is refused as an unknown option.
+Rejected (2026-11-15). `bpr draft open --evidence` is refused as an unknown option.

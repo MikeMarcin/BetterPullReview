@@ -11,11 +11,13 @@ depends_on: ["RFC-BPR-0107", "RFC-BPR-0108"]
 ## Owner amendment: no evidence in 0.5.0 (2026-11-12)
 
 The owner cut Evidence from 0.5.0 ("Mockups; cut Evidence") and
-[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred. In this RFC,
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Rejected (owner,
+2026-11-15: "it shouldnt be deferred it should be rejected or something
+stronger so it doesnt come back"). In this RFC,
 every clause about evidence (selected claims, checks or results in the
 description or the tour, a stop citing evidence, rule X21, a conversation
 proposing claims or planned checks into the evidence record, formal evidence
-staying with its basis) is inactive until that RFC is reactivated. The
+staying with its basis) is void and will not return with that RFC. The
 public preview carries the title, the accepted description and the tour;
 notes, conversations and proposals stay private. The criteria are amended
 below; their earlier wording is kept here:

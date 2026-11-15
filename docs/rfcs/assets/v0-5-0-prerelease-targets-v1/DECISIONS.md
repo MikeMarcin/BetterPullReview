@@ -160,9 +160,11 @@ how it's valuable to me."), the coordinator asked whether to cut Evidence
 from 0.5.0. The owner, 2026-11-12, verbatim: "Mockups; cut Evidence". The
 local-draft screens are redesigned from mockups made separately.
 
-- RFC-BPR-0109 (RFC-DRAFT-0012) is Deferred: out of 0.5.0, kept as a
-  possible workflow extension. Its cards BPR-2023, 2024 and 2025 are Blocked
-  on `owner-deferred`; nothing in 0.5.0 depends on them.
+- RFC-BPR-0109 (RFC-DRAFT-0012) was Deferred out of 0.5.0. Superseded on
+  2026-11-15, the owner: "it shouldnt be deferred it should be rejected or
+  something stronger so it doesnt come back". It is Rejected, permanently;
+  its cards BPR-2023, 2024 and 2025 are closed in Done with
+  `resolution: "rejected"` (not delivered), and nothing depends on them.
 - The plan drops the `author-evidence` milestone and RFC-BPR-0109 from its
   scope; `local-tour-preparation` no longer depends on it; the outcome and
   exit texts of `local-tour-preparation`, `publish-prepared-draft` and

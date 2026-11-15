@@ -61,6 +61,16 @@ OPEN_ISSUE_LANES = (
     "00-inbox", "10-backlog", "40-parked", "50-blocked", "20-ready", "30-in-progress",
 )
 DONE_ISSUE_LANE = "60-done"
+# The RFC statuses this repository recognises. `Auto-Verified` and `Rejected`
+# are terminal. `Rejected` is permanent (owner, 2026-11-15, on RFC-BPR-0109:
+# "it shouldnt be deferred it should be rejected or something stronger so it
+# doesnt come back"): no open card and no milestone plan may name a Rejected
+# RFC, and a card closed because its work was rejected carries
+# `metadata.resolution: "rejected"` and never counts as delivered.
+RFC_STATUSES = ("Proposed", "In Progress", "Auto-Verified", "Deferred", "Rejected")
+REJECTED_RFC_STATUS = "Rejected"
+REJECTED_RESOLUTION = "rejected"
+PLAN_ROOT = "docs/rfcs/plans"
 REVIEW_ROOT = "docs/verification/reviews"
 OPERATOR_PACKET_NAME = "operator-packet.md"
 OPERATOR_RESPONSE_NAME = "operator-response.md"
@@ -138,6 +148,11 @@ def verify_rfc_index(root: Path) -> None:
         status = metadata.get("status")
         if not rfc_id or not re.fullmatch(r"RFC-BPR-\d{4}", rfc_id) or not status:
             fail(f"RFC id/status missing: {path}")
+        if status not in RFC_STATUSES:
+            fail(
+                f"unknown RFC status in {path}: {status!r}; expected one of "
+                f"{', '.join(RFC_STATUSES)}"
+            )
         if not path.name.startswith(f"{rfc_id}-"):
             fail(f"RFC filename/id mismatch: {path} -> {rfc_id}")
         if rfc_id in seen:
@@ -157,6 +172,90 @@ def verify_issue_board(root: Path) -> None:
     _, errors = board_model.validate_board(root.resolve(), project_config.load(repo_root=root.resolve()))
     if errors:
         fail("\n".join(map(str, errors)))
+
+
+def rejected_rfcs(root: Path) -> set[str]:
+    rejected: set[str] = set()
+    for path in sorted((root / "docs/rfcs").glob("RFC-BPR-*.md")):
+        metadata = front_matter(path)
+        if metadata.get("status") == REJECTED_RFC_STATUS:
+            rejected.add(str(metadata.get("id")))
+    return rejected
+
+
+def card_resolution(metadata: dict[str, object]) -> object:
+    descriptive = metadata.get("metadata")
+    if isinstance(descriptive, dict):
+        return descriptive.get("resolution")
+    return None
+
+
+def verify_rejected_work(root: Path) -> None:
+    """A Rejected RFC stays rejected, and rejected work is never delivered.
+
+    A plan or a card cannot bring a Rejected RFC back: no open card may name
+    one in `rfcs` or `closeout_for`, a Done card that names one must be closed
+    as `resolution: "rejected"`, and no milestone plan may carry one in its
+    scope. A card closed with `resolution: "rejected"` sits in Done because
+    Done is the only terminal lane, not because its work was delivered, so no
+    card that claims delivery may depend on it.
+    """
+    rejected = rejected_rfcs(root)
+    issue_root = root / "docs/issues"
+    cards: dict[str, tuple[Path, str, dict[str, object]]] = {}
+    for lane in (*OPEN_ISSUE_LANES, DONE_ISSUE_LANE):
+        for path in sorted((issue_root / lane).glob("BPR-*.md")):
+            metadata = front_matter(path)
+            cards[str(metadata.get("id"))] = (path, lane, metadata)
+
+    rejected_cards = set()
+    for issue_id, (path, lane, metadata) in cards.items():
+        resolution = card_resolution(metadata)
+        if resolution == REJECTED_RESOLUTION:
+            if lane != DONE_ISSUE_LANE or metadata.get("status") != "Done":
+                fail(
+                    f"{path} has resolution {REJECTED_RESOLUTION!r} but is not Done "
+                    f"in {DONE_ISSUE_LANE}; rejected work is closed, not left open"
+                )
+            rejected_cards.add(issue_id)
+        named = set(metadata.get("rfcs", []) or []) | set(
+            metadata.get("closeout_for", []) or []
+        )
+        for rfc_id in sorted(named & rejected):
+            if lane != DONE_ISSUE_LANE:
+                fail(
+                    f"{path} is open and names Rejected {rfc_id}; a Rejected RFC "
+                    "cannot be reactivated by a card"
+                )
+            if resolution != REJECTED_RESOLUTION:
+                fail(
+                    f"{path} is Done and names Rejected {rfc_id} without "
+                    f'metadata.resolution "{REJECTED_RESOLUTION}"; work for a '
+                    "Rejected RFC is never delivered"
+                )
+
+    for issue_id, (path, _, metadata) in cards.items():
+        if issue_id in rejected_cards:
+            continue
+        for dependency in metadata.get("depends_on", []) or []:
+            if dependency in rejected_cards:
+                fail(
+                    f"{path} depends on {dependency}, which was closed as "
+                    f"{REJECTED_RESOLUTION!r} and was never delivered"
+                )
+
+    for plan in sorted((root / PLAN_ROOT).glob("*/milestone-plan.json")):
+        try:
+            document = json.loads(plan.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            fail(f"invalid milestone plan {plan}: {error}")
+        scope = document.get("scope") if isinstance(document, dict) else None
+        planned = scope.get("rfcs", []) if isinstance(scope, dict) else []
+        for rfc_id in sorted(set(planned) & rejected):
+            fail(
+                f"{plan} includes Rejected {rfc_id}; a Rejected RFC cannot be "
+                "reactivated by a plan"
+            )
 
 
 def normalize_whitespace(value: str) -> str:
@@ -615,6 +714,7 @@ def main() -> int:
     verify_rfc_index(root)
     verify_issue_board(root)
     verify_terminal_closeout_cards(root)
+    verify_rejected_work(root)
     verify_operator_packet_records(root)
     verify_pending_packet_manifests(root)
     verify_links(root)

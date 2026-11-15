@@ -92,3 +92,13 @@ with a forward migration for stored drafts. `core_local_draft_evidence` and
 `application_local_draft_evidence_desktop_public_path` no longer exist. The
 removal's own checks are recorded in the
 [RFC-BPR-0110 ledger](RFC-BPR-0110.md#owner-amendment-evidence-removed-2026-11-12).
+
+## Owner decision: Rejected (2026-11-15)
+
+The deferral above is superseded. The owner, on 2026-11-15: "it shouldnt be
+deferred it should be rejected or something stronger so it doesnt come back".
+RFC-BPR-0109 is Rejected, a terminal status the documentation gate keeps
+closed: no open card or milestone plan may name it. [[BPR-2023]],
+[[BPR-2024]] and [[BPR-2025]] are closed in Done with
+`resolution: "rejected"` and count as not delivered. Nothing above is
+reopened; the results stay as history.

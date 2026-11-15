@@ -104,7 +104,7 @@ throughout the existing application.
 
 Changes, Evidence, Description and Tour are working areas, not mandatory wizard
 steps. (Owner amendment, 2026-11-12: Evidence is cut from 0.5.0 and
-[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Deferred; the 0.5.0 areas
+[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is Rejected; the 0.5.0 areas
 are Changes, Description and Tour.) Authors can move among them, return to an editor, save and resume without
 finishing a one-shot agent run. The no-agent path is complete. This RFC supplies
 the local shell and changes/notes; subsequent RFCs add the other usable areas.

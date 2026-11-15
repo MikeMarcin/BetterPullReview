@@ -8,10 +8,18 @@ depends_on: ["RFC-BPR-0103", "RFC-BPR-0104", "RFC-BPR-0109", "RFC-BPR-0110", "RF
 
 # The agent runs a planned check on a local PR draft
 
-Note, 2026-11-12: the owner deferred
-[RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) out of 0.5.0 ("Mockups; cut
-Evidence"), and its implementation was removed from the 0.5.0 lane. This RFC
-depends on that evidence record and waits on its reactivation.
+Note, 2026-11-15: [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) is
+Rejected. The owner cut it from 0.5.0 on 2026-11-12 ("Mockups; cut
+Evidence"), its implementation was removed, and on 2026-11-15 the owner
+rejected it outright: "it shouldnt be deferred it should be rejected or
+something stronger so it doesnt come back". This RFC runs a planned check
+from that RFC's Evidence and records the result into its evidence record, and
+every criterion below depends on that record, so it cannot close as written
+and there is no reactivation to wait for. [BPR-2082](../issues/60-done/BPR-2082-run-a-planned-check-with-the-agent.md)
+is closed as rejected (moot), and [BPR-2083](../issues/50-blocked/BPR-2083-close-rfc-0120.md)
+is Blocked until the owner decides whether this RFC is rejected too or
+replaced by a new RFC that stands without evidence. The text below is kept
+unchanged as the design that was proposed.
 
 ## Problem and grounded current behavior
 
@@ -89,6 +97,8 @@ and observed executions that BPR supervises itself are not in this RFC.
 
 ## Proposed delivery
 
-[Run with agent](../issues/10-backlog/BPR-2082-run-a-planned-check-with-the-agent.md) and
-[closeout](../issues/10-backlog/BPR-2083-close-rfc-0120.md) form the fifth
-[milestone](plans/agent-assistance-v1/milestone-plan.json).
+[Run with agent](../issues/60-done/BPR-2082-run-a-planned-check-with-the-agent.md) and
+[closeout](../issues/50-blocked/BPR-2083-close-rfc-0120.md) form the fifth
+[milestone](plans/agent-assistance-v1/milestone-plan.json). BPR-2082 is closed
+as rejected (its prerequisite RFC-BPR-0109 is Rejected); BPR-2083 is Blocked
+on `rejected-prerequisite`.

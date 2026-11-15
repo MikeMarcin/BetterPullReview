@@ -43,6 +43,7 @@ from scripts.verify_documentation import (  # noqa: E402
     verify_operator_packet_records,
     verify_pending_packet_manifests,
     verify_no_conflict_markers,
+    verify_rejected_work,
     verify_rfc_index,
     verify_terminal_closeout_cards,
 )
@@ -136,6 +137,17 @@ class RfcIndexTests(unittest.TestCase):
         self.write_rfc(24, "Proposed")
         self.write_rfc(25, "Auto-Verified")
         self.verify()
+
+    def test_accepts_rejected_as_a_status(self) -> None:
+        self.write_rfc(24, "Rejected")
+        self.verify()
+
+    def test_rejects_an_unknown_status(self) -> None:
+        self.write_rfc(24, "Withdrawn")
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit):
+            self.verify()
+        self.assertIn("unknown RFC status", errors.getvalue())
 
     def test_rejects_missing_original_rfc_even_with_fourteen_files(self) -> None:
         (self.rfc_root / "RFC-BPR-0007-fixture.md").unlink()
@@ -470,6 +482,106 @@ class IssueGraphTests(unittest.TestCase):
         self.write_card("BPR-0002", "10-backlog", "Backlog", "BPR-0001")
 
         self.verify("BPR-0003")
+
+
+class RejectedWorkTests(unittest.TestCase):
+    """A Rejected RFC is terminal and permanent, and its work never counts."""
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.rfc_root = self.root / "docs/rfcs"
+        self.issue_root = self.root / "docs/issues"
+        self.rfc_root.mkdir(parents=True)
+        for lane in ("00-inbox", "10-backlog", "20-ready", "30-in-progress",
+                     "40-parked", "50-blocked", "60-done"):
+            (self.issue_root / lane).mkdir(parents=True)
+        self.write_rfc(24, "Rejected")
+        self.write_rfc(25, "Proposed")
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write_rfc(self, number: int, status: str) -> None:
+        rfc_id = f"RFC-BPR-{number:04d}"
+        (self.rfc_root / f"{rfc_id}-fixture.md").write_text(
+            f'---\nid: "{rfc_id}"\nstatus: "{status}"\n---\n', encoding="utf-8"
+        )
+
+    def write_card(
+        self,
+        issue_id: str,
+        lane: str,
+        status: str,
+        rfcs: list[str],
+        depends_on: list[str] | None = None,
+        resolution: str | None = None,
+    ) -> None:
+        metadata = {"resolution": resolution} if resolution else {}
+        (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
+            "---\n"
+            'schema: "implement-rfc.card.v1"\n'
+            f'id: "{issue_id}"\n'
+            'title: "Fixture"\n'
+            f'status: "{status}"\n'
+            f"rfcs: {json.dumps(rfcs)}\n"
+            f"metadata: {json.dumps(metadata)}\n"
+            f"depends_on: {json.dumps(depends_on or [])}\n"
+            "---\n",
+            encoding="utf-8",
+        )
+
+    def write_plan(self, rfcs: list[str]) -> None:
+        plan = self.root / "docs/rfcs/plans/fixture/milestone-plan.json"
+        plan.parent.mkdir(parents=True, exist_ok=True)
+        plan.write_text(json.dumps({"scope": {"rfcs": rfcs, "issues": []}}), encoding="utf-8")
+
+    def assert_refused(self, fragment: str) -> None:
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit):
+            verify_rejected_work(self.root)
+        self.assertIn(fragment, errors.getvalue())
+
+    def test_accepts_rejected_cards_closed_as_rejected(self) -> None:
+        self.write_card("BPR-0001", "60-done", "Done", ["RFC-BPR-0024"], resolution="rejected")
+        self.write_card("BPR-0002", "60-done", "Done", ["RFC-BPR-0024"], ["BPR-0001"], "rejected")
+        self.write_card("BPR-0003", "10-backlog", "Backlog", ["RFC-BPR-0025"])
+        self.write_plan(["RFC-BPR-0025"])
+        verify_rejected_work(self.root)
+
+    def test_refuses_every_open_card_naming_a_rejected_rfc(self) -> None:
+        for lane, status in (
+            ("00-inbox", "Inbox"),
+            ("10-backlog", "Backlog"),
+            ("20-ready", "Ready"),
+            ("30-in-progress", "In Progress"),
+            ("40-parked", "Parked"),
+            ("50-blocked", "Blocked"),
+        ):
+            with self.subTest(lane=lane):
+                for card in self.issue_root.rglob("BPR-*.md"):
+                    card.unlink()
+                self.write_card("BPR-0001", lane, status, ["RFC-BPR-0024"])
+                self.assert_refused("cannot be reactivated by a card")
+
+    def test_refuses_a_done_card_for_a_rejected_rfc_without_the_resolution(self) -> None:
+        self.write_card("BPR-0001", "60-done", "Done", ["RFC-BPR-0024"])
+        self.assert_refused("never delivered")
+
+    def test_refuses_a_rejected_resolution_outside_done(self) -> None:
+        self.write_card("BPR-0001", "50-blocked", "Blocked", ["RFC-BPR-0025"], resolution="rejected")
+        self.assert_refused("rejected work is closed")
+
+    def test_refuses_delivered_work_that_depends_on_rejected_work(self) -> None:
+        self.write_card("BPR-0001", "60-done", "Done", ["RFC-BPR-0024"], resolution="rejected")
+        self.write_card("BPR-0002", "10-backlog", "Backlog", ["RFC-BPR-0025"], ["BPR-0001"])
+        self.assert_refused("was never delivered")
+        self.write_card("BPR-0002", "60-done", "Done", ["RFC-BPR-0025"], ["BPR-0001"])
+        self.assert_refused("was never delivered")
+
+    def test_refuses_a_milestone_plan_that_includes_a_rejected_rfc(self) -> None:
+        self.write_plan(["RFC-BPR-0025", "RFC-BPR-0024"])
+        self.assert_refused("cannot be reactivated by a plan")
 
 
 class CloseoutContractTests(unittest.TestCase):

@@ -19,6 +19,17 @@ gate. Separately recorded owner scheduling decisions, authored milestone
 prerequisites, scoped pack order and required human/native acceptance remain in
 force; this amendment alone does not activate deferred work.
 
+RFC statuses are `Proposed`, `In Progress`, `Auto-Verified`, `Deferred` and
+`Rejected`; the documentation gate refuses any other. `Auto-Verified` and
+`Rejected` are terminal. `Deferred` keeps an RFC for later; `Rejected` is the
+owner's permanent no (first used for RFC-BPR-0109, owner, 2026-11-15: "it
+shouldnt be deferred it should be rejected or something stronger so it doesnt
+come back"). A Rejected RFC is not reactivated by a plan, a card or an
+amendment: the gate refuses an open card that names it and a milestone plan
+whose scope includes it. A new idea in its area needs a new RFC that argues
+for itself from scratch. Its cards close in `60-done/` with
+`metadata.resolution: "rejected"`, which never counts as delivered.
+
 All live RFCs reside directly in `docs/rfcs/`, regardless of status or milestone.
 There is no `future/` status folder. RFC front matter and this index carry RFC
 status; issue-card lanes carry implementation backlog and progress. `plans/`
@@ -772,12 +783,12 @@ Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendme
 | [RFC-BPR-0106](RFC-BPR-0106-a-tour-stop-shows-its-code-and-is-accepted-like-a-file.md) | A tour stop shows its code on arrival and is accepted the way a file is | Auto-Verified | None |
 | [RFC-BPR-0107](RFC-BPR-0107-agent-and-prompt-sharing.md) | Share selected agents and prompts | Auto-Verified | None |
 | [RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md) | Prepare a local PR draft from a worktree | Auto-Verified | None |
-| [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Deferred | RFC-BPR-0108 |
+| [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) | Build evidence while preparing a local PR draft | Rejected | RFC-BPR-0108 |
 | [RFC-BPR-0110](RFC-BPR-0110-local-tours-and-description.md) | Prepare the description and Review Tour before a PR exists | Auto-Verified | RFC-BPR-0107, RFC-BPR-0108 |
 | [RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md) | Publish a prepared draft and preserve its evidence and tour | Auto-Verified | RFC-BPR-0108, RFC-BPR-0110 |
 | [RFC-BPR-0112](RFC-BPR-0112-optional-workflow-extensions.md) | Optional shareable workflow extensions and companion skills | Proposed | RFC-BPR-0107, RFC-BPR-0108, RFC-BPR-0110, RFC-BPR-0111 |
 
-Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack in the plan's order, starting with `dependable-session`. [Import](assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md); [authored plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). Owner looks on frozen builds, installed-agent facts and live BPR-Test courses remain unaccepted until their evidence is supplied. Owner amendment 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 is Deferred out of 0.5.0, kept as a possible workflow extension; its cards are Blocked on `owner-deferred`, and RFC-BPR-0110, 0111 and 0112 no longer require evidence.
+Mandate `v0-5-0-prerelease-targets-r1` (owner, 2026-11-10) implements the pack in the plan's order, starting with `dependable-session`. [Import](assets/v0-5-0-prerelease-targets-v1.LIVE_IMPORT.md); [authored plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json). Owner looks on frozen builds, installed-agent facts and live BPR-Test courses remain unaccepted until their evidence is supplied. Owner amendment 2026-11-12 ("Mockups; cut Evidence"): RFC-BPR-0109 was cut from 0.5.0, and RFC-BPR-0110, 0111 and 0112 no longer require evidence. Owner decision 2026-11-15: "it shouldnt be deferred it should be rejected or something stronger so it doesnt come back". RFC-BPR-0109 is Rejected and will not be reconsidered; its cards BPR-2023, 2024 and 2025 are closed in Done with `resolution: "rejected"` (not delivered). RFC-BPR-0120, which runs a check into its evidence record, cannot close as written: BPR-2082 is closed the same way and BPR-2083 waits on the owner.
 
 ## Local draft authoring
 

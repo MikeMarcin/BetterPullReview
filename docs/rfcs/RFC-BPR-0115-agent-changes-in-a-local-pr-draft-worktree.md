@@ -211,8 +211,8 @@ never needs a force push.
 Evidence bound to an earlier candidate follows
 [RFC-BPR-0109](RFC-BPR-0109-author-evidence.md) and RFC-BPR-0111: it
 is not carried to a candidate whose content differs. (RFC-BPR-0109 is
-Deferred out of 0.5.0 by the owner, 2026-11-12; this RFC's mentions of
-evidence apply only if it is reactivated.)
+Rejected by the owner, 2026-11-15, after its 2026-11-12 cut from 0.5.0; this
+RFC's mentions of evidence are void.)
 
 ### Boundaries
 

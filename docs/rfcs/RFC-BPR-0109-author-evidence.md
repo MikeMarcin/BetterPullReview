@@ -1,27 +1,39 @@
 ---
 id: "RFC-BPR-0109"
 title: "Build evidence while preparing a local PR draft"
-status: "Deferred"
+status: "Rejected"
 metadata: {"origin":"absorbed 2026-11-10 from the local PR drafts pack v1, where it was RFC-DRAFT-0003","inspected_revision":"b12269ea9ad1ff07afe8ec31812875b89d870e5a","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","baseline":"dc5453afa3ba0e1620fe30bf97b17211e09ba4bd"}
 depends_on: ["RFC-BPR-0108"]
 ---
 
 # Build evidence while preparing a local PR draft
 
-## Status: deferred out of 0.5.0 (owner amendment, 2026-11-12)
+## Status: Rejected (owner, 2026-11-15)
 
-The owner looked at the Evidence area and the result wording on a frozen
-build (attended session `7fc09e758ebf8ac0d028da38a5d374f7`) and rejected
-both: "I have no idea what I'm looking at here. This doesn't seem useful,
-unless you can explain how it's valuable to me." Asked whether to cut
-Evidence from 0.5.0, the owner answered on 2026-11-12: "Mockups; cut
-Evidence". This RFC is therefore **Deferred**: it is out of the 0.5.0 scope
-and kept only as a possible workflow extension, to be reconsidered with a
-design the owner finds useful. Nothing in it is a requirement of any 0.5.0
-RFC. RFC-BPR-0110, 0111 and 0112 record the matching amendments; the
-[milestone plan](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json) no
-longer carries the `author-evidence` milestone; its cards are Blocked
-(`owner-deferred`).
+This RFC is **Rejected**. It will not be reconsidered: it cannot be
+reactivated by a plan, a card or a later amendment, and the documentation gate
+refuses an open card or a milestone plan that names it. Any future idea about
+evidence needs a new RFC that argues for itself from scratch; it cannot cite
+this one as a starting point or a precedent.
+
+The owner's decisions, in order:
+
+- 2026-11-12, on the Evidence area and the result wording on a frozen build
+  (attended session `7fc09e758ebf8ac0d028da38a5d374f7`): "I have no idea what
+  I'm looking at here. This doesn't seem useful, unless you can explain how
+  it's valuable to me." Asked whether to cut Evidence from 0.5.0: "Mockups;
+  cut Evidence". The RFC was then Deferred. The owner's later comment on it:
+  "that seemed like useless".
+- 2026-11-15, on that deferral: "it shouldnt be deferred it should be
+  rejected or something stronger so it doesnt come back".
+
+Nothing in it is a requirement of any other RFC except
+[RFC-BPR-0120](RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md),
+which runs a planned check into this RFC's evidence record and so cannot close
+as written; that RFC records what follows. RFC-BPR-0110, 0111 and 0112
+record the amendments that removed evidence from their scope. Its cards
+BPR-2023, BPR-2024 and BPR-2025 are closed in Done with
+`resolution: "rejected"`; they were never delivered.
 
 The implementation described in the record below was removed from the
 product on the 0.5.0 lane: the Evidence area, `bpr draft open --evidence`,
@@ -30,8 +42,8 @@ holds them is migrated forward and they are dropped), agent proposals of
 claims and planned checks, citations from tour stops and selected evidence
 in previews and the publication plan. The design text, criteria and the
 [verification ledger](../verification/RFC-BPR-0109.md) are kept as the
-record of what was built and judged; reactivating this RFC needs a new
-owner decision and a new design pass, not a restore of the removed code.
+record of what was built and judged. They are history, not a design to
+restore.
 
 ## Problem and grounded current behavior
 
@@ -168,7 +180,7 @@ this RFC says.
 
 ## Implementation record
 
-Removed from the product by the 2026-11-12 deferral above; kept as history.
+Removed from the product by the owner's 2026-11-12 cut; kept as history.
 Milestone `author-evidence`; evidence in the
 [verification ledger](../verification/RFC-BPR-0109.md). Decisions made within
 the behaviour above, for the owner to see:
@@ -207,6 +219,7 @@ the behaviour above, for the owner to see:
 
 ## Proposed delivery
 
-[Evidence records](../issues/50-blocked/BPR-2023-retain-candidate-bound-evidence-and-qualified-provenance.md), [interactive evidence flow](../issues/50-blocked/BPR-2024-curate-evidence-in-local-preparation.md)
-and [closeout](../issues/50-blocked/BPR-2025-close-rfc-0109.md) formed the third milestone of the 0.5.0 plan until the
-owner's 2026-11-12 deferral; they are Blocked on `owner-deferred`.
+[Evidence records](../issues/60-done/BPR-2023-retain-candidate-bound-evidence-and-qualified-provenance.md), [interactive evidence flow](../issues/60-done/BPR-2024-curate-evidence-in-local-preparation.md)
+and [closeout](../issues/60-done/BPR-2025-close-rfc-0109.md) formed the third milestone of the 0.5.0 plan until the
+owner cut it on 2026-11-12. With the rejection on 2026-11-15 they are closed
+in Done with `resolution: "rejected"`: not delivered, and not to be reopened.

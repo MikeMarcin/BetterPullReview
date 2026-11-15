@@ -38,7 +38,7 @@ Content is invented.
    > I like variant a, just make sure we can use the agent to fill in the
    > commit (subject and message)
 
-4. Standing rules carried in: Evidence is cut (RFC-BPR-0109 Deferred); the
+4. Standing rules carried in: Evidence is cut (RFC-BPR-0109, since Rejected); the
    agent choice lives in the status-bar footer; no grey explainer text
    (tooltips instead); nothing moves on click; consistent button sizes; calm
    native macOS.
