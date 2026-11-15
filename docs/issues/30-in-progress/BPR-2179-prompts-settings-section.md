@@ -237,3 +237,32 @@ pictures from the root's own test executables: `BPR-2179-one-page`,
 `-repository`, `-agent-tab-chips`, and BPR-2151's `-pending-list`,
 `-edit-hold`, `-stop-all`, `-follow-up-setting`, `-cmd-return`. AC03 waits on
 the owner's verdicts.
+
+### Look prompts-v001 handed back (owner, 2026-11-14)
+
+Accepted, no note: `BPR-2179-one-page`, `BPR-2179-edit-obvious`,
+`BPR-2179-placing`, `BPR-2179-repository`, `BPR-2179-system-prompts`,
+`BPR-2179-agent-tab-chips` (so the pull request's chips, then the file's,
+stands).
+
+Rejected, `BPR-2179-conditions`, verbatim: "You should be able to nest
+conditionals. The same level of boolean predicates we have in containers for
+queries, although I don't think we need the entire containers query framework
+thats probably more optimized than we need. /Users/jaeger/Documents/Personal/containers"
+
+Its predicate model (the tag query editor's And, Or and Not groups over
+predicates) was read; its query engine was not ported. Built:
+`prompt_condition_group` (All of these, Any of these, None of these, nesting
+two levels below the list, four conditions and four groups a level, twelve
+conditions in all), decided recursively with each leaf keeping its greys or
+hides kind and the All/Any rule (None: hidden only when every true leaf
+hides; greyed with the true leaf's reason turned); the store's condition text
+nests groups (an earlier build keeps such a row as a newer build's);
+repository overrides carry groups; the editor draws each group as a bordered
+box with its own match, Add (a condition or a group) and remove.
+
+Coordinator's answers to the open items, on the accepted "saves as typed"
+default: the chip order stands (accepted); the Conditions add button moved to
+the heading's row with All/Any/None under it, so it is no longer cut; a
+system prompt in the library saves as it is typed too (no Save or Discard
+there; Reset and Undo reset stay).
