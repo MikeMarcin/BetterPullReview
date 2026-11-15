@@ -154,6 +154,17 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   from `c7a0c44d4`, frozen with `returning-review-v1` and `--next-push`
   (the launcher's own check presses What changed since my review, which
   only the pushed head offers). One question.
+- steer-v001 handed back 2026-11-15 (cursor 19): `BPR-2153-steer`
+  **Rejected**. The owner: "Steering doesn't show up in the transcript at
+  all. I would have expected to see Two show up as something I had sent."
+  (Screenshots: "Two" steered from its queued card left the queue and was
+  taken, as the fixture's answer says, but no message "Two" appears in the
+  transcript.) Required now (coordinator, 2026-11-15): the steered text
+  shows as the reviewer's message inline in the running turn where it went
+  in, marked steered, with its state when the agent never took it; it is
+  kept in the stored transcript and native history across reopen and
+  restart; it flows through the BPR-2181 runtime's turn events, not window
+  code. Then steer-v002 with a question on the transcript.
 
 ## Progress (fixture session, 2026-11-15)
 
