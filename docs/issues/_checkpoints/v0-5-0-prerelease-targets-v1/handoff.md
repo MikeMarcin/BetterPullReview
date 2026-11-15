@@ -3772,3 +3772,68 @@ from the window's `private_review_configuration`. Its `Open` is
 `make_private_review_store(configuration, stop)`. Then the epoch host fed
 by the lent handoff, the ledger host, the process chain, and steps 3 to 6.
 Stopped here to keep context for a clean handoff, not because of a blocker.
+
+## BPR-2181 slice 2: the Agent tab's turns run on the profile's runtimes; close detaches (2026-11-15)
+
+Coordinator (2026-11-14): hardening audit first, then steps 2 to 6 (the
+runtime's agent stack, window rewiring, one transcript source, the public
+courses and reruns, and a scratch build of HEAD).
+
+| Commit | What |
+|---|---|
+| `32946c58e` | `review_agent_stack` (new, `src/app/src/github_application/`); `github_profile_runtime::compose_agent_queue`, `compose_agent_runtimes`, `open_agent_runtime`, `agent_stack`, `AgentRuntimes` (declared last) and their shutdown and poll; window `attach_agent_runtime`, `detach_agent_runtime`, `send_agent_turn`, `adopt_unshown_turns`, `agent_turn_quiescent`; `review_agent_presenter::Ready`; the runtime keeps only non-native unseen turns and stays while it holds them; `agent_queue_dependencies::Effects`; fixture access `agent_session_key` and `agent_session`; courses `application_agent_queue_close_runs_on_public_path`, `application_agent_queue_restart_public_path`, the windows course's close case, and the queue host and runtime units |
+
+Hardening audit: no other store writes through a cascade, and no schema
+has a trigger or a view. Recorded on the card, with no new card.
+
+Verification on the dev tree at `32946c58e` (app built): `application_ask_*`
+x4, `application_tour_feedback_queue_public_path`,
+`application_agent_queue_*` x5 (host, windows, second-window-loading,
+close-runs-on and restart), `agent_workspace_ownership`,
+`application_review_agent_runtime`, `application_private_review_host` and
+`sqlite_agent_setup_storage` pass. A wider pass over
+`application_agent_(chat|finding|invocation|keep|crash|materialization)*`,
+`application_suggest_change*`, `application_fixture_agent_guard*` and
+`application_native_agent_sessions` ran 43 courses, and 42 passed.
+`application_native_agent_sessions` failed at
+`tour-native-first-answer`, where the tour's native fixture answer is
+unreadable. It fails the same way with `attach_agent_runtime` compiled out
+(A/B, reverted), so the failure is not in the runtime path. It was not
+bisected further. Whether it fails at `7c8d39c54` is unknown.
+
+Decisions taken in this round:
+- **Seeds, not window ports.** A window hands the profile a
+  `review_agent_stack_seed`: profiles, policies, the shared Claude-wrapper,
+  program and added-agent sources, the locators, the ledger and private
+  store configurations, the scratch root and, in a fixture run, the
+  program admission. The stack builds everything else from the profile's
+  ports. Its application session is `(1 << 40) + n`, above every window's.
+- **Readiness.** A turn starts only when the loan is live and the stack's
+  epoch host has accepted the review (`observe_review` then observes the
+  agent host and tells the queue `agent_changed`). The window lends again
+  only when the stack holds no live loan for this binding (`lent_for`).
+- **Refusals do not wedge.** When the stack's agent host refuses
+  synchronously (it stays quiescent), the stack posts its own retirement,
+  so the runtime does not stay running.
+- **Transport.** A window with a runtime sends every Agent-tab turn
+  through it, and the request becomes the runtime's snapshot (less the
+  question and skills). If the runtime refuses, the panel says so and
+  nothing falls back to the window's host. Without a runtime (no accepted
+  review yet), the window's own host still runs the turn.
+- **One transcript.** A native session's turns are in its native history,
+  which the runtime's host records. Any other turn no window saw is kept
+  by the runtime, which stays alive while it holds one. It joins the
+  session's conversation store when a window attaches and that store has
+  loaded (`adopt_unshown_turns`, which skips a turn already present). The
+  open gap: those kept turns are lost if the app quits before a window
+  attaches. The fix is to have the runtime write them to the conversation
+  store itself, which needs a profile-owned conversation store.
+- **Queue store writes** run on the profile's `QueueEffects` lane. The
+  queue host is made by the profile (`compose_agent_queue`), no longer in
+  the window's code.
+
+Next action: step 6, a scratch-worktree build of `32946c58e`'s successor
+(this checkpoint's commit). Then slices 3 to 6 per the card. The windows'
+own `AgentHost` still serves `restore_native`, `probe_workspace`, the
+offerings and the catalog. Retiring it is not required by AC01 and was
+not done.

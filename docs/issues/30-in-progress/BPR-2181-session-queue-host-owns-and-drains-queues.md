@@ -108,7 +108,10 @@ slice 1.
    `lost_access` and starts no turn (`32fb55c83`). The private-run port is
    now free of Qt (`application::scoped_private_agent_runs`; the window's
    `private_review_workflow` delegates to it), the boundary fix the
-   architecture asks for. Composition into the app is next.
+   architecture asks for. The app composition landed (`32946c58e`): the
+   Agent tab's turns run on the profile's runtimes, a close detaches, and
+   turns no window saw join the session's conversation. Open: a durable
+   transcript for those turns across a quit (see Evidence).
 3. AC02, AC03, AC12: typed finish and admission with run id; core
    outcome-to-pause mapping; failure and usage-limit courses.
 4. AC04, AC05: discard uncertain (back-to-queued done as `return_unsent`);
@@ -237,6 +240,65 @@ slice 1.
   `application_agent_queue_host`, `application_review_agent_runtime`,
   `application_private_review_host`, `sqlite_agent_setup_storage` and
   `agent_workspace_ownership` pass.
+- **AC01 (slice 2 composition, `32946c58e`):** the profile owns the
+  runtimes (`github_profile_runtime::AgentRuntimes`, made with the queue
+  host by `compose_agent_queue`). Each session's runtime runs on a
+  `review_agent_stack` of its own (`src/app/src/github_application/review_agent_stack.cpp`):
+  an epoch host attached as the registry's profile-owned consumer and fed
+  the handoff `github_application_host::lend_review_authority` lends in the
+  stack's own application session (above every window's), a
+  `review_ledger_application_host` over the review's ledger file for
+  session admission, a `scoped_private_agent_runs` over its own private
+  store, the process chain (launcher, Claude wrapper, located programs,
+  added agents, diagnosis) and the agent invocation host. A turn is
+  authorized only while the loan is live and the epoch host has accepted
+  the review. Windows: `refresh_agent_authority` opens the runtime, attaches
+  as presenter (`Release` is `release_queued`, gated by the tab's
+  readiness) and lends the review when the runtime holds no live loan of
+  it. `launch_agent_invocation` sends through `send_agent_turn`, which
+  adopts the request as the runtime's snapshot and dispatches through the
+  runtime. The window offers the runner only tour feedback now. A close
+  detaches and no longer returns the ask session's message. A turn no
+  window saw end is kept by the runtime (unless a native history keeps it),
+  which stays while it holds one. When a window attaches and its
+  conversation has loaded, they join the conversation, so each turn has one
+  transcript and shows once. Courses:
+  `application_agent_queue_close_runs_on_public_path` (a message running
+  and two queued, the session's only window closed with another on Home:
+  the runtime starts all three with no window, nothing pauses, and the
+  reopened pull request shows each once, in order) and
+  `application_review_agent_runtime` (a runtime with unseen turns stays
+  until a window takes them). Still open: those turns live in memory until
+  a window attaches, so a quit before then loses them. A native session's
+  turns are durable already.
+- **AC09 (close, `32946c58e`):** a close does not touch a running turn.
+  `application_agent_queue_windows_public_path`'s close case now asserts
+  that the turn running at the close and every message left run once each,
+  in the list's order, with no pause.
+- **AC05 (effect path, `32946c58e`):** `agent_queue_dependencies::Effects`
+  carries the queue store's writes, in commit order, on the profile's
+  serial queue lane, off the decision lane. Course
+  `application_agent_queue_host` (`test_writes_run_on_the_effect_lane`).
+  The refusal half of AC05 is still open.
+- **AC04 (restart, `32946c58e`):** `application_agent_queue_restart_public_path`:
+  two messages wait, the app quits, and on relaunch over the same profile
+  data the queue is read back from disk paused as `restarted`. The window
+  shows it as it was, offers Resume, and nothing runs. The discard of a
+  delivery-unknown message is still open.
+- **SQLite hardening audit (2026-11-15):** the hardened connection sets
+  the trigger depth to 0, turns triggers and views off, and allows no
+  ATTACH. Every store under `src/adapters/sqlite` was checked. No schema
+  creates a trigger or a view. The tables with cascading parents are
+  `review_scope` (review ledger), `recovery_scope`, `recovery_attempt`,
+  `logical_publication` and `submission_attempt` (mutation recovery). Only
+  `submission_attempt` is ever deleted, and its one delete already turns
+  foreign keys off around an explicit child-first delete ([[BPR-1345]]).
+  The others are only inserted, updated or upserted, which runs no
+  cascade. The sqlite3 shell confirms this: with `.limit trigger_depth 0`,
+  an upsert of a cascading parent succeeds and a delete fails.
+  Every other foreign key has no action, and its parents are deleted
+  child-first. No store's writes fail silently the way the queue store's
+  did, so nothing needed fixing and no card was filed.
 - **AC07:** `application_agent_queue_second_window_loading_public_path`
   passes (slice 1, `c65c59df0`). The runtime registry does not change it,
   because windows still run their own agent hosts until the composition
