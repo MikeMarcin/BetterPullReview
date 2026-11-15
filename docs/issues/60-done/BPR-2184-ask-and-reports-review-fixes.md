@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2184"
 title: "Ask and reports: the critical review's fixes"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2168"]
 priority: "P1"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2184--BPR-2184--241b88a88736.json","origin":"critical review of Ask and reports at 5260527d6, relayed by the coordinator 2026-11-14"}
+acceptance: [{"criterion": "Each item has its course; architecture_boundaries is green (B1, N1-N3, N6-N8, N10 recorded in Progress, 2026-11-14)", "outcome": "pass", "revision": "c0bdc7297", "evidence": {"kind": "command", "command": "scratch worktree of the change at c0bdc7297's tree, built from nothing: ctest -R 'architecture_boundaries|core_returning_review|application_ask_addressed_public_path|application_ask_menu_public_path|qt_agent_report_view'", "detail": "All pass. N4: quick_ask_facts takes Changed and CommitsSince from core::thread_baseline and core::thread_progress_since. N5: reports keyed by the Agent tab turn's stable serial (agent_report_document::Turn), the byline as data (agent_report_byline), a report dropped once its tab closes; qt_agent_report_view says the byline from its parts and application_ask_menu_public_path checks the report names its turn by identity and its byline is that turn's ending."}}]
 ---
 
 # BPR-2184: Ask and reports: the critical review's fixes
@@ -99,11 +100,26 @@ the owner sees changes except the faint text's contrast, so no look.
   checked in `qt_appearance_profile`.
 - **N7:** `fold_commit_listing` takes the pull request's whole commit set
   apart from the slice it lists.
-- **N5:** not done here. A host-owned report record keyed by a stable turn
-  identity needs these changes in files other implementers own:
-  - `agent_tab_view::open_report` should hand over the turn's identity and
-    its structured byline (agent, answered time, head) instead of a turn
-    index and parsed label text.
-  - `window_quick_ask.cpp`'s report dispatch should key reports by that
-    identity.
-  - `workbench_window` should drop a report when its tab closes.
+- **N4 (window side, BPR-2181 fourth round, 2026-11-15):**
+  `window_quick_ask.cpp`'s `quick_ask_facts` builds each thread's `Changed`
+  and `CommitsSince` from `core::thread_baseline` over the thread's comments
+  and `core::thread_progress_since` over the pull request's commits, the
+  calls the returning review's offers make, so the menu and the press agree.
+  The window's own first-comment baseline is gone. Courses:
+  `application_ask_menu_public_path`, `application_ask_addressed_public_path`
+  and `core_returning_review`.
+- **N5 (BPR-2181 fourth round, 2026-11-15):** a report is keyed by its
+  turn's stable identity, the Agent tab turn's serial
+  (`agent_report_document::Turn`), never its place in the list. A thread
+  drawn again keeps each turn's identity in its place, so a report opened
+  earlier still finds its turn; Show in conversation asks the tab where that
+  turn is now (`agent_tab_view::turn_of`), and the card's selected row
+  follows the identity. The byline is data
+  (`agent_report_byline`: the turn's ending as its footer first said it,
+  when, and the head), joined by the report view; nothing parses the
+  footer's label. The window drops a report once its tab closes (the last
+  tab projection showed it and the new one does not; a report just opened
+  stays until its tab shows). Courses: `qt_agent_report_view` (the byline
+  said from its parts) and `application_ask_menu_public_path` (the report
+  names its turn by identity, which the tab finds, and its byline is that
+  turn's own ending).
