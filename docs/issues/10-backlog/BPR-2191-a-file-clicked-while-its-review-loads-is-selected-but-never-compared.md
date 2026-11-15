@@ -88,3 +88,58 @@ review is accepted and its rows arrive) and has not been seen to fail.
 - AC02: `application_pending_states_public_path` and
   `application_progressive_open_public_path` pass repeatedly under load
   (`ctest --repeat until-fail:10`).
+
+## Investigation, 2026-11-15 (not reproduced)
+
+No cause was found, and no product change was made. The course passes
+every run on the current lane.
+
+| Where | Load | Passed | Failed |
+|---|---|---|---|
+| f65bfa1e2, `ctest --repeat until-fail:10` (`application_pending_states_public_path`) | normal | 10 | 0 |
+| f65bfa1e2, `ctest --repeat until-fail:10` (`application_progressive_open_public_path`) | normal | 10 | 0 |
+| instrumented lane tree, the course alone or 3 to 4 copies at once | shared builds, load 40 to 47 | about 45 | 0 |
+| instrumented lane tree, 6 copies at once | very heavy | 10 | 2 |
+
+The two failures with 6 copies running were different from this card's. The
+epoch failed in `preparing` with `repair_required`, the opened file's wait
+showed it as failed (look 8, nothing held), and the course stopped at the
+code veil's gap after about 12 s. It never reached the 90 s stall with
+`held 'review.cpp'`. This failure seems to come from copies of the course
+competing for resources. It is not the selection race.
+
+With logging on the selection path (workbench host `submit_selected_diff`,
+`observe_now` and file publication; the composition's `begin`, `publish`,
+`request_diff`, epoch updates, preparation rounds, commit-filter re-observe and
+handoff acceptance), every run took the same path. The click lands while the
+epoch is `loading_catalog` or `preparing`. The submit is refused
+(`selected_file_comparison_unavailable`). The ready transition, which carries an
+available comparison, calls `refresh_selected_diff`. Then `begin`, `publish` and
+`request_diff` run, and the diff host's `Pending` is the new key. No `begin`
+or `publish` was dropped, no request was deferred, and nothing re-observed the
+workbench between the click and the comparison.
+
+Orderings forced on purpose all passed. These were: the clone held 3 s and
+8 s (`GitFetchMilliseconds`), so preparation ends long after the selection;
+the workbench observation held 4 s, so the epoch is ready before the review's
+rows; a fast read (300/200 ms); the click 600, 1,000 or 1,500 ms after Review
+opens; and a slow read (3,000/3,000 ms).
+
+The measurements above this section need a correction. The 2af8e7665 and
+9b0451225 rows ran the arrival check from before 4bb44f28f
+(`current_context() && !busy()`). Under load the code veil can stay up as the
+"Colouring syntax…" plate after the result arrives, so that check fails on
+its own. 4bb44f28f replaced it with the result-based check. The remaining
+failures were all on lane trees carrying uncommitted window changes made for
+the measurement, and uncommitted BPR-2181 work that has since been committed
+or changed.
+
+The design has one weakness, but it was not shown to cause the failure. Qt
+(`workbench_window::apply_file_rows`) treats any non-empty file publication as
+"the review's own rows" and opens the remembered file then
+(`open_provisional_file`), so the pending open is Qt-local state. Moving it
+into the workbench host, keyed to the review that reported it, would remove
+that, but no course fails without the move.
+
+AC01 is still open: no deterministic course fails on the current tree.
+AC02 holds on f65bfa1e2.
