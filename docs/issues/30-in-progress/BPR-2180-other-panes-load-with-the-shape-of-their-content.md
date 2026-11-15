@@ -242,3 +242,11 @@ drawer from a fresh profile's default layout over Review's own arrangement.
   repositories drawer is as it was when the load ends);
   `application_workbench_host` (a late restore opens no drawer over Review
   entered while loading, and still applies before Review is entered).
+- Look `bpr-2180-loading-shapes-v004`, attended session
+  `94bb2efb55eacc7dbef4067095dc4d14` (state
+  `/Users/jaeger/.attended-review-state/bpr-2180-loading-shapes-v004-2026-11-15`,
+  served on the tailnet, cursor 6), two candidates, one Accept/Reject each:
+  `BPR-2180-immediate-review-v004` and `BPR-2180-no-drawer-pop-v004`. Frozen
+  root `/Users/jaeger/bpr-2180-loading-shapes-v004.r9sr8ega` from 2af8e7665,
+  same fixture and delays as before. The v003 host is stopped, its candidates
+  released, its root removed.
