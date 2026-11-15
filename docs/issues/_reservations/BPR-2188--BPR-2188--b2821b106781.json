@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2188"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2186 follow-up: one build per build directory (lock in the jobserver Ninja wrapper)",
+  "created": "2026-11-15T06:45:27.128730+00:00",
+  "base": "343e3d9bbc09463baa3c579fcf069250a090a5de"
+}
