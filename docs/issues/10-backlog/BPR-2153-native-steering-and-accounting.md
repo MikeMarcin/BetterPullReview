@@ -190,6 +190,16 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
 - The fixture agent acknowledges a correction without repeating its words
   ("Took your correction after step N"), so the words show once, as the
   reviewer's.
+- Found on the way, not this card's: at the lane tip `36cc0c881` (built and
+  run in this worktree, detached), `application_agent_queue_restart_public_path`
+  fails at "the running ask finishes", the same as on this branch. A
+  question typed right after a review opens is now refused until the window
+  has lent the session's runtime its authority (`launch_refused`), and a
+  file opened with `open_file_in_review` stays on BPR-2180 v004's code
+  skeleton in the public-path fixture, so a question about its lines finds
+  no selection; the steer and fixture guard courses open the file at a line
+  and send again until the turn runs. The contract's app source list lacked
+  the lane's `review_agent_stack` files; they were added with the reseal.
 
 ## Progress (fixture session, 2026-11-15)
 
