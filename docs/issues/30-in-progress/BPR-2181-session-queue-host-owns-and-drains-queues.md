@@ -127,8 +127,7 @@ slice 1.
    store refusal; store writes on the effect path. Started 2026-11-15:
    Discard is a core transition and a host command, and the Agent tab
    offers it on an uncertain message. The store refusal landed in the
-   fourth round (AC05). Open: a public course that reaches an uncertain
-   message through a crash.
+   fourth round (AC05), and the crash course (AC04) with it.
 5. AC06, AC08, AC10, AC15: typed session identity and inputs; per-session
    runner state; core queue-versus-send; Stop all on the host. Done in the
    fourth round (see Evidence).
@@ -562,4 +561,16 @@ slice 1.
   window or not. The footer's Stop all calls it first, then stops the runs
   its window runs itself (a tour's). Course `application_review_agent_runtime`
   (`test_stop_all_is_the_hosts`).
+- **AC04 (crash course, fourth round, `10e168b99`):**
+  `application_agent_queue_restart_public_path` goes on past its restart:
+  the store is left holding a message as sending (as a crash leaves it; a
+  quit stops and settles the turn) with one waiting behind it. On the next
+  launch the queue opens paused, the message that was sending shows "May not
+  have been delivered" with Discard, Resume is refused, Discard removes it,
+  and Resume sends the waiting message once; the discarded one is never
+  sent.
+- **BPR-2193 (fourth round, `c0bdc7297`, `1af5aba43`):** the runtime's stack
+  runs a turn only once the epoch host has settled the ingestion of the
+  loan last lent, and holds a same-revision loan while a turn runs; the
+  continued chat contract passes 20 of 20 (card in Done).
 

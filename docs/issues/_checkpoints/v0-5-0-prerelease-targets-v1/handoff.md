@@ -4010,3 +4010,64 @@ Next action: AC03/AC12 typed admission (replace `send_refusal_text()` in
 `release_queued` with an admission from `send_agent_turn` keyed by run id,
 settled later for a quick ask that starts on a later pass), then BPR-2193,
 AC05, slices 5 and 6.
+
+
+## BPR-2181: typed admission, BPR-2193 fixed, slice 5, BPR-2184 N4/N5 (2026-11-15, fourth round)
+
+Coordinator (2026-11-15): AC03/AC12, then BPR-2193, then AC05, then slices
+5 and 6 with BPR-2184 N4/N5; close BPR-2181 when every AC has evidence.
+
+| Commit | What |
+|---|---|
+| `c0bdc7297` | Typed admission keyed by run (AC03, AC12); store refusal back to the composer (AC05); typed sessions and threads (AC06); core queue-versus-send (AC10); Stop all on the runtimes (AC15); switch-mid-turn course (AC08); BPR-2193 fix in `review_agent_stack`; BPR-2184 N4 and N5; app manifest pin resealed (also covers the unsealed `1eab5b868`/`8449ca67f`) |
+| `b16fd02d4` | BPR-2193 and BPR-2184 Done; mirrored to main as `88180d1d1` |
+| `10e168b99` | AC04's crash course: the restart course leaves a message sending in the store, then Discard and Resume |
+| `1af5aba43` | BPR-2193 follow-up: the stack waits for a loan's ingestion to settle, not for the window's epochs (waiting for the window's exact epochs broke `application_fixture_agent_every_ask`); pin resealed |
+
+BPR-2193's cause (instrumented): the window lends the runtime's stack the
+same head a third time with new comparison epochs; accepting it bumps the
+stack's epoch host blob authorization, and a continued turn's workspace
+being made under the earlier generation ends `stale` (no process,
+`stale_result`). The stack now runs a turn only once it observed exactly
+what was lent, and holds a same-revision loan while a turn runs (applied
+when that run retires). 20 of 20 after the fix and 20 of 20 again at
+`1af5aba43`; the first attempt (holding only for a moved head) failed 1 of
+20.
+
+Verification at `1af5aba43` (scratch worktree, serial; ctest `-R
+"agent|queue|ask_|tour_feedback|prompt_macros|explain_file|suggest_change|review_tour|enhance_comment|returning_review|application_logging|qt_drawer_surfaces_fit|sqlite_agent_setup_storage|qt_agent_report_view|round_trip_composition|architecture_boundaries|core_returning_review"`):
+176 of 182 pass. The six that fail: BPR-2192's three
+(`application_enhance_comment_note_public_path`,
+`application_review_tour_link_public_path`,
+`application_review_tour_cli_ordinary_stop`) and three chat contracts that
+fail at "selected-diff comparison-shown=false"
+(`application_agent_chat_custom_agent_contract`,
+`_custom_agent_refused_contract`, `_setup_list_contract`). Those three
+passed in this round's first set on `0c3ef7af6` with this round's queue
+changes, and fail on every tree based on `12aa86eb6` (the other writer's
+BPR-2191/BPR-2180 commits: the workbench host holds a file asked for while
+its review loads), with either version of the stack check; attributed to
+those commits by elimination, not bisected. Not carded this round.
+Documentation gate passes. Scratch worktree removed.
+
+Another writer committed BPR-2191/BPR-2180 work in this worktree
+(`32c0850e0..12aa86eb6`) during the round; its in-progress edits broke the
+dev tree's build for a while, so this round built and tested in a scratch
+worktree (`git worktree add --detach`, removed at the end of the round).
+
+Not done: AC13 (prompt facts assembled outside the widgets, decided offers
+handed to the tab and the tour side chat, releases carrying the decided
+expansion; course: a prompt conditioned on PushesSinceReview pressed and
+received) and AC11 (tour feedback through the host, resumable after a
+crash). BPR-2181 stays In Progress.
+
+Next action: AC13. The tab's `refresh_suggestions` decides offers from
+facts it assembles itself and never sets `PushesSinceReview` (nor the
+thread and file facts); a queued quick ask's release calls
+`tab->send_prompt(id)`, which looks the id up among those offers. Move the
+facts to the window composition (`quick_ask_facts` already builds them with
+`with_review_facts`), hand the tab and the tour side chat decided offers,
+and store the decided expansion on the queued input at the press so the
+release (and the runtime with no window, `review_agent_runtime::state`)
+sends it without deciding again. Then AC11. Card the three
+comparison-shown chat contract failures with the BPR-2191/BPR-2180 owner.
