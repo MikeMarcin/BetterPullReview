@@ -215,4 +215,28 @@ On macOS `/usr/bin/python3` is older than that, so `python3` must resolve to a
 newer interpreter. Run a gate without a pipe: `| tail` reports the pipe's exit
 status, not the gate's.
 
+### Build jobserver
+
+Several agents build on one Mac at once, and full-width builds side by side
+have run it out of memory. One machine-wide GNU make jobserver caps them all.
+Start it once per login; `start` is idempotent and `stop` signals only the pid
+its own pidfile names:
+
+```sh
+python3 scripts/build_jobserver.py start     # 12 tokens; --tokens N to change
+python3 scripts/build_jobserver.py status
+python3 scripts/build_jobserver.py stop
+```
+
+- Every `cmake --build --preset dev` joins it: the dev preset's
+  `CMAKE_MAKE_PROGRAM` is `scripts/jobserver_ninja.py`, which hands Ninja the
+  FIFO and drops `-j` (Ninja ignores a jobserver whenever `-j` is given). All
+  builds together then run at most N jobs; one build may use all N, and when
+  every token is in use a build waits for one.
+- With no server, or a stale FIFO from a killed one, the same build runs at
+  the preset's `-j 8`. It never fails or waits for a missing server.
+- A tree configured before the wrapper joins after one `cmake --preset dev`.
+- Never build wider than `-j 8`, and never run `ninja` directly in a shared
+  tree with a larger `-j`: a bare `ninja` outside the wrapper does not join.
+
 Before RFC closeout, run the documentation gate and focused acceptance/public-path checks. At pack or milestone integration, normally run one integration-focused pass; full relevant tests and critical review are appropriate when scope warrants them. Application-wide builds, exhaustive matrices, hermetic replay, repeated reviews and manual approvals are not defaults. Reuse unchanged passing evidence.
