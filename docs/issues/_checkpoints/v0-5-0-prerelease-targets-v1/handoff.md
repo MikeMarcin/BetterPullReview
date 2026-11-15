@@ -3351,3 +3351,28 @@ Look `prompts-v004`, filed and not waited on: session
 `/Users/jaeger/prompts-v004.mooeae56` from `7d17b1122`. Five questions.
 
 Next: on prompts-v004's handback read from cursor 15.
+
+## prompts-v004 handed back (all accepted); BPR-2179 Done (2026-11-14)
+
+| Commit | What |
+|---|---|
+| `d2b1b7523` | queue-one-line note: pencil, Steer and trash icon-only, 22 points, no gap, a tooltip each; drawer-fit check asserts it |
+| `970ec071c` | BPR-2151 card: prompts-v004 verdicts verbatim, the note and what was applied, what keeps it In Progress |
+| `b17a168e0` | Finish BPR-2179 (AC01 to AC03 pass; acceptance records on the card) |
+| main `d5ecaea64` | Mirror: BPR-2179 to `60-done/`, BPR-2151 card text |
+
+Verification: `qt_drawer_surfaces_fit_scale_100/125/200`,
+`application_ask_queue_public_path` pass; native dark offscreen render of the
+drawer at 280 points shows the wider message line; documentation gate OK on
+lane and main.
+
+prompts-v004 is closed: session `8a2a32701c0cb2bdeed967bb7585124e`, its host
+(PID 71642) has exited and its frozen root is gone.
+
+BPR-2151 stays In Progress. Accepted: the pending list, edit hold, Follow-up
+behaviour, one Stop all, Steer that goes next. Not evidenced: AC03's tour
+proposal and AC04's one queue shown and edited by every window of a session
+(the queue host is a window's). Native steering is BPR-2153's.
+
+Next: BPR-2151's AC03 tour proposal and AC04 cross-window queue, or an
+acceptance amendment that moves them to their own card.
