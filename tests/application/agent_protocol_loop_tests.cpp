@@ -1287,8 +1287,59 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2153]] AC05. The installed agents' own frames, trimmed, from the
+	/// paid probes of 2026-11-14 (Claude Code 2.1.319 with haiku; Codex
+	/// 0.167.0 App Server with gpt-5.6-luna), replayed through the decoder.
+	void test_installed_agents_frames_settle_the_correction()
+	{
+		const auto identity = core::agent_steer_identity(2U, 0U);
+		auto       claude   = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		claude.continue_native("s", 2U);
+		const auto init = std::string{ R"({"type":"system","subtype":"hook_started","session_id":"s","uuid":"h1"})" } + "\n" + R"({"type":"command_lifecycle","session_id":"s"})" + "\n"
+			+ R"({"type":"system","subtype":"init","session_id":"s","model":"claude-haiku-5-5","claude_code_version":"2.1.319"})" + "\n"
+			+ R"({"type":"assistant","session_id":"s","uuid":"a1","user_message_uuid":"first","user_message_uuids":["first"],"message":{"role":"assistant","id":"m1","content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"a.txt"}}]}})" + "\n";
+		expect(claude.push(init).has_value(), "Claude's frames up to its first tool call");
+		const auto frame = claude.steer("Correction: end your sentence with STEERED.", true);
+		expect(frame.has_value(), "the running turn takes the correction");
+		const auto rest = std::string{ R"({"type":"rate_limit_event","session_id":"s"})" } + "\n"
+			+ R"({"type":"user","session_id":"s","uuid":"u1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"apple"}]}})" + "\n"
+			+ R"({"type":"assistant","session_id":"s","uuid":"a2","message":{"role":"assistant","id":"m2","content":[{"type":"tool_use","id":"t2","name":"Read","input":{"file_path":"b.txt"}}]}})" + "\n"
+			+ R"({"type":"user","session_id":"s","uuid":"u2","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"banana"}]}})" + "\n"
+			+ R"({"type":"assistant","session_id":"s","uuid":"a3","message":{"role":"assistant","id":"m3","content":[{"type":"text","text":"The three words are apple, banana, and cherry. STEERED"}]}})" + "\n"
+			+ R"({"type":"result","subtype":"success","session_id":"s","uuid":"r1","is_error":false,"result":"The three words are apple, banana, and cherry. STEERED","user_message_uuid":"first","user_message_uuids":["first",")"
+			+ identity + R"("],"queued_turn_count":0,"result_index":0,"total_cost_usd":0.0033389500000000003,"num_turns":4})" + "\n";
+		expect(claude.push(rest).has_value() && claude.turn_complete() && claude.steer_tally() == core::agent_steer_tally{ .Consumed = 1U } && claude.native_connection_reusable(),
+			   "one result names both inputs: consumed in the same turn, the connection kept");
+
+		auto       codex  = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		const auto turnId = std::string{ "01a1dd7f-72cd" };
+		codex.continue_native("th", 2U);
+		expect(codex.push(R"({"id":2,"result":{"turn":{"id":")" + turnId + R"(","status":"inProgress","items":[]}}})"
+																		   "\n"
+																		   R"({"method":"item/started","params":{"threadId":"th","turnId":")"
+						  + turnId + R"(","item":{"type":"commandExecution","id":"e1","command":"cat a.txt"}}})"
+									 "\n")
+				   .has_value(),
+			   "Codex starts its first command");
+		const auto steer = codex.steer("Correction: end your sentence with STEERED.", true);
+		expect(steer.has_value(), "the running turn takes turn/steer");
+		const auto rpc  = steer->Frame.substr(steer->Frame.find("\"id\":") + 5U, steer->Frame.find(',', steer->Frame.find("\"id\":")) - steer->Frame.find("\"id\":") - 5U);
+		const auto tail = std::string{ R"({"method":"item/completed","params":{"threadId":"th","turnId":")" } + turnId + R"(","item":{"type":"commandExecution","id":"e1"}}})" + "\n"
+			+ R"({"method":"thread/tokenUsage/updated","params":{"threadId":"th","turnId":")" + turnId + R"(","tokenUsage":{}}})" + "\n"
+			+ R"({"id":)" + rpc + R"(,"result":{"turnId":")" + turnId + R"("}})" + "\n"
+			+ R"({"method":"item/started","params":{"threadId":"th","turnId":")" + turnId + R"(","item":{"type":"userMessage","id":"um","clientId":")" + steer->Identity + R"(","content":[]}}})" + "\n"
+			+ R"({"method":"item/completed","params":{"threadId":"th","turnId":")" + turnId + R"(","item":{"type":"userMessage","id":"um","clientId":")" + steer->Identity + R"(","content":[]}}})" + "\n"
+			+ R"({"method":"item/completed","params":{"threadId":"th","turnId":")" + turnId + R"(","item":{"type":"agentMessage","id":"msg","text":"The three words are apple, banana, and cherry STEERED."}}})" + "\n"
+			+ R"({"method":"turn/completed","params":{"threadId":"th","turn":{"id":")" + turnId + R"(","status":"completed","items":[]}}})" + "\n";
+		expect(codex.push(tail).has_value() && codex.turn_complete() && codex.steer_tally() == core::agent_steer_tally{ .Consumed = 1U } && codex.native_connection_reusable(),
+			   "accepted for the running turn, applied in it, consumed when it completes");
+	}
+} // namespace
+
 int main()
 {
+	test_installed_agents_frames_settle_the_correction();
 	test_claude_takes_a_correction_after_its_tool_call();
 	test_a_successor_turn_stays_in_the_run_and_counts_once();
 	test_an_unreconciled_correction_is_unknown_and_retires();
