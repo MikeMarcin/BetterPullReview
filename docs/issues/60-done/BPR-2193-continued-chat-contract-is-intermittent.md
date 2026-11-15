@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"BPR-2181 second round, 2026-11-15: failed in the scratch run at d9962f2ff and at its parent 4bb44f28f, passed at 0d70ff618","related_cards":["BPR-2181"],"reservation":"docs/issues/_reservations/BPR-2192--BPR-2193--222f766917c9.json"}
-acceptance: [{"criterion": "AC01: the cause is named and fixed; the contract passes 20 of 20 runs", "outcome": "pass", "revision": "c0bdc7297", "evidence": {"kind": "command", "command": "scratch worktree of 12aa86eb6 plus this change (identical to c0bdc7297), built from nothing: ctest --preset dev -R '^application_agent_chat_continued_contract$' --repeat until-fail:20 -j1", "detail": "20 of 20 passed (each run 4.0-8.4 s; a verbose run prints agent-chat-continued:pass). Cause, from instrumented runs before the fix: the window lent the stack the same head a third time with new comparison epochs (1 to 2); the continued turn's workspace started before the stack observed that loan, and accepting it bumped the stack's epoch host blob authorization, so the workspace ended stale (agent_workspace_failure::stale, no process started, finish stale_result). The first attempt (holding turns only for a moved head) still failed 1 in 20 runs, which is how the same-head re-lend was found."}}]
+acceptance: [{"criterion": "AC01: the cause is named and fixed; the contract passes 20 of 20 runs", "outcome": "pass", "revision": "1af5aba43", "evidence": {"kind": "command", "command": "scratch worktree at 1af5aba43 (and at 12aa86eb6 plus c0bdc7297's change before it): ctest --preset dev -R '^application_agent_chat_continued_contract$' --repeat until-fail:20 -j1", "detail": "20 of 20 at c0bdc7297's change and 20 of 20 again at 1af5aba43 (a verbose run prints agent-chat-continued:pass). Cause, from instrumented runs before the fix: the window lent the stack the same head a third time with new comparison epochs (1 to 2); the continued turn's workspace started before the stack's epoch host had settled that loan's ingestion, and the acceptance bumped its blob authorization, so the workspace ended stale (agent_workspace_failure::stale, no process started, finish stale_result). Holding turns only for a moved head still failed 1 in 20; waiting for the window's exact epochs broke application_fixture_agent_every_ask, which passes at 1af5aba43."}}]
 ---
 
 # BPR-2193: The continued chat contract fails about half the time: the second turn ends stale_result and never quiesces
@@ -57,9 +57,14 @@ epoch host, which no loan re-authorizes.
 
 `review_agent_stack` (BPR-2181's area):
 
-- A turn runs only once the stack has observed exactly what was last lent,
-  epochs included (`lent_revision_observed`); a turn sent before then waits
-  for it (`accepting`) and starts on the stack's `Ready`.
+- A turn runs only once the epoch host has settled the ingestion of the
+  loan last lent on its revision (`LoanPending`, cleared by the first
+  presentation with no pending ingestion at the lent revision); a turn sent
+  before then waits for it (`accepting`) and starts on the stack's `Ready`.
+  A first version waited for the window's exact binding, comparison epochs
+  included; the stack's own epoch host need not reach the window's epochs,
+  and `application_fixture_agent_every_ask` then never answered
+  (`b16fd02d4`'s set); `1af5aba43` fixed that.
 - A loan of the same revision lent while a turn runs waits for that run to
   retire (`WaitingLoan`, applied in the agent host's retirement observer
   before the runtime hears of it), so no workspace in the making is
