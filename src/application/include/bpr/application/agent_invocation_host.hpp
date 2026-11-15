@@ -255,24 +255,25 @@ namespace bpr::application {
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();
-		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14/Q17. Whether the turn running
-		/// now could take a correction, from local observations only: a turn
-		/// on a kept native connection of a driver with a steering channel.
-		/// \details Claude's version is checked again when the correction is
-		/// handed off; an older one is refused then, never probed for.
-		[[nodiscard]] auto steer_support() const -> core::agent_steer_support;
+		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14/Q17. Whether the run `aRun`
+		/// (the identity the projection was given at `admit`/`start`) could
+		/// take a correction now, from local observations only: it must be the
+		/// run now active, on a kept native connection of a driver with a
+		/// steering channel, whose runtime has reported a qualified version
+		/// (`version_unknown` until Claude's init says it). Never a probe.
+		[[nodiscard]] auto steer_support(const agent_invocation_projection_identity& aRun) const -> core::agent_steer_support;
 		/// \brief Answered once on the decision lane.
 		using steer_answer = std::function<void(const agent_steer_receipt&)>;
-		/// \brief [[BPR-2153]]. Hands the reviewer's correction to the running
-		/// turn, after its current tool call.
+		/// \brief [[BPR-2153]]. Hands the reviewer's correction to the run
+		/// `aRun`, after its current tool call.
 		///
 		/// \details Keeps the run's conversation, workspace, model, effort,
 		/// permissions, deadline and limits (Q15, Q18): only the text goes.
-		/// Never starts a turn, a process or a probe; a correction that cannot
-		/// be handed off is answered `unsent` with why, and a refused one
-		/// `refused`, so the caller can queue it instead. Text over the
-		/// question limit is refused before anything is written.
-		void steer(std::string aText, steer_answer aAnswer);
+		/// Never starts a turn, a process or a probe. A correction that cannot
+		/// be handed off is answered `unsent` with why (`other_run` when `aRun`
+		/// is not the active run, `empty_text` or `text_too_long` for its
+		/// text), and a refused one `refused`, so the caller can queue it.
+		void steer(const agent_invocation_projection_identity& aRun, std::string aText, steer_answer aAnswer);
 		void shutdown();
 		void retry_cleanup();
 		/// \brief [[BPR-2007]]. Where scratch folders are made, one per native

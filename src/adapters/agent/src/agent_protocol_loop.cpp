@@ -57,7 +57,9 @@ namespace bpr::adapters::agent::detail {
 
 				while (!has_cause() && !ProcessExit) {
 					drain_available();
+					report_tool_version();
 					hand_off_steers();
+					expire_overdue_steer_replies();
 					if (IsAppServer && !native() && !has_cause() && Decoder.turn_complete() && !InputClosed) {
 						// Modern App Server treats EOF as cancellation. Retain stdin
 						// until this explicit one-shot turn has actually completed.
@@ -208,11 +210,14 @@ namespace bpr::adapters::agent::detail {
 					}
 					auto receipt = application::agent_steer_receipt{ };
 					if (pending->Request.Run != Request.Run || pending->Request.NativeTurn != Request.NativeTurn) {
-						receipt.Support = core::agent_steer_support::not_running;
+						receipt.Support = core::agent_steer_support::other_run;
 					} else if (auto frame = Decoder.steer(pending->Request.Text, true); !frame) {
 						receipt.Support = frame.error();
 					} else {
 						write_input(frame->Frame);
+						if (!SteerReplyDue && Decoder.awaiting_steer_reply()) {
+							SteerReplyDue = std::chrono::steady_clock::now() + std::chrono::milliseconds{ application::agent_steer_reply_deadline_milliseconds };
+						}
 						receipt = { .Identity = std::move(frame->Identity), .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available };
 					}
 					try {
@@ -220,6 +225,35 @@ namespace bpr::adapters::agent::detail {
 							pending->Answer(receipt);
 						}
 					} catch (...) { }
+				}
+			}
+
+			/// \brief [[BPR-2153]]. A `turn/steer` the server has not answered
+			/// in time is unknown, so a dropped answer cannot hold the turn and
+			/// its workspace lease; nothing is resent.
+			void expire_overdue_steer_replies()
+			{
+				if (!SteerReplyDue) {
+					return;
+				}
+				if (!Decoder.awaiting_steer_reply()) {
+					SteerReplyDue.reset();
+				} else if (std::chrono::steady_clock::now() >= *SteerReplyDue) {
+					Decoder.expire_steer_replies();
+					SteerReplyDue.reset();
+				}
+			}
+
+			/// \brief [[BPR-2153]]. Tells the kept connection the version its
+			/// runtime reported, once, so Steer's support is read from it.
+			void report_tool_version()
+			{
+				if (Request.NativeConnection == nullptr) {
+					return;
+				}
+				if (auto version = Decoder.observed_tool_version(); !version.empty() && version != ReportedToolVersion) {
+					ReportedToolVersion = std::move(version);
+					Request.NativeConnection->observe_tool_version(ReportedToolVersion);
 				}
 			}
 
@@ -601,9 +635,10 @@ namespace bpr::adapters::agent::detail {
 				// [[BPR-2153]]. A correction the run never correlated is
 				// unknown: kept identifiable, never resent.
 				Decoder.settle_steers();
-				Result.Steers              = Decoder.steer_tally();
-				Result.AssistantItems      = Decoder.assistant_items();
-				Result.StandardOutputBytes = Decoder.pushed_bytes();
+				Result.Steers               = Decoder.steer_tally();
+				Result.SteerDeliveryUnknown = Result.Steers.Unknown > 0U;
+				Result.AssistantItems       = Decoder.assistant_items();
+				Result.StandardOutputBytes  = Decoder.pushed_bytes();
 				if (ProtocolFailure) {
 					Result.RejectedOutputLine = Decoder.rejected_line();
 				}
@@ -667,26 +702,28 @@ namespace bpr::adapters::agent::detail {
 				}
 			}
 
-			const application::agent_launch_request&           Request;
-			const application::agent_output_sink&              Sink;
-			agent_protocol_transport&                          Transport;
-			application::agent_run_result                      Result;
-			application::agent_protocol_decoder                Decoder;
-			std::string                                        SavedNativeHandle;
-			core::agent_run_cost_reading                       CostReading;
-			std::array<char, protocol_buffer_bytes>            Buffer{ };
-			bool                                               InputClosed    = false;
-			std::size_t                                        IdleBytes      = 0U;
-			std::size_t                                        InputBytes     = 0;
-			std::uint64_t                                      Sequence       = 0U;
-			std::uint8_t                                       AppServerPhase = 0U;
-			bool                                               Signalled      = false;
-			std::chrono::steady_clock::time_point              LastFrame      = std::chrono::steady_clock::now();
-			bool                                               IsAppServer    = false;
-			std::optional<application::agent_protocol_failure> ProtocolFailure;
-			std::optional<application::agent_run_outcome>      ForcedOutcome;
-			std::optional<application::agent_run_outcome>      ClassifiedOutcome;
-			std::optional<agent_protocol_wait_result>          ProcessExit;
+			const application::agent_launch_request&             Request;
+			const application::agent_output_sink&                Sink;
+			agent_protocol_transport&                            Transport;
+			application::agent_run_result                        Result;
+			application::agent_protocol_decoder                  Decoder;
+			std::string                                          SavedNativeHandle;
+			core::agent_run_cost_reading                         CostReading;
+			std::optional<std::chrono::steady_clock::time_point> SteerReplyDue;
+			std::string                                          ReportedToolVersion;
+			std::array<char, protocol_buffer_bytes>              Buffer{ };
+			bool                                                 InputClosed    = false;
+			std::size_t                                          IdleBytes      = 0U;
+			std::size_t                                          InputBytes     = 0;
+			std::uint64_t                                        Sequence       = 0U;
+			std::uint8_t                                         AppServerPhase = 0U;
+			bool                                                 Signalled      = false;
+			std::chrono::steady_clock::time_point                LastFrame      = std::chrono::steady_clock::now();
+			bool                                                 IsAppServer    = false;
+			std::optional<application::agent_protocol_failure>   ProtocolFailure;
+			std::optional<application::agent_run_outcome>        ForcedOutcome;
+			std::optional<application::agent_run_outcome>        ClassifiedOutcome;
+			std::optional<agent_protocol_wait_result>            ProcessExit;
 		};
 	} // namespace
 

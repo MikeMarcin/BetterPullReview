@@ -1540,31 +1540,44 @@ namespace bpr::application {
 			static_cast<void>(active->Stop->request_stop());
 		}
 
-		/// [[BPR-2153]]. The running turn's steering channel, or why it has none.
-		[[nodiscard]] auto steer_target() const -> std::expected<std::pair<agent_steer_request, core::agent_protocol>, core::agent_steer_support>
+		/// [[BPR-2153]]. The steering channel of `aRun`, which must be the
+		/// active run, or why it has none. The version is the one its runtime
+		/// reported to the process port, never assumed.
+		[[nodiscard]] auto steer_target(const agent_invocation_projection_identity& aRun) const -> std::expected<agent_steer_request, core::agent_steer_support>
 		{
 			auto active = std::shared_ptr<invocation>{ };
 			{
 				std::scoped_lock lock{ StateMutex };
 				active = ActiveInvocation;
 			}
-			if (!active || active->Stop->stop_requested()) {
+			if (!active) {
 				return std::unexpected(core::agent_steer_support::not_running);
 			}
-			const auto lock = std::scoped_lock{ active->SteerMutex };
-			if (!active->SteerProtocol) {
+			if (active->Identity != aRun) {
+				return std::unexpected(core::agent_steer_support::other_run);
+			}
+			if (active->Stop->stop_requested()) {
 				return std::unexpected(core::agent_steer_support::not_running);
 			}
-			// Claude's version is the one observation the host does not hold:
-			// the protocol loop checks it at hand-off and refuses then.
-			const auto support = core::agent_steer_support_of(*active->SteerProtocol, active->SteerTarget.has_value(), core::qualified_claude_steer_version);
-			if (support != core::agent_steer_support::available) {
+			auto target = std::optional<agent_steer_request>{ };
+			{
+				const auto lock = std::scoped_lock{ active->SteerMutex };
+				if (!active->SteerProtocol) {
+					return std::unexpected(core::agent_steer_support::not_running);
+				}
+				// Driver and connection first; the version is the port's to say.
+				if (const auto shape = core::agent_steer_support_of(*active->SteerProtocol, active->SteerTarget.has_value(), core::qualified_claude_steer_version); shape != core::agent_steer_support::available) {
+					return std::unexpected(shape);
+				}
+				target = active->SteerTarget;
+			}
+			if (const auto support = Processes.steer_support(*target); support != core::agent_steer_support::available) {
 				return std::unexpected(support);
 			}
-			return std::pair{ *active->SteerTarget, *active->SteerProtocol };
+			return std::move(*target);
 		}
 
-		void steer(std::string aText, agent_invocation_host::steer_answer aAnswer)
+		void steer(const agent_invocation_projection_identity& aRun, std::string aText, agent_invocation_host::steer_answer aAnswer)
 		{
 			const auto weak    = weak_from_this();
 			auto       deliver = [weak, answer = std::move(aAnswer)](const agent_steer_receipt& aReceipt) {
@@ -1586,16 +1599,20 @@ namespace bpr::application {
 					--self->Probes;
 				}
 			};
-			if (aText.empty() || aText.size() > core::maximum_chat_message_bytes) {
-				deliver({ .Support = core::agent_steer_support::available });
+			if (aText.find_first_not_of(" \t\r\n") == std::string::npos) {
+				deliver({ .Support = core::agent_steer_support::empty_text });
 				return;
 			}
-			auto target = steer_target();
+			if (aText.size() > core::maximum_chat_message_bytes) {
+				deliver({ .Support = core::agent_steer_support::text_too_long });
+				return;
+			}
+			auto target = steer_target(aRun);
 			if (!target) {
 				deliver({ .Support = target.error() });
 				return;
 			}
-			auto request = std::move(target->first);
+			auto request = std::move(*target);
 			request.Text = std::move(aText);
 			Processes.steer(std::move(request), std::move(deliver));
 		}
@@ -1928,16 +1945,16 @@ namespace bpr::application {
 		implementation->cancel();
 	}
 
-	auto agent_invocation_host::steer_support() const -> core::agent_steer_support
+	auto agent_invocation_host::steer_support(const agent_invocation_projection_identity& aRun) const -> core::agent_steer_support
 	{
-		const auto target = Implementation->steer_target();
+		const auto target = Implementation->steer_target(aRun);
 		return target ? core::agent_steer_support::available : target.error();
 	}
 
-	void agent_invocation_host::steer(std::string aText, steer_answer aAnswer)
+	void agent_invocation_host::steer(const agent_invocation_projection_identity& aRun, std::string aText, steer_answer aAnswer)
 	{
 		const auto implementation = Implementation;
-		implementation->steer(std::move(aText), std::move(aAnswer));
+		implementation->steer(aRun, std::move(aText), std::move(aAnswer));
 	}
 
 	void agent_invocation_host::shutdown()

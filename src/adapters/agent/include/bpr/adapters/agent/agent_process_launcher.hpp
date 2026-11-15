@@ -98,6 +98,9 @@ namespace bpr::adapters::agent {
 		/// kept connection of `aRequest.Conversation`; refuses it when there
 		/// is none. Never starts a process.
 		void steer(application::agent_steer_request aRequest, application::agent_steer_answer aAnswer) override;
+		/// \brief [[BPR-2153]]. The kept connection's answer for the turn
+		/// `aRequest` names; `no_connection` when there is none.
+		[[nodiscard]] auto steer_support(const application::agent_steer_request& aRequest) const -> core::agent_steer_support override;
 
 #if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)
 		/// \brief Forces the pre-resume Job Object assignment seam to fail.

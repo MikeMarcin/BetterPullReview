@@ -640,6 +640,19 @@ namespace bpr::adapters::agent {
 			std::memory_order_acq_rel);
 	}
 
+	auto agent_process_launcher::steer_support(const application::agent_steer_request& aRequest) const -> core::agent_steer_support
+	{
+		auto connection = std::shared_ptr<detail::native_agent_connection>{ };
+		{
+			const auto lock  = std::scoped_lock{ Implementation->NativeMutex };
+			const auto found = Implementation->Native.find(aRequest.Conversation);
+			if (found != Implementation->Native.end()) {
+				connection = found->second;
+			}
+		}
+		return connection ? connection->steer_support(aRequest) : core::agent_steer_support::no_connection;
+	}
+
 	void agent_process_launcher::steer(application::agent_steer_request aRequest, application::agent_steer_answer aAnswer)
 	{
 		auto connection = std::shared_ptr<detail::native_agent_connection>{ };

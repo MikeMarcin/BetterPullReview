@@ -972,6 +972,9 @@ namespace bpr::application {
 		core::agent_steer_disposition Disposition = core::agent_steer_disposition::sent;
 		/// App Server: `turn/steer` answered with this turn's identity.
 		bool Accepted = false;
+		/// App Server: its answer did not come within
+		/// `agent_steer_reply_deadline_milliseconds`; a late one is read past.
+		bool Expired = false;
 
 		auto operator<=>(const agent_steer_record&) const = default;
 	};
@@ -1048,6 +1051,13 @@ namespace bpr::application {
 		/// \brief The run has ended: a correction still open was never
 		/// correlated, and is unknown. Never resent.
 		void settle_steers() noexcept;
+		/// \brief An App Server `turn/steer` is still unanswered; the turn
+		/// cannot complete until it is answered or expires.
+		[[nodiscard]] auto awaiting_steer_reply() const noexcept -> bool;
+		/// \brief [[BPR-2153]]. The answer to every unanswered `turn/steer`
+		/// is overdue: each is unknown (never resent, the connection retired),
+		/// and an answer that still arrives is read past.
+		void expire_steer_replies() noexcept;
 		/// \brief The Claude Code version this connection reported, kept across
 		/// its turns; empty when it reported none.
 		[[nodiscard]] auto observed_tool_version() const -> std::string;
@@ -1235,6 +1245,11 @@ namespace bpr::application {
 		/// run, each counted once by how it ended. Their cost is already in
 		/// `ReportedCostUsd`: the run's figure covers every native part.
 		core::agent_steer_tally Steers;
+		/// [[BPR-2153]], RFC-BPR-0126. A correction was written and the run
+		/// ended without it being correlated: whether the agent took it is
+		/// unknown. The run's own outcome is unchanged; a queue pauses on this
+		/// (delivery unknown) rather than releasing its next message.
+		bool SteerDeliveryUnknown = false;
 		/// The descriptions of the helpers still running when the runtime
 		/// ended, for `helpers_unfinished`; at most eight.
 		std::vector<std::string> UnfinishedHelpers;
@@ -1293,6 +1308,13 @@ namespace bpr::application {
 		auto operator<=>(const agent_steer_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-2153]]. How long the protocol loop waits for Codex App
+	/// Server to answer a `turn/steer` before the correction is unknown. The
+	/// answer came within milliseconds on Codex 0.167.0; this bounds a dropped
+	/// one, so it cannot hold the turn and its workspace lease. (The whole
+	/// run's bound under delivery uncertainty is BPR-2152's, AC06.)
+	inline constexpr int agent_steer_reply_deadline_milliseconds = 30'000;
+
 	/// \brief Called once per correction, on the adapter's thread.
 	using agent_steer_answer = std::function<void(const agent_steer_receipt&)>;
 
@@ -1317,6 +1339,9 @@ namespace bpr::application {
 		/// \brief [[BPR-2153]]. The next correction for the running turn, in
 		/// the order the host admitted them; none by default.
 		[[nodiscard]] virtual auto take_steer() -> std::optional<agent_pending_steer> { return std::nullopt; }
+		/// \brief [[BPR-2153]]. The version the running turn's runtime
+		/// reported (Claude's init), for `agent_process_port::steer_support`.
+		virtual void observe_tool_version(const std::string& aVersion) { static_cast<void>(aVersion); }
 	};
 
 	/// \brief Process effect boundary used by the agent application host.
@@ -1341,6 +1366,16 @@ namespace bpr::application {
 		/// once, possibly on another thread, when the correction was written
 		/// or refused. A port with no native connections refuses every
 		/// correction. Nothing here starts a turn, a process or a probe.
+		/// \brief [[BPR-2153]]. Whether the turn `aRequest` names (its
+		/// conversation, run and native turn; the text is not read) could
+		/// take a correction now, from what its runtime has reported:
+		/// `version_unknown` until Claude's init has said its version. A port
+		/// with no native connections answers `no_connection`.
+		[[nodiscard]] virtual auto steer_support(const agent_steer_request& aRequest) const -> core::agent_steer_support
+		{
+			static_cast<void>(aRequest);
+			return core::agent_steer_support::no_connection;
+		}
 		virtual void steer(agent_steer_request aRequest, agent_steer_answer aAnswer)
 		{
 			static_cast<void>(aRequest);

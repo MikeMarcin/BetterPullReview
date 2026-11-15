@@ -129,7 +129,7 @@ namespace {
 	void test_an_unqualified_agent_keeps_queue(const std::filesystem::path& aClaude)
 	{
 		const auto run = run_and_steer(aClaude, false);
-		expect(run.Receipt.Disposition == core::agent_steer_disposition::unsent && run.Receipt.Support == core::agent_steer_support::version, "an agent that reports no qualified version is never written to, and says why");
+		expect(run.Receipt.Disposition == core::agent_steer_disposition::unsent && run.Receipt.Support == core::agent_steer_support::version_unknown, "an agent that reports no version is never written to, and says why");
 		expect(run.Result.Outcome == application::agent_run_outcome::success && run.Result.Steers == core::agent_steer_tally{ }, "its run is unchanged");
 	}
 } // namespace

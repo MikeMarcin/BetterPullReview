@@ -51,6 +51,9 @@ namespace bpr::core {
 		if (aProtocol == agent_protocol::codex_app_server) {
 			return agent_steer_support::available;
 		}
+		if (aToolVersion.empty()) {
+			return agent_steer_support::version_unknown;
+		}
 		const auto observed  = version_components(aToolVersion);
 		const auto qualified = version_components(qualified_claude_steer_version);
 		if (!observed || !qualified || *observed < *qualified) {
@@ -62,12 +65,16 @@ namespace bpr::core {
 	auto agent_steer_unavailable_words(const agent_steer_support aSupport) noexcept -> std::string_view
 	{
 		switch (aSupport) {
-		case agent_steer_support::available:     return { };
-		case agent_steer_support::not_running:   return "Steer needs a running turn; this one has ended.";
-		case agent_steer_support::no_connection: return "This turn can't be steered: it isn't running on a kept agent session.";
-		case agent_steer_support::protocol:      return "This agent can't be steered: its connection has no way to add to a running turn.";
-		case agent_steer_support::version:       return "This agent's version can't be steered: Claude Code 2.1.319 or newer is needed.";
-		case agent_steer_support::exhausted:     return "This turn has taken as many corrections as one turn can; queue the rest.";
+		case agent_steer_support::available:       return { };
+		case agent_steer_support::not_running:     return "Steer needs a running turn; this one has ended.";
+		case agent_steer_support::no_connection:   return "This turn can't be steered: it isn't running on a kept agent session.";
+		case agent_steer_support::protocol:        return "This agent can't be steered: its connection has no way to add to a running turn.";
+		case agent_steer_support::version:         return "This agent's version can't be steered: Claude Code 2.1.319 or newer is needed.";
+		case agent_steer_support::exhausted:       return "This turn has taken as many corrections as one turn can; queue the rest.";
+		case agent_steer_support::version_unknown: return "Steer waits until the agent says which version it is; it hasn't yet.";
+		case agent_steer_support::other_run:       return "That turn has ended; this message was for it, so it wasn't sent into another.";
+		case agent_steer_support::empty_text:      return "There's nothing to steer with: the message is empty.";
+		case agent_steer_support::text_too_long:   return "The message is over the 16 KiB limit, so it wasn't sent.";
 		}
 		return "Steer isn't available for this agent.";
 	}

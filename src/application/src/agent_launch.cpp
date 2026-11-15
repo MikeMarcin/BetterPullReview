@@ -4227,8 +4227,7 @@ namespace bpr::application {
 	{
 		// [[BPR-2153]]. An App Server turn is not over while a `turn/steer`
 		// it was sent is unanswered: the answer says whether it was taken.
-		const auto unanswered = std::ranges::any_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Response != 0U && aSteer.Disposition == core::agent_steer_disposition::sent && !aSteer.Accepted; });
-		return !Failed && Pending.empty() && !unanswered && ((Protocol == core::agent_protocol::claude_stream_json && Phase == 2U) || (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U));
+		return !Failed && Pending.empty() && !awaiting_steer_reply() && ((Protocol == core::agent_protocol::claude_stream_json && Phase == 2U) || (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U));
 	}
 
 	auto agent_protocol_decoder::observed_tool_version() const -> std::string
@@ -4305,6 +4304,21 @@ namespace bpr::application {
 		}
 	}
 
+	auto agent_protocol_decoder::awaiting_steer_reply() const noexcept -> bool
+	{
+		return std::ranges::any_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Response != 0U && aSteer.Disposition == core::agent_steer_disposition::sent && !aSteer.Accepted; });
+	}
+
+	void agent_protocol_decoder::expire_steer_replies() noexcept
+	{
+		for (auto& record : Steers) {
+			if (record.Response != 0U && record.Disposition == core::agent_steer_disposition::sent && !record.Accepted) {
+				record.Disposition = core::agent_steer_disposition::unknown;
+				record.Expired     = true;
+			}
+		}
+	}
+
 	auto agent_protocol_decoder::read_steer_receipt(const std::string_view aFrame) -> std::expected<bool, agent_protocol_failure>
 	{
 		if (Steers.empty()) {
@@ -4327,6 +4341,10 @@ namespace bpr::application {
 			const auto found = std::ranges::find_if(Steers, [id](const agent_steer_record& aSteer) { return aSteer.Response != 0U && std::to_string(aSteer.Response) == id->Text; });
 			if (found == Steers.end()) {
 				return false;
+			}
+			if (found->Expired) {
+				// Overdue and already unknown: a late answer changes nothing.
+				return true;
 			}
 			if (found->Disposition != core::agent_steer_disposition::sent || found->Accepted) {
 				// One request, one answer.

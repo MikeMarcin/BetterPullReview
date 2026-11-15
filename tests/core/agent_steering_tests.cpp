@@ -29,14 +29,14 @@ namespace {
 		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, true, "2.2.0") == agent_steer_support::available, "a newer one too");
 		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, true, "2.1.320 (Claude Code)") == agent_steer_support::available, "a version said with its product name");
 		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, true, "2.1.314") == agent_steer_support::version, "an older one keeps Queue");
-		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, true, "") == agent_steer_support::version, "an unreported version is not guessed");
+		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, true, "") == agent_steer_support::version_unknown, "an unreported version is unknown, never assumed");
 		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, true, "two.one") == agent_steer_support::version, "nor is a version that does not read");
 		expect(core::agent_steer_support_of(agent_protocol::claude_stream_json, false, "2.1.319") == agent_steer_support::no_connection, "a one-shot run has no channel to add to");
 		expect(core::agent_steer_support_of(agent_protocol::codex_app_server, true, "") == agent_steer_support::available, "App Server's turn/steer names the turn it expects");
 		expect(core::agent_steer_support_of(agent_protocol::codex_jsonl_exec, true, "0.167.0") == agent_steer_support::protocol, "Codex exec cannot be steered");
 		expect(core::agent_steer_support_of(agent_protocol::external_terminal, true, "") == agent_steer_support::protocol, "nor an external terminal");
 		expect(core::agent_steer_unavailable_words(agent_steer_support::available).empty(), "available needs no words");
-		for (const auto support : { agent_steer_support::not_running, agent_steer_support::no_connection, agent_steer_support::protocol, agent_steer_support::version, agent_steer_support::exhausted }) {
+		for (const auto support : { agent_steer_support::not_running, agent_steer_support::no_connection, agent_steer_support::protocol, agent_steer_support::version, agent_steer_support::exhausted, agent_steer_support::version_unknown, agent_steer_support::other_run, agent_steer_support::empty_text, agent_steer_support::text_too_long }) {
 			expect(!core::agent_steer_unavailable_words(support).empty(), "every refusal names why Steer is unavailable");
 		}
 	}

@@ -24,16 +24,26 @@ namespace bpr::core {
 		/// The driver has no qualified steering channel (Codex exec, an
 		/// external terminal).
 		protocol,
-		/// The driver's observed version is older than the qualified one, or
-		/// it reported none.
+		/// The driver reported a version older than the qualified one, or one
+		/// that does not read as a version.
 		version,
 		/// The run has taken as many corrections as one run may.
 		exhausted,
+		/// The driver has not yet said which version it is (Claude's init
+		/// frame has not arrived, or named none): never assumed qualified.
+		version_unknown,
+		/// The correction names a run other than the one now running.
+		other_run,
+		/// The correction has no text.
+		empty_text,
+		/// The correction is over the 16 KiB question limit.
+		text_too_long,
 	};
 
 	/// \brief The oldest Claude Code whose stream JSON was observed to accept
 	/// a UUID-bearing `priority: "next"` user message and to name it in a
-	/// result's `user_message_uuids` (2.1.319, zero-cost probe 2026-11-14).
+	/// result's `user_message_uuids` (2.1.319: zero-cost probe, then a paid
+	/// mid-turn probe, 2026-11-14).
 	inline constexpr std::string_view qualified_claude_steer_version = "2.1.319";
 
 	/// \brief Decides steering from local observations only.
@@ -43,7 +53,8 @@ namespace bpr::core {
 	/// request outright without consuming the input, so the protocol alone
 	/// qualifies it. Claude's stream JSON accepts any user message, so only
 	/// a version that reports the input identities a correction is settled
-	/// by qualifies; an unreported version does not.
+	/// by qualifies; an unreported version is `version_unknown`, never
+	/// assumed.
 	/// \param aProtocol The running turn's protocol.
 	/// \param aConnected Whether the turn runs on a kept native connection.
 	/// \param aToolVersion The version the runtime reported for this

@@ -1222,6 +1222,7 @@ namespace {
 		const auto result = run_steered_claude(port, wire, "2.1.319", claude_answer("m2", "Answer.") + claude_result("r1", "\"first\"", "0", "0.0040"));
 		expect(result.Steers == core::agent_steer_tally{ .Unknown = 1U }, "a correction no result names, with nothing queued, is unknown");
 		expect(port.Retired && wire.Writes.size() == 2U, "the connection is retired, and nothing is resent");
+		expect(result.SteerDeliveryUnknown && result.Outcome == application::agent_run_outcome::success, "the run's result says delivery is unknown, so a queue can pause on it");
 	}
 
 	void test_unqualified_or_other_runs_are_never_written()
@@ -1235,12 +1236,20 @@ namespace {
 		auto       other     = steering_connection{ };
 		auto       otherWire = fake_transport{ };
 		const auto otherRun  = run_steered_claude(other, otherWire, "2.1.319", claude_answer("m2", "Answer.") + claude_result("r1", "\"first\"", "0", "0.0040"), core::agent_run_id{ 10U });
-		expect(other.Receipts.size() == 1U && other.Receipts.front().Disposition == core::agent_steer_disposition::unsent && otherWire.Writes.size() == 1U && otherRun.Steers == core::agent_steer_tally{ }, "a correction for another run is never written to this one");
+		expect(other.Receipts.size() == 1U && other.Receipts.front().Disposition == core::agent_steer_disposition::unsent && other.Receipts.front().Support == core::agent_steer_support::other_run && otherWire.Writes.size() == 1U && otherRun.Steers == core::agent_steer_tally{ } && !otherRun.SteerDeliveryUnknown,
+			   "a correction for another run is never written to this one, and says so");
 
 		auto ended = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
 		expect(ended.push(claude_init("2.1.319") + claude_answer("m1", "Done.") + claude_result("r1", "", "0", "0")).has_value() && ended.turn_complete(), "a turn that answered");
 		const auto late = ended.steer("too late", true);
 		expect(!late && late.error() == core::agent_steer_support::not_running, "a turn that has answered takes no correction");
+		auto silent = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(silent.push(R"({"type":"system","subtype":"init","session_id":"steer-s"})"
+						   "\n")
+				   .has_value(),
+			   "a Claude that names no version");
+		const auto unversioned = silent.steer("which version?", true);
+		expect(!unversioned && unversioned.error() == core::agent_steer_support::version_unknown, "is not assumed qualified");
 		auto oneShot = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
 		expect(oneShot.push(claude_init("2.1.319")).has_value(), "a one-shot turn");
 		const auto unconnected = oneShot.steer("no channel", false);
@@ -1279,6 +1288,16 @@ namespace {
 		expect(refused.push("{\"error\":{\"code\":-32600,\"message\":\"expected active turn id `x` but found `turn-a`\"},\"id\":" + rpc + "}\n").has_value() && refused.push(completed).has_value() && refused.turn_complete(), "a refusal is read, not a failure");
 		expect(refused.steer_tally() == core::agent_steer_tally{ .Refused = 1U }, "a refused correction was not consumed, and may be queued");
 		expect(!refused.push("{\"id\":" + rpc + ",\"result\":{\"turnId\":\"turn-a\"}}\n"), "one request has one answer");
+
+		// An answer that never comes cannot hold the turn: once overdue the
+		// correction is unknown, the turn can complete, and a late answer is
+		// read past rather than failing the run.
+		auto dropped = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
+		dropped.continue_native("thread-a", 2U);
+		expect(dropped.push(started).has_value() && dropped.steer("lost", true).has_value() && dropped.push(completed).has_value() && dropped.awaiting_steer_reply() && !dropped.turn_complete(), "an unanswered turn/steer");
+		dropped.expire_steer_replies();
+		expect(!dropped.awaiting_steer_reply() && dropped.turn_complete() && dropped.steer_tally() == core::agent_steer_tally{ .Unknown = 1U } && !dropped.native_connection_reusable(), "overdue: unknown, the turn completes, the connection retires");
+		expect(dropped.push("{\"id\":" + rpc + ",\"result\":{\"turnId\":\"turn-a\"}}\n").has_value() && dropped.steer_tally() == core::agent_steer_tally{ .Unknown = 1U }, "a late answer changes nothing");
 
 		auto elsewhere = application::agent_protocol_decoder{ core::agent_protocol::codex_app_server };
 		elsewhere.continue_native("thread-a", 2U);

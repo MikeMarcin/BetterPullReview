@@ -38,6 +38,13 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   lane's BPR-2151 commits `d8f7fbf4b` and `3e2512da9` changed
   `window_quick_ask.cpp`, `agent_queue_host` and `agent_tab_view.cpp` after
   this branch's base, so by the coordinator's rule the wiring waits.
+- 2026-11-14 (critical review of `3502b1010`): steering is bound to the run
+  identity; support reads the version Claude reported, `version_unknown`
+  until then; an unanswered `turn/steer` expires after 30 s as unknown;
+  empty and over-long text are refused by name; an unknown correction sets
+  `SteerDeliveryUnknown` on the run's result. Host-level test added. The
+  Steer button's wiring is parked on `claude/native-steering-wiring-wip`
+  while the queue host is redesigned (coordinator).
 - 2026-11-14: returned to Backlog. The documentation gate refuses In
   Progress while `depends_on` BPR-2152 is not Done ("unmet dependencies
   belong in Backlog"); the work above stays on `claude/native-steering`.
@@ -48,9 +55,15 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   protocol, whether the run is on a kept native connection, and the version
   the runtime itself reported (Claude's `claude_code_version`, 2.1.319 or
   newer). It never probes. Codex exec and external terminals answer
-  `protocol`; a one-shot or replayed run `no_connection`; an older or silent
-  Claude `version`. `agent_invocation_host::steer_support` reports it for the
-  running turn; the version is checked again at hand-off.
+  `protocol`; a one-shot or replayed run `no_connection`; an older Claude
+  `version`; a Claude whose init has not yet named its version
+  `version_unknown`, never assumed qualified. The protocol loop reports the
+  version to the kept connection, and `agent_process_port::steer_support`
+  answers from it. `agent_invocation_host::steer_support(run)` and
+  `steer(run, text, answer)` take the run identity the projection was given
+  and refuse another run as `other_run`; empty text is `empty_text`, text
+  over 16 KiB `text_too_long`. Every refusal has words
+  (`core::agent_steer_unavailable_words`).
 - **Channel (Q14).** Claude: one user message with a UUID-shaped identity
   (`core::agent_steer_identity`, from the native turn and ordinal) and
   `priority: "next"`; never `now`. Codex App Server: `turn/steer` with
@@ -67,7 +80,11 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   an error reply is a definitive refusal (not consumed); a reply naming the
   running turn followed by `turn/completed` is consumed; a reply naming
   another turn is unknown and retires the connection. The turn is not
-  complete while a `turn/steer` is unanswered.
+  complete while a `turn/steer` is unanswered, for at most
+  `agent_steer_reply_deadline_milliseconds` (30 s); then the correction is
+  unknown, the turn can complete, and a late answer is read past. A run
+  with an unknown correction keeps its outcome and sets
+  `agent_run_result::SteerDeliveryUnknown`, for the queue to pause on.
 - **Accounting (AC07).** `agent_run_result::Steers` counts each correction
   once by disposition. A steered run's cost is Claude's last cumulative
   `total_cost_usd` (`core::read_run_cost_report`), so the existing

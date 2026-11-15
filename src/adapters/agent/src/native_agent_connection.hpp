@@ -121,11 +121,36 @@ namespace bpr::adapters::agent::detail {
 						return;
 					}
 					refusal = core::agent_steer_support::exhausted;
+				} else if (!Stopping && !Done && Current) {
+					refusal = core::agent_steer_support::other_run;
 				}
 			}
 			auto refused = std::deque<application::agent_pending_steer>{ };
 			refused.push_back({ .Request = std::move(aRequest), .Answer = std::move(aAnswer) });
 			refuse(refused, refusal);
+		}
+
+		void observe_tool_version(const std::string& aVersion) override
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			ToolVersion     = aVersion;
+		}
+
+		/// \brief [[BPR-2153]]. Whether the turn `aRequest` names runs here
+		/// and could take a correction, by the version its runtime reported.
+		[[nodiscard]] auto steer_support(const application::agent_steer_request& aRequest) const -> core::agent_steer_support
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (Stopping || Done || !Current) {
+				return core::agent_steer_support::not_running;
+			}
+			if (Current->Request.Run != aRequest.Run || Current->Request.NativeTurn != aRequest.NativeTurn) {
+				return core::agent_steer_support::other_run;
+			}
+			if (Steers.size() >= core::maximum_steers_per_run) {
+				return core::agent_steer_support::exhausted;
+			}
+			return core::agent_steer_support_of(Template.Protocol, true, ToolVersion);
 		}
 
 		[[nodiscard]] auto take_steer() -> std::optional<application::agent_pending_steer> override
@@ -213,6 +238,7 @@ namespace bpr::adapters::agent::detail {
 		std::shared_ptr<turn>                        Pending;
 		std::shared_ptr<turn>                        Current;
 		std::deque<application::agent_pending_steer> Steers;
+		std::string                                  ToolVersion;
 		std::atomic_bool                             Done     = false;
 		std::atomic_bool                             Stopping = false;
 		std::thread                                  Worker;
