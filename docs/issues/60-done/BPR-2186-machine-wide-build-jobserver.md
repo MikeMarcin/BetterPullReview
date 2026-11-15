@@ -47,3 +47,9 @@ with the dev preset building at -j 8 when no server runs.
 - A tree configured before this change joins after one `cmake --preset dev`.
   The forwarded make program changes the KSyntaxHighlighting signature, so that
   configure may rebuild the provider once.
+
+## Follow-up
+
+Several builds of one tree still raced each other on its outputs; BPR-2188
+serializes builds per build directory and fixes a refill that waiting builds
+held off.
