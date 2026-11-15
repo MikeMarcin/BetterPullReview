@@ -78,7 +78,7 @@ claimed speedup. BPR-1653's memory repair is a separate next engineering scope.
 After publication, the owner requested this retrospective and an improvement to
 `publish-release` while the separate implementer works on BPR-1653. The original
 release record above remains historical. The skill now routes coordinated and
-resumed runs through its [execution and recovery reference](../../.codex/skills/publish-release/references/execution.md).
+resumed runs through its [execution and recovery reference](../../.agents/skills/publish-release/references/execution.md).
 This is a procedure change; it does not change the published source, assets,
 test selection, security policy or acceptance limits.
 

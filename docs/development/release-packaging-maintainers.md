@@ -20,7 +20,7 @@ Related: [release-readiness allocation](../architecture/release-readiness.md),
 [packaging evidence ledger](../verification/RFC-BPR-0014.md),
 [native qualification ledger](../verification/RFC-BPR-0038.md) and
 [release security policy](../security/release-policy.md). Platform commands and
-human prerequisites are in `.codex/skills/publish-release/references/`.
+human prerequisites are in `.agents/skills/publish-release/references/`.
 
 ## Build hosts and toolchains
 

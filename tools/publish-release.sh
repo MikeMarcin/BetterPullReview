@@ -44,6 +44,10 @@ ${EXPECTED_REPOSITORY} with the selected visibility immediately before each
 remote mutation. The default requires PRIVATE; --public requires PUBLIC.
 --public never changes repository visibility. origin must have one canonical
 GitHub HTTPS or SSH push URL for ${EXPECTED_REPOSITORY}.
+The notes file follows the publish-release skill's release-notes template: no
+title, the '| System | Download |' table first (after an optional labelled
+notice), a '## Changes since' heading after it and no unfilled '{{' slot;
+anything else is refused.
 --prerelease marks the GitHub release as a prerelease and keeps it out of Latest.
 --append-assets adds verified missing assets to an existing mutable prerelease;
 existing bytes and the annotated source tag must match the supplied baseline.
@@ -73,6 +77,37 @@ verify_checksums() {
         sha256sum -c "$1"
     else
         fail "Required checksum tool not found: shasum or sha256sum"
+    fi
+}
+
+# The publish-release skill's references/release-notes.md sets the body's shape.
+# It refuses a body that does not open with the download table (or a labelled
+# notice), a missing change list and an unfilled slot; it checks no wording.
+check_notes_shape() {
+    local shape
+    shape="$(awk '
+        { sub(/\r$/, "") }
+        /^[[:space:]]*$/ { next }
+        !opened {
+            opened = 1
+            if ($0 ~ /^\| System \| Download \|$/) table = 1
+            else if ($0 !~ /^\*\*(Security|Breaking change|Action required|Known limitation):\*\* /) { bad = 1; exit }
+            next
+        }
+        /^\| System \| Download \|$/ && !changes { table = 1 }
+        /^## Changes since / { changes = 1 }
+        END {
+            if (!opened || bad) print "opening"
+            else if (!changes) print "changes"
+            else if (!table) print "table"
+        }' "${NOTES_FILE}")"
+    case "${shape}" in
+        opening) fail "Release notes must open with the '| System | Download |' table or a labelled notice, not a title" ;;
+        changes) fail "Release notes have no '## Changes since' heading" ;;
+        table) fail "Release notes have no '| System | Download |' table before '## Changes since'" ;;
+    esac
+    if grep -q -F '{{' "${NOTES_FILE}"; then
+        fail "Release notes still hold a '{{' template slot"
     fi
 }
 
@@ -187,6 +222,7 @@ if [[ "${NOTES_FILE}" != /* ]]; then
     NOTES_FILE="${ROOT_DIR}/${NOTES_FILE}"
 fi
 [[ -f "${NOTES_FILE}" ]] || fail "Release notes are absent: ${NOTES_FILE}"
+check_notes_shape
 command -v gh >/dev/null 2>&1 || fail "Required command not found: gh"
 
 [[ -z "$(git -C "${ROOT_DIR}" status --porcelain)" ]] || fail "Working tree is not clean"

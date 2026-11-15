@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -587,6 +588,10 @@ def markdown_files(root: Path) -> list[Path]:
     files.extend((root / "src").rglob("AGENTS.md"))
     files.extend((root / "tests").rglob("*.md"))
     files.extend((root / "packaging").rglob("*.md"))
+    for skill_root in (SHARED_SKILL_ROOT, CLAUDE_SKILL_ROOT):
+        # A fixture root outside Git has no repository skills to scan.
+        for name in tracked_skill_names(root, skill_root, require_git=False):
+            files.extend((root / skill_root / name).rglob("*.md"))
     return sorted(set(files))
 
 
@@ -697,6 +702,80 @@ def verify_github_actions_not_selected(root: Path) -> None:
         )
 
 
+SHARED_SKILL_ROOT = ".agents/skills"
+CLAUDE_SKILL_ROOT = ".claude/skills"
+SKILL_FIELD_RE = re.compile(r"^(name|description):[ \t]*(.*?)[ \t]*$", re.M)
+
+
+def tracked_skill_names(root: Path, skill_root: str, *, require_git: bool = True) -> set[str]:
+    """The skills this repository commits under `skill_root`.
+
+    MASK deploys its shared skills into the same folders, as links on macOS
+    and possibly as copies elsewhere, and `.gitignore` names each one. Only
+    what Git tracks is the repository's own, so a deployment never counts.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", "--", f"{skill_root}/*/SKILL.md"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        if not require_git:
+            return set()
+        fail(f"cannot list tracked skills under {skill_root}: {result.stderr.decode(errors='replace').strip()}")
+    names = set()
+    for entry in result.stdout.decode("utf-8").split("\0"):
+        parts = entry.split("/")
+        if len(parts) == len(skill_root.split("/")) + 2:
+            names.add(parts[-2])
+    return names
+
+
+def skill_fields(path: Path) -> dict[str, str]:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        fail(f"{path} has no front matter")
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        fail(f"{path} front matter is not closed")
+    return dict(SKILL_FIELD_RE.findall(text[4:end + 1]))
+
+
+def verify_shared_skill_pointers(root: Path) -> None:
+    """Each repository skill reaches Codex and Claude Code from one copy.
+
+    The skill itself lives in `.agents/skills/<name>/`, which Codex reads.
+    Claude Code reads `.claude/skills/<name>/SKILL.md`, which is a pointer:
+    the same name and description, and a body naming the real file. A
+    symlink would be simpler but checks out as a text file on a Windows host
+    without symlink support, and releases run there.
+    """
+    shared = tracked_skill_names(root, SHARED_SKILL_ROOT)
+    pointers = tracked_skill_names(root, CLAUDE_SKILL_ROOT)
+    for name in sorted(shared - pointers):
+        fail(f"{SHARED_SKILL_ROOT}/{name} has no Claude Code pointer at {CLAUDE_SKILL_ROOT}/{name}/SKILL.md")
+    for name in sorted(pointers - shared):
+        fail(
+            f"{CLAUDE_SKILL_ROOT}/{name}/SKILL.md points at no skill: commit the skill "
+            f"under {SHARED_SKILL_ROOT}/{name}/ and keep only a pointer here"
+        )
+    for name in sorted(shared):
+        skill_path = root / SHARED_SKILL_ROOT / name / "SKILL.md"
+        pointer_path = root / CLAUDE_SKILL_ROOT / name / "SKILL.md"
+        skill = skill_fields(skill_path)
+        pointer = skill_fields(pointer_path)
+        if skill.get("name") != name:
+            fail(f"{skill_path} must be named {name}")
+        for field in ("name", "description"):
+            if pointer.get(field) != skill.get(field):
+                fail(f"{pointer_path} {field} differs from {skill_path}; copy it across")
+        target = f"{SHARED_SKILL_ROOT}/{name}/SKILL.md"
+        if target not in pointer_path.read_text(encoding="utf-8"):
+            fail(f"{pointer_path} must tell the reader to follow {target}")
+        if len([path for path in pointer_path.parent.rglob("*") if path.is_file()]) != 1:
+            fail(f"{pointer_path.parent} must hold only its SKILL.md pointer")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate BetterPullReview documentation and tracker structure."
@@ -720,6 +799,7 @@ def main() -> int:
     verify_links(root)
     verify_no_conflict_markers(root)
     verify_github_actions_not_selected(root)
+    verify_shared_skill_pointers(root)
 
     print("DOCUMENTATION_OK")
     return 0

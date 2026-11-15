@@ -45,6 +45,7 @@ from scripts.verify_documentation import (  # noqa: E402
     verify_no_conflict_markers,
     verify_rejected_work,
     verify_rfc_index,
+    verify_shared_skill_pointers,
     verify_terminal_closeout_cards,
 )
 
@@ -1062,6 +1063,70 @@ class FrontMatterQuotingTests(unittest.TestCase):
 
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
             front_matter(path)
+
+
+class SharedSkillPointerTests(unittest.TestCase):
+    SKILL = "---\nname: fixture-skill\ndescription: Does the fixture thing.\n---\n\n# Fixture\n\nSteps.\n"
+    POINTER = (
+        "---\nname: fixture-skill\ndescription: Does the fixture thing.\n---\n\n"
+        "Read `.agents/skills/fixture-skill/SKILL.md` and follow it.\n"
+    )
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.skill = self.root / ".agents/skills/fixture-skill/SKILL.md"
+        self.pointer = self.root / ".claude/skills/fixture-skill/SKILL.md"
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write(self, path: Path, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", "--", str(path)], check=True)
+
+    def refuses(self) -> str:
+        stderr = StringIO()
+        with redirect_stderr(stderr), self.assertRaises(SystemExit):
+            verify_shared_skill_pointers(self.root)
+        return stderr.getvalue()
+
+    def test_accepts_a_skill_with_its_pointer(self) -> None:
+        self.write(self.skill, self.SKILL)
+        self.write(self.pointer, self.POINTER)
+        verify_shared_skill_pointers(self.root)
+
+    def test_ignores_an_untracked_deployment(self) -> None:
+        deployed = self.root / ".claude/skills/deployed/SKILL.md"
+        deployed.parent.mkdir(parents=True)
+        deployed.write_text("---\nname: deployed\ndescription: MASK copy.\n---\n", encoding="utf-8")
+        verify_shared_skill_pointers(self.root)
+
+    def test_refuses_a_skill_without_a_pointer(self) -> None:
+        self.write(self.skill, self.SKILL)
+        self.assertIn("has no Claude Code pointer", self.refuses())
+
+    def test_refuses_a_pointer_without_a_skill(self) -> None:
+        self.write(self.pointer, self.POINTER)
+        self.assertIn("points at no skill", self.refuses())
+
+    def test_refuses_a_description_that_drifted(self) -> None:
+        self.write(self.skill, self.SKILL)
+        self.write(self.pointer, self.POINTER.replace("fixture thing", "old thing"))
+        self.assertIn("description differs", self.refuses())
+
+    def test_refuses_a_pointer_that_names_no_target(self) -> None:
+        self.write(self.skill, self.SKILL)
+        self.write(self.pointer, self.POINTER.replace(".agents/skills/fixture-skill/SKILL.md", "the skill"))
+        self.assertIn("must tell the reader to follow", self.refuses())
+
+    def test_refuses_a_second_copy_beside_the_pointer(self) -> None:
+        self.write(self.skill, self.SKILL)
+        self.write(self.pointer, self.POINTER)
+        self.write(self.pointer.parent / "references/steps.md", "copied\n")
+        self.assertIn("must hold only its SKILL.md pointer", self.refuses())
 
 
 if __name__ == "__main__":

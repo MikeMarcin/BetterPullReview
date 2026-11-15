@@ -81,7 +81,7 @@ established by this inventory.
 
 ### Reuse the macOS release path
 
-The complete [publish-release skill](../../.codex/skills/publish-release/SKILL.md),
+The complete [publish-release skill](../../.agents/skills/publish-release/SKILL.md),
 `tools/release.sh`, `tools/publish-release.sh` and `macos-release` preset are
 unchanged; their M1 fingerprints were rechecked. The script already owns
 universal tests-disabled building, restricted deployment, RPATH normalization,

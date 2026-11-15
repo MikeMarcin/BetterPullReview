@@ -187,7 +187,7 @@ class SourceAssetTests(unittest.TestCase):
         (repo / "packaging/dependencies.json").write_text(json.dumps({"components": self.declared}))
         (repo / "CMakeLists.txt").write_text("project(\n VERSION 1.2.3\n)\n")
         notes = repo / "notes.md"
-        notes.write_text("Fixture release only\n")
+        notes.write_text("| System | Download |\n|---|---|\n| macOS 14.4+ · Universal | [Download DMG](fixture) |\n\n## Changes since [1.2.2](fixture)\n\n### Fixed\n\n- Fixture release only.\n")
         dist = repo / "build/releases/1.2.3-build.1"
         dist.mkdir(parents=True)
         base = "BetterPullReview-1.2.3-build.1-macos-universal"

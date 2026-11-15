@@ -361,7 +361,6 @@ class NativeReleaseTests(unittest.TestCase):
         (repo / "packaging/dependencies.json").write_text(json.dumps({"components": self.components}))
         (repo / "CMakeLists.txt").write_text("project(\n VERSION 1.2.3\n)\n")
         notes = repo / "notes.md"
-        notes.write_text("fixture only")
         log = self.root / "commands.jsonl"
         bin_path = self.root / "bin"
         bin_path.mkdir()
@@ -388,6 +387,19 @@ else:
         environment = {**os.environ, "PATH": str(bin_path) + os.pathsep + os.environ["PATH"]}
         command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes),
                    "--manifest", str(manifest), "--manifest", str(windows), "--prerelease", "--cohort", str(cohort_path)]
+        table = "| System | Download |\n|---|---|\n| macOS 14.4+ · Universal | [Download DMG](fixture) |\n\n"
+        shaped = table + "## Changes since [1.2.2](fixture)\n\n### Fixed\n\n- Fixture only.\n"
+        for refused, message in (("fixture only", "must open with"),
+                                 ("# BetterPullReview 1.2.3\n\n" + shaped, "must open with"),
+                                 ("**Security:** Fixture.\n\n" + shaped.replace(table, ""), "no '| System | Download |' table"),
+                                 (shaped.replace("## Changes since", "## Changes"), "no '## Changes since' heading"),
+                                 (shaped.replace("Fixture only.", "{{entry}}"), "template slot")):
+            notes.write_text(refused)
+            result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(message, result.stderr)
+            self.assertFalse(log.exists())
+        notes.write_text(shaped)
         result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(any(item[:3] == ["gh", "release", "create"] for item in map(json.loads, log.read_text().splitlines())))

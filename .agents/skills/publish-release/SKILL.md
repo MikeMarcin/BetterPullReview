@@ -160,30 +160,35 @@ must be equivalent after an authorized public visibility change.
 
 ## Write a compact release description
 
-Use [0.4.2](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.2)
-as the model for its title, download table and changes only. The default release
-description ends after the changes:
+Every release body, stable or prerelease, has one shape. Read
+[release notes](references/release-notes.md) before writing one and copy its
+fill-in template, not a published body: those written before the standard
+differ from one another and are not models. The reference holds the template,
+what each part is for, how to word an entry for users and a worked example.
+The parts, in order:
 
-```markdown
-# BetterPullReview X.Y.Z
+1. A labelled notice, only in the case described below.
+2. The download table: columns `System` and `Download`, one row and one
+   installer link for each system being published, in the order macOS,
+   Windows, Ubuntu.
+3. With an Ubuntu row, the one fixed sentence that links the signature
+   verification instructions.
+4. `## Changes since [X.Y.W](previous-stable-release-url)`, then the entries
+   under `### New`, `### Changed` and `### Fixed`.
 
-| System | Download |
-|---|---|
-| macOS 14.4+ · Universal | [Download DMG](exact-release-asset-url) |
-| Windows · x64 | [Download MSI](exact-release-asset-url) |
-| Ubuntu 26.04 · x64 | [Download DEB](exact-release-asset-url) |
-
-## Changes since X.Y.W
-
-- Describe a concrete user-visible improvement or fix.
-```
+The body has no `#` title, because GitHub shows the release title directly
+above it. The download table opens the body; only a labelled notice may come
+before it. A prerelease body has the same shape, and its change list is the
+one the stable release will carry. The description ends after the changes.
 
 Use the selected version, actual minimum OS versions and exact uploaded asset
-URLs; include only the platforms being published. Label a universal macOS build
-**Universal**. Keep the GitHub release title `BetterPullReview VERSION`. Write
-short, plain change bullets grouped by user-visible outcome, with enough detail
-to explain what changed. Omit internal issue/RFC IDs, process narration,
-marketing filler and a concluding summary.
+URLs; include only the platforms being published, and the Ubuntu line only
+with an Ubuntu row. Label a universal macOS build **Universal**. The publisher
+sets the GitHub release title to `BetterPullReview TAG`. Write
+each change as one short, plain entry for one user-visible outcome, sorted
+into New, Changed or Fixed, with enough detail to explain what changed. Omit
+empty groups, internal issue/RFC IDs, process narration, marketing filler and
+a concluding summary.
 
 Keep qualification reports, source/build identities, test counts and failures,
 timing policies, waivers, vulnerability inventories and dispositions in their
@@ -196,10 +201,16 @@ records or instructions, not a moving branch or private evidence.
 
 Add a brief warning or instruction only when a release-specific security issue,
 breaking change, known limitation or required installation/migration action
-materially affects the user's decision or next step. State the impact/action
-and link to details. Do not append routine signing assurances, a general
-verification/limitations section or standing policy disclaimers. Compact notes
-do not relax qualification, disclosure, source access or signing requirements.
+materially affects the user's decision or next step. Put it before the download
+table as the reference's labelled notice: state the impact/action and link to details.
+Do not append routine signing assurances, a general verification/limitations
+section or standing policy disclaimers. Compact notes do not relax
+qualification, disclosure, source access or signing requirements.
+
+The publisher refuses a notes file in four cases: it opens with anything but
+the download table or a labelled notice, it has no download table before
+`## Changes since`, it has no `## Changes since` heading, or it still holds a
+`{{` template slot. The publisher does not check wording or links.
 
 ## Publish once
 

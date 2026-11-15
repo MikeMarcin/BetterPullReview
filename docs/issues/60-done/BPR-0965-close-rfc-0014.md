@@ -133,7 +133,7 @@ The final mechanical observation and check receipts remain in
 the final bookkeeping HEAD and do not claim additional product validation.
 
 Before return, owner amendment r2 explicitly required inventory/reuse of the
-project [publish-release skill](../../../.codex/skills/publish-release/SKILL.md).
+project [publish-release skill](../../../.agents/skills/publish-release/SKILL.md).
 The complete skill and underlying scripts were inspected; the
 [source inventory](../../verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow)
 maps the existing universal build, restricted Qt deployment, signing,
