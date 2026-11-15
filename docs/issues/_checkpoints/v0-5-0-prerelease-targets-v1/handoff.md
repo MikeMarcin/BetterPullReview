@@ -3376,3 +3376,31 @@ proposal and AC04's one queue shown and edited by every window of a session
 
 Next: BPR-2151's AC03 tour proposal and AC04 cross-window queue, or an
 acceptance amendment that moves them to their own card.
+
+## BPR-2151 AC03 and AC04 built; look queue-windows-v001 (2026-11-14)
+
+The coordinator: build AC03 and AC04 (owner overrode Q10: "Queue must be
+tied to session not active UI windows").
+
+| Commit | What |
+|---|---|
+| `d8f7fbf4b` | One queue host for the profile; windows are its viewers (shown every change, edits from the revision shown, held entries locked in other windows, drain through a free window, closing neither pauses nor hands over). Tour feedback during Draft the tour is the tour conversation's first queued message, released on real completion with the Ask more seed (timer poll gone). `--attended-queue-windows` |
+| `3e2512da9` | The two-window course saves each window's Agent tab for the look |
+
+Verification: `core_agent_queue`, `application_agent_queue_host`,
+`application_agent_queue_windows_public_path`,
+`application_tour_feedback_queue_public_path`,
+`application_ask_queue_public_path`, `application_ask_menu_public_path`,
+`application_ask_addressed_public_path`, `application_ask_report_public_path`,
+`application_prompt_macros_public_path`,
+`application_review_tour_composition_public_path`, `core_tour_agent_session`,
+`qt_tour_agent_session_view`, `sqlite_agent_setup_storage`,
+`qt_drawer_surfaces_fit_scale_100/200` pass. `architecture_boundaries` fails
+on `src/adapters/qt/src/agent_report_view.cpp: QUrl`, committed in
+`bac5aab96` by another writer, not this slice.
+
+Found: on returning-review-v1 at its next push (epoch phase reuse), a second
+window's read leaves the first window's agent run unretired (workspace
+cleanup never runs while the second window is open), so a queue there would
+wait. The course uses the single-head phase; the look is frozen without
+`--next-push`. Not investigated further.

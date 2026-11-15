@@ -187,3 +187,75 @@ edits its one queue" across windows (the queue host is still one a window,
 keyed by session) have no evidence yet, and AC02 to AC04 have not been
 evidenced as a set. Native steering stays BPR-2153's (not in this card's
 acceptance). The card stays In Progress for those.
+
+## AC03 and AC04 built (2026-11-14)
+
+The coordinator, relaying the owner's override of Q10 ("Queue must be tied
+to session not active UI windows"): build AC03 and AC04 rather than split
+them out.
+
+- **AC04, one queue a session across windows** (`d8f7fbf4b`). The queue host is the
+  profile's (`github_profile_runtime::AgentQueue`), made by the first window
+  and outliving every window. Each window joins it as a viewer of the
+  sessions it shows (`application::agent_queue_viewer`: shows, what its agent
+  can take, how it runs a released entry, what it shows). Every window
+  showing a session is shown each change; an edit is made from the revision
+  the window last showed, so an edit that crossed another window's change is
+  refused ("Another window changed this queue first, so nothing changed
+  here."); a message one window edits is held in both, shown "(being
+  edited)" with no controls in the other, and cannot be edited or removed
+  twice (`core::hold` and `core::withdraw` refuse a held entry). The host
+  drains a session through the first free window showing it, and starts
+  nothing while a turn of that conversation runs in any window. The window
+  that ran an entry settles it once its run retired. Closing a window
+  neither pauses nor hands over a queue: a turn it ran ended with it after
+  its message went, so that entry settles as sent, and another window
+  showing the session runs the rest; a queue no window shows waits,
+  unpaused, until one does. `application_agent_queue_host` (two windows,
+  stale and held edits, the busy window, closing the dispatcher, a queue no
+  window shows, a refused start, a restored queue, a refused write, the
+  limit); `application_agent_queue_windows_public_path` (two desktop windows
+  on returning-review-v1: queued in one, shown in the other in order; edited
+  in the second, held in the first with no controls; a removal crossing the
+  other window's press refused and said; typed in the second, shown in the
+  first; Resume, the first window runs the next and is closed while it runs;
+  the second runs the rest in order, the queue never paused).
+- **AC03, the tour proposal (Q1).** Whole-tour feedback typed while Draft the
+  tour runs is the whole-tour conversation's first queued message (session
+  `tour-feedback:` and the pull request); more feedback before the draft is
+  ready joins it. It is released on the draft's real completion: the answer
+  handled, the proposal made and the tour host retired (the host's idle
+  observation releases it; `send_waiting_tour_feedback`'s 50-try timer poll
+  is gone). It goes as one turn with the draft's answer as the Ask more seed
+  and the proposal in the request, so it revises that proposal; the tour chat
+  shows it waiting where it showed the buffer. A draft that did not propose
+  a tour returns it to the chat as not sent, as before; one whose draft ended
+  with its window or the app returns the same way when the tour shows again.
+  The disposable first draft itself is never queued or promoted.
+  `application_tour_feedback_queue_public_path` (two feedbacks while the
+  slow stub drafts: nothing sent while it drafts, one waiting message; after
+  the draft, one turn with both as written, revising the proposal and
+  started from the draft's answer; no turn refused for a run still
+  finishing).
+- **AC02.** `application_agent_queue_host` (a restored queue shown paused
+  and starting nothing; a store refusing a write keeps every message as
+  typed; past 16 nothing is added) with `core_agent_queue` and
+  `application_ask_queue_public_path` (nothing runs while paused).
+
+AC04 changes what the owner sees (a second window shows and edits the same
+queue), so it waits on a look; AC03 does not (the tour chat's waiting
+feedback, its notice and its turn look as before). Look `queue-windows-v001`
+filed (2026-11-14): session `74fcc4b08cdfbc6fc8d13b39a1040715`, state
+`/Users/jaeger/.attended-review-state/queue-windows-v001-2026-11-14/state`
+(URL in `serve.log` beside it), cursor 3; root
+`/Users/jaeger/queue-windows-v001.uqq1jqr3` from `d8f7fbf4b` (tests-on,
+Fixture agent, at the next push, `--attended-queue-windows`; its check
+answered all 17 asks). One question: `BPR-2151-queue-across-windows`.
+
+Found while building the course, not in this card: at the next push
+(returning-review-v1's reuse phase), a run in the first window that ends
+while a second window is still loading the same pull request never retires:
+its workspace cleanup is refused (`cleanup_failed`) and the job stays
+active, so the queue there waits. With the second window loaded first, the
+course passes at the next push as well. The look asks for the second window
+first.
