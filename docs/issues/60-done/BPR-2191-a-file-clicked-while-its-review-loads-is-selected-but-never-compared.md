@@ -205,3 +205,35 @@ Courses at 1eab5b868:
 The Overview's own pending open (BPR-1842, `PendingReviewPath`) is still
 held in Qt. It is gated on the accepted review's ready status and is outside
 this card.
+
+## Correction, 2026-11-15: a click after acceptance was dropped (a9e612a3a)
+
+1eab5b868 broke `application_agent_chat_custom_agent_contract`,
+`application_agent_chat_custom_agent_refused_contract` and
+`application_agent_chat_setup_list_contract`. Each failed at `selected-diff
+comparison-shown=false`.
+
+The composition asked the host to open a reported file only while the read
+was still pending. After the review is accepted, its reported files can stay
+the drawer's rows until the review's own arrive. A click in that interval was
+dropped, so nothing opened. That click is now tied to the accepted review, and
+the host opens it when that review's rows are observed, or at once if they
+already are.
+
+Bisected in a scratch worktree, building the contracts' executable at each
+commit:
+
+| Commit | Result |
+|---|---|
+| 32c0850e0 (parent of 1eab5b868) | all three pass |
+| 1eab5b868 | all three passed in the one run made |
+| 12aa86eb6 (same code as 1eab5b868; the commits between change only docs) | all three fail |
+| 2d9705edb | all three fail |
+| 12aa86eb6 with a9e612a3a's change applied | 5 of 5 each |
+
+Whether the contracts fail depends on whether the course's click lands
+before or after the review is accepted.
+
+In the lane at a9e612a3a: the three contracts pass 5 of 5 each, and
+`application_workbench_host`, `application_pending_states_public_path` and
+`application_progressive_open_public_path` pass.
