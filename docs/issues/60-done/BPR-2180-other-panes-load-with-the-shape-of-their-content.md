@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2180"
 title: "Other panes load with the shape of their content"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-11-14","owner_note":"Hey can we do more graphics like the main pane loading for other parts that are loading in?","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-1576","BPR-1842","BPR-2151"],"reservation":"docs/issues/_reservations/BPR-2180--BPR-2180--cfc3f23d5086.json"}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"180b79fab","evidence":{"kind":"observation","detail":"qt_pending_veil: cards draw rail, face, name, age and two lines each and honour a count; people draw faces in a row on one line and a roster when taller; words beside puts placeholders in the words' place, assistive technology still hears the wait and a failure is still said; renders in a light and a dark palette (veil-cards-*, veil-people-*). Same tint, theme, high-contrast and reduced-motion rules as the other shapes (one painter)."}},{"criterion":"AC02","outcome":"pass","revision":"180b79fab","evidence":{"kind":"observation","detail":"qt_pending_veil and application_pending_states_public_path: the Comments drawer (and Discuss, which reparents the same panel) and Threads wait as thread cards on a first read. Owner Accept, look v001, BPR-2180-comments-cards (aac1629b-21ec-4f6b-aa72-0c837d98f6a1), with the Files note fixed under AC09."}},{"criterion":"AC03","outcome":"pass","revision":"2ab3d74bd","evidence":{"kind":"observation","detail":"Amended after the owner's v001 rejection: the side column waits section by section (Needs attention, My review, Checks, People each in place with its own shape). qt_pending_veil, qt_pull_request_overview_page, qt_composed_github_scale_100, application_progressive_open_public_path. Owner Accept, look v002, BPR-2180-side-sections-v002 (be5e216a-f5d1-4224-82b8-49c60fed784a). Readiness from the read lane since 1887d3281 (review N2)."}},{"criterion":"AC04","outcome":"pass","revision":"209d124b6","evidence":{"kind":"observation","detail":"qt_pending_veil: the private tour waits as stop cards under its head while it loads (tour-loading render). Owner Accept, look v001, BPR-2180-tour (9e42d3c3-ff91-4a8e-83b0-7c7aed742541)."}},{"criterion":"AC05","outcome":"pass","revision":"209d124b6","evidence":{"kind":"observation","detail":"qt_pending_veil: Finish review holds its pending comments' place with three rows on the box's ground under its 'Loading pending comments…' heading, and gives it up once read (finish-review-loading render); qt_review_submission_editor_scale_100/125/200 and application_start_review_contract pass. Owner Accept, look v001, BPR-2180-finish-review (f5dbad1d-0b12-4181-b028-d5c88a47da66)."}},{"criterion":"AC06","outcome":"pass","revision":"1887d3281","evidence":{"kind":"observation","detail":"qt_pending_veil and application_pending_states_public_path: the status bar line turns pending_mark exactly while it says a load (status_line() returns its words and its kind, review N6). Owner Accept, look v001, BPR-2180-status-mark (12a65641-61a7-4807-a6ff-afcb61ceb005)."}},{"criterion":"AC07","outcome":"pass","revision":"2af8e7665","evidence":{"kind":"command","detail":"Qt and composed courses at the final commits: core_github_window_read, application_github_window_read_host, application_workbench_host, qt_pending_veil, qt_pull_request_overview_page, qt_composed_github_scale_100, qt_workbench_window_scale_100, qt_refresh_feedback_window, qt_diff_workbench_scale_100, qt_hide_drawers_native_menu_key, application_pending_states_public_path, application_progressive_open_public_path, application_workbench_composition_contract, architecture_boundaries; renders in Light and Dark; clang-format 22 check, clang-tidy on the changed translation units and the documentation gate pass. application_uiforetw_selected_diff_contract fails a height floor (861 against 872) at 2af8e7665, at its parent 775bd2d76 and at 503046cb4 before any BPR-2180 code; a clean scratch worktree shows it passes at 44ddc0eee and fails at f51063b5b (agent footer in the status bar), so it is not this card's."}},{"criterion":"AC08","outcome":"pass","revision":"2af8e7665","evidence":{"kind":"observation","detail":"Owner looks v001 to v004, one Accept/Reject per surface group, verdicts recorded on the card; the last two, BPR-2180-immediate-review-v004 (d05962e4-3c1b-4405-a788-89163b9b1b4b) and BPR-2180-no-drawer-pop-v004 (16552fbb-e20a-487a-a55d-7c64281a9255), Accept with no note, session 94bb2efb55eacc7dbef4067095dc4d14."}},{"criterion":"AC09","outcome":"pass","revision":"2af8e7665","evidence":{"kind":"observation","detail":"Review's Files drawer lists the reported files once the Overview does, through the ordinary file-row path from the read host, uncovered with a plate; a click is remembered and the comparison waits as code; a read with no review withdraws them; a double-click on the Overview goes to Review at once. application_pending_states_public_path and application_progressive_open_public_path. Owner Accept, look v003, BPR-2180-review-files-v003 (f9b2b9dd-72cf-49c8-b555-82fe948e0d7e), its drawer note fixed and accepted in v004."}}]
 ---
 
 # BPR-2180: Other panes load with the shape of their content
@@ -250,3 +251,16 @@ drawer from a fresh profile's default layout over Review's own arrangement.
   root `/Users/jaeger/bpr-2180-loading-shapes-v004.r9sr8ega` from 2af8e7665,
   same fixture and delays as before. The v003 host is stopped, its candidates
   released, its root removed.
+
+## AC08 verdicts, look v004
+
+Session `94bb2efb55eacc7dbef4067095dc4d14`, handed back at sequence 11
+(2026-11-15T11:15:36Z), both decisions by the human actor, frozen build of
+2af8e7665:
+
+- `BPR-2180-immediate-review-v004`: Accept, no note
+  (d05962e4-3c1b-4405-a788-89163b9b1b4b).
+- `BPR-2180-no-drawer-pop-v004`: Accept, no note
+  (16552fbb-e20a-487a-a55d-7c64281a9255).
+
+The v004 host is stopped, its candidates released, its root removed.
