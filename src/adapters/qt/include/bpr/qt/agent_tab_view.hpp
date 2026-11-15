@@ -515,8 +515,10 @@ namespace bpr::qt {
 			std::function<void(std::uint64_t)>                 Cancel;
 			std::function<void(std::uint64_t)>                 Remove;
 			std::function<void(std::uint64_t, int)>            Move;
-			std::function<void()>                              Pause;
-			std::function<void()>                              Resume;
+			/// Steer the running turn with this message instead of waiting.
+			std::function<void(std::uint64_t)> Steer;
+			std::function<void()>              Pause;
+			std::function<void()>              Resume;
 		};
 		void set_queue_dispatch(queue_dispatch aDispatch) { QueueDispatch = std::move(aDispatch); }
 		/// \brief The session's waiting messages, in order, with the queue's

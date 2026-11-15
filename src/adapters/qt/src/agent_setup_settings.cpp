@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 
+#include "pull_request_overview_support.hpp"
+
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
@@ -342,12 +344,18 @@ namespace bpr::qt {
 			pair->setContentsMargins(0, 0, 0, 0);
 			pair->setSpacing(0);
 			auto* const group = new QButtonGroup{ segments };
-			FollowUpQueue     = new QPushButton{ tr("Queue"), segments };
+			// Owner, look prompts-v003: "Use this styling from overview ...
+			// Do that everywhere": a choice is drawn as Overview's Open and All.
+			FollowUpQueue = new counts_mode_button{ segments };
+			FollowUpQueue->setText(tr("Queue"));
 			FollowUpQueue->setObjectName(QStringLiteral("settingsFollowUpQueue"));
-			FollowUpSteer = new QPushButton{ tr("Steer"), segments };
+			FollowUpSteer = new counts_mode_button{ segments };
+			FollowUpSteer->setText(tr("Steer"));
 			FollowUpSteer->setObjectName(QStringLiteral("settingsFollowUpSteer"));
 			for (auto* const option : { FollowUpQueue, FollowUpSteer }) {
 				option->setCheckable(true);
+				option->setAutoRaise(true);
+				option->setFocusPolicy(Qt::StrongFocus);
 				group->addButton(option);
 				pair->addWidget(option);
 			}
@@ -361,7 +369,7 @@ namespace bpr::qt {
 			hint->setWordWrap(true);
 			hint->setForegroundRole(QPalette::PlaceholderText);
 			column->addWidget(hint);
-			connect(FollowUpSteer, &QPushButton::toggled, this, [this](const bool aSteer) {
+			connect(FollowUpSteer, &QToolButton::toggled, this, [this](const bool aSteer) {
 				if (Dispatch.SetFollowUpSteer) {
 					Dispatch.SetFollowUpSteer(aSteer);
 				}

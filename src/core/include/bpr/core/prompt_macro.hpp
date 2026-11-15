@@ -204,14 +204,28 @@ namespace bpr::core {
 	/// \brief Whether a condition on `aFact` may be written in `aPlace`.
 	[[nodiscard]] auto prompt_fact_allowed(prompt_place aPlace, prompt_fact aFact) noexcept -> bool;
 
-	/// \brief [[BPR-2179]], RFC-BPR-0128 Q1. What an unmet condition does to
-	/// an Ask menu row: one about whether the subject is there hides it; one
-	/// about whether it can run yet greys it, with a reason.
+	/// \brief [[BPR-2179]], RFC-BPR-0128 Q1. Which way a fact leaned before
+	/// look prompts-v003: one about whether the subject is there hid an Ask
+	/// menu row; one about whether it could run yet greyed it. Read only to
+	/// migrate a stored prompt to its `prompt_when_unmet`.
 	enum class prompt_condition_kind : std::uint8_t {
 		greys,
 		hides,
 	};
 	[[nodiscard]] auto prompt_fact_kind(prompt_fact aFact) noexcept -> prompt_condition_kind;
+
+	/// \brief [[BPR-2179]] look prompts-v003 (owner: "Disable on a condition
+	/// still doens't make sense ... in context of the groups or 'any of
+	/// these'"). The coordinator's proposal: one choice a prompt, what its
+	/// Ask menu row does while its conditions do not hold. A chip is never
+	/// offered then.
+	enum class prompt_when_unmet : std::uint8_t {
+		/// Show it disabled, with the first unmet condition's reason.
+		disable,
+		/// Hide it.
+		hide,
+	};
+	[[nodiscard]] auto stable_name(prompt_when_unmet aWhen) noexcept -> std::string_view;
 
 	/// \brief [[BPR-2179]]. How a prompt's conditions combine.
 	enum class prompt_match : std::uint8_t {
@@ -272,6 +286,9 @@ namespace bpr::core {
 		[[nodiscard]] auto operator<=>(const prompt_condition_group& aOther) const -> std::strong_ordering;
 		[[nodiscard]] auto operator==(const prompt_condition_group& aOther) const -> bool;
 	};
+	/// \brief A prompt stored before `prompt_when_unmet` existed: Hide when
+	/// any of its conditions leaned to hiding, else Disable.
+	[[nodiscard]] auto migrated_when_unmet(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups) -> prompt_when_unmet;
 	/// \brief The deepest nesting: the prompt's own list, then two levels.
 	inline constexpr std::size_t maximum_prompt_condition_depth = 3U;
 	/// \brief The most conditions in a prompt's whole tree.
@@ -310,6 +327,9 @@ namespace bpr::core {
 		/// [[BPR-2179]], look prompts-v001. Groups nested under the list,
 		/// combined with `Conditions` by `Match`.
 		std::vector<prompt_condition_group> Groups;
+		/// [[BPR-2179]], look prompts-v003. The Ask menu row while the
+		/// conditions do not hold.
+		prompt_when_unmet WhenUnmet = prompt_when_unmet::disable;
 
 		auto operator<=>(const prompt_macro_body&) const = default;
 	};
@@ -596,12 +616,11 @@ namespace bpr::core {
 	{
 		/// All of them (or, for Any, one of them) hold; true with none.
 		bool Holds = true;
-		/// Not holding, and an Ask menu leaves the row out: under All, an
-		/// untrue condition hides; under Any, every condition hides.
+		/// Not holding, and the prompt says Hide it.
 		bool Hides = false;
-		/// The condition whose reason a greyed row gives: the first untrue
-		/// greys condition (a true one under None, its polarity turned).
-		/// None while `Holds` or `Hides`.
+		/// The condition whose reason a disabled row gives: the first unmet
+		/// one (a true one under None, its polarity turned). None while
+		/// `Holds` or `Hides`.
 		std::optional<prompt_condition> Reason;
 
 		auto operator<=>(const prompt_conditions_outcome&) const = default;
@@ -798,7 +817,9 @@ namespace bpr::core {
 		std::optional<prompt_match>                  Match;
 		/// Set with `Conditions`: the nested groups as this repository has them.
 		std::optional<std::vector<prompt_condition_group>> Groups;
-		std::optional<bool>                                On;
+		/// Set with `Conditions`: Hide it or Show it disabled.
+		std::optional<prompt_when_unmet> WhenUnmet;
+		std::optional<bool>              On;
 
 		auto operator<=>(const prompt_override&) const = default;
 	};

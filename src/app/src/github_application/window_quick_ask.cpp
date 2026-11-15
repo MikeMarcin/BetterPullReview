@@ -134,6 +134,17 @@ namespace bpr::app {
 			.Cancel = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.release_hold(aSession, aId, std::nullopt); }),
 			.Remove = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId) { return aQueue.withdraw(aSession, aId); }),
 			.Move   = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aId, const int aBy) { return aQueue.reorder(aSession, aId, aBy); }),
+			// Look prompts-v003: a queued message's Steer. No driver steers
+			// a running turn yet ([[BPR-2153]]), so, as a typed steer does
+			// (Q17), it goes next instead, ahead of the rest, and says why.
+			.Steer = [this, onQueue](const std::uint64_t aId) {
+				onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, const std::uint64_t aEntry) {
+					return aQueue.reorder(aSession, aEntry, -static_cast<int>(core::maximum_queued_inputs));
+				})(aId);
+				if (!Closing && Window != nullptr) {
+					Window->agent_panel()->refuse("Steer isn't available for this agent yet, so the message goes next, right after this answer.");
+				}
+			},
 			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession) {
 				aQueue.pause(aSession, core::queue_pause::reviewer);
 				return core::queue_refusal::none;

@@ -442,6 +442,8 @@ try {
 		own.Body.QuickAsk   = true;
 		// [[BPR-2179]]. Any of these, and a condition with what it counts.
 		own.Body.Match = core::prompt_match::any;
+		// Look prompts-v003: the prompt's own Hide it or Show it disabled.
+		own.Body.WhenUnmet = core::prompt_when_unmet::disable;
 		own.Body.Conditions.push_back({ .Fact = core::prompt_fact::thread_activity, .Activity = core::prompt_activity_value::replies });
 		// Look prompts-v001: nested groups, None among them.
 		own.Body.Groups        = { { .Match = core::prompt_match::none, .Conditions = { { .Fact = core::prompt_fact::draft } }, .Groups = { { .Match = core::prompt_match::all, .Conditions = { { .Fact = core::prompt_fact::checks_failing }, { .Fact = core::prompt_fact::thread_unresolved } } } } } };
@@ -457,7 +459,7 @@ try {
 			// [[BPR-2179]]. A repository's layer: an override, one of its own,
 			// a surface with an addition, a removal and its own order.
 			.Repositories = { { .Repository = "octo/render",
-								.Overrides  = { { .Id = "agent-tab.what-could-break", .Template = "What could break here?", .Conditions = std::vector<core::prompt_condition>{ }, .Groups = std::vector<core::prompt_condition_group>{ { .Match = core::prompt_match::any, .Conditions = { { .Fact = core::prompt_fact::draft } } } }, .On = false } },
+								.Overrides  = { { .Id = "agent-tab.what-could-break", .Template = "What could break here?", .Conditions = std::vector<core::prompt_condition>{ }, .Groups = std::vector<core::prompt_condition_group>{ { .Match = core::prompt_match::any, .Conditions = { { .Fact = core::prompt_fact::draft } } } }, .WhenUnmet = core::prompt_when_unmet::hide, .On = false } },
 								.Own        = { { .Id = "own.only-here", .Body = { .Name = "Only here", .Template = "Ask here" } } },
 								.Surfaces   = { { .Surface = core::prompt_surface::thread_menu, .Added = { "own.only-here" }, .Removed = { "conversation.summarize" }, .Order = std::vector<std::string>{ "own.only-here" } } } } },
 		};
@@ -479,6 +481,28 @@ try {
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "a newer build's row is written");
+			sqlite3_close_v2(database);
+		}
+		// A row an earlier build wrote, without the choice: migrated from its
+		// conditions' lean (a path condition hides).
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+			expect(sqlite3_exec(database,
+								"INSERT INTO prompt_macros(kind,id,position,place,has_body,name,template,subject,ask,conditions,quick,scopes,on_state,written_against) "
+								"VALUES(1,'own.earlier',6,'agent-tab',1,'Earlier','Earlier','pull-request','question','path' || char(31) || 'is' || char(31) || 'any' || char(31) || 'src/**',0,0,1,0)",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "an earlier build's row is written");
+			const auto earlier  = macros->load();
+			auto       migrated = false;
+			if (earlier) {
+				for (const auto& macro : earlier->Differences.Own) {
+					migrated = migrated || (macro.Id == "own.earlier" && macro.Body.WhenUnmet == core::prompt_when_unmet::hide);
+				}
+			}
+			expect(migrated, "an earlier row's path condition migrates to Hide it");
+			expect(sqlite3_exec(database, "DELETE FROM prompt_macros WHERE id='own.earlier'", nullptr, nullptr, nullptr) == SQLITE_OK, "and is taken out again");
 			sqlite3_close_v2(database);
 		}
 		const auto withNewer = macros->load();

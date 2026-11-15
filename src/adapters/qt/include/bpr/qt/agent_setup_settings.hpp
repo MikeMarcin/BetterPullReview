@@ -189,8 +189,8 @@ namespace bpr::qt {
 		QPushButton*                                       DownButton      = nullptr;
 		QLabel*                                            Status          = nullptr;
 		QCheckBox*                                         RunLimitOn      = nullptr;
-		QPushButton*                                       FollowUpQueue   = nullptr;
-		QPushButton*                                       FollowUpSteer   = nullptr;
+		QToolButton*                                       FollowUpQueue   = nullptr;
+		QToolButton*                                       FollowUpSteer   = nullptr;
 		QSpinBox*                                          RunLimit        = nullptr;
 		QSpinBox*                                          ScratchLimit    = nullptr;
 		QCheckBox*                                         ScratchKeepOn   = nullptr;

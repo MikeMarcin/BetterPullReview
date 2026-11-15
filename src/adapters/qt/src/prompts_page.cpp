@@ -6,6 +6,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "conversation_glyphs.hpp"
+#include "pull_request_overview_support.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -397,12 +398,16 @@ namespace bpr::qt {
 			[[nodiscard]] auto supportedDropActions() const -> Qt::DropActions override { return Qt::CopyAction; }
 		};
 
+		/// A choice among a few, drawn as the Overview's Open and All
+		/// (owner, look prompts-v003: "Use this styling from overview"): the
+		/// chosen one a quiet chip, the others their words alone.
 		[[nodiscard]] auto segmented(const QString& aText, QWidget* const aParent) -> QToolButton*
 		{
-			auto* const button = new QToolButton{ aParent };
+			auto* const button = new counts_mode_button{ aParent };
 			button->setText(aText);
 			button->setCheckable(true);
-			button->setAutoRaise(false);
+			button->setAutoRaise(true);
+			button->setFocusPolicy(Qt::StrongFocus);
 			button->setToolButtonStyle(Qt::ToolButtonTextOnly);
 			return button;
 		}
@@ -883,6 +888,32 @@ namespace bpr::qt {
 		MatchNone->hide();
 		matchRow->addStretch(1);
 		right->addLayout(matchRow);
+		// Look prompts-v003 (owner: "Disable on a condition still doens't make
+		// sense"): the coordinator's proposal, one choice for the prompt.
+		WhenUnmetRow          = new QWidget{ page };
+		auto* const whenUnmet = new QHBoxLayout{ WhenUnmetRow };
+		whenUnmet->setContentsMargins(0, 2, 0, 4);
+		whenUnmet->setSpacing(0);
+		auto* const whenUnmetSay = secondary(tr("When they aren't met:"), WhenUnmetRow);
+		whenUnmetSay->setWordWrap(false);
+		whenUnmet->addWidget(whenUnmetSay);
+		whenUnmet->addSpacing(6);
+		UnmetHide = segmented(tr("Hide it"), WhenUnmetRow);
+		UnmetHide->setObjectName(QStringLiteral("promptsUnmetHide"));
+		UnmetHide->setToolTip(tr("While its conditions aren't met, its Ask menu row is hidden. Its chip is never offered then."));
+		UnmetDisable = segmented(tr("Show it disabled"), WhenUnmetRow);
+		UnmetDisable->setObjectName(QStringLiteral("promptsUnmetDisable"));
+		UnmetDisable->setToolTip(tr("While its conditions aren't met, its Ask menu row is shown disabled, saying why: the first unmet condition. Its chip is never offered then."));
+		whenUnmet->addWidget(UnmetHide);
+		whenUnmet->addWidget(UnmetDisable);
+		whenUnmet->addStretch(1);
+		right->addWidget(WhenUnmetRow);
+		for (auto* const button : { UnmetHide, UnmetDisable }) {
+			connect(button, &QToolButton::clicked, this, [this, button] {
+				const auto when = button == UnmetHide ? core::prompt_when_unmet::hide : core::prompt_when_unmet::disable;
+				edit_selected([when](core::prompt_macro& aMacro) { aMacro.Body.WhenUnmet = when; });
+			});
+		}
 		// Look prompts-v002 (owner: "we're narrower than we need ... the
 		// scroll bar makes it harder to read"): no scroll of their own; the
 		// editor grows with the conditions and the page scrolls.
@@ -1860,6 +1891,9 @@ namespace bpr::qt {
 		MatchAll->setChecked(macro->Body.Match == core::prompt_match::all);
 		MatchAny->setChecked(macro->Body.Match == core::prompt_match::any);
 		MatchNone->setChecked(macro->Body.Match == core::prompt_match::none);
+		UnmetHide->setChecked(macro->Body.WhenUnmet == core::prompt_when_unmet::hide);
+		UnmetDisable->setChecked(macro->Body.WhenUnmet == core::prompt_when_unmet::disable);
+		WhenUnmetRow->setVisible(!macro->Body.Conditions.empty() || !macro->Body.Groups.empty());
 		const auto system = action_system_key(macro->Action);
 		ActionNote->setVisible(system.has_value());
 		Text->setVisible(!system.has_value());
@@ -2119,14 +2153,6 @@ namespace bpr::qt {
 			disclosure->setAccessibleName(open ? tr("Close") : tr("Open"));
 			line->addWidget(disclosure);
 			line->addWidget(new QLabel{ prompt_fact_name(condition.Fact), row }, 1);
-			// Look prompts-v002 (owner: "I don't undrestand the word greys"):
-			// what an untrue condition does to its Ask menu row.
-			const auto  hides = core::prompt_fact_kind(condition.Fact) == core::prompt_condition_kind::hides;
-			auto* const kind  = secondary(hides ? tr("Hide") : tr("Disable"), row);
-			kind->setToolTip(hides ? tr("While this is untrue, the prompt's Ask menu row is hidden and its chip is not offered.")
-								   : tr("While this is untrue, the prompt's Ask menu row is shown disabled, with the reason, and its chip is not offered."));
-			kind->setWordWrap(false);
-			line->addWidget(kind);
 			auto* const removeButton = new quiet_tool_button{ row };
 			// Look prompts-v002 (owner: "The minus is not clear that it is a
 			// delete"): a trash can, as the pending list's.

@@ -900,14 +900,11 @@ namespace bpr::core {
 	}
 
 	namespace {
-		/// One child of a group, decided: whether it holds; whether, untrue,
-		/// it hides a menu row (or, true under None, would); and the leaf a
-		/// greyed row names.
+		/// One child of a group, decided: whether it holds, and the leaf a
+		/// disabled row names while it is unmet (or, under None, met).
 		struct child_outcome
 		{
 			bool                            Holds        = true;
-			bool                            HidesUntrue  = false;
-			bool                            HidesTrue    = false;
 			std::optional<prompt_condition> ReasonUntrue = std::nullopt;
 			std::optional<prompt_condition> ReasonTrue   = std::nullopt;
 		};
@@ -926,12 +923,7 @@ namespace bpr::core {
 		{
 			auto children = std::vector<child_outcome>{ };
 			for (const auto& condition : aConditions) {
-				const auto hides = prompt_fact_kind(condition.Fact) == prompt_condition_kind::hides;
-				children.push_back({ .Holds        = prompt_condition_holds(condition, aFacts),
-									 .HidesUntrue  = hides,
-									 .HidesTrue    = hides,
-									 .ReasonUntrue = hides ? std::nullopt : std::optional{ condition },
-									 .ReasonTrue   = hides ? std::nullopt : std::optional{ turned(condition) } });
+				children.push_back({ .Holds = prompt_condition_holds(condition, aFacts), .ReasonUntrue = condition, .ReasonTrue = turned(condition) });
 			}
 			for (const auto& group : aGroups) {
 				children.push_back(decide_group(group.Match, group.Conditions, group.Groups, aFacts));
@@ -955,36 +947,42 @@ namespace bpr::core {
 			// Holds: under All every child, under Any one, under None none.
 			const auto holding = static_cast<std::size_t>(std::ranges::count_if(children, &child_outcome::Holds));
 			switch (aMatch) {
-			case prompt_match::all:  outcome.Holds = holding == children.size(); break;
-			case prompt_match::any:  outcome.Holds = children.empty() || holding > 0U; break;
-			case prompt_match::none: outcome.Holds = holding == 0U; break;
-			}
-			// Untrue: what hides the row and which reason a greyed row gives
-			// (Q1, and the coordinator's default for Any).
-			switch (aMatch) {
 			case prompt_match::all:
-				outcome.HidesUntrue  = std::ranges::any_of(children, [](const child_outcome& aChild) { return !aChild.Holds && aChild.HidesUntrue; });
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return !aChild.Holds && !aChild.HidesUntrue ? aChild.ReasonUntrue : std::nullopt; });
+				outcome.Holds        = holding == children.size();
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.Holds ? std::nullopt : aChild.ReasonUntrue; });
 				break;
 			case prompt_match::any:
-				outcome.HidesUntrue  = std::ranges::all_of(children, &child_outcome::HidesUntrue);
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.HidesUntrue ? std::nullopt : aChild.ReasonUntrue; });
+				outcome.Holds        = children.empty() || holding > 0U;
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.ReasonUntrue; });
 				break;
 			case prompt_match::none:
-				outcome.HidesUntrue  = std::ranges::all_of(children, [](const child_outcome& aChild) { return !aChild.Holds || aChild.HidesTrue; });
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.Holds && !aChild.HidesTrue ? aChild.ReasonTrue : std::nullopt; });
+				outcome.Holds        = holding == 0U;
+				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.Holds ? aChild.ReasonTrue : std::nullopt; });
 				break;
 			}
-			// True, under a None above it: the same, turned.
-			outcome.HidesTrue  = std::ranges::all_of(children, [](const child_outcome& aChild) { return aChild.HidesTrue && aChild.HidesUntrue; });
-			outcome.ReasonTrue = first([](const child_outcome& aChild) { return aChild.ReasonTrue ? aChild.ReasonTrue : std::nullopt; });
-			if (outcome.HidesUntrue == false && !outcome.ReasonUntrue && !outcome.Holds) {
-				// A greys row needs a reason: the first greys leaf of the group.
-				outcome.ReasonUntrue = first([](const child_outcome& aChild) { return aChild.ReasonUntrue; });
-			}
+			outcome.ReasonTrue = first([](const child_outcome& aChild) { return aChild.ReasonTrue; });
 			return outcome;
 		}
+
+		void lean(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups, bool& aHides)
+		{
+			for (const auto& condition : aConditions) {
+				aHides = aHides || prompt_fact_kind(condition.Fact) == prompt_condition_kind::hides;
+			}
+			for (const auto& group : aGroups) {
+				lean(group.Conditions, group.Groups, aHides);
+			}
+		}
 	} // namespace
+
+	auto stable_name(const prompt_when_unmet aWhen) noexcept -> std::string_view { return aWhen == prompt_when_unmet::hide ? "hide" : "disable"; }
+
+	auto migrated_when_unmet(const std::vector<prompt_condition>& aConditions, const std::vector<prompt_condition_group>& aGroups) -> prompt_when_unmet
+	{
+		auto hides = false;
+		lean(aConditions, aGroups, hides);
+		return hides ? prompt_when_unmet::hide : prompt_when_unmet::disable;
+	}
 
 	auto decide_prompt_conditions(const prompt_macro_body& aBody, const prompt_facts& aFacts) -> prompt_conditions_outcome
 	{
@@ -995,7 +993,9 @@ namespace bpr::core {
 		if (decided.Holds) {
 			return { };
 		}
-		return { .Holds = false, .Hides = decided.HidesUntrue || !decided.ReasonUntrue, .Reason = decided.HidesUntrue ? std::nullopt : decided.ReasonUntrue };
+		// [[BPR-2179]] look prompts-v003: the prompt says what its row does.
+		const auto hides = aBody.WhenUnmet == prompt_when_unmet::hide;
+		return { .Holds = false, .Hides = hides, .Reason = hides ? std::nullopt : decided.ReasonUntrue };
 	}
 
 	auto evaluate_prompt_macro(const prompt_macro& aMacro, const prompt_facts& aFacts) -> prompt_evaluation

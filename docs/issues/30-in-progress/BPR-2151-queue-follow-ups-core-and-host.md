@@ -136,3 +136,25 @@ separate Stop all and "Thinking for" are gone. While several run, or only
 messages wait, the one Stop all shows in its place.
 
 Look `prompts-v003` filed (2026-11-14): session `2b1c044e69cb4b2740b13a50ad6c5915`, state `/Users/jaeger/.attended-review-state/prompts-v003-2026-11-14/state` (URL in `serve.log` beside it), cursor 9; root `/Users/jaeger/prompts-v003.dpoz1ap3` from `37f9eabf1` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Three questions: `BPR-2151-one-stop-one-time`, `BPR-2179-nested-conditions`, `BPR-2151-drawer-no-sideways`.
+
+## Look prompts-v003 handed back (owner, 2026-11-14)
+
+`BPR-2151-drawer-no-sideways`, feedback with no verdict, verbatim: "Drawer
+doesn't scroll horizontally anymore which is good. However: Long messages
+should not grow to multi-line they should just end with ellipsis. Queued items
+need the ability to say steer instead;" (his pictures: the pending list, and
+Codex's queued message with Steer, a trash can and a menu: Edit message, Open
+in side chat, Turn on queueing).
+
+Built: a queued message is one line, ending with an ellipsis; its tooltip and
+the editor hold it whole. Each waiting card has Steer. No agent steers a
+running turn yet ([[BPR-2153]], Backlog: native correction on Claude's stream
+and Codex's App Server, with installed-agent qualification), so Steer moves the
+message to go next, right after the current answer, and says so (as a typed
+steer does, Q17); when BPR-2153 lands, the same action steers natively.
+
+Rejected, `BPR-2151-one-stop-one-time`, verbatim: "Why would you have
+different buttons for one running and 2 running. Just have the same button
+with the stop icon for everything." Built: one control, the stop-icon chip
+named Stop all, the same with one turn running, several, or only messages
+waiting.

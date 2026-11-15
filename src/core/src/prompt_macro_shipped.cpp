@@ -10,12 +10,16 @@ namespace bpr::core {
 		/// A built-in whose name is its template.
 		auto plain(std::string aId, const prompt_place aPlace, const std::string& aText, const prompt_subject aSubject, std::vector<prompt_condition> aConditions = { }, const prompt_ask aKind = prompt_ask::question) -> prompt_builtin
 		{
+			// [[BPR-2179]]: a built-in's row does what its conditions did
+			// before the choice was the prompt's (a reply where none can be
+			// written, lines not selected: hidden).
+			const auto when = migrated_when_unmet(aConditions, { });
 			return {
 				.Macro = {
 					.Id      = std::move(aId),
 					.BuiltIn = true,
 					.Place   = aPlace,
-					.Body    = { .Name = aText, .Template = aText, .Subject = aSubject, .Kind = aKind, .Conditions = std::move(aConditions) },
+					.Body    = { .Name = aText, .Template = aText, .Subject = aSubject, .Kind = aKind, .Conditions = std::move(aConditions), .WhenUnmet = when },
 				},
 			};
 		}

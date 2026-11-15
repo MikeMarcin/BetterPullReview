@@ -274,7 +274,13 @@ namespace {
 				kinds << label->text();
 			}
 		}
-		expect(kinds.contains(QStringLiteral("Disable")) && kinds.contains(QStringLiteral("Thread is unresolved")), "a condition row shows its name and kind: " + kinds.join(QLatin1Char('|')).toStdString());
+		// Look prompts-v003: no kind on a condition; the prompt chooses.
+		expect(!kinds.contains(QStringLiteral("Disable")) && kinds.contains(QStringLiteral("Thread is unresolved")), "a condition row shows its name, no kind: " + kinds.join(QLatin1Char('|')).toStdString());
+		auto* const unmetHide = page.findChild<QToolButton*>(QStringLiteral("promptsUnmetHide"));
+		expect(unmetHide != nullptr && unmetHide->isVisible(), "the prompt offers Hide it and Show it disabled");
+		unmetHide->click();
+		settle();
+		expect(std::ranges::find(page.library(), std::string{ "conversation.summarize" }, &core::prompt_macro::Id)->Body.WhenUnmet == core::prompt_when_unmet::hide, "Hide it is the prompt's choice");
 		expect(qt::prompt_condition_reason({ .Fact = core::prompt_fact::thread_unresolved }) == QStringLiteral("This thread is resolved."), "its greyed reason");
 		auto* const add = page.findChild<QPushButton*>(QStringLiteral("promptsAddCondition"));
 		page.edit_selected([](core::prompt_macro& aMacro) {

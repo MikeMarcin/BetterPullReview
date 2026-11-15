@@ -190,6 +190,30 @@ namespace bpr::qt {
 			QPoint                                  Pressed;
 		};
 
+		/// Look prompts-v003 (owner: "Long messages should not grow to
+		/// multi-line they should just end with ellipsis"): a queued
+		/// message on one line, elided at its end; `text()` stays whole, and
+		/// the tooltip and the editor show it all.
+		class elided_label final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override { return { 0, QLabel::minimumSizeHint().height() }; }
+
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { std::min(QLabel::sizeHint().width(), 200), QLabel::sizeHint().height() }; }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto shown   = fontMetrics().elidedText(text(), Qt::ElideRight, contentsRect().width());
+				painter.setPen(palette().color(foregroundRole()));
+				painter.drawText(contentsRect(), static_cast<int>(Qt::AlignVCenter | Qt::AlignLeft) | Qt::TextSingleLine, shown);
+			}
+		};
+
 		/// The pending list: a bordered panel that takes a dragged card and
 		/// draws where it will land.
 		class queue_panel final : public QWidget
@@ -2960,6 +2984,9 @@ namespace bpr::qt {
 			auto* const made = button(aParent, QString{ }, aName, aSpoken);
 			made->setIcon(conversation_icon(aGlyph, palette()));
 			made->setIconSize(QSize{ 14, 14 });
+			// An icon alone takes an icon's room, so the message keeps the
+			// rest of the line.
+			made->setFixedSize(QSize{ 26, 24 });
 			return made;
 		};
 		// The panel's head: what waits, how many, the queue's state, and
@@ -3054,12 +3081,12 @@ namespace bpr::qt {
 			if (entry.Sending) {
 				line->setContentsMargins(8, 3, 4, 3);
 			}
-			auto* const label = new QLabel{ row };
+			auto* const label = new elided_label{ row };
 			label->setObjectName(QStringLiteral("agentQueueLabel"));
 			label->setText(entry.Held ? tr("%1 (being edited)").arg(entry.Label) : entry.Label);
 			label->setTextFormat(Qt::PlainText);
-			label->setWordWrap(true);
-			label->setMinimumWidth(1);
+			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			label->setToolTip(entry.Text.isEmpty() ? entry.Label : entry.Text);
 			label->setForegroundRole(entry.Sending ? QPalette::PlaceholderText : QPalette::WindowText);
 			line->addWidget(label, 1);
 			if (entry.Sending) {
@@ -3078,6 +3105,19 @@ namespace bpr::qt {
 					});
 					line->addWidget(edit);
 				}
+				// Look prompts-v003 (owner: "Queued items need the ability to
+				// say steer instead"): Steer sends it into the running turn
+				// rather than after it (RFC-BPR-0126 Q14).
+				auto* const steer = button(row, tr("Steer"), QStringLiteral("agentQueueSteer"), tr("Steer the running turn with it instead of waiting: %1").arg(entry.Label));
+				steer->setIcon(conversation_icon(conversation_glyph::send, palette()));
+				steer->setIconSize(QSize{ 14, 14 });
+				steer->setFixedSize(QSize{ steer->fontMetrics().horizontalAdvance(steer->text()) + 34, 24 });
+				connect(steer, &QPushButton::clicked, this, [this, id] {
+					if (QueueDispatch.Steer) {
+						QueueDispatch.Steer(id);
+					}
+				});
+				line->addWidget(steer);
 				auto* const remove = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
 				connect(remove, &QPushButton::clicked, this, [this, id] {
 					if (QueueDispatch.Remove) {

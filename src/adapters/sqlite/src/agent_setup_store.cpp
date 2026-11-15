@@ -2358,10 +2358,18 @@ namespace bpr::adapters::sqlite {
 		/// its own; a nested group opens with `(` and its match and closes
 		/// with `)`. An earlier build reads any of these as a newer build's row
 		/// and keeps it.
+		/// [[BPR-2179]] look prompts-v003: then "hide" or "disable", what the
+		/// prompt's row does while they do not hold; a row without it (an
+		/// earlier build's) takes it from its conditions' lean.
 		[[nodiscard]] auto encode_conditions(const std::vector<core::prompt_condition>& aConditions, const core::prompt_match aMatch = core::prompt_match::all,
-											 const std::vector<core::prompt_condition_group>& aGroups = { }) -> std::optional<std::string>
+											 const std::vector<core::prompt_condition_group>& aGroups = { }, const std::optional<core::prompt_when_unmet> aWhen = std::nullopt)
+			-> std::optional<std::string>
 		{
 			auto text = std::string{ aMatch == core::prompt_match::all ? "" : core::stable_name(aMatch) };
+			if (aWhen) {
+				text += text.empty() ? "" : "\n";
+				text += core::stable_name(*aWhen);
+			}
 			for (const auto& condition : aConditions) {
 				if (!encode_condition(text, condition)) {
 					return std::nullopt;
@@ -2430,16 +2438,25 @@ namespace bpr::adapters::sqlite {
 		/// The list's conditions; its match and nested groups go to `aMatch`
 		/// and `aGroups` when given. A line this build cannot read refuses
 		/// the whole text.
-		[[nodiscard]] auto decode_conditions(std::string_view aText, core::prompt_match* const aMatch = nullptr, std::vector<core::prompt_condition_group>* const aGroups = nullptr)
-			-> std::optional<std::vector<core::prompt_condition>>
+		[[nodiscard]] auto decode_conditions(std::string_view aText, core::prompt_match* const aMatch = nullptr, std::vector<core::prompt_condition_group>* const aGroups = nullptr,
+											 std::optional<core::prompt_when_unmet>* const aWhen = nullptr) -> std::optional<std::vector<core::prompt_condition>>
 		{
-			auto conditions = std::vector<core::prompt_condition>{ };
+			auto       conditions = std::vector<core::prompt_condition>{ };
+			const auto leads      = [&aText](const std::string_view aHeader) {
+				if (aText == aHeader || (aText.starts_with(aHeader) && aText.size() > aHeader.size() && aText[aHeader.size()] == '\n')) {
+					aText.remove_prefix(std::min(aText.size(), aHeader.size() + 1U));
+					return true;
+				}
+				return false;
+			};
 			for (const auto header : { std::string_view{ "any" }, std::string_view{ "none" } }) {
-				if (aText == header || (aText.starts_with(header) && aText.size() > header.size() && aText[header.size()] == '\n')) {
-					if (aMatch != nullptr) {
-						*aMatch = *match_named(header);
-					}
-					aText.remove_prefix(std::min(aText.size(), header.size() + 1U));
+				if (leads(header) && aMatch != nullptr) {
+					*aMatch = *match_named(header);
+				}
+			}
+			for (const auto when : { core::prompt_when_unmet::hide, core::prompt_when_unmet::disable }) {
+				if (leads(core::stable_name(when)) && aWhen != nullptr) {
+					*aWhen = when;
 				}
 			}
 			if (aText.empty()) {
@@ -2621,7 +2638,9 @@ namespace bpr::adapters::sqlite {
 						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), 2U);
 						auto       match      = core::prompt_match::all;
 						auto       groups     = std::vector<core::prompt_condition_group>{ };
-						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }), &match, &groups);
+						auto       unmet      = std::optional<core::prompt_when_unmet>{ };
+						auto       when       = decode_conditions(column_text(row->Value, 8).value_or(std::string{ }), &match, &groups, &unmet);
+						macro.Body.WhenUnmet  = unmet.value_or(when ? core::migrated_when_unmet(*when, groups) : core::prompt_when_unmet::disable);
 						macro.Body.Groups     = std::move(groups);
 						macro.Body.Match      = match;
 						known                 = known && subject && ask && when;
@@ -2768,7 +2787,8 @@ namespace bpr::adapters::sqlite {
 					const auto match      = optional_text(prompts->Value, 9);
 					const auto on         = sqlite3_column_type(prompts->Value, 10) == SQLITE_NULL ? std::optional<bool>{ } : std::optional{ sqlite3_column_int64(prompts->Value, 10) != 0 };
 					auto       groups     = std::vector<core::prompt_condition_group>{ };
-					auto       conditions = when ? decode_conditions(*when, nullptr, &groups) : std::optional{ std::vector<core::prompt_condition>{ } };
+					auto       unmet      = std::optional<core::prompt_when_unmet>{ };
+					auto       conditions = when ? decode_conditions(*when, nullptr, &groups, &unmet) : std::optional{ std::vector<core::prompt_condition>{ } };
 					const auto kindValue  = ask ? named_value<core::prompt_ask>(*ask, 2U) : std::optional{ core::prompt_ask::question };
 					if (!conditions || !kindValue || repository.empty()) {
 						continue;
@@ -2779,6 +2799,7 @@ namespace bpr::adapters::sqlite {
 							change.Kind = kindValue;
 						}
 						if (when) {
+							change.WhenUnmet  = unmet.value_or(core::migrated_when_unmet(*conditions, groups));
 							change.Conditions = std::move(conditions);
 							change.Groups     = std::move(groups);
 						}
@@ -2800,6 +2821,7 @@ namespace bpr::adapters::sqlite {
 					own.Body.Kind       = *kindValue;
 					own.Body.Conditions = std::move(*conditions);
 					own.Body.Match      = match ? match_named(*match).value_or(core::prompt_match::all) : core::prompt_match::all;
+					own.Body.WhenUnmet  = unmet.value_or(core::migrated_when_unmet(own.Body.Conditions, groups));
 					own.Body.Groups     = std::move(groups);
 					layer(repository).Own.push_back(std::move(own));
 				}
@@ -2874,7 +2896,7 @@ namespace bpr::adapters::sqlite {
 					for (const auto& change : layer.Overrides) {
 						auto conditions = std::optional<std::string>{ };
 						if (change.Conditions) {
-							conditions = encode_conditions(*change.Conditions, core::prompt_match::all, change.Groups.value_or(std::vector<core::prompt_condition_group>{ }));
+							conditions = encode_conditions(*change.Conditions, core::prompt_match::all, change.Groups.value_or(std::vector<core::prompt_condition_group>{ }), change.WhenUnmet);
 							if (!conditions) {
 								return false;
 							}
@@ -2887,7 +2909,7 @@ namespace bpr::adapters::sqlite {
 					}
 					position = 0;
 					for (const auto& own : layer.Own) {
-						const auto conditions = encode_conditions(own.Body.Conditions, core::prompt_match::all, own.Body.Groups);
+						const auto conditions = encode_conditions(own.Body.Conditions, core::prompt_match::all, own.Body.Groups, own.Body.WhenUnmet);
 						if (!conditions
 							|| !row(1, own.Id, std::string{ core::stable_name(own.Place) }, std::string{ core::stable_name(own.Body.Subject) }, own.Body.Name, own.Body.Template,
 									std::string{ core::stable_name(own.Body.Kind) }, conditions, std::string{ core::stable_name(own.Body.Match) }, own.On)) {
@@ -2983,7 +3005,7 @@ namespace bpr::adapters::sqlite {
 				if (aPosition >= static_cast<std::int64_t>(core::maximum_prompt_macros)) {
 					return false;
 				}
-				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions, aBody->Match, aBody->Groups) : std::optional{ std::string{ } };
+				const auto conditions = aBody != nullptr ? encode_conditions(aBody->Conditions, aBody->Match, aBody->Groups, aBody->WhenUnmet) : std::optional{ std::string{ } };
 				if (!conditions) {
 					return false;
 				}

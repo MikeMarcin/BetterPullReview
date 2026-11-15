@@ -190,24 +190,27 @@ namespace {
 	// section 7 and the coordinator's default for Any).
 	void test_condition_kinds()
 	{
-		expect(prompt_fact_kind(prompt_fact::path) == prompt_condition_kind::hides && prompt_fact_kind(prompt_fact::checks_failing) == prompt_condition_kind::greys
-				   && prompt_fact_kind(prompt_fact::thread_unresolved) == prompt_condition_kind::greys,
-			   "each fact has its kind");
+		// Look prompts-v003 (the coordinator's proposal on the owner's note):
+		// the prompt, not each condition, says Hide it or Show it disabled;
+		// a disabled row gives the first unmet condition's reason.
+		expect(migrated_when_unmet({ { .Fact = prompt_fact::path } }, { }) == prompt_when_unmet::hide && migrated_when_unmet({ { .Fact = prompt_fact::checks_failing } }, { }) == prompt_when_unmet::disable,
+			   "a stored prompt migrates: any hiding lean hides, else disabled");
 		auto facts          = sample_prompt_facts(prompt_place::agent_tab);
 		facts.ChecksFailing = false;
 		const auto failing  = prompt_condition{ .Fact = prompt_fact::checks_failing };
 		const auto cppOnly  = prompt_condition{ .Fact = prompt_fact::path, .Patterns = { "*.md" } };
 		auto       body     = prompt_macro_body{ .Name = "Why did it fail?", .Template = "Why did the check fail?", .Conditions = { failing } };
 		auto       decided  = decide_prompt_conditions(body, facts);
-		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "All: a greys condition untrue greys");
-		body.Conditions = { failing, cppOnly };
+		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "disabled, with the unmet condition's reason");
+		body.Conditions = { cppOnly, failing };
 		decided         = decide_prompt_conditions(body, facts);
-		expect(!decided.Holds && decided.Hides, "All: a hides condition untrue hides");
-		body.Match = prompt_match::any;
-		decided    = decide_prompt_conditions(body, facts);
-		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "Any: hidden only when every condition hides");
-		body.Conditions = { cppOnly };
-		expect(decide_prompt_conditions(body, facts).Hides, "Any of hides alone: hidden");
+		expect(!decided.Holds && !decided.Hides && decided.Reason == cppOnly, "the first unmet condition gives the reason, whatever it is about");
+		body.WhenUnmet = prompt_when_unmet::hide;
+		expect(decide_prompt_conditions(body, facts).Hides && !decide_prompt_conditions(body, facts).Reason, "Hide it hides");
+		body.WhenUnmet = prompt_when_unmet::disable;
+		body.Match     = prompt_match::any;
+		decided        = decide_prompt_conditions(body, facts);
+		expect(!decided.Holds && !decided.Hides && decided.Reason == cppOnly, "Any: the first condition's reason");
 		facts.ChecksFailing = true;
 		body.Conditions     = { cppOnly, failing };
 		expect(decide_prompt_conditions(body, facts).Holds, "Any: one holding is enough");
@@ -295,7 +298,7 @@ namespace {
 		// draft AND (failing OR markdown): the group is untrue.
 		auto body    = prompt_macro_body{ .Name = "N", .Template = "N", .Conditions = { draft }, .Groups = { { .Match = prompt_match::any, .Conditions = { failing, markdown } } } };
 		auto decided = decide_prompt_conditions(body, facts);
-		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "an untrue Any group greys with its greys leaf's reason");
+		expect(!decided.Holds && !decided.Hides && decided.Reason == failing, "an untrue Any group is disabled with its first condition's reason");
 		facts.ChecksFailing = true;
 		expect(decide_prompt_conditions(body, facts).Holds, "and holds when one of it holds");
 		// NONE of (draft): untrue while a draft; the reason is draft turned.
@@ -303,10 +306,10 @@ namespace {
 		decided          = decide_prompt_conditions(body, facts);
 		auto notDraft    = draft;
 		notDraft.Negated = true;
-		expect(!decided.Holds && !decided.Hides && decided.Reason == notDraft, "None of a true greys leaf greys, with its turned reason");
-		// A hides leaf deep in an All hides the row.
+		expect(!decided.Holds && !decided.Hides && decided.Reason == notDraft, "None of a true condition: its reason turned");
+		// Two levels down, the unmet condition still gives the reason.
 		body = prompt_macro_body{ .Name = "N", .Template = "N", .Groups = { { .Match = prompt_match::all, .Groups = { { .Match = prompt_match::all, .Conditions = { markdown } } } } } };
-		expect(decide_prompt_conditions(body, facts).Hides, "a hides leaf two levels down still hides");
+		expect(decide_prompt_conditions(body, facts).Reason == markdown, "a condition two levels down gives the reason");
 		// Validation bounds the tree.
 		auto deep        = prompt_macro{ .Id = "own.deep", .Body = { .Name = "Deep", .Template = "x" } };
 		deep.Body.Groups = { { .Groups = { { .Groups = { { .Conditions = { draft } } } } } } };

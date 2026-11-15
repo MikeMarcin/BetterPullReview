@@ -149,17 +149,6 @@ namespace bpr::qt {
 		run->addWidget(Elapsed);
 		// A quiet chip, the picker's height, so a run never makes the bar
 		// taller or louder than the review's own line.
-		auto* const stop = new quiet_tool_button{ RunArea };
-		StopButton       = stop;
-		StopButton->setObjectName(QStringLiteral("agentFooterStop"));
-		// Look prompts-v002 (owner: "I don't think we need 2 different stops
-		// and 2 different times. Just make the left one into stop all"): one
-		// stop and one time; a single run is stopped from its composer.
-		StopButton->setText(tr("Stop all"));
-		StopButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		StopButton->setToolTip(tr("Stop every agent turn and pause every queue, so nothing starts next. What arrived is kept."));
-		connect(StopButton, &QToolButton::clicked, this, [this] { stop_all(); });
-		run->addWidget(StopButton);
 		row->addWidget(RunArea);
 
 		// Several at once: a count that opens the list, each with its Stop.
@@ -174,6 +163,23 @@ namespace bpr::qt {
 		RunsButton->setMenu(RunsMenu);
 		connect(RunsMenu, &QMenu::aboutToShow, this, [this] { rebuild_menu(); });
 		row->addWidget(RunsButton);
+
+		// Look prompts-v002 (owner: "Just make the left one into stop all")
+		// and v003 ("Just have the same button with the stop icon for
+		// everything"): one Stop all, the stop-icon chip, the same whether one
+		// turn runs, several do or only messages wait. A single turn is
+		// stopped from its composer.
+		auto* const stop = new quiet_tool_button{ this };
+		StopButton       = stop;
+		StopButton->setObjectName(QStringLiteral("agentFooterStop"));
+		StopButton->setText(tr("Stop all"));
+		StopButton->setAccessibleName(tr("Stop all"));
+		StopButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		StopButton->setToolTip(tr("Stop every agent turn and pause every queue, so nothing starts next. What arrived is kept."));
+		StopButton->setFocusPolicy(Qt::StrongFocus);
+		connect(StopButton, &QToolButton::clicked, this, [this] { stop_all(); });
+		row->addWidget(StopButton);
+		StopButton->hide();
 
 		Divider = new QLabel{ QStringLiteral("|"), this };
 		Divider->setForegroundRole(QPalette::PlaceholderText);
@@ -190,23 +196,6 @@ namespace bpr::qt {
 			}
 		});
 		row->addWidget(SettingsButton);
-
-		// RFC-BPR-0126 AC09 ([[BPR-2151]]): one Stop all beside the picker,
-		// in a fixed slot, shown while any turn runs or any message waits.
-		StopAllButton = new quiet_push_button{ tr("Stop all"), this };
-		StopAllButton->setObjectName(QStringLiteral("agentFooterStopAll"));
-		StopAllButton->setFlat(true);
-		StopAllButton->setAccessibleName(tr("Stop all"));
-		StopAllButton->setToolTip(tr("Stop every agent turn and pause every queue, so nothing starts next"));
-		StopAllButton->setFocusPolicy(Qt::StrongFocus);
-		{
-			auto keep = StopAllButton->sizePolicy();
-			keep.setRetainSizeWhenHidden(true);
-			StopAllButton->setSizePolicy(keep);
-		}
-		connect(StopAllButton, &QPushButton::clicked, this, [this] { stop_all(); });
-		row->addWidget(StopAllButton);
-		StopAllButton->hide();
 
 		Picker = new agent_run_settings_picker{ std::move(aSource), this };
 		Picker->setObjectName(QStringLiteral("agentFooterPicker"));
@@ -376,8 +365,6 @@ namespace bpr::qt {
 			Doing->setToolTip(doing);
 			Elapsed->setText(agent_elapsed_words(seconds_of(shown.Started)));
 			Elapsed->show();
-			StopButton->setVisible(static_cast<bool>(shown.Stop));
-			StopButton->setAccessibleName(tr("Stop all"));
 			RunArea->show();
 			RunsButton->hide();
 		} else if (count > 1U) {
@@ -422,7 +409,7 @@ namespace bpr::qt {
 		SettingsButton->setVisible(!Need.isEmpty() || Picker->isHidden());
 		// One stop control at a time: the run's own (Stop all) while one run
 		// shows, else this one while anything runs or waits.
-		StopAllButton->setVisible(count != 1U && (count > 0U || Queued > 0U));
+		StopButton->setVisible(count > 0U || Queued > 0U);
 		Divider->setVisible(RunArea->isVisibleTo(this) || RunsButton->isVisibleTo(this));
 
 		const auto total = total_cost();
@@ -486,10 +473,10 @@ namespace bpr::qt {
 			if (Elapsed->isVisibleTo(this)) {
 				run += QLatin1Char{ ' ' } + Elapsed->text();
 			}
-			if (StopButton->isVisibleTo(this)) {
-				run += QStringLiteral(" Stop");
-			}
 			parts << run;
+		}
+		if (StopButton->isVisibleTo(this)) {
+			parts << StopButton->text();
 		}
 		if (RunsButton->isVisibleTo(this)) {
 			parts << RunsButton->text();

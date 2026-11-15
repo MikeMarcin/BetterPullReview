@@ -225,6 +225,9 @@ namespace bpr::qt {
 		bool                            UndoTyping    = false;
 		QToolButton*                    UndoButton    = nullptr;
 		QToolButton*                    RedoButton    = nullptr;
+		QWidget*                        WhenUnmetRow  = nullptr;
+		QToolButton*                    UnmetHide     = nullptr;
+		QToolButton*                    UnmetDisable  = nullptr;
 		QComboBox*                      PromptsFor    = nullptr;
 		QLabel*                         Caption       = nullptr;
 		QLineEdit*                      Search        = nullptr;

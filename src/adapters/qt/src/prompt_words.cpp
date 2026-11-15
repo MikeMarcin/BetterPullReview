@@ -68,16 +68,21 @@ namespace bpr::qt {
 			default:                                   return QObject::tr("No replies or pushes since the comment.");
 			}
 		case replies_since_mine: return negated ? QObject::tr("Someone replied after your comment.") : QObject::tr("No replies since your comment.");
-		default:                 return { };
+		// [[BPR-2179]] look prompts-v003: any condition may be the reason a
+		// disabled row gives, so each has words.
+		case file_open:      return negated ? QObject::tr("A file is open.") : QObject::tr("No file is open.");
+		case path:           return negated ? QObject::tr("This file's path matches.") : QObject::tr("This file's path doesn't match.");
+		case selected_lines: return negated ? QObject::tr("Lines are selected.") : QObject::tr("No lines are selected.");
+		case repository:     return negated ? QObject::tr("This repository matches.") : QObject::tr("This repository doesn't match.");
+		case takes_replies:  return negated ? QObject::tr("This thread takes replies.") : QObject::tr("This thread takes no replies.");
+		case empty_chat:     return negated ? QObject::tr("The chat is empty.") : QObject::tr("The chat isn't empty.");
 		}
+		return { };
 	}
 
 	auto prompt_condition_unmet_line(const core::prompt_condition& aCondition) -> QString
 	{
-		if (core::prompt_fact_kind(aCondition.Fact) == core::prompt_condition_kind::hides) {
-			return QObject::tr("While it is untrue the chip is not offered and the menu row is hidden.");
-		}
-		return QObject::tr("While it is untrue the chip is not offered and the menu row is disabled: “%1”").arg(prompt_condition_reason(aCondition));
+		return QObject::tr("When it is the reason the prompt is unmet: \u201C%1\u201D").arg(prompt_condition_reason(aCondition));
 	}
 
 	auto prompt_surface_name(const core::prompt_surface aSurface) -> QString

@@ -389,6 +389,9 @@ namespace bpr::core {
 			if (found->Groups) {
 				macro.Body.Groups = *found->Groups;
 			}
+			if (found->WhenUnmet) {
+				macro.Body.WhenUnmet = *found->WhenUnmet;
+			}
 			if (found->On) {
 				macro.On = *found->On;
 			}
@@ -430,9 +433,10 @@ namespace bpr::core {
 			if (macro.Body.Kind != app->Body.Kind) {
 				change.Kind = macro.Body.Kind;
 			}
-			if (macro.Body.Conditions != app->Body.Conditions || macro.Body.Groups != app->Body.Groups) {
+			if (macro.Body.Conditions != app->Body.Conditions || macro.Body.Groups != app->Body.Groups || macro.Body.WhenUnmet != app->Body.WhenUnmet) {
 				change.Conditions = macro.Body.Conditions;
 				change.Groups     = macro.Body.Groups;
+				change.WhenUnmet  = macro.Body.WhenUnmet;
 			}
 			if (macro.Body.Match != app->Body.Match) {
 				change.Match = macro.Body.Match;

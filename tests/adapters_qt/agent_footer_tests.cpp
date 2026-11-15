@@ -248,7 +248,7 @@ auto main(int argc, char** argv) -> int
 	expect(footer->run_where()->text() == QStringLiteral("Agent tab") && footer->run_doing()->text() == QStringLiteral("waiting on 2 helpers") && footer->run_elapsed()->text() == QStringLiteral("0:00") && footer->stop_button()->isVisible(),
 		   "one run: Agent tab, waiting on 2 helpers, its time, Stop");
 	// Look prompts-v002: one stop and one time; the run's stop is Stop all.
-	expect(footer->stop_button()->text() == QStringLiteral("Stop all") && !footer->stop_all_button()->isVisible(), "one stop control, Stop all, beside the one time");
+	expect(footer->stop_button()->text() == QStringLiteral("Stop all") && footer->stop_all_button() == footer->stop_button(), "one stop control, Stop all, beside the one time");
 	expect(pickerAt() == idleAt, "the picker keeps its place while a run shows");
 	render(window, root, "one-run");
 	footer->stop_button()->click();
@@ -266,7 +266,9 @@ auto main(int argc, char** argv) -> int
 	// Several: a count that opens the list, each run with its own Stop.
 	footer->present_run(qt::agent_footer_place::enhance, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::writing), .Started = started, .Stop = [&stopped] { stopped += "enhance;"; } });
 	settle();
-	expect(footer->runs_button()->isVisible() && !footer->stop_button()->isVisible() && footer->runs_button()->text().contains(QStringLiteral("2 running")) && footer->runs_button()->text().contains(QStringLiteral("Agent tab, Enhance")),
+	// Look prompts-v003 (owner: "Just have the same button with the stop
+	// icon for everything"): the same Stop all with several runs.
+	expect(footer->runs_button()->isVisible() && footer->stop_button()->isVisible() && footer->stop_button()->text() == QStringLiteral("Stop all") && footer->runs_button()->text().contains(QStringLiteral("2 running")) && footer->runs_button()->text().contains(QStringLiteral("Agent tab, Enhance")),
 		   "two runs: a count naming where each started");
 	expect(pickerAt() == idleAt, "the picker keeps its place with two runs");
 	emit footer->runs_menu()->aboutToShow();

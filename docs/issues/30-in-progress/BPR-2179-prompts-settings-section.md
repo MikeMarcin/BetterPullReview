@@ -295,3 +295,25 @@ growing with them while the page scrolls.
 ### Look prompts-v003
 
 Look `prompts-v003` filed (2026-11-14): session `2b1c044e69cb4b2740b13a50ad6c5915`, state `/Users/jaeger/.attended-review-state/prompts-v003-2026-11-14/state` (URL in `serve.log` beside it), cursor 9; root `/Users/jaeger/prompts-v003.dpoz1ap3` from `37f9eabf1` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Three questions: `BPR-2151-one-stop-one-time`, `BPR-2179-nested-conditions`, `BPR-2151-drawer-no-sideways`.
+
+### Look prompts-v003 handed back (owner, 2026-11-14)
+
+Rejected, `BPR-2179-nested-conditions`, verbatim: "I mostly like it. Use this
+styling from overview instead of this uglier styling. Do that everywhere.
+Disable on a condition still doens't make sense. Like what the heck does that
+even mean in context of the groups or 'any of these'. I'm pretty sure that
+needs to be rethought." (His pictures: the Overview's Open and All switch,
+then the page's All of these / Any of these, Answer as and a group's
+All / Any / None.)
+
+The coordinator's proposal answering it, built: no kind on a condition. Each
+prompt has one setting, "When they aren't met: Hide it / Show it disabled";
+a disabled row gives the first unmet condition's reason (under None, the met
+one, turned). A stored prompt from before migrates from its conditions' lean:
+any condition that hid makes it Hide it, else Show it disabled; built-ins keep
+what they did. The store writes the choice with the conditions (an earlier
+build keeps such a row as a newer build's). Every choice on the page (the
+library's filters, Answer as, All/Any, a group's All/Any/None, Hide it / Show
+it disabled) and Settings › Agents & context's Follow-up behaviour are drawn
+as the Overview's Open and All: the chosen one a quiet chip, the others their
+words alone.

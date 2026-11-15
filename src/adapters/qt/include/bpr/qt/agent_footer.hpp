@@ -112,7 +112,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto runs_button() const noexcept -> QToolButton* { return RunsButton; }
 		[[nodiscard]] auto runs_menu() const noexcept -> QMenu* { return RunsMenu; }
 		[[nodiscard]] auto settings_button() const noexcept -> QPushButton* { return SettingsButton; }
-		[[nodiscard]] auto stop_all_button() const noexcept -> QPushButton* { return StopAllButton; }
+		[[nodiscard]] auto stop_all_button() const noexcept -> QToolButton* { return StopButton; }
 		[[nodiscard]] auto cost_label() const noexcept -> QLabel* { return Cost; }
 		/// \brief The footer as words, left to right, for tests and the
 		/// accessible description.
@@ -141,7 +141,6 @@ namespace bpr::qt {
 		std::function<void()>                                                 SettingsDispatch;
 		std::function<void()>                                                 StopAllDispatch;
 		std::size_t                                                           Queued         = 0U;
-		QPushButton*                                                          StopAllButton  = nullptr;
 		agent_run_settings_picker*                                            Picker         = nullptr;
 		QWidget*                                                              RunArea        = nullptr;
 		QLabel*                                                               Dot            = nullptr;
