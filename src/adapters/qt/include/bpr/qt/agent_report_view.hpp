@@ -17,7 +17,6 @@ class QFrame;
 class QLabel;
 class QListWidget;
 class QScrollArea;
-class QTextBrowser;
 class QTextEdit;
 class QToolButton;
 
@@ -93,7 +92,9 @@ namespace bpr::qt {
 		/// has sections (`dressed_shown`), else the Markdown as written.
 		[[nodiscard]] auto dressed() const noexcept -> const core::dressed_report& { return Dress; }
 		[[nodiscard]] auto dressed_shown() const noexcept -> bool;
-		[[nodiscard]] auto dressed_view() const noexcept -> QTextBrowser* { return Dressed; }
+		/// \brief The dressed page: a read-only reader whose document denies
+		/// every resource load, as the Markdown readers' does.
+		[[nodiscard]] auto dressed_view() const noexcept -> QTextEdit* { return Dressed; }
 		/// \brief Follows a link of the page as a press does.
 		void follow(const QString& aLink);
 		/// \brief Look report-templates-v003. The page's code boxes, the
@@ -135,7 +136,7 @@ namespace bpr::qt {
 		std::vector<QString> OutlineTitles;
 		QWidget*             Column  = nullptr;
 		QWidget*             Tail    = nullptr;
-		QTextBrowser*        Dressed = nullptr;
+		QTextEdit*           Dressed = nullptr;
 		/// The page's code boxes, by slot, and the page's places for them.
 		std::vector<report_code_slot>            Slots;
 		std::vector<markdown_body_view*>         CodeViews;

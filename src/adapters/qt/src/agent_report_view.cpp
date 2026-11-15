@@ -3,6 +3,7 @@
 #include "bpr/core/agent_report.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "markdown_document.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
@@ -12,6 +13,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
@@ -20,12 +22,10 @@
 #include <QScrollBar>
 #include <QStyledItemDelegate>
 #include <QTextBlock>
-#include <QTextBrowser>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextObjectInterface>
 #include <QToolButton>
-#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -309,12 +309,19 @@ namespace bpr::qt {
 		// Qt's rich text): a report that follows the convention is drawn as
 		// a page; the Markdown above stays for View source and for a report
 		// that does not.
-		Dressed = new QTextBrowser{ Column };
+		// Review (2026-11-14): agent-written text never reaches a resource.
+		// The page is a read-only reader over the Markdown readers' own
+		// document, which denies every resource load unconditionally, and a
+		// link is taken as its text (`anchorAt`), never as an address.
+		Dressed = new QTextEdit{ Column };
+		Dressed->setDocument(new detail::markdown_document{ Dressed });
+		Dressed->setReadOnly(true);
+		Dressed->setAcceptRichText(false);
+		Dressed->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		Dressed->setMouseTracking(true);
 		Dressed->setObjectName(QStringLiteral("agentReportPage"));
 		Dressed->setAccessibleName(tr("Report"));
 		Dressed->setFrameShape(QFrame::NoFrame);
-		Dressed->setOpenLinks(false);
-		Dressed->setOpenExternalLinks(false);
 		Dressed->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Dressed->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Dressed->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -322,7 +329,8 @@ namespace bpr::qt {
 		Dressed->setAttribute(Qt::WA_TranslucentBackground, true);
 		Dressed->document()->setDocumentMargin(0.0);
 		Dressed->setVisible(false);
-		connect(Dressed, &QTextBrowser::anchorClicked, this, [this](const QUrl& aUrl) { follow(aUrl.toString()); });
+		Dressed->viewport()->installEventFilter(this);
+		Dressed->installEventFilter(this);
 		CodeObjects = new report_code_objects{ this, [this](const int aSlot, const int aWidth) { return code_height(aSlot, aWidth); } };
 		column->addWidget(Dressed);
 		column->addStretch(1);
@@ -924,6 +932,28 @@ namespace bpr::qt {
 
 	auto agent_report_view::eventFilter(QObject* const aObject, QEvent* const aEvent) -> bool
 	{
+		// The page's links, by their text: a click on one, or Return on the
+		// one the keyboard reached.
+		if (Dressed != nullptr && aObject == Dressed->viewport()) {
+			if (aEvent->type() == QEvent::MouseMove) {
+				const auto* const mouse = static_cast<QMouseEvent*>(aEvent);
+				Dressed->viewport()->setCursor(Dressed->anchorAt(mouse->position().toPoint()).isEmpty() ? Qt::IBeamCursor : Qt::PointingHandCursor);
+			}
+			if (aEvent->type() == QEvent::MouseButtonRelease) {
+				const auto* const mouse = static_cast<QMouseEvent*>(aEvent);
+				if (const auto link = Dressed->anchorAt(mouse->position().toPoint()); mouse->button() == Qt::LeftButton && !link.isEmpty() && !Dressed->textCursor().hasSelection()) {
+					follow(link);
+					return true;
+				}
+			}
+		}
+		if (Dressed != nullptr && aObject == Dressed && aEvent->type() == QEvent::KeyPress) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if (const auto link = Dressed->textCursor().charFormat().anchorHref(); (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !link.isEmpty()) {
+				follow(link);
+				return true;
+			}
+		}
 		if (aObject == Popover && aEvent->type() == QEvent::Hide) {
 			MenuButton->setChecked(false);
 			MenuButton->setFocus(Qt::PopupFocusReason);

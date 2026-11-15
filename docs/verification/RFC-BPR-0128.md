@@ -694,3 +694,33 @@ and shown in the looks without objection. Not built: Why did a check fail?
 could break and Review as editable System prompts in the Prompt library
 (shipped in the request brief today; the library is BPR-2179's).
 
+
+## Correction (2026-11-14, after the close)
+
+A critical review found `architecture_boundaries` red from `16e8e2dc9`: the
+report page was a `QTextBrowser` taking its links as `QUrl`
+(`src/adapters/qt/src/agent_report_view.cpp`), which three of the gate's rules
+forbid. The gate stops at its first failure, so its later rules went
+unenforced for every commit after that one. RFC-BPR-0128 was closed with the
+gate red; the close's evidence list did not include it. The concern behind
+the rules was real: a `QTextBrowser` loads what its document names, and the
+page holds agent-written text.
+
+Fixed:
+
+- The page is a read-only `QTextEdit` over the Markdown readers' own document
+  (`detail::markdown_document`), whose `loadResource` denies every load
+  unconditionally. A link is taken as its text: `anchorAt` under a click, the
+  cursor's anchor on Return. Our code holds no `QUrl`, and no exception was
+  added to the gate.
+- New course `qt_agent_report_view`. It feeds a report with Markdown images,
+  raw `<img>` tags and resource links naming a file that exists, and asserts
+  three things: no image is drawn, the raw HTML shows as text, and the page's
+  document returns nothing for an image, style sheet or HTML load of that
+  file. It also checks that a link is dispatched as its text. Run against the
+  old `QTextBrowser` page, the course fails ("the page's document loads
+  nothing, even a file that exists").
+- `architecture_boundaries` passes on the dev build again, as do
+  `qt_agent_report_view`, `application_fixture_agent_every_ask`,
+  `application_ask_report_public_path`, `application_ask_menu_public_path` and
+  `application_explain_file_public_path`.
