@@ -4103,8 +4103,8 @@ holds the card move for main.
 | `affe49d2d` | Core: `workflow_configuration` (file version 2, item problems, revision, bindings, differences, apply), `workflow_action` (pinned draft workflow, bounded request/response, admission, honest check status, one publisher, handoff, reconciliation); the built-in route's `external_publisher` guard; `core_workflow` |
 | `dcb462ba1` | Storage, application, Qt Workflow area and Settings workflow import/export, app exchange files, the synthetic companion fixture, `application_local_draft_workflow_desktop_public_path`, `--attended-local-draft-workflow`, the companion contract doc; app pin resealed |
 | `001c08ad1` | The area names the selected context a handoff sent; the look script takes a relative root |
-| `bd50815ae`; `0e3c4bfc2`..`799743edb`; `f160e77b2`, `1e1583ef0` | BPR-2032 Done; BPR-2033 ready, claimed, Done; BPR-2034 ready, claimed, Done |
-| `27b419091`, `fcdd020a2`, `150d3eb8e` | BPR-2035 ready, claimed; ledger `docs/verification/RFC-BPR-0112.md` and checklist; parked `human-review` |
+| `bd50815ae`; `be4e88d26`, `8f3c9f125`, `799743edb`; `e361f5016`, `f160e77b2`, `1e1583ef0` | BPR-2032 Done; BPR-2033 ready, claimed, Done; BPR-2034 ready, claimed, Done |
+| `0766ad896`, `27b419091`, `fcdd020a2`, `150d3eb8e` | BPR-2035 ready, claimed; ledger `docs/verification/RFC-BPR-0112.md` and checklist; parked `human-review` |
 
 Runs at `001c08ad1` (dev, Debug), 18 rows, all pass:
 `architecture_boundaries`, `test_network_isolation_manifest`,
