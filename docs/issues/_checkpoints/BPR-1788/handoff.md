@@ -75,3 +75,20 @@ discovery scans an unrelated historical plan containing an unsupported
 `amendments` field. Supported `milestone_plan.py bind --plan ...` resolves this
 plan and its AC1 obligation with no diagnostics; the wrapper refusal is not
 reported as a passed check. No unrelated plan or skill was changed to bypass it.
+
+## Native authoring continuation, 2026-11-15
+
+Bounded follow-up `/root/windows_installer`, mandate
+`release-prep-20261115-r2`, source correction `bf995128013b34dfa456468e2d2a832e00c3feb4`.
+[Native authoring record](../../../development/windows-installer-native-authoring-20261115.md)
+records CMake/CPack4.4.2, WiX5.0.2, actual MSI table evidence, explicit ICE105
+and the original-source WIX0091 negative control. The production settings
+compile with an inert payload after removing duplicate properties; AC2 remains
+pending for the complete application MSI and installed-product course.
+
+No product graph, install, owner desktop, signing, publication, cohort or station
+takeover ran. Existing native station/WSL processes and Claude's feature work
+are preserved. The composition tripwire remains a separate feature/common-
+candidate prerequisite. External continuation:
+`/Users/jaeger/.codex/release-preparation/v0.5.0-20261115/windows-installer-native`.
+No human review candidate is prepared from an inert executable.

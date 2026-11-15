@@ -306,10 +306,14 @@ silent fresh install use `ALLUSERS=2 MSIINSTALLPERUSER=1` (Just me) or
 template to WiX `perUserOrMachine`; unexpected template changes refuse
 configuration. The stable InstallDir dialogs follow the scope choice.
 The package supplies its own context-aware Start menu component because
-CPack's generated shortcut marker is hard-coded HKCU. Native compilation,
-ICE105/table validation, standard-user Everyone with different administrator
-credentials, both same-scope upgrade routes, custom-path repair and removal
-remain pending for this amended candidate; source checks do not prove them.
+CPack's generated shortcut marker is hard-coded HKCU. CPack already declares
+secure `INSTALL_ROOT`, and WiX's dual scope supplies `MSIINSTALLPERUSER`;
+the patch must not redeclare them. The [native authoring check](windows-installer-native-authoring-20261115.md)
+compiles these production settings with an inert payload and passes ICE105/table
+checks on Windows. Final application MSI validation, standard-user Everyone
+with different administrator credentials, both same-scope upgrade routes,
+custom-path repair and removal remain pending; the authoring fixture does not
+prove installed-product behavior.
 CPack supplies the normal installed-location metadata. Use native backslash
 paths with `msiexec`: a forward-slash command was refused before installation.
 

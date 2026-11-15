@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["windows"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-1788--BPR-1788--bd4960d1d771.json", "kind": "feature", "found_by": "owner chat, 2026-10-27", "related_rfcs": ["RFC-BPR-0014"], "milestone_plan": {"id": "release-preparation-20261115", "path": "docs/rfcs/plans/release-preparation-20261115/milestone-plan.json"}, "prior_scope_acceptance": [{"criterion": "AC1", "outcome": "pass", "revision": "db73e634db9d43b9995ffac1b3b5e4f5140e6cbc", "evidence": {"kind": "command", "detail": "tests/scripts/package_runtime_tests.py (31 tests OK): perMachine scope, ProgramFiles64Folder, install directory BetterPullReview, no LocalAppDataFolder; the remembered directory is read and written under the same HKLM key; the HKCU per-user search and its launch condition are present."}}, {"criterion": "AC2", "outcome": "pending", "revision": "db73e634db9d43b9995ffac1b3b5e4f5140e6cbc", "evidence": {"kind": "command", "detail": "Not run: a native Windows MSI build (windows-app-release, package.py --generator WIX) and install as an ordinary user with UAC approval, landing in C:\\Program Files\\BetterPullReview, plus the refusal with an old per-user copy present. No Windows build host was reachable from this session."}}], "mandate_revision": "release-prep-20261115-r2"}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "b1c20df1cf97d517e99e2bfc5352d558d4bc475a", "evidence": {"kind": "command", "detail": "Exact committed source: package_runtime_tests.py 34 tests OK (1 Linux-only skip); native_release_tests.py NativeReleaseTests 23 tests OK; actual CPack template adaptation and changed-template refusal, authored pre-cost choice, context-aware registry/shortcut/upgrade search; production driver fixture accepts legacy/dual prior MSI, refuses invalid prior and everyone-only/missing-default new MSI, preserves exact floor binding. verify_documentation.py DOCUMENTATION_OK. These are source/fixture checks, not native MSI compilation or installation."}}, {"criterion": "AC2", "outcome": "pending", "revision": "b1c20df1cf97d517e99e2bfc5352d558d4bc475a", "evidence": {"kind": "observation", "detail": "Not run: native WiX5.0.2 compilation/ICE105, MSI table inspection, both ordinary-user install routes, UAC with different admin credentials, old same-scope upgrades, repair/custom directory and removal. No native installer candidate or human acceptance is claimed."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "b1c20df1cf97d517e99e2bfc5352d558d4bc475a", "evidence": {"kind": "command", "detail": "Exact committed source: package_runtime_tests.py 34 tests OK (1 Linux-only skip); native_release_tests.py NativeReleaseTests 23 tests OK; actual CPack template adaptation and changed-template refusal, authored pre-cost choice, context-aware registry/shortcut/upgrade search; production driver fixture accepts legacy/dual prior MSI, refuses invalid prior and everyone-only/missing-default new MSI, preserves exact floor binding. verify_documentation.py DOCUMENTATION_OK. These are source/fixture checks, not native MSI compilation or installation."}}, {"criterion": "AC2", "outcome": "pending", "revision": "bf995128013b34dfa456468e2d2a832e00c3feb4", "evidence": {"kind": "observation", "detail": "Partial native authoring evidence: CMake/CPack4.4.2 and WiX5.0.2 compile production Windows settings/patch with inert payload; explicit ICE105 and MSI table assertions pass. Original duplicate INSTALL_ROOT/MSIINSTALLPERUSER declarations fail WIX0091 under the same native regression. Actual application MSI, both ordinary-user install routes, UAC with different admin credentials, installing-user HKCU, old same-scope upgrades, repair/custom directory and removal remain unrun. No full AC2 acceptance."}}]
 ---
 
 # BPR-1788: The Windows installer offers Just me or Everyone
@@ -72,8 +72,9 @@ location; only macOS has an update helper.
 
 - Previous source-only acceptance evidence in metadata.prior_scope_acceptance describes the October
   everyone-only implementation. It is historical and does not accept this
-  amendment. No native MSI build, ICE validation, UAC interaction or install
-  has yet run for the dual-context candidate.
+  amendment. The [native authoring fixture](../../development/windows-installer-native-authoring-20261115.md)
+  now compiles and passes ICE105 with the production settings. No final
+  application MSI, UAC interaction or product install has run for this candidate.
 
 ## Verification and execution record
 
@@ -82,3 +83,9 @@ Source milestone `installer-choice-source` completed at
 native acceptance. [Handoff](../_checkpoints/BPR-1788/handoff.md) retains the
 exact source, evidence, helper limitations and next eligible work. The
 frontend-design desktop skill was loaded for the native scope dialog.
+
+Native authoring correction `bf995128013b34dfa456468e2d2a832e00c3feb4` removes the two duplicate
+property declarations found by the actual Windows compiler. The maintained
+regression and the original-source negative control both ran natively. This
+partial evidence leaves AC2 pending for the real application package and
+ordinary-user installation course.
