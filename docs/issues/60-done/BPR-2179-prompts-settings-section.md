@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2179"
 title: "Prompts as a settings section of its own, where editing a quick ask is obvious"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2163"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-2179--BPR-2179--371a8a5edb5b.json", "origin": "owner look ask-v002 (session 7268b4da), 2026-11-14, BPR-2163-quick-ask-editor rejected"}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"970ec071c","evidence":{"kind":"command","detail":"qt_prompts_page, qt_settings_window, core_prompt_surfaces; owner Accept BPR-2179-one-page (look prompts-v001)"}},{"criterion":"AC02","outcome":"pass","revision":"970ec071c","evidence":{"kind":"command","detail":"application_ask_menu_public_path, application_prompt_macros_public_path; owner Accept BPR-2179-edit-obvious (look prompts-v001)"}},{"criterion":"AC03","outcome":"pass","revision":"970ec071c","evidence":{"kind":"command","detail":"owner Accept of every item across looks prompts-v001 to v004, last BPR-2179-choice-styling and BPR-2179-hide-or-disable (prompts-v004)"}}]
 ---
 
 # BPR-2179: Prompts as a settings section of its own
@@ -17,7 +18,7 @@ The owner, rejecting `BPR-2163-quick-ask-editor` in look ask-v002
 
 > It's not really clear that you can open and edit these. I feel like we can do better on the UX design. I also think we should split agents and prompts into separate settings sections.
 
-[BPR-2163](../60-done/BPR-2163-quick-asks-and-their-scopes.md) is Done (its
+[BPR-2163](BPR-2163-quick-asks-and-their-scopes.md) is Done (its
 core, store and sheet stand; Done is terminal), so the rework is this card.
 The coordinator asked for BPR-2163 to reopen; a Done card does not move, so
 this follow-up carries the work instead.
@@ -321,3 +322,28 @@ words alone.
 ### Look prompts-v004
 
 Look `prompts-v004` filed (2026-11-14): session `8a2a32701c0cb2bdeed967bb7585124e`, state `/Users/jaeger/.attended-review-state/prompts-v004-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v004.mooeae56` from `7d17b1122` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2151-queue-one-line`, `BPR-2151-queue-steer`, `BPR-2151-one-stop-all`, `BPR-2179-choice-styling`, `BPR-2179-hide-or-disable`.
+
+### Look prompts-v004 handed back (owner, 2026-11-14)
+
+Accepted: `BPR-2179-choice-styling`, `BPR-2179-hide-or-disable` (and, on
+BPR-2151, the queue's three).
+
+## Closeout (2026-11-14)
+
+- **AC01** (Prompts its own Settings section, every prompt with where it
+  appears, in the chosen layout): accepted `BPR-2179-one-page` (prompts-v001);
+  the layout the owner settled across v002 to v004.
+- **AC02** (a visible way to edit, no hover or double-click; Ask › Edit Quick
+  Asks… opens it): accepted `BPR-2179-edit-obvious` (prompts-v001);
+  `application_ask_menu_public_path` and `application_prompt_macros_public_path`.
+- **AC03** (the owner accepts the built section): prompts-v001 accepted
+  one-page, edit-obvious, placing, repository, system-prompts and
+  agent-tab-chips; the conditions, rejected in v001 to v003, were accepted in
+  v004 as `BPR-2179-choice-styling` and `BPR-2179-hide-or-disable`.
+
+Evidence: `core_prompt_surfaces`, `core_prompt_macro`, `core_quick_ask`,
+`sqlite_agent_setup_storage`, `qt_prompts_page`, `qt_settings_window`,
+`qt_feedback_label_settings`, `qt_prompt_macro_chips`,
+`application_prompt_macros_public_path`, `application_ask_queue_public_path`,
+`qt_drawer_surfaces_fit_scale_100`. Frozen looks prompts-v001 to v004 (session
+IDs above).

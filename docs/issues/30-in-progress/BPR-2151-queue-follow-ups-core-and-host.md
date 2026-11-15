@@ -160,3 +160,30 @@ named Stop all, the same with one turn running, several, or only messages
 waiting.
 
 Look `prompts-v004` filed (2026-11-14): session `8a2a32701c0cb2bdeed967bb7585124e`, state `/Users/jaeger/.attended-review-state/prompts-v004-2026-11-14/state` (URL in `serve.log` beside it), cursor 15; root `/Users/jaeger/prompts-v004.mooeae56` from `7d17b1122` (tests-on, Fixture agent, `--attended-prompt-examples`; its check answered all 17 asks). Five questions: `BPR-2151-queue-one-line`, `BPR-2151-queue-steer`, `BPR-2151-one-stop-all`, `BPR-2179-choice-styling`, `BPR-2179-hide-or-disable`.
+
+## Look prompts-v004 handed back (owner, 2026-11-14)
+
+Accepted: `BPR-2151-queue-steer`, `BPR-2151-one-stop-all`.
+
+Accepted with a note, `BPR-2151-queue-one-line`, verbatim: "I feel like
+there's a bit of wasted space around these icons we could claw back for more
+message width. Also I like your steer icon I don't think we need the word.
+Just add tooltips for each of the icons. Otherwise looks good." Applied with
+no new look (the item is accepted): the pencil, Steer and trash are icons
+alone, 22 points, with no gap between them, each with a short tooltip (Edit;
+Steer: send it into the running turn instead of waiting; Remove from the
+queue) and its message in its accessible name; Sending keeps a small gap.
+`qt_drawer_surfaces_fit_scale_100/125/200` now also checks that each of the
+three is an icon with a tooltip no wider than 24 points;
+`application_ask_queue_public_path` passes.
+
+Accepted so far on this card's user-facing part: the pending list (look,
+borders, one line, drag, pencil, trash, Steer that goes next), the edit hold,
+Follow-up behaviour, one Stop all, and the fixture agent's slow ask.
+
+Not closed: AC03's tour proposal ("with the preceding tour proposal
+represented correctly") and AC04's "every window showing a session shows and
+edits its one queue" across windows (the queue host is still one a window,
+keyed by session) have no evidence yet, and AC02 to AC04 have not been
+evidenced as a set. Native steering stays BPR-2153's (not in this card's
+acceptance). The card stays In Progress for those.
