@@ -94,6 +94,31 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
     `-32600 expected active turn id ... but found ...`; the matching one was
     answered `{"turnId": ...}` and the input appeared as a `userMessage` item
     with `clientId` in the same turn. Cost $0.00.
+- AC05 installed-agent probes, 2026-11-14 (owner approved in chat, "Yes,
+  cap $0.50"; the installed CLIs on the owner's own sign-ins, nothing in
+  `~/.claude` or `~/.codex` read or written by the probe, a scratch working
+  directory holding `a.txt`, `b.txt`, `c.txt`; the task read them with one
+  tool call each):
+  - Claude Code 2.1.319, `-p`, `--model haiku` (`claude-haiku-5-5`),
+    `--setting-sources user`, `--no-session-persistence`,
+    `--strict-mcp-config` with an empty MCP config, stream JSON in and out.
+    The correction (UUID `b5ee7e00-…`, `priority:"next"`) was written as the
+    first `Read` tool call arrived; Claude read a.txt, then b.txt and c.txt,
+    and answered "The three words are apple, banana, and cherry. STEERED".
+    One result: `user_message_uuids` named the first input and the
+    correction, `queued_turn_count: 0`, `num_turns: 4`. Cost from the
+    result: **$0.0033** (`total_cost_usd` 0.00333895).
+  - Codex CLI 0.167.0 `app-server`, `gpt-5.6-luna` (the model list's "older
+    fast and efficient" model), effort low, `thread/start` with
+    `ephemeral: true`, read-only sandbox, no MCP servers. `turn/steer` was
+    sent as the first `cat` started; the reply `{"turnId": …}` named the
+    running turn; the correction appeared as a `userMessage` item with its
+    `clientId` after the second `cat`, in the same turn; the answer ended
+    "STEERED"; one `turn/completed`. Codex reports tokens, not dollars
+    (ChatGPT Pro sign-in): 88,921 input (74,368 cached) and 462 output
+    tokens; no dollar figure is invented.
+  - Total reported spend: $0.0033 of the $0.50 cap. The settle logic needed
+    no change; `application_agent_protocol_loop` replays both sequences.
 - Tests: `core_agent_steering`, `application_agent_protocol_loop` (Claude
   same-turn, successor turn, unknown and retire, unqualified, other run;
   App Server accepted, refused, other turn, unanswered),
@@ -108,8 +133,6 @@ Owner questions: Q3, Q14, Q15, Q17, Q18.
   the message to the front and says Steer is unavailable): blocked on
   BPR-2151's moving files; a minimal separate commit once the coordinator
   rebases this branch or releases those files.
-- AC05 installed-agent acceptance: a paid, capped probe of a mid-turn
-  correction on the installed Claude Code and Codex App Server. A scratch
-  home holds no sign-in, and the owner's real `~/.claude` and `~/.codex` are
-  off limits, so it needs the owner to sign in a scratch home (or allow a
-  named credential) before it can run.
+- AC05 through BPR itself: the probes above drove the CLIs directly; the
+  same correction from the Steer button through the app is proved by the
+  wiring commit's course once it lands.
