@@ -71,9 +71,7 @@ namespace {
 		launch->Path               = core::agent_run_path::agent_tab;
 		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_SLOW_STEP_MS", "60");
 		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_PAUSE_MS", "1");
-		if (aSteerable) {
-			launch->Environment.emplace_back("BPR_FIXTURE_AGENT_STEERABLE", "1");
-		}
+		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_STEERABLE", aSteerable ? "1" : "0");
 		auto launcher = adapters::agent::agent_process_launcher{ };
 		auto result   = application::agent_run_result{ };
 		auto runner   = std::thread{ [&launcher, &launch, &result] { result = launcher.run(*launch, 60000); } };

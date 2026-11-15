@@ -1,5 +1,7 @@
 #include "bpr/application/agent_session_runner.hpp"
 
+#include "bpr/application/agent_runtime_steer.hpp"
+
 #include <utility>
 
 namespace bpr::application {
@@ -103,7 +105,8 @@ namespace bpr::application {
 				return runtime.Steer(aSession, aEntry);
 			}
 		}
-		// [[BPR-2153]] fills this in: no agent steers a running turn yet.
-		return std::string{ "Steer isn't available for this agent yet, so the message goes next, right after this answer." };
+		// [[BPR-2153]]. No runtime runs a turn of the session: there is
+		// nothing to steer, so the message goes next.
+		return agent_steer_goes_next_words(core::agent_steer_support::not_running);
 	}
 } // namespace bpr::application

@@ -5501,6 +5501,28 @@ bpr_add_network_isolated_test(NAME application_ask_report_public_path
     COMMAND test_ask_menu_public_path report "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_report_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-report:pass")
+# [[BPR-2153]], RFC-BPR-0126 AC05. Steer through the window on the session
+# queue host: a follow-up steered into the steerable fixture agent's running
+# turn, and a queued message's Steer on an agent that can't be steered.
+bpr_add_executable(test_agent_steer_public_path agent_steer_public_path.cpp)
+target_link_libraries(test_agent_steer_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_agent_steer_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_agent_steer_public_path)
+bpr_enable_warnings(test_agent_steer_public_path)
+add_dependencies(test_agent_steer_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    foreach(bpr_steer_mode sent unavailable)
+        bpr_add_network_isolated_test(NAME application_agent_steer_${bpr_steer_mode}_public_path
+            WINDOWS_UNCONTAINED
+            COMMAND test_agent_steer_public_path "${CMAKE_BINARY_DIR}/fixture-agent" ${bpr_steer_mode})
+        set_tests_properties(application_agent_steer_${bpr_steer_mode}_public_path PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "agent-steer-${bpr_steer_mode}:pass")
+    endforeach()
+    # The sent course waits on the fixture session: its Agent tab runs on the
+    # built-in Claude profile with no agent entry, so no turn keeps a native
+    # session and none can be steered (BPR-2153, reported 2026-11-15).
+    set_tests_properties(application_agent_steer_sent_public_path PROPERTIES DISABLED TRUE)
+endif()
 # [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on build runs
 # the fixture agent and can never start a real one.
 bpr_add_executable(test_fixture_agent_guard_public_path fixture_agent_guard_public_path.cpp)

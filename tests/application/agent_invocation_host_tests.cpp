@@ -2,6 +2,8 @@
 /// \brief Focused legality, effect-ordering, stale-result, and cleanup proofs.
 
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/application/agent_queue_host.hpp"
+#include "bpr/application/agent_runtime_steer.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
 
 #include "../support/scratch_directory.hpp"
@@ -365,7 +367,7 @@ namespace {
 		{
 			Steered.push_back(std::move(aRequest));
 			if (aAnswer) {
-				aAnswer({ .Identity = "steer-identity", .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available });
+				aAnswer(SteerAnswer);
 			}
 		}
 
@@ -377,6 +379,7 @@ namespace {
 			return SteerSupport;
 		}
 		core::agent_steer_support                             SteerSupport = core::agent_steer_support::available;
+		application::agent_steer_receipt                      SteerAnswer  = { .Identity = "steer-identity", .Disposition = core::agent_steer_disposition::sent, .Support = core::agent_steer_support::available };
 		core::agent_steer_tally                               Steers;
 		mutable std::vector<application::agent_steer_request> SupportAsked;
 		std::vector<application::agent_steer_request>         Steered;
@@ -2331,6 +2334,59 @@ namespace {
 			   "a driver with no steering channel keeps Queue and says why, and its port is not even asked");
 	}
 
+	/// [[BPR-2153]]. An agent runtime's Steer on the session queue host: a
+	/// message handed to the shown run leaves the queue; one the connection
+	/// later finds it cannot write comes back first in line, with why; one
+	/// the shown run can't take goes next with the words.
+	void a_runtime_steer_hands_off_or_gives_the_message_back()
+	{
+		for (const auto late : { false, true }) {
+			auto test                 = harness{ };
+			auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+			input.NativeAgentIdentity = "agent-a";
+			input.NativeScope         = "agent-tab";
+			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+			test.settle();
+			auto queue    = application::agent_queue_host{ { } };
+			auto shown    = std::optional<application::agent_invocation_projection_identity>{ };
+			auto returned = std::vector<std::string>{ };
+			auto steer    = application::agent_runtime_steer({
+				.Runs     = [&test] { return &test.Host; },
+				.Queue    = &queue,
+				.Shown    = [&shown] { return shown; },
+				.Returned = [&returned](const std::string&, const std::string& aWhy) { returned.push_back(aWhy); },
+			});
+			auto answers  = std::vector<std::optional<std::string>>{ };
+			expect(queue.enqueue("s", core::queued_input{ .Scope = "message", .Label = "first", .Text = "Look at b.cpp instead" }) == core::queue_refusal::none
+					   && queue.enqueue("s", core::queued_input{ .Scope = "message", .Label = "other", .Text = "Then the tests" }) == core::queue_refusal::none,
+				   "two messages wait");
+			const auto first = queue.queue("s")->Entries.front();
+			answers.push_back(steer("s", first));
+			if (late) {
+				test.Processes.SteerAnswer = { .Disposition = core::agent_steer_disposition::unsent, .Support = core::agent_steer_support::not_running };
+			}
+			test.Processes.AfterStart = [&] {
+				shown = test.Projection.AdmittedIdentities.back();
+				answers.push_back(steer("s", first));
+				answers.push_back(steer("s", core::queued_entry{ .Id = 99U, .Input = core::queued_input{ .QuickAsk = "explain" } }));
+			};
+			test.Host.dispatch(input);
+			test.settle();
+			expect(answers.size() == 3U && answers[0] && answers[0]->starts_with(core::agent_steer_unavailable_words(core::agent_steer_support::not_running)) && answers[0]->ends_with("The message goes next, right after this answer."),
+				   "with no run shown, the words say why and that it goes next");
+			expect(!answers[1], "the shown run takes it: none, so the host removes it");
+			expect(answers[2] && answers[2]->starts_with("A quick ask is written when it is sent"), "a quick ask can't steer");
+			expect(test.Processes.Steered.size() == 1U && test.Processes.Steered.front().Text == "Look at b.cpp instead", "only the typed message reached the turn, once");
+			if (late) {
+				const auto& entries = queue.queue("s")->Entries;
+				expect(returned.size() == 1U && returned.front().starts_with(core::agent_steer_unavailable_words(core::agent_steer_support::not_running)), "an unsent hand-off says why");
+				expect(entries.size() == 3U && entries.front().Input.Text == "Look at b.cpp instead", "and the message is back, first in line, never lost");
+			} else {
+				expect(returned.empty() && queue.queue("s")->Entries.size() == 2U, "a sent hand-off gives nothing back (the host removes it)");
+			}
+		}
+	}
+
 	void pr_workspace_is_shared_across_scopes_agents_and_windows()
 	{
 		auto test                 = harness{ };
@@ -2532,6 +2588,7 @@ auto main(const int aCount, char** aArguments) -> int
 	native_workspace_and_identity_survive_window_activation();
 	shared_workspace_identity_isolates_authority_and_source();
 	a_running_native_turn_takes_a_correction_and_others_say_why();
+	a_runtime_steer_hands_off_or_gives_the_message_back();
 	pr_workspace_is_shared_across_scopes_agents_and_windows();
 	continued_turn_launches_with_the_reattached_guard();
 	native_storage_failures_remain_private();

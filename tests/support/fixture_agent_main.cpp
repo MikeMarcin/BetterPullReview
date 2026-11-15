@@ -12,7 +12,11 @@
 //
 // Scripting: `BPR_FIXTURE_AGENT_FAIL=crash|usage-limit` in its environment,
 // or `FIXTURE_CRASH` / `FIXTURE_USAGE_LIMIT` in the question. Pauses:
-// `BPR_FIXTURE_AGENT_PAUSE_MS` (default 350), 0 for none.
+// `BPR_FIXTURE_AGENT_PAUSE_MS` (default 350), 0 for none. As `claude` it keeps
+// its connection and can be steered ([[BPR-2153]]);
+// `BPR_FIXTURE_AGENT_STEERABLE=0` makes it the one-shot agent with no version,
+// and `FIXTURE_UNVERSIONED` in a question makes that turn name no version
+// (an agent BPR can't steer, reachable through the app).
 
 #include <algorithm>
 #include <array>
@@ -389,19 +393,25 @@ namespace {
 		return value;
 	}
 
-	/// [[BPR-2153]], RFC-BPR-0126 Q14 (`BPR_FIXTURE_AGENT_STEERABLE=1`). Claude
-	/// Code 2.1.319 as a kept stream-JSON connection observed it: it reports
-	/// its version, answers each user message as a turn, takes a correction
-	/// written while it works (a UUID-bearing user message, priority `next`)
-	/// after its current tool call, and names every input a result answered
-	/// in `user_message_uuids`. Its answer says what it was steered with.
+	/// A stream-JSON user message, written compactly or not.
+	auto user_line(const std::string& aLine) -> bool { return holds(aLine, "\"type\":\"user\"") || holds(aLine, "\"type\": \"user\""); }
+
+	/// [[BPR-2153]], RFC-BPR-0126 Q14. Claude Code 2.1.319 as a kept
+	/// stream-JSON connection was observed to behave (the default as
+	/// `claude`; `BPR_FIXTURE_AGENT_STEERABLE=0` restores the one-shot agent
+	/// that reports no version): it reports its version, answers each user
+	/// message as a turn, takes a correction written while it works (a
+	/// UUID-bearing user message, priority `next`) after its current tool
+	/// call, and names every input a result answered in `user_message_uuids`.
+	/// Its answer says what it was steered with. A scripted failure ends the
+	/// process at once, as a crashed or limited Claude does.
 	auto serve_steerable_claude(const std::string& aArguments, const std::vector<std::string>& aTools) -> int
 	{
 		auto       input   = input_lines{ };
 		auto       results = 0;
 		const auto reads   = std::ranges::find(aTools, std::string{ "Read" }) != aTools.end();
 		while (auto line = input.wait()) {
-			if (line->find("\"type\":\"user\"") == std::string::npos) {
+			if (!user_line(*line)) {
 				continue;
 			}
 			const auto request = aArguments + *line + '\n';
@@ -413,8 +423,22 @@ namespace {
 			for (const auto& tool : aTools) {
 				listed += (listed.empty() ? "\"" : ",\"") + tool + "\"";
 			}
-			std::cout << R"({"type":"system","subtype":"init","session_id":"fixture-agent","tools":[)" << listed << R"(],"mcp_servers":[],"plugins":[],"model":"fixture","claude_code_version":"2.1.319"})" << '\n'
+			std::cout << R"({"type":"system","subtype":"init","session_id":"fixture-agent","tools":[)" << listed << R"(],"mcp_servers":[],"plugins":[],"model":"fixture")" << (holds(request, "FIXTURE_UNVERSIONED") ? "" : R"(,"claude_code_version":"2.1.319")") << "}" << '\n'
 					  << std::flush;
+			// The reader thread still waits on input, so a scripted failure
+			// leaves without unwinding.
+			if (const auto failure = failure_for(request); failure == "crash") {
+				pause();
+				std::cerr << "fixture agent: stopped before answering (scripted)\n"
+						  << std::flush;
+				std::_Exit(1);
+			} else if (failure == "usage-limit") {
+				pause();
+				std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"limit","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"Claude AI usage limit reached|1893456000"}]},"error":"rate_limit","is_api_error_message":true})" << '\n'
+						  << R"({"type":"result","subtype":"success","is_error":true,"session_id":"fixture-agent","result":"Claude AI usage limit reached|1893456000","total_cost_usd":0})" << '\n'
+						  << std::flush;
+				std::_Exit(1);
+			}
 			auto       steered = std::string{ };
 			const auto steps   = slow(request) ? slow_steps : 1;
 			for (int step = 1; step <= steps; ++step) {
@@ -428,7 +452,7 @@ namespace {
 				}
 				// After the tool call: the corrections written meanwhile.
 				while (auto correction = input.poll()) {
-					if (correction->find("\"type\":\"user\"") == std::string::npos) {
+					if (!user_line(*correction)) {
 						continue;
 					}
 					inputs.push_back(field(*correction, "uuid"));
@@ -515,7 +539,7 @@ auto main(int argc, char** argv) -> int
 		request += argument;
 		request += '\n';
 	}
-	if (!codex && environment("BPR_FIXTURE_AGENT_STEERABLE") == "1") {
+	if (!codex && environment("BPR_FIXTURE_AGENT_STEERABLE") != "0") {
 		return serve_steerable_claude(request, tools_of(arguments));
 	}
 	for (auto line = std::string{ }; std::getline(std::cin, line);) {

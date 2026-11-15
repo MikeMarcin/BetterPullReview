@@ -198,6 +198,9 @@ namespace bpr::qt {
 		/// keeps saying it runs, so the composer can say a send was refused.
 		[[nodiscard]] auto refusal_count() const noexcept -> std::uint64_t { return Refusals; }
 		[[nodiscard]] auto last_refusal() const -> QString { return LastRefusal; }
+		/// \brief [[BPR-2153]]. The run this panel shows as running (the
+		/// identity it was admitted with), for Steer to name; none when idle.
+		[[nodiscard]] auto active_invocation() const -> const std::optional<application::agent_invocation_projection_identity>& { return ActiveInvocation; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
