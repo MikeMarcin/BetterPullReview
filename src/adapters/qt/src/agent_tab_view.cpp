@@ -1,6 +1,8 @@
 #include "bpr/qt/agent_tab_view.hpp"
+
 #include "bpr/core/agent_report.hpp"
 #include "bpr/qt/agent_pending_list.hpp"
+#include "bpr/qt/agent_steered_words.hpp"
 #include "bpr/qt/ask_menu.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
@@ -1994,15 +1996,7 @@ namespace bpr::qt {
 			auto* const bubbleColumn = new QVBoxLayout{ bubble };
 			bubbleColumn->setContentsMargins(10, 6, 10, 6);
 			bubbleColumn->setSpacing(2);
-			const auto after = message.AfterSteps == 0U ? tr("Steered before the agent's first step") : tr("Steered after step %1").arg(message.AfterSteps);
-			auto       state = after;
-			switch (message.Disposition) {
-			case core::agent_steer_disposition::refused:  state = tr("%1. The agent refused it, so it went back to the queue.").arg(after); break;
-			case core::agent_steer_disposition::unknown:  state = tr("%1. The agent may not have taken it.").arg(after); break;
-			case core::agent_steer_disposition::unsent:   state = tr("%1. It was not sent.").arg(after); break;
-			case core::agent_steer_disposition::sent:
-			case core::agent_steer_disposition::consumed: break;
-			}
+			const auto  state = agent_steered_state_words(message);
 			auto* const label = new QLabel{ state, bubble };
 			label->setObjectName(QStringLiteral("agentTurnSteeredState"));
 			label->setForegroundRole(QPalette::PlaceholderText);
@@ -2014,7 +2008,7 @@ namespace bpr::qt {
 			text->setWordWrap(true);
 			text->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			bubbleColumn->addWidget(text);
-			bubble->setAccessibleName(tr("You steered: %1. %2").arg(QString::fromStdString(message.Text), state));
+			bubble->setAccessibleName(agent_steered_accessible_name(message));
 			column->addWidget(bubble);
 		}
 		aTurn.SteeredBox->setVisible(!aTurn.Steered.empty());

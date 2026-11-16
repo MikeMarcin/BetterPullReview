@@ -32,25 +32,10 @@ namespace bpr::application {
 		auto operator<=>(const agent_conversation_key&) const = default;
 	};
 
-	/// \brief [[BPR-2153]], RFC-BPR-0126 AC05 (look steer-v001, owner: "I
-	/// would have expected to see Two show up as something I had sent"). A
-	/// message the reviewer steered into a turn while it ran: their own
-	/// words, where in the answer it went in, and whether the agent took it.
-	struct agent_steered_message
-	{
-		std::string Text;
-		/// Bytes of the turn's answer written before it went in; it is shown
-		/// there, between what came before and what came after.
-		std::size_t At = 0U;
-		/// How many of the agent's own steps (a read, a search, a command,
-		/// an edit, a tool) it had taken: the message went in after that one.
-		std::uint32_t AfterSteps = 0U;
-		/// `consumed` once the agent took it; `sent` while the turn runs;
-		/// `refused` or `unknown` when it never did, or no one can tell.
-		core::agent_steer_disposition Disposition = core::agent_steer_disposition::sent;
-
-		auto operator<=>(const agent_steered_message&) const = default;
-	};
+	/// \brief [[BPR-2153]], RFC-BPR-0126 AC05. A message the reviewer
+	/// steered into a turn; the core's, so every chat shows it alike
+	/// ([[BPR-2154]]: the tour chats and a local draft's discussion).
+	using agent_steered_message = core::agent_steered_message;
 
 	/// \brief One turn of a pull request's conversation, as the Agent tab
 	/// shows it: what was asked, what the agent answered, and how the turn

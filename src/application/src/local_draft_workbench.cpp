@@ -1185,8 +1185,9 @@ namespace bpr::application {
 			// [[BPR-2154]]. A discussion question is numbered: it runs on a
 			// kept connection of that number, so a message can be steered
 			// into it while it works. A fresh run is never kept.
-			const auto number      = fresh ? std::uint64_t{ 0U } : ++AskRuns;
-			Projection.AskingRun   = number;
+			const auto number    = fresh ? std::uint64_t{ 0U } : ++AskRuns;
+			Projection.AskingRun = number;
+			Projection.AskingSteered.clear();
 			Projection.AnsweredRun = 0U;
 			Projection.AnsweredSteers.clear();
 			publish();
@@ -1253,6 +1254,19 @@ namespace bpr::application {
 														.Draft        = view.Draft ? view.Draft->Id.Value : std::string{ },
 														.Run          = number,
 														.Delivery     = question.Delivery };
+					// [[BPR-2154]] (look queue-tour-v002). A message steered
+					// into the question shows on its turn as it goes in, not
+					// once the answer comes.
+					made.Steered = [owner, number](core::agent_steered_message aMessage) {
+						owner->Decisions.post([host = owner, number, message = std::move(aMessage)]() mutable {
+							auto& asking = host->Projection;
+							if (host->Stopped || !asking.Asking || asking.AskingRun != number || asking.AskingSteered.size() >= core::maximum_steers_per_run) {
+								return;
+							}
+							asking.AskingSteered.push_back(std::move(message));
+							host->publish();
+						});
+					};
 					++aSelf.AgentPending;
 					aSelf.AgentLane->post([owner, asked = aSelf.Generation, ordinal, launch = std::move(made), sent = std::move(question), read = std::move(aPrepared.Files),
 										   runner = aSelf.AgentRunner, stop = aSelf.AskStop.get_token()]() mutable {
@@ -1278,7 +1292,8 @@ namespace bpr::application {
 			view.AskingText.clear();
 			// [[BPR-2154]]. Whatever became of the answer, the messages
 			// steered into its run are settled by how the run ended.
-			view.AskingRun      = 0U;
+			view.AskingRun = 0U;
+			view.AskingSteered.clear();
 			view.AnsweredRun    = aRun;
 			view.AnsweredSteers = aAnswer.Steered;
 			const auto action   = std::exchange(PendingAgentAction, std::string{ });
@@ -1326,7 +1341,7 @@ namespace bpr::application {
 					continue;
 				}
 				auto added = core::append_turn(draft, draft.Version, aQuestion.Thread, aQuestion.Agent, aQuestion.AgentName,
-											   core::local_turn{ .Author = true, .Subject = aQuestion.Subject, .Text = steered.Text }, now);
+											   core::local_turn{ .Author = true, .Subject = aQuestion.Subject, .Text = steered.Text, .SteeredAfter = steered.AfterSteps }, now);
 				if (!added) {
 					break;
 				}

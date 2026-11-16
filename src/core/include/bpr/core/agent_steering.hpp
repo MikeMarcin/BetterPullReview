@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::core {
 	/// \brief [[BPR-2153]], RFC-BPR-0126 Q14/Q17. Whether a running turn can
@@ -98,6 +99,34 @@ namespace bpr::core {
 	/// \brief The most corrections one run may hand off, matching the
 	/// queue's sixteen pending inputs (RFC-BPR-0126 Q6).
 	inline constexpr std::uint32_t maximum_steers_per_run = 16U;
+
+	/// \brief [[BPR-2153]], RFC-BPR-0126 AC05 (look steer-v001, owner: "I
+	/// would have expected to see Two show up as something I had sent"). A
+	/// message the reviewer steered into a turn while it ran: their own
+	/// words, where in the answer it went in, and whether the agent took it.
+	/// [[BPR-2154]] (look queue-tour-v002): every chat that steers keeps it
+	/// on its turn as this, from the moment it is written, so it shows at
+	/// once where it went in.
+	struct agent_steered_message
+	{
+		std::string Text;
+		/// Bytes of the turn's answer written before it went in; it is shown
+		/// there, between what came before and what came after.
+		std::size_t At = 0U;
+		/// How many of the agent's own steps (a read, a search, a command,
+		/// an edit, a tool) it had taken: the message went in after that one.
+		std::uint32_t AfterSteps = 0U;
+		/// `consumed` once the agent took it; `sent` while the turn runs;
+		/// `refused` or `unknown` when it never did, or no one can tell.
+		agent_steer_disposition Disposition = agent_steer_disposition::sent;
+
+		auto operator<=>(const agent_steered_message&) const = default;
+	};
+
+	/// \brief [[BPR-2154]]. A turn's steered messages as its run ended: the
+	/// run's corrections, in the order they were written, settle the messages
+	/// in the same order; one the run did not report keeps what it had.
+	void settle_steered_messages(std::vector<agent_steered_message>& aMessages, const std::vector<agent_steer_disposition>& aEndings) noexcept;
 
 	/// \brief A correction's input identity, UUID-shaped as Claude requires.
 	///

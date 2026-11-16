@@ -1131,12 +1131,20 @@ namespace bpr::app {
 						aRun.Progress(activity);
 					}
 				};
+			} else if (aRun.Steered) {
+				// [[BPR-2154]] (look queue-tour-v002). A message steered into
+				// the question is told as it is written, so its turn shows it.
+				sink = [&aRun](const application::agent_stream_event& aEvent) {
+					if (aEvent.Kind == application::agent_stream_kind::steered && aEvent.Steered) {
+						aRun.Steered({ .Text = aEvent.Steered->Text, .AfterSteps = aEvent.Steered->AfterSteps });
+					}
+				};
 			}
 			const auto result = process->run(request, (aRun.Check == application::local_check_mode::run ? 60 : 10) * 60 * 1000, sink, aStop);
 			// [[BPR-2154]]. What was steered into the run, settled by its end.
 			auto steered = std::vector<application::local_draft_steered>{ };
 			for (const auto& input : result.SteeredInputs) {
-				steered.push_back({ .Identity = input.Identity, .Text = input.Text, .Disposition = input.Disposition });
+				steered.push_back({ .Identity = input.Identity, .Text = input.Text, .AfterSteps = input.AfterSteps, .Disposition = input.Disposition });
 			}
 			if (aStop.stop_requested()) {
 				return { .Failure = "Stopped.", .Commands = activity.CommandsRun, .Stopped = true, .Steered = std::move(steered) };
@@ -1357,6 +1365,13 @@ namespace bpr::app {
 			live.Stage = qt::agent_run_stage::writing;
 		}
 		present_tour_live(std::move(live));
+		// [[BPR-2154]] (look queue-tour-v002). A message steered into the
+		// part's running turn is the author's in its chat at once, where it
+		// went in, as the Agent tab shows it.
+		if (aEvent.Kind == application::agent_stream_kind::steered && aEvent.Steered && TourRun
+			&& core::note_tour_steered(TourAgent, *TourRun, { .Text = aEvent.Steered->Text, .AfterSteps = aEvent.Steered->AfterSteps })) {
+			present_tour_session();
+		}
 	}
 
 	void github_application::implementation::present_tour_live(std::optional<qt::agent_run_status> aStatus)
@@ -1494,6 +1509,12 @@ namespace bpr::app {
 				}
 			}
 			static_cast<void>(core::record_tour_activity(TourAgent, *TourRun, application::tour_transcript_of(aResult.ToolActivity, TourWorkspacePath)));
+			// [[BPR-2154]]. Each steered message as the run ended.
+			auto endings = std::vector<core::agent_steer_disposition>{ };
+			for (const auto& input : aResult.SteeredInputs) {
+				endings.push_back(input.Disposition);
+			}
+			static_cast<void>(core::settle_tour_steered(TourAgent, *TourRun, endings));
 			const auto state = aResult.Outcome == application::agent_run_outcome::success ? core::tour_agent_run_state::answered
 				: aResult.Outcome == application::agent_run_outcome::cancelled            ? core::tour_agent_run_state::cancelled
 																						  : core::tour_agent_run_state::failed;
@@ -1640,6 +1661,7 @@ namespace bpr::app {
 				turn.Tools             = core::tour_agent_tools::read_only;
 				turn.Thread            = *thread;
 				turn.Question          = saved.Asked;
+				turn.Steered           = saved.Steered;
 				turn.ConversationScope = key;
 				turn.Conversation      = aView.Selected;
 				if (const auto answer = application::decode_tour_ask_answer(saved.Answered); answer) {

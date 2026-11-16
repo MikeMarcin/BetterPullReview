@@ -294,7 +294,7 @@ namespace bpr::app {
 		const auto& projection = View->projection();
 		auto        asking     = std::optional<core::local_tour_asking>{ };
 		if (projection.Asking) {
-			asking = core::local_tour_asking{ .Thread = projection.AskingThread, .Text = projection.AskingText };
+			asking = core::local_tour_asking{ .Thread = projection.AskingThread, .Text = projection.AskingText, .Steered = projection.AskingSteered };
 		}
 		auto view = core::view_local_tour(*projection.Draft, asking);
 		present_checks(view);
@@ -365,6 +365,12 @@ namespace bpr::app {
 	}
 
 	auto local_draft_desktop::agent_ready() const -> bool { return AgentChooser && AgentChooser().has_value(); }
+
+	auto local_draft_desktop::agent_name() const -> std::string
+	{
+		const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
+		return choice ? choice->Name : std::string{ };
+	}
 
 	// --- RFC-BPR-0120: a check ------------------------------------------------------
 

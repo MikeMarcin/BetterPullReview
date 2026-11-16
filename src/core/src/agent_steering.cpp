@@ -114,4 +114,11 @@ namespace bpr::core {
 		result.Figure = aReported;
 		return result;
 	}
+
+	void settle_steered_messages(std::vector<agent_steered_message>& aMessages, const std::vector<agent_steer_disposition>& aEndings) noexcept
+	{
+		for (std::size_t index = 0U; index < aMessages.size() && index < aEndings.size(); ++index) {
+			aMessages[index].Disposition = aEndings[index];
+		}
+	}
 } // namespace bpr::core

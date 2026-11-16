@@ -525,10 +525,12 @@ namespace bpr::qt {
 		bool                                                            FollowUpSteer = false;
 		bool                                                            Opposite      = false;
 		/// Whether a message typed now is a follow-up, and which.
-		[[nodiscard]] auto                                                    follow_up() const -> std::optional<bool>;
-		void                                                                  show_queue();
-		skill_completer*                                                      SkillCompletion = nullptr;
-		std::vector<QWidget*>                                                 Bubbles;
+		[[nodiscard]] auto    follow_up() const -> std::optional<bool>;
+		void                  show_queue();
+		skill_completer*      SkillCompletion = nullptr;
+		std::vector<QWidget*> Bubbles;
+		/// [[BPR-2154]]. The author's steered messages, after their turn's question.
+		std::vector<QWidget*>                                                 SteeredBubbles;
 		std::vector<markdown_body_view*>                                      Replies;
 		std::vector<agent_run_status_line*>                                   Endings;
 		std::vector<agent_activity_view*>                                     ActivityViews;

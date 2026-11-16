@@ -221,7 +221,7 @@ namespace bpr::core {
 			const auto scope = local_session_scope(id, conversation->Candidate, conversation->Thread, conversation->Agent);
 			for (std::size_t index = 0U; index < conversation->Turns.size(); ++index) {
 				const auto& turn = conversation->Turns[index];
-				if (!turn.Author) {
+				if (!turn.Author || turn.SteeredAfter) {
 					continue;
 				}
 				auto run = tour_agent_run{
@@ -234,8 +234,14 @@ namespace bpr::core {
 					.Question          = turn.Text,
 					.Thread            = local_tour_thread(conversation->Thread),
 				};
-				if (index + 1U < conversation->Turns.size() && !conversation->Turns[index + 1U].Author) {
-					const auto& answer = conversation->Turns[index + 1U];
+				// [[BPR-2154]]. What was steered into it is the author's, on
+				// this turn, before the answer that read it.
+				auto next = index + 1U;
+				for (; next < conversation->Turns.size() && conversation->Turns[next].Author && conversation->Turns[next].SteeredAfter; ++next) {
+					run.Steered.push_back({ .Text = conversation->Turns[next].Text, .AfterSteps = *conversation->Turns[next].SteeredAfter, .Disposition = agent_steer_disposition::consumed });
+				}
+				if (next < conversation->Turns.size() && !conversation->Turns[next].Author) {
+					const auto& answer = conversation->Turns[next];
 					run.State          = tour_agent_run_state::answered;
 					run.Reply          = answer.Text;
 					run.Check          = answer.Check;
@@ -262,6 +268,7 @@ namespace bpr::core {
 				.State    = tour_agent_run_state::running,
 				.Question = aAsking->Text,
 				.Thread   = local_tour_thread(aAsking->Thread),
+				.Steered  = aAsking->Steered,
 			});
 		}
 		if (runs.size() > maximum_tour_agent_runs) {

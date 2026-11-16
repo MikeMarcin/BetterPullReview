@@ -178,6 +178,8 @@ namespace bpr::app {
 		/// \brief [[BPR-2154]]. The last question that ended, by its number,
 		/// and what was steered into it, settled.
 		[[nodiscard]] auto answered_steers() const -> std::pair<std::uint64_t, std::vector<application::local_draft_steered>>;
+		/// \brief [[BPR-2154]]. The chosen agent's name; empty for none.
+		[[nodiscard]] auto agent_name() const -> std::string;
 		/// \brief Whether an agent is chosen for the draft's questions.
 		[[nodiscard]] auto agent_ready() const -> bool;
 		/// \brief Told when a question goes to the agent (`aAsking`) and when

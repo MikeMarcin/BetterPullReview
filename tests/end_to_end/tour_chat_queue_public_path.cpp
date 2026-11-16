@@ -9,14 +9,20 @@
 ///   the whole tour's chat shows none of them (tour parts never share
 ///   inputs). Each goes as its own turn after the one before, in order, once.
 /// - `--whole-tour`: the whole-tour conversation after its first draft: a
-///   follow-up queued, one steered with Cmd+Return (Ctrl+Return off macOS),
-///   Pause queue holding the rest past the running turn's end and Resume queue
+///   follow-up queued, one steered with Cmd+Return (Ctrl+Return off macOS)
+///   that shows in the transcript at once as the author's, while the turn
+///   runs, and stays on that turn ([[BPR-2154]], look queue-tour-v002), Pause
+///   queue holding the rest past the running turn's end and Resume queue
 ///   sending them, in order, once.
 /// - `--local-draft`: a local draft's discussion (Q2) on a real worktree: a
 ///   follow-up typed while its question runs waits in the pending list and
 ///   goes as the draft's next question once that one ended; then one steered
-///   with Cmd+Return into a running whole-tour question lands in that turn
-///   ([[BPR-2154]], look queue-tour-v001's Reject).
+///   with Cmd+Return into a running whole-tour question shows in the
+///   transcript at once and lands in that turn ([[BPR-2154]], looks
+///   queue-tour-v001 and v002).
+///
+/// The session is a Fixture agent session, as an owner's look is: the agent
+/// is a saved entry, so a tour turn runs on a kept native session.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -91,6 +97,8 @@ namespace {
 		auto*      tab   = aWindow.agent_tab();
 		const auto ready = [tab] { return tab->setup_readiness() == qt::agent_setup_readiness::ready; };
 		wait([tab] { return tab->setup_readiness() != qt::agent_setup_readiness::checking; }, "the agent setup looks for agents");
+		// The Fixture agent session saves its entry as it starts.
+		static_cast<void>(e2e::wait_until_plain(ready, std::chrono::milliseconds{ 15000 }));
 		if (!ready()) {
 			aWindow.open_agent_setup();
 			const auto check = [&aWindow] {
@@ -103,11 +111,15 @@ namespace {
 			aWindow.open_agent_question();
 		}
 		auto* const selector = aWindow.agent_panel()->profile_selector();
-		for (const auto claude : { core::claude_stream_json_profile_id, core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U) }) {
-			if (const auto index = selector->findData(QVariant::fromValue<qulonglong>(claude.value())); index >= 0) {
-				selector->setCurrentIndex(index);
-				break;
-			}
+		// The saved Fixture agent entry, as a person's setup saves Claude
+		// Code: a tour turn runs on its kept native session, so it can be
+		// steered; the built-in profile has none.
+		if (const auto index = selector->findText(QStringLiteral("Fixture agent"), Qt::MatchStartsWith); index >= 0) {
+			selector->setCurrentIndex(index);
+			return;
+		}
+		if (const auto index = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())); index >= 0) {
+			selector->setCurrentIndex(index);
 		}
 	}
 
@@ -138,6 +150,31 @@ namespace {
 			}
 		}
 		return labels;
+	}
+
+	/// The steered messages the chat's transcript shows, in order
+	/// ([[BPR-2154]], look queue-tour-v002).
+	[[nodiscard]] auto steered_in(const qt::tour_side_chat& aChat) -> QStringList
+	{
+		auto texts = QStringList{ };
+		for (auto* const label : aChat.findChildren<QLabel*>(QStringLiteral("tourSideChatSteeredText"))) {
+			if (label->isVisibleTo(&aChat)) {
+				texts << label->text();
+			}
+		}
+		return texts;
+	}
+
+	/// The words over each steered message the transcript shows.
+	[[nodiscard]] auto steered_states(const qt::tour_side_chat& aChat) -> QStringList
+	{
+		auto texts = QStringList{ };
+		for (auto* const label : aChat.findChildren<QLabel*>(QStringLiteral("tourSideChatSteeredState"))) {
+			if (label->isVisibleTo(&aChat)) {
+				texts << label->text();
+			}
+		}
+		return texts;
 	}
 
 	/// The shown button `aName` in the card labelled `aLabel`, or in the
@@ -248,8 +285,11 @@ auto main(int argc, char** argv) -> int
 		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
 		options.ClaudeAgentExecutable = agent;
 		options.ClaudeSearch          = search;
-		auto terminal                 = false;
-		desktop                       = access::start_desktop(app::detail::github_public_path_fixture::returning_review_v1, std::move(options), [&](app::profile_desktop_startup_result aResult) {
+		// As an owner's look runs: the Fixture agent is a saved agent entry,
+		// so a tour turn runs on a kept native session and can be steered.
+		options.FixtureAgentSession = true;
+		auto terminal               = false;
+		desktop                     = access::start_desktop(app::detail::github_public_path_fixture::returning_review_v1, std::move(options), [&](app::profile_desktop_startup_result aResult) {
 			terminal = true;
 			if (aResult) {
 				owner = *aResult;
@@ -331,25 +371,47 @@ auto main(int argc, char** argv) -> int
 			type_and_return(*chat, QStringLiteral("Queued for the tour"));
 			wait([&] { return rows_of(*chat).size() == 1; }, "the follow-up waits in the whole tour's pending list");
 			capture(*chat, QStringLiteral("whole-tour-queue"));
+			// The fixture agent has started and said its version: the turn is
+			// under way on its connection, as when a person steers it.
+			auto started = QElapsedTimer{ };
+			started.start();
+			wait([&] { return started.elapsed() > 3000; }, "the question has run a while");
+			expect(running(*panel), "the whole tour's question still runs");
 			// Cmd+Return: the other follow-up, Steer, for this one message.
 			chat->composer()->setPlainText(QStringLiteral("Steered into the tour"));
 			QApplication::processEvents();
 			type_and_return(*chat, QStringLiteral("Steered into the tour"), true);
-			wait([&] { return !rows_of(*chat).contains(QStringLiteral("Steered into the tour")) || !running(*panel); }, "the steered message goes into the running turn or next");
-			const auto steered = !std::ranges::any_of(asked_in(*panel, whole), [](const std::string& aAsked) { return aAsked == "Steered into the tour"; });
+			// [[BPR-2154]] (look queue-tour-v002). Steered, it is the author's
+			// in the transcript at once, while the turn still runs.
+			auto shownWhileRunning = false;
+			wait([&] {
+				shownWhileRunning = shownWhileRunning || (running(*panel) && steered_in(*chat).contains(QStringLiteral("Steered into the tour")));
+				return shownWhileRunning || !running(*panel);
+			},
+				 "the steered message shows in the transcript, or the turn ends");
+			const auto notice = [&] {
+				auto* const label = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
+				return label != nullptr ? label->text().toStdString() : std::string{ };
+			};
+			expect(shownWhileRunning, "a steered message shows in the transcript while its turn runs: " + steered_in(*chat).join(QLatin1Char('|')).toStdString() + "; " + notice());
+			capture(*chat, QStringLiteral("whole-tour-steered"));
 			// Pause queue holds what waits past the running turn's end.
 			expect(press_in(*chat, QStringLiteral("agentQueuePauseResume")), "Pause queue is offered");
 			wait([&] { return !running(*panel); }, "the first turn ends");
 			for (auto settle = 0; settle < 40; ++settle) {
 				QApplication::processEvents();
 			}
+			expect(std::ranges::none_of(asked_in(*panel, whole), [](const std::string& aAsked) { return aAsked == "Steered into the tour"; }), "the steered message is no question of its own");
+			expect(steered_in(*chat) == QStringList{ QStringLiteral("Steered into the tour") } && !steered_states(*chat).join(QLatin1Char('|')).contains(QStringLiteral("may not")),
+				   "the steered message stays in the turn it went into once it ended: " + steered_in(*chat).join(QLatin1Char('|')).toStdString() + " / "
+					   + steered_states(*chat).join(QLatin1Char('|')).toStdString());
 			const auto before = asked_in(*panel, whole).size();
 			expect(rows_of(*chat).contains(QStringLiteral("Queued for the tour")) && !running(*panel), "paused, the follow-up waits: " + joined(asked_in(*panel, whole)));
 			expect(press_in(*chat, QStringLiteral("agentQueuePauseResume")), "Resume queue is offered");
 			wait([&] { return rows_of(*chat).isEmpty() && !running(*panel) && asked_in(*panel, whole).size() > before; }, "resumed, what waited goes: " + joined(asked_in(*panel, whole)));
 			const auto asked = asked_in(*panel, whole);
 			expect(std::ranges::count(asked, std::string{ "Queued for the tour" }) == 1, "the queued follow-up went once: " + joined(asked));
-			std::cout << "tour-chat-queue-whole:" << (steered ? "steered" : "went-next") << ":pass\n";
+			std::cout << "tour-chat-queue-whole:steered:pass\n";
 		} else if (mode == "--local-draft") {
 			expect(argc > 3, "the worktree script is named");
 			const auto root   = std::filesystem::path{ data.path().toStdString() } / "worktree";
@@ -416,6 +478,11 @@ auto main(int argc, char** argv) -> int
 				auto* const label = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
 				return label != nullptr ? label->text() : QString{ };
 			};
+			// [[BPR-2154]] (look queue-tour-v002). It is the author's in the
+			// transcript at once, while the question still runs.
+			wait([&] { return steered_in(*chat).contains(QStringLiteral("Steered into the draft")) || !window->local_draft()->projection().Asking; }, "the steered message shows in the transcript");
+			expect(window->local_draft()->projection().Asking, "the steered message showed while the question still runs");
+			capture(*chat, QStringLiteral("local-draft-steered-transcript"));
 			wait([&] { return notice().contains(QStringLiteral("Steered into the running turn")) || !window->local_draft()->projection().Asking; }, "the steer is answered while the question runs");
 			expect(notice().contains(QStringLiteral("Steered into the running turn")),
 				   "the message was steered: " + notice().toStdString() + " failure " + window->local_draft()->projection().AskFailure);
@@ -435,6 +502,14 @@ auto main(int argc, char** argv) -> int
 				}
 			}
 			expect(reply.find("Took your correction") != std::string::npos, "the agent read it in the running turn: " + reply);
+			// It stays on that turn, which ended answered, and never became a
+			// question of its own.
+			expect(steered_in(*chat) == QStringList{ QStringLiteral("Steered into the draft") }, "the steered message stays in its turn: " + steered_in(*chat).join(QLatin1Char('|')).toStdString());
+			const auto& runs     = panel->session().Runs;
+			const auto  answered = std::ranges::find(runs, std::string{ "Take your time: anything else?" }, &core::tour_agent_run::Question);
+			expect(answered != runs.end() && answered->State == core::tour_agent_run_state::answered && answered->Steered.size() == 1U && answered->Steered.front().Text == "Steered into the draft",
+				   "the turn it went into ended answered, with it");
+			expect(std::ranges::none_of(runs, [](const core::tour_agent_run& aRun) { return aRun.Question == "Steered into the draft"; }), "it is no question of its own");
 			expect(!window->local_draft()->projection().Asking, "nothing went after it as a question of its own");
 			std::cout << "tour-chat-queue-local-draft:pass\n";
 		} else {

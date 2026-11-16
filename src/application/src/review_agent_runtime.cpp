@@ -410,9 +410,11 @@ namespace bpr::application {
 		}
 		if (Turn) {
 			// [[BPR-2153]]. Each steered message as it ended.
-			for (std::size_t index = 0U; index < Turn->Steered.size() && index < aResult.SteeredInputs.size(); ++index) {
-				Turn->Steered[index].Disposition = aResult.SteeredInputs[index].Disposition;
+			auto endings = std::vector<core::agent_steer_disposition>{ };
+			for (const auto& input : aResult.SteeredInputs) {
+				endings.push_back(input.Disposition);
 			}
+			core::settle_steered_messages(Turn->Steered, endings);
 			Turn->Ending  = std::string{ name(aResult.Outcome) };
 			Turn->Outcome = turn_outcome(aResult.Outcome);
 			if (Turn->Answered.empty()) {

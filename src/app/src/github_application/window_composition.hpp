@@ -953,6 +953,10 @@ namespace bpr::app {
 		/// number, for its steered messages' settlement when it ends.
 		std::string   LocalSteerSession;
 		std::uint64_t LocalSteerRun = 0U;
+		/// [[BPR-2154]]. A local draft's discussion question in the footer.
+		void          present_local_question_footer(bool aRunning);
+		bool          LocalQuestionInFooter = false;
+		QElapsedTimer LocalQuestionStarted;
 		/// The tour part or local draft whose queues the tour chat shows.
 		std::string                             ChatQueueOwner;
 		std::map<std::string, std::uint64_t>    ChatQueueSeen;

@@ -234,7 +234,11 @@ namespace bpr::core {
 		std::int64_t                 At = 0;
 		/// RFC-BPR-0120. An answer that is a check's plan card or its report.
 		std::optional<local_check> Check;
-		auto                       operator<=>(const local_turn&) const = default;
+		/// [[BPR-2154]]. An author's message steered into the question
+		/// before it while that ran, after this many of the agent's steps:
+		/// shown on that question's turn, never a question of its own.
+		std::optional<std::uint32_t> SteeredAfter;
+		auto                         operator<=>(const local_turn&) const = default;
 	};
 
 	/// \brief One conversation: one candidate, one thread and one agent entry.

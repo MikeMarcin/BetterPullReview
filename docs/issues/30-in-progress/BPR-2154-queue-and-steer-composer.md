@@ -233,3 +233,67 @@ SHA-256 `2857c9074b93…`). The local draft's worktree is
 `tests/fixtures/local-draft/make_worktree.sh`; outside the root, remove it
 with the root). One Accept/Reject question, `local-draft-steer`: Steer
 (Cmd+Return) into a local draft's running whole-tour question.
+
+### Look queue-tour-v002 handed back (2026-11-16)
+
+Session `3558379118e2910af1907d4aafcf79df`, handed back at sequence 8:
+`local-draft-steer` **Rejected** (decision
+`e2605011-c3eb-4669-85ec-d13e7f7eff7d`): "So it says it sent it but the
+message doesnt show up in the transcript until the turn ended." The attached
+image is a local draft's whole-tour chat while the turn runs: "test" in the
+pending list as Sent to agent, the status bar saying "Steered into the
+running turn", and nothing in the transcript after the question. Host
+(58701/58709) stopped; root `/Users/jaeger/queue-tour-v002.u3mku38k` removed
+with `freeze_attended_build.py remove`; the draft's folder
+`/Users/jaeger/queue-tour-v002-draft` removed.
+
+Owner, through the coordinator: "I'm surprised it's this hard to get parity
+with the agent tab." Parity by sharing, not re-implementing.
+
+### Parity with the Agent tab (2026-11-16, after the Reject)
+
+frontend-design was loaded for this round's Qt work. Each row is what the
+Agent tab does (looks prompts-v001 to v004, queue-sent-v001, steer-v002) and
+what each other chat now does, through the same code.
+
+| | Agent tab | Tour part (stop, Problem, Solution) | Whole tour | Local draft discussion |
+|---|---|---|---|---|
+| Queue (Send reads Queue, Return queues, pending list with Edit, Remove, reorder, Pause and Resume queue) | yes | yes, `qt::agent_pending_list` | yes, same; feedback during the first draft keeps BPR-2181 AC11's path | yes, same |
+| Steer (Cmd+Return, Steer on a card; says why when it can't) | yes | yes, the tour run's kept connection | yes, same | yes, the question's kept connection (b0bbe187d); a first description draft is a fresh run and says it can't |
+| Sent to agent in the pending list until the run settles it | yes | yes, same queue state and list | yes | yes |
+| Steered message in the transcript at once, as the author's, after the question, "Steered after step N" | yes | **was missing, fixed**: never shown, even after the turn | **was missing, fixed** | **was missing, fixed**: shown only when the turn ended, as a question of its own that left the real question looking unanswered |
+| After the turn, and after reopening | kept with the turn (native history) | kept on the turn; restored from native history (`Steered` now copied) | same | kept in the draft as the author's turn marked steered (`SteeredAfter`), shown on its question's turn |
+| Delivery unknown | Delivery unknown with Discard; the transcript says "The agent may not have taken it." | same list; same words (`qt::agent_steered_state_words`) | same | same |
+| Stop, and Stop all in the footer | yes | yes; the tour run is in the footer's Tour chat slot | yes | **was missing, fixed**: a discussion question was not in the footer, so Stop all paused its queue but left it running; it now stands in the Tour chat slot with Stop, and the chat's running line names the agent |
+
+Shared now: `core::agent_steered_message` (the Agent tab's type, moved from
+the application layer), `core::settle_steered_messages` (the Agent tab's
+runtime and the tour chats settle by it), `core::tour_agent_run::Steered`
+(`note_tour_steered`, `settle_tour_steered`), and the Agent tab's words in
+`qt::agent_steered_state_words` / `agent_steered_accessible_name`. Each chat
+draws the message in its own author bubble (the tour chat's right-aligned
+bubble, the Agent tab's question field), so it reads as the author's turn in
+that chat.
+
+Remaining intentional differences: the whole tour's feedback during its
+first draft (BPR-2181 AC11), and a local draft's first description draft,
+which runs fresh and can't be steered.
+
+Courses (pass): `application_tour_chat_queue_whole_tour_public_path` now
+runs as a Fixture agent session (the agent a saved entry, as in a look; on
+the built-in profile a tour turn has no kept session and never steered, so
+the course had been passing on "went next"), waits until the turn is under
+way, steers, and asserts the message is in the transcript while the turn
+still runs and stays on that turn, settled, once it ended;
+`application_tour_chat_queue_local_draft_public_path` asserts the same for
+a local draft's question, and that the question it went into ended answered
+with it, never a question of its own. Core: `core_tour_agent_session`
+(`steered`), `core_local_draft_tour` (`test_steered_turns`: running, ended,
+restart). Also passing: `application_tour_chat_queue_stop_public_path`,
+`application_agent_steer_{sent,unavailable}_public_path`,
+`qt_agent_steering_fixture`, `application_agent_protocol_loop`,
+`application_agent_queue_handoff`, `core_agent_steering`, `core_agent_queue`,
+`local_draft`, `application_local_draft_{,author_,tour_,check_}desktop_public_path`,
+`architecture_boundaries`, resealed
+`application_review_round_trip_composition_contract`, the documentation
+gate, and the full dev build.

@@ -220,14 +220,19 @@ namespace bpr::application {
 		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
 		/// What the run does as it does it, on the agent lane.
 		std::function<void(const core::agent_turn_activity&)> Progress;
+		/// [[BPR-2154]]. A message steered into the run as it is written, on
+		/// the agent lane.
+		std::function<void(core::agent_steered_message)> Steered;
 	};
 	/// \brief [[BPR-2154]], RFC-BPR-0126 AC05. A message steered into a
 	/// discussion question while it ran: its input identity, the author's
 	/// words, and how the run's end settled it.
 	struct local_draft_steered
 	{
-		std::string                   Identity;
-		std::string                   Text;
+		std::string Identity;
+		std::string Text;
+		/// How many of the agent's steps came before it.
+		std::uint32_t                 AfterSteps                                    = 0U;
 		core::agent_steer_disposition Disposition                                   = core::agent_steer_disposition::unknown;
 		auto                          operator<=>(const local_draft_steered&) const = default;
 	};
@@ -430,6 +435,9 @@ namespace bpr::application {
 		/// number (`local_draft_agent_run::Run`); zero for none, a check or
 		/// an action.
 		std::uint64_t AskingRun = 0;
+		/// [[BPR-2154]] (look queue-tour-v002). What was steered into it so
+		/// far, in order, as each was written.
+		std::vector<core::agent_steered_message> AskingSteered;
 		/// [[BPR-2154]]. The last discussion question that ended, by its
 		/// number, and the messages steered into it, settled.
 		std::uint64_t                    AnsweredRun = 0;

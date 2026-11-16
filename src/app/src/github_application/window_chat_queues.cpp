@@ -93,8 +93,10 @@ namespace bpr::app {
 					const auto asking = DraftDesktop->asking_question();
 					LocalSteerSession = asking ? chat_queue_key(asking->first) : std::string{ };
 					LocalSteerRun     = asking ? asking->second : 0U;
+					present_local_question_footer(asking.has_value());
 					return;
 				}
+				present_local_question_footer(false);
 				settle_local_draft_steers();
 				const auto sending = core::parse_session_key(ChatQueueSending);
 				if (sending && sending->Kind == core::queued_session_kind::local_draft_discussion) {
@@ -107,6 +109,41 @@ namespace bpr::app {
 			DraftDesktop->set_tour_observer([this] { present_chat_queues(); });
 		}
 		present_chat_queues();
+	}
+
+	/// [[BPR-2154]], RFC-BPR-0126 AC09. A local draft's discussion question
+	/// stands in the footer's Tour chat slot while it runs, as a pull
+	/// request's tour chat turn does: Stop all stops it too.
+	void github_application::implementation::present_local_question_footer(const bool aRunning)
+	{
+		auto* const footer = Window != nullptr ? Window->agent_footer_widget() : nullptr;
+		if (footer == nullptr || (!aRunning && !std::exchange(LocalQuestionInFooter, false))) {
+			return;
+		}
+		if (!aRunning) {
+			footer->present_run(qt::agent_footer_place::tour_chat, std::nullopt);
+			if (Window->tour_editor() != nullptr) {
+				Window->tour_editor()->present_run_status(std::nullopt);
+			}
+			return;
+		}
+		LocalQuestionInFooter = true;
+		LocalQuestionStarted.start();
+		auto status  = qt::agent_run_status{ };
+		status.Agent = DraftDesktop ? QString::fromStdString(DraftDesktop->agent_name()) : QString{ };
+		if (status.Agent.isEmpty()) {
+			status.Agent = QStringLiteral("The tour agent");
+		}
+		status.ActivityStartedMs = qt::agent_activity_clock_ms();
+		// The chat's running line names the agent, as a pull request's does.
+		if (Window->tour_editor() != nullptr) {
+			Window->tour_editor()->present_run_status(status);
+		}
+		footer->present_run(qt::agent_footer_place::tour_chat, qt::agent_footer_run{ .Status = std::move(status), .Started = LocalQuestionStarted, .Stop = [this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+																						if (!weak.expired() && !Closing && DraftDesktop) {
+																							DraftDesktop->tour_stop();
+																						}
+																					} });
 	}
 
 	/// Every open part chat's pending list, from the host's queues. The chat

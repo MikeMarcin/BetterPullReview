@@ -73,6 +73,9 @@ namespace bpr::core::preparation_wire {
 		std::int64_t                 At = 0;
 		/// RFC-BPR-0120. A plan card or a report, as `encode_local_check` writes it.
 		std::optional<std::string> Check;
+		/// [[BPR-2154]]. Steered into the question before it, after this
+		/// many of the agent's steps.
+		std::optional<std::uint32_t> Steered;
 	};
 	struct check_grants
 	{
@@ -162,7 +165,7 @@ struct glz::meta<pw::turn>
 {
 	using value_type            = pw::turn;
 	static constexpr auto value = object("author", &value_type::Author, "subject", &value_type::Subject, "text", &value_type::Text, "proposals", &value_type::Proposals, "cost", &value_type::Cost, "at", &value_type::At, "check",
-										 &value_type::Check);
+										 &value_type::Check, "steered", &value_type::Steered);
 };
 template <>
 struct glz::meta<pw::check_grants>
@@ -679,7 +682,8 @@ namespace bpr::core {
 					  .Proposals = turn.Proposals,
 					  .Cost      = turn.CostMicros,
 					  .At        = turn.At,
-					  .Check     = turn.Check ? std::optional{ encode_local_check(*turn.Check) } : std::nullopt });
+					  .Check     = turn.Check ? std::optional{ encode_local_check(*turn.Check) } : std::nullopt,
+					  .Steered   = turn.SteeredAfter });
 			}
 			wire.Conversations.push_back(std::move(entry));
 		}
@@ -806,7 +810,7 @@ namespace bpr::core {
 					}
 				}
 				conversation.Turns.push_back(
-					{ .Author = turn.Author, .Subject = *subject, .Text = turn.Text, .Proposals = std::move(proposals), .CostMicros = turn.Cost, .At = turn.At, .Check = std::move(check) });
+					{ .Author = turn.Author, .Subject = *subject, .Text = turn.Text, .Proposals = std::move(proposals), .CostMicros = turn.Cost, .At = turn.At, .Check = std::move(check), .SteeredAfter = turn.Steered });
 			}
 			preparation.Conversations.push_back(std::move(conversation));
 		}

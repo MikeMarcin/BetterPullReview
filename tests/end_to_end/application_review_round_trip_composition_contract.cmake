@@ -3833,8 +3833,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# discussion question runs on a kept connection named by its draft and
 	# number, so Steer reaches it; the window settles what was steered when
 	# the question ends. No review mutation or submission path changed.
+	# [[BPR-2154]] reseal (look queue-tour-v002's Reject): a steered message
+	# joins its tour turn as it is written (pull request tour parts and a local
+	# draft's question), a local draft's question stands in the footer's Tour
+	# chat slot for Stop all. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "2704e2359a31389908b9d996798ed077282e1bbe3ee266576328d472dad46f68"
+        "d90a3eb2eb7f2497d2a72899d94f86d5e33601ba5b9ea774daad7549fa6db05b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

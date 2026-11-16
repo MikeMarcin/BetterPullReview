@@ -702,6 +702,26 @@ namespace bpr::core {
 		return true;
 	}
 
+	auto note_tour_steered(tour_agent_session& aSession, const tour_agent_run_id aRun, agent_steered_message aMessage) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end() || found->State != tour_agent_run_state::running || aMessage.Text.empty() || found->Steered.size() >= maximum_steers_per_run) {
+			return false;
+		}
+		found->Steered.push_back(std::move(aMessage));
+		return true;
+	}
+
+	auto settle_tour_steered(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::vector<agent_steer_disposition>& aEndings) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end()) {
+			return false;
+		}
+		settle_steered_messages(found->Steered, aEndings);
+		return true;
+	}
+
 	auto tour_thread_cost(const tour_agent_session& aSession, const tour_thread& aThread) -> std::optional<agent_cost>
 	{
 		auto sum = std::optional<agent_cost>{ };

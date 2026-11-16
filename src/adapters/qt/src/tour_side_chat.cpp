@@ -1,5 +1,7 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "bpr/qt/agent_steered_words.hpp"
+
 #include "bpr/core/agent_queue.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/qt/agent_feature.hpp"
@@ -1106,6 +1108,9 @@ namespace bpr::qt {
 				lines << QString{ };
 			}
 			lines << tr("**You:** %1").arg(QString::fromStdString(run->Question)) << QString{ };
+			for (const auto& message : run->Steered) {
+				lines << tr("**You** (%1): %2").arg(agent_steered_state_words(message), QString::fromStdString(message.Text)) << QString{ };
+			}
 			if (run->State == core::tour_agent_run_state::answered) {
 				lines << (run->Seconds ? tr("**%1** (answered in %2):").arg(agent_of(run->Id), agent_elapsed_words(*run->Seconds)) : tr("**%1:**").arg(agent_of(run->Id))) << QString{ } << reply_text(*run) << QString{ };
 			} else {
@@ -1706,6 +1711,7 @@ namespace bpr::qt {
 		clear(Turns);
 		Suggestions = nullptr;
 		Bubbles.clear();
+		SteeredBubbles.clear();
 		Replies.clear();
 		Endings.clear();
 		ActivityViews.clear();
@@ -1790,6 +1796,30 @@ namespace bpr::qt {
 			mineRow->addWidget(bubble);
 			Turns->addLayout(mineRow);
 			Bubbles.push_back(bubble);
+			// [[BPR-2154]] (look queue-tour-v002: "it says it sent it but the
+			// message doesn't show up in the transcript until the turn
+			// ended"). What the author steered into the turn is theirs, after
+			// the question, from the moment it went in, in the Agent tab's
+			// words: where it went in, and when the agent never took it.
+			for (const auto& message : run->Steered) {
+				auto* const steeredRow = new QHBoxLayout{ };
+				steeredRow->addStretch(1);
+				auto* const steered = new bubble_frame{ body };
+				steered->setObjectName(QStringLiteral("tourSideChatSteered"));
+				auto* const steeredColumn = new QVBoxLayout{ steered };
+				steeredColumn->setContentsMargins(12, 8, 12, 8);
+				steeredColumn->setSpacing(3);
+				auto* const state = quiet(small(words(agent_steered_state_words(message), steered)));
+				state->setObjectName(QStringLiteral("tourSideChatSteeredState"));
+				steeredColumn->addWidget(state);
+				auto* const text = words(QString::fromStdString(message.Text), steered);
+				text->setObjectName(QStringLiteral("tourSideChatSteeredText"));
+				steeredColumn->addWidget(text);
+				steered->setAccessibleName(agent_steered_accessible_name(message));
+				steeredRow->addWidget(steered);
+				Turns->addLayout(steeredRow);
+				SteeredBubbles.push_back(steered);
+			}
 
 			// The agent's answer, on the left: the reply, then the Agent tab's
 			// ending line ([[BPR-1941]]): live while it runs, then who answered
@@ -2300,6 +2330,7 @@ namespace bpr::qt {
 		// author's bubbles at most four fifths of it.
 		const auto available = std::max(160, Scroll->viewport()->width() - Turns->contentsMargins().left() - Turns->contentsMargins().right());
 		auto       bubbles   = Bubbles;
+		bubbles.insert(bubbles.end(), SteeredBubbles.begin(), SteeredBubbles.end());
 		if (WaitingBubble != nullptr) {
 			bubbles.push_back(WaitingBubble);
 		}
