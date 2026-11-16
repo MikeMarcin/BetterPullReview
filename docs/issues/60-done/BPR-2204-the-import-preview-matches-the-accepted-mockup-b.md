@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2204"
 title: "The import preview matches the accepted mockup B"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2204--BPR-2204--bd14773b7352.json","design":"docs/design/workflow-import-v1/README.md","follows":"BPR-2032","accepted_look":"workflow-import-v003","widened":"Export Profile Settings in the same language (coordinator, 2026-11-15)","built":"7d036ba93"}
 depends_on: ["BPR-2032"]
+acceptance: [{"criterion": "Import preview matches mockup B (the 22 gaps)", "outcome": "pass", "revision": "7d036ba93", "evidence": {"kind": "observation", "detail": "Owner Accept, profile-settings-dialogs-v001 BPR-2204-import-preview, decision 4cd00f42-38e5-4f65-b351-f24c1a5d09a8, no note, on the frozen build of 7d036ba93 (sha256 3b8e2863d470…)."}}, {"criterion": "Export Profile Settings in the same language", "outcome": "pass", "revision": "1ae5b9db3", "evidence": {"kind": "observation", "detail": "Owner Accept, profile-settings-dialogs-v001 BPR-2204-export, decision aebf5326-8e25-482d-8ff2-cb0761811905, note: \"It might be nice if the tree branches on the left were collapsable but otherwise it's quite nice.\" Collapsible sections added at 1ae5b9db3; no new look (coordinator)."}}, {"criterion": "Tests", "outcome": "pass", "revision": "1ae5b9db3", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(qt_agent_configuration_dialogs|qt_profiles_settings_panel|architecture_boundaries|application_review_round_trip_composition_contract)$'", "detail": "Row alignment, scroll reset, tick as a workflow's choice, caution mark, refused mark, theme grounds in four themes, export sections collapse; offscreen at 100 and 200 percent and native Dark and Light."}}]
 ---
 
 # BPR-2204: The import preview matches the accepted mockup B
@@ -153,3 +153,20 @@ from `7d036ba93` (executable SHA-256 `3b8e2863d470…`); its check reached
 workflow look fixture imported and the Fixture agent only. Two questions,
 Accept or Reject each: `BPR-2204-import-preview` and `BPR-2204-export`, with
 native Dark and Light renders beside mockup B.
+
+## Owner look profile-settings-dialogs-v001 handed back (2026-11-15)
+
+Session `b27beb61d941c378e9fa1b2e0fd9dbdb` handed back at sequence 26.
+`BPR-2204-import-preview`: **Accepted** (decision `4cd00f42`), no note.
+`BPR-2204-export`: recorded **Accepted** (decision `aebf5326`) with the note,
+verbatim: "It might be nice if the tree branches on the left were
+collapsable but otherwise it's quite nice." One screenshot came with it
+(kept at the session's attachments). The note is done at `1ae5b9db3`: each
+export section row has a disclosure triangle before its tick, all start
+open, Left and Right close and open the section with the cursor, and a
+closed section's tick still shows all, some (the dash) or none of its items.
+Import's sections are tickless headings and were left open. No new look, by
+the coordinator's decision; native Dark and Light renders checked. Host 54853
+(Tailscale child 54863) stopped; root
+`/Users/jaeger/profile-settings-dialogs-v001.vsd_9gwm` removed with
+`freeze_attended_build.py remove`.
