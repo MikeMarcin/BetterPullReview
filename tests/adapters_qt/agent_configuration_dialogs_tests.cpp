@@ -9,11 +9,15 @@
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/prompts_page.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFrame>
 #include <QGuiApplication>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -26,6 +30,7 @@
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
+#include <QVBoxLayout>
 
 #include <cstdlib>
 #include <iostream>
@@ -292,7 +297,7 @@ namespace {
 	/// [[BPR-2032]], RFC-BPR-0112. A workflow exported with the agent it
 	/// asks, previewed with its origin, actions and declared effects, its
 	/// program bound here, and an update compared before it is taken.
-	void test_workflow(const std::string& aRoot)
+	[[nodiscard]] auto test_workflow(const std::string& aRoot) -> application::agent_configuration_preview
 	{
 		auto snapshot      = sender();
 		auto workflow      = core::local_workflow{ };
@@ -380,6 +385,55 @@ namespace {
 			   "an unknown action is named and its workflow cannot be ticked");
 		refuser.select_workflow(0U);
 		expect(refuser.choice_buttons().isEmpty() && refuser.workflow_choices().empty(), "it is refused");
+		return updatedPreview;
+	}
+	/// Owner, look workflow-import-v002: "Super ugly. Something went way
+	/// wrong with the colors." The dialog drew with the system palette, not
+	/// the theme Settings carries. In each theme the detail pane is the
+	/// Prompts page's detail panel, by role and by the pixels painted.
+	void test_theme_matches_prompts(const application::agent_configuration_preview& aPreview, const std::string& aRoot)
+	{
+		for (const auto mode : { core::appearance_mode::dark, core::appearance_mode::light, core::appearance_mode::high_contrast_dark, core::appearance_mode::high_contrast_light }) {
+			auto owner   = QWidget{ };
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(owner);
+			const auto  name    = QString::fromUtf8(core::stable_name(profile.variant()).data());
+			auto* const column  = new QVBoxLayout{ &owner };
+			auto* const prompts = new qt::prompts_page{ &owner };
+			column->addWidget(prompts);
+			owner.resize(1100, 900);
+			owner.show();
+			auto* const dialog = new qt::agent_configuration_import_dialog{ aPreview, { .Skills = { }, .Found = { } }, &owner };
+			dialog->select_workflow(0U);
+			dialog->show();
+			settle();
+			auto* const pane   = dialog->findChild<QFrame*>(QStringLiteral("agentConfigurationDetail"));
+			auto* const editor = prompts->findChild<QFrame*>(QStringLiteral("promptsEditor"));
+			expect(pane != nullptr && editor != nullptr, "the two detail panels");
+			const auto panel = editor->palette().color(QPalette::Active, editor->backgroundRole());
+			expect(dialog->palette().color(QPalette::Active, QPalette::Window) == owner.palette().color(QPalette::Active, QPalette::Window), "the dialog takes its opener's theme");
+			expect(pane->palette().color(QPalette::Active, pane->backgroundRole()) == panel, "the detail pane is the Prompts page's panel, by role");
+			const auto image = pane->grab().toImage();
+			const auto ratio = image.devicePixelRatio();
+			// The pane's left margin: nothing but the panel is drawn there.
+			const auto drawn = image.pixelColor(static_cast<int>(6 * ratio), image.height() / 2);
+			if (drawn.rgb() != panel.rgb()) {
+				std::cerr << name.toStdString() << ": drawn " << drawn.name().toStdString() << " panel " << panel.name().toStdString() << '\n';
+			}
+			expect(drawn.rgb() == panel.rgb(), "and by the pixels it paints");
+			// A theme change while it is open follows.
+			auto other = qt::appearance_profile{ };
+			static_cast<void>(other.select_mode(mode == core::appearance_mode::dark ? core::appearance_mode::light : core::appearance_mode::dark));
+			other.apply_to(owner);
+			settle();
+			expect(pane->palette().color(QPalette::Active, pane->backgroundRole()) == editor->palette().color(QPalette::Active, editor->backgroundRole()), "and follows a theme change");
+			profile.apply_to(owner);
+			settle();
+			render(*dialog, aRoot, QStringLiteral("import-theme-") + name);
+			dialog->hide();
+			delete dialog;
+		}
 	}
 } // namespace
 
@@ -390,7 +444,8 @@ auto main(int argc, char** argv) -> int
 	test_share_row(root);
 	const auto bytes = test_export(root);
 	test_import(bytes, root);
-	test_workflow(root);
+	const auto update = test_workflow(root);
+	test_theme_matches_prompts(update, root);
 	std::cout << "agent-configuration-dialogs:pass\n";
 	return EXIT_SUCCESS;
 }

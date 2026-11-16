@@ -20,6 +20,7 @@
 
 class QButtonGroup;
 class QCheckBox;
+class QEvent;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -152,6 +153,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto theirs() const noexcept -> QPlainTextEdit* { return Theirs; }
 		[[nodiscard]] auto summary() const noexcept -> QLabel* { return Summary; }
 		[[nodiscard]] auto apply_button() const noexcept -> QPushButton* { return ApplyButton; }
+
+	protected:
+		void changeEvent(QEvent* aEvent) override;
 
 	private:
 		enum class item_kind : std::uint8_t {

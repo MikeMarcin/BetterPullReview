@@ -9,7 +9,9 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFontDatabase>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
@@ -42,6 +44,19 @@ namespace bpr::qt {
 		constexpr int PromptKind = 2;
 		/// [[BPR-2032]].
 		constexpr int WorkflowKind = 3;
+
+		/// A dialog is a window, and Qt does not pass a window's palette to
+		/// the windows it opens: it takes its opener's, every role, and its
+		/// font, and follows later changes (owner, look workflow-import-v002:
+		/// "Something went way wrong with the colors").
+		void adopt_opener_look(QWidget& aDialog, const QWidget* const aOpener)
+		{
+			aDialog.setAttribute(Qt::WA_WindowPropagation);
+			if (aOpener != nullptr) {
+				aDialog.setPalette(aOpener->palette());
+				aDialog.setFont(aOpener->font());
+			}
+		}
 
 		[[nodiscard]] auto text_of(const std::string_view aText) -> QString { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); }
 
@@ -190,6 +205,7 @@ namespace bpr::qt {
 		, Local{ application::local_prompts(Snapshot) }
 		, ExportedBy{ std::move(aExportedBy) }
 	{
+		adopt_opener_look(*this, aParent);
 		setWindowTitle(tr("Export configuration"));
 		setObjectName(QStringLiteral("agentConfigurationExport"));
 		auto* const column = new QVBoxLayout{ this };
@@ -388,12 +404,11 @@ namespace bpr::qt {
 		/// A section of a detail: a quiet heading over grouped rows, as Settings draws.
 		[[nodiscard]] auto group_box(QWidget* aParent) -> std::pair<QFrame*, QVBoxLayout*>
 		{
+			// The Prompts page's bordered group: the panel shows through.
 			auto* const frame = new QFrame{ aParent };
 			frame->setFrameShape(QFrame::StyledPanel);
-			frame->setAutoFillBackground(true);
-			frame->setBackgroundRole(QPalette::Base);
 			auto* const layout = new QVBoxLayout{ frame };
-			layout->setContentsMargins(12, 9, 12, 9);
+			layout->setContentsMargins(10, 8, 10, 8);
 			layout->setSpacing(6);
 			return { frame, layout };
 		}
@@ -431,6 +446,7 @@ namespace bpr::qt {
 		, Prompts(Preview.File.Prompts.size(), false)
 		, Workflows(Preview.File.Workflows.size())
 	{
+		adopt_opener_look(*this, aParent);
 		setWindowTitle(tr("Import Profile Settings"));
 		setObjectName(QStringLiteral("agentConfigurationImport"));
 		// The core's starting choices: everything the file can bring.
@@ -551,6 +567,16 @@ namespace bpr::qt {
 			}
 		}
 		show_selected();
+	}
+
+	void agent_configuration_import_dialog::changeEvent(QEvent* const aEvent)
+	{
+		QDialog::changeEvent(aEvent);
+		// The detail's rich text carries colours from the palette: a theme
+		// change draws it again.
+		if ((aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) && Scroll != nullptr) {
+			QTimer::singleShot(0, this, [this] { show_selected(); });
+		}
 	}
 
 	void agent_configuration_import_dialog::set_program_chooser(std::function<QString(const QString&)> aChooser) { Chooser = std::move(aChooser); }
@@ -692,6 +718,9 @@ namespace bpr::qt {
 			font.setWeight(QFont::DemiBold);
 			font.setPointSizeF(font.pointSizeF() * 0.92);
 			item->setFont(font);
+			// Every section opens with the same room above its name.
+			item->setTextAlignment(Qt::AlignLeft | Qt::AlignBottom);
+			item->setSizeHint(QSize{ 0, QFontMetrics{ font }.height() + 12 });
 		};
 		const auto add = [this](const item_kind aKind, const std::size_t aIndex, const QString& aName) {
 			auto* const item = new QListWidgetItem{ aName, Items };
@@ -752,8 +781,10 @@ namespace bpr::qt {
 			const auto kind  = static_cast<item_kind>(item->data(KindRole).toInt());
 			const auto index = static_cast<std::size_t>(item->data(IndexRole).toULongLong());
 			const auto stood = standing(kind, index);
-			// The library's row: the name, its tag, and one line of what happens.
-			item->setText(item->data(ItemRole).toString() + QStringLiteral("   ") + standing_tag(stood) + QLatin1Char('\n') + row_line(kind, index));
+			// The library's row: the name, its tag, and one line of what
+			// happens; under Cannot be imported the section says the tag.
+			const auto name = item->data(ItemRole).toString();
+			item->setText((stood == core::import_standing::refused ? name : name + QStringLiteral("   ") + standing_tag(stood)) + QLatin1Char('\n') + row_line(kind, index));
 			auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 			// Something to choose is ticked; an agent of another kind under
 			// its name, with none of yours to stand for it, has nothing.
@@ -917,7 +948,8 @@ namespace bpr::qt {
 			old->hide();
 			old->deleteLater();
 		}
-		Detail = new QWidget{ };
+		// Parented from the start, so what it builds reads the dialog's palette.
+		Detail = new QWidget{ Scroll->viewport() };
 		Detail->setObjectName(QStringLiteral("agentConfigurationDetailPage"));
 		Detail->setAutoFillBackground(false);
 		auto* const column = new QVBoxLayout{ Detail };
@@ -941,19 +973,16 @@ namespace bpr::qt {
 		/// The detail's title row: the name, larger, and its tag.
 		void title_row(QVBoxLayout& aColumn, const QString& aName, const QString& aTag, QWidget& aPage)
 		{
-			auto* const row  = new QHBoxLayout{ };
-			auto* const name = heading(aName, &aPage);
-			auto        font = name->font();
+			// One label, so a long name wraps with its tag after it, in the
+			// panel's secondary text colour.
+			auto* const title = rich(QStringLiteral("<b>%1</b>&nbsp;&nbsp;<span style=\"font-weight:normal;color:%2\">%3</span>")
+										 .arg(aName.toHtmlEscaped(), aPage.palette().color(QPalette::PlaceholderText).name(), aTag.toHtmlEscaped()),
+									 &aPage);
+			title->setObjectName(QStringLiteral("agentConfigurationTitle"));
+			auto font = title->font();
 			font.setPointSizeF(font.pointSizeF() * 1.1);
-			name->setFont(font);
-			row->setSpacing(10);
-			row->addWidget(name, 0);
-			auto* const tag = note(aTag, &aPage);
-			tag->setObjectName(QStringLiteral("agentConfigurationStanding"));
-			tag->setWordWrap(false);
-			row->addWidget(tag, 0, Qt::AlignBaseline);
-			row->addStretch(1);
-			aColumn.addLayout(row);
+			title->setFont(font);
+			aColumn.addWidget(title);
 		}
 	} // namespace
 
@@ -1270,12 +1299,17 @@ namespace bpr::qt {
 				const auto had    = before != yours->Workflow.Actions.end();
 				grid->addWidget(had ? rich(cell(*before, nullptr), box) : note(tr("No such action"), box), line, 0, Qt::AlignTop);
 				auto html = cell(action, had ? &*before : nullptr);
+				// The tag sits on the action's own first line, after its task.
+				const auto tagged = [&html](const QString& aTag) {
+					const auto end = html.indexOf(QStringLiteral("</b>")) + 4;
+					html.insert(end, aTag);
+				};
 				if (!had) {
-					html = QStringLiteral("<span style=\"background-color:%1\">&nbsp;%2&nbsp;</span><br>").arg(tint, tr("New action")) + html;
+					tagged(QStringLiteral(" &nbsp;<span style=\"background-color:%1\">&nbsp;%2&nbsp;</span>").arg(tint, tr("New action")));
 				} else if (std::ranges::any_of(action.Effects, [&](const core::workflow_effect aEffect) { return !std::ranges::contains(before->Effects, aEffect); })) {
-					html = QStringLiteral("<span style=\"background-color:%1\">&nbsp;%2&nbsp;</span><br>").arg(tint, tr("Does more")) + html;
+					tagged(QStringLiteral(" &nbsp;<span style=\"background-color:%1\">&nbsp;%2&nbsp;</span>").arg(tint, tr("Does more")));
 				} else if (*before != action) {
-					html = QStringLiteral("<i>%1</i><br>").arg(tr("Changed")) + html;
+					tagged(QStringLiteral(" &nbsp;<i>%1</i>").arg(tr("Changed")));
 				}
 				auto* const label = rich(html, box);
 				label->setObjectName(QStringLiteral("agentConfigurationAction-%1").arg(text_of(action.Id)));
