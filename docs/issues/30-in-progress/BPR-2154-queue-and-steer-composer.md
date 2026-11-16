@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2154"
 title: "The composer queues and steers, and shows every pending, sent and uncertain input"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0126"]
 depends_on: ["BPR-2151", "BPR-2153"]
 priority: "P2"

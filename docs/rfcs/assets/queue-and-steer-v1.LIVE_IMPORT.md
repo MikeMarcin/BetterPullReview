@@ -32,7 +32,7 @@ The draft defined no cards and no plan. Cut at import, one milestone:
 | [BPR-2151](../../issues/60-done/BPR-2151-queue-follow-ups-core-and-host.md) | Core queue state and host release after real completion | AC02, AC03, AC04 |
 | [BPR-2152](../../issues/60-done/BPR-2152-queue-and-steer-durable-handoff.md) | Durable handoff and recovery | AC06 |
 | [BPR-2153](../../issues/60-done/BPR-2153-native-steering-and-accounting.md) | Native steering (Codex App Server, Claude stream JSON) and accounting | AC05, AC07 |
-| [BPR-2154](../../issues/10-backlog/BPR-2154-queue-and-steer-composer.md) | Qt composer and pending list | AC01, AC08 |
+| [BPR-2154](../../issues/30-in-progress/BPR-2154-queue-and-steer-composer.md) | Qt composer and pending list | AC01, AC08 |
 | [BPR-2155](../../issues/10-backlog/BPR-2155-close-rfc-0126.md) | Closeout | all |
 
 Card IDs were allocated on `main` with `scripts/allocate_issue_id.py` in the
