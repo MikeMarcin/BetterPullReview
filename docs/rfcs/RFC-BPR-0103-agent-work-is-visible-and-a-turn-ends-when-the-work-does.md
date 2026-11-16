@@ -167,6 +167,24 @@ first `authentication_failed` retry instead of waiting minutes.
 - The words say the agent is not signed in, or its wrapper could not get a
   token, and what to do: sign in again in a terminal, or try again later.
 
+### Amendment: accepted steering is part of the turn (RFC-BPR-0126, 2026-11-16)
+
+[RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md)
+adds accepted steering to the turn boundary above. A turn into which the
+reviewer steered a correction ends when the runtime reports it finished,
+no reported helper is running **and** every correction it accepted has a
+terminal disposition: consumed (Claude names it in `user_message_uuids`;
+Codex App Server answers `turn/steer` for the running turn, then
+`turn/completed`), refused before it was taken, or Delivery unknown. A
+correction Claude takes into a successor native turn keeps that turn in the
+same BPR run, under its lease, limits and cost; the run waits for that
+successor at most 30 seconds, and an unanswered `turn/steer` at most 30
+seconds, after which the correction is Delivery unknown and the connection is
+retired ([[BPR-2152]], [[BPR-2153]]). A queued message waiting behind the turn
+is released only after this end and the host's retirement, never on a raw
+`result` or a timer. A steered message is shown in the conversation as the
+author's at once, after the step it followed ([[BPR-2154]]).
+
 ## Acceptance criteria
 
 - **AC01:** For each installed agent and transport BPR supports, a recorded

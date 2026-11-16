@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0126"
 title: "Queue follow-ups in BPR and steer native agent chats"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"imported 2026-11-12 from docs/rfcs/assets/queue-and-steer-v1, where it was RFC-DRAFT-0001; owner direction 2026-11-12 (BPR owns the queue, Claude and Codex steer natively, the feature stays cheap)","inspected_revision":"dbdecf9a32c9fc7cdd28122721dc61011236d60e","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d","milestone_plan":{"id":"queue-and-steer-v1","path":"docs/rfcs/plans/queue-and-steer-v1/milestone-plan.json"},"baseline":"dbdecf9a32c9fc7cdd28122721dc61011236d60e","mandate":"owner, 2026-11-12: \"Add to queue /implement-rfc Implement the RFC\"; queued, not started; owner questions Q1 to Q18 below are open"}
 depends_on: ["RFC-BPR-0092", "RFC-BPR-0096", "RFC-BPR-0101", "RFC-BPR-0102", "RFC-BPR-0103"]
 ---
@@ -446,3 +446,24 @@ draft's discussion (Q2); the window-ownership paragraphs (closing the owning
 window pauses; another window takes over by Resume queue) are superseded by
 Q10; "Editing a queued entry pauses the queue" is superseded by Q9. AC04 was
 amended and AC09 added on 2026-11-13 for these answers.
+
+## Closeout (2026-11-16)
+
+Closed by [BPR-2155](../issues/60-done/BPR-2155-close-rfc-0126.md): every
+criterion passes on the [verification record](../verification/RFC-BPR-0126.md),
+built by [[BPR-2151]], [[BPR-2152]], [[BPR-2153]] and [[BPR-2154]], with the
+owner's looks accepted (prompts-v001 to v004, queue-windows-v001, steer-v002,
+queue-sent-v001, queue-tour-v001 and queue-tour-v003). RFC-BPR-0092, 0096,
+0101 and 0103, `docs/ux/ai-experience.md` and the system architecture are
+reconciled.
+
+As built, where the text above reads otherwise: fresh paths are kept out
+because no queued session kind names them (`core::queued_session_kind` is
+the Agent tab, tour feedback, a tour part or a local draft discussion part)
+and a one-shot run cannot be steered (`no_connection`), rather than by a
+`session_mode_of` check in the queue. Known limits, recorded on the
+verification record: a steered message keeps Sent to agent in the pending
+list until its turn ends; whole-tour feedback during the first draft and a
+local draft's first description draft queue but cannot be steered; a build
+older than `4bda08895` cannot open a local draft saved with a steered
+message.

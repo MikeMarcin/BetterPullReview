@@ -118,6 +118,22 @@ again only when its material changed, and accepting an agent-proposed stop
 confirms the lines it shows. No agent can accept a stop: the owner channel
 refuses the accept command from a command client.
 
+## Queue and steer amendment (RFC-BPR-0126), 2026-11-16
+
+[RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md)
+amends busy-send legality for the resumed chats: the Agent tab, every tour
+part (a stop, Problem, Solution), the whole-tour conversation and the local
+draft's discussion. A follow-up typed while the conversation's turn runs is
+no longer refused: it is stored in BPR as that session's queued message and
+released as its own admitted turn only after the run retired
+([[BPR-2151]]), or, by Steer, written into the running native turn as a
+correction on the kept connection ([[BPR-2153]]). The profile-catalog turn
+lease, the one writer per native conversation and the busy refusal between
+*different* conversations are unchanged: a queued release that meets another
+conversation's workspace use pauses and is not retried. Steer adds no
+process, replay or restart; a run that cannot be steered says why and keeps
+Queue.
+
 ## Required final critical review — completed
 
 The owner requested “do an an rfc-review-critical before we closeout the whole

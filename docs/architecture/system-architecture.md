@@ -146,8 +146,24 @@ reorder, remove, pause and resume, Steer, Stop all); none decides when a
 message goes, and closing one neither pauses nor hands a queue over. The
 Agent tab's turns run on the profile's runtime of the session
 (`application::review_agent_runtime`), so a session no window shows still
-drains; a window offers the runner only its tour's feedback, which a crash
-returns to the tour chat as not sent. The installed Git cache keeps the agent
+drains. A window offers the runner a second runtime for the sessions it
+holds (`window_chat_queues.cpp`): the tour's first-draft feedback (which a
+crash returns to the tour chat as not sent), each tour part of a pull
+request (`queued_session_kind::tour_part`, run on the window's tour host,
+Steer through the tour run's invocation host) and each part of a local
+draft's discussion (`queued_session_kind::local_draft_discussion`, run on
+the draft's own lane on a kept connection numbered by its question).
+Dispatch and Steer share one delivery rule ([[BPR-2152]]): `core::claim`
+binds the exact entry as Sending and the store holds that claim before any
+write; receipts (`core::acknowledge`, `core::settle_steers` from the run's
+`SteeredInputs`) are stored before the queue advances; a possible write
+without an outcome, or a crash, leaves the entry Delivery unknown, paused and
+never resent. Steering capability is decided in core from the protocol, the
+kept connection and the runtime's own reported version
+(`core::agent_steer_support_of`), never by a probe; a steered message is a
+`core::agent_steered_message` kept on its turn from the moment it is written
+and settled by `core::settle_steered_messages` in every chat
+([[BPR-2153]], [[BPR-2154]]). The installed Git cache keeps the agent
 workspaces its sessions made for the profile's lifetime, so a run whose cache
 session another window replaced still cleans up and retires.
 
@@ -1454,7 +1470,7 @@ window closes. Linux and Windows keep a tray per profile.
 | Review ledger | receipt/actionability transitions | SQLite authority, queries, migrations | badges, filters, commands, explanations |
 | GitHub mutations | semantic proposal, target/head validation policy | mutation execution, idempotency, reconciliation | draft editor, confirmation, progress, diagnostics |
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
-| AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
+| AI | provider-host policy, context-scope decisions, staleness, finding promotion; queued input state, order, limits, holds, claims and settlement (`core::agent_queue`), the follow-up decision (`core::decide_follow_up`) and steering capability (RFC-BPR-0126) | process/session/workspace management and protocols; the profile's session queue host, durable claims and receipts, release on run retirement, native steering writes (Claude `priority: "next"`, Codex App Server `turn/steer`), Stop all | explicit invocation, approvals, chat/findings presentation; Queue/Steer composer, the pending list (`qt::agent_pending_list`), Follow-up behaviour setting, Stop all in the agent footer |
 | Review Cycles | cycle, revision, item and round identities and transitions, capture-path admission, exact comparisons, suggestion conflicts, round assembly and freezing, the disclosure decision (`authorize`), response admission, publication plans and journals, wire names | cycle runtime and store, read-only workspace source, capture lane, exports, owner command channel, harness grants, publication catalog and GitHub publication session, Send to Agent through the existing launcher | cycle page, drawer, code view, notes, Suggest change, Compose feedback and Share notes sheets, Publish as Pull Request sheet, Updates line |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
 | Dif mascot | appearance preferences and bounded native-observation resolution only; no asset, clip, frame, timer, widget, decode, or cue state | persisted preference effects and typed accepted presentation facts; no art generation, decode, painting, or animation state | RFC-BPR-0030/0031 fixed resources, shared decoded cache, elapsed-time sequencing, painting, window lifecycle, native observation, and bounded presentation-only cues |
