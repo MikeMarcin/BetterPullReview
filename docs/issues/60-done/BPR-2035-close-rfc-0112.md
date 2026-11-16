@@ -198,7 +198,7 @@ was **Accepted** in `workflow-import-v003` (session
 `5052733e41fd0662f09a0e04af730e4c`, decision `09e243f2`), note verbatim:
 "Still not quite as nice as what had settled on but its pretty close." The
 gaps against the mockup are carded as
-[BPR-2204](../10-backlog/BPR-2204-the-import-preview-matches-the-accepted-mockup-b.md),
+[BPR-2204](../40-parked/BPR-2204-the-import-preview-matches-the-accepted-mockup-b.md),
 not built here. Host 33920 (Tailscale child 33928) stopped; root
 `/Users/jaeger/workflow-import-v003.05jn6zyw` removed with
 `freeze_attended_build.py remove`.
