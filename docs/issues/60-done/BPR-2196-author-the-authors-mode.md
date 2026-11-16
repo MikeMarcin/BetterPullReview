@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2196"
 title: "Author: the author's mode"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"criteria":["AC07","AC09"],"design":"docs/design/local-draft-workflow-v2/README.md","design_session":"273f0aafcc76fd284605b51649bbdbdf","milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2196--BPR-2196--fefe6c514ce0.json"}
 depends_on: ["BPR-2032", "BPR-2033", "BPR-2034"]
+acceptance: [{"criterion":"AC07","outcome":"pass","revision":"737e06d81","evidence":{"kind":"command","command":"ctest --preset dev -R 'core_author_mode|qt_workbench_window_scale_100|application_local_draft_(workflow|author|publication|tour)_desktop_public_path'","detail":"Author is offered only to the owner of the pull request or local draft, on Ctrl+5 (Command-5 on macOS), and opens per case (local draft and owned draft in Author, owned open pull request on Overview); its main area holds This update and the file pane (Edit, one pane, two panes), its drawer opens on Workflow with filled seen and outlined Reported marks and one handoff at the bar's end; the core decides availability, opening mode, handoff and checklist. The owner accepted Author in look workflow-v002 (session 1d68e30d0ac7b53a07163a1f10777bdf, candidate BPR-2196-author-mode, decision fd71fc9f, outcome accept, no note). The same look rejected the Workflow tab's horizontal pan on BPR-2035's question; that is engineered under BPR-2035, not here."}},{"criterion":"AC09","outcome":"pass","revision":"737e06d81","evidence":{"kind":"command","command":"ctest --preset dev -R 'core_author_mode|application_local_draft_workflow_desktop_public_path'","detail":"Agent rows in Author's checklist wear the agent accent and script rows do not; a companion's report is an outlined Reported mark, never filled. The owner accepted the accent in look workflow-v002 (candidate BPR-2033-agent-accent-on-actions, decision accept, no note)."}}]
 ---
 
 # BPR-2196: Author: the author's mode
@@ -77,3 +78,16 @@ switcher, including the file pane's three views), `BPR-2035-workflow-tab`
 `BPR-2033-agent-accent-on-actions` (AC09). If all four are accepted,
 BPR-2196 is Done, and BPR-2035 closes RFC-BPR-0112 (Auto-Verified) once
 BPR-2197 is Done too.
+
+## Owner look workflow-v002 handed back (2026-11-15): Done
+
+Session `1d68e30d0ac7b53a07163a1f10777bdf` handed back at sequence 45.
+`BPR-2196-author-mode`: **Accepted**, no note. The other three questions are
+recorded on [BPR-2035](../10-backlog/BPR-2035-close-rfc-0112.md): the agent
+accent was accepted; the Workflow tab was rejected for panning sideways
+("It's panning horizontally again. I don't like my drawers doing that. This
+should be a rule by now."), which is engineered under BPR-2035 with a drawer
+fit guard; the import preview was rejected and goes to a frontend-design
+pass. Host 57962 (Tailscale child 57974) stopped with the attended-review
+`stop` command; root `/Users/jaeger/workflow-v002.1z4xyif5` removed with
+`freeze_attended_build.py remove`. BPR-2196 is Done at `737e06d81`.

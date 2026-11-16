@@ -26,3 +26,16 @@ Local Changes, Description and Tour remain usable with no extension, and importe
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/v0-5-0-prerelease-targets-v1/IMPLEMENTATION_PROMPT.md).
+
+## Owner look workflow-v002 (2026-11-15)
+
+Candidate `BPR-2032-workflow-import-preview` in session
+`1d68e30d0ac7b53a07163a1f10777bdf`: **Rejected**, note verbatim: "Can we make
+Agents & context just say Agents in the settings. Why does this window look
+so different than everything else in the app? Why would leave out be the
+default? We're trying to improt it? Why does it take so many actions to
+choose between those 3 options? Why is it so hard to read what it does? We
+need to send this window back for a front end design pass." The preview's
+redesign belongs to a frontend-design pass and AC02's preview is judged
+again under [BPR-2035](../10-backlog/BPR-2035-close-rfc-0112.md); the
+Settings section is renamed "Agents".
