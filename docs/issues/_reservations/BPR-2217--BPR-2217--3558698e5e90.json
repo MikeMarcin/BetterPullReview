@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2217"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Seen and Approve again move from Home into the review",
+  "created": "2026-11-16T22:26:41.737242+00:00",
+  "base": "00f42d5d3d96d3315086320694e6dea6c67978db"
+}
