@@ -107,8 +107,13 @@ namespace bpr::qt::detail {
 			// face changes; the header's own sizeHint() query then lays them
 			// out, so the bar's showEvent has nothing left to announce and the
 			// header's grid keeps the old width. The bar says it changed size
-			// itself.
-			if (reshaped) {
+			// itself. [[BPR-2201]]: so it does when the face is the same but
+			// the row is not, as when a tab is shown or hidden. Overview's
+			// Status drawer kept every name as its Tour tab appeared, and its
+			// header held the bar at the four tabs' 262 pixels while the five
+			// needed 310; a face change had hidden that in wider fonts.
+			if (const auto hint = sizeHint().width(); reshaped || hint != Announced) {
+				Announced = hint;
 				updateGeometry();
 			}
 		}
@@ -197,6 +202,8 @@ namespace bpr::qt::detail {
 		/// The gap QTabBar and the styles leave between a glyph, a name
 		/// and a tab button.
 		static constexpr int glyph_gap = 4;
+		/// The width `fold` last told the header the row needs.
+		int Announced = -1;
 	};
 
 	/// \brief The room a drawer header's grid gives its tabs alone on their
