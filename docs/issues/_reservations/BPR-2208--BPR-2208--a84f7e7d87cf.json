@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2208"
+  ],
+  "reserve_for": "bpr-source-search-wash",
+  "purpose": "Source search wash measured from the text layout (font-dependent, found by BPR-2200)",
+  "created": "2026-11-16T04:37:32.247277+00:00",
+  "base": "0550aed425b1b57180066a39d23f59a518fa189b"
+}

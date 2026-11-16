@@ -171,3 +171,5 @@ main without fonts, and on the lane with Segoe UI 9 pt. It therefore depends
 on the font, not on lane code (the lane changes neither the panel nor its
 test), and it is a failure this card's Segoe UI 9 pt newly exposes. It is
 reported to the coordinator, not yet carded.
+
+Carded and fixed as [[BPR-2208]]: the wash is placed from the drawn text layout, and the test measures its widest run.
