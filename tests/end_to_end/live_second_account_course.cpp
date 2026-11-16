@@ -70,6 +70,15 @@
 //       again. It writes what each turn did, the folder's files and the
 //       workspace's `git status` into DIR/agent-scratch.jsonl. It spends the
 //       installed agent's account; nothing is written to GitHub.
+//   --course agent-review --root DIR --pull N --path PROGRAM [--model M] [--effort E]
+//       [[BPR-2219]]. Opens MikeMarcin/BPR-Test#N, adds the installed Claude
+//       Code at PROGRAM (Sonnet at medium effort unless named otherwise) and
+//       presses Review this pull request in the review bar's Ask. It writes
+//       the answer as the Agent tab holds it (DIR/review-answer.md), the
+//       opened report's Markdown (DIR/review-report.md), what the card, the
+//       report and the finding cards showed (DIR/agent-review.json) and
+//       renders of the window and of the whole report page. It spends the
+//       installed agent's account; nothing is written to GitHub.
 //   --course live-session --root DIR --pull N --path FILE --second FILE
 //            --first-stop L --second-stop L --reads A,B,C [--approve M] [--agent PROGRAM]
 //       RFC-BPR-0099 AC08, RFC-BPR-0105 AC08. The one course that writes:
@@ -89,7 +98,10 @@
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -132,6 +144,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTextBlock>
@@ -212,6 +225,8 @@ namespace {
 		// live-session only.
 		std::string      Second;
 		std::string      Agent;
+		std::string      Model  = "sonnet";
+		std::string      Effort = "medium";
 		std::vector<int> Reads;
 		int              Approve    = 0;
 		std::uint32_t    FirstStop  = 0U;
@@ -238,6 +253,10 @@ namespace {
 				result.Second = value;
 			} else if (key == "--agent") {
 				result.Agent = value;
+			} else if (key == "--model") {
+				result.Model = value;
+			} else if (key == "--effort") {
+				result.Effort = value;
 			} else if (key == "--approve") {
 				result.Approve = std::stoi(value);
 			} else if (key == "--first-stop") {
@@ -253,10 +272,10 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "agent-scratch" && result.Course != "live-session" && result.Course != "live-draft")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment" && result.Course != "agent-helpers" && result.Course != "agent-scratch" && result.Course != "agent-review" && result.Course != "live-session" && result.Course != "live-draft")
 			|| result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))
-			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers" || result.Course == "agent-scratch") && result.Path.empty())
+			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment" || result.Course == "agent-helpers" || result.Course == "agent-scratch" || result.Course == "agent-review") && result.Path.empty())
 			|| (result.Course == "live-session" && (result.Path.empty() || result.Second.empty() || result.Reads.empty()))) {
 			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment|whole-pr-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
@@ -424,6 +443,91 @@ namespace {
 		if (tab->turn_count() != before + 1U) {
 			fail("more than one turn");
 		}
+	}
+
+	/// [[BPR-2219]]. Review this pull request, from the review bar's Ask, by
+	/// the installed Claude Code on the live pull request: what the answer,
+	/// its report and its finding cards are.
+	void agent_review_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		aWindow.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry    = aStart;
+			entry.Program = aOptions.Path;
+			entry.Model   = aOptions.Model;
+			entry.Effort  = aOptions.Effort;
+			return entry;
+		});
+		auto*      panel = aWindow.agent_panel();
+		const auto id    = QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value());
+		require([&] {
+			if (panel->profile_selector()->findData(id) < 0) {
+				aWindow.agent_programs()->add_agent(core::setup_agent::claude_code);
+			}
+			return panel->profile_selector()->findData(id) >= 0;
+		},
+				"the installed agent is offered", std::chrono::seconds{ 60 });
+		panel->profile_selector()->setCurrentIndex(panel->profile_selector()->findData(id));
+		aWindow.settings()->hide();
+		aWindow.resize(1440, 960);
+		aWindow.choose_modality(qt::review_modality::review);
+		aWindow.tray_tabs()->setCurrentIndex(2);
+		auto* const tab = aWindow.agent_tab();
+		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+		const auto  before = tab->turn_count();
+		auto* const ask    = aWindow.review_ask_button();
+		auto*       review = static_cast<QAction*>(nullptr);
+		require([&] {
+			ask->refresh_menu();
+			review = ask->menu()->findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.review-pull-request_pull-request"));
+			return review != nullptr && review->isEnabled();
+		},
+				"Review this pull request is offered in the review bar's Ask", std::chrono::seconds{ 120 });
+		review->trigger();
+		require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+		require([&] { return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value(); }, "the review ends", std::chrono::seconds{ 1500 });
+		QCoreApplication::processEvents();
+		const auto quote = [](const QString& aText) {
+			auto out = std::string{ };
+			for (const auto character : aText.toStdString()) {
+				if (character == '"' || character == '\\') {
+					out += '\\';
+				}
+				out += character == '\n' || character == '\t' ? ' ' : character;
+			}
+			return "\"" + out + "\"";
+		};
+		std::ofstream{ aOptions.Root / "review-answer.md" } << tab->turn_answer(before).toStdString();
+		aWindow.grab().save(QString::fromStdString((aOptions.Root / "review-window-answered.png").string()));
+		auto* const card      = tab->turn_report_card(before);
+		const auto  isReport  = card != nullptr && card->isVisibleTo(tab);
+		auto*       rowButton = isReport ? card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")) : nullptr;
+		auto        facts     = std::string{ "{\"model\":" } + quote(QString::fromStdString(aOptions.Model)) + ",\"effort\":" + quote(QString::fromStdString(aOptions.Effort)) + ",\"outcome\":"
+			+ quote(QString::fromUtf8(core::stable_name(*tab->turn_outcome(before)).data())) + ",\"footer\":" + quote(tab->turn_footer(before)) + ",\"reported_model\":" + quote(panel->last_reported_model())
+			+ ",\"reported_cost\":" + quote(panel->last_reported_cost()) + ",\"answer_bytes\":" + std::to_string(tab->turn_answer(before).toUtf8().size()) + ",\"report_card\":" + (isReport ? "true" : "false")
+			+ ",\"turn_cards\":" + std::to_string(tab->turn_cards(before).size()) + ",\"finding_cards\":" + std::to_string(tab->finding_cards().size()) + ",\"card_summary\":"
+			+ quote(QString::fromStdString(tab->turn_answer_view(before)->original_body()));
+		if (rowButton != nullptr) {
+			rowButton->click();
+			require([&] { return aWindow.report_shown() && aWindow.report_view()->isVisible(); }, "the report opens", std::chrono::seconds{ 30 });
+			QCoreApplication::processEvents();
+			auto* const report = aWindow.report_view();
+			std::ofstream{ aOptions.Root / "review-report.md" } << report->document().Markdown.toStdString();
+			auto sections = std::string{ };
+			for (const auto& section : report->dressed().Sections) {
+				sections += (sections.empty() ? "" : ",") + quote(QString::fromStdString(section.Name) + QStringLiteral(" (%1)").arg(section.Items.size()));
+			}
+			facts += ",\"report_title\":" + quote(report->title()) + ",\"dressed\":" + (report->dressed_shown() ? "true" : "false") + ",\"sections\":[" + sections + "]";
+			aWindow.grab().save(QString::fromStdString((aOptions.Root / "review-window-report.png").string()));
+			// The whole page, as tall as it is.
+			if (auto* const scroll = report->findChild<QScrollArea*>(); scroll != nullptr && scroll->widget() != nullptr) {
+				scroll->widget()->grab().save(QString::fromStdString((aOptions.Root / "review-report-page.png").string()));
+			}
+		}
+		facts += "}";
+		std::ofstream{ aOptions.Root / "agent-review.json" } << facts << '\n';
+		say("agent-review:" + facts);
 	}
 
 	/// [[BPR-2007]], RFC-BPR-0104 AC01, AC02, AC09. The installed agent writes
@@ -1937,6 +2041,8 @@ try {
 		agent_helpers_course(chosen, *window);
 	} else if (chosen.Course == "agent-scratch") {
 		agent_scratch_course(chosen, *window);
+	} else if (chosen.Course == "agent-review") {
+		agent_review_course(chosen, *window);
 	} else if (chosen.Course == "live-session") {
 		live_session_course(chosen, *window);
 	} else if (chosen.Course == "live-draft") {
