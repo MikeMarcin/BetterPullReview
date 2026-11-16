@@ -25532,10 +25532,18 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	const auto   arguments  = QCoreApplication::arguments().mid(1);
-	const auto   listCases  = arguments.contains(QStringLiteral("--list-cases"));
-	const auto   traceCases = qEnvironmentVariableIsSet("BPR_TEST_CASE_TRACE");
-	const auto   selectors  = QStringList{
+#if defined(_WIN32)
+	// [[BPR-2197]]. The width courses measure the title row and the review
+	// bar against fixed window widths, so they need the font a Windows
+	// desktop gives: Segoe UI 9 pt. A session without one (over SSH, or the
+	// offscreen platform) reports another, larger font, and the rows yield
+	// at widths no desktop sees.
+	QApplication::setFont(QFont{ QStringLiteral("Segoe UI"), 9 });
+#endif
+	const auto arguments  = QCoreApplication::arguments().mid(1);
+	const auto listCases  = arguments.contains(QStringLiteral("--list-cases"));
+	const auto traceCases = qEnvironmentVariableIsSet("BPR_TEST_CASE_TRACE");
+	const auto selectors  = QStringList{
 		QStringLiteral("--thread-scroll-stability"),
 		QStringLiteral("--current-file-unread-badge"),
 		QStringLiteral("--center-ribbon-width"),
