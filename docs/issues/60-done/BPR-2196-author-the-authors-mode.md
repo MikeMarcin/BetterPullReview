@@ -83,7 +83,7 @@ BPR-2197 is Done too.
 
 Session `1d68e30d0ac7b53a07163a1f10777bdf` handed back at sequence 45.
 `BPR-2196-author-mode`: **Accepted**, no note. The other three questions are
-recorded on [BPR-2035](../10-backlog/BPR-2035-close-rfc-0112.md): the agent
+recorded on [BPR-2035](../60-done/BPR-2035-close-rfc-0112.md): the agent
 accent was accepted; the Workflow tab was rejected for panning sideways
 ("It's panning horizontally again. I don't like my drawers doing that. This
 should be a rule by now."), which is engineered under BPR-2035 with a drawer

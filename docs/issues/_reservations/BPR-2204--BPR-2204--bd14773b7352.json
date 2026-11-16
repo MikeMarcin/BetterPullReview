@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2204"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "The import preview matches the accepted mockup B (owner note on workflow-import-v003)",
+  "created": "2026-11-16T04:00:15.028024+00:00",
+  "base": "4efe6306a439b6804381773832d223356853038d"
+}
