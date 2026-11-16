@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2197"
 title: "The mode switcher folds to icons on every platform"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"design":"docs/design/windows-title-fit-v2/README.md","design_branch":"claude/windows-title-fit-mockups","design_revision":"615bd65c8","design_session":"20c49e523db3f8c071bda18a1ee8d2bd","earlier_design_session":"1073f45be455a420999e60fd5e502ee3","owner_decision":{"date":"2026-11-15","quote":"I think all 3 platforms should do the same icon on narrow trick."},"reservation":"docs/issues/_reservations/BPR-2197--BPR-2197--36dc5cc18504.json"}
 depends_on: ["BPR-2196"]
-parked_on: "human-review"
 ---
 
 # BPR-2197: The mode switcher folds to icons on every platform
@@ -121,13 +120,7 @@ floor), `qt_drawer_parts_scale_*`, `qt_drawer_surfaces_fit_scale_*`,
 `qt_local_draft_window`, `qt_button_faces`, `qt_button_faces_cocoa`,
 `architecture_boundaries`, `application_review_round_trip_composition_contract`;
 clang-tidy on the changed units; documentation gate. Linux station (WSL
-Ubuntu, Debug, offscreen): `--title-row` passes. Windows station (Release,
-over SSH): `test_strip_is_the_title_row` and
-`test_the_floor_follows_the_review_bar` pass;
-`test_strip_identity_stays_at_every_width` stops at "the review bar's
-positions keep their words at 1280" and `test_the_switcher_folds_to_glyphs`
-at "at 1600 the long title shows whole", with the session's misread system
-font (the design notes the same); not confirmed at the real Windows font.
+Ubuntu, Debug, offscreen): `--title-row` passes.
 
 ## Owner look title-fold-v001 filed (2026-11-15)
 
@@ -141,3 +134,50 @@ reached `ATTENDED_PULL_REQUEST_OPENED` and started no real agent), on
 show. One Accept/Reject question, `BPR-2197-title-fold`, with title-row
 renders at 1440, 1200 and 900 pixels: macOS (Cocoa, dark and light), Windows
 11 (Segoe UI 9 pt) and Linux (offscreen). If accepted, BPR-2197 is Done.
+
+## Windows width courses settled (2026-11-15)
+
+Over SSH, two courses failed on the Windows station:
+`test_strip_identity_stays_at_every_width`, at "the review bar's positions
+keep their words at 1280", and `test_the_switcher_folds_to_glyphs`, at "at
+1600 the long title shows whole". The cause was the fonts, not the fold.
+
+- **Offscreen has no fonts on Windows.** ctest runs the window courses on
+  Qt's offscreen platform. On Windows it finds no fonts unless
+  `QT_QPA_FONTDIR` names them: every font resolves to an unnamed fallback
+  (family "", point size -1), and the whole name measured 1388 pixels
+  against 624 in Segoe UI 9 pt. The title row and the review bar then
+  yield at widths no desktop sees. Setting Segoe UI 9 pt alone changed
+  nothing, since there was no Segoe UI to find.
+- **It predates this card.** At `8eb302151`, before the fold, the same
+  station fails `test_strip_identity_stays_at_every_width` earlier, at the
+  title row's own 1280 check.
+- **The review bar was not short of width because of the fold.**
+  `apply_review_bar_width` compares only the bar's own size hint with the
+  window's width; this card did not change it, and with the fonts found
+  the bar keeps its words at 1280.
+- **Qt's windows platform is no better over SSH.** It has the fonts (the
+  switcher measures 316 pixels with names and 209 with the open mode
+  named, against the design's 312 and 205), but the session's screen is
+  about 1028 pixels wide and Windows clamps the window to it.
+
+The fix, in the test only (`7038aecdb`, `c2020a55c`): on Windows, the
+`--title-row` courses point `QT_QPA_FONTDIR` at the Windows fonts folder
+before the application starts and set Segoe UI 9 pt, the font a Windows
+desktop gives. The window's other courses keep the fallback:
+`test_the_tour_is_a_route_expanding_to_its_page` passes with it and fails
+with Segoe UI 9 pt ("the Tour tab is the route: every stop in view, no list
+of its own to scroll"), which is left for its own card.
+
+Windows station, Release, `22220f4f0` plus `c2020a55c`'s test file: the
+title-row course passes at 100%, 125% and 200% (run directly with ctest's
+environment, since ctest's network sandbox cannot start a process in an SSH
+session, 0xc0000142), and both courses pass alone. Scratch folder removed.
+
+## Owner verdict (2026-11-15)
+
+Accepted with no note in `title-fold-v001` (session
+`84fbe840afbd99aaf6ce0a68bebe6cbc`, decision
+`a467d680-f6c7-4c62-b3aa-2935b96d4ce9`, handed back at cursor 6). Host
+97593/97603 stopped; root `/Users/jaeger/title-fold-v001.tfds9x8z` removed
+with `freeze_attended_build.py remove`. Done.
