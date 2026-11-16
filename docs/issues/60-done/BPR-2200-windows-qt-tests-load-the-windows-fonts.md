@@ -159,3 +159,15 @@ elsewhere on the lane.
   The startup compiles to nothing there.
 - Documentation gate: `DOCUMENTATION_OK`.
 - Station scratch folder removed.
+
+## Correction (2026-11-15, main baseline)
+
+Seven of the eight entries listed above as failing the same way with and
+without fonts also fail on main (`ba6b79d67`), and are carded together as
+[[BPR-2205]]. The eighth, `qt_source_search_panel_scale_1` (`painted wash
+spans the match text`), passes on main with ctest's environment, where the
+fonts load but the application font is the offscreen default. It fails on
+main without fonts, and on the lane with Segoe UI 9 pt. It therefore depends
+on the font, not on lane code (the lane changes neither the panel nor its
+test), and it is a failure this card's Segoe UI 9 pt newly exposes. It is
+reported to the coordinator, not yet carded.
