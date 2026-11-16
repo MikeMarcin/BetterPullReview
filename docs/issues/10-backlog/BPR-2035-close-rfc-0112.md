@@ -168,3 +168,25 @@ pending until the rework is looked at again; AC09 is accepted. Host 57962
 (Tailscale child 57974) stopped; root `/Users/jaeger/workflow-v002.1z4xyif5`
 removed with `freeze_attended_build.py remove`.
 
+## Workflow tab rework: no drawer pans sideways (2026-11-15)
+
+On the lane at `47ab3a062`. Author's Workflow tab wraps inside the drawer:
+its headline, each row's state and buttons, command and answer lines, the
+publisher choice and the footer wrap (a new `wrapping_row` layout); agent and
+publisher names on buttons are shortened, whole in the tooltip; the
+publication area's buttons wrap. The owner's "This should be a rule by now"
+is a rule: `qt_drawer_surfaces_fit_scale_100/125/200` fail any drawer tab
+with a horizontal scroll bar, sideways range or content wider than its
+viewport, across Overview (Status, Commits, Comments, Tour, Agent at 260, 340
+and 560), Review (Comments, Tour, Agent), Author (Workflow, Tour, Agent on a
+pull request and on a local draft) and a local draft's Review and Overview
+tabs, with a negative control. Before the fix the guard failed 8 states per
+scale (Author's Workflow at 280 on a pull request, 83 px of sideways range,
+and on a local draft, 434 px, in all four themes); after it, all three pass.
+The rule is written in `src/adapters/qt/AGENTS.md` and the UX specification
+("No drawer pans sideways"). No new owner look for the fix: the guard is the
+evidence. The Settings section "Agents & context" is renamed "Agents" and the
+macOS application menu's Preferences… reads Settings… (`0267ad16a`). AC07
+waits for the next look of the Workflow tab with the redesigned import
+preview (AC02's preview); AC09 is accepted.
+

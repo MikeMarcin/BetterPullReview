@@ -4190,3 +4190,40 @@ Next action: on hand-back, reconcile the verdict (Accept: BPR-2197 Done and
 mirrored; Reject: the note's change, then a new look), remove the root with
 `freeze_attended_build.py remove` and stop the host. If Windows matters before
 then, run the two width courses on the Windows desktop font.
+
+## workflow-v002 handed back; no drawer pans sideways (2026-11-15)
+
+Session `1d68e30d0ac7b53a07163a1f10777bdf` handed back at sequence 45:
+`BPR-2196-author-mode` and `BPR-2033-agent-accent-on-actions` accepted;
+`BPR-2035-workflow-tab` rejected (the drawer pans sideways);
+`BPR-2032-workflow-import-preview` rejected (frontend-design pass, a separate
+worker). Verdicts recorded verbatim on BPR-2035, 2196, 2032 and 2033; BPR-2196
+Done. Host 57962 (Tailscale child 57974) stopped with attended-review `stop`;
+root `/Users/jaeger/workflow-v002.1z4xyif5` removed with
+`freeze_attended_build.py remove`.
+
+| Commit | What |
+|---|---|
+| `bb341e584` (main `55338d58b`) | The four verdicts; BPR-2196 Done |
+| `47ab3a062` | Workflow tab wraps (`wrapping_row`); `qt_drawer_surfaces_fit` fails any drawer tab with a horizontal bar, sideways range or content wider than its viewport on every surface; rule in `src/adapters/qt/AGENTS.md` |
+| `0267ad16a` | Settings "Agents & context" is "Agents"; Settings… in the macOS application menu (`application_menu_wording`, `qt_application_menu_wording`); UX spec; app pin resealed |
+| main `b09d995cf` | BPR-2035 rework note |
+
+Guard before the fix: 8 failing states per scale (Author's Workflow at 280,
+pull request and local draft, four themes); after: `qt_drawer_surfaces_fit_scale_100/125/200`
+pass. Also passing: `qt_application_menu_wording`, `qt_settings_window` (all
+scales), `qt_feedback_label_settings`, `qt_quiet_buttons`,
+`qt_home_card_fit_scale_100`, `qt_local_draft_window`,
+`qt_workbench_window_scale_100`, `core_fuzzy_match`, `core_author_mode`,
+`application_local_draft_{author,publication,workflow}_desktop_public_path`,
+`application_review_round_trip_composition_contract`, documentation gate.
+
+Not renamed on purpose: done cards, verification evidence, design mockups,
+RFC drafts and closed RFCs (history); RFC-BPR-0125, whose criteria BPR-2150's
+closeout checklist quotes canonically; the `settings_page::agents_and_context`
+identifier. The import preview's own "Agents & context" sentence is in the
+design worker's rewrite of that dialog.
+
+Next action: AC07 (Workflow tab) and AC02's preview are asked again in one
+look once the import preview redesign lands; BPR-2035 closes RFC-BPR-0112
+after that and BPR-2197.
