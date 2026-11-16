@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2035"
 title: "Verify and close RFC-BPR-0112"
-status: "Parked"
+status: "Backlog"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07","AC08","AC09"],"resolved_choices":["ACTIONS-01"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0020","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0047-close-optional-workflow-integration.md","draft_title":"Close optional workflow integration"}
-depends_on: ["BPR-2032", "BPR-2033", "BPR-2034"]
+depends_on: ["BPR-2032", "BPR-2033", "BPR-2034", "BPR-2196", "BPR-2197"]
 closeout_for: ["RFC-BPR-0112"]
-parked_on: "human-review"
 ---
 
 # BPR-2035: Verify and close RFC-BPR-0112
@@ -118,3 +117,11 @@ two design rounds (merged into this lane from
 The accepted design is engineered as its own card, BPR-2196, before
 `workflow-v002` asks this card's questions again. The owner then renamed
 the mode Revise to Author: "I changed my mind, make it Author".
+
+## Back to Backlog (2026-11-15)
+
+The owner put BPR-2196 (Author) and BPR-2197 (the switcher's icon fold) in
+0.5.0 scope under this RFC; this closeout depends on both, so it waits in
+Backlog until they are Done. Owner look `workflow-v002` still asks this
+card's three questions (Workflow tab, import preview, agent accent) beside
+Author's; their verdicts are recorded here when they come back.

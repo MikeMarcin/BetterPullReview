@@ -229,7 +229,7 @@ Optional shareable workflow configurations and a read-only companion contract su
 
 A selected external publisher or follow-up action runs through an interactive handoff to the author's harness, and its uncertain or partial outcomes reconcile without duplication.
 
-**Work:** `BPR-2034`, `BPR-2035`
+**Work:** `BPR-2034`, `BPR-2196`, `BPR-2197`, `BPR-2035`
 
 **Prerequisites:** publish-prepared-draft, workflow-companion-contract
 
