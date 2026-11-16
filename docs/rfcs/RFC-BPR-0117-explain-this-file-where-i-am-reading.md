@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0117"
 title: "Explain this file where I am reading"
-status: "In Progress"
+status: "Auto-Verified"
 metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0002","inspected_revision":"90785ae34aeccf63724b9e5e7a70446f89341ec5","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"a9663a706fd72061f60b615bd8e749ee0ddb66b5"}
 depends_on: ["RFC-BPR-0101", "RFC-BPR-0102"]
 ---
@@ -98,6 +98,16 @@ The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-thre
 
 ## Proposed delivery
 
-[Explain this file](../issues/40-parked/BPR-2076-explain-this-file-in-review.md) and
-[closeout](../issues/10-backlog/BPR-2077-close-rfc-0117.md) form the second
+[Explain this file](../issues/60-done/BPR-2076-explain-this-file-in-review.md) and
+[closeout](../issues/60-done/BPR-2077-close-rfc-0117.md) form the second
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
+
+## Closeout, 2026-11-16
+
+Auto-Verified for the scope reconciled under
+[RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md),
+on the owner's decision of 2026-11-16 to close it. AC01, AC04, AC05 and AC06's
+control pass; AC02 and AC03, the answer card under the file's header and its
+buttons, are superseded by the Ask amendment and the owner's ask-v001
+direction, not passed. Evidence: [[BPR-2077]] and the
+[verification](../verification/RFC-BPR-0117.md#closeout-2026-11-16).

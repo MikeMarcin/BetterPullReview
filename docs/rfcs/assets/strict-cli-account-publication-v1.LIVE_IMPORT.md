@@ -13,3 +13,5 @@ Excluded: transient inspection/build logs, screenshots, credentials and unrelate
 ## Owner amendment r2
 
 2026-10-13: “Yes, use credential unavailable.” Missing/inaccessible credentials share one honest outcome; tool failure and attempted indeterminate writes remain distinct. Draft retention, actionable gh sign-in/access advice, no raw errors and no fallback remain. Original authored bytes and reviewed proposal are preserved.
+
+Card references (2026-11-16): the draft and the proposed CLI amendments name BPR-1373 as a `[[BPR-1373]]` card reference instead of its Parked lane path, so the card moves to Done without editing those protected records further (as the local-draft-authoring pack did on 2026-11-13).

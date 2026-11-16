@@ -128,3 +128,17 @@ review code is unchanged here. Host 48480 and root
 > Just doesn't seem like a great place for this.
 >
 > I think we can do better.
+
+## Closeout (2026-11-16)
+
+Owner, 2026-11-16, on the hygiene audit: close; delivered through
+RFC-BPR-0128 or superseded, the implementer's call. Closed as **delivered
+through RFC-BPR-0128** by [[BPR-2075]]. The verdicts above were answered by
+the Ask model the owner then chose: What changed since my review and Was this
+addressed? are built-in rows of the review bar's, a file's and a thread's Ask,
+answered as report cards and reports, with the claim a chip in the thread's
+header. The owner accepted those controls and answers in the RFC-BPR-0128
+looks ask-v002, ask-v008, report-templates-v003 and report-templates-v004
+([ledger](RFC-BPR-0128.md)). The returning-review courses that carry AC01 to
+AC06 stayed green through RFC-BPR-0128's integration pass at `7b3fe6eaa`.
+[[BPR-2074]] closes as superseded.

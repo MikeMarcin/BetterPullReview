@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2119"
 title: "Shipped builds launch agents in the pull request's checkout with the pull request's own agent settings loaded"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0104"]
 depends_on: []
 priority: "P0"
-metadata: {"kind":"defect","found_by":"RFC-BPR-0104 third review round (F1) on the v0.5.0 prerelease lane, 2026-11-11; release exposure check the same day","exposed":["0.4.1 (latest release)","0.4.0","v0.3.4 (earlier releases not checked)","v0.4.2-build.58 and earlier prereleases","main at 8d283e744"],"lane_fix":"claude/v0-5-0-prerelease-targets-52265d at 059e191fb, hardened in the fourth review round","related_cards":["BPR-2007","BPR-2008"],"reservation":"docs/issues/_reservations/BPR-2119--BPR-2119--ad05a040e80a.json"}
+metadata: {"kind":"defect","found_by":"RFC-BPR-0104 third review round (F1) on the v0.5.0 prerelease lane, 2026-11-11; release exposure check the same day","exposed":["0.4.1 (latest release)","0.4.0","v0.3.4 (earlier releases not checked)","v0.4.2-build.58 and earlier prereleases","main at 8d283e744"],"lane_fix":"claude/v0-5-0-prerelease-targets-52265d at 059e191fb, hardened in the fourth review round","related_cards":["BPR-2007","BPR-2008"],"reservation":"docs/issues/_reservations/BPR-2119--BPR-2119--ad05a040e80a.json","owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"move to Done; write the owed release-note advisory or card it"},"release_notice_card":"BPR-2213"}
 ---
 
 # Shipped builds launch agents in the pull request's checkout with the pull request's own agent settings loaded
@@ -87,3 +87,26 @@ if the owner wants one), not the lane's grants:
 
 Verdict: **DONE-ALREADY**. The guard is on main: 059e191fb (the lane fix) is an ancestor of main; see agent_checkout_spellings and PullRequestCheckout in src/application/src/agent_launch.cpp and agent_scratch_folder.cpp. Still owed: the release-note advisory (Codex `trust_level` cleanup). No release record in docs/verification names it.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: Done; the release notice is carded
+
+Owner, 2026-11-16 (on the hygiene audit, relayed by the coordinator): move to
+Done. Write the release-note advisory about the Codex `trust_level` cleanup
+where release notes live, or card it if it cannot be written now.
+
+**The guard is on `main`.** The lane fix `059e191fb` is an ancestor of `main`
+(checked at `176d127e8`): `agent_checkout_spellings` and
+`agent_launch_options::PullRequestCheckout` in
+`src/application/src/agent_launch.cpp` and `agent_scratch_folder.cpp`. Its
+unit and live evidence is the
+[RFC-BPR-0104 ledger](../../verification/RFC-BPR-0104.md#release-exposure-check-2026-11-11).
+
+**The notice cannot be written now.** A release body is written once, for the
+release being published, from the template in
+`.agents/skills/publish-release/references/release-notes.md`, and handed to the
+publisher as `--notes-file`. No notes file stands in the repository between
+releases. The latest release, `0.4.2` (tag at `6efba00e1`, 2026-11-11), does
+not contain `059e191fb`, so the next release is the first to ship the guard,
+and its body owes the notice. [[BPR-2213]] carries that obligation with the
+exact notice text, so the publisher of that release copies it rather than
+reconstructing it from this card.

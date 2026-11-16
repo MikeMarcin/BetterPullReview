@@ -92,3 +92,17 @@ quick asks from suggested-prompt macros). [[BPR-2076]] stays parked pending
 that redesign. The frozen root `/Users/jaeger/explain-file-v001.4gr0t3jw` was
 removed and host 29331 (child 29341) stopped after hand-back.
 
+## Closeout (2026-11-16)
+
+Owner, 2026-11-16, on the hygiene audit: close; delivered through
+RFC-BPR-0128 or superseded, the implementer's call. Closed by [[BPR-2077]] as
+**delivered through RFC-BPR-0128, with AC02 and AC03 superseded**. The verdict
+above, "I think this gets folded into Ask", was carried out: Explain this file
+is a row of the file's Ask and the file tab's menu, sending the same
+`analyze_current_file` request under its own built-in prompt, and its answer
+is a report card and a report in a file tab. The answer card at the file's
+header, with Keep as note, Dismiss and Continue in Agent tab, was removed
+after the owner's ask-v001 Reject; those criteria are recorded as superseded,
+not passed. The owner's accepts of the file's Ask and of the reports are in
+the [RFC-BPR-0128 ledger](RFC-BPR-0128.md). [[BPR-2076]] closes as
+superseded.

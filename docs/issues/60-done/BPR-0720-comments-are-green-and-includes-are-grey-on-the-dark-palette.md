@@ -2,19 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0720"
 title: "Comments are green and includes are grey on the dark palette"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-10","attended_decision":"65f3f881-91a3-4388-8b8c-0c69fc0a57d6","accepted_as":{"candidate":"BPR-0744-directive-ranges","decision":"4f1d1354-c3c1-43d9-af11-358347147453","date":"2026-09-12"},"blocked_links":["docs/verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md","docs/verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md"]}
-parked_on: "immutable-review-link"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-10","attended_decision":"65f3f881-91a3-4388-8b8c-0c69fc0a57d6","accepted_as":{"candidate":"BPR-0744-directive-ranges","decision":"4f1d1354-c3c1-43d9-af11-358347147453","date":"2026-09-12"},"blocked_links":["docs/verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md","docs/verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md"],"owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"move to Done"}}
 acceptance: [{"criterion":"The appearance role tests pin the confirmed values for comment and preprocessor on the dark palette and fail on the current ones","outcome":"pass","revision":"working tree over dab5fa68","evidence":{"kind":"command","detail":"qt_appearance_profile: test_the_dark_palette_follows_the_visual_assist_scheme pins comment/documentation 66B559, preprocessor/import A3A3A3, keyword 6DA9DB, type 4EC9B0, function DCDCAA, string D69D85, number B5CEA8 on dark and the untouched light comment/preprocessor; it failed against the previous values before the palette edit and passes after; the contrast audit and headroom ratchet (dark 1 hundredth) pass."}},{"criterion":"qt_appearance_* and the theme customization course pass; the two application digests are repinned if the defaults are part of them","outcome":"pass","revision":"working tree over dab5fa68","evidence":{"kind":"command","detail":"qt_appearance_profile, qt_appearance_settings_panel, application_appearance_host, application_appearance_profile_consumers, core_appearance_contrast, core_appearance_policy, sqlite_appearance_settings_storage (version-3 reset once; version 3 in the legacy refusal sweep), application_appearance_store_fallback_contract, application_appearance_gesture_contract, application_review_round_trip_composition_contract, application_composition_contract, qt_composed_github_scale_100 pass in build/dev; no digest drifted (github_application.cpp untouched); check_boundaries, clang-format --Werror, strict tidy on the three touched TUs and git diff --check clean. application_appearance_theme_customization_contract is red at cc31119b before this change with BPR-0723's STARTUP_FAILED signature and is recorded on BPR-0723."}},{"criterion":"The owner accepts the rendering on the signed bundle in the next attended session","outcome":"pass","revision":"aff9fc64","evidence":{"kind":"observation","detail":"The v008 rejection (decision fed7a1bf, bundle e4fdb0ea at 35438244) stays recorded on this card against its own revision. Accepted in attended session cbd48b91000b00f1e72e1ad62c7c384c (v009, packet docs/verification/reviews/rfc-bpr-0028-attended-v009) as candidate BPR-0744-directive-ranges, revision app-release-c2381f32-2026-09-12.5, fingerprint a321ed197669c28e51b7945dd1352a9af634ae12cf63b63b71e1338513692eec equal to the prepared candidate's in that packet's session-identity.json, decision 4f1d1354-c3c1-43d9-af11-358347147453, actor human, 2026-09-12T16:06:15Z: accept, note empty. The candidate told the owner it 'carries the criterion BPR-0720 and BPR-0738 have both been carrying since v005', and its criteria were a stdexec C++ header on the dark palette (directive keyword grey, ALL_CAPS macro purple, #include path salmon) and the identifier roles in ordinary code (functions FF8000, types FFD700, macros purple, variables BDB76B, attributes 4EC9B0, comments green, strings salmon). The bundle was build/app-release from source aff9fc64, BUILD_TESTING=OFF, executable sha256 c2381f325093200563544ce3bb9e1ba04f847102e2f5b599ca6cc51c6f555653, codesign --verify --deep --strict exit 0; the owner had it open from 16:03:30Z to 16:06:34Z (diagnostics.log op=application). The third question that rode the candidate (every identifier in #if/#ifdef/defined() purple) is not answered by the accept and stays on BPR-0748.","path":"docs/issues/60-done/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md"}}]
 ---
 
 # Comments are green and includes are grey on the dark palette
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](../60-done/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Also comments a grey instead of green like was requested with visual
 studio dark mode with visual assist color scheme. And includes are green not
 grey, seems like those colors got swapped maybe? Or the theme in general
@@ -138,7 +137,7 @@ The v004 packet is historical.
 `application_appearance_theme_customization_contract`, the direct course
 for this palette on the application public path, passes (23.69 s and
 23.80 s on the build with this card's change) once
-[BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+[BPR-0723](BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
 narrows the contract's pre-created root; the second criterion's evidence
 now includes it. The attended criterion is unchanged.
 
@@ -166,7 +165,7 @@ and the upstream C++ grammar has no Function style, types only its built-ins and
 and declares macros `dsNormal`, which `applyFormat` drops
 (`src/adapters/syntax/src/packaged_syntax_classifier.cpp:41-110, 236-245`). The function
 `DCDCAA` and type `4EC9B0` values this card set are never asked for on C++. Carded as
-[BPR-0726](../60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)
+[BPR-0726](BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)
 (heuristic classification of calls, types and ALL_CAPS macros for C and C++). The reset and
 the emitted colours were not disputed. This card stays parked on human-review; its candidate
 is asked again on a bundle carrying BPR-0726.
@@ -189,7 +188,7 @@ Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle buil
 
 > It's better but still off macros are still grey, functions arent orange etc
 
-The two application screenshots show this card's values where a role is emitted and [BPR-0726](../60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)'s roles on every call, type and macro; BPR-0726 was accepted thirty-five seconds after this verdict, so the classification is settled and the rejection is the colours. The reference is Visual Studio 2022 dark with Visual Assist, which paints macros purple (`BD63C5` sampled) and functions gold (`FFD700`); this card chose Visual Studio's own `DCDCAA` for functions and, because BPR-0726 classifies an ALL_CAPS macro as the preprocessor role, macros paint the directive grey `A3A3A3`. Carded as [BPR-0738](BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md), which lists the sampled reference values and lets the slice decide whether macros need a role of their own. The reset and the other emitted colours were not disputed.
+The two application screenshots show this card's values where a role is emitted and [BPR-0726](BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)'s roles on every call, type and macro; BPR-0726 was accepted thirty-five seconds after this verdict, so the classification is settled and the rejection is the colours. The reference is Visual Studio 2022 dark with Visual Assist, which paints macros purple (`BD63C5` sampled) and functions gold (`FFD700`); this card chose Visual Studio's own `DCDCAA` for functions and, because BPR-0726 classifies an ALL_CAPS macro as the preprocessor role, macros paint the directive grey `A3A3A3`. Carded as [BPR-0738](BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md), which lists the sampled reference values and lets the slice decide whether macros need a role of their own. The reset and the other emitted colours were not disputed.
 
 This card stays parked on human-review; its candidate is asked again on a bundle carrying BPR-0738.
 
@@ -239,7 +238,7 @@ palette, yes reset", whose written form was "grey preprocessor lines including
 the include path". That stays true of the directive and is no longer true of
 its arguments; RFC-BPR-0006 carries the revision.
 
-Carded as [BPR-0744](../60-done/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md):
+Carded as [BPR-0744](BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md):
 the directive keyword keeps `syntax_preprocessor`, an ALL_CAPS argument takes
 the `syntax_macro` role BPR-0738 added, and an `#include` path is painted as
 the reference paints it. The classifier can already emit roles at sub-line
@@ -306,3 +305,25 @@ preparer flagged this card as board upkeep, not as a question.
 
 Verdict: **DONE-ALREADY**. Accepted (session cbd48b91, hand-back 589). It stays Parked only because moving it would change a link in a protected review packet. That is a tooling question, not open work.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: Done, the packets untouched
+
+Owner, 2026-11-16 (on the hygiene audit, relayed by the coordinator): move
+this card to Done, and handle the protected review packet properly.
+
+The acceptance above is unchanged; nothing was waiting on the owner. What
+stood in the way was the board tool: `issue_board.py move` repairs every
+link to a moved card, and the RFC-BPR-0028 attended packets under
+`docs/verification/reviews/` are protected (`protected_globs`), so the move
+refused with `move would change protected content`.
+
+The path-preserving migration this card waited for already exists. Since
+`9e4b0d811` (2026-09-12) the documentation gate's `relocated_review_card_link`
+accepts a packet's old card path as a historical locator, provided exactly one
+board file carries the same card filename. Cards linked from packets at their
+old lanes have moved under it before ([[BPR-0646]], [[BPR-0743]],
+[[BPR-0794]], [[BPR-0795]]). This move used the board's own move logic with
+one change: protected files keep their bytes, and every unprotected link is
+repaired as usual. No packet changed (`git diff` is empty under `docs/verification/reviews/`).
+Their links still name `40-parked/`, and the gate resolves them to this file
+in `60-done/`.

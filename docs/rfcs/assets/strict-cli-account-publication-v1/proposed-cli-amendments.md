@@ -17,7 +17,7 @@ authoring, not an implementation baseline. Reconcile drift before adoption.
 | Source | SHA-256 |
 |---|---|
 | [RFC-BPR-0015](../../RFC-BPR-0015-github-cli-production-enablement.md) | `467720a0771e4ff986769aae3e365da7c5e8728bcc42e7836029bcbb74cf2644` |
-| [BPR-1373](../../../issues/40-parked/BPR-1373-pin-each-gh-call-to-a-chosen-account.md) | `f6fad66c7b7f35e6038dc75b7085dbbd65dd89f513b7da81c62c1a1e6bbeba03` |
+| [[BPR-1373]] | `f6fad66c7b7f35e6038dc75b7085dbbd65dd89f513b7da81c62c1a1e6bbeba03` |
 | [Adopted CLI-profile plan](../../plans/rfc-bpr-0015-cli-profile/milestone-plan.json) | `eeb2c94607c72f91e10617dab0b01f8d03e5660854283b614a39c151593af831` |
 | [GitHub adapter instructions](../../../../src/adapters/github/AGENTS.md) | `84e6c5caf146a158a808fd0173781dcfb7ff13d8f858bbac67158caaca98f6fb` |
 | [Product contract](../../../architecture/product-contract.md) | `10fe0f7d1e10e5e9147f8174cd5092812d4cea9af4d4548c715c855e3767fef6` |

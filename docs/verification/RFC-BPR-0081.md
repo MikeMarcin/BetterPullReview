@@ -26,7 +26,8 @@ fixes those classes in the heuristic. It may not take
 **When to run the evaluation again:**
 - if a fix in BPR-1474 would need more than 800 lines or a new whole-blob pass,
   the parser decision reopens with this report's numbers;
-- if the refinement reaches 800 lines;
+- if the refinement reaches 1000 lines (800 until the owner's amendment of
+  2026-11-16, below);
 - if a new identifier category needs structural recognition;
 - if tree-sitter-cpp gains enumerator attributes and recovers from
   `NAMESPACE_BEGIN`-style macros, so that the contract twin passes and T's
@@ -36,10 +37,17 @@ fixes those classes in the heuristic. It may not take
 `cpp_identifier_context.cpp` is 847 lines at `223098b11`. BPR-1474 left it
 at 698, and later out-of-scope cards took it to 776 (BPR-1710), 788
 (BPR-1711) and 847 (BPR-1714). Nothing is re-run or changed until the owner
-decides on [BPR-1777](../issues/10-backlog/BPR-1777-rfc-0081-re-run-trigger-fired-identifier-refinement-is-847-lines.md).
+decides on [BPR-1777](../issues/60-done/BPR-1777-rfc-0081-re-run-trigger-fired-identifier-refinement-is-847-lines.md).
 On current source the contract twin `syntax_classification_contract@ts-v0.23.4`
 fails first on BPR-1710's `std::` namespace assertion, which T was never
 updated for, before it reaches the enumerator case.
+
+**Owner decision, 2026-11-16: keep the heuristic, raise the trigger to 1000
+lines.** The owner answered [[BPR-1777]]'s question on the hygiene audit of
+2026-11-15: no re-run; the line condition is now 1000 lines. At `176d127e8`
+the file is 847 lines, under the new trigger, so nothing fires. The other
+conditions above are unchanged. Nothing in `scripts/` or `tests/` measures
+the line count, so there was no check to change.
 
 **Windows and Linux are not measured.** Windows x64
 ([BPR-1443](../issues/60-done/BPR-1443-measure-the-parser-evaluation-on-windows.md))

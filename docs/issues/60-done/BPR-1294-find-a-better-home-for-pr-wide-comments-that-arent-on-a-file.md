@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1294"
 title: "Find a better home for PR-wide comments that aren't on a file"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner chat, 2026-10-06, during BPR-1290","reservation":"docs/issues/_reservations/BPR-1294--BPR-1294--35ad4cad03a9.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0049"],"related_cards":["BPR-1290","BPR-1293","BPR-0648","BPR-0649","BPR-1089","BPR-0211"],"implementation_note":"Use the frontend-design skill when designing; owner review is required","leading_direction":"On Overview, as in SmartBear Collaborator's review overview"}
+metadata: {"origin":"Owner chat, 2026-10-06, during BPR-1290","reservation":"docs/issues/_reservations/BPR-1294--BPR-1294--35ad4cad03a9.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0049"],"related_cards":["BPR-1290","BPR-1293","BPR-0648","BPR-0649","BPR-1089","BPR-0211"],"implementation_note":"Use the frontend-design skill when designing; owner review is required","leading_direction":"On Overview, as in SmartBear Collaborator's review overview","superseded_by":["BPR-1781"],"owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"close as superseded"}}
 ---
 
 # BPR-1294: Find a better home for PR-wide comments that aren't on a file
@@ -111,3 +111,16 @@ required, not self-certified.
 
 Verdict: **SUPERSEDED**. By BPR-1781 (Done, owner Accept 2026-10-27, session 41f51349): the pull request's own comments live on Overview's Comments tab (github_conversation_panel.cpp:468, conversation_cards_view.cpp:2451). That is this card's leading candidate direction.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: closed as superseded
+
+Owner, 2026-11-16 (on the hygiene audit, relayed by the coordinator): close
+this card as superseded. The board has one terminal lane, so a superseded card
+sits in Done with `metadata.superseded_by` (as [[BPR-1353]] does); it was not
+delivered as written.
+
+By [[BPR-1781]] (Done; owner Accept 2026-10-27, attended session
+`41f51349`): the pull request's own comments, the ones on no file, live on
+Overview's Comments tab (`github_conversation_panel.cpp`,
+`conversation_cards_view.cpp`). That is this card's leading direction, "On
+Overview, as in SmartBear Collaborator's review overview", delivered.

@@ -107,9 +107,9 @@ RFC-BPR-0052's title row, review bar, folding Updates line and document tabs,
 which RC61-02 names, and on RFC-BPR-0037's review workflow. They are expected
 to close in order once RFC-BPR-0028 does. The second half of the answer,
 BPR-0653's Windows title row at 100% display scale, is the first step of that order:
-[BPR-0653](../issues/40-parked/BPR-0653-windows-caption-in-the-strip.md), then
+[BPR-0653](../issues/60-done/BPR-0653-windows-caption-in-the-strip.md), then
 RFC-BPR-0028's closeout
-[BPR-1021](../issues/10-backlog/BPR-1021-close-rfc-0028.md), then
+[BPR-1021](../issues/20-ready/BPR-1021-close-rfc-0028.md), then
 RFC-BPR-0037, then RFC-BPR-0052's closeout
 [BPR-1135](../issues/10-backlog/BPR-1135-close-rfc-0052.md), then this RFC's
 closeout [BPR-1194](../issues/10-backlog/BPR-1194-close-rfc-0061.md).

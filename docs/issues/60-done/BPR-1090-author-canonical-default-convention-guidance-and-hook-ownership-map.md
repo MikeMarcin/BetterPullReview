@@ -155,7 +155,7 @@ The Accept was given on the frozen build of `54b4b89eb` (executable
 landed `941b4a03d` and `e20113341`. It satisfies `BPR-1090:owner-look`. R34 to
 R37 stand on their recorded evidence. The asides are about Settings as a
 whole, not about the Review feedback row, and are recorded as owner input on
-[BPR-1288](../10-backlog/BPR-1288-redesign-settings-section-headers-and-the-reviews-and-queue-page.md):
+[BPR-1288](BPR-1288-redesign-settings-section-headers-and-the-reviews-and-queue-page.md):
 the section banners were already its scope, and the info glyphs, the Agents &
 context layout and the text volume were added to it. Linux and Windows runs
 remain owed and do not block. The card is Done.

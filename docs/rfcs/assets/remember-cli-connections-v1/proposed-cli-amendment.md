@@ -18,7 +18,7 @@ acceptance evidence.
 | [Product contract](../../../architecture/product-contract.md) | `d1444738a74be65b0b362989245468b3995ce35f0da8ac4d7a661900e3933e65` |
 | [System architecture](../../../architecture/system-architecture.md) | `9ab40714ed9cf74c433fc7c19d9b3c33963d70cd913fd4080084d1c74b64ec48` |
 | [GitHub host implementation](../../../architecture/github-host-implementation.md) | `4396026f7f137bb262add140d7eabf4afcbfb70b1b812006c20abea8c3956570` |
-| [BPR-1373](../../../issues/40-parked/BPR-1373-pin-each-gh-call-to-a-chosen-account.md) | `f6fad66c7b7f35e6038dc75b7085dbbd65dd89f513b7da81c62c1a1e6bbeba03` |
+| [[BPR-1373]] | `f6fad66c7b7f35e6038dc75b7085dbbd65dd89f513b7da81c62c1a1e6bbeba03` |
 | [CLI-profile plan](../../plans/rfc-bpr-0015-cli-profile/milestone-plan.json) | `eeb2c94607c72f91e10617dab0b01f8d03e5660854283b614a39c151593af831` |
 
 ## Requirements to reconcile on adoption

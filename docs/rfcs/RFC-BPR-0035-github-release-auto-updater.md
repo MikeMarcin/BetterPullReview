@@ -26,6 +26,26 @@ the actual RC tag. Build-tag stable promotion is refused until a separately
 accepted compatible stable policy exists. See the
 [release build identity design](../development/release-build-identity.md).
 
+## Owner amendment 2026-11-16 — AC-03 without a private release target
+
+On the 2026-11-15 hygiene audit's question (authorize a named private-release
+target for AC-03, or amend AC-03), the owner, 2026-11-16: "you decide".
+Decided: amend. AC-03 was written when the distribution repository's releases
+were private, so "private release access" needed an explicitly selected,
+vault-backed GitHub.com account. The releases are now public, and since
+[[BPR-1669]] the updater checks and downloads through a credential-free
+public lease unless an accepted GitHub.com account is chosen
+([security boundary](../security/release-updater.md#authority-and-network)).
+There is no private release left to observe, and naming one only to qualify
+this criterion would test a configuration the product no longer ships. The
+amended AC-03 keeps every safety obligation (no borrowed credential,
+revocation cancels work, no credential across redirect origins, inaccessible is
+never up to date) and drops only the live vault-backed private route. The
+evidence is [[BPR-0911]]'s: the fixture transport and revocation courses, the
+public-lease contract test, and a live anonymous read of the pinned routes on
+2026-11-16. If the releases become private again, AC-03's private route
+returns with them.
+
 ## Status and scope
 
 Requested on 2026-09-18: add an RFC for an auto-updater using GitHub Releases,
@@ -304,7 +324,7 @@ plan or native installation. [[BPR-0912]] retains every unverified criterion.
 
 - AC-01: Manual and daily automatic checks, Later, Skip This Version and persisted preferences work through the shipped UI; managed and disabled installations make no automatic requests.
 - AC-02: Only a strictly newer stable release with one exact compatible asset is offered; malformed versions, drafts, prereleases, duplicate assets and stale completions are refused.
-- AC-03: Private release access uses an explicitly selected GitHub.com authority; revocation cancels work, credentials never cross redirect origins, and inaccessible releases are not reported as up to date.
+- AC-03: Release access uses the credential-free public lease to the fixed release repository unless a GitHub.com account is explicitly selected, and never borrows a review-profile, GHES or GitHub CLI credential; revocation cancels work, credentials never cross redirect origins, and inaccessible releases are not reported as up to date. Vault-backed access to a private release is not required while the repository's releases are public (owner amendment, 2026-11-16).
 - AC-04: Downloads and staging enforce declared bounds and reject wrong identity, version, architecture, signer, digest, unsafe archive entries and changed staged candidates before replacement.
 - AC-05: Installation quiesces every window and process using the target, preserves drafts and pending publication reconciliation, and refuses timeout without forced termination.
 - AC-06: Interrupted replacement and failed relaunch retain a recoverable old application; success requires a matching new-process receipt, and cleanup touches only transaction-owned resources.

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0912"
 title: "Verify and close RFC-BPR-0035"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0911"]
 milestone: "Post-Pack v2"
@@ -39,9 +39,13 @@ success and does not waive live private-release/vault evidence or other RFC gate
 - AC-02: Only a strictly newer stable release with one exact compatible asset is
   offered; malformed versions, drafts, prereleases, duplicate assets and stale
   completions are refused.
-- AC-03: Private release access uses an explicitly selected GitHub.com authority;
-  revocation cancels work, credentials never cross redirect origins, and
-  inaccessible releases are not reported as up to date.
+- AC-03: Release access uses the credential-free public lease to the fixed
+  release repository unless a GitHub.com account is explicitly selected, and
+  never borrows a review-profile, GHES or GitHub CLI credential; revocation
+  cancels work, credentials never cross redirect origins, and inaccessible
+  releases are not reported as up to date. Vault-backed access to a private
+  release is not required while the repository's releases are public (owner
+  amendment, 2026-11-16).
 - AC-04: Downloads and staging enforce declared bounds and reject wrong identity,
   version, architecture, signer, digest, unsafe archive entries and changed staged
   candidates before replacement.
@@ -503,7 +507,7 @@ Milestone 1 requires no attended or independent acceptance; it enables no update
 |---|---|---|---|
 | AC-01: Manual and daily automatic checks, Later, Skip This Version and persisted preferences work through the shipped UI; managed and disabled installations make no automatic requests. | Composed menu/Settings, manual-clock scheduling, restart and managed-policy fixtures | Pass for composed UI/persistence/policy and signed Apple Silicon workflow. M4 native menu count/invocation covers two windows, Settings and empty desktop; no Intel or live automatic private-service observation | `54535c1e`, `b7e2df46`, `518c384a` |
 | AC-02: Only a strictly newer stable release with one exact compatible asset is offered; malformed versions, drafts, prereleases, duplicate assets and stale completions are refused. | Core version/selection tables and out-of-order host completions | Core, host, adapter and menu-to-offer fixture composition pass | `42a85cf7`, `54535c1e` |
-| AC-03: Private release access uses an explicitly selected GitHub.com authority; revocation cancels work, credentials never cross redirect origins, and inaccessible releases are not reported as up to date. | Private-release fixture, sign-out/account replacement, redirect and secret-canary tests | **Pending live evidence.** Native release-only factory, Qt choice/revocation and 24 TLS scenarios pass; no actual vault credential, private-release route or live revocation observed. Authority is not granted | `54535c1e`, `518c384a` (fixture transport only) |
+| AC-03: Release access uses the credential-free public lease to the fixed release repository unless a GitHub.com account is explicitly selected, and never borrows a review-profile, GHES or GitHub CLI credential; revocation cancels work, credentials never cross redirect origins, and inaccessible releases are not reported as up to date. Vault-backed access to a private release is not required while the repository's releases are public (owner amendment, 2026-11-16). | Private-release fixture, sign-out/account replacement, redirect and secret-canary tests; public-lease contract; live anonymous read of the pinned routes | **Pass under the owner amendment of 2026-11-16, recorded on [[BPR-0911]].** Native release-only factory, Qt choice/revocation and 24 TLS scenarios pass (fixture transport); `release_update_transport_contract` covers the public lease ([[BPR-1669]]); live 2026-11-16, anonymous: `releases/latest` 200 (release `443822880`, `0.4.2`, not draft or prerelease) and the ZIP asset `742299551` 302 to `release-assets.githubusercontent.com`, the allowlisted origin. No vault-backed private route exists to observe. To re-run at closeout on current `main` | `54535c1e`, `518c384a`, `bc856835c` |
 | AC-04: Downloads and staging enforce declared bounds and reject wrong identity, version, architecture, signer, digest, unsafe archive entries and changed staged candidates before replacement. | Adapter failure fixtures plus native signed-bundle validation on disposable artifacts | Pass for actual streaming, 17 refusals, signed universal trust/changed-tree revalidation and pre-rename revalidation on Apple Silicon; exact signed 0.0.350→0.0.352 package upgrade passes. No Intel execution inference | `54535c1e`, `b7e2df46`; package `5db1d104` |
 | AC-05: Installation quiesces every window and process using the target, preserves drafts and pending publication reconciliation, and refuses timeout without forced termination. | Composed multi-window shutdown, flush failure, active publication, competing-process and timeout course | Pass for public two-window/save-refusal and cooperating peer fixtures plus actual signed shutdown and 30-second helper timeout. Synthetic possibly-transmitted publication and both drafts retained; no live remote publication was attempted or replayed | `d1e0f46c`, `5cf310c4`, `b7e2df46` |
 | AC-06: Interrupted replacement and failed relaunch retain a recoverable old application; success requires a matching new-process receipt, and cleanup touches only transaction-owned resources. | Native disposable-install fault injection at each journal boundary, restart, rollback and cleanup course | Pass for boundary/foreign-cleanup fixtures, matching signed new-process receipt, actual 60-second missing-receipt rollback, and signed backup-helper interrupted-rename recovery on Apple Silicon. Operator procedure documented; no recovery wizard or attended approval | `d1e0f46c`, `5cf310c4`, `b7e2df46`, `518c384a` |
@@ -530,3 +534,14 @@ v0.3.4. The card stays in Backlog.
 
 Verdict: **STILL-VALID**. Waits on BPR-0911's live private-release evidence (AC-03). Its 2026-10-26 triage already drops the RFC-BPR-0014 and canonical-order gates.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## BPR-0911 Done under the AC-03 amendment (2026-11-16)
+
+Owner, 2026-11-16, on the hygiene audit: "you decide" between a named private
+release target and amending AC-03. AC-03 is amended (RFC-BPR-0035's owner
+amendment of 2026-11-16) and [[BPR-0911]] is Done, so this card's only
+dependency is Done and it moves to Ready. RFC-BPR-0035 is not closed in this
+round: most rows above were recorded in September at `42a85cf7` to
+`518c384a`, and the updater has changed since ([[BPR-1669]], [[BPR-1671]],
+[[BPR-1672]], [[BPR-1799]]). The closeout re-runs the updater rows on current
+`main`, then records each criterion's command, result and revision.

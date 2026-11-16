@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1288"
 title: "Redesign the Settings section headers, info glyphs, and the Reviews & queue and Agents & context pages"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner asides in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 appearance-tints-v001, decision 74a8eac0; mark-style-v001, decision b504ffed; 2026-10-06); owner asides accepting BPR-1090-feedback-row-v001 in attended session df50c8413c8a1b3a29db57916d6b8941 (decision 51eb7b84, 2026-10-09T02:28Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1088","BPR-1289","BPR-1090"],"owner_references":["docs/design/owner-refs/BPR-1083-owner-ref-appearance-section-headers.png","docs/design/owner-refs/BPR-1083-owner-ref-reviews-and-queue.png","docs/design/owner-refs/BPR-1090-owner-ref-section-banner.png","docs/design/owner-refs/BPR-1090-owner-ref-info-buttons.png","docs/design/owner-refs/BPR-1090-owner-ref-agents-page.png"],"implementation_note":"Use the frontend-design skill when implementing; owner review is required","acceptance":["BPR-1288:headers","BPR-1288:reviews-and-queue","BPR-1288:agents-and-context","BPR-1288:info-glyphs","BPR-1288:words","BPR-1288:kept","BPR-1288:themes","BPR-1288:owner-look"]}
+metadata: {"origin":"Owner asides in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 appearance-tints-v001, decision 74a8eac0; mark-style-v001, decision b504ffed; 2026-10-06); owner asides accepting BPR-1090-feedback-row-v001 in attended session df50c8413c8a1b3a29db57916d6b8941 (decision 51eb7b84, 2026-10-09T02:28Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1088","BPR-1289","BPR-1090"],"owner_references":["docs/design/owner-refs/BPR-1083-owner-ref-appearance-section-headers.png","docs/design/owner-refs/BPR-1083-owner-ref-reviews-and-queue.png","docs/design/owner-refs/BPR-1090-owner-ref-section-banner.png","docs/design/owner-refs/BPR-1090-owner-ref-info-buttons.png","docs/design/owner-refs/BPR-1090-owner-ref-agents-page.png"],"implementation_note":"Use the frontend-design skill when implementing; owner review is required","acceptance":["BPR-1288:headers","BPR-1288:reviews-and-queue","BPR-1288:agents-and-context","BPR-1288:info-glyphs","BPR-1288:words","BPR-1288:kept","BPR-1288:themes","BPR-1288:owner-look"],"owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"close","quote":"settings is in a good place"}}
 ---
 
 # BPR-1288: Redesign the Settings section headers, info glyphs, and the Reviews & queue and Agents & context pages
@@ -125,3 +125,10 @@ the other's layout.
 
 Verdict: **UNSURE**. BPR-1597 (Done) replaced the Reviews & queue page this card redesigns, and BPR-2179 split Prompts out of Agents & context. Question for the owner: are the Settings section headers and info glyphs still worth a redesign, or should the card close?
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: closed
+
+Owner, 2026-11-16: "settings is in a good place". Closed without the
+redesign. Since this card was written, [[BPR-1597]] replaced the Reviews &
+queue page it would have redesigned, and [[BPR-2179]] split Prompts out of
+Agents & context. Nothing here was built; new Settings work gets a new card.

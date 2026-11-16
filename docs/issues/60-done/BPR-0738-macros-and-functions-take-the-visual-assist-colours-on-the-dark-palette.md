@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0738"
 title: "Macros and functions take the Visual Assist colours on the dark palette"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"7789e40f-d61d-4900-813c-f23c508db56a","accepted_as":{"candidate":"BPR-0744-directive-ranges","decision":"4f1d1354-c3c1-43d9-af11-358347147453","date":"2026-09-12"},"blocked_links":["docs/verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md"]}
-parked_on: "immutable-review-link"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"7789e40f-d61d-4900-813c-f23c508db56a","accepted_as":{"candidate":"BPR-0744-directive-ranges","decision":"4f1d1354-c3c1-43d9-af11-358347147453","date":"2026-09-12"},"blocked_links":["docs/verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md"],"owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"move to Done"}}
 acceptance: [{"criterion":"test_the_dark_palette_follows_the_visual_assist_scheme pins the new macro and function values and fails on A3A3A3/DCDCAA; the syntax contract pins a macro's role at an exact range distinct from a directive's","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"qt_appearance_profile pins syntax_macro CE8AD4, syntax_function FF8000, syntax_type FFD700, syntax_variable BDB76B, syntax_attribute 4EC9B0 and asserts macro != preprocessor, != A3A3A3, function != DCDCAA; syntax_classification_contract pins VERIFY_ARE_EQUAL as syntax_macro and #define BEGIN_TEST_METHOD_PROPERTIES as preprocessor and not macro. Both pass at 2f8b7c70."}},{"criterion":"qt_appearance_*, syntax_contract, the diff_workbench selectors, application_appearance_theme_customization_contract and qt_composed_github_scale_100 pass; digests repinned if any drifts","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"ctest --preset dev over core_appearance_*, core_theme_exchange, qt_appearance_*, qt_syntax_pane_composition, qt_diff_workbench_scale_{100,125,200}, syntax_classification_contract, sqlite_appearance_settings_storage, application_appearance_*, application_diff_workbench_*, qt_composed_github_scale_100, application_composition_contract, architecture_boundaries: 22 of 22 after repinning the three round-trip pins that BPR-0733 had left stale (full digest, manifest digest, ->submit( count 3). Strict tidy and clang-format clean on the five touched TUs."}},{"criterion":"The owner accepts ScreenBufferTests.cpp and terminalOutput.cpp on the dark palette in the signed bundle in an attended session","outcome":"pass","revision":"aff9fc64","evidence":{"kind":"observation","detail":"The v008 rejection (decision 4effa6f2, bundle e4fdb0ea at 35438244) stays recorded on this card against its own revision. The two files were the owner's v005 reference; from 2026-09-12 this card asked the criterion as a C++ header on the dark palette, one candidate for BPR-0720, BPR-0738 and BPR-0744, rather than again on the two files. Accepted in attended session cbd48b91000b00f1e72e1ad62c7c384c (v009, packet docs/verification/reviews/rfc-bpr-0028-attended-v009) as candidate BPR-0744-directive-ranges, revision app-release-c2381f32-2026-09-12.5, fingerprint a321ed197669c28e51b7945dd1352a9af634ae12cf63b63b71e1338513692eec equal to the prepared candidate's in that packet's session-identity.json, decision 4f1d1354-c3c1-43d9-af11-358347147453, actor human, 2026-09-12T16:06:15Z: accept, note empty. The candidate told the owner it 'carries the criterion BPR-0720 and BPR-0738 have both been carrying since v005', and its criteria were a stdexec C++ header on the dark palette (directive keyword grey, ALL_CAPS macro purple, #include path salmon) and the identifier roles in ordinary code (functions FF8000, types FFD700, macros purple, variables BDB76B, attributes 4EC9B0, comments green, strings salmon). The bundle was build/app-release from source aff9fc64, BUILD_TESTING=OFF, executable sha256 c2381f325093200563544ce3bb9e1ba04f847102e2f5b599ca6cc51c6f555653, codesign --verify --deep --strict exit 0; the owner had it open from 16:03:30Z to 16:06:34Z (diagnostics.log op=application). The third question that rode the candidate (every identifier in #if/#ifdef/defined() purple) is not answered by the accept and stays on BPR-0748.","path":"docs/issues/60-done/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md"}}]
 ---
 
@@ -21,7 +20,7 @@ screenshots:
 [ScreenBufferTests.cpp in Read](../../verification/reviews/rfc-bpr-0028-attended-v007/captures/owner-dark-palette-screenbuffertests-2026-09-11.png)
 and the reference the owner means,
 [Visual Studio 2022 dark with Visual Assist](../../verification/reviews/rfc-bpr-0028-attended-v007/captures/owner-visual-studio-reference-2026-09-11.png).
-[BPR-0726](../60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md),
+[BPR-0726](BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md),
 the role classification, was accepted thirty-five seconds later; what is
 rejected is the colour each role paints, not which words get a role.
 
@@ -169,7 +168,7 @@ high-contrast palettes are untouched.
   as the accepted BPR-0720 direction says; the reference paints it
   string-salmon) and the italic on standard-library aliases.
 - Found at HEAD, not this slice: `application_composition_contract` was
-  red since [BPR-0733](../60-done/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
+  red since [BPR-0733](BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
   landed (91383cc4) because `github_application.cpp` changed after its
   round-trip pins were last set: the full-file digest, the production
   manifest digest and the `->submit(` allowlist count (a third
@@ -237,7 +236,7 @@ What this settles and what it does not:
   BEGIN_TEST_METHOD_PROPERTIES` is preprocessor and *not* a macro is the
   assertion the owner's direction reverses.
 
-Carded as [BPR-0744](../60-done/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md).
+Carded as [BPR-0744](BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md).
 This card stays parked on human-review; its criterion is asked again on a
 bundle carrying BPR-0744, with the alias italic and the macro purple repeated
 as the two questions still open.
@@ -321,3 +320,33 @@ preparer flagged this card as board upkeep, not as a question.
 
 Verdict: **DONE-ALREADY**. Accepted (session cbd48b91, hand-back 589). It stays Parked only because moving it would change a link in a protected review packet.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: Done, the packets untouched
+
+Owner, 2026-11-16 (on the hygiene audit, relayed by the coordinator): move
+this card to Done, and handle the protected review packet properly.
+
+The acceptance above is unchanged; nothing was waiting on the owner. What
+stood in the way was the board tool: `issue_board.py move` repairs every
+link to a moved card, and the RFC-BPR-0028 attended packets under
+`docs/verification/reviews/` are protected (`protected_globs`), so the move
+refused with `move would change protected content`.
+
+The path-preserving migration this card waited for already exists. Since
+`9e4b0d811` (2026-09-12) the documentation gate's `relocated_review_card_link`
+accepts a packet's old card path as a historical locator, provided exactly one
+board file carries the same card filename. Cards linked from packets at their
+old lanes have moved under it before ([[BPR-0646]], [[BPR-0743]],
+[[BPR-0794]], [[BPR-0795]]). This move used the board's own move logic with
+one change: protected files keep their bytes, and every unprotected link is
+repaired as usual. No packet changed (`git diff` is empty under `docs/verification/reviews/`).
+Their links still name `40-parked/`, and the gate resolves them to this file
+in `60-done/`.
+
+One more protected file linked this card's Parked path: the
+`cpp-identifier-context-v1` pack's `proposed-syntax-amendment.md`, an import
+record outside the review packets, which the gate does not treat as a
+historical locator. As the local-draft-authoring pack did on 2026-11-13
+(`d3e7cb8a8`), that one link now names the card as `[[BPR-0738]]` instead of
+a lane path; its SHA-256 identity is unchanged, and the pack's editable
+`LIVE_IMPORT.md` records why.

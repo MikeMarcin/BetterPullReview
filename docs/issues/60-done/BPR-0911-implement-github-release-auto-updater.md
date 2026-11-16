@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0911"
 title: "Implement GitHub release auto-updater"
-status: "Blocked"
+status: "Done"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0946", "BPR-0947", "BPR-0948", "BPR-0949"]
 milestone: "Post-Pack v2"
 platforms: ["mac"]
-metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
-blocked_by: "private-service-qualification"
+metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"},"owner_amendment":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","quote":"you decide","decision":"amend RFC-BPR-0035 AC-03 to what is achievable without a named private-release target; close if satisfied","rfc_section":"docs/rfcs/RFC-BPR-0035-github-release-auto-updater.md#owner-amendment-2026-11-16--ac-03-without-a-private-release-target"}}
 ---
 
 # Implement GitHub release auto-updater
@@ -74,3 +73,44 @@ nonblocking Backlog follow-up, not a prerequisite of this card.
 
 Verdict: **UNSURE**. Blocked since 2026-09-21 on live private-release and vault evidence (RFC-BPR-0035 AC-03); there is no wizard or session for it. The text still says BPR-0912 keeps the RFC-BPR-0014 and canonical-order gates, which were removed 2026-09-27. Question for the owner: authorize a named private-release target for AC-03, or amend AC-03?
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: AC-03 amended; Done
+
+On the hygiene audit's question (authorize a named private-release target for
+AC-03, or amend it), the owner, 2026-11-16: "you decide".
+
+**Decision: amend AC-03, not name a target.** The block was evidence of a
+vault-backed private release, but the distribution repository's releases are
+public now, and since [[BPR-1669]] the updater reads them through a
+credential-free public lease unless an accepted GitHub.com account is chosen.
+A private target named only to qualify this criterion would test a path the
+product no longer ships, and would put a credential in play for nothing. The
+amendment keeps every safety obligation of AC-03 and drops only the live
+vault-backed private route; it is recorded in
+[RFC-BPR-0035](../../rfcs/RFC-BPR-0035-github-release-auto-updater.md#owner-amendment-2026-11-16--ac-03-without-a-private-release-target)
+and in [[BPR-0912]]'s checklist.
+
+**Amended AC-03, judged.**
+
+- Selection, revocation, redirect and refusal: the native release-only
+  factory, the Qt choice and revocation courses and the 24 TLS scenarios
+  (`54535c1e`, `518c384a`, fixture transport), as recorded above.
+- The public lease: `release_update_transport_contract` (identity, kind,
+  revocation, zero identity refused) at `bc856835c` ([[BPR-1669]]); the
+  transport sends no Authorization header with an empty credential.
+- Live, 2026-11-16, anonymous, no credential sent: `GET
+  https://api.github.com/repos/MikeMarcin/BetterPullReview/releases/latest`
+  answered 200 with release `443822880`, tag `0.4.2`, `draft: false`,
+  `prerelease: false`, and one exact universal ZIP
+  (`BetterPullReview-0.4.2-macos-universal.zip`, asset `742299551`, 77,872,639
+  bytes, digest `sha256:a1ba8d00…`). The asset route with binary Accept
+  answered 302 to `https://release-assets.githubusercontent.com/…`, the
+  security boundary's allowlisted origin (signed query not recorded).
+
+AC-03 as amended passes. AC-01, AC-02 and AC-04 to AC-08 were already
+recorded on [[BPR-0912]]; Intel stays the nonblocking [[BPR-0950]]. The text
+above that says [[BPR-0912]] keeps the RFC-BPR-0014 and canonical-order
+gates is out of date: RFC-BPR-0014 is Auto-Verified and the canonical-order
+rule was removed on 2026-09-27. This card is Done. [[BPR-0912]] moves to
+Ready and re-runs the updater rows on current `main` before RFC-BPR-0035
+closes.

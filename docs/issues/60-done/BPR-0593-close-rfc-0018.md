@@ -3657,7 +3657,7 @@ before any source edit. Landed on main:
   what Read does with the conversations drawer (375-pixel minimum) or a
   single-pane layout is an options candidate, because the RFC's Read
   definition and AC-05 settle it the other way today. Parked.
-- [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
+- [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
   (`c5bd59f8`): "the whole palette, yes reset". The dark syntax roles
   follow Visual Studio dark / Visual Assist; three values lightened to the
   4.5:1 floor on the diff fills (the audit and ratchet pass); the
@@ -3773,7 +3773,7 @@ fingerprints match the prepared candidates; no stale verdict):
   "technically yes"), [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
   and [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
   (all three the empty epoch line on a cache hit, [BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
-  [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
+  [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
   (roles never emitted for C++, [BPR-0726](BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)).
 - Selections: [BPR-0727](BPR-0727-overview-refuses-a-drawer-opened-by-hand.md),
   [BPR-0728](BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md),

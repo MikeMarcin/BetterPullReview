@@ -14,7 +14,7 @@ In this conversation they accepted a token in memory if BPR does not persist
 it, suggested investigating Keychain, rejected maintaining a gh fork, and
 then explicitly limited the work to investigation and RFC authoring.
 
-[BPR-1373](../../../issues/40-parked/BPR-1373-pin-each-gh-call-to-a-chosen-account.md)
+[[BPR-1373]]
 implemented a private, token-free `GH_CONFIG_DIR` for each pinned launch.
 [The launch path](../../../../src/adapters/github/src/gh_cli_transport.cpp)
 names the host and login, while

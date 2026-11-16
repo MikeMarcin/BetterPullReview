@@ -10,7 +10,7 @@ The owner, 2026-11-15:
 > I hope we get real windows renders using the remote station
 
 The review window's title row is the window's title bar on Windows
-([BPR-0653](../../issues/40-parked/BPR-0653-windows-caption-in-the-strip.md)).
+([BPR-0653](../../issues/60-done/BPR-0653-windows-caption-in-the-strip.md)).
 The accepted [Revise design](../local-draft-workflow-v2/README.md) adds a fifth
 mode to its switcher and a branch chip after the name.
 

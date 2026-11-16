@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2213",
+    "BPR-2214"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Hygiene audit owner decisions 2026-11-16: BPR-2119 release-note notice; RFC-BPR-0037 status record",
+  "created": "2026-11-16T15:12:07.729629+00:00",
+  "base": "176d127e8891952aae9df3e64858a7b9d9daf92e"
+}

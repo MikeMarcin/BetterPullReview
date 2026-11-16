@@ -8,6 +8,17 @@ metadata: {"rfc_base_sha":"530d92eaff1578413c0e669f476e740387441152","mandate_re
 
 # Evaluate a mature parser for C++ identifier refinement
 
+## Owner amendment — 2026-11-16: the re-run trigger is 1000 lines
+
+[[BPR-1777]] found the re-run trigger fired: `cpp_identifier_context.cpp`
+reached 847 lines through three later cards outside this RFC's scope. The
+owner, 2026-11-16, on the hygiene audit: keep the heuristic and raise the
+trigger to 1000 lines. The evaluation is not re-run. The other re-run
+conditions stand. The 800-line cap on [[BPR-1474]]'s own fixes is historical
+and unchanged; it bound that card, which closed at 698 lines. No script or
+test enforces the line count: the trigger is checked by hand when the file
+grows, against the [report](../verification/RFC-BPR-0081.md).
+
 ## Closeout — 2026-10-27
 
 Auto-Verified through [[BPR-1445]], which records the evidence for each of
@@ -454,8 +465,8 @@ If T is not adopted, one of the other two outcomes applies:
   using this report's numbers. Macro expansion, cross-file uses and unqualified
   uses are recorded as out of scope, not fixed.
 - **Keep.** Otherwise the report records when to run the evaluation again: when
-  the file reaches 800 lines, or when a new identifier category needs
-  structural recognition.
+  the file reaches 1000 lines (800 until the owner's amendment of 2026-11-16),
+  or when a new identifier category needs structural recognition.
 
 The owner does not need to look at results and judge them, because roles are
 scored against fixed labels. If a contract expectation would change, that one

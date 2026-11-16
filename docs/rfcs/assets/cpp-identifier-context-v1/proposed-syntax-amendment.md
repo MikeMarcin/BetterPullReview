@@ -16,7 +16,7 @@ baseline or acceptance evidence.
 | [RFC-BPR-0006](../../RFC-BPR-0006-syntax-highlighting-themes-appearance.md) | `c5cbae883fdbaae8f4aaef0627b23f22236670bca2f0350597967c89428a3516` |
 | [RFC-BPR-0034](../../RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | `78de942e85be938a04e0847bf0363aeebeddf2d08b4ca2efda0f51333e0383aa` |
 | [BPR-0726](../../../issues/60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md) | `dd1628e8d78e3baee3dbfda668bb5aea7114402c5d6e2900b646945648f57c2b` |
-| [BPR-0738](../../../issues/40-parked/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md) | `9597706581201cc5c19c86921976b9d418518675cc0f9904f45dfb902904637d` |
+| [[BPR-0738]] | `9597706581201cc5c19c86921976b9d418518675cc0f9904f45dfb902904637d` |
 
 ## Before and after
 
