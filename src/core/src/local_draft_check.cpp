@@ -648,9 +648,11 @@ namespace bpr::core {
 			text += "Nothing ran.\n";
 		}
 		for (const auto& command : aReport.Commands) {
-			text += "- " + code_span(command.Command);
+			// A word first: a list item that opens on a path-like code span
+			// reads as a file reference, which a command is not.
+			text += "- Ran " + code_span(command.Command);
 			if (command.Exit) {
-				text += " exited " + std::to_string(*command.Exit);
+				text += ", exited " + std::to_string(*command.Exit);
 			}
 			if (command.OutOfPlan) {
 				text += " (not in the plan)";

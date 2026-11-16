@@ -100,7 +100,7 @@ namespace {
 		expect(shown.starts_with("# Failed\n"), "the outcome word leads");
 		expect(holds(shown, "Checked candidate 3; the draft is now at candidate 4"), "an older candidate says so");
 		expect(holds(shown, "the agent's report of its run"), "stated as the agent's report");
-		expect(holds(shown, "`ctest --test-dir build -R parser` exited 8"), "each command and its exit status");
+		expect(holds(shown, "- Ran `ctest --test-dir build -R parser`, exited 8"), "each command and its exit status");
 		expect(holds(shown, "`ls build` (not in the plan)"), "out-of-plan commands marked");
 		expect(holds(shown, "parser_tests: expected 3, got 2"), "the failure's output");
 		expect(holds(shown, "(bpr-check:src/parser.cpp:42)"), "a code reference is a link");
