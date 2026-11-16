@@ -91,3 +91,19 @@ page's own bordered groups, and a test pins the detail pane's colour to the
 Prompts page's in each theme. Host 48558 (Tailscale child 48566) stopped;
 root `/Users/jaeger/workflow-import-v002.mqedk3ig` removed with
 `freeze_attended_build.py remove`.
+
+## Owner look workflow-import-v003 filed (2026-11-15)
+
+The theme rework is at `5a6b23d7d`, `182d52eb5` and `431c119b2`:
+`qt_agent_configuration_dialogs` passes in the frozen build offscreen, at
+200 percent, and natively in Dark and Light, including the new check that
+the detail pane is the Prompts page's panel by role and by painted pixels in
+Dark, Light and both high-contrast themes and follows a theme change.
+Session `5052733e41fd0662f09a0e04af730e4c`, state
+`/Users/jaeger/.attended-review-state/workflow-import-v003-2026-11-15/state`
+(URL in that directory's `serve.log`), cursor 3, host PID 33920 (Tailscale
+child 33928). Frozen root `/Users/jaeger/workflow-import-v003.05jn6zyw` from
+`431c119b2` (the launcher's check reached `ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN`
+with 4 actions and started no real agent). One question,
+`BPR-2032-import-preview-theme`, Accept or Reject, with native Dark and Light
+renders.
