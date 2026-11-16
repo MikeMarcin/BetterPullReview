@@ -46,15 +46,16 @@ namespace bpr::qt {
 		constexpr int WorkflowKind = 3;
 
 		/// A dialog is a window, and Qt does not pass a window's palette to
-		/// the windows it opens: it takes its opener's, every role, and its
-		/// font, and follows later changes (owner, look workflow-import-v002:
-		/// "Something went way wrong with the colors").
-		void adopt_opener_look(QWidget& aDialog, const QWidget* const aOpener)
+		/// the windows it opens unless asked (owner, look workflow-import-v002:
+		/// "Something went way wrong with the colors"). Asked, and attached
+		/// to its opener again so the asking takes effect, it inherits the
+		/// opener's palette and font and follows every later change; set
+		/// explicitly, it would keep the first one.
+		void adopt_opener_look(QWidget& aDialog, QWidget* const aOpener)
 		{
 			aDialog.setAttribute(Qt::WA_WindowPropagation);
 			if (aOpener != nullptr) {
-				aDialog.setPalette(aOpener->palette());
-				aDialog.setFont(aOpener->font());
+				aDialog.setParent(aOpener, aDialog.windowFlags());
 			}
 		}
 
