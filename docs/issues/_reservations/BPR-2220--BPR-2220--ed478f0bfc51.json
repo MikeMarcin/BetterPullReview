@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2220"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "The prompt library always has a prompt selected",
+  "created": "2026-11-16T23:01:56.664987+00:00",
+  "base": "dc745af3befbd8b32f1c4c4e89c2631d81ca1a83"
+}
