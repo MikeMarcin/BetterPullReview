@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2221"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Wire the prompt-condition facts the window never filled",
+  "created": "2026-11-16T23:05:30.431974+00:00",
+  "base": "2be8f6bbf6ca32966a0dd0ae7d665a667aedc954"
+}
