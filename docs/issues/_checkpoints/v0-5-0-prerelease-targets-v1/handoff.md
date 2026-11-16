@@ -4369,3 +4369,21 @@ the fixture agent answers tour-ask/revise and drafts two stops; course
 `tests/end_to_end/tour_chat_queue_public_path.cpp` (three rows). Next: build
 `better_pull_review_composition` and the course, run the three rows, commit
 with explicit paths, freeze the look.
+
+### Checkpoint (2026-11-16): BPR-2154 tour and local draft queues built; look queue-tour-v001 filed
+
+Commits `f82523784` (the slice) and `0ed8dbaf0` (course captures). Courses
+`application_tour_chat_queue_{stop,whole_tour,local_draft}_public_path` pass,
+with `core_agent_queue`, `architecture_boundaries`, `qt_tour_side_chat`,
+`qt_tour_chat_in_tab`, `qt_button_faces`, `qt_drawer_surfaces_fit_scale_100`,
+the local draft tour and check courses, `application_ask_queue_public_path`,
+`application_agent_queue_windows_public_path`,
+`application_agent_queue_tour_feedback_crash_public_path`,
+`application_agent_steer_sent_public_path`, `fixture_agent_answers`,
+`application_fixture_agent_every_ask` and the resealed
+`application_review_round_trip_composition_contract`. Look `queue-tour-v001`
+(session `1b7406ad…`, host 28483/28491, root `queue-tour-v001.ity27747`,
+worktree `/Users/jaeger/queue-tour-v001-draft`) waits on the owner, not
+waited on. Next: read its decisions; then BPR-2155 (closeout). The format
+gate's one finding, `src/application/src/github_window_read_host.cpp`, is
+another lane's.

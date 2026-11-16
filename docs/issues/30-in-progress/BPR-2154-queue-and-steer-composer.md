@@ -155,3 +155,19 @@ the accepted Agent-tab look (looks prompts-v001 to v004) unchanged.
   `application_tour_chat_queue_local_draft_public_path` (a real worktree:
   a follow-up typed while the question runs waits in the pending list and
   goes as the draft's next question).
+
+### Look queue-tour-v001 (filed 2026-11-16, not waited on)
+
+Session `1b7406ad1e4e00a25aee2d23cd0f6dab`, state
+`/Users/jaeger/.attended-review-state/queue-tour-v001-2026-11-16/state`
+(URL in `serve.log` beside it), cursor 6, served on the tailnet (host PID
+28483, Tailscale child 28491). Root `/Users/jaeger/queue-tour-v001.ity27747`
+from `0ed8dbaf081f`, returning-review-v1 with `--next-push`, Fixture agent
+only (launcher check: 17 asks answered, no real agent started; executable
+SHA-256 `cf93d29ad698…`). The local draft's worktree is
+`/Users/jaeger/queue-tour-v001-draft/engine` (made by
+`tests/fixtures/local-draft/make_worktree.sh`; outside the root, remove it
+with the root). Three Accept/Reject questions: `queue-stop-chat`,
+`queue-whole-tour`, `queue-local-draft`. A failed first freeze on
+conventional-comments-v1 (the launcher's fixture-agent check needs a
+returning review) was removed with `freeze_attended_build.py remove`.
