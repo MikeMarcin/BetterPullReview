@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2152"
 title: "Queued and steered input survives crashes and races without loss or automatic resend"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0126"]
 depends_on: ["BPR-2151"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2151--BPR-2155--573d6ab3248e.json","milestone_plan":{"id":"queue-and-steer-v1","path":"docs/rfcs/plans/queue-and-steer-v1/milestone-plan.json"},"criteria":["AC06"],"origin":"imported 2026-11-12 from queue-and-steer-v1 (RFC-DRAFT-0001); the draft defined no cards, they were cut at import"}
+acceptance: [{"criterion":"AC06","outcome":"pass","revision":"64365d031","evidence":{"kind":"command","command":"ctest --test-dir build/dev -j1 -R '^(core_agent_queue|application_agent_queue_host|application_agent_queue_handoff|application_agent_protocol_loop|application_agent_invocation_host|application_review_agent_runtime|sqlite_agent_setup_storage|application_agent_steer_.*_public_path|application_ask_queue_public_path|application_agent_queue_.*public_path|application_tour_feedback_queue_public_path)$'","detail":"application_agent_queue_handoff (new AC06 course): claim stored before any write, crash after the claim restores Delivery unknown with its binding and is never resent, refused claim and Stop all write nothing, corrections settle by receipt, late/stray answers change nothing, silent failed release is uncertain, intermediate/repeated results never complete a steered turn, a dropped correction is abandoned and its connection never reused. application_agent_protocol_loop: a dropped correction ends the run with the connection retired and the process ended. All listed courses pass on the dev tree with the change; app manifest pin resealed in eb600a0ea from a clean export."}}]
 ---
 
 # BPR-2152: Queued and steered input survives crashes and races without loss or automatic resend
