@@ -539,20 +539,22 @@ namespace {
 			   "and the menu says why none of them acts");
 		// [[BPR-1852]]. The draft-state command follows Open on GitHub, hidden
 		// while nothing is offered.
-		expect(pullRequestActions.size() == 12 && pullRequestActions[0]->text() == QStringLiteral("Open on &GitHub")
+		expect(pullRequestActions.size() == 14 && pullRequestActions[0]->text() == QStringLiteral("Open on &GitHub")
 				   && pullRequestActions[0]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+O") }
 				   && pullRequestActions[1]->text() == QStringLiteral("Mark &Ready for Review") && !pullRequestActions[1]->isVisible()
 				   && pullRequestActions[2]->isSeparator()
 				   && pullRequestActions[3]->text() == QStringLiteral("&Follow")
-				   && pullRequestActions[4]->text() == QStringLiteral("&Save Repository")
-				   && pullRequestActions[5]->isSeparator()
-				   && pullRequestActions[6]->text() == QStringLiteral("&Mark All Comments as Read")
+				   && pullRequestActions[4]->text() == QStringLiteral("Mark New Commits &Seen")
+				   && pullRequestActions[5]->text() == QStringLiteral("What &Changed Since My Review")
+				   && pullRequestActions[6]->text() == QStringLiteral("&Save Repository")
 				   && pullRequestActions[7]->isSeparator()
-				   && pullRequestActions[8]->text() == QStringLiteral("Compose &review")
-				   && pullRequestActions[9]->text() == QStringLiteral("Co&mment")
-				   && pullRequestActions[10]->text() == QStringLiteral("Prepare review &tour")
-				   && pullRequestActions[11]->text() == QStringLiteral("Add tour stop"),
-			   "with Open on GitHub, the draft-state command, Follow, Save Repository, Mark All Comments as Read, composition and the review tour");
+				   && pullRequestActions[8]->text() == QStringLiteral("&Mark All Comments as Read")
+				   && pullRequestActions[9]->isSeparator()
+				   && pullRequestActions[10]->text() == QStringLiteral("Compose &review") && pullRequestActions[10]->isCheckable()
+				   && pullRequestActions[11]->text() == QStringLiteral("Co&mment")
+				   && pullRequestActions[12]->text() == QStringLiteral("Prepare review &tour")
+				   && pullRequestActions[13]->text() == QStringLiteral("Add tour stop"),
+			   "with Open on GitHub, the draft-state command, Follow, Seen, What changed, Save Repository, Mark All Comments as Read, composition and the review tour");
 		expect(std::ranges::none_of(pullRequestActions, [](const QAction* const aAction) { return !aAction->isSeparator() && aAction->isEnabled(); }),
 			   "none actionable with no pull request open");
 
@@ -571,9 +573,9 @@ namespace {
 				   && fileActions[4]->text() == QStringLiteral("Close Tab") && !fileActions[4]->isEnabled(),
 			   "File opens with New Window and retains Open Project… and Close Tab after Quit, disabled with no window");
 		expect(fileActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
-				   && pullRequestActions[8]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
-				   && pullRequestActions[9]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
-				   && pullRequestActions[6]->shortcut().isEmpty() && viewActions[19]->shortcut().isEmpty(),
+				   && pullRequestActions[10]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
+				   && pullRequestActions[11]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
+				   && pullRequestActions[8]->shortcut().isEmpty() && viewActions[19]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
 		expect(viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
@@ -584,7 +586,7 @@ namespace {
 				   && viewActions[26]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[3], fileActions[4], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[9], viewActions[13], viewActions[14], viewActions[15], viewActions[19], viewActions[21], viewActions[22], viewActions[23], viewActions[25], viewActions[26], pullRequestActions[0], pullRequestActions[1], pullRequestActions[6], pullRequestActions[8], pullRequestActions[9], pullRequestActions[10], pullRequestActions[11], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
+		for (auto* const action : { fileActions[3], fileActions[4], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[9], viewActions[13], viewActions[14], viewActions[15], viewActions[19], viewActions[21], viewActions[22], viewActions[23], viewActions[25], viewActions[26], pullRequestActions[0], pullRequestActions[1], pullRequestActions[4], pullRequestActions[5], pullRequestActions[8], pullRequestActions[10], pullRequestActions[11], pullRequestActions[12], pullRequestActions[13], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,

@@ -99,6 +99,14 @@ namespace bpr::qt {
 		follow->setObjectName(QStringLiteral("desktopFollowPullRequestAction"));
 		follow->setCheckable(true);
 		follow->setEnabled(false);
+		// [[BPR-2049]], [[BPR-2073]]. The window's Seen and What changed,
+		// offered and disabled, so the bar stays the window's.
+		auto* const seen = PullRequestMenu->addAction(QStringLiteral("Mark New Commits &Seen"));
+		seen->setObjectName(QStringLiteral("desktopSeenPullRequestAction"));
+		seen->setEnabled(false);
+		auto* const whatChanged = PullRequestMenu->addAction(QStringLiteral("What &Changed Since My Review"));
+		whatChanged->setObjectName(QStringLiteral("desktopWhatChangedPullRequestAction"));
+		whatChanged->setEnabled(false);
 		auto* const saveRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));
 		saveRepository->setObjectName(QStringLiteral("desktopSavePullRequestRepositoryAction"));
 		saveRepository->setEnabled(false);
@@ -111,6 +119,8 @@ namespace bpr::qt {
 		auto* const composeReview = PullRequestMenu->addAction(tr("Compose &review"));
 		composeReview->setObjectName(QStringLiteral("desktopComposeReviewAction"));
 		composeReview->setShortcuts(shortcut_keys(shortcut_command::compose_review));
+		// A toggle on the window, as it is there.
+		composeReview->setCheckable(true);
 		composeReview->setEnabled(false);
 		auto* const comment = PullRequestMenu->addAction(tr("Co&mment"));
 		comment->setObjectName(QStringLiteral("desktopComposeInlineDraftAction"));
