@@ -835,7 +835,7 @@ Drafted 2026-11-12 from the owner's idea ("I wonder if we can make suggested pro
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md) | Queue follow-ups in BPR and steer native agent chats | Proposed | RFC-BPR-0092, RFC-BPR-0096, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0103 |
+| [RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md) | Queue follow-ups in BPR and steer native agent chats | Auto-Verified | Closed 2026-11-16 by [BPR-2155](../issues/60-done/BPR-2155-close-rfc-0126.md): every criterion evidenced on the [ledger](../verification/RFC-BPR-0126.md), owner looks accepted through queue-tour-v003 (Queue and Steer in the Agent tab, every tour part, the whole tour and the local draft discussion; Stop all). Depends on RFC-BPR-0092, RFC-BPR-0096, RFC-BPR-0101, RFC-BPR-0102, RFC-BPR-0103 |
 
 Imported 2026-11-12 at the owner's request ("Add to queue /implement-rfc Implement the RFC"); BPR-2151 is Done, BPR-2181 is In Progress, and BPR-2152 to BPR-2154 wait in Backlog. [Import](assets/queue-and-steer-v1.LIVE_IMPORT.md); [plan](plans/queue-and-steer-v1/MILESTONES.md), one milestone. The owner answered Q1 to Q18 on 2026-11-13 (the tour feedback buffer folds into the queue, the local draft's discussion is included, follow-up behaviour is a Queue or Steer setting defaulting to Queue, a queue belongs to its session, queued messages are edited in place) and added one Stop all in the agent footer (AC09).
 

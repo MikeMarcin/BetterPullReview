@@ -235,6 +235,31 @@ resume". The classification, agreed with the coordinator the same day:
 
 The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: "Save as note" reads Keep local (or Draft comment where a line can take one); "notes" in the explicit-action rule read local comments. The rule is unchanged. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
 
+### Amendment: Queue and Steer in the composer, and a steered run's cost (RFC-BPR-0126, 2026-11-16)
+
+[RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md)
+extends the send key and cost rules for the resumed chats (the Agent tab,
+the tour chats and the local draft's discussion).
+
+- **Composer actions.** Settings › Agents & context has **Follow-up behaviour**, Queue
+  or Steer, default Queue. At idle with nothing waiting, Return sends as
+  above. While the conversation's turn runs or its queue holds a message,
+  Send reads Queue (or Steer, by the setting) and Return does what it reads;
+  Cmd+Return (Ctrl+Return off macOS) does the other for that one message.
+  Shift+Return still starts a line and the input-method rule is unchanged.
+  Stop stays beside Send. Waiting messages are a compact list above the
+  composer with Edit in place, Remove, reorder (also Option or Alt with Up
+  and Down), Steer, Pause queue and Resume queue; the status bar's agent
+  footer has Stop all. Composers that save or publish text keep their keys.
+- **A steered run's cost.** All native parts of a steered run, including a
+  successor turn Claude runs for a correction, are one turn: its cost is the
+  run's last cumulative figure less the session's baseline, counted once in
+  the turn's footer and the session total. A figure that goes down mid-run
+  leaves the turn's cost unknown; Codex's tokens are never turned into
+  dollars. A released queued message is its own turn with its own cost.
+  Queueing, editing, reordering and restoring make no request
+  ([[BPR-2153]] AC07).
+
 ## Acceptance criteria
 
 - **AC01:** Each listed form, in prose, in emphasis and as a whole code

@@ -4430,3 +4430,18 @@ contract, documentation gate, full dev build. Look `queue-tour-v003`
 (session `0f0bf2f5…`, host 21140/21151, root `queue-tour-v003.wtief4r1`,
 worktree `/Users/jaeger/queue-tour-v003-draft`) waits on the owner, not
 waited on. Next: read its decision; then BPR-2155.
+
+### Checkpoint (2026-11-16): queue-tour-v003 accepted; BPR-2154 Done; RFC-BPR-0126 closed (BPR-2155)
+
+`steered-in-transcript` Accepted (decision `a669056b…`, verified in session
+`0f0bf2f5…`'s state). Host 21140/21151 stopped; root
+`queue-tour-v003.wtief4r1` removed with `freeze_attended_build.py remove`;
+`/Users/jaeger/queue-tour-v003-draft` removed. Lane `0967e853f` BPR-2154 Done
+(AC01, AC08, AC09); `bd754879b`, `bb9d806ba` ready and claim BPR-2155; the
+closeout commit reconciles RFC-BPR-0092, 0096, 0101, 0103,
+`docs/ux/ai-experience.md` and the system architecture, writes
+[the verification record](../../../verification/RFC-BPR-0126.md), closes
+RFC-BPR-0126 (Auto-Verified) and its index row, and moves BPR-2155 to Done.
+Integration pass: 30 of 30 focused courses at `76f59f17a`. Mirrored to
+`main`. No command or host of this round is running. Next: nothing remains
+on RFC-BPR-0126.

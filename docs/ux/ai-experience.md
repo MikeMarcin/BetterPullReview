@@ -84,6 +84,44 @@ The AI drawer always shows provider, Git host, workspace, selected epoch pair, e
 
 Expanding from selected lines to an entire file, PR, or repository requires an explicit context action. Private notes and unpublished drafts are opt-in per session.
 
+## Follow-ups while an agent works (RFC-BPR-0126)
+
+The Agent tab, every tour part's chat (a stop, Problem, Solution), the
+whole-tour conversation and a local draft's discussion take follow-ups
+while their agent works. Each is its own queue, owned by its session, not
+by a window: every window showing the session shows and edits the same
+queue, and closing a window neither pauses nor hands it over.
+
+- **Queue or Steer.** Settings › Agents & context › Follow-up behaviour
+  chooses which one Send does while the turn runs or messages wait (default
+  Queue); Cmd+Return (Ctrl+Return off macOS) does the other for one message.
+  Stop stays beside Send. Queue keeps the message in BPR and sends it as its
+  own turn once the current run has really ended. Steer writes it into the
+  running turn on the kept agent connection (Claude after its current tool
+  call, never "now"; Codex App Server `turn/steer`); where the run cannot
+  take it the composer says why and the message queues.
+- **The pending list.** One line a message above the composer, its subject
+  and attachments as captured: Edit in place (held, never sent or skipped,
+  while the editor is open), Remove, drag or Option-Up and Option-Down to
+  reorder, Steer, Pause queue and Resume queue. States are words:
+  Queued, Sending, **Sent to agent**, Paused, **Delivery unknown** (with
+  Discard; it is never resent by itself). A steered message shows in the
+  conversation at once, as the author's, after the step it followed, and
+  stays on that turn.
+- **Pausing.** Stop, a failure, a usage limit, a restart and unknown
+  delivery pause the queue; a restored queue opens paused. A changed target,
+  configuration or authority pauses rather than retargeting.
+- **Stop all.** The status bar's agent footer, beside the agent picker, has
+  one Stop all while any turn runs or anything is queued: it stops every
+  turn in every session and pauses every queue.
+- **Cost.** Queueing and editing make no request. A steered run is one turn
+  for its cost, however many native parts it took.
+
+Known limits: a steered message keeps Sent to agent in the pending list
+until its turn ends; whole-tour feedback during the first draft and a local
+draft's first description draft are fresh runs, so they queue and cannot be
+steered.
+
 ## Comment workshop
 
 Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533 those six are a typed set in the tree, offered as controls on the proposed-revision surface: pressing one starts one agent turn through the single `workshop_comment` entry point, and the proposal names the operation it answered. The controls close with a tooltip while the turn runs. Since BPR-0538 they reopen when it ends, including a turn that returns no revision; that outcome explains why no revision appeared. Results stay in the local editor until the user publishes through normal GitHub review controls.

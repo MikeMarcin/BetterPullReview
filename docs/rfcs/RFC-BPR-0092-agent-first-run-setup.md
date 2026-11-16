@@ -1410,6 +1410,17 @@ want to say the tour should focus on <this particular part of the PR>." And:
   turn that sets `replace_waiting_stops` revises them: its stops replace the
   waiting ones (`core::merge_tour_proposal`). A draft that proposes nothing
   leaves the feedback in the chat as not sent.
+  Amended by [RFC-BPR-0126](RFC-BPR-0126-queue-follow-ups-and-steer-native-agent-chats.md)
+  (owner, Q1, 2026-11-13: fold in; built in [[BPR-2151]]): the host no
+  longer keeps a separate buffer. Feedback typed while the draft runs is the
+  whole-tour conversation's first queued message (session `tour-feedback:`
+  and the pull request), shown waiting in the tour chat; more feedback joins
+  it. It is released on the draft's real completion (answer handled,
+  proposal made, tour host retired), never by the old 100 ms timer poll, as
+  one turn carrying the draft's answer as the Ask more seed and the proposal
+  to revise. It accepts nothing. A draft that proposes nothing, or that
+  ended with its window or the app, returns it to the chat as not sent. The
+  disposable first draft itself is never queued, promoted or steered.
 - **Reset tour** ([[BPR-1931]]). An icon button in the tour's header, the
   drawer's clear arrow, named "Reset tour" in its tooltip and accessible name,
   as the Agent tab's header actions are (v002, owner on v001: "the reset tour
