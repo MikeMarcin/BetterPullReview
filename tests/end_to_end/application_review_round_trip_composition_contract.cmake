@@ -3814,8 +3814,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# report opens in a file tab and its links open the checked candidate;
 	# the tests-on look stage --attended-local-draft-check. No review
 	# mutation or submission path changed.
+	# [[BPR-2190]] reseal: the tests-on UIforETW capture expects the review
+	# bar as it now stands (the local draft's hidden controls, Ask, the view
+	# picker; no Comment). Tests-on only; no review mutation or submission
+	# path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "69855406d1847cf5e9847bb41977918baa7c232eeed0a472e23a61cffc6f287a"
+        "b2d94248a67688c334eeaacb68c3a044678e46ff68a3c7fdac811750e483ed9d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
