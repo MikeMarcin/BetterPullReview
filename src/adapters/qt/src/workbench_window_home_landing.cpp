@@ -651,7 +651,10 @@ namespace bpr::qt {
 		const auto home  = showing_home();
 		// [[BPR-1209]]. Home and the exact offered workshop are prime spots;
 		// every other surface uses the 28-pixel status corner.
-		const auto card         = home && HomeLanding->state() == landing_state::sign_in;
+		// [[BPR-2206]]. Once the account setup stands in the card's place
+		// (RFC-BPR-0032 amendment r1) there is no card to hold Dif: the setup
+		// is another surface, and Dif rests in the corner as on any other.
+		const auto card         = home && HomeLanding->state() == landing_state::sign_in && !account_setup_shown();
 		const auto cardSlot     = card && HomeLanding->illustration_space_available();
 		const auto workshopSlot = showing_dif_workshop();
 		const auto cornerSlot   = !card && !workshopSlot;
@@ -950,8 +953,13 @@ namespace bpr::qt {
 		// RFC-BPR-0032 amendment r1. The account setup, once begun, is the
 		// sign-in surface until it is finished; the card gives way to it.
 		const auto setupShown = account_setup_shown();
+		const auto setupMoved = AccountSetup != nullptr && AccountSetup->isVisibleTo(this) != setupShown;
 		if (AccountSetup != nullptr) {
 			AccountSetup->setVisible(setupShown);
+		}
+		// [[BPR-2206]]. Dif goes where the card or the setup leaves it room.
+		if (setupMoved) {
+			update_dif_presentation();
 		}
 		// [[BPR-1865]]. Over a review the card is filtered with the lists; the
 		// sign-in and first-launch cards are not rows and always stand.
