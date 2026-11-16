@@ -461,3 +461,8 @@ AC44-12 and this card remain pending for their remaining obligations.
 Owner preference, forwarded with this handback: use `gh` CLI authentication
 most of the time and native authentication rarely. This guides ordinary usage;
 it waives no native, platform or release acceptance requirement.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Left: the Windows owner device-flow sign-in (wizard from 2026-10-09, launcher root predates three releases) and Developer ID signing and notarization. Rebuild the wizard's image before asking.
+This is a read-only tracker audit: it changes no status, folder or metadata.

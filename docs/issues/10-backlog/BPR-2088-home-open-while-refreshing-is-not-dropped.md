@@ -27,3 +27,8 @@ condition; an open is such a submission.
   refresh that follows a tour publication), then passes.
 
 Not scheduled in any milestone; found outside the layout round's surfaces.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No fix commit since it was filed (2026-11-10). Not reproduced in this audit.
+This is a read-only tracker audit: it changes no status, folder or metadata.

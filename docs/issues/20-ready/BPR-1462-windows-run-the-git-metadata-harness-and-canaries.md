@@ -64,3 +64,8 @@ rows already pass in v0.3.4's Windows 11 Release and Debug suites at
 `62bfc09f6`, against Git 2.55. `run_canary` reports "skipped" on `_WIN32`,
 so the work left is the Windows canary course for K described in the
 amended AC1.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. K's Windows canary course owed; narrowed by the 2026-10-26 amendment.
+This is a read-only tracker audit: it changes no status, folder or metadata.

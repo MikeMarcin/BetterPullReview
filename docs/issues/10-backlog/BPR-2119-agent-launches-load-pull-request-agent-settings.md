@@ -82,3 +82,8 @@ if the owner wants one), not the lane's grants:
 - Release notes say what was exposed and that reviewers who used Codex with
   `workspace-write` should remove `trust_level = "trusted"` entries for
   BetterPullReview workspace paths from `~/.codex/config.toml`.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **DONE-ALREADY**. The guard is on main: 059e191fb (the lane fix) is an ancestor of main; see agent_checkout_spellings and PullRequestCheckout in src/application/src/agent_launch.cpp and agent_scratch_folder.cpp. Still owed: the release-note advisory (Codex `trust_level` cleanup). No release record in docs/verification names it.
+This is a read-only tracker audit: it changes no status, folder or metadata.

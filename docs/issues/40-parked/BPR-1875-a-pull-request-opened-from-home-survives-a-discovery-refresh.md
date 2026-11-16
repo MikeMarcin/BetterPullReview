@@ -88,3 +88,8 @@ pressed, the cause is below the window, in the transport or in another holder
 of the provider, and a follow-up card should start there. This card adds no
 behaviour change for it, because none of the traced paths is reached from a
 refresh.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. The diagnostics are in place: `cancel_cause` is logged and a course covers a refresh during an open. The real-network cancellation has not been explained and is waiting for a recurrence. Its parked_on `awaiting-live-github` is really 'awaiting a recurrence in the owner's use'. Question for the owner: keep it parked, or close it until it recurs?
+This is a read-only tracker audit: it changes no status, folder or metadata.

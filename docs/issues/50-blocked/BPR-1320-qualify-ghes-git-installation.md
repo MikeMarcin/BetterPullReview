@@ -132,3 +132,8 @@ outside this card.
 The frozen v001 candidate already admitted the owner's reported gh 2.101.0, so
 this change alone does not call for a new GHES candidate. C1 stays pending
 until pre-release feedback.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waiting for feedback from the affected GHES installation (C1).
+This is a read-only tracker audit: it changes no status, folder or metadata.

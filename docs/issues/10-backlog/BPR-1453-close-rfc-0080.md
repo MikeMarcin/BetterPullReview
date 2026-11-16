@@ -33,3 +33,8 @@ RFC base: `5620a9f15a391dde7750112294f7562f2f64a32f`.
 | **AC05:** The window-thread rows pass, with before-and-after results and counters recorded. No adopted change makes a recorded row worse by more than its run-to-run spread. | Pending. |
 | **AC06:** `core-only` and `dev` build. The architecture checks admit only the approved pure targets and the scoped CommonCrypto/CNG SHA-256 backend in core (owner r4, 2026-10-18). Other OS crypto remains behind host ports. | Pending. |
 | **AC07:** For each adopted library, the release inventory, provenance, notices, SPDX and corresponding source are complete, and the package audit passes on macOS. Unavailable stations are recorded explicitly. | Pending. |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits on the Windows and Linux hash station runs, BPR-1448 and BPR-1449 (Ready).
+This is a read-only tracker audit: it changes no status, folder or metadata.

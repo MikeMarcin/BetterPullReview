@@ -25,3 +25,8 @@ Update live architecture/UX/user/CLI/skill docs, registry index and per-criterio
 ## Evidence and boundaries
 
 Record the direct test/gesture, actual result, producing revision and limitations in the live card. Product evidence is **not run** at pack authoring. Follow [`verification/PRODUCT-VERIFICATION.md`](../../rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1/verification/PRODUCT-VERIFICATION.md) and current project isolation/authority rules. Focus checks on this slice; reuse unchanged evidence. Import and local fixtures grant no live GitHub, credential, model or unrelated source-change authority.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Conventional Comments closeout chain; nothing run. It waits on BPR-1094 (Windows half of R33) and BPR-1095 (Ready, live course on BPR-Test).
+This is a read-only tracker audit: it changes no status, folder or metadata.

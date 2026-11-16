@@ -1400,3 +1400,8 @@ This card adds no uncontained registration.
 So criterion 3 is met at `b406b2e3b` for every row except
 `application_windows_title_row`, which is owed only because the desktop
 is held.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. Wizard `bpr0653-jaegaw-100pct-20261009-v001` (2026-10-09) was never answered, and the title row has since been rebuilt (RFC-BPR-0052; BPR-2197 mode switcher). Question for the owner: run the Windows 100% look on a fresh build, or amend AC-01 to close on the 150% accept? The chain BPR-1021 to 1135 to 1194 waits on this.
+This is a read-only tracker audit: it changes no status, folder or metadata.

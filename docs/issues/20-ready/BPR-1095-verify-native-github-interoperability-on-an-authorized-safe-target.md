@@ -36,3 +36,8 @@ identity, `MikeMarcinTest`, is available per command for the website-side
 reviewer. Every card dependency is Done. The card moves to Ready. The course
 publishes only on BPR-Test, checks `X-RateLimit-Remaining`, and leaves to
 the owner only a judgement that only a person can make.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Ready since 2026-10-26 with BPR-Test authorized; the live course has not run.
+This is a read-only tracker audit: it changes no status, folder or metadata.

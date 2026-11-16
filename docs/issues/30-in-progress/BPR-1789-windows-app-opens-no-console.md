@@ -41,3 +41,8 @@ console subsystem and Windows opened a console for it.
 
 - No native Windows build or launch ran here.
 - The printed refusal is its own problem: BPR-1790.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Native launch check pending on main. The Explorer preview Accept is recorded only on unmerged lane `codex/bpr-native-handoff-20261028` (67a0ae687).
+This is a read-only tracker audit: it changes no status, folder or metadata.

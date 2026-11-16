@@ -34,3 +34,8 @@ the RFC's amendment of 2026-11-12 is authoritative for scope. The
 local-draft-authoring milestones must not build this again. Evidence:
 [RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
 [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs refreshing: most of it was delivered on the v0.5.0 lane (RFC-BPR-0113 ledger; owner looks accepted 2026-11-13, session 767b9233). Still open: AC05 (no question when leaving with unsaved edits; nothing in src asks it) and the save-then-refresh and interrupted-save courses. Its Backlog place and 'must not build this again' note conflict.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -31,3 +31,8 @@ Lane commit `0a85bc2b5` ("Live course sign-in waits for the outcome, not the acc
 ## Notes
 
 Verified on the lane after the fix (2026-11-13): the reader course signs in (`cli-account:MikeMarcin (active in gh)`, `cli-account:MikeMarcinTest`, `setup-connects:1`, `signed-in-card:MikeMarcin kind=GitHub.com, GitHub CLI`); the live draft course then pushed and created draft pull requests on BPR-Test (#181, #182, closed after).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **DONE-ALREADY**. Lane fix 0a85bc2b5 is an ancestor of main. tests/end_to_end/live_second_account_course.cpp:284 reads `driver.offered()`, and the lane verified the run on 2026-11-13. The live re-run on main itself is not recorded.
+This is a read-only tracker audit: it changes no status, folder or metadata.

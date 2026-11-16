@@ -52,3 +52,8 @@ BPR-1736's design named are not built:
 [[BPR-1736]] is Done, so the card moves to Ready.
 Load frontend-design before writing the words and layout, as the metadata
 says.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not built: no server-card or Support details line about off-hunk comments in src.
+This is a read-only tracker audit: it changes no status, folder or metadata.

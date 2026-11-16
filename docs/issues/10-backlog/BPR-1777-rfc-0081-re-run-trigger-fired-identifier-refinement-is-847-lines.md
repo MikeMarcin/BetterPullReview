@@ -51,3 +51,8 @@ evaluation is re-run.
   limited only the original run to macOS.
 - AC2: The decision is recorded in the report's re-run section and on this
   card. Nothing is implemented, measured or adopted before it.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. src/core/src/cpp_identifier_context.cpp is still 847 lines. Its AC1 is the owner's question: re-run RFC-BPR-0081's evaluation, or keep the heuristic and raise or retire the 800-line trigger?
+This is a read-only tracker audit: it changes no status, folder or metadata.

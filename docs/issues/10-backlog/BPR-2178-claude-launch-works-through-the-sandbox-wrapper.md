@@ -36,3 +36,8 @@ Inline `--append-system-prompt` applied and cached across changing questions (~$
 - A stub wrapper that refuses any order but `-p` first, and fails `--version`/`--help` as the real one does, passes a chat run, a resumed run and Check (version from `init` or unknown).
 - A stub 401 reports a sign-in failure within one retry.
 - The owner reruns the harness audit (or Test E) through the wrapper and a run answers.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. agent_launch.cpp:3704-3732 still places `-p` after the grant, the restrictions and `--append-system-prompt`.
+This is a read-only tracker audit: it changes no status, folder or metadata.

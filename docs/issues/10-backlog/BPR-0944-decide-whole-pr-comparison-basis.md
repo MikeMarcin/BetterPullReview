@@ -80,3 +80,8 @@ Scoped read-only diagnosis in the selected-diff d6/r21 round and the owner's
 and implementation; neither website equivalence, merge-base support nor partial
 pane rendering is claimed. The deferral closes the amended target obligation,
 not the anomaly, and does not waive other RFC or canonical predecessor gates.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs refreshing: BPR-1560 (Done) took AC1-AC3 (merge-base basis), as this card's own 2026-10-16 note says. Only AC4/AC5 are left (keep the right-side file, explain the missing earlier side in the left pane), and no code does either yet.
+This is a read-only tracker audit: it changes no status, folder or metadata.

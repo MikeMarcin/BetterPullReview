@@ -39,3 +39,8 @@ RFC base: `a9663a706fd72061f60b615bd8e749ee0ddb66b5`.
 | **AC04:** The counts start with the first run of a build that has the section, follow the review stats' purge and reset rules, and the anonymized export holds counts and sums only. | Pending | Pending | Not implemented |
 | **AC05:** An agent feature with no Insights row fails a test. | Pending | Pending | Not implemented |
 | **AC06:** On a frozen build with seeded counts, the owner accepts the Agents section. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Closeout; waits on BPR-2084.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -49,3 +49,8 @@ the RFC's amendment of 2026-11-12 is authoritative for scope. The
 local-draft-authoring milestones must not build this again. Evidence:
 [RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
 [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs refreshing: the checklist still reads 'Not implemented', but the RFC-BPR-0113 ledger records AC01-AC04 and AC06 as passed or built and AC07 as accepted. Only AC05 is unbuilt.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -69,3 +69,8 @@ macOS. AC05's deltas for L are the macOS ones. [[BPR-1463]] is Done for K on
 v0.3.4's Linux evidence and is no longer a dependency. The only thing left
 before closeout is [[BPR-1462]], K's Windows canary course, which fills the
 decision record's last pending cell, K's Windows H2.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits only on BPR-1462 (K's Windows canary course).
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -30,3 +30,8 @@ Use the [existing qualification course](../../verification/RFC-BPR-0039-0043.man
 ## Completion evidence
 
 Record exact candidate, environment/host/provider identities, command or observed action, result and relevant human verdict. Unsupported/not-run rows retain their limitations; do not generalize fixture or historical evidence. This card starts with no passing qualification record.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs refreshing: it says RFC-BPR-0022 'remains Proposed', but RFC-BPR-0022 and RFC-BPR-0036 are Auto-Verified now. Only RFC-BPR-0037 (Proposed) and RFC-BPR-0021 (Deferred) are left.
+This is a read-only tracker audit: it changes no status, folder or metadata.

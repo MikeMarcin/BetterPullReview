@@ -173,3 +173,8 @@ decides what the activation changes here.
   lands meanwhile. Criterion 3's station pass is best taken before
   [[BPR-1129]] lands. After that it would measure RFC-BPR-0052's title row
   instead.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits only on BPR-0653's Windows 100% look (see that card's question).
+This is a read-only tracker audit: it changes no status, folder or metadata.

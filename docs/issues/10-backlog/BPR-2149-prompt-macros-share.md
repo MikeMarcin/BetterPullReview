@@ -17,3 +17,8 @@ RFC-BPR-0107's exchange version 2 carries suggested prompts, with export/import 
 ## Acceptance
 
 RFC-BPR-0125 AC24.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not built: agent_configuration_exchange.cpp carries hooks and the skill but no prompt macros (no version 2).
+This is a read-only tracker audit: it changes no status, folder or metadata.

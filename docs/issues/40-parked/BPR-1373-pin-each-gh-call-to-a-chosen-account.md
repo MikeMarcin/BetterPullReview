@@ -196,3 +196,8 @@ keychain entry, and its own `gh auth status` reports the missing login as
   frozen in this round: the owner was low on usage and asked for a freeze
   only if cheap. The freeze script has no Settings opening yet, and the app
   has no flag to seed a fixture inventory for the look.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. The pin is built (gh_cli_transport.cpp:994 `auth token --hostname --user`); only the owner's look at the Accounts & hosts list is pending. The account surface was rebuilt by BPR-2132 (Done; owner accepted the account step, session dcb3c9f7). Question for the owner: does that acceptance cover this look, or is a separate look at the multi-account list wanted?
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -48,3 +48,8 @@ keeps the older selection and presents it when the load completes.
 defect, and it moves to Ready. BPR-1707's composed course works around it
 by waiting for the tab presentation to settle before selecting a line. The
 fix needs a course that selects inside that window.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No fix commit since 2026-10-21.
+This is a read-only tracker audit: it changes no status, folder or metadata.

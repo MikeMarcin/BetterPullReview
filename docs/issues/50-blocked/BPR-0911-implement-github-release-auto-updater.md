@@ -69,3 +69,8 @@ Do not infer that authority from local signing/notarization permission. No live
 credential/service operation was attempted in the r3 round. All task commands are
 quiescent; the current handoff is [[BPR-0912]]. BPR-0950 remains a separate
 nonblocking Backlog follow-up, not a prerequisite of this card.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. Blocked since 2026-09-21 on live private-release and vault evidence (RFC-BPR-0035 AC-03); there is no wizard or session for it. The text still says BPR-0912 keeps the RFC-BPR-0014 and canonical-order gates, which were removed 2026-09-27. Question for the owner: authorize a named private-release target for AC-03, or amend AC-03?
+This is a read-only tracker audit: it changes no status, folder or metadata.

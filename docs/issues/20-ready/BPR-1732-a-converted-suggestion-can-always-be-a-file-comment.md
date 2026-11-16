@@ -40,3 +40,8 @@ and the GitHub file-comment path, so it is its own card.
 
 [[BPR-1716]] is Done, so the card moves to Ready.
 It still needs frontend-design for any visible Convert wording.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No fix commit since it was filed.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -391,3 +391,8 @@ the Data volume made every retained record unreadable. [[BPR-2118]] stores the
 APFS volume UUID instead, upgrades Version 1 records in place, and splits
 `record-unreadable` into `record-malformed`, `record-moved` and
 `record-cleanup-failed`, counting every refused record.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. AC1 and AC2 met (release course at 2a8b6b1f5). Only AC3 is left, the owner's corporate machine, which is a human-only device, so Parked on human-review would fit better than In Progress.
+This is a read-only tracker audit: it changes no status, folder or metadata.

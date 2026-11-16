@@ -53,3 +53,8 @@ what the scratch folders hold and has Clear scratch folders. See
 Load frontend-design before the Qt work. RFC-BPR-0096's owner large-project
 amendment ("No automatic deletion or larger replacement cap is introduced")
 is amended by this card's acceptance: the owner asked for bounded disk use.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not built: Insights shows only store sizes (insights_window.cpp:559-564), with no row for workspaces or scratch folders, and there is no cleanup by pull request state.
+This is a read-only tracker audit: it changes no status, folder or metadata.

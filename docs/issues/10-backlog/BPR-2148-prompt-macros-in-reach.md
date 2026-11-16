@@ -17,3 +17,8 @@ A chip's context menu (Edit this prompt..., Turn off with Undo, Suggested prompt
 ## Acceptance
 
 RFC-BPR-0125 AC22-AC23.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not built: chips have no context menu ('Edit this prompt', 'Turn off'), and there is no `/p ` popup. Needs refreshing: Edit this prompt should open Settings > Prompts (BPR-2179).
+This is a read-only tracker audit: it changes no status, folder or metadata.

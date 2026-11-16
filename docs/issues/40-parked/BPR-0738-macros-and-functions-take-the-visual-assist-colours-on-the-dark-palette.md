@@ -316,3 +316,8 @@ When a path-preserving migration exists, the card moves to Done with the
 acceptance above unchanged. This was recorded when the main integrator
 consumed the 2026-09-24 hand-back (session `cbd48b91`, sequence 589); the
 preparer flagged this card as board upkeep, not as a question.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **DONE-ALREADY**. Accepted (session cbd48b91, hand-back 589). It stays Parked only because moving it would change a link in a protected review packet.
+This is a read-only tracker audit: it changes no status, folder or metadata.

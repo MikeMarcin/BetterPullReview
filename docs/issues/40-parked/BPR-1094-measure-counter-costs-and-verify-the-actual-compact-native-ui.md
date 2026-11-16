@@ -390,3 +390,8 @@ display: themes and marks, narrow window, keyboard, larger text, VoiceOver),
 verbatim: "It's fine approved". The wizard is stopped. R33's Windows half
 (125% and 200%, larger text, Narrator, native style) remains owed through
 wizard `bpr-jaegaw-windows-20261009-v001`.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The macOS half of R33 is approved; the Windows half (wizard `bpr-jaegaw-windows-20261009-v001`) is still owed, and its image is stale.
+This is a read-only tracker audit: it changes no status, folder or metadata.

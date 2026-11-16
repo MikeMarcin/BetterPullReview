@@ -108,3 +108,8 @@ fails (`FIXTURE_AGENT_SILENT`) unless the Fixture agent answers it as a report
   a native session as a person's do (before, they ran on the built-in Claude
   profile with no entry and none was kept). The fixture agent as `claude` is
   a kept stream-JSON connection that can be steered; see BPR-2153.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Actively worked (progress 2026-11-15 for BPR-2153), but its metadata names no mandate. The coordinator may want it in its own queue.
+This is a read-only tracker audit: it changes no status, folder or metadata.

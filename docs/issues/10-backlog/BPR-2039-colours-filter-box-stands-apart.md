@@ -26,3 +26,8 @@ variants. The owner accepts the result on a frozen build. Load
 frontend-design before the Qt work.
 
 Not scheduled in any milestone; a follow-up to the `agent-tab-asks` look.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. colour_role_list.cpp:147-151 and appearance_settings_panel.cpp:1864 are unchanged since a54274992 (2026-09-15).
+This is a read-only tracker audit: it changes no status, folder or metadata.

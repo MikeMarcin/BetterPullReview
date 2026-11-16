@@ -55,3 +55,8 @@ location; only macOS has an update helper.
 
 - No native Windows build or install ran: the WiX patch's `Launch` element
   and the HKLM registry value were not compiled by WiX here.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Native MSI install (AC2) still pending on main. Evidence commits (316677929) sit on unmerged lane `codex/bpr-native-handoff-20261028`; no main activity since 2026-10-27.
+This is a read-only tracker audit: it changes no status, folder or metadata.

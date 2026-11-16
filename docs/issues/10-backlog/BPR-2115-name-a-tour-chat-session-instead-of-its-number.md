@@ -48,3 +48,8 @@ an owner look on a frozen build.
 
 Not started: Backlog. No requirement of RFC-BPR-0100 changes until an RFC
 amendment is written for it.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. tour_side_chat.cpp:700 still shows 'Session %1'. The card holds its own open owner question (the agent's title or not).
+This is a read-only tracker audit: it changes no status, folder or metadata.

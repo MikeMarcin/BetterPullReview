@@ -107,3 +107,8 @@ and an implementer may not run it on the owner's desktop. It needs either
 an isolated macOS session or a frozen build with a short wizard. The card
 moves to Ready, so the next implementer prepares one of those instead of
 leaving the card In Progress.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Only the foreground activation course is left, and it needs an isolated macOS session or a frozen build with a wizard.
+This is a read-only tracker audit: it changes no status, folder or metadata.

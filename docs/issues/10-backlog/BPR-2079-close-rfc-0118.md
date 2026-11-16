@@ -39,3 +39,8 @@ RFC base: `a9663a706fd72061f60b615bd8e749ee0ddb66b5`.
 | **AC04:** Keeping the suggestion adds the suggestion block to the draft and leaves its text as written; one Undo restores the draft; nothing is sent to GitHub. | Pending | Pending | Not implemented |
 | **AC05:** The operation is briefed by its own built-in prompt, whose edit reaches the next Suggest the change and no other prompt. | Pending | Pending | Not implemented |
 | **AC06:** On a frozen build with a fixture agent, the owner accepts the control, an applied suggestion and a refused one. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. RFC-BPR-0128 keeps Suggest the change on the draft field's right-click. BPR-2078's AC06 look was waiting for the Ask model, which is now in place.
+This is a read-only tracker audit: it changes no status, folder or metadata.

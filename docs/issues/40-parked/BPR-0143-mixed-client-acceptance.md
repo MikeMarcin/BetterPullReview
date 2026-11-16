@@ -279,3 +279,8 @@ dropped. Its fixture courses fail with the old rule and pass with the fix.
 The live re-run of this card's two draft rows through the probe was not
 done; the coordinator deferred it. Item 1 of "Remaining" is now only that
 re-run.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Only the live re-run of the draft rows is left (see BPR-1374 AC4).
+This is a read-only tracker audit: it changes no status, folder or metadata.

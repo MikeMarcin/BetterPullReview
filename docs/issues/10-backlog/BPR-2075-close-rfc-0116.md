@@ -40,3 +40,8 @@ RFC base: `a9663a706fd72061f60b615bd8e749ee0ddb66b5`.
 | **AC05:** Each operation is briefed by its own built-in prompt with its own editor, default, version and Reset; an edit reaches that operation's next brief and no other prompt. | Pending | Pending | Not implemented |
 | **AC06:** Opening, refreshing and returning to a pull request with new commits launches no agent, and neither operation writes to GitHub or changes attention state. | Pending | Pending | Not implemented |
 | **AC07:** On a frozen build serving a pull request with commits newer than a review and a commented thread, the owner accepts both controls and their answers. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. RFC-BPR-0116's entry points were folded into RFC-BPR-0128's Ask model (Auto-Verified 2026-11-14; BPR-2165 delivers Was this addressed? on any thread). Question for the owner: close RFC-BPR-0116 as delivered through RFC-BPR-0128, or as superseded?
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -36,3 +36,8 @@ take affected-installation confirmation from the next pre-release.
 an exact candidate is deferred to the next pre-release. C1 and C2 remain the
 acceptance and an explicit open gap. No fixture, local or capability evidence
 substitutes for them, and the incident is not claimed fixed.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Deferred to pre-release feedback from the affected GHES installation; waits on BPR-1320 and BPR-1321.
+This is a read-only tracker audit: it changes no status, folder or metadata.

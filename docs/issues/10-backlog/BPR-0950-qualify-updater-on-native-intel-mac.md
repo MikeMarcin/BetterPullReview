@@ -52,3 +52,8 @@ on [[BPR-0948]] and in the [ledger](../../verification/RFC-BPR-0035.md). This ca
 authorizes no publication, tag, push, live credential/service access or replacement
 of the developer's installed application. Later execution needs its own bounded
 assignment; no new unattended hardware work or attended session starts here.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs a native Intel Mac; the owner deferred it and it blocks nothing.
+This is a read-only tracker audit: it changes no status, folder or metadata.

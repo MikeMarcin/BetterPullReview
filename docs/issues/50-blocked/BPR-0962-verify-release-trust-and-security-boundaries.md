@@ -390,3 +390,8 @@ open:
 No signing, notarization, tag, push, upload or publication was performed or
 authorized. The [successor ledger](../../verification/RFC-BPR-0038.md#human-review-and-protections)
 records the same decision.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The raw Grype failures, independent trust verification and native privacy evidence are open; the latest recheck was 2026-10-22.
+This is a read-only tracker audit: it changes no status, folder or metadata.

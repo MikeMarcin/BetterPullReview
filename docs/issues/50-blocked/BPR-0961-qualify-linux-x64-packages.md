@@ -94,3 +94,8 @@ C++ runtime/toolchain/CPU floor must be visible in installation instructions.
 These are engineering targets, not successful builds or supported-native
 observations. Qualify both clean environments and the ordinary-user route;
 retain pending status when hardware/operator/trust inputs are unavailable.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs refreshing: its 'M2 baseline declaration' names Ubuntu 24.04 and RHEL 10, which the board README and the 2026-10-11/10-16 amendments replaced with Ubuntu 26.04 WSL2 on JaegAW.
+This is a read-only tracker audit: it changes no status, folder or metadata.

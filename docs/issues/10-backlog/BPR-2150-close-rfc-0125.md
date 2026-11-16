@@ -48,3 +48,8 @@ RFC base: `4bdf03b330388cb36b07bdabad6d8d66168eddca`.
 AC25 and closeout of AC01-AC24: update `ai-experience.md` and the system
 architecture, apply the amendments to RFC-BPR-0102, RFC-BPR-0107 and
 BPR-1934, run the documentation gate.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Closeout. Needs refreshing: AC14-AC21 should be remapped onto the Prompts section the owner accepted (BPR-2179, BPR-2185) rather than the RFC's original sheet.
+This is a read-only tracker audit: it changes no status, folder or metadata.

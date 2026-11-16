@@ -40,3 +40,8 @@ RFC base: `a9663a706fd72061f60b615bd8e749ee0ddb66b5`.
 | **AC05:** The chip says when the head has moved past the check's commit, and a check gone from the current result set removes it. | Pending | Pending | Not implemented |
 | **AC06:** The operation is briefed by its own built-in prompt, whose edit reaches the next check question and no other prompt. | Pending | Pending | Not implemented |
 | **AC07:** On a frozen build serving a pull request with a failed check, the owner accepts the control, the chip and an answer. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Closeout; waits on BPR-2080.
+This is a read-only tracker audit: it changes no status, folder or metadata.

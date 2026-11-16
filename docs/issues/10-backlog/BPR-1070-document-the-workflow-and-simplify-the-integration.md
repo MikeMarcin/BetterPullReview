@@ -37,3 +37,8 @@ Run focused tests and record command/result/producing revision. Reuse unchanged 
 ## Bundled CLI amendment (2026-10-27)
 
 The owner adopted [bundled-cli-r1](../../rfcs/amendments/RFC-BPR-0044-bundled-cli-r1.md). Documentation and skill setup now target `BetterPullReview.app/Contents/MacOS/bpr`, PATH-first/standard-bundle lookup with one retained absolute path, explicit user-managed shell setup and the automation-off exclusion. The source build remains a developer fallback. This amendment work does not bypass the BPR-1068 dependency or claim the rest of this card complete.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not started; waits on BPR-1068. The bundled-cli-r1 amendment (2026-10-27) is already noted.
+This is a read-only tracker audit: it changes no status, folder or metadata.

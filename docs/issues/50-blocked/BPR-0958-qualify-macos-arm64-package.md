@@ -100,3 +100,8 @@ supplied by this narrow verdict. The card now waits on
 `clean-macos-account-vault`, rather than another answer to the recovery question.
 See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
 and the durable M8 handoff for hashes, commands and retained review resources.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs a clean macOS account for Keychain and purge evidence. The candidate is from the 0.1.x era, so rebind it to a current release.
+This is a read-only tracker audit: it changes no status, folder or metadata.

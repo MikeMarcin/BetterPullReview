@@ -40,3 +40,8 @@ identity on rediscovery, which is the BPR-1502 family". AC1 should start
 from `adopt_native_connection` and ask whether the CLI path should re-bind
 the same way under RFC-BPR-0071. The card's `platforms` says `mac`, but the
 cause is portable.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No fix since its 2026-10-26 triage. Needs refreshing: `platforms` says mac, but the triage found the cause portable.
+This is a read-only tracker audit: it changes no status, folder or metadata.

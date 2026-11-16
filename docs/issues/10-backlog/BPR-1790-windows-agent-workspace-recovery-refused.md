@@ -53,3 +53,8 @@ the mount-time `st_dev`, which a restart can renumber, so every retained record
 was refused as `record-unreadable`. [[BPR-2118]] fixed that; a Windows refusal
 now names `record-malformed`, `record-moved` or `record-cleanup-failed` with a
 record count when a record is the cause.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not confirmed on the owner's Windows machine. It overlaps BPR-1857's root cause 2, and that card's AC3 owns the corporate-machine check. Lane `codex/bpr-native-handoff-20261028` holds three unmerged notes for this card (d47c32c1f, 813d65aea, e36e2d050).
+This is a read-only tracker audit: it changes no status, folder or metadata.

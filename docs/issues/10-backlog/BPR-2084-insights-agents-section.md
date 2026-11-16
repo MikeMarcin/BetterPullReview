@@ -25,3 +25,8 @@ Core and store tests in the shape of the existing review-stat ones, including a 
 This is proposed work, not a live claim or acceptance record. No baseline,
 implementation revision or passing result has been assigned. Follow the
 [implementation entrypoint](../../rfcs/assets/agent-assistance-v1/IMPLEMENTATION_PROMPT.md).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not built: insights_window.cpp has no Agents section.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -28,3 +28,8 @@ covers both with a sealed control folder and a held lock.
 
 Not scheduled in any milestone; found during `v0-5-0-prerelease-targets`.
 Related: [[BPR-2043]] (how a refused join is reported).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. macos_update_transaction.cpp:821-824 still returns `reason::busy` when admission.lock cannot be opened, with no separate read-only reason.
+This is a read-only tracker audit: it changes no status, folder or metadata.

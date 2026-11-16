@@ -32,3 +32,8 @@ SHA-1 and SHA-256 arm added to the evaluation. The report gains the Linux rows.
   Q3 (link the system libcrypto directly) goes to the owner with the
   measurement, and the BPR-1447 port gains the backend only after an Accept;
   otherwise Linux keeps core.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Linux station run owed; no commit names it.
+This is a read-only tracker audit: it changes no status, folder or metadata.

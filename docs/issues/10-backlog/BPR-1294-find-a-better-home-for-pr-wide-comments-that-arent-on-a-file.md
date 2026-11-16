@@ -106,3 +106,8 @@ direction above.
 
 To be written with the owner when this card is taken up. Owner review is
 required, not self-certified.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **SUPERSEDED**. By BPR-1781 (Done, owner Accept 2026-10-27, session 41f51349): the pull request's own comments live on Overview's Comments tab (github_conversation_panel.cpp:468, conversation_cards_view.cpp:2451). That is this card's leading candidate direction.
+This is a read-only tracker audit: it changes no status, folder or metadata.

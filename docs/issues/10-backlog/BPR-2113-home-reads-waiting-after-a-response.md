@@ -34,3 +34,8 @@ which changes an adopted rule of RFC-BPR-0098 (amendment A1 in
 [AMENDMENTS.md](../../rfcs/assets/address-review-feedback-v1/AMENDMENTS.md)).
 The owner has not seen it. Put it to the owner as an Accept or Reject
 question before the card is readied; the import did not apply the amendment.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The address-review-feedback-v1 pack (RFC-BPR-0122 to 0124) is not built; no Address feedback control in src. These RFCs do not depend on the Rejected RFC-BPR-0109.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -36,3 +36,8 @@ the RFC's amendment of 2026-11-12 is authoritative for scope. The
 local-draft-authoring milestones must not build this again. Evidence:
 [RFC-BPR-0113 ledger](../../verification/RFC-BPR-0113.md),
 [RFC-BPR-0114 ledger](../../verification/RFC-BPR-0114.md).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs refreshing: Push was delivered and run live (RFC-BPR-0114 ledger). Still open: Create draft PR after a push (not rerun), the AC06 stop and timeout courses, and AC07 (push from an associated draft).
+This is a read-only tracker audit: it changes no status, folder or metadata.

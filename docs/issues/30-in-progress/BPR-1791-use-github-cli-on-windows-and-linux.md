@@ -173,3 +173,8 @@ target-native connector, credential, process, read/write and UI evidence".
   port 22 from this session.
 - AC1, AC2 and AC3 on Windows: no Windows build host was reachable.
 
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Windows and Linux AC1-AC3 pending. Lane `codex/bpr-native-handoff-20261028` holds unmerged evidence (c0790b62b, bf2de92d3).
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -94,3 +94,8 @@ dependencies and pending evidence unchanged. No collaborator is named, so no
 defect comment was prepared or published and nobody was contacted. Do not
 ask again in an attended queue; prepare the packet only when the owner names
 a reader.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Owner-deferred ('not now', 2026-10-09). Do not ask again until the owner names a reader.
+This is a read-only tracker audit: it changes no status, folder or metadata.

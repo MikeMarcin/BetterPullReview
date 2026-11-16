@@ -78,3 +78,8 @@ names `GHSA-r9hj-j2rw-4q3m` explicitly, and the
 Qt known-issue decision. It carries to the next release. AC2 stays
 answered, as recorded above. The card has been triaged, so it moves from
 Inbox to Ready.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Qt is still pinned at 6.12.0 (cmake/BprQtProvider.cmake:16). AC2 is answered (release-policy.md:182-187). AC1 and AC3 are open: no release record from v0.4.0 or later names GHSA-r9hj. Needs refreshing: the artifact list should name the current 0.4.x artifacts.
+This is a read-only tracker audit: it changes no status, folder or metadata.

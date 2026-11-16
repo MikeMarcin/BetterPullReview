@@ -206,3 +206,8 @@ offscreen app. The card should not be parked on `human-review`, so it moves
 to Ready. Rebuild the probe on `claude/bpr-0143-live-probe` against current
 `main` before running it, and check `X-RateLimit-Remaining` as AGENTS.md
 requires.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. AC1-AC3 and the owner look pass; AC4 (the live BPR-0143 re-run) is owed. Needs refreshing: the probe branch `claude/bpr-0143-live-probe` predates RFC-BPR-0127's comment model (Local, Draft, Published), so rebuild it before running.
+This is a read-only tracker audit: it changes no status, folder or metadata.

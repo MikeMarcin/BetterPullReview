@@ -42,3 +42,8 @@ RFC base: `91cce126bf211865298f58c79ba86e09bc2b077a`.
 | **AC07:** Evaluation and reply drafting each have their own built-in prompt; an edit to one reaches that operation's next brief and no other prompt. | Pending | Pending | Not implemented |
 | **AC08:** None of the three operations starts without a press, resolves a conversation, posts to GitHub or marks an item Done. | Pending | Pending | Not implemented |
 | **AC09:** On a frozen build with a fixture agent, the owner accepts the evaluated items, the batch fix's changes with their attribution, and the drafted replies. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The address-review-feedback-v1 pack (RFC-BPR-0122 to 0124) is not built; no Address feedback control in src. These RFCs do not depend on the Rejected RFC-BPR-0109.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -86,3 +86,8 @@ Windows station was changed or requalified in that round. The retained MSI
 above predates that correction; rebuild it from the next exact candidate
 before complete Windows qualification. The existing native gaps and full
 stripped-PE audit refusal remain unchanged.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs a clean Windows desktop, Credential Manager and full stripped-PE audit evidence. Its retained MSI predates several releases.
+This is a read-only tracker audit: it changes no status, folder or metadata.

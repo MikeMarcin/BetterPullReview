@@ -525,3 +525,8 @@ The gate that remains is [[BPR-0911]]'s explicitly authorized live
 private-release, vault and revocation evidence. Native Intel qualification
 stays the nonblocking [[BPR-0950]], and the owner skipped it again for
 v0.3.4. The card stays in Backlog.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits on BPR-0911's live private-release evidence (AC-03). Its 2026-10-26 triage already drops the RFC-BPR-0014 and canonical-order gates.
+This is a read-only tracker audit: it changes no status, folder or metadata.

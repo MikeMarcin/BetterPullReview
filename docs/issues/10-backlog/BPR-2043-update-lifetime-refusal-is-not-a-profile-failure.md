@@ -30,3 +30,8 @@ tests-off bundle whose control folder refuses the join and checks the message
 and the absence of the reset choices.
 
 Not scheduled in any milestone; found during `v0-5-0-prerelease-targets`.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. profile_desktop.cpp:567-570 still finishes a refused join as `github_application_startup_failure::unavailable`, so the profile recovery dialog still shows.
+This is a read-only tracker audit: it changes no status, folder or metadata.

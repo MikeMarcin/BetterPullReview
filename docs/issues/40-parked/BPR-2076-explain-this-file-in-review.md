@@ -31,3 +31,8 @@ implementation revision or passing result has been assigned. Follow the
 ## Owner verdict (2026-11-13)
 
 Session `0002b9fa…`: **Reject**, "I think this gets folded into Ask." Parked pending the owner's Ask redesign ([RFC-BPR-0117 ledger](../../verification/RFC-BPR-0117.md)).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **SUPERSEDED**. By RFC-BPR-0128's Ask (Auto-Verified): the owner rejected this card's look with 'I think this gets folded into Ask', and Explain this file is now a shipped quick ask (prompt_macro_shipped.cpp:101).
+This is a read-only tracker audit: it changes no status, folder or metadata.

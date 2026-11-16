@@ -49,3 +49,8 @@ This card remains In Progress. The original Linux49 failure, its cause and
 final fresh common-source native qualification remain open. The
 [checkpoint](../_checkpoints/BPR-1978/handoff.md) preserves evidence, the
 startup observation and the exact continuation.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Diagnosis open (cf9413b9f, 2026-11-09, adds observability only). The checkpoint holds the continuation.
+This is a read-only tracker audit: it changes no status, folder or metadata.

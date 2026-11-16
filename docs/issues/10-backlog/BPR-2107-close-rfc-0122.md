@@ -40,3 +40,8 @@ RFC base: `91cce126bf211865298f58c79ba86e09bc2b077a`.
 | **AC05:** An item is placed on candidate lines only when the line mapping carries its lines there unchanged; otherwise it says the lines changed and shows the reviewer's lines, and no place is guessed. | Pending | Pending | Not implemented |
 | **AC06:** A new comment on a dealt-with item returns it to the list marked as having a new reply; a conversation resolved on GitHub leaves the list; and choosing a disposition writes nothing to GitHub. | Pending | Pending | Not implemented |
 | **AC07:** On a frozen build serving an authored pull request with review conversations and a matching worktree, the owner accepts Address feedback and the Feedback area. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The address-review-feedback-v1 pack (RFC-BPR-0122 to 0124) is not built; no Address feedback control in src. These RFCs do not depend on the Rejected RFC-BPR-0109.
+This is a read-only tracker audit: it changes no status, folder or metadata.

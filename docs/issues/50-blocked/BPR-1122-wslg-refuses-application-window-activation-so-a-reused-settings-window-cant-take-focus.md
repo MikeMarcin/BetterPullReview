@@ -145,3 +145,8 @@ its executable digest.
 - Station-local, read-only checks only; the platform eligibility is Linux on
   the WSLg host. A native GNOME or KDE desktop would pass a different course
   and does not unblock this card.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. External wait on microsoft/wslg#1022; the owner chose no workaround. That issue was not checked in this audit.
+This is a read-only tracker audit: it changes no status, folder or metadata.

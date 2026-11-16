@@ -76,3 +76,8 @@ showing the chosen glyph in the menu bar, with the alternatives as media.
   `qt_menu_bar_status_item_cocoa` pass on the new pair.
 - `application_profile_empty_desktop_native_menu_bar` still passes in an
   Aqua session.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. `scripts/dif_status_item_template.py` is unchanged since the owner's 2026-10-03 remark; no redesign has been made.
+This is a read-only tracker audit: it changes no status, folder or metadata.

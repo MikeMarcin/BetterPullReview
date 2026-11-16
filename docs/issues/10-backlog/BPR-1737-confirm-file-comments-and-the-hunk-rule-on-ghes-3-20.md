@@ -56,3 +56,8 @@ agent course. It grants no broader off-hunk capability. **AC1 remains open:**
 file-comment creation was not probed, because it cannot be staged as a private
 pending item on that route. The card remains Backlog and no GHES file-comment
 or application-build acceptance is inferred.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. AC1 (a file comment on GHES 3.20) has not been probed and needs the owner's GHES.
+This is a read-only tracker audit: it changes no status, folder or metadata.

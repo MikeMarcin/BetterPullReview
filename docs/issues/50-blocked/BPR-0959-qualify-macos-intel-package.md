@@ -44,3 +44,8 @@ Intel Mac. The exact universal 0.1.3 candidate at
 nor Rosetta is native Intel evidence. A clean macOS 13+ Intel account/operator
 is the concrete prerequisite. No baseline or updater-deferral substitution
 was made. See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs a native Intel Mac. Candidate 0.1.3 is stale.
+This is a read-only tracker audit: it changes no status, folder or metadata.

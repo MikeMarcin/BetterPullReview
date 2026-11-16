@@ -120,3 +120,8 @@ Reject per candidate.
 Presentation only, in the Qt adapter. BPR-1088 owns the Comment labels
 helper row and BPR-1289 the Settings search; whichever lands second adopts
 the other's layout.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. BPR-1597 (Done) replaced the Reviews & queue page this card redesigns, and BPR-2179 split Prompts out of Agents & context. Question for the owner: are the Settings section headers and info glyphs still worth a redesign, or should the card close?
+This is a read-only tracker audit: it changes no status, folder or metadata.

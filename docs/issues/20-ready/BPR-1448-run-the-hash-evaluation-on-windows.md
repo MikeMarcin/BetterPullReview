@@ -44,3 +44,8 @@ pending. A focused real Windows SHA-256/MSVC course for the amendment passed
 with CNG and forced HACL (known answers, empty/chunked updates, copies and
 moves); see the [RFC ledger](../../verification/RFC-BPR-0080.md).
 This is partial native correctness evidence, not completion of AC1-AC3.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Windows station run owed. The CNG amendment (BPR-1617) is already recorded.
+This is a read-only tracker audit: it changes no status, folder or metadata.

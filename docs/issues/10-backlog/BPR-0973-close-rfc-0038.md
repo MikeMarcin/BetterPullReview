@@ -72,3 +72,8 @@ under the shared plan; complete them before M13. Resume the existing Windows
 licensing review only when attended work is explicitly requested, retaining
 session `cbd48b91000b00f1e72e1ad62c7c384c`, event cursor 478 and its exact
 protected v002 fingerprint. No live review server or remote writer is handed off.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits on BPR-0958 to 0962 (all Blocked). Its evidence rows are bound to the 2026-09 split entry `4f2c3bdb`; the releases since (0.3.x, 0.4.x) need rebinding at closeout.
+This is a read-only tracker audit: it changes no status, folder or metadata.

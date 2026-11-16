@@ -115,3 +115,8 @@ suffix (both forms are accepted). The fixture validator and normalizer still
 accept only `{id, login}`, so a live re-recording with `__typename` would need
 them extended. C1 and C2 stay pending and the card stays blocked until
 pre-release feedback or equivalent provenance exists.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waiting for feedback from the affected GHES installation (C1, C2); hardening has landed.
+This is a read-only tracker audit: it changes no status, folder or metadata.

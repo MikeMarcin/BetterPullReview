@@ -88,3 +88,8 @@ Each one can ship as its own slice.
 - Reseal `application_review_round_trip_composition_contract`'s application
   digests when `github_application.cpp` changes. The mutation-branch pin
   moves only if the review mutation composition changes.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Nothing removes a review request yet (no REST DELETE of requested_reviewers in src), and team reviewers are not shown.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -22,3 +22,8 @@ The thread's Reply field shows my draft reply folded ("Draft reply" and its firs
 
 My draft reply in a thread reads as my comment: its words shown as a post would show them, in the thread, with its state; it is not a folded field. Undo and redo in its editor follow the platform's rules (typing, then Undo, restores the text; Redo restores it again; nothing a save or reload does is in the undo stack). Owner look on a frozen build with a draft reply in a thread.
 
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The reply draft is still folded: conversation_open_card.cpp:1968-1970 ('Draft reply ' lead).
+This is a read-only tracker audit: it changes no status, folder or metadata.

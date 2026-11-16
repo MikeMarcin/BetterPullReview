@@ -52,3 +52,8 @@ The later [[BPR-0605]] observation completed the nine-query capability course
 successfully in about 6.49 seconds. This is one live sample, not a benchmark.
 Its post-discovery UI showed 4,989/5,000 GraphQL points remaining, but there is
 no pre-run baseline from which to attribute this batch's actual point cost.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Not started; the owner asked for this optional evaluation (2026-09) and the nine-query plan still stands. No commit names it.
+This is a read-only tracker audit: it changes no status, folder or metadata.

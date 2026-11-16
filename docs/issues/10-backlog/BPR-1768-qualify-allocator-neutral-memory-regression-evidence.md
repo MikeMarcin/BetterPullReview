@@ -78,3 +78,8 @@ The unchanged limits and large MI footprint/peak observations remain in the
 No trend rule or product setting is adopted, and this card stays Backlog.
 The corrected held-B preparation-tail barrier and later bounded Windows close
 pair do not establish a memory-use reduction or explain every timing miss.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No trend rule or memory regression signal adopted yet; unchanged since its 2026-10-26 triage.
+This is a read-only tracker audit: it changes no status, folder or metadata.

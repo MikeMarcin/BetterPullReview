@@ -42,3 +42,8 @@ RFC base: `91cce126bf211865298f58c79ba86e09bc2b077a`.
 | **AC07:** A changes-requested pull request whose requesting reviewers have all been asked again since their reviews, with no conversation awaiting the author, reads Waiting on Home with a sentence naming who was asked; with one of those conditions missing it still reads Returned. | Pending | Pending | Not implemented |
 | **AC08:** A review submission for another pull request completes while a response is being published, and each step shows as waiting, running, done, failed or not run. | Pending | Pending | Not implemented |
 | **AC09:** On a frozen build, the owner accepts the Publish response preview, a completed response and a failed push. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The address-review-feedback-v1 pack (RFC-BPR-0122 to 0124) is not built; no Address feedback control in src. These RFCs do not depend on the Rejected RFC-BPR-0109.
+This is a read-only tracker audit: it changes no status, folder or metadata.

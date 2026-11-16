@@ -51,3 +51,8 @@ narrow exception to AGENTS.md's no-desktop rule.
 
 No production behaviour changes: the fixture and its launch branch exist only
 in tests-enabled builds. The capture never records a screen region.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Built 2026-10-20 (9b9a4acc6); only BPR-1676:owner-look is left, with no activity since. In Progress contradicts that; Parked on human-review would fit.
+This is a read-only tracker audit: it changes no status, folder or metadata.

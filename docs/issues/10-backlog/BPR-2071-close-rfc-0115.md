@@ -46,3 +46,8 @@ RFC base: `b0d54697a6db6b17b459a751515de60aff14d65d`.
 | **AC11:** Tour runs and the one-shot hooks remain read-only and tool-free, the draft's conversations still read only the candidate workspace, and the agent accent appears only on the controls that start a run. | Pending | Pending | Not implemented |
 | **AC12:** On a frozen build with a fixture agent, the owner accepts the run's changes with Keep and Revert, the grant question and the three history reports. | Pending | Pending | Not implemented |
 | **AC13:** Review my change runs read-only on the candidate under the Self-review prompt and no other: the prompt is listed in Built-in prompts with its own editor, default, version and Reset; an edit to it reaches the next self-review's brief and leaves the review skill, the Suggested comments prompt and the whole-change discussion prompt unchanged, and edits to those leave it unchanged; and it exports and imports as its own item of the sharing format. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. RFC-BPR-0115 is not built: agent_grant.hpp:65 says the change run's 'Edits this worktree' level comes 'later'. RFC-BPR-0115 already marks its RFC-BPR-0109 evidence mentions void.
+This is a read-only tracker audit: it changes no status, folder or metadata.

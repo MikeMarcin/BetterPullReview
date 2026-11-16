@@ -38,3 +38,8 @@ AC07 rejected in attended session `ff82755e…` (decision `e789321a`, 2026-11-13
 > I think we can do better.
 
 Recorded only; another round reworks it.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **SUPERSEDED**. By RFC-BPR-0128 (Auto-Verified) through BPR-2165 (Done): Was this addressed? on any thread, a file or the pull request, with a claim chip. That answers the owner's AC07 Reject ('I think we can do better').
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -31,3 +31,8 @@ These original criteria require the direct evidence described above for this car
 ## Completion evidence
 
 Record exact candidate, environment/host/provider identities, command or observed action, result and relevant human verdict. Unsupported/not-run rows retain their limitations; do not generalize fixture or historical evidence. This card starts with no passing qualification record.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Needs the Windows and Linux native stations; nothing run.
+This is a read-only tracker audit: it changes no status, folder or metadata.

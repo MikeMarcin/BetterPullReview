@@ -369,3 +369,8 @@ exactly this finite plan". Enter cancels it (exit 130), the fake GitHub
 records no write, and the output says "no writes were authorized"
 (`tour-cli-loopback:publish:pass:1.8s`). It also passed at `515720107`,
 before the fix.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Owed: the owner's re-check of AC40-07's Files changed links on a freshly published tour (amendment 2026-10-09). Not filed since. Tours have shipped live since then, so file a fresh look rather than reuse the old one.
+This is a read-only tracker audit: it changes no status, folder or metadata.

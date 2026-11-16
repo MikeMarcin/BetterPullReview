@@ -69,3 +69,8 @@ Every dependency is Done ([[BPR-1467]],
 amendment keeps this qualification owed. The card moves to Ready for the
 Linux station. Pure xdiff matching now lives in core ([[BPR-1619]]), so
 qualify the adopted stack at its current location.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Linux qualification of the adopted diff stack owed.
+This is a read-only tracker audit: it changes no status, folder or metadata.

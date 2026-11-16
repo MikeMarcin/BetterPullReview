@@ -22,3 +22,8 @@ Home is always available in a pull request window.
 - A Qt window test reproduces it first, then passes.
 
 Not scheduled in any milestone; found outside the layout round's surfaces.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No fix found: choose_home (workbench_window_home_landing.cpp:720) does not close the Tour page. close_tour_page is called only from the page's own Back and Escape and from reset_review_surface.
+This is a read-only tracker audit: it changes no status, folder or metadata.

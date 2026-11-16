@@ -172,3 +172,8 @@ sign-in passes the quality look for whole-field Problem and Solution rewrites.
 Still open on this card: the five requests that ended `protocol_failure`
 (selection, injection, empty stop, Settings Test, outline; cause unknown) and
 Codex, which has no tool-free mode.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Claude's writing quality was accepted (2026-10-09). Still open: the five `protocol_failure` rows and Codex, which has no tool-free mode. Re-check against the current Claude launch and tool-free mode, since both have changed since.
+This is a read-only tracker audit: it changes no status, folder or metadata.

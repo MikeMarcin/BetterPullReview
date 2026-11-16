@@ -48,3 +48,8 @@ Reservation: `docs/issues/_reservations/BPR-1465--BPR-1470--7021f30a9b8c.json`.
 ## Current frontier
 
 Imported; no evaluation work has begun.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits on BPR-1468 and BPR-1469. Needs refreshing: its 'Current frontier' line still reads 'Imported; no evaluation work has begun', although BPR-1465 to 1467 are Done and AC02 was amended on 2026-10-13.
+This is a read-only tracker audit: it changes no status, folder or metadata.

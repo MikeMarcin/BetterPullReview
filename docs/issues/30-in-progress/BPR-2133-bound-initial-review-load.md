@@ -36,3 +36,8 @@ or Done. Original failures and their actual/unreached checks remain evidence.
 An instrumented history diagnostic was below the limit and is a nonreproduction,
 not qualification. No product performance correction has been made or proposed
 for release on that basis.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. The owner conditionally waived the latency misses on 2026-11-12, and the diagnosis is 'held'. In Progress with no active work contradicts that; Backlog or Parked would fit.
+This is a read-only tracker audit: it changes no status, folder or metadata.

@@ -300,3 +300,8 @@ next step is the one this card names: bind a current executable, compare it
 with the accepted v006 checkpoint, and if they differ, prepare one short
 attended Accept/Reject question that the banner shows and its link opens
 the review. The card moves to Ready.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Ready since its 2026-10-26 triage; no commit since. Next step: bind a current build and ask one short Accept/Reject.
+This is a read-only tracker audit: it changes no status, folder or metadata.

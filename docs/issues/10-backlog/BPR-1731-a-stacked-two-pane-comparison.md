@@ -31,3 +31,8 @@ one.
 ## Acceptance criteria
 
 - AC1: An RFC or owner decision shapes the layout before any code.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. An idea waiting for an RFC or an owner decision (its AC1); no layout work has been done.
+This is a read-only tracker audit: it changes no status, folder or metadata.

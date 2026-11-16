@@ -39,3 +39,8 @@ RFC base: `a9663a706fd72061f60b615bd8e749ee0ddb66b5`.
 | **AC04:** The operation is briefed by its own built-in prompt, whose edit reaches the next Explain this file and no other prompt. | Pending | Pending | Not implemented |
 | **AC05:** Opening, scrolling to or accepting a file launches no agent, and the operation writes nothing to GitHub. | Pending | Pending | Not implemented |
 | **AC06:** On a frozen build with a fixture agent, the owner accepts the control and the answer card. | Pending | Pending | Not implemented |
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. Explain this file was folded into RFC-BPR-0128's Ask (the owner: 'I think this gets folded into Ask'; shipped row prompt_macro_shipped.cpp:101). Question for the owner: close RFC-BPR-0117 as delivered through RFC-BPR-0128, or as superseded?
+This is a read-only tracker audit: it changes no status, folder or metadata.

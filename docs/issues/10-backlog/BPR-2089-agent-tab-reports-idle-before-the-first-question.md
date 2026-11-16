@@ -30,3 +30,8 @@ worked (likely a kept native conversation offering a continuation:
 The window's agent footer ([[BPR-2051]], 2026-11-11) shows the agent idle and
 ready from the first moment a pull request opens; this card is about the
 tab's own state.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. No fix commit since it was filed. Not reproduced in this audit.
+This is a read-only tracker audit: it changes no status, folder or metadata.
