@@ -43,3 +43,21 @@ session, one Accept/Reject) is filed, not waited on.
 file's tab in front, from Overview and from Discuss the report row's click
 enters Review with the report's tab active and the report shown; from Review
 the mode stays Review.
+
+## Progress (2026-11-16)
+
+- Fix `6a016b3fb`: `workbench_window::open_report` enters Review first
+  (`choose_modality(review)`, as `enter_review_at` does for a file) when the
+  window is in Overview, Discuss, Threads or composing a review, then opens
+  the report's tab. Review and Author only bring the tab to the front.
+  Changed paths: `src/adapters/qt/src/workbench_window_comments_and_threads.cpp`,
+  `tests/end_to_end/ask_menu_public_path.cpp` (report course: from Overview,
+  Discuss, Threads and Review with the file's tab in front, the row's click
+  lands in Review on the report's one tab).
+- `frontend-design:frontend-design` loaded before the Qt work; the change is
+  behaviour only, nothing drawn differently.
+- Verification pending: the shared lane tree carries another worker's
+  half-edited Home file, so the course is built and run from the freeze's
+  clean export of `6a016b3fb` (`--target test_ask_menu_public_path`).
+- Next: run `application_ask_menu_public_path_report`'s command from that
+  build; open the owner's look (frozen build, one Accept/Reject).
