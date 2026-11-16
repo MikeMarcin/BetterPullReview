@@ -4297,3 +4297,18 @@ the coordinator to decide. Station scratch removed.
 
 Next action: BPR-2205 (Windows desktop ctest), and a decision on
 `qt_source_search_panel_scale_1`.
+
+## BPR-2208 and BPR-2205 Done (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `1e5ef1e30` | BPR-2208: the source search snippet is laid out once (`QTextLayout`) and drawn from it; the wash comes from its `cursorToX`. The test measures the wash's widest run (one scan line at `top + 3` met the rounded corner, or missed the wash, in short fonts) |
+| `787aaff66` | BPR-2205: owner-private scratch roots for the finding-card and turn-name stores (a Windows `QTemporaryDir` is refused by the store); native separators in the setup view; `claude.exe`; the prose editor's tooltip wording; the wrapper course names `enhance_writing` (BPR-2138) |
+| main `762a97248` | Both cards Done |
+
+Station (Release, Segoe UI 9 pt, run directly over SSH with ctest's
+environment): all 8 pass. macOS: the same 8 pass under ctest, and the wash
+passes in 10 fonts at 100%, 125% and 200%. None of BPR-2205's seven was
+SSH-only. `qt_profile_management_window` left the lane with BPR-2198.
+ctest was not run from a non-SSH session (no desktop may be driven).
+Station scratch removed.
