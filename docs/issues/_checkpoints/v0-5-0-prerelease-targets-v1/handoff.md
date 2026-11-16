@@ -4312,3 +4312,32 @@ passes in 10 fonts at 100%, 125% and 200%. None of BPR-2205's seven was
 SSH-only. `qt_profile_management_window` left the lane with BPR-2198.
 ctest was not run from a non-SSH session (no desktop may be driven).
 Station scratch removed.
+
+## RFC-BPR-0126: BPR-2152 Done, BPR-2153 Done, BPR-2154 audited (2026-11-15)
+
+Coordinator: BPR-2152, then BPR-2154; close BPR-2153 and, if every card is
+Done, RFC-BPR-0126.
+
+| Commit | What |
+|---|---|
+| `64365d031` | BPR-2152: durable claim before any write, receipts, settlement by receipt, Delivery unknown on silent failure, bounded successor wait, asynchronous Steer, Sent to agent; course `application_agent_queue_handoff` |
+| `69b19dfed` | Two hunks of `64365d031` put back in place (window_quick_ask's `.Sent`, the store's claim read and bind): the partial staging helper applied `-U0` hunks with shifted line numbers. The dev tree was right; the commit was not, and a clean export did not build. Found by the freeze |
+| `eb600a0ea`, `cf2c6d800` | App manifest pin resealed (clean `git archive` export) |
+| `d6d7cbb79`, `a26c8d72d`; main `a3c24e6cb` | BPR-2152 and BPR-2153 Done |
+| `064e57b85`, `0c914e2a5`; main `ed3190aa3` | BPR-2154 In Progress; audit on the card |
+
+Verification (dev, Debug, macOS, the tree with other writers' work):
+`core_agent_queue`, `application_agent_queue_host`,
+`application_agent_queue_handoff`, `application_agent_protocol_loop`,
+`application_agent_invocation_host`, `application_review_agent_runtime`,
+`sqlite_agent_setup_storage`, `core_agent_steering`, steer sent/unavailable,
+ask queue, tour feedback queue, the six `application_agent_queue_*` public
+paths, `qt_drawer_surfaces_fit_scale_100`: pass. Documentation gate passes
+on lane and main.
+
+BPR-2154 is not Done: AC01 needs Queue/Steer and the pending list in the tour
+side chat, the whole-tour conversation after its first draft, and the local
+draft discussion (Q2); none exists (card audit). Look `queue-sent-v001`
+(Sent to agent) is being frozen from `cf2c6d800`. A failed freeze root,
+`/Users/jaeger/queue-sent-v001.3k92km1p` (export only, the freeze tool
+refuses to remove it), is left for the coordinator.
