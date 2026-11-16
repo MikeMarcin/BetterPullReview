@@ -4,10 +4,10 @@ id: "BPR-2194"
 title: "The Overview's pending open moves to the workbench host"
 status: "Backlog"
 rfcs: []
-depends_on: []
+depends_on: ["BPR-2195"]
 priority: "P3"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"BPR-2191 follow-up, 2026-11-15","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-2191","BPR-1842","BPR-2180"],"reservation":"docs/issues/_reservations/BPR-2194--BPR-2195--007cce25d132.json"}
+metadata: {"origin":"BPR-2191 follow-up, 2026-11-15","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-2191","BPR-1842","BPR-2180"],"reservation":"docs/issues/_reservations/BPR-2194--BPR-2195--007cce25d132.json","lane":"claude/v0-5-0-prerelease-targets-52265d","commit":"18c55f938"}
 ---
 
 # BPR-2194: The Overview's pending open moves to the workbench host
@@ -55,3 +55,31 @@ lives.
   `application_progressive_open_public_path` and
   `application_pending_states_public_path` pass `ctest --repeat
   until-fail:10`.
+
+## Built (`18c55f938`)
+
+In the window the Overview's activation while its review loads already went
+to `wait_for_review_at`, which hands the path to the workbench host's
+`open_when_listed` (BPR-2191). The Qt-held open was therefore reachable only
+through the page's fallback, used when no waiting dispatch is set. It is
+removed: `workbench_window::PendingReviewPath`, `open_pending_review_path`,
+its three deferred triggers, the page's `PendingOpen`, `pending_open()`, the
+fallback branch and the "Opening … when the review has loaded" plate. Qt keeps
+no path and no rule for when to open. The host is the only owner (AC01). The
+behaviour the owner accepted is the host's, which AC02 covers.
+
+## Evidence
+
+- AC03 host course: `application_workbench_host` passes. It opens on accept
+  and cancels on a newer review and on a new selection (BPR-2191's cases).
+  `qt_pending_veil` passes.
+- `application_progressive_open_public_path --repeat until-fail:10`: 10 of
+  10. It now counts the host's open (`PendingOpensOpened`) in place of the
+  removed `pending_open()`.
+- `application_pending_states_public_path --repeat until-fail:10`: failed on
+  run 3 of 10 under concurrent builds. The cause was BPR-2195's
+  repair_required, not this change: the kept diagnostic log shows
+  revision_prepare and then catalog_recovery ending in repair_required, and
+  the clicked file never arrived. This criterion waits on BPR-2195, so the
+  card depends on it. What remains is that run, repeated once BPR-2195 is
+  fixed.
