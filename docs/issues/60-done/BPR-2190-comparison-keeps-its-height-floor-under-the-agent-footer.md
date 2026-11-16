@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2190"
 title: "The comparison keeps its height floor under the agent footer"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
-parked_on: "human-review"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"regression found closing BPR-2180, 2026-11-15","governing_rfc":"RFC-BPR-0101","related_cards":["BPR-2051","BPR-2180"],"regressed_by":"f51063b5b","reservation":"docs/issues/_reservations/BPR-2190--BPR-2190--1e723b85df6d.json","lane":"claude/v0-5-0-prerelease-targets-52265d","commits":["0e5f2e1e1","984dd4696"]}
 ---
@@ -92,4 +91,12 @@ quiet, answered, needs setup, check failed).
   with_footer=22, footer=17).
 - `application_review_round_trip_composition_contract` passes over the
   resealed app pin.
-- AC03 is pending: the owner judges the shorter footer in a frozen build.
+- AC03: **Accepted** by the owner on 2026-11-16 (14:53 UTC) in attended
+  session `1924669e55ed8a79ae40e9320a64c32b`, which is served on the tailnet;
+  its state is in `~/.attended-review/bpr2190-2206-look-v001`. Candidate
+  `BPR-2190-footer-v001`, revision `frozen-72955fd96-v002`, decision
+  `d429b583-f289-40ba-a5b6-22b71dc7e4f4`, no note. The frozen root
+  `/Users/jaeger/bpr2190-footer-v002.onzw9n3r` was frozen from `72955fd96`
+  (fixture `returning-review-v1`, `src/engine/renderer.cpp`, next push). Its
+  `--check` showed the file at the first head and at the next push, and the
+  Fixture agent answered 17 asks. No real agent started.
