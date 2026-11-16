@@ -1692,6 +1692,13 @@ namespace bpr::app {
 			}
 		});
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) {
+			// RFC-BPR-0126 ([[BPR-2154]]). A follow-up typed while the agent
+			// runs, or while the part's queue holds messages, is queued on
+			// the part's own session (a pull request's tour or a local draft's).
+			if (aAsk.Steer) {
+				queue_chat_follow_up(aAsk);
+				return;
+			}
 			if (local_tour_shown()) {
 				DraftDesktop->tour_ask(aAsk);
 				return;

@@ -622,7 +622,11 @@ namespace bpr::app {
 		if (idle) {
 			// Feedback left from a draft no window has any more comes back
 			// to the chat as not sent (deferred out of the presentation).
-			QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
+			QTimer::singleShot(0, editor.data(), [this] {
+				drain_tour_queue();
+				// [[BPR-2154]]. And each tour part's queue.
+				drain_chat_queues();
+			});
 		}
 
 		// A presentation callback can replace either identity or an observer.
@@ -1422,6 +1426,11 @@ namespace bpr::app {
 			Window->tour_editor()->set_tour_running(std::nullopt, false);
 		}
 		TourAskPending = false;
+		// [[BPR-2154]]. A part's released message no run took goes back
+		// first, and its queue pauses.
+		if (const auto sending = core::parse_session_key(ChatQueueSending); sending && sending->Kind == core::queued_session_kind::tour_part) {
+			chat_queue_retired(core::queued_finish::refused);
+		}
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(aReason == "agent_context_too_large"
@@ -1497,6 +1506,9 @@ namespace bpr::app {
 				Window->tour_editor()->side_chat()->record_run_activity(*run, core::end_agent_activity(*TourLive->Activity, at), static_cast<qint64>(at / 1000U));
 			}
 		}
+		// [[BPR-2154]]. A tour part's corrections and released message
+		// settle by this run, before its retirement releases the next.
+		settle_tour_part_steers(aIdentity, aResult);
 		TourRun.reset();
 		TourInvocation.reset();
 		finish_tour_footer(aResult);
@@ -1960,6 +1972,24 @@ namespace bpr::app {
 	/// is told the tour conversation may take its turn.
 	void github_application::implementation::tour_runtime_retired()
 	{
+		// [[BPR-2154]]. A tour part's released message settles on its run's
+		// real end; otherwise every part's queue may go on. Deferred out of
+		// the host's own retirement, so the next run starts on a host that
+		// has finished retiring this one.
+		if (Window != nullptr) {
+			QTimer::singleShot(0, Window.get(), [this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (weak.expired() || Closing) {
+					return;
+				}
+				if (const auto sending = core::parse_session_key(ChatQueueSending); sending && sending->Kind == core::queued_session_kind::tour_part) {
+					if (ChatQueueFinish) {
+						chat_queue_retired(ChatQueueFinish);
+					}
+				} else {
+					drain_chat_queues();
+				}
+			});
+		}
 		const auto key = tour_queue_key();
 		if (Closing || !AgentQueue || !AgentRuntime || key.empty()) {
 			return;
@@ -2537,6 +2567,8 @@ namespace bpr::app {
 			refresh_tour_host_idle();
 			present_tour_continuation();
 			present_tour_reset();
+			// [[BPR-2154]]. Each open part's pending list.
+			present_chat_queues();
 		}
 	}
 

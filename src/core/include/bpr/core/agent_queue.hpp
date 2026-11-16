@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_QUEUE_HPP
 
 #include "bpr/core/prompt_macro.hpp"
+#include "bpr/core/tour_agent_session.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -83,6 +84,13 @@ namespace bpr::core {
 		agent_tab,
 		/// Feedback waiting for the pull request's tour draft.
 		tour_feedback,
+		/// [[BPR-2154]]. One part's conversation of the pull request's tour
+		/// (the whole tour after its first draft, the Problem, the Solution
+		/// or a stop): tour parts never share inputs.
+		tour_part,
+		/// [[BPR-2154]] (Q2). One part's conversation of a local draft's
+		/// discussion, keyed by the draft's identity, not a pull request.
+		local_draft_discussion,
 	};
 
 	struct queued_session
@@ -93,16 +101,34 @@ namespace bpr::core {
 		std::string   Owner;
 		std::string   Repository;
 		std::uint64_t Number = 0U;
+		/// [[BPR-2154]]. A tour part's or local draft discussion's part
+		/// (`tour_part_name`); empty for the other kinds.
+		std::string Part;
+		/// [[BPR-2154]]. A local draft discussion's draft identity; empty for
+		/// the other kinds.
+		std::string Draft;
 
 		auto operator<=>(const queued_session&) const = default;
 	};
 	/// \brief The stable key, `agent-tab:host/owner/name#number` (or
-	/// `tour-feedback:…`). Empty for a session that names no pull request.
+	/// `tour-feedback:…`; `tour-part:host/owner/name#number/part`;
+	/// `local-draft:draft/part`). Empty for a session that names no pull
+	/// request (or no draft) or, for the part kinds, no part.
 	[[nodiscard]] auto session_key(const queued_session& aSession) -> std::string;
 	/// \brief The session a stable key names; none for one this does not make.
 	[[nodiscard]] auto parse_session_key(std::string_view aKey) -> std::optional<queued_session>;
 	/// \brief The same pull request's session of another kind.
 	[[nodiscard]] auto with_kind(queued_session aSession, queued_session_kind aKind) -> queued_session;
+	/// \brief [[BPR-2154]]. A tour thread's part as a session key names it:
+	/// `tour`, `problem`, `solution` or `stop-ID`.
+	[[nodiscard]] auto tour_part_name(const tour_thread& aThread) -> std::string;
+	/// \brief The tour thread a part name names; none for one
+	/// `tour_part_name` does not make.
+	[[nodiscard]] auto tour_part_thread(std::string_view aPart) -> std::optional<tour_thread>;
+	/// \brief [[BPR-2154]]. The pull request's session for one tour part.
+	[[nodiscard]] auto tour_part_session(queued_session aPullRequest, const tour_thread& aThread) -> queued_session;
+	/// \brief [[BPR-2154]] (Q2). A local draft's discussion session for one part.
+	[[nodiscard]] auto local_draft_session(std::string aDraft, const tour_thread& aThread) -> queued_session;
 
 	/// \brief [[BPR-2152]] (AC06). How a claimed entry goes to the agent.
 	enum class queued_route : std::uint8_t {

@@ -339,6 +339,10 @@ namespace bpr::app {
 					recover_tour_feedback();
 				} else if (aSession == ask_session_key()) {
 					present_ask_queue(aQueue);
+				} else if (const auto chat = core::parse_session_key(aSession);
+						   chat && (chat->Kind == core::queued_session_kind::tour_part || chat->Kind == core::queued_session_kind::local_draft_discussion)) {
+					// [[BPR-2154]]. A tour part's or local draft part's queue.
+					present_chat_queues();
 				} },
 			// RFC-BPR-0126 AC09: Stop all shows while any session's queue holds
 			// a message.
@@ -372,6 +376,9 @@ namespace bpr::app {
 			.Start = [this](const std::string&, const core::queued_entry& aEntry) { return release_tour_feedback(aEntry); },
 			.Steer = { },
 		});
+		// [[BPR-2154]]. The tour chats' and the local draft discussion's
+		// queues, on a runtime of their own.
+		bind_chat_queues();
 		// The runs' own retirement events: nothing watches for them on a
 		// timer.
 		if (AgentHost) {

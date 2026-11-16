@@ -42,6 +42,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -95,7 +96,15 @@ namespace {
 	/// each second (`BPR_FIXTURE_AGENT_SLOW_STEP_MS`, default 1000).
 	constexpr int slow_steps = 20;
 
-	auto slow(const std::string& aRequest) -> bool { return holds(aRequest, "Take your time") || holds(aRequest, "take your time"); }
+	auto tour_question(const std::string& aRequest) -> std::string;
+
+	/// A tour chat's request carries its earlier turns: only this turn's
+	/// question decides ([[BPR-2154]]).
+	auto slow(const std::string& aRequest) -> bool
+	{
+		const auto& asked = aRequest.find("this_turn") != std::string::npos ? tour_question(aRequest) : aRequest;
+		return holds(asked, "Take your time") || holds(asked, "take your time");
+	}
 
 	void slow_step()
 	{
@@ -242,6 +251,33 @@ namespace {
 	}
 
 	/// The canned answer for what the request asks.
+	/// [[BPR-2154]]. The question of a tour chat's turn, from the request's
+	/// `this_turn`, its quotes escaped once or not at all.
+	auto tour_question(const std::string& aRequest) -> std::string
+	{
+		// The member, not the instructions' mention of it.
+		auto turn = aRequest.rfind(R"(this_turn\":)");
+		if (turn == std::string::npos) {
+			turn = aRequest.rfind(R"(this_turn":)");
+		}
+		for (const auto& [open, close] : { std::pair<std::string_view, std::string_view>{ R"(\"question\":\")", R"(\")" }, { R"("question":")", R"(")" } }) {
+			const auto found = aRequest.find(open, turn == std::string::npos ? 0U : turn);
+			if (found != std::string::npos) {
+				const auto from = found + open.size();
+				const auto end  = aRequest.find(close, from);
+				return aRequest.substr(from, end == std::string::npos ? std::string::npos : std::min<std::size_t>(end - from, 120U));
+			}
+		}
+		return { };
+	}
+
+	auto tour_reply(const std::string& aRequest) -> std::string
+	{
+		auto question = tour_question(aRequest);
+		std::erase_if(question, [](const char aChar) { return aChar == '\\' || aChar == '"'; });
+		return "Fixture agent: read your message (" + question + "). Nothing in the tour changes; nothing was spent.";
+	}
+
 	auto answer_for(const std::string& aRequest) -> std::string
 	{
 		if (holds(aRequest, "bpr-check-report")) {
@@ -249,6 +285,16 @@ namespace {
 		}
 		if (holds(aRequest, "bpr-check-plan")) {
 			return check_plan_answer(aRequest);
+		}
+		// [[BPR-2154]]. A turn of a tour part's chat: the reply says which
+		// message it read, so a look and a course see each queued message go
+		// as its own turn, in order; it changes nothing in the tour.
+		if (holds(aRequest, "bpr.tour-revise.v1")) {
+			return R"({"schema":"bpr.tour-revise.v1","reply":")" + tour_reply(aRequest)
+				+ R"(","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
+		}
+		if (holds(aRequest, "bpr.tour-ask.v1")) {
+			return R"({"schema":"bpr.tour-ask.v1","reply":")" + tour_reply(aRequest) + R"(","problem":"","solution":"","stops":[],"stop_texts":[]})";
 		}
 		if (slow(aRequest)) {
 			return "Took my time: twenty slow steps, about twenty seconds, so you could queue follow-ups while I worked. This is the fixture agent; nothing real ran.";
@@ -345,7 +391,13 @@ namespace {
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
 		if (holds(aRequest, "bpr.tour-draft.v1")) {
-			return R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other.","solution":"Each view now clears and draws its own scene between begin and present.","stops":[]})";
+			// Two stops on the fixture's renderer change, so each stop has a
+			// chat of its own ([[BPR-2154]]).
+			const auto stops = holds(aRequest, "src/engine/renderer.cpp")
+				? std::string{ R"({"path":"src/engine/renderer.cpp","first_line":3,"last_line":8,"title":"Where the change starts","explanation":"draw() now draws the scene between clear() and present()."},)"
+							   R"({"path":"src/engine/renderer.cpp","first_line":10,"last_line":14,"title":"The new resize","explanation":"resize() keeps the new size for the next frame."})" }
+				: std::string{ };
+			return R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other.","solution":"Each view now clears and draws its own scene between begin and present.","stops":[)" + stops + "]}";
 		}
 		if (holds(aRequest, "bpr.review-preparation")) {
 			return R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Fixture rewrite: the loop does the same work twice. Could it run once?","notes":[]})";
@@ -617,7 +669,14 @@ namespace {
 					steered += "\n\nTook your correction after step " + std::to_string(step) + " (" + std::to_string(field(*correction, "text").size()) + " characters).";
 				}
 			}
-			const auto encoded = escape(answer_for(request) + steered);
+			auto answered = answer_for(request);
+			// A tour chat's answer is one JSON object: what it took goes in
+			// its reply.
+			if (const auto reply = answered.find(R"("reply":")"); answered.starts_with(R"({"schema":"bpr.tour-)") && reply != std::string::npos && !steered.empty()) {
+				answered.insert(answered.find(R"(",")", reply + 9U), escape(steered));
+				steered.clear();
+			}
+			const auto encoded = escape(answered + steered);
 			auto       named   = std::string{ };
 			for (const auto& identity : inputs) {
 				named += (named.empty() ? "\"" : ",\"") + identity + "\"";

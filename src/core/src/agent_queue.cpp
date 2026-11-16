@@ -574,51 +574,104 @@ namespace bpr::core {
 		[[nodiscard]] auto kind_prefix(const queued_session_kind aKind) noexcept -> std::string_view
 		{
 			switch (aKind) {
-			case queued_session_kind::agent_tab:     return "agent-tab:";
-			case queued_session_kind::tour_feedback: return "tour-feedback:";
+			case queued_session_kind::agent_tab:              return "agent-tab:";
+			case queued_session_kind::tour_feedback:          return "tour-feedback:";
+			case queued_session_kind::tour_part:              return "tour-part:";
+			case queued_session_kind::local_draft_discussion: return "local-draft:";
 			}
 			return "agent-tab:";
+		}
+
+		[[nodiscard]] auto all_digits(const std::string_view aText) noexcept -> bool
+		{
+			return !aText.empty() && aText.size() <= 18U && std::ranges::all_of(aText, [](const char aDigit) { return aDigit >= '0' && aDigit <= '9'; });
+		}
+
+		[[nodiscard]] auto number_of(const std::string_view aDigits) noexcept -> std::uint64_t
+		{
+			auto number = std::uint64_t{ 0U };
+			for (const auto digit : aDigits) {
+				number = number * 10U + static_cast<std::uint64_t>(digit - '0');
+			}
+			return number;
+		}
+
+		/// A part name or a draft identity: printable ASCII with no `/`, `#` or space.
+		[[nodiscard]] auto plain_name(const std::string_view aText) noexcept -> bool
+		{
+			return !aText.empty() && aText.size() <= 128U && std::ranges::all_of(aText, [](const char aChar) { return aChar > ' ' && aChar < 127 && aChar != '/' && aChar != '#'; });
 		}
 	} // namespace
 
 	auto session_key(const queued_session& aSession) -> std::string
 	{
+		if (aSession.Kind == queued_session_kind::local_draft_discussion) {
+			if (!plain_name(aSession.Draft) || !tour_part_thread(aSession.Part)) {
+				return { };
+			}
+			return std::string{ kind_prefix(aSession.Kind) } + aSession.Draft + "/" + aSession.Part;
+		}
 		if (aSession.Host.empty() || aSession.Owner.empty() || aSession.Repository.empty() || aSession.Number == 0U) {
 			return { };
 		}
-		return std::string{ kind_prefix(aSession.Kind) } + aSession.Host + "/" + aSession.Owner + "/" + aSession.Repository + "#" + std::to_string(aSession.Number);
+		auto key = std::string{ kind_prefix(aSession.Kind) } + aSession.Host + "/" + aSession.Owner + "/" + aSession.Repository + "#" + std::to_string(aSession.Number);
+		if (aSession.Kind == queued_session_kind::tour_part) {
+			if (!tour_part_thread(aSession.Part)) {
+				return { };
+			}
+			key += "/" + aSession.Part;
+		}
+		return key;
 	}
 
 	auto parse_session_key(const std::string_view aKey) -> std::optional<queued_session>
 	{
 		auto session = queued_session{ };
 		auto rest    = aKey;
-		if (rest.starts_with(kind_prefix(queued_session_kind::agent_tab))) {
-			rest.remove_prefix(kind_prefix(queued_session_kind::agent_tab).size());
-		} else if (rest.starts_with(kind_prefix(queued_session_kind::tour_feedback))) {
-			session.Kind = queued_session_kind::tour_feedback;
-			rest.remove_prefix(kind_prefix(queued_session_kind::tour_feedback).size());
-		} else {
+		auto matched = false;
+		for (const auto kind : { queued_session_kind::agent_tab, queued_session_kind::tour_feedback, queued_session_kind::tour_part, queued_session_kind::local_draft_discussion }) {
+			if (rest.starts_with(kind_prefix(kind))) {
+				session.Kind = kind;
+				rest.remove_prefix(kind_prefix(kind).size());
+				matched = true;
+				break;
+			}
+		}
+		if (!matched) {
 			return std::nullopt;
+		}
+		if (session.Kind == queued_session_kind::local_draft_discussion) {
+			const auto slash = rest.find('/');
+			if (slash == std::string_view::npos) {
+				return std::nullopt;
+			}
+			session.Draft = std::string{ rest.substr(0U, slash) };
+			session.Part  = std::string{ rest.substr(slash + 1U) };
+			return session_key(session) == aKey ? std::optional{ session } : std::nullopt;
 		}
 		const auto hash = rest.rfind('#');
 		if (hash == std::string_view::npos) {
 			return std::nullopt;
 		}
 		const auto path   = rest.substr(0U, hash);
-		const auto digits = rest.substr(hash + 1U);
+		auto       digits = rest.substr(hash + 1U);
+		if (session.Kind == queued_session_kind::tour_part) {
+			const auto slash = digits.find('/');
+			if (slash == std::string_view::npos) {
+				return std::nullopt;
+			}
+			session.Part = std::string{ digits.substr(slash + 1U) };
+			digits       = digits.substr(0U, slash);
+		}
 		const auto first  = path.find('/');
 		const auto second = first == std::string_view::npos ? std::string_view::npos : path.find('/', first + 1U);
-		if (second == std::string_view::npos || path.find('/', second + 1U) != std::string_view::npos || digits.empty()
-			|| !std::ranges::all_of(digits, [](const char aDigit) { return aDigit >= '0' && aDigit <= '9'; }) || digits.size() > 18U) {
+		if (second == std::string_view::npos || path.find('/', second + 1U) != std::string_view::npos || !all_digits(digits)) {
 			return std::nullopt;
 		}
 		session.Host       = std::string{ path.substr(0U, first) };
 		session.Owner      = std::string{ path.substr(first + 1U, second - first - 1U) };
 		session.Repository = std::string{ path.substr(second + 1U) };
-		for (const auto digit : digits) {
-			session.Number = session.Number * 10U + static_cast<std::uint64_t>(digit - '0');
-		}
+		session.Number     = number_of(digits);
 		if (session_key(session) != aKey) {
 			return std::nullopt;
 		}
@@ -628,7 +681,54 @@ namespace bpr::core {
 	auto with_kind(queued_session aSession, const queued_session_kind aKind) -> queued_session
 	{
 		aSession.Kind = aKind;
+		if (aKind != queued_session_kind::tour_part && aKind != queued_session_kind::local_draft_discussion) {
+			aSession.Part.clear();
+		}
+		if (aKind != queued_session_kind::local_draft_discussion) {
+			aSession.Draft.clear();
+		}
 		return aSession;
+	}
+
+	auto tour_part_name(const tour_thread& aThread) -> std::string
+	{
+		switch (aThread.Kind) {
+		case tour_thread_kind::tour:     return "tour";
+		case tour_thread_kind::problem:  return "problem";
+		case tour_thread_kind::solution: return "solution";
+		case tour_thread_kind::stop:     return "stop-" + std::to_string(aThread.Stop.value());
+		}
+		return "tour";
+	}
+
+	auto tour_part_thread(const std::string_view aPart) -> std::optional<tour_thread>
+	{
+		if (aPart == "tour") {
+			return tour_thread{ };
+		}
+		if (aPart == "problem") {
+			return tour_thread{ .Kind = tour_thread_kind::problem };
+		}
+		if (aPart == "solution") {
+			return tour_thread{ .Kind = tour_thread_kind::solution };
+		}
+		constexpr auto stop = std::string_view{ "stop-" };
+		if (aPart.starts_with(stop) && all_digits(aPart.substr(stop.size())) && (aPart.size() == stop.size() + 1U || aPart[stop.size()] != '0')) {
+			return tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ number_of(aPart.substr(stop.size())) } };
+		}
+		return std::nullopt;
+	}
+
+	auto tour_part_session(queued_session aPullRequest, const tour_thread& aThread) -> queued_session
+	{
+		aPullRequest      = with_kind(std::move(aPullRequest), queued_session_kind::tour_part);
+		aPullRequest.Part = tour_part_name(aThread);
+		return aPullRequest;
+	}
+
+	auto local_draft_session(std::string aDraft, const tour_thread& aThread) -> queued_session
+	{
+		return queued_session{ .Kind = queued_session_kind::local_draft_discussion, .Part = tour_part_name(aThread), .Draft = std::move(aDraft) };
 	}
 
 	auto encode_queued_prompt(const prompt_offer& aOffer) -> std::string

@@ -4351,3 +4351,21 @@ Lane `569c45af6`, main `ae70e1f41`. Nothing of that slice is started; the
 plan is on the card ("Plan for that slice"). This implementer stopped here
 with its context nearly spent; a fresh implementer takes the slice from the
 card's plan. No command or host of this round is running.
+
+### Checkpoint (2026-11-16): BPR-2154 tour and local draft queues, in progress (uncommitted)
+
+frontend-design loaded. Written, not yet built whole or committed: core
+`queued_session_kind::tour_part` / `local_draft_discussion` with
+`tour_part_name`/`tour_part_thread`/`tour_part_session`/`local_draft_session`
+(`src/core/{include/bpr/core,src}/agent_queue.*`, test in
+`tests/core/agent_queue_tests.cpp`, passing); the Agent tab's pending list
+factored into `qt::agent_pending_list` (`src/adapters/qt/{include/bpr/qt,src}/agent_pending_list.*`);
+the tour side chat's Queue/Steer, Stop beside it and per-part pending list
+(`tour_side_chat.*`, `tour_ask::Steer`); the window's runtime for tour parts
+and the local draft discussion (`src/app/src/github_application/window_chat_queues.cpp`,
+hooks in `window_tours.cpp`, `window_quick_ask.cpp`, `window_construction.cpp`,
+`window_shutdown.cpp`, `window_agent_setup.cpp`, `local_draft_desktop.*`);
+the fixture agent answers tour-ask/revise and drafts two stops; course
+`tests/end_to_end/tour_chat_queue_public_path.cpp` (three rows). Next: build
+`better_pull_review_composition` and the course, run the three rows, commit
+with explicit paths, freeze the look.

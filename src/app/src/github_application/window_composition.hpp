@@ -917,7 +917,37 @@ namespace bpr::app {
 		void present_tour_feedback();
 		bool TourQueueSending = false;
 		/// This window's draft has feedback waiting in the tour's queue.
-		bool                                    TourFeedbackQueued = false;
+		bool TourFeedbackQueued = false;
+		/// RFC-BPR-0126 AC01 ([[BPR-2154]]). Each tour part's chat (the whole
+		/// tour after its first draft, the Problem, the Solution, a stop) and
+		/// each part of a local draft's discussion queues on its own session.
+		/// This window runs them on its tour host or its local draft's lane,
+		/// through a runtime it offers the profile's runner; the queue host is
+		/// the profile's, unchanged.
+		[[nodiscard]] auto           tour_part_key(const core::tour_thread& aThread) const -> std::string;
+		[[nodiscard]] auto           chat_queue_key(const core::tour_thread& aThread) const -> std::string;
+		void                         bind_chat_queues();
+		void                         present_chat_queues();
+		void                         queue_chat_follow_up(const qt::tour_ask& aAsk);
+		[[nodiscard]] auto           chat_queue_dispatch(const core::tour_thread& aThread) -> qt::agent_pending_dispatch;
+		[[nodiscard]] auto           chat_queue_runs(const std::string& aSession) const -> bool;
+		[[nodiscard]] auto           chat_queue_agent(const std::string& aSession) const -> core::queue_agent;
+		[[nodiscard]] auto           release_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> application::queued_admission;
+		[[nodiscard]] auto           steer_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string>;
+		[[nodiscard]] auto           chat_queue_bound(const std::string& aSession) const -> core::queued_claim;
+		[[nodiscard]] auto           running_tour_thread() const -> std::optional<core::tour_thread>;
+		void                         settle_tour_part_steers(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
+		void                         chat_queue_retired(std::optional<core::queued_finish> aFinish);
+		void                         drain_chat_queues();
+		std::optional<std::uint64_t> ChatQueueRuntime;
+		/// The session a released chat message runs for, its run and how its
+		/// turn ended (none until it ended).
+		std::string                        ChatQueueSending;
+		std::uint64_t                      ChatQueueRun = 0U;
+		std::optional<core::queued_finish> ChatQueueFinish;
+		/// The tour part or local draft whose queues the tour chat shows.
+		std::string                             ChatQueueOwner;
+		std::map<std::string, std::uint64_t>    ChatQueueSeen;
 		void                                    record_thread_claim(const std::string& aThread, core::addressed_claim aClaim, std::size_t aTurn);
 		std::map<std::string, qt::thread_claim> ThreadClaims;
 		/// RFC-BPR-0125 milestone 3 ([[BPR-2146]]). The profile's suggested

@@ -5664,3 +5664,27 @@ bpr_add_network_isolated_test(NAME application_agent_queue_finish_pauses_public_
     COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --finish-pauses)
 set_tests_properties(application_agent_queue_finish_pauses_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-finish-pauses:pass")
+# RFC-BPR-0126 AC01 ([[BPR-2154]]). The tour chats and a local draft's
+# discussion queue and steer: a stop's chat, the whole-tour conversation
+# after its first draft, and a local draft's discussion on a real worktree.
+bpr_add_executable(test_tour_chat_queue_public_path tour_chat_queue_public_path.cpp)
+target_link_libraries(test_tour_chat_queue_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_tour_chat_queue_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_tour_chat_queue_public_path)
+bpr_enable_warnings(test_tour_chat_queue_public_path)
+add_dependencies(test_tour_chat_queue_public_path bpr_fixture_agent)
+bpr_add_network_isolated_test(NAME application_tour_chat_queue_stop_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --stop-chat)
+set_tests_properties(application_tour_chat_queue_stop_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-stop:pass")
+bpr_add_network_isolated_test(NAME application_tour_chat_queue_whole_tour_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --whole-tour)
+set_tests_properties(application_tour_chat_queue_whole_tour_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-whole:[a-z-]+:pass")
+bpr_add_network_isolated_test(NAME application_tour_chat_queue_local_draft_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --local-draft "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_worktree.sh")
+set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-local-draft:pass")

@@ -251,6 +251,16 @@ namespace bpr::app {
 		Window.present_local_draft(aProjection);
 		follow_author_state(aProjection);
 		present_tour();
+		// RFC-BPR-0126 Q2 ([[BPR-2154]]). A question's start and end, for the
+		// discussion's queue: its next message goes only once this one ended.
+		if (aProjection.Asking != AskingSeen) {
+			AskingSeen       = aProjection.Asking;
+			const auto stop  = !AskingSeen && std::exchange(StopAsked, false);
+			const auto fails = !AskingSeen && !aProjection.AskFailure.empty();
+			if (AskingObserver) {
+				AskingObserver(AskingSeen, fails, stop);
+			}
+		}
 		// Created here: the window becomes the pull request.
 		if (aProjection.Draft) {
 			const auto& draft          = *aProjection.Draft;
@@ -325,7 +335,16 @@ namespace bpr::app {
 			editor->show_writing_notice(QString::fromStdString(projection.AskFailure));
 		}
 		TourView = std::move(view);
+		if (TourObserver) {
+			TourObserver();
+		}
 	}
+
+	auto local_draft_desktop::shown_draft() const -> std::string { return tour_shown() ? View->projection().Draft->Id.Value : std::string{ }; }
+
+	auto local_draft_desktop::asking() const -> bool { return Host && Host->projection().Asking; }
+
+	auto local_draft_desktop::agent_ready() const -> bool { return AgentChooser && AgentChooser().has_value(); }
 
 	// --- RFC-BPR-0120: a check ------------------------------------------------------
 
@@ -668,8 +687,10 @@ namespace bpr::app {
 		if (text.empty()) {
 			return;
 		}
-		question.Text = std::move(text);
+		question.Text   = std::move(text);
+		const auto self = std::exchange(WritingAsk, false);
 		ask_local(std::move(question));
+		AskingForWriting = self && Host->projection().Asking;
 	}
 
 	void local_draft_desktop::tour_writing(const core::writing_hook aHook)
@@ -684,12 +705,19 @@ namespace bpr::app {
 		if (auto* const editor = Window.tour_editor(); editor != nullptr && aHook != core::writing_hook::problem && aHook != core::writing_hook::solution && editor->selected_stop() != nullptr) {
 			ask.Thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = editor->selected_stop()->Id };
 		}
+		WritingAsk = true;
 		tour_ask(ask);
+		WritingAsk = false;
 	}
 
 	void local_draft_desktop::writing_stop()
 	{
-		if (tour_shown() && Host->projection().Checking == application::local_check_mode::none) {
+		// [[BPR-2154]]. Only the one-shot writing request's question: a
+		// question of the discussion goes on, as the pull request's tour
+		// chat's does (the tour editor lets writing go on every hide,
+		// refresh and focus change).
+		if (tour_shown() && Host->projection().Checking == application::local_check_mode::none && AskingForWriting && Host->projection().Asking) {
+			StopAsked = true;
 			Host->stop_asking();
 		}
 	}
@@ -697,6 +725,7 @@ namespace bpr::app {
 	void local_draft_desktop::tour_stop()
 	{
 		if (tour_shown()) {
+			StopAsked = Host->projection().Asking;
 			Host->stop_asking();
 		}
 	}

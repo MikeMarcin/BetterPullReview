@@ -166,6 +166,19 @@ namespace bpr::app {
 		/// `tour_shown`); a pull request's publication actions do nothing.
 		void tour_action(qt::tour_editor_action aAction);
 		void tour_ask(const qt::tour_ask& aAsk);
+		/// \brief RFC-BPR-0126 Q2 ([[BPR-2154]]). The draft whose tour the
+		/// window shows; empty when none shows.
+		[[nodiscard]] auto shown_draft() const -> std::string;
+		/// \brief Whether a question of the draft is with its agent now.
+		[[nodiscard]] auto asking() const -> bool;
+		/// \brief Whether an agent is chosen for the draft's questions.
+		[[nodiscard]] auto agent_ready() const -> bool;
+		/// \brief Told when a question goes to the agent (`aAsking`) and when
+		/// it has ended: failed, or stopped by Stop.
+		using asking_observer = std::function<void(bool aAsking, bool aFailed, bool aStopped)>;
+		void set_asking_observer(asking_observer aObserver) { AskingObserver = std::move(aObserver); }
+		/// \brief Told each time the draft's tour is presented.
+		void set_tour_observer(std::function<void()> aObserver) { TourObserver = std::move(aObserver); }
 		/// \brief A one-shot writing request (a field's draft) asks the part's chat.
 		void tour_writing(core::writing_hook aHook);
 		void tour_stop();
@@ -195,8 +208,16 @@ namespace bpr::app {
 			std::function<void()> Apply;
 		};
 		std::deque<tour_edit> TourEdits;
-		bool                  TourEditInFlight = false;
-		pull_request_opener   OpenPullRequest;
+		asking_observer       AskingObserver;
+		std::function<void()> TourObserver;
+		bool                  AskingSeen = false;
+		bool                  StopAsked  = false;
+		/// The question with the agent is a one-shot writing request's
+		/// (`tour_writing`), which `writing_stop` lets go.
+		bool                WritingAsk       = false;
+		bool                AskingForWriting = false;
+		bool                TourEditInFlight = false;
+		pull_request_opener OpenPullRequest;
 		/// Whether each draft seen was linked when last published.
 		std::map<std::string, bool> LinkedSeen;
 		std::optional<std::string>  TypedProblem;

@@ -1,5 +1,6 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "bpr/core/agent_queue.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/drawer_parts.hpp"
@@ -16,6 +17,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
 #include <QPainter>
@@ -92,7 +94,7 @@ namespace bpr::qt {
 		class send_keys final : public QObject
 		{
 		public:
-			send_keys(QObject* aParent, std::function<void()> aSend)
+			send_keys(QObject* aParent, std::function<void(bool aOpposite)> aSend)
 				: QObject{ aParent }
 				, Send{ std::move(aSend) }
 			{
@@ -104,7 +106,9 @@ namespace bpr::qt {
 				if (aEvent->type() == QEvent::KeyPress) {
 					const auto* key = static_cast<QKeyEvent*>(aEvent);
 					if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !(key->modifiers() & Qt::ShiftModifier)) {
-						Send();
+						// RFC-BPR-0126: Cmd+Return (Ctrl+Return off macOS) is
+						// the other follow-up for this one message.
+						Send((key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0);
 						return true;
 					}
 				}
@@ -112,7 +116,7 @@ namespace bpr::qt {
 			}
 
 		private:
-			std::function<void()> Send;
+			std::function<void(bool)> Send;
 		};
 		/// The author's words: a quiet rounded bubble, right-aligned.
 		class bubble_frame final : public QWidget
@@ -417,6 +421,11 @@ namespace bpr::qt {
 			}
 		});
 
+		// RFC-BPR-0126 ([[BPR-2154]]). The part's waiting messages, as the
+		// Agent tab shows its own, above the composer they were typed in.
+		PendingList = new agent_pending_list{ this };
+		PendingList->setObjectName(QStringLiteral("tourSideChatQueue"));
+		column->addWidget(PendingList);
 		// The composer: one field holding the passage it quotes, as a chip,
 		// above the words; Send beside it.
 		auto* const compose = new QHBoxLayout{ };
@@ -454,7 +463,11 @@ namespace bpr::qt {
 		Composer->setAttribute(Qt::WA_MacShowFocusRect, false);
 		Composer->document()->setDocumentMargin(4);
 		Composer->setFixedHeight(3 * Composer->fontMetrics().lineSpacing() + 12);
-		Composer->installEventFilter(new send_keys{ Composer, [this] { send(Composer->toPlainText().trimmed(), false); } });
+		Composer->installEventFilter(new send_keys{ Composer, [this](const bool aOpposite) {
+													   Opposite = aOpposite;
+													   send(Composer->toPlainText().trimmed(), false);
+													   Opposite = false;
+												   } });
 		Composer->installEventFilter(Field);
 		fieldColumn->addWidget(Composer);
 		// [[BPR-1916]]. `/name` completion; installed after Return's filter,
@@ -464,7 +477,17 @@ namespace bpr::qt {
 		Send->setObjectName(QStringLiteral("tourSideChatSend"));
 		Send->setFocusPolicy(Qt::TabFocus);
 		Send->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		// RFC-BPR-0126: Stop stays reachable while Send queues.
+		StopRun = new quiet_push_button{ this };
+		StopRun->setObjectName(QStringLiteral("tourSideChatStop"));
+		StopRun->setFocusPolicy(Qt::TabFocus);
+		StopRun->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		StopRun->setText(tr("Stop"));
+		StopRun->setAccessibleName(tr("Stop"));
+		StopRun->setToolTip(tr("Stop the tour agent; nothing in the tour changes. Queued messages wait, paused."));
+		StopRun->hide();
 		compose->addWidget(Field, 1);
+		compose->addWidget(StopRun, 0, Qt::AlignBottom);
 		compose->addWidget(Send, 0, Qt::AlignBottom);
 		column->addLayout(compose);
 
@@ -518,8 +541,13 @@ namespace bpr::qt {
 				RevealDispatch(*thread);
 			}
 		});
+		connect(StopRun, &QPushButton::clicked, this, [this] {
+			if (Mine && StopDispatch) {
+				StopDispatch();
+			}
+		});
 		connect(Send, &QPushButton::clicked, this, [this] {
-			if (Mine) {
+			if (Mine && (Composer->toPlainText().trimmed().isEmpty() || !follow_up())) {
 				if (StopDispatch) {
 					StopDispatch();
 				}
@@ -1228,20 +1256,36 @@ namespace bpr::qt {
 		const auto thread = current();
 		const auto blank  = Composer->toPlainText().trimmed().isEmpty();
 		const auto active = thread && (!Draft || core::active_tour_thread(*Draft, *thread));
-		Send->setText(Mine ? tr("Stop") : QString{ });
-		Send->setToolTip(!Ready ? Why : Mine ? tr("Stop the tour agent; nothing in the tour changes.")
-											 : tr("Send (Return). Shift+Return starts a new line."));
-		Send->setAccessibleName(Mine ? tr("Stop") : tr("Send"));
+		if (thread && QueueShown != core::tour_part_name(*thread)) {
+			show_queue();
+		}
+		// RFC-BPR-0126 ([[BPR-2154]]). While the tour agent runs, or this
+		// part's queue holds messages, words typed here are a follow-up:
+		// Send is Queue (or Steer, by the setting), and Stop stands beside it.
+		const auto following = !blank && follow_up().has_value();
+		const auto stopping  = Mine && !following;
+		const auto other     = QStringLiteral("%1Return").arg(QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText));
+		Send->setText(stopping ? tr("Stop") : following ? (FollowUpSteer ? tr("Steer") : tr("Queue"))
+														: QString{ });
+		Send->setToolTip(!Ready          ? Why
+							 : stopping  ? tr("Stop the tour agent; nothing in the tour changes.")
+							 : following ? (FollowUpSteer ? tr("Steer (Return) · Queue (%1)").arg(other) : tr("Queue (Return) · Steer (%1)").arg(other))
+										 : tr("Send (Return). Shift+Return starts a new line."));
+		Send->setAccessibleName(stopping ? tr("Stop") : following ? (FollowUpSteer ? tr("Steer") : tr("Queue"))
+																  : tr("Send"));
+		StopRun->setVisible(Mine && following);
+		wear_ordinary_roles(*StopRun);
+		StopRun->setIcon(drawer_icon(drawer_glyph::close, StopRun->palette()));
 		ContinueOld->setEnabled(active && HostIdle && !Running && !HistoryLoading && Ready);
-		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || ((HostIdle || takes_feedback()) && !RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
+		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (stopping || (following && !RevisionChoiceRequired) || ((HostIdle || takes_feedback()) && !RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
 		// [[BPR-2000]]. Send starts a run and wears the accent; while this
 		// chat's run is going it is Stop, in the ordinary roles.
-		if (Mine) {
+		if (stopping) {
 			wear_ordinary_roles(*Send);
 		} else {
 			wear_agent_accent(*Send, palette());
 		}
-		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
+		Send->setIcon(drawer_icon(stopping ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		const auto part = part_words();
 		for (auto* const resend : Resends) {
 			if (resend) {
@@ -1368,17 +1412,83 @@ namespace bpr::qt {
 
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate, std::optional<core::tour_passage> aUpdatePassage)
 	{
-		const auto thread = current();
-		if (!thread || aQuestion.isEmpty() || (!HostIdle && !(takes_feedback() && !aUpdate)) || (Running && !(takes_feedback() && !aUpdate)) || HistoryLoading || (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
+		const auto thread    = current();
+		const auto following = aUpdate || aQuestion.isEmpty() ? std::nullopt : follow_up();
+		if (!thread || aQuestion.isEmpty() || (!following && ((!HostIdle && !(takes_feedback() && !aUpdate)) || (Running && !(takes_feedback() && !aUpdate)))) || (following && RevisionChoiceRequired) || HistoryLoading
+			|| (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
 			return;
 		}
-		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::move(aUpdatePassage) : passage(), .Question = aQuestion, .Update = aUpdate, .SkillText = SendingSkillText };
+		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::move(aUpdatePassage) : passage(), .Question = aQuestion, .Update = aUpdate, .SkillText = SendingSkillText, .Steer = following };
 		AskDispatch(ask);
 		if (!aUpdate) {
 			Composer->clear();
 			Passages.erase(static_cast<std::size_t>(Current));
 		}
 		show_passage();
+	}
+
+	/// RFC-BPR-0126 ([[BPR-2154]]). The core decides queue against send, as
+	/// for the Agent tab; the whole tour's feedback during its first draft
+	/// keeps its own path (BPR-2181 AC11).
+	auto tour_side_chat::follow_up() const -> std::optional<bool>
+	{
+		const auto thread = current();
+		if (!thread || !QueueDispatch || takes_feedback()) {
+			return std::nullopt;
+		}
+		const auto found = Queues.find(core::tour_part_name(*thread));
+		const auto holds = found != Queues.end() && !found->second.Rows.empty();
+		const auto said  = core::decide_follow_up({ .TurnShown = Running || !HostIdle, .QueueHolds = holds, .SteerByDefault = FollowUpSteer, .Opposite = Opposite });
+		if (said == core::follow_up::send) {
+			return std::nullopt;
+		}
+		return said == core::follow_up::steer;
+	}
+
+	void tour_side_chat::set_follow_up_steer(const bool aSteer)
+	{
+		FollowUpSteer = aSteer;
+		refresh_actions();
+	}
+
+	void tour_side_chat::present_queue(const core::tour_thread& aThread, std::vector<agent_pending_row> aRows, const QString& aState, const bool aPaused)
+	{
+		auto& queue = Queues[core::tour_part_name(aThread)];
+		if (queue.State == aState && queue.Paused == aPaused && std::ranges::equal(queue.Rows, aRows, [](const agent_pending_row& aOne, const agent_pending_row& aOther) {
+				return aOne.Id == aOther.Id && aOne.Label == aOther.Label && aOne.Text == aOther.Text && aOne.Held == aOther.Held && aOne.Sending == aOther.Sending && aOne.Uncertain == aOther.Uncertain && aOne.Sent == aOther.Sent;
+			})) {
+			return;
+		}
+		queue = part_queue{ .Rows = std::move(aRows), .State = aState, .Paused = aPaused };
+		if (const auto thread = current(); thread && *thread == aThread) {
+			show_queue();
+		}
+		refresh_actions();
+	}
+
+	void tour_side_chat::set_queue_dispatch(std::function<agent_pending_dispatch(const core::tour_thread&)> aDispatch)
+	{
+		QueueDispatch = std::move(aDispatch);
+		QueueShown.reset();
+		Queues.clear();
+		refresh_actions();
+	}
+
+	void tour_side_chat::show_queue()
+	{
+		const auto thread = current();
+		QueueShown        = thread ? std::optional{ core::tour_part_name(*thread) } : std::nullopt;
+		if (!thread || !QueueDispatch) {
+			PendingList->present({ }, { }, false);
+			return;
+		}
+		PendingList->set_dispatch(QueueDispatch(*thread));
+		const auto found = Queues.find(*QueueShown);
+		if (found == Queues.end()) {
+			PendingList->present({ }, { }, false);
+			return;
+		}
+		PendingList->present(found->second.Rows, found->second.State, found->second.Paused);
 	}
 
 	auto tour_side_chat::part_words() const -> QString

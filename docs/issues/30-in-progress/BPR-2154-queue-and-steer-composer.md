@@ -95,7 +95,7 @@ pending list, reusing [[BPR-2181]]'s runtimes; frontend-design for the Qt
 surfaces; then one look (Fixture agent, fresh session, one Accept/Reject per
 surface), then BPR-2155.
 
-### Plan for that slice (not started)
+### Plan for that slice (built 2026-11-16, below)
 
 1. Core: `queued_session_kind::tour_part` keyed by pull request plus tour
    thread (kind and stop), and `local_draft_discussion` keyed by the local
@@ -113,3 +113,45 @@ surface), then BPR-2155.
 4. Courses: one public path per surface (tour stop chat, whole-tour
    conversation after the first draft, local draft discussion) for AC01;
    AC08 states reuse the Agent tab's; then the look.
+
+## Tour chats and the local draft discussion (2026-11-16)
+
+frontend-design was loaded for this round's Qt work; the pending list keeps
+the accepted Agent-tab look (looks prompts-v001 to v004) unchanged.
+
+- **Core.** `queued_session_kind::tour_part` (`tour-part:host/owner/name#N/PART`)
+  and `local_draft_discussion` (`local-draft:DRAFT/PART`), the part being
+  `tour`, `problem`, `solution` or `stop-ID` (`tour_part_name`,
+  `tour_part_thread`, `tour_part_session`, `local_draft_session`); every part
+  is its own queue. `core_agent_queue` covers the round trip and the refusals.
+- **Qt.** The Agent tab's pending list is `qt::agent_pending_list`
+  (`agent_pending_list.{hpp,cpp}`), now also shown above the tour side chat's
+  composer for the current part. While the tour agent runs, or the part's
+  queue holds messages, Send reads Queue (or Steer, by the Follow-up setting),
+  Cmd+Return (Ctrl+Return off macOS) the other once, and Stop stands beside
+  it; the whole tour's feedback during its first draft keeps its own path
+  (BPR-2181 AC11).
+- **Host.** The window offers the profile's runner a second runtime
+  (`window_chat_queues.cpp`): a pull request's tour parts run on the window's
+  tour host (Start through `request_tour_ask`, Steer through the tour run's
+  invocation host by `agent_runtime_steer`, the run's corrections settled by
+  receipts at its end, the release settled on the host's retirement, deferred
+  out of it); a local draft's parts on the draft's own lane (its question's
+  end settles it). The queue host is unchanged.
+- **Found and fixed.** In the composed app a local draft's discussion
+  question was stopped by every tour-editor refresh, hide or focus change
+  (`writing_stop` let go any question); it now lets go only a one-shot
+  writing request's question.
+- **Fixture agent.** Answers tour-ask and tour-revise turns (its reply names
+  the message it read), drafts two stops on the renderer change, and is slow
+  only for this turn's own "Take your time".
+- **Courses** (fixture agent, returning-review-v1, pass):
+  `application_tour_chat_queue_stop_public_path` (Queue label and Stop beside
+  it, two follow-ups queued, one edited in place, none in the whole tour's
+  chat, each goes after the one before, in order, once),
+  `application_tour_chat_queue_whole_tour_public_path` (a follow-up queued,
+  one steered with Cmd+Return into the running turn, Pause queue holding past
+  the turn's end, Resume sending it once),
+  `application_tour_chat_queue_local_draft_public_path` (a real worktree:
+  a follow-up typed while the question runs waits in the pending list and
+  goes as the draft's next question).

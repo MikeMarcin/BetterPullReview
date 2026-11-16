@@ -171,6 +171,30 @@ namespace {
 			   "an ask carries its threads typed");
 	}
 
+	/// [[BPR-2154]]: each tour part of a pull request, and each part of a
+	/// local draft's discussion, is a session of its own; tour parts never
+	/// share inputs.
+	void test_tour_part_and_local_draft_sessions()
+	{
+		using namespace bpr::core;
+		const auto tab  = queued_session{ .Kind = queued_session_kind::agent_tab, .Host = "github.com", .Owner = "o", .Repository = "r", .Number = 7U };
+		const auto stop = tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ 12U } };
+		const auto part = tour_part_session(tab, stop);
+		expect(session_key(part) == "tour-part:github.com/o/r#7/stop-12" && parse_session_key(session_key(part)) == std::optional{ part }, "a stop's chat round-trips");
+		const auto whole = tour_part_session(tab, tour_thread{ });
+		expect(session_key(whole) == "tour-part:github.com/o/r#7/tour" && session_key(whole) != session_key(part) && session_key(whole) != session_key(with_kind(tab, queued_session_kind::tour_feedback)),
+			   "the whole tour, a stop and the first draft's feedback are separate queues");
+		expect(tour_part_thread(part.Part) == std::optional{ stop } && tour_part_thread("problem") == std::optional{ tour_thread{ .Kind = tour_thread_kind::problem } }
+				   && tour_part_thread("solution") == std::optional{ tour_thread{ .Kind = tour_thread_kind::solution } } && !tour_part_thread("stop-") && !tour_part_thread("stop-07") && !tour_part_thread("tours"),
+			   "a part names its thread");
+		const auto draft = local_draft_session("d0a1", tour_thread{ });
+		expect(session_key(draft) == "local-draft:d0a1/tour" && parse_session_key(session_key(draft)) == std::optional{ draft }, "a local draft's discussion round-trips");
+		expect(session_key(local_draft_session("", stop)).empty() && session_key(local_draft_session("a/b", stop)).empty() && !parse_session_key("local-draft:d0a1/other")
+				   && !parse_session_key("tour-part:github.com/o/r#7") && !parse_session_key("tour-part:github.com/o/r#7/stop-x"),
+			   "a part kind with no part, or a bad draft, names no session");
+		expect(with_kind(part, queued_session_kind::agent_tab) == tab, "the pull request's Agent tab session of a part");
+	}
+
 	/// RFC-BPR-0126 AC10 ([[BPR-2181]]): queue-versus-send is the core's,
 	/// over the queue and the run; a Return in the gap after a release and
 	/// before its turn shows is queued.
@@ -292,6 +316,7 @@ auto main() -> int
 	test_finish_maps_to_pause();
 	test_follow_up_decision();
 	test_typed_session();
+	test_tour_part_and_local_draft_sessions();
 	test_discard_uncertain();
 	test_return_unsent();
 	test_order_and_release();

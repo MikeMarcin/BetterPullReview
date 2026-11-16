@@ -19,6 +19,7 @@
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_pending_list.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
@@ -505,40 +506,11 @@ namespace bpr::qt {
 		/// \brief What waits its turn in this session's queue.
 		void present_queue(const QStringList& aWaiting, const QString& aState);
 		/// \brief RFC-BPR-0126 ([[BPR-2151]]). One waiting message as the
-		/// pending list shows it.
-		struct queue_row
-		{
-			std::uint64_t Id = 0U;
-			QString       Label;
-			/// A typed message's text; empty for a quick ask, which is not
-			/// edited in place.
-			QString Text;
-			bool    Held    = false;
-			bool    Sending = false;
-			/// RFC-BPR-0126 AC04. Released before a crash or quit, and whether
-			/// the agent took it is not known: offered Discard.
-			bool Uncertain = false;
-			/// RFC-BPR-0126 AC08 ([[BPR-2152]]). Steered into the running turn
-			/// and acknowledged by the agent's runtime: shown as Sent to agent
-			/// until the run's end settles it.
-			bool Sent = false;
-		};
+		/// pending list shows it ([[BPR-2154]]: the list is shared).
+		using queue_row = agent_pending_row;
 		/// \brief What the pending list's controls ask of the session's queue.
-		struct queue_dispatch
-		{
-			std::function<void(std::uint64_t)>                 Edit;
-			std::function<void(std::uint64_t, const QString&)> Save;
-			std::function<void(std::uint64_t)>                 Cancel;
-			std::function<void(std::uint64_t)>                 Remove;
-			std::function<void(std::uint64_t, int)>            Move;
-			/// Steer the running turn with this message instead of waiting.
-			std::function<void(std::uint64_t)> Steer;
-			std::function<void()>              Pause;
-			std::function<void()>              Resume;
-			/// Discard a message that may not have been delivered.
-			std::function<void(std::uint64_t)> Discard;
-		};
-		void set_queue_dispatch(queue_dispatch aDispatch) { QueueDispatch = std::move(aDispatch); }
+		using queue_dispatch = agent_pending_dispatch;
+		void set_queue_dispatch(queue_dispatch aDispatch);
 		/// \brief The session's waiting messages, in order, with the queue's
 		/// state ("waiting its turn", "paused: Stop") and whether it is paused.
 		void               present_queue_rows(std::vector<queue_row> aRows, const QString& aState, bool aPaused);
@@ -1128,15 +1100,13 @@ namespace bpr::qt {
 		report_dispatch                              ReportDispatch;
 		std::function<void(bool)>                    AvailabilityObserver;
 		QLabel*                                      QueueNote = nullptr;
-		QWidget*                                     QueueList = nullptr;
-		queue_dispatch                               QueueDispatch;
+		agent_pending_list*                          QueueList = nullptr;
 		follow_up                                    FollowUp;
 		bool                                         FollowUpSteer = false;
 		bool                                         QueueOccupied = false;
 		bool                                         Opposite      = false;
 		bool                                         Releasing     = false;
 		release_outcome                              Released      = release_outcome::refused;
-		std::optional<std::uint64_t>                 EditingQueued;
 		void                                         refresh_send_label();
 		std::optional<core::returning_operation>     SendingReturning;
 		std::optional<core::returning_operation>     PendingReturning;

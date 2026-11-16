@@ -190,6 +190,7 @@ if(BPR_BUILD_QT)
             src/github_application/window_device_authorization.cpp
             src/github_application/window_explain_file.cpp
             src/github_application/window_quick_ask.cpp
+            src/github_application/window_chat_queues.cpp
             src/github_application/window_local_comments.cpp
             src/github_application/window_github_reads.cpp
             src/github_application/window_navigation.cpp
@@ -627,6 +628,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_device_authorization.cpp
 		src/app/src/github_application/window_explain_file.cpp
 		src/app/src/github_application/window_quick_ask.cpp
+		src/app/src/github_application/window_chat_queues.cpp
 		src/app/src/github_application/window_local_comments.cpp
 		src/app/src/github_application/window_github_reads.cpp
 		src/app/src/github_application/window_navigation.cpp

@@ -2926,6 +2926,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_chat_queues.cpp"
         "src/github_application/window_commit_filter.cpp"
         "src/github_application/window_composition.cpp"
         "src/github_application/window_composition.hpp"
@@ -3115,6 +3116,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_chat_queues.cpp"
         "src/github_application/window_commit_filter.cpp"
         "src/github_application/window_composition.cpp"
         "src/github_application/window_composition.hpp"
@@ -3822,8 +3824,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# observe the worktree again (refresh_local_draft_for_look) so its edit
 	# becomes candidate 2. Tests-on only; no review mutation or submission
 	# path changed.
+	# [[BPR-2154]] reseal: window_chat_queues.cpp queues the tour chats' and
+	# a local draft's discussion's follow-ups on the profile's queue host and
+	# runs them on the window's tour host or the draft's lane; the local draft
+	# lets go only a writing request's question on writing_stop. No review
+	# mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "6e5cfda408ee93af3b2c26d5e4683aade73350b8ee637e33123a424f9b8aa721"
+        "f332ada487a71adba147cf5a4482210dcc49eddce6bd12d7b4f98a62ea0e64be"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
