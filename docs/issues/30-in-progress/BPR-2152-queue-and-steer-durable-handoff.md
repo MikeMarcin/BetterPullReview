@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2152"
 title: "Queued and steered input survives crashes and races without loss or automatic resend"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0126"]
 depends_on: ["BPR-2151"]
 priority: "P2"
