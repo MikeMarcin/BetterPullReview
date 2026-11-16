@@ -152,7 +152,13 @@ namespace bpr::app {
 			}
 		});
 		if (auto* const report = Window->report_view(); report != nullptr) {
-			report->set_link_dispatch([tab](const QString& aLink) { tab->open_reference(aLink); });
+			report->set_link_dispatch([this, tab](const QString& aLink) {
+				// RFC-BPR-0120. A local draft's check report opens its candidate at the line.
+				if (DraftDesktop && DraftDesktop->follow_check_reference(aLink.toStdString())) {
+					return;
+				}
+				tab->open_reference(aLink);
+			});
 			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
 			// docs/design/report-templates-v2: a suggestion's Add as draft
 			// comment drafts it at its lines as a finding card's does. Nothing
