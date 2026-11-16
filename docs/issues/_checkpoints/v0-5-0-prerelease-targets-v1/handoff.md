@@ -4406,3 +4406,27 @@ BPR-2152); not touched by this commit. Look `queue-tour-v002` (session
 `35583791…`, host 58701/58709, root `queue-tour-v002.u3mku38k`, worktree
 `/Users/jaeger/queue-tour-v002-draft`) waits on the owner, not waited on.
 Next: read its decision; then BPR-2155.
+
+### Checkpoint (2026-11-16): BPR-2154 queue-tour-v002 Rejected; steered message in every tour chat's transcript; look queue-tour-v003 filed
+
+queue-tour-v002 handed back: `local-draft-steer` Rejected ("it says it sent
+it but the message doesnt show up in the transcript until the turn ended").
+Host 58701/58709 stopped, root removed, draft folder removed. Owner: parity
+with the Agent tab by sharing. Commit `4bda08895`: `core::agent_steered_message`
+moved to core and kept on a tour turn as it is written (pull request parts
+through `note_tour_steered`, a local draft's question through the workbench's
+`AskingSteered`), settled by `core::settle_steered_messages` (the Agent tab's
+runtime uses it too), drawn in the Agent tab's words
+(`qt::agent_steered_state_words`); a local draft keeps it as an author turn
+marked `SteeredAfter` on its question's turn; native history restores it; a
+local draft question stands in the footer's Tour chat slot for Stop all.
+Parity table on the card. The whole-tour course had passed on "went next"
+(built-in profile, no kept session); it now runs as a Fixture agent session
+and asserts the steer. Passing: the three tour chat queue courses, steer
+sent/unavailable, `qt_agent_steering_fixture`, protocol loop, queue handoff,
+core steering/queue/local draft tour/tour session, `local_draft`, four local
+draft desktop courses, `architecture_boundaries`, resealed composition
+contract, documentation gate, full dev build. Look `queue-tour-v003`
+(session `0f0bf2f5…`, host 21140/21151, root `queue-tour-v003.wtief4r1`,
+worktree `/Users/jaeger/queue-tour-v003-draft`) waits on the owner, not
+waited on. Next: read its decision; then BPR-2155.

@@ -297,3 +297,22 @@ restart). Also passing: `application_tour_chat_queue_stop_public_path`,
 `architecture_boundaries`, resealed
 `application_review_round_trip_composition_contract`, the documentation
 gate, and the full dev build.
+
+### Look queue-tour-v003 (filed 2026-11-16, not waited on)
+
+Session `0f0bf2f5bd323f318366b52cf0e71dc0`, state
+`/Users/jaeger/.attended-review-state/queue-tour-v003-2026-11-16/state`
+(URL in `serve.log` beside it), cursor 2, served on the tailnet (host PID
+21140, Tailscale child 21151). Root `/Users/jaeger/queue-tour-v003.wtief4r1`
+from `4bda08895362`, returning-review-v1 with `--next-push`, Fixture agent
+only (launcher check: first head and next push shown, 17 asks answered, no
+real agent started; executable SHA-256 `f34c140b92d4…`). A first freeze
+attempt failed its next-push check once (`PROFILE_ACTIVATION_INDETERMINATE_NO_RETRY`)
+and was removed with `freeze_attended_build.py remove`; the retry passed.
+The local draft's worktree is `/Users/jaeger/queue-tour-v003-draft/engine`
+(made by `tests/fixtures/local-draft/make_worktree.sh`; outside the root,
+remove it with the root). One Accept/Reject question,
+`steered-in-transcript`: a steered message shows in the conversation at once
+and stays on its turn. Its note names the remaining differences (Sent to
+agent stays in the pending list until the turn ends, as in the Agent tab; a
+first tour draft or description draft can't be steered).
