@@ -39,3 +39,24 @@ need to send this window back for a front end design pass." The preview's
 redesign belongs to a frontend-design pass and AC02's preview is judged
 again under [BPR-2035](../10-backlog/BPR-2035-close-rfc-0112.md); the
 Settings section is renamed "Agents".
+
+## Design chosen: workflow-import-v001 (2026-11-15)
+
+The redesign went to the owner as three mockups
+(`docs/design/workflow-import-v1/`, branch `claude/workflow-import-mockups`
+at `5a0551f91`): attended review `workflow-import-v001`, session
+`dea93294643b9d7d9f3d64cec5d1e092`, state
+`~/.attended-review-state/workflow-import-v001-2026-11-15/state`, decision
+`7a40329d` at sequence 6: **selected "B. List and detail"**, no note. Its
+host was stopped with the attended-review `stop` command and the design
+merged into the v0.5.0 lane.
+
+B is built as drawn: the Prompt library's shape, a ticked list at the left
+and the selected item in full at the right, an update shown as yours beside
+the file's; every item the file can bring starts chosen and Import is
+enabled as the window opens; each item's choice is one segmented control.
+The owner's accepted change to AC02's evidence: an update now starts
+chosen, compared in the preview before Import is pressed, instead of being
+taken "only when chosen". The rest of AC02 is unchanged: no program path
+travels, an unknown action is named and its workflow refused, and builds
+stay off without acceptance.
