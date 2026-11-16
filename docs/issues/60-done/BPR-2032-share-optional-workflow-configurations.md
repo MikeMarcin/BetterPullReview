@@ -60,3 +60,18 @@ chosen, compared in the preview before Import is pressed, instead of being
 taken "only when chosen". The rest of AC02 is unchanged: no program path
 travels, an unknown action is named and its workflow refused, and builds
 stay off without acceptance.
+
+## Owner look workflow-import-v002 filed (2026-11-15)
+
+B is built at `8af4a4501` (core `plan_configuration_import` decides each
+item's standing and starting choice; `core_agent_configuration` and
+`qt_agent_configuration_dialogs` pass). Session
+`2f70e59306fd964ae16460be86253392`, state
+`/Users/jaeger/.attended-review-state/workflow-import-v002-2026-11-15/state`
+(URL in that directory's `serve.log`), cursor 3, host PID 48558 (Tailscale
+child 48566). Frozen root `/Users/jaeger/workflow-import-v002.mqedk3ig` from
+`18a70bb96087` (contains `8af4a4501`; executable SHA-256 `a0e48aa50d60…`;
+the launcher's check reached `ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN` with the
+earlier revision's 4 actions and started no real agent). One question,
+`BPR-2032-import-preview-b`: Accept or Reject the preview as built. The
+Profiles page and Import/Export Profile Settings (BPR-2198) are not in it.
