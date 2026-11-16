@@ -127,3 +127,51 @@ and read the kept log. If the refusal is a transient `busy` or conflict, the
 abort should retry or re-read the record rather than mark a cancelled
 preparation for repair. AC02 needs a deterministic host course: a catalog
 port that refuses the `abort_requested` append once.
+
+## The refusing step, 2026-11-16 (`42a1fe963`)
+
+The undo now reports the step that refused it, as the diagnostic stage
+`preparation_abort`. The course `refused_preparation_abort_names_its_step` in
+`application_epoch_host` holds this deterministically.
+
+The failure was reproduced again: 1 of 6 concurrent copies failed while a
+frozen tests-on build compiled beside them (load about 67). The kept log
+(`pending-states-…-16648`) shows each repeated read cancelling the running
+preparation:
+
+| t (s) | record |
+|---|---|
+| 29.1, 45.8 | `revision_prepare` failed, cache `cancelled`; the undo succeeds |
+| 62.56 | `revision_prepare` failed, cache **`repair_required`**, 80 ms after it started and **before** the catalog witnessed any installation |
+| 62.66 | **`preparation_abort` failed, cache `repair_required`**: the cache's exact abort refuses the undo |
+| 79.20 | the next read: **`cache_open` failed, cache `invalid_repository`** |
+| 95.96 | `catalog_recovery` failed `repair_required`; the clicked file never arrives |
+
+So the cause is in the Git cache, not the catalog. A stop that reaches
+`prepare_revision_impl` while `git index-pack` runs leaves the object store
+in a state that the cache neither rolls back nor recognises:
+
+- the failed-index cleanup's inventory check returns `repair_required`;
+- the cache's own abort refuses the same state;
+- the next open finds the repository invalid.
+
+A killed `index-pack` can leave the pack directory between its rename of
+the `.pack` and its write of the `.idx`. `remove_failed_index_residue` knows
+only the `tmp_pack_` and `tmp_idx_` names, and the rollback requires both
+artifacts. Which residue is left is not yet confirmed.
+
+**Ruled out:** an earlier guess, that the cancelled staging `update-ref` after
+the witness was the cause, does not fit this log: the failure comes before the
+witness. That change was not kept.
+
+**Next:**
+
+1. Name the residue. The cache's failure detail and inventory difference
+   need to reach the diagnostic. Or run `index-pack` under a stop in
+   `git_cache_contract` with the existing fault-injection build
+   (`BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION`), killing it after the `.pack`
+   rename.
+2. Make the failed-index cleanup roll back the expected pack's own partial
+   artifacts, so a cancelled import leaves the store as it was.
+3. Make `git_cache_contract` hold that, and then repeat
+   `application_pending_states_public_path` 10 times while builds run.
