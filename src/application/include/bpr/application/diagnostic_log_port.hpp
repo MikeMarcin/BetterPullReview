@@ -32,7 +32,10 @@ namespace bpr::application {
 		smart_acquire,
 		protocol_acquire,
 		cache_inventory,
-		revision_prepare
+		revision_prepare,
+		/// [[BPR-2195]]. Undoing a preparation that was cancelled or failed;
+		/// a refusal here leaves the operation for repair.
+		preparation_abort
 	};
 	using diagnostic_epoch_failure  = std::variant<std::monostate, epoch_catalog_failure,
 												   git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;

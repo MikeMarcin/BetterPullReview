@@ -668,12 +668,12 @@ namespace bpr::application {
 				const auto failPrepared =
 					[&](const core::epoch_failure aFailure)
 					-> worker_completion {
-					const auto safe = abort_preparation(*context, prepared, *caches);
+					const auto safe = abort_preparation(*context, prepared, *caches, &diagnostics);
 					return failed(
 						safe ? aFailure : core::epoch_failure::repair_required);
 				};
 				const auto cancelPrepared = [&]() -> worker_completion {
-					const auto safe = abort_preparation(*context, prepared, *caches);
+					const auto safe = abort_preparation(*context, prepared, *caches, &diagnostics);
 					return safe
 						? cancelled()
 						: failed(core::epoch_failure::repair_required);

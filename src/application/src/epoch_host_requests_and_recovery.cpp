@@ -985,12 +985,21 @@ namespace bpr::application {
 
 	auto epoch_application_host::implementation::abort_preparation(
 		authority_context&  aContext,
-		prepared_operation& aOperation, git_cache_port& aCaches) -> bool
+		prepared_operation& aOperation, git_cache_port& aCaches,
+		const epoch_diagnostics* const aDiagnostics) -> bool
 	{
+		// [[BPR-2195]]. Each refusal says which step refused and why, so a
+		// cancelled preparation left for repair can be traced to its cause.
+		const auto refused = [aDiagnostics](const auto& aFailure) {
+			if (aDiagnostics != nullptr) {
+				aDiagnostics->failed(diagnostic_epoch_stage::preparation_abort, aFailure);
+			}
+		};
 		if (aOperation.Kind == prepared_kind::observation_only) {
 			return true;
 		}
 		if (!aOperation.Record) {
+			refused(epoch_catalog_failure::invalid_request);
 			return false;
 		}
 		auto record = *aOperation.Record;
@@ -1000,6 +1009,7 @@ namespace bpr::application {
 		}
 		if (record.Phase == epoch_catalog_operation_phase::repair_required
 			|| point_of_no_cancellation(record.Phase)) {
+			refused(epoch_catalog_failure::phase_conflict);
 			return false;
 		}
 		const auto markRepair = [&aContext, &record, &aOperation]() {
@@ -1022,6 +1032,7 @@ namespace bpr::application {
 				epoch_catalog_operation_phase::abort_requested,
 				{ });
 			if (!requested) {
+				refused(requested.error());
 				markRepair();
 				return false;
 			}
@@ -1034,11 +1045,13 @@ namespace bpr::application {
 																		.ObjectFormat       = aContext.Handoff.ObjectFormat },
 												{ });
 			if (!cache) {
+				refused(cache.error());
 				markRepair();
 				return false;
 			}
 			const auto request = recovery_request(record);
 			if (!request) {
+				refused(epoch_catalog_failure::invalid_request);
 				markRepair();
 				return false;
 			}
@@ -1049,6 +1062,7 @@ namespace bpr::application {
 					*request, { });
 			}
 			if (!aborted) {
+				refused(aborted.error());
 				markRepair();
 				return false;
 			}
@@ -1060,6 +1074,7 @@ namespace bpr::application {
 			epoch_catalog_operation_phase::aborted,
 			{ });
 		if (!completed) {
+			refused(completed.error());
 			markRepair();
 			return false;
 		}
