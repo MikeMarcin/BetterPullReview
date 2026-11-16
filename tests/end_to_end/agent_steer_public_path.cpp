@@ -161,12 +161,25 @@ auto main(int argc, char** argv) -> int
 			press_return(*chat->composer(), QStringLiteral("Look at the swap chain instead."));
 			wait([&] { return window.agent_panel()->refusal_count() > refusals; }, "the panel says what became of the follow-up");
 			expect(window.agent_panel()->last_refusal().startsWith(QStringLiteral("Steered into the running turn")), "it was steered: " + window.agent_panel()->last_refusal().toStdString());
+			// RFC-BPR-0126 AC08 ([[BPR-2152]]): until the run's end settles it,
+			// the pending list shows it as Sent to agent, with no controls.
+			wait(
+				[&] {
+					const auto* const sent = tab->findChild<QLabel*>(QStringLiteral("agentQueueSending"));
+					return (sent != nullptr && sent->text() == QStringLiteral("Sent to agent")) || tab->state() != qt::agent_tab_state::working;
+				},
+				"the steered message shows as Sent to agent while its turn runs");
+			if (tab->state() == qt::agent_tab_state::working) {
+				expect(tab->findChild<QPushButton*>(QStringLiteral("agentQueueSteer")) == nullptr && tab->findChild<QPushButton*>(QStringLiteral("agentQueueEdit")) == nullptr,
+					   "a sent message cannot be edited, steered again or removed");
+			}
 			wait([&] { return tab->turn_count() > turns && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent; }, "the steered turn ends");
 			const auto answer = tab->turn_answer(tab->turn_count() - 1U);
 			expect(answer.contains(QStringLiteral("Took your correction after step")), "the running turn took it after a tool call: " + answer.toStdString());
 			// Nothing was left to send: no second turn starts.
 			settle_for(1500);
 			expect(tab->turn_count() == turns + 1U && access::agent_invocation_evidence(*application).Quiescent, "the steered message left the queue; no second turn ran");
+			expect(tab->findChild<QLabel*>(QStringLiteral("agentQueueSending")) == nullptr, "its run named it as taken, so it settled and left the pending list");
 			// Look steer-v001 (owner: "I would have expected to see Two show up
 			// as something I had sent"): the steered message is the
 			// reviewer's own, once, in the turn, after the question and before

@@ -154,14 +154,21 @@ namespace {
 		agents.States[session] = core::queue_agent::busy;
 		static_cast<void>(host.enqueue(session, typed("x")));
 		static_cast<void>(host.enqueue(session, typed("y")));
-		const auto y     = host.queue(session)->Entries.back().Id;
-		agents.SteerWhy  = "Steer isn't available for this agent yet.";
-		const auto later = host.steer(session, y);
-		expect(!later.Sent && later.Why == "Steer isn't available for this agent yet." && host.queue(session)->Entries.front().Id == y && !host.queue(session)->Entries.front().Held,
+		const auto y      = host.queue(session)->Entries.back().Id;
+		agents.SteerWhy   = "Steer isn't available for this agent yet.";
+		auto       later  = std::optional<application::agent_queue_steer_result>{ };
+		const auto stored = [&later](const application::agent_queue_steer_result& aResult) { later = aResult; };
+		expect(host.steer(session, y, std::nullopt, stored) == core::queue_refusal::none, "the press is taken");
+		expect(later && !later->Sent && later->Why == "Steer isn't available for this agent yet." && host.queue(session)->Entries.front().Id == y
+				   && host.queue(session)->Entries.front().State == core::queued_state::queued && !host.queue(session)->Entries.front().Held,
 			   "not taken: it goes next and says why");
 		agents.SteerWhy.reset();
-		const auto sent = host.steer(session, y);
-		expect(sent.Sent && host.queue(session)->Entries.size() == 1U && agents.Steered.size() == 2U, "taken: it leaves the queue");
+		later.reset();
+		expect(host.steer(session, y, std::nullopt, stored) == core::queue_refusal::none && later && later->Sent && agents.Steered.size() == 2U, "handed to the turn");
+		expect(host.queue(session)->Entries.front().State == core::queued_state::sending, "[[BPR-2152]] it stays, Sending, until the runtime answers");
+		host.steer_answered(session, y, true, "steer-1");
+		host.settle_steers(session, 0U, { { .Receipt = "steer-1", .Ending = core::steered_ending::consumed } });
+		expect(host.queue(session)->Entries.size() == 1U, "taken: the run's end settles it and it leaves the queue");
 	}
 
 	/// A profile's store: what it holds, and whether it takes writes.

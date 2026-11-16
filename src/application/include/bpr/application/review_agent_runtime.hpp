@@ -179,6 +179,10 @@ namespace bpr::application {
 		/// hand-off the connection later finds unwritten goes back to
 		/// `aQueue`, first in line, and every attached window is told why.
 		[[nodiscard]] auto steer(const core::queued_entry& aEntry, agent_queue_host* aQueue) -> std::optional<std::string>;
+		/// \brief [[BPR-2152]] (AC06). What a correction pressed now is bound
+		/// to: the running turn's run and the native conversation (BPR's
+		/// agent session) it runs in, or the last one known.
+		[[nodiscard]] auto bound() const -> core::queued_claim;
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		void               shutdown();
 		/// \brief Retries a refused workspace removal of its machinery, and
@@ -245,6 +249,14 @@ namespace bpr::application {
 		/// [[BPR-2153]]. The run admitted for the running turn, which Steer
 		/// names.
 		std::optional<agent_invocation_projection_identity> Active;
+		/// [[BPR-2152]]. The running turn streamed something: the agent took
+		/// its message.
+		bool Streamed = false;
+		/// [[BPR-2152]]. The native conversation of the last admitted run.
+		std::uint64_t Conversation = 0U;
+		/// [[BPR-2152]]. Where corrections were claimed: the run's end
+		/// settles them there.
+		agent_queue_host* SteerQueue = nullptr;
 		/// Lets a late steer answer know the runtime is gone.
 		std::shared_ptr<bool> Alive = std::make_shared<bool>(true);
 	};

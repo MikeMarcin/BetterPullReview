@@ -115,4 +115,16 @@ namespace bpr::application {
 		// nothing to steer, so the message goes next.
 		return agent_steer_goes_next_words(core::agent_steer_support::not_running);
 	}
+
+	auto agent_session_runner::bound(const std::string& aSession) -> core::queued_claim
+	{
+		for (const auto& [token, runtime] : Runtimes) {
+			if (runtime.Runs && runtime.Runs(aSession) && runtime.Bound) {
+				if (auto claim = runtime.Bound(aSession); claim.Run != 0U || claim.Conversation != 0U) {
+					return claim;
+				}
+			}
+		}
+		return { };
+	}
 } // namespace bpr::application

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -55,6 +56,37 @@ namespace bpr::core {
 		}
 
 		constexpr auto queued_prompt_version = std::string_view{ "p1;" };
+		constexpr auto queued_claim_version  = std::string_view{ "c1;" };
+
+		/// One unsigned 64-bit decimal field and its `;`.
+		[[nodiscard]] auto take_wide(std::string_view& aFrom) -> std::optional<std::uint64_t>
+		{
+			const auto end = aFrom.find(';');
+			if (end == std::string_view::npos || end == 0U || end > 20U) {
+				return std::nullopt;
+			}
+			constexpr auto most  = std::numeric_limits<std::uint64_t>::max();
+			auto           value = std::uint64_t{ 0U };
+			for (const auto digit : aFrom.substr(0U, end)) {
+				if (digit < '0' || digit > '9') {
+					return std::nullopt;
+				}
+				const auto next = static_cast<std::uint64_t>(digit - '0');
+				if (value > (most - next) / 10U) {
+					return std::nullopt;
+				}
+				value = value * 10U + next;
+			}
+			aFrom.remove_prefix(end + 1U);
+			return value;
+		}
+
+		/// Written but not settled: a correction or release the agent may
+		/// hold.
+		[[nodiscard]] auto in_flight(const queued_entry& aEntry) noexcept -> bool
+		{
+			return aEntry.State == queued_state::sending || aEntry.State == queued_state::sent;
+		}
 
 		[[nodiscard]] auto unsent(const queued_entry& aEntry) noexcept -> bool { return aEntry.State == queued_state::queued; }
 
@@ -71,6 +103,15 @@ namespace bpr::core {
 		case queued_state::sending:          return "sending";
 		case queued_state::sent:             return "sent";
 		case queued_state::delivery_unknown: return "delivery-unknown";
+		}
+		return "unknown";
+	}
+
+	auto stable_name(const queued_route aRoute) noexcept -> std::string_view
+	{
+		switch (aRoute) {
+		case queued_route::release: return "release";
+		case queued_route::steer:   return "steer";
 		}
 		return "unknown";
 	}
@@ -263,7 +304,7 @@ namespace bpr::core {
 		if (aQueue.Paused != queue_pause::none || aAgent != queue_agent::idle) {
 			return std::nullopt;
 		}
-		if (std::ranges::any_of(aQueue.Entries, [](const queued_entry& aEntry) { return aEntry.State == queued_state::sending || aEntry.State == queued_state::delivery_unknown; })) {
+		if (std::ranges::any_of(aQueue.Entries, [](const queued_entry& aEntry) { return in_flight(aEntry) || aEntry.State == queued_state::delivery_unknown; })) {
 			return std::nullopt;
 		}
 		const auto first = std::ranges::find_if(aQueue.Entries, unsent);
@@ -283,8 +324,98 @@ namespace bpr::core {
 			return queue_refusal::not_editable;
 		}
 		found->State = queued_state::sending;
+		found->Claim = queued_claim{ };
 		++aQueue.Revision;
 		return queue_refusal::none;
+	}
+
+	auto claim(agent_queue& aQueue, const std::uint64_t aId, queued_claim aClaim, const std::uint64_t aFrom) -> queue_refusal
+	{
+		if (aFrom != aQueue.Revision) {
+			return queue_refusal::stale;
+		}
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (!unsent(*found) || (found->Held && aClaim.Route == queued_route::release)) {
+			return queue_refusal::not_editable;
+		}
+		aClaim.Receipt.clear();
+		found->State = queued_state::sending;
+		found->Held  = false;
+		found->Claim = std::move(aClaim);
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto bind_run(agent_queue& aQueue, const std::uint64_t aId, const std::uint64_t aRun) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::sending || !found->Claim || found->Claim->Route != queued_route::release) {
+			return queue_refusal::not_editable;
+		}
+		found->Claim->Run = aRun;
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto acknowledge(agent_queue& aQueue, const std::uint64_t aId, std::string aReceipt) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		// A late or second acknowledgment changes nothing: one write, one
+		// receipt, on the record it came from.
+		if (found->State != queued_state::sending || !found->Claim || found->Claim->Route != queued_route::steer || aReceipt.empty()) {
+			return queue_refusal::not_editable;
+		}
+		// An identity too long to keep is not kept: the run's end then cannot
+		// name it, and it settles as unknown rather than as taken.
+		if (aReceipt.size() > maximum_claim_receipt_bytes || !utf8::valid(aReceipt)) {
+			aReceipt.clear();
+		}
+		found->State          = queued_state::sent;
+		found->Claim->Receipt = std::move(aReceipt);
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	void settle_steers(agent_queue& aQueue, const std::uint64_t aRun, const std::vector<steered_settlement>& aEndings)
+	{
+		auto taken   = std::vector<std::uint64_t>{ };
+		auto back    = std::vector<std::uint64_t>{ };
+		auto unknown = false;
+		for (auto& entry : aQueue.Entries) {
+			if (entry.State != queued_state::sent || !entry.Claim || entry.Claim->Route != queued_route::steer || entry.Claim->Run != aRun) {
+				continue;
+			}
+			const auto ending = std::ranges::find(aEndings, entry.Claim->Receipt, &steered_settlement::Receipt);
+			if (ending != aEndings.end() && ending->Ending == steered_ending::consumed) {
+				taken.push_back(entry.Id);
+			} else if (ending != aEndings.end() && ending->Ending == steered_ending::not_taken) {
+				back.push_back(entry.Id);
+			} else {
+				// Written and never named by the run's end: kept, never resent.
+				entry.State = queued_state::delivery_unknown;
+				unknown     = true;
+			}
+		}
+		std::erase_if(aQueue.Entries, [&taken](const queued_entry& aEntry) { return std::ranges::find(taken, aEntry.Id) != taken.end(); });
+		for (const auto id : back) {
+			find(aQueue, id)->State = queued_state::sending;
+			static_cast<void>(return_unsent(aQueue, id));
+		}
+		if (unknown) {
+			aQueue.Paused = queue_pause::delivery_unknown;
+		}
+		if (unknown || !taken.empty() || !back.empty()) {
+			++aQueue.Revision;
+		}
 	}
 
 	auto return_unsent(agent_queue& aQueue, const std::uint64_t aId) -> queue_refusal
@@ -298,6 +429,7 @@ namespace bpr::core {
 		}
 		auto entry  = *found;
 		entry.State = queued_state::queued;
+		entry.Claim.reset();
 		aQueue.Entries.erase(found);
 		const auto first = std::ranges::find_if(aQueue.Entries, [](const queued_entry& aEntry) { return aEntry.State == queued_state::queued; });
 		aQueue.Entries.insert(first, std::move(entry));
@@ -331,6 +463,7 @@ namespace bpr::core {
 		case queued_finish::stopped:     return "stopped";
 		case queued_finish::not_taken:   return "not-taken";
 		case queued_finish::refused:     return "refused";
+		case queued_finish::unknown:     return "unknown";
 		}
 		return "unknown";
 	}
@@ -344,6 +477,7 @@ namespace bpr::core {
 		case queued_finish::refused:     return queue_pause::failed;
 		case queued_finish::usage_limit: return queue_pause::usage_limit;
 		case queued_finish::stopped:     return queue_pause::stopped;
+		case queued_finish::unknown:     return queue_pause::delivery_unknown;
 		}
 		return queue_pause::failed;
 	}
@@ -369,6 +503,14 @@ namespace bpr::core {
 				++aQueue.Revision;
 			}
 			return returned;
+		}
+		if (aFinish == queued_finish::unknown) {
+			// [[BPR-2152]]. Kept, with its claim, and never resent: only the
+			// reviewer discards it. Unknown delivery outranks a pause in force.
+			found->State  = queued_state::delivery_unknown;
+			aQueue.Paused = queue_pause::delivery_unknown;
+			++aQueue.Revision;
+			return queue_refusal::none;
 		}
 		aQueue.Entries.erase(found);
 		if (aQueue.Paused == queue_pause::none) {
@@ -398,7 +540,7 @@ namespace bpr::core {
 	void restore(agent_queue& aQueue)
 	{
 		for (auto& entry : aQueue.Entries) {
-			if (entry.State == queued_state::sending) {
+			if (in_flight(entry)) {
 				entry.State = queued_state::delivery_unknown;
 			}
 			entry.Held = false;
@@ -552,5 +694,35 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		return offer;
+	}
+
+	auto encode_queued_claim(const queued_claim& aClaim) -> std::string
+	{
+		auto text = std::string{ queued_claim_version };
+		text += std::to_string(static_cast<unsigned>(aClaim.Route));
+		text += ';';
+		text += std::to_string(aClaim.Run);
+		text += ';';
+		text += std::to_string(aClaim.Conversation);
+		text += ';';
+		put_number(text, aClaim.Receipt.size());
+		text += aClaim.Receipt;
+		return text;
+	}
+
+	auto decode_queued_claim(std::string_view aText) -> std::optional<queued_claim>
+	{
+		if (!aText.starts_with(queued_claim_version)) {
+			return std::nullopt;
+		}
+		aText.remove_prefix(queued_claim_version.size());
+		const auto route        = take_number(aText);
+		const auto run          = take_wide(aText);
+		const auto conversation = take_wide(aText);
+		auto       receipt      = take_text(aText);
+		if (!route || *route > static_cast<std::size_t>(queued_route::steer) || !run || !conversation || !receipt || !aText.empty() || receipt->size() > maximum_claim_receipt_bytes || !utf8::valid(*receipt)) {
+			return std::nullopt;
+		}
+		return queued_claim{ .Route = static_cast<queued_route>(*route), .Run = *run, .Conversation = *conversation, .Receipt = std::move(*receipt) };
 	}
 } // namespace bpr::core

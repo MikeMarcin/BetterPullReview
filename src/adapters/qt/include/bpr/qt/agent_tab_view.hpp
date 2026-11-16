@@ -518,6 +518,10 @@ namespace bpr::qt {
 			/// RFC-BPR-0126 AC04. Released before a crash or quit, and whether
 			/// the agent took it is not known: offered Discard.
 			bool Uncertain = false;
+			/// RFC-BPR-0126 AC08 ([[BPR-2152]]). Steered into the running turn
+			/// and acknowledged by the agent's runtime: shown as Sent to agent
+			/// until the run's end settles it.
+			bool Sent = false;
 		};
 		/// \brief What the pending list's controls ask of the session's queue.
 		struct queue_dispatch

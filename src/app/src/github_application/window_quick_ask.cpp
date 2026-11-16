@@ -40,6 +40,16 @@ namespace bpr::app {
 		}
 	} // namespace
 
+	auto github_application::implementation::steer_shown() -> application::agent_queue_steer_done
+	{
+		return [this, weak = std::weak_ptr<const int>{ WindowLifetime }](const application::agent_queue_steer_result& aResult) {
+			if (weak.expired() || Closing || Window == nullptr) {
+				return;
+			}
+			Window->agent_panel()->refuse(aResult.Sent ? std::string{ application::agent_steered_words } : aResult.Why);
+		};
+	}
+
 	void github_application::implementation::bind_quick_ask()
 	{
 		if (Window == nullptr || Window->agent_tab() == nullptr) {
@@ -90,11 +100,9 @@ namespace bpr::app {
 				if (Closing || Window == nullptr || !AgentQueue || ask_session_key().empty()) {
 					return;
 				}
-				const auto steered = AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen);
-				if (steered.Refused != core::queue_refusal::none) {
+				// [[BPR-2152]]. The outcome comes once the claim is stored.
+				if (AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen, steer_shown()) != core::queue_refusal::none) {
 					Window->agent_panel()->refuse("Another window changed this queue first, so nothing changed here.");
-				} else {
-					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
 				}
 			},
 			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen) {
@@ -131,9 +139,7 @@ namespace bpr::app {
 				return false;
 			}
 			if (const auto* const queue = AgentQueue->queue(session); aSteer && queue != nullptr && !queue->Entries.empty()) {
-				if (const auto steered = AgentQueue->steer(session, queue->Entries.back().Id); steered.Refused == core::queue_refusal::none) {
-					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
-				}
+				static_cast<void>(AgentQueue->steer(session, queue->Entries.back().Id, std::nullopt, steer_shown()));
 			}
 			observe_ask_queue(false);
 			return true;
@@ -616,6 +622,7 @@ namespace bpr::app {
 			: aQueue.Paused == core::queue_pause::stopped             ? QStringLiteral("Paused: Stop all")
 			: aQueue.Paused == core::queue_pause::failed              ? QStringLiteral("Paused: a run failed")
 			: aQueue.Paused == core::queue_pause::usage_limit         ? QStringLiteral("Paused: the agent's usage limit")
+				.Sent      = entry.State == core::queued_state::sent,
 			: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
 			: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
 			: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")

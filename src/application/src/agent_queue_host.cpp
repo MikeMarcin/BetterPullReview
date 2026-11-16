@@ -76,6 +76,40 @@ namespace bpr::application {
 		return kept;
 	}
 
+	void agent_queue_host::commit_then(const std::string& aSession, std::function<void(bool)> aThen)
+	{
+		if (Dependencies.Store != nullptr && Dependencies.Effects != nullptr && Dependencies.DecisionLane != nullptr) {
+			// The serial lane keeps every earlier write of the session ahead of
+			// this one; its verdict comes back to the decision lane.
+			show(aSession);
+			notify_waiting();
+			try {
+				Dependencies.Effects->post([store = Dependencies.Store, lane = Dependencies.DecisionLane, alive = std::weak_ptr<bool>{ Alive }, aSession, queue = Queues[aSession], then = std::move(aThen)] {
+					const auto kept = store->store(aSession, queue);
+					try {
+						lane->post([alive, then, kept] {
+							if (const auto live = alive.lock(); live && *live) {
+								then(kept);
+							}
+						});
+					} catch (...) {
+						// A closed lane: the profile is going; nothing is written
+						// to an agent, and the stored claim reads as uncertain.
+					}
+				});
+			} catch (...) {
+				// A closed lane takes no more writes: nothing was kept, so
+				// nothing may be written to an agent.
+				aThen(false);
+			}
+			return;
+		}
+		const auto kept = Dependencies.Store == nullptr || Dependencies.Store->store(aSession, Queues[aSession]);
+		show(aSession);
+		notify_waiting();
+		aThen(kept);
+	}
+
 	void agent_queue_host::notify_waiting()
 	{
 		const auto waiting = queued_count();
@@ -135,7 +169,8 @@ namespace bpr::application {
 	}
 
 	/// The host's one decision: the session's next message goes when its
-	/// queue allows it and its agent can take a turn.
+	/// queue allows it and its agent can take a turn. [[BPR-2152]] (AC06):
+	/// the exact entry is claimed and stored before its turn starts.
 	void agent_queue_host::drain(const std::string& aSession)
 	{
 		if (Dependencies.Runner == nullptr || Draining) {
@@ -146,32 +181,60 @@ namespace bpr::application {
 			return;
 		}
 		const auto next = core::next_release(queue, Dependencies.Runner->state(aSession));
-		if (!next || core::mark_sending(queue, *next) != core::queue_refusal::none) {
+		if (!next || core::claim(queue, *next, core::queued_claim{ .Conversation = Dependencies.Runner->bound(aSession).Conversation }, queue.Revision) != core::queue_refusal::none) {
 			return;
 		}
 		Sending[aSession] = *next;
-		commit(aSession);
-		const auto entry = std::ranges::find(Queues[aSession].Entries, *next, &core::queued_entry::Id);
+		commit_then(aSession, [this, aSession, id = *next](const bool aKept) { start_claimed(aSession, id, aKept); });
+	}
+
+	void agent_queue_host::start_claimed(const std::string& aSession, const std::uint64_t aId, const bool aKept)
+	{
+		const auto still = Sending.find(aSession);
+		if (still == Sending.end() || still->second != aId) {
+			return;
+		}
+		auto&      queue = Queues[aSession];
+		const auto entry = std::ranges::find(queue.Entries, aId, &core::queued_entry::Id);
+		if (entry == queue.Entries.end() || entry->State != core::queued_state::sending) {
+			Sending.erase(still);
+			return;
+		}
+		// Nothing was written yet: a claim not kept, a queue stopped (Stop
+		// all, a lost access) or an agent taken while it was stored leaves it
+		// unsent, first. Pause queue stops what comes after it, not the
+		// message already shown as Sending.
+		const auto recalled = queue.Paused != core::queue_pause::none && queue.Paused != core::queue_pause::reviewer;
+		if (!aKept || recalled || Dependencies.Runner == nullptr || Dependencies.Runner->state(aSession) != core::queue_agent::idle) {
+			Sending.erase(still);
+			static_cast<void>(core::finish(queue, aId, aKept ? core::queued_finish::not_taken : core::queued_finish::refused));
+			commit(aSession);
+			return;
+		}
 		// A copy: starting the turn may change the queue it came from.
-		const auto released = entry != Queues[aSession].Entries.end() ? std::optional{ *entry } : std::nullopt;
+		const auto released = *entry;
 		// A runner that answers `agent_changed` synchronously must not start
 		// a second turn inside this one.
 		Draining             = true;
-		const auto admission = released ? Dependencies.Runner->start(aSession, *released) : queued_admission{ };
+		const auto admission = Dependencies.Runner->start(aSession, released);
 		Draining             = false;
 		// AC03: a started or awaiting release is settled by its own run's
 		// retirement (`retired`), which may already have come.
 		if (admission.Kind == queued_admission_kind::started || admission.Kind == queued_admission_kind::awaiting) {
+			if (const auto now = Sending.find(aSession); now != Sending.end() && now->second == aId && core::bind_run(Queues[aSession], aId, admission.Run) == core::queue_refusal::none) {
+				// The receipt: the claim names its run.
+				commit(aSession);
+			}
 			return;
 		}
-		const auto still = Sending.find(aSession);
-		if (still == Sending.end() || still->second != *next) {
+		const auto after = Sending.find(aSession);
+		if (after == Sending.end() || after->second != aId) {
 			return;
 		}
-		Sending.erase(still);
+		Sending.erase(after);
 		// Answered with no run, it went; refused, it goes back first and the
 		// queue pauses so the reviewer sees why.
-		static_cast<void>(core::finish(Queues[aSession], *next, admission.Kind == queued_admission_kind::answered ? core::queued_finish::went : core::queued_finish::refused));
+		static_cast<void>(core::finish(Queues[aSession], aId, admission.Kind == queued_admission_kind::answered ? core::queued_finish::went : core::queued_finish::refused));
 		commit(aSession);
 		if (admission.Kind == queued_admission_kind::answered) {
 			drain(aSession);
@@ -273,29 +336,81 @@ namespace bpr::application {
 		}
 	}
 
-	auto agent_queue_host::steer(const std::string& aSession, const std::uint64_t aId, const std::optional<std::uint64_t> aSeen) -> agent_queue_steer_result
+	auto agent_queue_host::steer(const std::string& aSession, const std::uint64_t aId, const std::optional<std::uint64_t> aSeen, agent_queue_steer_done aDone) -> core::queue_refusal
 	{
-		auto result    = agent_queue_steer_result{ };
-		result.Refused = hold(aSession, aId, aSeen);
-		if (result.Refused != core::queue_refusal::none) {
-			return result;
+		auto&      queue   = Queues[aSession];
+		auto       bound   = Dependencies.Runner != nullptr ? Dependencies.Runner->bound(aSession) : core::queued_claim{ };
+		const auto refused = core::claim(queue, aId, core::queued_claim{ .Route = core::queued_route::steer, .Run = bound.Run, .Conversation = bound.Conversation }, aSeen.value_or(queue.Revision));
+		if (refused != core::queue_refusal::none) {
+			return refused;
 		}
-		const auto& entries = Queues[aSession].Entries;
-		const auto  entry   = std::ranges::find(entries, aId, &core::queued_entry::Id);
-		auto        offered = entry != entries.end() ? std::optional{ *entry } : std::nullopt;
-		auto        why     = std::optional<std::string>{ "This message can't steer the running turn, so it goes next." };
-		if (offered && Dependencies.Runner != nullptr) {
-			why = Dependencies.Runner->steer(aSession, *offered);
+		commit_then(aSession, [this, aSession, aId, done = std::move(aDone)](const bool aKept) { offer_claimed(aSession, aId, aKept, done); });
+		return refused;
+	}
+
+	void agent_queue_host::offer_claimed(const std::string& aSession, const std::uint64_t aId, const bool aKept, const agent_queue_steer_done& aDone)
+	{
+		auto&      queue = Queues[aSession];
+		const auto entry = std::ranges::find(queue.Entries, aId, &core::queued_entry::Id);
+		if (entry == queue.Entries.end() || entry->State != core::queued_state::sending || !entry->Claim || entry->Claim->Route != core::queued_route::steer) {
+			return;
 		}
-		static_cast<void>(release_hold(aSession, aId, std::nullopt));
+		auto why = std::optional<std::string>{ "This message couldn't be saved before steering, so it wasn't sent. It goes next." };
+		if (aKept) {
+			why = std::optional<std::string>{ "This message can't steer the running turn, so it goes next." };
+			if (Dependencies.Runner != nullptr) {
+				// A copy: the offer may answer at once and change the queue.
+				const auto offered = *entry;
+				why                = Dependencies.Runner->steer(aSession, offered);
+			}
+		}
+		auto result = agent_queue_steer_result{ };
 		if (!why) {
-			// It went into the running turn: it leaves the queue.
-			result.Sent = withdraw(aSession, aId) == core::queue_refusal::none;
-			return result;
+			// Handed to the turn: it stays Sending until the runtime says it
+			// was written, then Sent until the run's end settles it.
+			result.Sent = true;
+		} else {
+			// Nothing was written: it goes next, with its identity.
+			const auto now = std::ranges::find(Queues[aSession].Entries, aId, &core::queued_entry::Id);
+			if (now != Queues[aSession].Entries.end() && now->State == core::queued_state::sending && core::return_unsent(Queues[aSession], aId) == core::queue_refusal::none) {
+				commit(aSession);
+			}
+			result.Why = std::move(*why);
 		}
-		static_cast<void>(reorder(aSession, aId, -static_cast<int>(core::maximum_queued_inputs)));
-		result.Why = std::move(*why);
-		return result;
+		if (aDone) {
+			aDone(result);
+		}
+	}
+
+	void agent_queue_host::steer_answered(const std::string& aSession, const std::uint64_t aId, const bool aWritten, std::string aReceipt)
+	{
+		const auto found = Queues.find(aSession);
+		if (found == Queues.end()) {
+			return;
+		}
+		const auto entry = std::ranges::find(found->second.Entries, aId, &core::queued_entry::Id);
+		if (entry == found->second.Entries.end() || entry->State != core::queued_state::sending || !entry->Claim || entry->Claim->Route != core::queued_route::steer) {
+			// A late answer, or one for a record already settled: nothing.
+			return;
+		}
+		const auto refused = aWritten ? core::acknowledge(found->second, aId, std::move(aReceipt)) : core::return_unsent(found->second, aId);
+		if (refused == core::queue_refusal::none) {
+			commit(aSession);
+			drain(aSession);
+		}
+	}
+
+	void agent_queue_host::settle_steers(const std::string& aSession, const std::uint64_t aRun, const std::vector<core::steered_settlement>& aEndings)
+	{
+		const auto found = Queues.find(aSession);
+		if (found == Queues.end()) {
+			return;
+		}
+		const auto before = found->second.Revision;
+		core::settle_steers(found->second, aRun, aEndings);
+		if (found->second.Revision != before) {
+			commit(aSession);
+		}
 	}
 
 	void agent_queue_host::agent_changed(const std::string& aSession) { drain(aSession); }

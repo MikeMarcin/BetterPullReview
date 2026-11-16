@@ -2356,7 +2356,17 @@ namespace {
 			input.NativeScope         = "agent-tab";
 			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
 			test.settle();
-			auto queue    = application::agent_queue_host{ { } };
+			// [[BPR-2152]]. The queue host claims the message and stores it
+			// before its runner hands it to the runtime's Steer.
+			struct steering_runner final : public application::agent_turn_runner_port
+			{
+				auto                                                                                     state(const std::string&) -> core::queue_agent override { return core::queue_agent::busy; }
+				auto                                                                                     start(const std::string&, const core::queued_entry&) -> application::queued_admission override { return { }; }
+				auto                                                                                     steer(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> override { return Steer(aSession, aEntry); }
+				std::function<std::optional<std::string>(const std::string&, const core::queued_entry&)> Steer;
+			};
+			auto runner   = steering_runner{ };
+			auto queue    = application::agent_queue_host{ { .Runner = &runner } };
 			auto shown    = std::optional<application::agent_invocation_projection_identity>{ };
 			auto returned = std::vector<std::string>{ };
 			auto steer    = application::agent_runtime_steer({
@@ -2366,6 +2376,7 @@ namespace {
 				.Shown    = [&shown] { return shown; },
 				.Returned = [&returned](const std::string&, const std::string& aWhy) { returned.push_back(aWhy); },
 			});
+			runner.Steer  = steer;
 			auto answers  = std::vector<std::optional<std::string>>{ };
 			expect(queue.enqueue("s", core::queued_input{ .Scope = "message", .Label = "first", .Text = "Look at b.cpp instead" }) == core::queue_refusal::none
 					   && queue.enqueue("s", core::queued_input{ .Scope = "message", .Label = "other", .Text = "Then the tests" }) == core::queue_refusal::none,
@@ -2376,23 +2387,27 @@ namespace {
 				test.Processes.SteerAnswer = { .Disposition = core::agent_steer_disposition::unsent, .Support = core::agent_steer_support::not_running };
 			}
 			test.Processes.AfterStart = [&] {
-				shown = test.Projection.AdmittedIdentities.back();
-				answers.push_back(steer("s", first));
+				shown       = test.Projection.AdmittedIdentities.back();
+				auto handed = std::optional<application::agent_queue_steer_result>{ };
+				expect(queue.steer("s", first.Id, std::nullopt, [&handed](const application::agent_queue_steer_result& aResult) { handed = aResult; }) == core::queue_refusal::none, "Steer is pressed");
+				answers.push_back(handed && handed->Sent ? std::nullopt : std::optional{ handed ? handed->Why : std::string{ "not told" } });
 				answers.push_back(steer("s", core::queued_entry{ .Id = 99U, .Input = core::queued_input{ .QuickAsk = "explain" } }));
 			};
 			test.Host.dispatch(input);
 			test.settle();
 			expect(answers.size() == 3U && answers[0] && answers[0]->starts_with(core::agent_steer_unavailable_words(core::agent_steer_support::not_running)) && answers[0]->ends_with("The message goes next, right after this answer."),
 				   "with no run shown, the words say why and that it goes next");
-			expect(!answers[1], "the shown run takes it: none, so the host removes it");
+			expect(!answers[1], "the shown run takes it");
 			expect(answers[2] && answers[2]->starts_with("A quick ask is written when it is sent"), "a quick ask can't steer");
 			expect(test.Processes.Steered.size() == 1U && test.Processes.Steered.front().Text == "Look at b.cpp instead", "only the typed message reached the turn, once");
 			if (late) {
 				const auto& entries = queue.queue("s")->Entries;
 				expect(returned.size() == 1U && returned.front().starts_with(core::agent_steer_unavailable_words(core::agent_steer_support::not_running)), "an unsent hand-off says why");
-				expect(entries.size() == 3U && entries.front().Input.Text == "Look at b.cpp instead", "and the message is back, first in line, never lost");
+				expect(entries.size() == 2U && entries.front().Id == first.Id && entries.front().State == core::queued_state::queued, "and the same message is back, first in line, never lost or duplicated");
 			} else {
-				expect(returned.empty() && queue.queue("s")->Entries.size() == 2U, "a sent hand-off gives nothing back (the host removes it)");
+				const auto& entries = queue.queue("s")->Entries;
+				expect(returned.empty() && entries.size() == 2U && entries.front().State == core::queued_state::sent && entries.front().Claim && !entries.front().Claim->Receipt.empty(),
+					   "a written hand-off is Sent under its input identity until its run settles it ([[BPR-2152]])");
 			}
 		}
 	}

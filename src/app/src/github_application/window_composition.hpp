@@ -841,9 +841,12 @@ namespace bpr::app {
 		/// when a message goes.
 		decltype(github_profile_runtime::AgentQueueStore)& AgentQueueStore = Profile->AgentQueueStore;
 		decltype(github_profile_runtime::AgentQueue)&      AgentQueue      = Profile->AgentQueue;
-		decltype(github_profile_runtime::AgentRunner)&     AgentRunner     = Profile->AgentRunner;
-		std::optional<std::uint64_t>                       AgentQueueSubscriber;
-		std::optional<std::uint64_t>                       AgentRuntime;
+		/// \brief [[BPR-2152]]. Shows what a Steer did in this window's Agent
+		/// tab, once its claim was stored; nothing once the window closed.
+		[[nodiscard]] auto                             steer_shown() -> application::agent_queue_steer_done;
+		decltype(github_profile_runtime::AgentRunner)& AgentRunner = Profile->AgentRunner;
+		std::optional<std::uint64_t>                   AgentQueueSubscriber;
+		std::optional<std::uint64_t>                   AgentRuntime;
 		/// The Agent tab's turn has retired (the host's retirement event):
 		/// settles the message the runner started here, then lets the queue
 		/// go on.

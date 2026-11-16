@@ -454,6 +454,11 @@ namespace bpr::application {
 		agent_native_connection_port* NativeConnection = nullptr;
 		/// Durably stores a newly observed handle before the question is written.
 		std::shared_ptr<std::function<bool(const std::string&)>> SaveNativeHandle;
+		/// [[BPR-2152]] (AC06). How long a run whose answer left a correction
+		/// open waits for the successor turn's first frame before the
+		/// correction is unknown and the run ends: a dropped correction never
+		/// holds the run, or its workspace lease, indefinitely.
+		int SteerSuccessorMilliseconds = 30'000;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -1058,6 +1063,15 @@ namespace bpr::application {
 		/// is overdue: each is unknown (never resent, the connection retired),
 		/// and an answer that still arrives is read past.
 		void expire_steer_replies() noexcept;
+		/// \brief [[BPR-2152]] (AC06). Claude answered while a correction
+		/// was open and said input waits for another turn, and that successor
+		/// has not yet sent a frame: the run is held for it.
+		[[nodiscard]] auto awaiting_successor() const noexcept -> bool;
+		/// \brief [[BPR-2152]] (AC06). The successor never came (a hook or
+		/// the runtime dropped the correction): every open correction is
+		/// unknown, never resent, and the turn ends on the answer it gave, so
+		/// the connection is retired and the run releases its lease.
+		void abandon_successor() noexcept;
 		/// \brief The Claude Code version this connection reported, kept across
 		/// its turns; empty when it reported none.
 		[[nodiscard]] auto observed_tool_version() const -> std::string;
@@ -1077,6 +1091,9 @@ namespace bpr::application {
 		/// Claude's last result said input waits for another turn
 		/// (`queued_turn_count` above zero).
 		bool QueuedTurns = false;
+		/// [[BPR-2152]]. The run waits on a successor turn for an open
+		/// correction, and none of its frames has arrived yet.
+		bool SuccessorAwaited = false;
 
 		[[nodiscard]] auto retain_output(std::vector<agent_protocol_event>&) -> bool;
 		[[nodiscard]] auto frame_limit() const noexcept -> std::size_t;

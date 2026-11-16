@@ -8,18 +8,6 @@ namespace bpr::application {
 		constexpr auto goes_next = std::string_view{ " The message goes next, right after this answer." };
 		constexpr auto quick_ask = std::string_view{ "A quick ask is written when it is sent, so it can't steer." };
 
-		/// Gives an unsent correction back to its session's queue, first in
-		/// line, under a new identity: it left the queue when it was handed
-		/// off.
-		void give_back(agent_queue_host& aQueue, const std::string& aSession, core::queued_input aInput)
-		{
-			if (aQueue.enqueue(aSession, std::move(aInput)) != core::queue_refusal::none) {
-				return;
-			}
-			if (const auto* const queue = aQueue.queue(aSession); queue != nullptr && !queue->Entries.empty()) {
-				static_cast<void>(aQueue.reorder(aSession, queue->Entries.back().Id, -static_cast<int>(core::maximum_queued_inputs)));
-			}
-		}
 	} // namespace
 
 	auto agent_steer_goes_next_words(const core::agent_steer_support aSupport) -> std::string
@@ -41,11 +29,18 @@ namespace bpr::application {
 			if (const auto support = binding.Support(*shown); support != core::agent_steer_support::available) {
 				return agent_steer_goes_next_words(support);
 			}
-			binding.Steer(*shown, aEntry.Input.Text, [binding, aSession, input = aEntry.Input](const agent_steer_receipt& aReceipt) {
-				if (aReceipt.Disposition == core::agent_steer_disposition::sent || binding.Queue == nullptr) {
+			binding.Steer(*shown, aEntry.Input.Text, [binding, aSession, id = aEntry.Id](const agent_steer_receipt& aReceipt) {
+				if (binding.Queue == nullptr) {
 					return;
 				}
-				give_back(*binding.Queue, aSession, input);
+				// [[BPR-2152]] (AC06). The answer updates only the record it
+				// was claimed as: written, it is Sent under its input
+				// identity; otherwise it goes back first, never resent.
+				const auto written = aReceipt.Disposition == core::agent_steer_disposition::sent;
+				binding.Queue->steer_answered(aSession, id, written, aReceipt.Identity);
+				if (written) {
+					return;
+				}
 				if (binding.Returned) {
 					const auto why = aReceipt.Disposition == core::agent_steer_disposition::refused ? std::string{ "The agent refused the correction for this turn." } + std::string{ goes_next }
 																									: agent_steer_goes_next_words(aReceipt.Support);

@@ -1230,6 +1230,33 @@ namespace {
 		expect(result.SteerDeliveryUnknown && result.Outcome == application::agent_run_outcome::success, "the run's result says delivery is unknown, so a queue can pause on it");
 	}
 
+	/// [[BPR-2152]] (AC06). Claude answered with a correction open and said
+	/// input waits for another turn, and the successor never came (a hook
+	/// dropped it): past the bound the run ends on its answer, the correction
+	/// is unknown, and the connection is retired and its process ended, so
+	/// the run does not hold its workspace lease. Nothing is resent.
+	void test_a_dropped_correction_cannot_hold_the_run()
+	{
+		auto port                           = steering_connection{ };
+		auto wire                           = fake_transport{ };
+		auto launched                       = request(core::agent_protocol::claude_stream_json);
+		launched.Run                        = core::agent_run_id{ 9U };
+		launched.NativeConversation         = "steered";
+		launched.NativeConnection           = &port;
+		launched.SteerSuccessorMilliseconds = 0;
+		port.wait_with(core::agent_run_id{ 9U }, "Look at b.cpp instead");
+		wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = claude_init("2.1.319") + claude_tool_use() });
+		wire.Output.push_back({ });
+		wire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
+		wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = claude_answer("m2", "Answer.") + claude_result("r1", "\"first\"", "1", "0.0040") });
+		wire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
+		wire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
+		const auto result = run_agent_protocol_loop(launched, { }, wire);
+		expect(result.Outcome == application::agent_run_outcome::success && result.Steers == core::agent_steer_tally{ .Unknown = 1U } && result.SteerDeliveryUnknown,
+			   "the run ends on its answer and its correction is unknown");
+		expect(port.Retired && wire.TerminateCount == 1U && wire.Writes.size() == 2U, "the connection is retired and its process ended; nothing is resent");
+	}
+
 	void test_unqualified_or_other_runs_are_never_written()
 	{
 		auto       port   = steering_connection{ };
@@ -1367,6 +1394,7 @@ int main()
 	test_claude_takes_a_correction_after_its_tool_call();
 	test_a_successor_turn_stays_in_the_run_and_counts_once();
 	test_an_unreconciled_correction_is_unknown_and_retires();
+	test_a_dropped_correction_cannot_hold_the_run();
 	test_unqualified_or_other_runs_are_never_written();
 	test_app_server_steers_the_expected_turn();
 	test_uuidless_terminal_retires_before_selecting_another_question();

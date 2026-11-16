@@ -104,6 +104,41 @@ namespace bpr::core {
 	/// \brief The same pull request's session of another kind.
 	[[nodiscard]] auto with_kind(queued_session aSession, queued_session_kind aKind) -> queued_session;
 
+	/// \brief [[BPR-2152]] (AC06). How a claimed entry goes to the agent.
+	enum class queued_route : std::uint8_t {
+		/// Released as the session's next turn.
+		release,
+		/// Steered into the running turn.
+		steer,
+	};
+	[[nodiscard]] auto stable_name(queued_route aRoute) noexcept -> std::string_view;
+
+	/// \brief [[BPR-2152]] (AC06). What a claimed entry is bound to, kept
+	/// with it before any byte of it is written: the route, the BPR run it
+	/// goes to (for Steer, the run whose turn it corrects; for a release,
+	/// the run it was admitted as, once known), the native conversation
+	/// (BPR's agent session) when one is known, and, once the runtime
+	/// acknowledged a correction, the input identity it was written under.
+	/// It keeps an uncertain entry identifiable after a crash.
+	/// \brief The longest input identity a claim keeps.
+	inline constexpr std::size_t maximum_claim_receipt_bytes = 128U;
+
+	struct queued_claim
+	{
+		queued_route  Route        = queued_route::release;
+		std::uint64_t Run          = 0U;
+		std::uint64_t Conversation = 0U;
+		/// The written input's identity (a correction's UUID); empty until
+		/// the runtime acknowledged it.
+		std::string Receipt;
+
+		auto operator<=>(const queued_claim&) const = default;
+	};
+	/// \brief A claim as the store keeps it in one text column, and read
+	/// back; a value this did not write reads as none.
+	[[nodiscard]] auto encode_queued_claim(const queued_claim& aClaim) -> std::string;
+	[[nodiscard]] auto decode_queued_claim(std::string_view aText) -> std::optional<queued_claim>;
+
 	struct queued_entry
 	{
 		std::uint64_t Id = 0U;
@@ -111,6 +146,9 @@ namespace bpr::core {
 		queued_state  State = queued_state::queued;
 		/// An edit holds it: never sent and never skipped (Q9).
 		bool Held = false;
+		/// [[BPR-2152]]. Set when it was claimed (Sending) and kept while it
+		/// is sent or uncertain.
+		std::optional<queued_claim> Claim;
 
 		auto operator<=>(const queued_entry&) const = default;
 	};
@@ -196,6 +234,44 @@ namespace bpr::core {
 	[[nodiscard]] auto next_release(const agent_queue& aQueue, queue_agent aAgent) -> std::optional<std::uint64_t>;
 	/// \brief The host claimed `aId` and is about to start its turn.
 	[[nodiscard]] auto mark_sending(agent_queue& aQueue, std::uint64_t aId) -> queue_refusal;
+	/// \brief [[BPR-2152]] (AC06). Claims the exact entry `aId`, as of
+	/// revision `aFrom`, for `aClaim`'s route: it becomes Sending, bound to
+	/// the claim, and is no longer eligible for release, edit or removal. A
+	/// release claims only an entry that is not held; a Steer claims a
+	/// waiting entry whether held or not (the press takes it from its
+	/// editor). The host writes nothing to the agent until this is stored.
+	[[nodiscard]] auto claim(agent_queue& aQueue, std::uint64_t aId, queued_claim aClaim, std::uint64_t aFrom) -> queue_refusal;
+	/// \brief [[BPR-2152]] (AC06). The run `aRun` was admitted for the
+	/// released entry `aId`: its claim names that run.
+	[[nodiscard]] auto bind_run(agent_queue& aQueue, std::uint64_t aId, std::uint64_t aRun) -> queue_refusal;
+	/// \brief [[BPR-2152]] (AC06). The runtime acknowledged the correction
+	/// `aId` as written, under the input identity `aReceipt`: it is Sent.
+	[[nodiscard]] auto acknowledge(agent_queue& aQueue, std::uint64_t aId, std::string aReceipt) -> queue_refusal;
+
+	/// \brief [[BPR-2152]] (AC06). How one correction of a run ended, by the
+	/// input identity it was written under.
+	enum class steered_ending : std::uint8_t {
+		/// The runtime named it as taken.
+		consumed,
+		/// Proven not taken (never written, or refused without consuming it).
+		not_taken,
+		/// Written, and never reconciled.
+		unknown,
+	};
+	struct steered_settlement
+	{
+		std::string    Receipt;
+		steered_ending Ending = steered_ending::unknown;
+
+		auto operator<=>(const steered_settlement&) const = default;
+	};
+	/// \brief [[BPR-2152]] (AC06). The run `aRun` ended: each correction
+	/// claimed for it settles by its receipt. Consumed, it leaves the queue;
+	/// not taken, it goes back first among the unsent with its identity; any
+	/// other written correction (unknown, or one the run's result never
+	/// named) stays as Delivery unknown and pauses the queue. A correction
+	/// still awaiting its acknowledgment is left for it. Nothing is resent.
+	void settle_steers(agent_queue& aQueue, std::uint64_t aRun, const std::vector<steered_settlement>& aEndings);
 	/// \brief [[BPR-2181]]. The turn released for `aId` never took it (it did
 	/// not start, or a window close stopped it before the agent answered):
 	/// it is queued again, first among the unsent, and the queue is not
@@ -223,6 +299,10 @@ namespace bpr::core {
 		/// it (its material could not be read, the agent refused the send):
 		/// it goes back first and the queue pauses as failed.
 		refused,
+		/// [[BPR-2152]] (AC06). The run may have been given the message but
+		/// ended with no sign the agent took it (it failed before any
+		/// output): Delivery unknown, kept identifiable, and the queue pauses.
+		unknown,
 	};
 	[[nodiscard]] auto stable_name(queued_finish aFinish) noexcept -> std::string_view;
 	/// \brief The pause a finish puts on what remains: none when the message
@@ -240,8 +320,8 @@ namespace bpr::core {
 	/// queue stays paused until the reviewer resumes it. Refused from an older
 	/// revision, for an unknown entry, or for one that is not uncertain.
 	[[nodiscard]] auto discard_uncertain(agent_queue& aQueue, std::uint64_t aId, std::uint64_t aFrom) -> queue_refusal;
-	/// \brief A restored queue opens paused; a sending entry becomes
-	/// uncertain.
+	/// \brief A restored queue opens paused; a sending or sent entry becomes
+	/// uncertain, with its claim ([[BPR-2152]]): nothing is resent.
 	void restore(agent_queue& aQueue);
 
 	/// \brief RFC-BPR-0126 AC10 ([[BPR-2181]]). What Return does with a

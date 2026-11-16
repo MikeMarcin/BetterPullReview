@@ -3144,7 +3144,9 @@ namespace bpr::qt {
 			auto* const row   = new queue_card{ id, !entry.Sending && !entry.Held, move, drop, QueueList };
 			row->setProperty("agentQueueId", QVariant::fromValue<qulonglong>(entry.Id));
 			row->setAccessibleName(tr("Queued %1 of %2: %3").arg(index + 1U).arg(aRows.size()).arg(entry.Label));
-			row->setAccessibleDescription(entry.Sending ? tr("Sending") : tr("Drag, or Option-Up and Option-Down, to reorder; Delete removes it"));
+			row->setAccessibleDescription(entry.Uncertain ? tr("Delivery unknown") : entry.Sent ? tr("Sent to agent")
+											  : entry.Sending                                   ? tr("Sending")
+																								: tr("Drag, or Option-Up and Option-Down, to reorder; Delete removes it"));
 			auto* const line = new QHBoxLayout{ row };
 			line->setContentsMargins(22, 3, 2, 3);
 			line->setSpacing(0);
@@ -3204,7 +3206,9 @@ namespace bpr::qt {
 				line->addWidget(discard);
 			} else if (entry.Sending) {
 				line->addSpacing(6);
-				auto* const sending = new QLabel{ tr("Sending"), row };
+				// RFC-BPR-0126: Sent means the agent's runtime took the
+				// correction, not that the agent acted on it.
+				auto* const sending = new QLabel{ entry.Sent ? tr("Sent to agent") : tr("Sending"), row };
 				sending->setObjectName(QStringLiteral("agentQueueSending"));
 				apply_agent_accent(*sending, palette());
 				line->addWidget(sending);
