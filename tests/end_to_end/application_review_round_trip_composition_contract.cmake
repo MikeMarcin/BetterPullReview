@@ -3809,8 +3809,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# queue host stored the message's claim (steer_shown), and the pending
 	# list shows a correction the agent took as Sent to agent. No review
 	# mutation or submission path changed.
+	# [[BPR-2189]] reseal (RFC-BPR-0120): a local draft's check runs in a
+	# check copy under the agents' scratch root with the draft's grants, its
+	# report opens in a file tab and its links open the checked candidate;
+	# the tests-on look stage --attended-local-draft-check. No review
+	# mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "71e1e543b8343b41f289f8b668f220a7a6028233161c66ca811da653823106b2"
+        "69855406d1847cf5e9847bb41977918baa7c232eeed0a472e23a61cffc6f287a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
