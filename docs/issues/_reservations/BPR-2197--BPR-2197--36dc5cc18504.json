@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2197"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "The mode switcher folds to icons on every platform (accepted design windows-title-fit-v2)",
+  "created": "2026-11-16T00:19:18.225447+00:00",
+  "base": "9d3ff6bad84a103717acdbde21f8d199b7f23bca"
+}
