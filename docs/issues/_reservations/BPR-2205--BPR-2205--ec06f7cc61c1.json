@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2205"
+  ],
+  "reserve_for": "bpr-2200-main-baseline",
+  "purpose": "Windows Qt courses failing on main as well as the lane (BPR-2200 baseline)",
+  "created": "2026-11-16T04:01:03.137622+00:00",
+  "base": "4efe6306a439b6804381773832d223356853038d"
+}

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2203"
 title: "On Windows at 125%, the open thread's first line number reaches the light theme's text floor with Segoe UI 9 pt"
-status: "Ready"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -47,3 +47,27 @@ As BPR-2200's card describes. Build
 `test_better_pull_review_qt_diff_workbench_tests`, then run
 `QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=1.25 BPR_EXPECTED_QT_SCALE=1.25 better_pull_review_qt_diff_workbench_tests.exe`
 and read the `marked-number` lines.
+
+## Settled: a genuine miss, fixed in the colour (2026-11-15)
+
+`source_pane::number_ink` darkens a marked number's ink until it reaches
+the text floor plus a margin, `number_blend_margin_hundredths`. The margin
+was 0.10, and the code says it exists so "the painted number still reaches"
+the floor. On line 11's ground (`#ebe2cf`), the gutter ink `#5b6570` is
+4.61:1. That is over 4.60, so the ink was kept, but the painted "11" in
+Segoe UI 9 pt at 125% reached only 4.45:1, because its thin stems cover no
+whole pixel. The painted number missed the floor the product promises, so
+the colour was at fault, not the measure. The floor (4.5:1) and the test
+are unchanged.
+
+Fix (`8a9bae143`): the margin is 0.30, so the ink is darkened until it has
+the room a thin numeral loses.
+
+## Verification
+
+- Windows station, Release, Segoe UI 9 pt, light at 125%: every marked row
+  now reads 4.65 to 4.86 (line 11: ink `#5c646f` painted, 4.65). The plain
+  line keeps the theme's `#5b6570`. `qt_diff_workbench_scale_100/125/200`
+  pass.
+- macOS `dev`: `qt_diff_workbench_scale_100/125/200` pass, including the
+  check that an unmarked number keeps the theme's gutter ink.

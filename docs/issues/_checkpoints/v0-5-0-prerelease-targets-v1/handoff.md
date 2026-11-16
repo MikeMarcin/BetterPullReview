@@ -4276,3 +4276,24 @@ Note: ctest already sets `QT_QPA_FONTDIR` on Windows (`BprTestIsolation.cmake`);
 only direct SSH runs lacked fonts.
 
 Next action: BPR-2201, BPR-2202 and BPR-2203, Windows station work.
+
+## BPR-2201, BPR-2202, BPR-2203 Done; BPR-2205 carded (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `f278c676f` | BPR-2201: `drawer_tab_bar::fold` announces the row's width whenever its hint changes, not only on a face change. A Tour tab shown with the face unchanged had left Overview's header holding the bar at 262 of 310 |
+| `9cf4cd705` | BPR-2202: test only. The comparison scrolls by the pixel; the drag's first line was under the pane's masked edge, so the press hit `documentTabBar`. Each course starts at the file's top and checks the line is in view |
+| `8a9bae143` | BPR-2203: `number_blend_margin_hundredths` 10 to 30. The painted thin "11" reached 4.45 from an ink of 4.61; it now paints 4.65 or more |
+| main `0550aed42` | Mirror; BPR-2205 (seven Qt courses failing on main too) |
+
+Station, Release, Segoe UI 9 pt: drawer-surfaces-fit, diff-workbench and
+window courses at 100%, 125% and 200%, plus line-draft, 10 of 10 pass. macOS:
+the same courses, `qt_drawer_parts_*`, the Overview and repositories drawers,
+and all 19 `qt_composed_*` pass. Main baseline: seven of the eight
+font-independent failures fail on main the same way (BPR-2205).
+`qt_source_search_panel_scale_1` passes on main, fails on main without fonts,
+and fails on the lane with Segoe UI. It is font-dependent and uncarded, for
+the coordinator to decide. Station scratch removed.
+
+Next action: BPR-2205 (Windows desktop ctest), and a decision on
+`qt_source_search_panel_scale_1`.
