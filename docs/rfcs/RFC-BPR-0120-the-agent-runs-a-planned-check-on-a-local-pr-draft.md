@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0120"
 title: "The agent runs a planned check on a local PR draft"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0005; rewritten 2026-11-15 without evidence at the owner's direction (\"Rewrite without evidence\")","inspected_revision":"775bd2d764e1651750d06e2ea798ea4d66934996","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"775bd2d764e1651750d06e2ea798ea4d66934996"}
 depends_on: ["RFC-BPR-0101", "RFC-BPR-0103", "RFC-BPR-0104", "RFC-BPR-0107", "RFC-BPR-0108", "RFC-BPR-0110", "RFC-BPR-0128"]
 ---
@@ -186,7 +186,9 @@ Each was accepted at its recommended default, which is now the design.
 
 ## Proposed delivery
 
-[Plan and run a check, and its report](../issues/40-parked/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
-and [closeout](../issues/10-backlog/BPR-2083-close-rfc-0120.md) form the
+[Plan and run a check, and its report](../issues/60-done/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
+and [closeout](../issues/60-done/BPR-2083-close-rfc-0120.md) form the
 fifth [milestone](plans/agent-assistance-v1/milestone-plan.json). The owner
-accepted the rewrite on 2026-11-15, and BPR-2189 is Ready.
+accepted the rewrite on 2026-11-15. Both cards are Done and every criterion
+passes, AC07 by the owner's four Accepts on 2026-11-16; the record is
+[RFC-BPR-0120 verification](../verification/RFC-BPR-0120.md).

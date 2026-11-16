@@ -2,10 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2189"
 title: "Plan and run a check on a local draft, and read its report"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0120"]
 depends_on: []
-parked_on: "human-review"
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2189--BPR-2189--1aa8242b9237.json","replaces":"BPR-2082 (closed as rejected with the evidence design)","owner_decision":{"date":"2026-11-15","quote":"Rewrite without evidence"},"owner_review":{"date":"2026-11-15","session":"ab74a8e490f235b4dd24fa66146a9f14","revision":"rfc-0120-rewrite-v001-baf674386","verdicts":"rewrite and Q1 to Q5 accepted at their defaults, no notes"}}
 ---
 
@@ -82,3 +81,19 @@ with 3 plans and 2 reports, fixture agent only; executable SHA-256
 `0e0b4e46bf80…`). Four Accept/Reject questions: `check-plan-card`,
 `check-passing-report`, `check-failing-report`, `check-older-candidate`.
 BPR-2083 stays open until they are accepted.
+
+## Owner look accepted (2026-11-16)
+
+Session `7a0e21ad68d16a7e91b1c3d0f45f6307` (local-draft-check-v001), handed
+back at sequence 21, frozen from `72955fd96cf4`. All four questions
+**Accepted**, no notes:
+
+| Candidate | Decision |
+|---|---|
+| `check-plan-card` | Accept (`c9352517`) |
+| `check-passing-report` | Accept (`e9f19161`) |
+| `check-failing-report` | Accept (`715a0419`) |
+| `check-older-candidate` | Accept (`230ad665`) |
+
+AC07 passes. The review host is stopped and the frozen root removed. Done;
+[BPR-2083](BPR-2083-close-rfc-0120.md) closes RFC-BPR-0120.

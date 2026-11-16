@@ -70,14 +70,12 @@ commands read "Ran `command`, exited N"), `0986111a5` (the look refreshes
 through `refresh_local_draft_for_look` and includes its edit), `72955fd96`
 (app manifest pin `6e5cfda4…`).
 
-## Pending
+## Closed (2026-11-16)
 
-- AC07 with the owner: attended session `7a0e21ad68d16a7e91b1c3d0f45f6307`,
-  state `/Users/jaeger/.attended-review-state/local-draft-check-v001-2026-11-16/state`,
-  cursor 12, frozen root `/Users/jaeger/local-draft-check-v001.hu1xgl14`.
-  Next: read `status --after 12`; on four Accepts move BPR-2189 to Done and
-  close BPR-2083 and RFC-BPR-0120; on a Reject, change and freeze a v002.
-- Incomplete freeze roots the tool will not remove (no marker):
-  `/Users/jaeger/local-draft-check-v001.o89_qw_w` and
-  `/Users/jaeger/local-draft-check-v001.spoiehlm` (both stopped mid-build;
-  the owner or a later round removes them).
+The owner accepted all four AC07 questions (session `7a0e21ad`, no notes).
+BPR-2189 and BPR-2083 are Done, RFC-BPR-0120 is Auto-Verified
+(`docs/verification/RFC-BPR-0120.md`). Review host stopped; frozen root
+`/Users/jaeger/local-draft-check-v001.hu1xgl14` removed with the tool.
+Left: two half-built roots without markers that the tool refuses,
+`/Users/jaeger/local-draft-check-v001.o89_qw_w` and
+`/Users/jaeger/local-draft-check-v001.spoiehlm`.
