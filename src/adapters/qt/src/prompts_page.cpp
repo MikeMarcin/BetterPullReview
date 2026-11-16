@@ -44,6 +44,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <span>
+#include <utility>
 
 namespace bpr::qt {
 	namespace {
@@ -78,6 +80,39 @@ namespace bpr::qt {
 		constexpr auto tour_surfaces = std::array{ prompt_surface::tour_stop, prompt_surface::tour_part, prompt_surface::whole_tour };
 
 		[[nodiscard]] auto index(const prompt_surface aSurface) -> std::size_t { return static_cast<std::size_t>(aSurface); }
+
+		// The Surfaces section's words, which Add to repeats so its groups say
+		// the surface the section shows them under.
+
+		/// \brief The panel a surface sits in: "Pull request", "Tour stop".
+		[[nodiscard]] auto surface_panel_name(const prompt_surface aSurface) -> QString
+		{
+			using enum prompt_surface;
+			switch (aSurface) {
+			case pull_request_menu:
+			case pull_request_chips: return prompts_page::tr("Pull request");
+			case file_menu:
+			case file_chips:         return prompts_page::tr("File");
+			case thread_menu:
+			case thread_chips:       return prompts_page::tr("Thread");
+			case tour_stop:          return prompts_page::tr("Tour stop");
+			case tour_part:          return prompts_page::tr("Tour part");
+			case whole_tour:         return prompts_page::tr("Whole tour");
+			}
+			return { };
+		}
+
+		/// \brief The list a surface is within its panel: "Ask menu" or
+		/// "Suggested chips".
+		[[nodiscard]] auto surface_list_name(const prompt_surface aSurface) -> QString
+		{
+			using enum prompt_surface;
+			const auto isMenu = aSurface == pull_request_menu || aSurface == file_menu || aSurface == thread_menu;
+			return isMenu ? prompts_page::tr("Ask menu") : prompts_page::tr("Suggested chips");
+		}
+
+		/// \brief The tour panels together, as Add to groups them.
+		[[nodiscard]] auto tour_group_name() -> QString { return prompts_page::tr("Tour"); }
 
 		[[nodiscard]] auto mime_of(const std::string& aId, const std::optional<prompt_surface> aFrom) -> QMimeData*
 		{
@@ -622,12 +657,11 @@ namespace bpr::qt {
 
 		auto* const scopes = new QHBoxLayout{ };
 		scopes->setSpacing(12);
-		const auto scopeNames = std::array{ tr("Pull request"), tr("File"), tr("Thread") };
-		for (std::size_t scope = 0U; scope < scope_surfaces.size(); ++scope) {
-			auto [frame, layout] = panel(scopeNames.at(scope));
-			addList(*layout, scope_surfaces.at(scope)[0], tr("Ask menu"), { });
+		for (const auto& scope : scope_surfaces) {
+			auto [frame, layout] = panel(surface_panel_name(scope[0]));
+			addList(*layout, scope[0], surface_list_name(scope[0]), { });
 			layout->addSpacing(4);
-			addList(*layout, scope_surfaces.at(scope)[1], tr("Suggested chips"), tr("up to 5 show"));
+			addList(*layout, scope[1], surface_list_name(scope[1]), tr("up to 5 show"));
 			layout->addStretch(1);
 			scopes->addWidget(frame, 1, Qt::AlignTop);
 		}
@@ -636,10 +670,9 @@ namespace bpr::qt {
 		// The owner, 2026-11-14: the tour chats get surfaces under the same model.
 		auto* const tours = new QHBoxLayout{ };
 		tours->setSpacing(12);
-		const auto tourNames = std::array{ tr("Tour stop"), tr("Tour part"), tr("Whole tour") };
-		for (std::size_t tour = 0U; tour < tour_surfaces.size(); ++tour) {
-			auto [frame, layout] = panel(tourNames.at(tour));
-			addList(*layout, tour_surfaces.at(tour), tr("Suggested chips"), tr("up to 5 show"));
+		for (const auto tour : tour_surfaces) {
+			auto [frame, layout] = panel(surface_panel_name(tour));
+			addList(*layout, tour, surface_list_name(tour), tr("up to 5 show"));
 			layout->addStretch(1);
 			tours->addWidget(frame, 1, Qt::AlignTop);
 		}
@@ -2080,18 +2113,39 @@ namespace bpr::qt {
 	void prompts_page::fill_add_to(QMenu& aMenu, const std::string& aId)
 	{
 		aMenu.setToolTipsVisible(true);
-		const auto group = [&](const QString& aTitle, const std::initializer_list<std::pair<prompt_surface, QString>> aSurfaces) {
-			aMenu.addSection(aTitle);
-			for (const auto& [surface, name] : aSurfaces) {
-				const auto  on      = std::ranges::find(View.Surfaces.Lists.at(index(surface)), aId) != View.Surfaces.Lists.at(index(surface)).end();
+		// The owner, 2026-11-15: "there's no information on where we're adding
+		// it to". Each group is headed with the Surfaces section's name for
+		// it. Not addSection: macOS shows a context menu as a native menu,
+		// where a section is a bare divider and its title is dropped.
+		const auto heading = [&aMenu](const QString& aTitle) {
+			if (!aMenu.isEmpty()) {
+				aMenu.addSeparator();
+			}
+			auto* const title = aMenu.addAction(aTitle);
+			title->setObjectName(QStringLiteral("promptsAddToHeading"));
+			title->setEnabled(false);
+			auto font = title->font();
+			font.setBold(true);
+			title->setFont(font);
+		};
+		const auto group = [&](const QString& aTitle, const std::span<const prompt_surface> aSurfaces, const auto& aItemName) {
+			heading(aTitle);
+			auto reasons = QStringList{ };
+			for (const auto surface : aSurfaces) {
+				const auto& placed  = View.Surfaces.Lists.at(index(surface));
+				const auto  on      = std::ranges::find(placed, aId) != placed.end();
 				const auto  refused = refusal(aId, surface);
-				auto* const action  = aMenu.addAction(name);
+				auto* const action  = aMenu.addAction(aItemName(surface));
 				action->setObjectName(QStringLiteral("promptsAddTo-%1").arg(QString::fromLatin1(core::stable_name(surface))));
 				action->setCheckable(true);
 				action->setChecked(on);
 				action->setEnabled(on || refused == core::placement_refusal::none);
 				if (refused != core::placement_refusal::none) {
-					action->setToolTip(QString::fromUtf8(core::placement_reason(refused).data(), static_cast<qsizetype>(core::placement_reason(refused).size())));
+					const auto reason = core::placement_reason(refused);
+					action->setToolTip(QString::fromUtf8(reason.data(), static_cast<qsizetype>(reason.size())));
+				}
+				if (!action->isEnabled()) {
+					reasons << action->toolTip();
 				}
 				connect(action, &QAction::triggered, this, [this, aId, surface, on] {
 					if (on) {
@@ -2101,11 +2155,23 @@ namespace bpr::qt {
 					}
 				});
 			}
+			// A group greyed throughout for one reason says it under its
+			// items: a native menu may not show a disabled item's tooltip.
+			const auto allGreyed = std::cmp_equal(reasons.size(), aSurfaces.size());
+			reasons.removeDuplicates();
+			if (allGreyed && reasons.size() == 1) {
+				auto* const note = aMenu.addAction(reasons.front());
+				note->setObjectName(QStringLiteral("promptsAddToNote"));
+				note->setEnabled(false);
+				auto font = note->font();
+				font.setItalic(true);
+				note->setFont(font);
+			}
 		};
-		group(tr("Pull request"), { { prompt_surface::pull_request_menu, tr("Ask menu") }, { prompt_surface::pull_request_chips, tr("Suggested chips") } });
-		group(tr("File"), { { prompt_surface::file_menu, tr("Ask menu") }, { prompt_surface::file_chips, tr("Suggested chips") } });
-		group(tr("Thread"), { { prompt_surface::thread_menu, tr("Ask menu") }, { prompt_surface::thread_chips, tr("Suggested chips") } });
-		group(tr("Tour"), { { prompt_surface::tour_stop, tr("Tour stop") }, { prompt_surface::tour_part, tr("Tour part") }, { prompt_surface::whole_tour, tr("Whole tour") } });
+		for (const auto& scope : scope_surfaces) {
+			group(surface_panel_name(scope[0]), scope, surface_list_name);
+		}
+		group(tour_group_name(), tour_surfaces, surface_panel_name);
 	}
 
 	void prompts_page::fill_library_menu(QMenu& aMenu, const std::string& aId)
