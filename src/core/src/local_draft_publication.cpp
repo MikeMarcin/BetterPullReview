@@ -5,6 +5,7 @@
 #include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/utf8.hpp"
+#include "bpr/core/workflow_action.hpp"
 
 #include <glaze/glaze.hpp>
 
@@ -113,6 +114,13 @@ struct glz::meta<bpr::core::detail::wire_publication>
 
 namespace bpr::core {
 	namespace {
+		/// [[BPR-2034]]. The built-in route stands aside while the author
+		/// chose the workflow's publisher or one of its handoffs is unresolved.
+		[[nodiscard]] auto external_publisher_holds(const local_draft& aDraft) -> bool
+		{
+			return (aDraft.Workflow && aDraft.Workflow->Publisher == workflow_publisher::external) || external_publication_open(aDraft);
+		}
+
 		constexpr auto read_options        = glz::opts{ .error_on_unknown_keys = true };
 		constexpr auto maximum_reason      = std::size_t{ 1024U };
 		constexpr auto maximum_url_bytes   = std::size_t{ 2048U };
@@ -335,6 +343,7 @@ namespace bpr::core {
 		case local_publication_refusal::authority_changed:   return "authority_changed";
 		case local_publication_refusal::unauthorized:        return "unauthorized";
 		case local_publication_refusal::stale:               return "stale";
+		case local_publication_refusal::external_publisher:  return "external_publisher";
 		}
 		return "invalid";
 	}
@@ -659,6 +668,9 @@ namespace bpr::core {
 		if (aDigest != journal.Digest) {
 			return std::unexpected{ local_publication_refusal::stale_plan };
 		}
+		if (external_publisher_holds(aDraft)) {
+			return std::unexpected{ local_publication_refusal::external_publisher };
+		}
 		if (aAccount != aDraft.Publication->Plan.Destination.Account) {
 			return std::unexpected{ local_publication_refusal::authority_changed };
 		}
@@ -688,6 +700,9 @@ namespace bpr::core {
 		}
 		if (aAccount != aDraft.Publication->Plan.Destination.Account) {
 			return std::unexpected{ local_publication_refusal::authority_changed };
+		}
+		if (external_publisher_holds(aDraft)) {
+			return std::unexpected{ local_publication_refusal::external_publisher };
 		}
 		auto draft                        = advanced(aDraft, aNow);
 		draft.Publication->Journal.Phase  = local_publication_phase::creating;

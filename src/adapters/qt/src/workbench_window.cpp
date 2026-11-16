@@ -59,7 +59,7 @@
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/private_review_panel.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"

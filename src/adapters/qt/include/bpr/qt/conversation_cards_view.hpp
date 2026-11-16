@@ -805,7 +805,8 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0127. In a drawer too narrow for their words the
 		/// pull request link and the Local comment chips keep only their
 		/// glyphs and counts; their words stay their names and tooltips.
-		void set_edge_chips_compact(bool aCompact);
+		/// \returns Whether any chip changed.
+		auto set_edge_chips_compact(bool aCompact) -> bool;
 		/// \brief How much wider the shown edge chips are with their words
 		/// than as they are drawn now.
 		[[nodiscard]] auto edge_chips_saving() const -> int;
@@ -1162,6 +1163,10 @@ namespace bpr::qt {
 		void contextMenuEvent(QContextMenuEvent* aEvent) override;
 		void focusInEvent(QFocusEvent* aEvent) override;
 		void focusOutEvent(QFocusEvent* aEvent) override;
+		/// \brief [[BPR-2158]] correction. N and Shift+N step through the threads with
+		/// new posts ahead of the window's N (a Local comment), as a list reads
+		/// its own keys ahead of window shortcuts.
+		auto event(QEvent* aEvent) -> bool override;
 		auto viewportEvent(QEvent* aEvent) -> bool override;
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 		/// \brief [[BPR-1290]]. Tab from the notes with a thread open enters

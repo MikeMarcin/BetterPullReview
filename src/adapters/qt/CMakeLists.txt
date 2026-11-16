@@ -14,6 +14,10 @@ add_library(
         src/suggestion_composer.cpp
         src/review_cycle_view.cpp
         src/local_draft_publication_area.cpp
+        src/local_draft_workflow_area.cpp
+        src/wrapping_row.cpp
+        src/application_menu_wording.cpp
+        src/workbench_window_author_mode.cpp
         src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp
@@ -87,6 +91,7 @@ add_library(
         src/agent_setup_settings.cpp
         src/agent_entry_dialog.cpp
         src/agent_configuration_dialogs.cpp
+        src/profile_settings_parts.cpp
         src/folder_list_editor.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
@@ -99,7 +104,7 @@ add_library(
         src/destructive_question.cpp
         src/settings_window.cpp
             src/diagnostic_settings_panel.cpp
-        src/profile_management_window.cpp
+        src/profiles_settings_panel.cpp
         src/workbench_strip.cpp
         src/view_picker.cpp
         src/local_changes_panel.cpp

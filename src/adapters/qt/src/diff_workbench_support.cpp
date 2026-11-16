@@ -50,7 +50,13 @@ namespace bpr::qt {
 		}
 
 		/// \brief The margin a marked number's ink keeps over the text floor.
-		constexpr auto number_blend_margin_hundredths = 10U;
+		/// \details [[BPR-2203]]. Wide enough for the painted number, not
+		/// only its ink, to reach the floor: the painter rounds a tint a
+		/// little differently from `composited`, and a thin numeral's strokes
+		/// may cover no whole pixel. Segoe UI 9 pt at 125% painted line 11's
+		/// two stems no darker than 4.45:1 from an ink of 4.61:1, under a
+		/// margin of 0.10; the light theme's floor is 4.5:1.
+		constexpr auto number_blend_margin_hundredths = 30U;
 
 		/// \brief The opacity the gutter washes an open thread's lines with.
 		constexpr auto open_wash_opacity = 0.18F;
@@ -1912,9 +1918,8 @@ namespace bpr::qt {
 		for (const auto& wash : washes) {
 			ground = laid(wash, ground);
 		}
-		// The painter's own blending rounds a tint a little differently from
-		// `composited`, so the move aims a margin above the floor and the
-		// painted number still reaches it.
+		// The move aims a margin above the floor so the painted number, not
+		// only its ink, still reaches it (`number_blend_margin_hundredths`).
 		const auto floor = core::minimum_contrast_hundredths(core::contrast_kind::text, SelectionVariant) + number_blend_margin_hundredths;
 		const auto reads = [&ground, floor](const core::appearance_color aCandidate) { return core::contrast_ratio_hundredths(aCandidate, ground) >= floor; };
 		const auto from  = to_appearance_color(aInk);

@@ -39,6 +39,8 @@ namespace bpr::application {
 		std::optional<core::local_publication_link> Existing;
 		std::optional<github_publication_error>     Provider;
 		std::optional<local_draft_store_error>      Store;
+		/// [[BPR-2034]]. Why a workflow handoff's reconciliation was refused.
+		std::optional<core::workflow_refusal> Workflow;
 	};
 
 	/// \brief The link a provider observation describes.
@@ -60,6 +62,13 @@ namespace bpr::application {
 	/// records what is there. Writes nothing to GitHub.
 	[[nodiscard]] auto recover_local_publication(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, std::int64_t aNow,
 												 std::stop_token aStop) -> local_publication_step;
+
+	/// \brief [[BPR-2034]], RFC-BPR-0112. After an external publisher's
+	/// handoff: reads the open pull requests from the draft's branch into its
+	/// target and records what is there through
+	/// `core::reconcile_external_publication`. Writes nothing to GitHub.
+	[[nodiscard]] auto reconcile_external_local_publication(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, const std::string& aAction,
+															std::int64_t aNow, std::stop_token aStop) -> local_publication_step;
 
 	/// \brief Associates the pull request numbered `aNumber`, read exactly, when it is from the draft's branch into its target.
 	[[nodiscard]] auto associate_local_pull_request(local_draft_store& aStore, const core::local_draft& aDraft, const github_publication_account& aAccount, std::uint64_t aNumber,

@@ -22,6 +22,7 @@
 #include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/author_mode.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/discuss_preferences.hpp"
@@ -57,6 +58,7 @@
 #include "bpr/qt/home_refusal.hpp"
 #include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -68,6 +70,7 @@
 #include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/source_search_panel.hpp"
+#include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
@@ -782,9 +785,19 @@ namespace bpr::qt {
 		/// \brief Routes profile gestures and desktop management/quit to their composition owner.
 		void set_profile_management_dispatch(application::profile_management_dispatch aDispatch,
 											 std::function<void()> aManage, std::function<void()> aQuit = { });
-		/// \brief Updates native menu rows by profile ID and marks this window's profile.
-		void               adopt_profile_management(const application::profile_management_projection& aProjection,
-													core::bpr_profile_id                              aCurrentProfile);
+		/// \brief Updates native menu rows and Settings › Profiles by profile ID
+		/// and marks this window's profile; `aWindowCounts` is what each open
+		/// profile's row says.
+		void adopt_profile_management(const application::profile_management_projection& aProjection,
+									  core::bpr_profile_id                              aCurrentProfile,
+									  const std::map<core::bpr_profile_id, int>&        aWindowCounts = { });
+		/// \brief [[BPR-2198]]. Settings › Profiles, which Manage Profiles… opens.
+		[[nodiscard]] auto profiles_settings() const noexcept -> profiles_settings_panel* { return ProfilesSettings; }
+		/// \brief Opens Settings on Profiles with this window's profile selected.
+		void present_profiles_settings();
+		/// \brief Sends a profile gesture to the composition owner, as the
+		/// Profiles menu and page do.
+		void               dispatch_profile_management(application::profile_management_intent aIntent);
 		[[nodiscard]] auto profiles_menu() const noexcept -> QMenu*;
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
@@ -929,7 +942,7 @@ namespace bpr::qt {
 		/// has nothing to answer them with. The launch panel, side chat and
 		/// finding queue and their buttons, the comment workshop, tour writing
 		/// assistance, the private Ask agent and agent-assisted composition,
-		/// and the Agents & context settings page are withdrawn; private notes,
+		/// and the Agents settings page are withdrawn; private notes,
 		/// private history and every stored record stay. Presentation only:
 		/// the window starts nothing either way.
 		void withdraw_agent_surfaces();
@@ -1085,7 +1098,7 @@ namespace bpr::qt {
 		/// Comment workshop › Feedback guidance.
 		[[nodiscard]] auto label_helper_switch() const noexcept -> QCheckBox*;
 		/// \brief [[BPR-1568]]. Comment workshop › Guidance text, which opens
-		/// Agents & context with Review feedback chosen.
+		/// Agents with Review feedback chosen.
 		[[nodiscard]] auto workshop_guidance_link() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1088]]. Comment labels › Overview chips.
 		[[nodiscard]] auto label_columns_editor() const noexcept -> feedback_label_columns_editor*;
@@ -1462,9 +1475,19 @@ namespace bpr::qt {
 		/// \brief Returns to Home or to the open pull request.
 		void               leave_local_draft();
 		[[nodiscard]] auto showing_local_draft() const noexcept -> bool;
-		/// \brief RFC-BPR-0111 as drawn: Create Draft PR… opens Overview at the
-		/// Status tab, where the publish steps are.
+		/// \brief [[BPR-2196]]. Create Draft PR… opens Author at its Workflow
+		/// tab, where the publish steps are (a local draft has no Status tab
+		/// until its pull request exists).
 		void show_local_publication();
+		/// \brief [[BPR-2196]]. The host's word on the pull request shown: the
+		/// viewer's own case (the core's `author_case_of`), or none.
+		void set_pull_request_author_case(std::optional<core::author_case> aCase);
+		/// \brief [[BPR-2196]]. The case the window shows: Author is offered when there is one.
+		[[nodiscard]] auto author_case() const -> std::optional<core::author_case>;
+		/// \brief [[BPR-2196]]. What Choose Worktree… does; unset, Home's Prepare Pull Request….
+		void set_worktree_chooser(std::function<void()> aChoose);
+		/// \brief [[BPR-2196]]. Author's drawer tabs: Workflow, Tour and Agent.
+		[[nodiscard]] auto author_tabs() const noexcept -> QTabBar*;
 		/// \brief The draft's projection: its files fill the Files tree and
 		/// Overview, its parts are presented.
 		void present_local_draft(const application::local_draft_workbench_projection& aProjection);
@@ -1625,7 +1648,7 @@ namespace bpr::qt {
 		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
 		/// \brief Edit Quick Asks…: Settings › Prompts, brought into view.
 		void reveal_prompt_macros();
-		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
+		/// [[BPR-1301]]. Settings > Agents: its Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
 		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
 		/// Settings rows; an agent build adopts the setup into the tab.
@@ -2315,6 +2338,22 @@ namespace bpr::qt {
 		void apply_local_draft_surface();
 		/// \brief Places the draft's parts in the window's slots, once.
 		void build_local_draft_slots();
+		/// \brief [[BPR-2196]]. Author's drawer header, Workflow page and worktree ask, once.
+		void build_author_slots();
+		/// \brief [[BPR-2196]]. Shows or removes Author in the switcher, as the core decides.
+		void apply_author_offer();
+		/// \brief [[BPR-2196]]. Author's left drawer, drawer tabs and bar, or the other modes'.
+		void apply_author_surface();
+		/// \brief [[BPR-2196]]. The case's handoff and checklist, from the core, to the parts.
+		void               present_author_mode();
+		void               enter_author_mode();
+		void               remember_author_mode();
+		void               show_author_tab(int aIndex);
+		void               note_mode_left_in(review_modality aModality);
+		[[nodiscard]] auto author_key() const -> QString;
+		[[nodiscard]] auto local_opening_modality() -> review_modality;
+		void               open_local_draft_mode();
+		void               pick_author_file();
 		/// \brief Owner, Home 1 accept with a note (2026-11-13): one row is
 		/// selected across Home's lists, and Escape in a list clears it.
 		void build_home_selection();
@@ -2443,6 +2482,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto strip_identity_budget() const -> int;
 		/// [[BPR-0722]]. Least width the identity's number-and-fragment form needs.
 		[[nodiscard]] auto strip_identity_minimum() const -> int;
+		/// [[BPR-2197]]. Width the identity needs for the whole name, title
+		/// included; none while it is hidden.
+		[[nodiscard]] auto strip_identity_whole_width() const -> int;
+		/// [[BPR-2197]]. Width the identity needs for the name with a title
+		/// of the row's minimum; none while it is hidden.
+		[[nodiscard]] auto strip_identity_titled_width() const -> int;
 		/// \brief Shows the overview or the comparison for the current modality.
 		void apply_modality_surface();
 		/// \brief [[BPR-1599]]. Enters the modality an opening pull request
@@ -3113,6 +3158,37 @@ namespace bpr::qt {
 		/// The review bar's actions a draft hides, and its own slots.
 		QAction* LocalBarLeadingAction  = nullptr;
 		QAction* LocalBarTrailingAction = nullptr;
+		/// [[BPR-2196]]. Author: the host's case for a pull request, the
+		/// drawer's own header and tabs, the Workflow page's holder among the
+		/// tray's pages, the worktree ask, and what Author remembers per pull
+		/// request (the comparison, the file and the drawer tab) and the mode
+		/// each was left in.
+		struct author_memory
+		{
+			std::optional<core::local_comparison> Comparison;
+			std::string                           File;
+			int                                   Tab = 0;
+			/// Edit, one pane or two (Author's file pane offers all three).
+			std::optional<review_view> View;
+		};
+		/// \brief Chooses a view as the picker's segment would, once the event that asked has finished.
+		void                               pick_author_view(review_view aView);
+		std::optional<core::author_case>   PullRequestAuthorCase;
+		QWidget*                           AuthorHeader         = nullptr;
+		QTabBar*                           AuthorTabs           = nullptr;
+		QWidget*                           AuthorWorkflowHolder = nullptr;
+		QWidget*                           AuthorAskPage        = nullptr;
+		std::function<void()>              WorktreeChooser;
+		std::map<QString, author_memory>   AuthorMemory;
+		std::map<QString, review_modality> ModeLeftIn;
+		QString                            AuthorOpenedFor;
+		QString                            LocalOpenedFor;
+		QString                            AuthorFilePickedFor;
+		QString                            AuthorComparisonPickedFor;
+		bool                               AuthorPicking  = false;
+		bool                               AuthorApplying = false;
+		/// Author's surface is the one applied.
+		bool AuthorShown = false;
 		/// The centre's Edit page holder and the draft's notice row holder.
 		QWidget* LocalEditHolder   = nullptr;
 		QWidget* LocalNoticeHolder = nullptr;
@@ -3270,7 +3346,6 @@ namespace bpr::qt {
 		/// review's Files drawer lists it.
 		QString                                  PendingReviewPath;
 		void                                     open_pending_review_path();
-		int                                      IdentityTitleBudget  = std::numeric_limits<int>::max();
 		QMenuBar*                                PrimaryMenuBar       = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
 		QMenu*                                   ProfilesMenu         = nullptr;
@@ -3860,13 +3935,14 @@ namespace bpr::qt {
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
-		writing_hooks_panel*                               WritingHooks  = nullptr;
-		prompts_page*                                      Prompts       = nullptr;
-		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
-		agent_setup_view*                                  AgentSetup    = nullptr;
-		agent_programs_panel*                              AgentPrograms = nullptr;
-		clone_folders_panel*                               CloneFolders  = nullptr;
-		review_skill_panel*                                ReviewSkill   = nullptr;
+		writing_hooks_panel*                               WritingHooks     = nullptr;
+		prompts_page*                                      Prompts          = nullptr;
+		claude_wrapper_panel*                              ClaudeWrapper    = nullptr;
+		agent_setup_view*                                  AgentSetup       = nullptr;
+		agent_programs_panel*                              AgentPrograms    = nullptr;
+		profiles_settings_panel*                           ProfilesSettings = nullptr;
+		clone_folders_panel*                               CloneFolders     = nullptr;
+		review_skill_panel*                                ReviewSkill      = nullptr;
 		std::function<void()>                              InsightsPresenter;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow          = nullptr;

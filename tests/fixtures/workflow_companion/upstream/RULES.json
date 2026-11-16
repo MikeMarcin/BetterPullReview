@@ -1,0 +1,6 @@
+{
+  "name": "synthetic-org-create-pr",
+  "required_sections": ["## Why", "## Testing"],
+  "self_review_marker": "required",
+  "creation_dry_run": false
+}

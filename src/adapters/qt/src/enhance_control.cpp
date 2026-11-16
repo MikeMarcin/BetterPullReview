@@ -367,6 +367,7 @@ namespace bpr::qt {
 		: QObject{ aParent }
 		, Editor{ &aEditor }
 		, Surface{ aSurface }
+		, AskedSurface{ aSurface }
 		, Button{ &aButton }
 		, Panel{ &aPanel }
 	{
@@ -436,7 +437,7 @@ namespace bpr::qt {
 		}
 		AskedText         = Editor->toPlainText();
 		const auto cursor = Editor->textCursor();
-		auto       ask    = enhance_request{ .Id = ++Sequence, .Surface = Surface, .Raw = AskedText.toStdString() };
+		auto       ask    = enhance_request{ .Id = ++Sequence, .Surface = AskedSurface, .Raw = AskedText.toStdString() };
 		if (cursor.hasSelection()) {
 			AskedBegin    = cursor.selectionStart();
 			AskedEnd      = cursor.selectionEnd();

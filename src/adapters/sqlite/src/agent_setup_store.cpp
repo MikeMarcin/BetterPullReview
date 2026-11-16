@@ -302,6 +302,12 @@ namespace bpr::adapters::sqlite {
 									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
+				// [[BPR-2032]], RFC-BPR-0112. The profile's optional workflows,
+				// each with this computer's bindings, in their order.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS workflow_configurations("
+									"position INTEGER PRIMARY KEY CHECK(position >= 0),"
+									"document TEXT NOT NULL CHECK(length(CAST(document AS BLOB)) <= 1048576)) STRICT")
 				// Owner decision 2026-10-23: the run time limit; none means off.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_run_limit("
@@ -3330,8 +3336,13 @@ namespace bpr::adapters::sqlite {
 					if (!agents || !skill || !hooks || !store) {
 						return std::nullopt;
 					}
-					auto snapshot = application::agent_configuration_snapshot{ .Agents = std::move(*agents), .ReviewSkill = std::move(*skill), .Hooks = std::move(*hooks) };
-					auto row      = detail::prepare(store->Database.get(), "SELECT hook,text_digest,version FROM prompt_provenance");
+					auto snapshot  = application::agent_configuration_snapshot{ .Agents = std::move(*agents), .ReviewSkill = std::move(*skill), .Hooks = std::move(*hooks) };
+					auto workflows = load_workflows(store->Database.get());
+					if (!workflows) {
+						return std::nullopt;
+					}
+					snapshot.Workflows = std::move(*workflows);
+					auto row           = detail::prepare(store->Database.get(), "SELECT hook,text_digest,version FROM prompt_provenance");
 					if (!row) {
 						return std::nullopt;
 					}
@@ -3358,14 +3369,15 @@ namespace bpr::adapters::sqlite {
 			{
 				using outcome = application::agent_configuration_outcome;
 				try {
-					if (!application::valid(aAfter.Agents) || !core::valid(aAfter.Hooks)) {
+					if (!application::valid(aAfter.Agents) || !core::valid(aAfter.Hooks) || aAfter.Workflows.size() > core::maximum_profile_workflows
+						|| !std::ranges::all_of(aAfter.Workflows, [](const core::local_workflow& aWorkflow) { return core::valid(aWorkflow); })) {
 						return outcome::storage_failed;
 					}
 					const auto current = load();
 					if (!current) {
 						return outcome::storage_failed;
 					}
-					if (current->Agents != aBefore.Agents || current->ReviewSkill != aBefore.ReviewSkill || current->Hooks != aBefore.Hooks) {
+					if (current->Agents != aBefore.Agents || current->ReviewSkill != aBefore.ReviewSkill || current->Hooks != aBefore.Hooks || current->Workflows != aBefore.Workflows) {
 						return outcome::changed_since;
 					}
 					auto store = open(Root);
@@ -3384,7 +3396,7 @@ namespace bpr::adapters::sqlite {
 					}
 					auto committed = detail::execute(db, "BEGIN IMMEDIATE").has_value();
 					if (committed) {
-						committed = write_agents(db, aAfter.Agents) && write_skill(db, aAfter.ReviewSkill) && write_provenance(db, aAfter)
+						committed = write_agents(db, aAfter.Agents) && write_skill(db, aAfter.ReviewSkill) && write_provenance(db, aAfter) && write_workflows(db, aAfter.Workflows)
 							&& detail::execute(db, "DELETE FROM configuration_import_journal").has_value();
 						if (!committed) {
 							static_cast<void>(detail::execute(db, "ROLLBACK"));
@@ -3544,6 +3556,43 @@ namespace bpr::adapters::sqlite {
 				sqlite3_bind_blob(row->Value, 2, digest.data(), static_cast<int>(digest.size()), SQLITE_TRANSIENT);
 				sqlite3_bind_text(row->Value, 3, aVersion.data(), static_cast<int>(aVersion.size()), SQLITE_TRANSIENT);
 				return sqlite3_step(row->Value) == SQLITE_DONE;
+			}
+
+			[[nodiscard]] static auto load_workflows(sqlite3* const aDatabase) -> std::optional<std::vector<core::local_workflow>>
+			{
+				auto row = detail::prepare(aDatabase, "SELECT document FROM workflow_configurations ORDER BY position");
+				if (!row) {
+					return std::nullopt;
+				}
+				auto workflows = std::vector<core::local_workflow>{ };
+				while (sqlite3_step(row->Value) == SQLITE_ROW) {
+					const auto text     = column_text(row->Value, 0);
+					auto       workflow = text ? core::decode_local_workflow(*text) : std::nullopt;
+					// One unreadable row is left out rather than hiding the rest.
+					if (workflow) {
+						workflows.push_back(std::move(*workflow));
+					}
+				}
+				return workflows;
+			}
+
+			[[nodiscard]] static auto write_workflows(sqlite3* const aDatabase, const std::vector<core::local_workflow>& aWorkflows) -> bool
+			{
+				if (!detail::execute(aDatabase, "DELETE FROM workflow_configurations")) {
+					return false;
+				}
+				for (std::size_t index = 0U; index < aWorkflows.size(); ++index) {
+					auto row = detail::prepare(aDatabase, "INSERT INTO workflow_configurations VALUES(?1,?2)");
+					if (!row) {
+						return false;
+					}
+					sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
+					bind_text(row->Value, 2, core::encode_local_workflow(aWorkflows[index]));
+					if (sqlite3_step(row->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				return true;
 			}
 
 			[[nodiscard]] static auto write_provenance(sqlite3* const aDatabase, const application::agent_configuration_snapshot& aAfter) -> bool

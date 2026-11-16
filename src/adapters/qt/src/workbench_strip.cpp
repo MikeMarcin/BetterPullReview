@@ -4,6 +4,7 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 
+#include "conversation_glyphs.hpp"
 #include "painted_glyph_icon.hpp"
 
 #include <QAbstractButton>
@@ -1185,6 +1186,8 @@ namespace bpr::qt {
 			return QStringLiteral("Discuss");
 		case review_modality::threads:
 			return QStringLiteral("Threads");
+		case review_modality::author:
+			return QStringLiteral("Author");
 		}
 		return QStringLiteral("Review");
 	}
@@ -1200,6 +1203,8 @@ namespace bpr::qt {
 			return shortcut_key(shortcut_command::discuss);
 		case review_modality::threads:
 			return shortcut_key(shortcut_command::threads);
+		case review_modality::author:
+			return shortcut_key(shortcut_command::author);
 		}
 		return QKeySequence{ };
 	}
@@ -1237,8 +1242,38 @@ namespace bpr::qt {
 				return QStringLiteral("Find a thread in the pull request (%1, %2)")
 					.arg(modality_key(review_modality::threads),
 						 QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText));
+			case review_modality::author:
+				// [[BPR-2196]]. The author's own mode, there only for them.
+				return QStringLiteral("Work on your own pull request: this update, the file, and your workflow's checklist (%1).")
+					.arg(modality_key(review_modality::author));
 			}
 			return QString{ };
+		}
+
+		/// \brief [[BPR-2197]]. A mode's glyph, one the drawers already
+		/// draw: Overview the rendered post, Review the source view's
+		/// brackets, Discuss the Comments tab's balloon, Threads the finder,
+		/// Author the Edit view's caret frame. The open mode's is in the
+		/// highlighted-text ink, on the accent.
+		[[nodiscard]] auto modality_icon(const review_modality aModality, const QPalette& aPalette, const bool aOpen) -> QIcon
+		{
+			const auto ink = aPalette.color(QPalette::Active, aOpen ? QPalette::HighlightedText : QPalette::ButtonText);
+			switch (aModality) {
+			case review_modality::overview:
+				return conversation_icon(conversation_glyph::rendered, ink);
+			case review_modality::review:
+				return conversation_icon(conversation_glyph::source, ink);
+			case review_modality::discuss:
+				return conversation_icon(conversation_glyph::comment, ink);
+			case review_modality::threads:
+				return conversation_icon(conversation_glyph::finder, ink);
+			case review_modality::author: {
+				auto palette = aPalette;
+				palette.setColor(QPalette::Active, QPalette::ButtonText, ink);
+				return strip_icon(strip_glyph::edit_file, palette);
+			}
+			}
+			return QIcon{ };
 		}
 	} // namespace
 
@@ -1296,45 +1331,45 @@ namespace bpr::qt {
 			Buttons[index] = button;
 			row->addWidget(button);
 		}
-		set_compact(false);
+		relabel();
 		adopt(Current);
+		// [[BPR-2196]]. Author waits until the window shows something the viewer owns.
+		set_author_offered(false);
 	}
 
-	void modality_control::set_compact(const bool aCompact)
+	void modality_control::set_face(const fold_face aFace)
 	{
-		Compact = aCompact;
+		if (Face == aFace) {
+			return;
+		}
+		Face = aFace;
 		relabel();
 	}
 
-	auto modality_control::compact() const noexcept -> bool
+	auto modality_control::face() const noexcept -> fold_face
 	{
-		return Compact;
+		return Face;
 	}
 
-	void modality_control::set_abbreviated(const bool aAbbreviated)
+	void modality_control::set_reshape_observer(std::function<void()> aObserver)
 	{
-		Abbreviated = aAbbreviated;
-		relabel();
-	}
-
-	auto modality_control::abbreviated() const noexcept -> bool
-	{
-		return Abbreviated;
+		ReshapeObserver = std::move(aObserver);
 	}
 
 	void modality_control::relabel()
 	{
+		const auto glyphs = fold_shows_glyph(Face);
 		for (std::size_t index = 0U; index < review_modality_count; ++index) {
-			const auto title = review_modality_title(static_cast<review_modality>(index));
-			// [[BPR-0653]]. The three-character prefixes are distinct, and the
-			// button's accessible name and tooltip still carry the whole word.
-			Buttons[index]->setText(
-				Abbreviated   ? title.left(3)
-					: Compact ? title
-							  : QStringLiteral("%1  %2").arg(
-									title,
-									Actions[index]->shortcut().toString(
-										QKeySequence::NativeText)));
+			const auto  modality = static_cast<review_modality>(index);
+			const auto  title    = review_modality_title(modality);
+			const auto  open     = modality == Current;
+			auto* const button   = Buttons[index];
+			const auto  text     = fold_text(Face, open, title, Actions[index]->shortcut().toString(QKeySequence::NativeText));
+			button->setText(text);
+			button->setIcon(glyphs ? modality_icon(modality, palette(), open) : QIcon{ });
+			button->setToolButtonStyle(!glyphs ? Qt::ToolButtonTextOnly : text.isEmpty() ? Qt::ToolButtonIconOnly
+																						 : Qt::ToolButtonTextBesideIcon);
+			button->setToolTip(fold_tooltip(text, title, modality_purpose(modality)));
 		}
 		updateGeometry();
 	}
@@ -1346,13 +1381,37 @@ namespace bpr::qt {
 
 	void modality_control::adopt(const review_modality aModality)
 	{
-		Current = aModality;
+		const auto moved = Current != aModality;
+		Current          = aModality;
 		for (std::size_t index = 0U; index < review_modality_count; ++index) {
 			const auto current = static_cast<review_modality>(index) == aModality;
 			Actions[index]->setChecked(current);
 			Buttons[index]->setChecked(current);
 		}
+		// [[BPR-2197]]. The glyphs' ink and, in the face that names the open
+		// mode, its name follow the open mode.
+		if (moved && fold_shows_glyph(Face)) {
+			relabel();
+			if (Face == fold_face::open_named && ReshapeObserver) {
+				ReshapeObserver();
+			}
+		}
 		update();
+	}
+
+	void modality_control::set_author_offered(const bool aOffered)
+	{
+		const auto index = static_cast<std::size_t>(review_modality::author);
+		Actions[index]->setEnabled(aOffered);
+		Actions[index]->setVisible(aOffered);
+		Buttons[index]->setVisible(aOffered);
+		updateGeometry();
+		update();
+	}
+
+	auto modality_control::author_offered() const noexcept -> bool
+	{
+		return Actions[static_cast<std::size_t>(review_modality::author)]->isEnabled();
 	}
 
 	auto modality_control::current() const noexcept -> review_modality
@@ -1379,6 +1438,15 @@ namespace bpr::qt {
 		adopt(aModality);
 		if (Dispatch) {
 			Dispatch(aModality);
+		}
+	}
+
+	void modality_control::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		// The glyphs are drawn in the palette's inks.
+		if (aEvent->type() == QEvent::PaletteChange && fold_shows_glyph(Face)) {
+			relabel();
 		}
 	}
 

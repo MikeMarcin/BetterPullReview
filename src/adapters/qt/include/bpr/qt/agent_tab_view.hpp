@@ -282,7 +282,7 @@ namespace bpr::qt {
 		agent_tab_view(const agent_tab_view&)                    = delete;
 		auto operator=(const agent_tab_view&) -> agent_tab_view& = delete;
 
-		/// \brief Set up an agent: Settings › Agents & context.
+		/// \brief Set up an agent: Settings › Agents.
 		void set_setup_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1753]], RFC-BPR-0092. Shows `aSetup` in place
 		/// of the conversation while it is needed and adds **Reset agents…** to

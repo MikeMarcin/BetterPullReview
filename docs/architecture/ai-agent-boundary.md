@@ -42,7 +42,7 @@ policy permits. Looking reads file metadata only: no process starts, no shell
 runs, nothing is written, and the application's own `PATH` is used. Claude is
 found as before (a saved process wrapper, then `PATH`, then the usual
 folders, below). Codex is found the same way (Q5): a saved Codex program path
-in Settings > Agents & context, then `PATH`, then `HOME/.local/bin`,
+in Settings > Agents, then `PATH`, then `HOME/.local/bin`,
 `/opt/homebrew/bin`, `/usr/local/bin` and `HOME/.npm-global/bin`; on Windows
 only `codex.exe`. The plain-text harness is never searched for: it runs only a
 program path the reviewer chose there. Every Codex and harness launch
@@ -88,7 +88,7 @@ The external-terminal fallback is mandatory when a corporate harness exposes no 
 
 ### Claude process wrapper
 
-[[BPR-1301]]. Settings > Agents & context offers one setting per application
+[[BPR-1301]]. Settings > Agents offers one setting per application
 profile, **Process wrapper** under **Claude**, modelled on the VS Code
 extension's `claudeProcessWrapper`. It is one absolute path to a program run in
 place of `claude` for every Claude stream-JSON launch of that profile: the
@@ -408,7 +408,7 @@ configuration file.
 
 **No run time limit by default ([[BPR-1753]], owner decision
 2026-10-23).** A run has no time limit unless the reviewer sets one in
-Settings › Agents & context (one limit for every agent, in minutes, kept in
+Settings › Agents (one limit for every agent, in minutes, kept in
 `agent-setup.sqlite3`); with none, the launcher is given
 `application::agent_run_without_limit`, the longest wait an `int` of
 milliseconds names. Stop, closing the window and quitting end a run as
@@ -469,7 +469,7 @@ Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into
 the application with `metadata.bpr-version`. Its text goes in every review
 request's brief, the same for every agent, and nothing is written to any
 harness's configuration. It grants nothing. The reviewer edits it in Settings
-> Agents & context > Review skill; the first edit keeps a copy in the profile's
+> Agents > Review skill; the first edit keeps a copy in the profile's
 `agent-setup.sqlite3` with the built-in version and SHA-256 it came from. A
 save must keep the name `bpr-pr-review` and a description and stay within
 64 KiB. An update never changes an edited copy: a newer built-in is offered

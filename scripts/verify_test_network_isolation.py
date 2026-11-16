@@ -187,6 +187,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_comment_edit_contract": "startup-registry-unavailable",
     "application_device_flow_cli_choice": "ineligible-inventory-composition-refused",
     "application_account_setup_public_path": "unmeasured (registered on macOS)",
+    "application_profile_settings_export_public_path": "unmeasured (registered on macOS)",
     "application_inline_publish_cli_consent": "private-test-root-refused",
     "application_home_waiting_cli_public_path": "private-test-root-refused",
     "application_personal_discovery_cli_public_path": "private-test-root-refused",

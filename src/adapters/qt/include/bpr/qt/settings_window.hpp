@@ -37,6 +37,9 @@ namespace bpr::qt {
 	/// sidebar row, so the order here is the sidebar's; no value is stored.
 	enum class settings_page : std::uint8_t {
 		general,
+		/// [[BPR-2198]] (owner, 2026-11-15). Every profile, and the profile's
+		/// settings shared as a file; right after General.
+		profiles,
 		accounts_and_hosts,
 		repositories,
 		home_and_queue,
@@ -50,7 +53,7 @@ namespace bpr::qt {
 		storage_and_privacy,
 	};
 
-	inline constexpr std::size_t settings_page_count = 11U;
+	inline constexpr std::size_t settings_page_count = 12U;
 
 	/// \brief [[BPR-1289]]. What a Settings search result holds besides the
 	/// name it shows (`Qt::DisplayRole`).
@@ -97,7 +100,8 @@ namespace bpr::qt {
 		///
 		/// \details For a page whose capability the composition does not
 		/// contain: a page that cannot be reached is not a page that says
-		/// nothing. Presenting a withdrawn page presents General instead.
+		/// nothing. Presenting a withdrawn page presents the first page still
+		/// listed instead. With one page left the sidebar is not shown.
 		void withdraw_page(settings_page aPage);
 
 		/// \brief Shows the window, raises it, and selects a page.
@@ -137,6 +141,8 @@ namespace bpr::qt {
 		};
 
 		void select_page(int aRow);
+		/// \brief The first sidebar row not withdrawn.
+		[[nodiscard]] auto first_listed_row() const -> int;
 		/// \brief Lists what matches the search field, or the page list when empty.
 		void refresh_search();
 		/// \brief Moves the chosen result while the caret stays in the field.

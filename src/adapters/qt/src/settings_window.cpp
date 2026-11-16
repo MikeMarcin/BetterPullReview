@@ -50,6 +50,7 @@ namespace bpr::qt {
 	namespace {
 		constexpr auto page_order = std::array{
 			settings_page::general,
+			settings_page::profiles,
 			settings_page::accounts_and_hosts,
 			settings_page::repositories,
 			settings_page::home_and_queue,
@@ -77,6 +78,8 @@ namespace bpr::qt {
 				return QStringLiteral(
 					"New windows open Home. Window restoration is not available in this build. "
 					"How a pull request opens and reads is in Review; colours and fonts are in Appearance.");
+			case settings_page::profiles:
+				return QStringLiteral("Profiles are listed here.");
 			case settings_page::accounts_and_hosts:
 				return QStringLiteral(
 					"Sign in, sign out and enterprise servers are in the review window's "
@@ -476,6 +479,8 @@ namespace bpr::qt {
 		switch (aPage) {
 		case settings_page::general:
 			return QStringLiteral("General");
+		case settings_page::profiles:
+			return QStringLiteral("Profiles");
 		case settings_page::accounts_and_hosts:
 			return QStringLiteral("Accounts & hosts");
 		case settings_page::repositories:
@@ -491,7 +496,7 @@ namespace bpr::qt {
 		case settings_page::notifications:
 			return QStringLiteral("Notifications");
 		case settings_page::agents_and_context:
-			return QStringLiteral("Agents & context");
+			return QStringLiteral("Agents");
 		case settings_page::prompts:
 			return QStringLiteral("Prompts");
 		case settings_page::storage_and_privacy:
@@ -674,8 +679,14 @@ namespace bpr::qt {
 		}
 		item->setHidden(true);
 		if (Sidebar->currentRow() == page_index(aPage)) {
-			Sidebar->setCurrentRow(page_index(settings_page::general));
+			Sidebar->setCurrentRow(first_listed_row());
 		}
+		// [[BPR-2198]]. A window of one page has nothing to choose between.
+		auto listed = 0;
+		for (auto row = 0; row < Sidebar->count(); ++row) {
+			listed += Sidebar->item(row)->isHidden() ? 0 : 1;
+		}
+		SidebarColumn->setVisible(listed > 1);
 		refresh_search();
 	}
 
@@ -685,10 +696,20 @@ namespace bpr::qt {
 			ReturnFocus = QApplication::focusWidget();
 		}
 		const auto* const item = Sidebar->item(page_index(aPage));
-		Sidebar->setCurrentRow(page_index(item != nullptr && item->isHidden() ? settings_page::general : aPage));
+		Sidebar->setCurrentRow(item != nullptr && item->isHidden() ? first_listed_row() : page_index(aPage));
 		show();
 		raise();
 		activateWindow();
+	}
+
+	auto settings_window::first_listed_row() const -> int
+	{
+		for (auto row = 0; row < Sidebar->count(); ++row) {
+			if (!Sidebar->item(row)->isHidden()) {
+				return row;
+			}
+		}
+		return page_index(settings_page::general);
 	}
 
 	auto settings_window::current_page() const noexcept -> settings_page

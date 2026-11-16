@@ -33,7 +33,7 @@ namespace bpr::application {
 	/// \brief [[BPR-1301]]. The line a Claude launch with no wrapper ends
 	/// with when no `claude` was found.
 	inline constexpr std::string_view claude_not_found_message
-		= "claude was not found on PATH or in the usual install folders; set a Claude process wrapper in Settings > Agents & context.";
+		= "claude was not found on PATH or in the usual install folders; set a Claude process wrapper in Settings > Agents.";
 
 	/// \brief [[BPR-1301]]. The wrapper a window's profile has saved, written
 	/// on the decision lane as preferences publish and read on whichever

@@ -143,11 +143,21 @@ goes, and starts it through the profile's turn runner
 (`agent_invocation_host::set_retired_observer`), never a timer. Windows
 subscribe to its semantic deltas and send it commands (add, edit-hold,
 reorder, remove, pause and resume, Steer, Stop all); none decides when a
-message goes, and closing one neither pauses nor hands a queue over. Until
-the agent runtime is composed per profile, each window offers its own agent
-invocation host to the runner. The installed Git cache keeps the agent
+message goes, and closing one neither pauses nor hands a queue over. The
+Agent tab's turns run on the profile's runtime of the session
+(`application::review_agent_runtime`), so a session no window shows still
+drains; a window offers the runner only its tour's feedback, which a crash
+returns to the tour chat as not sent. The installed Git cache keeps the agent
 workspaces its sessions made for the profile's lifetime, so a run whose cache
 session another window replaced still cleans up and retires.
+
+Suggested prompts are decided once, in the window composition, from the facts
+the window holds and the review's (pushes since my review, a file's and a
+thread's facts: `core::chat_prompt_facts`, `core::decide_chat_prompts`). The
+Agent tab and the tour chats say what they show and present the decided
+offers; no widget assembles prompt facts. A queued suggested prompt carries
+the offer decided at its press (`core::queued_input::Prompt`, stored with the
+queue), so its release sends that and decides nothing again.
 
 Explicit transcript replay uses the same scoped catalog with its own generation
 and durable source link. It never acquires the source's opaque native handle. Its explicit turns use the

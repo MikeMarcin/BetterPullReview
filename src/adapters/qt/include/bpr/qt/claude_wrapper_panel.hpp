@@ -15,7 +15,7 @@ class QLineEdit;
 class QPushButton;
 
 namespace bpr::qt {
-	/// \brief [[BPR-1301]]. Settings > Agents & context: the profile's Claude
+	/// \brief [[BPR-1301]]. Settings > Agents: the profile's Claude
 	/// process wrapper, and the line saying sign-in is not BetterPullReview's.
 	///
 	/// \details Presentation only. Save hands the typed text to the host,

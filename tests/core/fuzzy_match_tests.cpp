@@ -139,7 +139,7 @@ namespace {
 			"Automatically check for updates",
 			"A pull request opens in",
 			"Accounts & hosts",
-			"Agents & context",
+			"Agents",
 			"Private draft",
 			"Private notes",
 		};
@@ -154,7 +154,7 @@ namespace {
 		expect(ranked("updtes", corpus).front() == "Automatically check for updates", "a dropped letter still finds the setting");
 		expect(ranked("thmee", corpus) == std::vector<std::string_view>{ "Theme" }, "with no direct match a typo is rescued");
 		expect(ranked("notif", corpus).size() == 2U, "with direct matches no typo is listed");
-		expect(!fuzzy_match("font", "Agents & context").has_value(), "a typo keeps the word's first letter");
+		expect(!fuzzy_match("font", "Agents").has_value(), "a typo keeps the word's first letter");
 		const auto first  = fuzzy_rank("co", corpus);
 		const auto second = fuzzy_rank("co", corpus);
 		expect(first == second && !first.empty(), "ranking is deterministic");
@@ -273,7 +273,7 @@ namespace {
 			"Enable review notifications",
 			"Pause notifications",
 			"Reset notification preferences",
-			"Agents & context",
+			"Agents",
 			"Private draft",
 			"Review preparation writing hook",
 			"Test saved hook (no publishing)",

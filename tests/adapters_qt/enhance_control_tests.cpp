@@ -94,6 +94,18 @@ namespace {
 		f.Panel->discard_button()->click();
 		drain();
 		expect(f.Panel->isHidden() && f.Editor->toPlainText() == QStringLiteral("nit: maybe café is simpler") && !f.Binding->suggested(), "Discard drops the suggestion and keeps the text");
+		// [[BPR-2192]]. A composer switched to Local asks as a note, and back
+		// on Draft as its own surface again.
+		f.Binding->ask_as(qt::enhance_surface::note);
+		f.Button->click();
+		drain();
+		expect(f.Asked.back().Surface == qt::enhance_surface::note, "switched to Local, a press asks as a note");
+		f.Button->click();
+		drain();
+		f.Binding->ask_as(qt::enhance_surface::comment);
+		f.Button->click();
+		drain();
+		expect(f.Asked.back().Surface == qt::enhance_surface::comment, "back on Draft, a press asks as a comment");
 	}
 
 	/// Use writes the suggestion in place of what was asked about, as one

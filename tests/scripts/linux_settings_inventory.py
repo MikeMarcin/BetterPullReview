@@ -409,7 +409,7 @@ def course(pid, executable, revision, output, inventory_only=False, focus_surfac
                     categories=categories, native_checks=checks, pages=pages)
         output.write_text(json.dumps(data, indent=2) + "\n")
 
-    categories = ["General", "Accounts & hosts", "Reviews & queue", "Appearance", "Notifications", "Agents & context", "Storage & privacy"]
+    categories = ["General", "Accounts & hosts", "Reviews & queue", "Appearance", "Notifications", "Agents", "Storage & privacy"]
     try:
         drive(app, x, pid, inventory_only, bound_refused_activation or keys_follow_x11, categories, checks, pages)
     except Exception as failure:

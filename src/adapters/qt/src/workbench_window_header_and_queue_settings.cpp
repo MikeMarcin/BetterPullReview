@@ -228,7 +228,16 @@ namespace bpr::qt {
 		// pull request summary stay in the files drawer's bounded top region
 		// until the repositories drawer (BPR-0651) and the overview
 		// (BPR-0647) take them.
-		SettingsWindow       = new settings_window{ this };
+		SettingsWindow = new settings_window{ this };
+		// [[BPR-2198]] (owner, 2026-11-15). Profiles are managed here, right
+		// after General; the Manage Profiles window is gone.
+		ProfilesSettings = new profiles_settings_panel;
+		ProfilesSettings->set_dispatch([this](application::profile_management_intent aIntent) {
+			if (ProfileManagementDispatch) {
+				ProfileManagementDispatch(std::move(aIntent));
+			}
+		});
+		SettingsWindow->adopt_panel(settings_page::profiles, ProfilesSettings);
 		auto* const accounts = new QWidget;
 		AccountsPanel        = accounts;
 		accounts->setObjectName(QStringLiteral("workbenchAccountsPage"));

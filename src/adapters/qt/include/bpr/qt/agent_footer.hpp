@@ -93,7 +93,7 @@ namespace bpr::qt {
 		/// `aFailed`: a check ran and failed (drawn in the failed check's
 		/// colour); otherwise the agent is not checked yet (drawn quiet).
 		void present_setup(const QString& aNeed, bool aFailed = false);
-		/// \brief Agent settings… and Set up an agent…: Settings › Agents & context.
+		/// \brief Agent settings… and Set up an agent…: Settings › Agents.
 		void set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief RFC-BPR-0126 AC09: how many messages wait in any session's
 		/// queue; Stop all shows while one does or a turn runs.

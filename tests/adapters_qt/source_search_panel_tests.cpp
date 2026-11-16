@@ -215,22 +215,34 @@ namespace {
 	}
 
 	/// The run of pixels painted in the wash along one scan line of the row.
+	/// [[BPR-2208]]. The wash's widest run over the row's pixel rows. One
+	/// fixed row cannot measure it in every font: near the row's top it met
+	/// the wash's rounded corner, or missed the wash, whenever the font was
+	/// shorter than the row; through the middle the glyphs at the match's
+	/// ends cover the wash's one-pixel border.
 	auto painted_wash(QTreeView& aTree, const QModelIndex& aIndex, const QColor& aWash) -> std::pair<int, int>
 	{
 		const auto rect  = aTree.visualRect(aIndex);
 		const auto image = aTree.viewport()->grab().toImage();
 		const auto ratio = image.devicePixelRatio();
-		const auto y     = static_cast<int>((rect.top() + 3) * ratio);
-		auto       first = -1;
-		auto       last  = -1;
-		for (int x = static_cast<int>(rect.left() * ratio); x < static_cast<int>(rect.right() * ratio); ++x) {
-			const auto pixel = image.pixelColor(x, y);
-			if (std::abs(pixel.red() - aWash.red()) <= 3 && std::abs(pixel.green() - aWash.green()) <= 3 && std::abs(pixel.blue() - aWash.blue()) <= 3) {
-				first = first < 0 ? x : first;
-				last  = x;
+		const auto washy = [&aWash](const QColor& aPixel) {
+			return std::abs(aPixel.red() - aWash.red()) <= 3 && std::abs(aPixel.green() - aWash.green()) <= 3 && std::abs(aPixel.blue() - aWash.blue()) <= 3;
+		};
+		auto widest = std::pair{ -1, -1 };
+		for (int y = static_cast<int>(rect.top() * ratio); y <= static_cast<int>(rect.bottom() * ratio) && y < image.height(); ++y) {
+			auto first = -1;
+			auto last  = -1;
+			for (int x = static_cast<int>(rect.left() * ratio); x < static_cast<int>(rect.right() * ratio); ++x) {
+				if (washy(image.pixelColor(x, y))) {
+					first = first < 0 ? x : first;
+					last  = x;
+				}
+			}
+			if (first >= 0 && (widest.first < 0 || last - first > widest.second - widest.first)) {
+				widest = { first, last };
 			}
 		}
-		return { static_cast<int>(first / ratio), static_cast<int>(last / ratio) };
+		return widest.first < 0 ? std::pair{ -1, -1 } : std::pair{ static_cast<int>(widest.first / ratio), static_cast<int>(widest.second / ratio) };
 	}
 }
 

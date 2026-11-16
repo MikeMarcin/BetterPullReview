@@ -20,10 +20,11 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -1273,7 +1274,7 @@ try {
 	expect(quit && quit->isEnabled(), "public Quit is available before the persistence restart");
 	quit->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "public Quit drains the profile before teardown");
-	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
+	auto retiredDesktop = QPointer<qt::settings_window>{ desktop->profiles_settings() };
 	expect(retiredDesktop, "desktop retirement has a lifetime witness");
 	desktop.reset();
 	wait_for([&] { return retiredDesktop.isNull(); }, "old desktop releases its runtime and profile lease before restart");
@@ -1448,7 +1449,7 @@ try {
 	expect(app::detail::github_application_fixture_access::review_mutation_evidence(*owner).Submissions == 0U, "removal asks GitHub to change nothing");
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "restarted profile drains");
-	retiredDesktop = desktop->management_window();
+	retiredDesktop = desktop->profiles_settings();
 	desktop.reset();
 	wait_for([&] { return retiredDesktop.isNull(); }, "removed recents are durable before another startup");
 	owner    = nullptr;

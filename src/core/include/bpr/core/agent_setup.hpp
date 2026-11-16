@@ -208,7 +208,7 @@ namespace bpr::core {
 	/// check that has not passed is never taken as passed.
 	[[nodiscard]] auto current_setup_step(const agent_setup_state& aState) noexcept -> setup_step;
 
-	/// \brief [[BPR-1859]]. Whether Settings › Agents & context may run
+	/// \brief [[BPR-1859]]. Whether Settings › Agents may run
 	/// the setup's check now, or why not.
 	enum class agent_check_offer : std::uint8_t {
 		available,

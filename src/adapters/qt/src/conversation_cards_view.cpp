@@ -35,6 +35,7 @@
 #include <QHideEvent>
 #include <QKeyEvent>
 #include <QLayout>
+#include <QLineEdit>
 #include <QLinearGradient>
 #include <QListWidget>
 #include <QLocale>
@@ -2502,15 +2503,18 @@ namespace bpr::qt {
 		return saving;
 	}
 
-	void conversation_cards_view::set_edge_chips_compact(const bool aCompact)
+	auto conversation_cards_view::set_edge_chips_compact(const bool aCompact) -> bool
 	{
+		auto changed = false;
 		for (auto* const button : { PullRequestChip, LocalFileChip, LocalElsewhereChip }) {
 			if (auto* const chip = static_cast<pull_request_chip*>(button); chip != nullptr && chip->Compact != aCompact) {
 				chip->Compact = aCompact;
 				chip->updateGeometry();
 				chip->update();
+				changed = true;
 			}
 		}
+		return changed;
 	}
 
 	auto conversation_cards_view::local_file_chip() const noexcept -> QAbstractButton* { return LocalFileChip; }
@@ -4227,7 +4231,10 @@ namespace bpr::qt {
 		const auto overrun = std::max(0, ContentHeight - viewport()->height());
 		const auto pastEnd = Feed ? 0 : std::max(0, ContentHeight - note_margin - 2 * line);
 		verticalScrollBar()->setRange(0, std::max(overrun, pastEnd));
-		verticalScrollBar()->setPageStep(viewport()->height());
+		// Page Down keeps the last two lines of the page in view, so what
+		// stood at its foot (a Reply field, a post's last line) is read whole
+		// on the next page rather than carried past the top.
+		verticalScrollBar()->setPageStep(std::max(line, viewport()->height() - 2 * line));
 		verticalScrollBar()->setSingleStep(line);
 	}
 
@@ -5461,6 +5468,40 @@ namespace bpr::qt {
 		viewport()->update();
 	}
 
+	namespace {
+		/// \brief [[BPR-2158]] correction. The thread keys the notes read ahead of any
+		/// window shortcut: N and Shift+N, which the window binds to a Local
+		/// comment (RFC-BPR-0127).
+		[[nodiscard]] auto thread_key_ahead_of_shortcuts(const QKeyEvent& aEvent) -> bool
+		{
+			return aEvent.key() == Qt::Key_N && !aEvent.modifiers().testAnyFlags(Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier);
+		}
+
+		/// \brief Whether `aWidget` is a field a letter types into.
+		[[nodiscard]] auto takes_typing(const QObject* const aWidget) -> bool
+		{
+			if (const auto* const plain = qobject_cast<const QPlainTextEdit*>(aWidget)) {
+				return !plain->isReadOnly();
+			}
+			if (const auto* const rich = qobject_cast<const QTextEdit*>(aWidget)) {
+				return !rich->isReadOnly();
+			}
+			if (const auto* const line = qobject_cast<const QLineEdit*>(aWidget)) {
+				return !line->isReadOnly();
+			}
+			return false;
+		}
+	} // namespace
+
+	auto conversation_cards_view::event(QEvent* const aEvent) -> bool
+	{
+		if (aEvent->type() == QEvent::ShortcutOverride && thread_key_ahead_of_shortcuts(*static_cast<QKeyEvent*>(aEvent))) {
+			aEvent->accept();
+			return true;
+		}
+		return QAbstractScrollArea::event(aEvent);
+	}
+
 	auto conversation_cards_view::handle_thread_key(QKeyEvent& aEvent, const bool aTyping) -> bool
 	{
 		const auto plain = !aEvent.modifiers().testAnyFlags(Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier);
@@ -5561,6 +5602,13 @@ namespace bpr::qt {
 
 	auto conversation_cards_view::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
+		// [[BPR-2158]] correction. In an open thread, outside its editor, N and Shift+N
+		// are the notes' too.
+		if (aEvent->type() == QEvent::ShortcutOverride && OpenCard != nullptr && (aWatched == OpenCard || OpenCard->isAncestorOf(qobject_cast<QWidget*>(aWatched)))
+			&& aWatched != OpenCard->reply_editor() && !takes_typing(aWatched) && thread_key_ahead_of_shortcuts(*static_cast<QKeyEvent*>(aEvent))) {
+			aEvent->accept();
+			return true;
+		}
 		if (aEvent->type() == QEvent::KeyPress && OpenCard != nullptr && (aWatched == OpenCard || OpenCard->isAncestorOf(qobject_cast<QWidget*>(aWatched)))) {
 			auto&      key    = *static_cast<QKeyEvent*>(aEvent);
 			auto*      editor = OpenCard->reply_editor();

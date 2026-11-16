@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 /// \file
@@ -237,6 +238,78 @@ namespace bpr::application {
 		auto        operator<=>(const local_draft_publishing_view&) const = default;
 	};
 
+	/// \brief [[BPR-2033]], RFC-BPR-0112. Where a companion's request and
+	/// answer files live, and their reading and writing on the effect lane.
+	/// Nothing here starts a program.
+	class workflow_exchange_port
+	{
+	public:
+		virtual ~workflow_exchange_port() = default;
+		struct paths
+		{
+			std::string Request;
+			std::string Response;
+			auto        operator<=>(const paths&) const = default;
+		};
+		/// \brief The files for one invocation; computing them touches nothing.
+		[[nodiscard]] virtual auto locate(std::string_view aDraft, std::uint64_t aInvocation) const -> paths = 0;
+		/// \brief Writes the request, making its folder; false when it cannot.
+		[[nodiscard]] virtual auto write_request(const paths& aPaths, std::string_view aBytes) -> bool = 0;
+		/// \brief The answer's bytes, at most `aLimit` + 1 of them; none when
+		/// there is no answer file yet or it cannot be read.
+		[[nodiscard]] virtual auto read_response(const paths& aPaths, std::size_t aLimit) -> std::optional<std::string> = 0;
+	};
+
+	/// \brief [[BPR-2032]]. What the profile has for workflows, read on the effect lane.
+	struct local_draft_workflow_profile
+	{
+		std::vector<core::local_workflow> Workflows;
+		/// The profile's agents by name.
+		std::vector<std::string> Agents;
+		/// Bound programs that are executable files now (the host looked).
+		std::vector<std::string> Programs;
+		auto                     operator<=>(const local_draft_workflow_profile&) const = default;
+	};
+	using local_draft_workflow_source = std::function<local_draft_workflow_profile()>;
+
+	/// \brief One action as the Workflow area shows it.
+	struct local_draft_workflow_action_view
+	{
+		core::workflow_action                       Action;
+		core::workflow_prerequisite                 Prerequisite = core::workflow_prerequisite::ready;
+		std::optional<core::workflow_action_record> Record;
+		/// An agent action's agent, by name.
+		std::string AgentName;
+		/// A handed-off command action: the exact argument array, the line to
+		/// paste, and the exchange files.
+		std::vector<std::string> Command;
+		std::string              CommandLine;
+		std::string              RequestPath;
+		std::string              ResponsePath;
+		auto                     operator<=>(const local_draft_workflow_action_view&) const = default;
+	};
+	struct local_draft_workflow_option
+	{
+		std::string Id;
+		std::string Name;
+		std::string Origin;
+		auto        operator<=>(const local_draft_workflow_option&) const = default;
+	};
+	/// \brief RFC-BPR-0112. The draft's Workflow area.
+	struct local_draft_workflow_view
+	{
+		/// The profile's workflows the author may select.
+		std::vector<local_draft_workflow_option> Available;
+		/// The profile has another revision of the selected workflow.
+		bool                                          UpdateAvailable = false;
+		std::vector<local_draft_workflow_action_view> Actions;
+		std::vector<core::check_status>               Checks;
+		std::optional<core::workflow_refusal>         Refusal;
+		/// Why the last answer could not be read, in the author's words.
+		std::string Failure;
+		auto        operator<=>(const local_draft_workflow_view&) const = default;
+	};
+
 	struct local_draft_workbench_projection
 	{
 		local_draft_stage        Stage    = local_draft_stage::closed;
@@ -287,6 +360,8 @@ namespace bpr::application {
 		std::optional<local_draft_request_coverage> Coverage;
 		/// RFC-BPR-0111. Create draft PR….
 		local_draft_publishing_view Publishing;
+		/// RFC-BPR-0112. The selected workflow and its actions.
+		local_draft_workflow_view Workflow;
 		/// A write lost to another writer was re-read.
 		bool Reread                                                     = false;
 		bool Busy                                                       = false;
@@ -376,6 +451,33 @@ namespace bpr::application {
 		/// \brief Associates the open pull request from the draft's branch the check found.
 		void associate_pull_request(std::uint64_t aNumber);
 		void cancel_publication();
+
+		/// \brief [[BPR-2032]], [[BPR-2033]], [[BPR-2034]], RFC-BPR-0112.
+		/// Composes optional workflows; without them the draft has none and
+		/// nothing else changes.
+		void set_workflows(local_draft_workflow_source aSource, workflow_exchange_port* aExchange);
+		/// \brief Reads the profile's workflows again (after Settings changed them).
+		void reload_workflows();
+		/// \brief Selects a workflow for this draft by ID, or none.
+		void select_workflow(std::optional<std::string> aId);
+		void accept_workflow_update();
+		void choose_publisher(core::workflow_publisher aPublisher);
+		/// \brief Hands a preparation action off: records the invocation and
+		/// writes its request. `aAnswer` continues the companion's question.
+		void hand_off(std::string aAction, std::string aAnswer = { });
+		/// \brief Asks an agent action's agent (its prompt and the workflow's
+		/// guidance, in the tool-free lane); `aQuestion` names the agent.
+		void ask_for_action(std::string aAction, local_draft_question aQuestion);
+		/// \brief Reads the action's answer file and admits it.
+		void read_answer(std::string aAction);
+		/// \brief The author's record that a handoff's answer was lost.
+		void mark_lost(std::string aAction);
+		/// \brief Hands the recorded plan (confirmed by its digest) to the workflow's publisher.
+		void hand_off_publication(std::string aAction, std::string aDigest);
+		/// \brief Reads GitHub after an external publication handoff.
+		void reconcile_publication(std::string aAction);
+		void hand_off_follow_up(std::string aAction);
+		void reconcile_follow_up(std::string aAction);
 		/// \brief Confirms the rebind a moved worktree offered.
 		/// \brief RFC-BPR-0111's tour follow-up, its private half: draft
 		/// `aDraft`'s tour carried onto its pull request's empty tour draft

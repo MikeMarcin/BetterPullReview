@@ -1,0 +1,84 @@
+{
+  "format": "bpr.profile-settings",
+  "version": 1,
+  "label": "Synthetic Org pull request workflow",
+  "exported_by": "Synthetic Org",
+  "agents": [
+    {
+      "id": "writer",
+      "name": "Writer",
+      "protocol": "claude_stream_json",
+      "preset": "claude_code",
+      "arguments": [],
+      "check_arguments": [],
+      "model": "",
+      "effort": "",
+      "strict_run_checks": true,
+      "scratch_starts": true,
+      "builds_and_tests": true,
+      "mcp_servers": "off",
+      "instructions": "system-prompt"
+    }
+  ],
+  "prompts": [],
+  "workflows": [
+    {
+      "id": "synthetic-org",
+      "name": "Synthetic Org pull request",
+      "origin": "Synthetic Org",
+      "guidance": "Say why the change is needed and how it was tested.",
+      "actions": [
+        {
+          "id": "context",
+          "slot": "gather_context",
+          "task": "Gather the ticket's context",
+          "binding": "command",
+          "program_name": "synthetic_org_companion.py",
+          "arguments": ["--request", "{request}", "--response", "{response}"],
+          "effects": ["read_context", "write_proposal"],
+          "required": false
+        },
+        {
+          "id": "describe",
+          "slot": "propose_description",
+          "task": "Draft the description in the house style",
+          "binding": "agent",
+          "agent": "writer",
+          "prompt": "Draft a description with a Why section and a Testing section.",
+          "effects": ["read_context", "write_proposal"],
+          "required": false
+        },
+        {
+          "id": "template",
+          "slot": "check_preparation",
+          "task": "Check the pull request template",
+          "binding": "command",
+          "program_name": "synthetic_org_companion.py",
+          "arguments": ["--request", "{request}", "--response", "{response}"],
+          "effects": ["read_context", "run_check"],
+          "required": true
+        },
+        {
+          "id": "publish",
+          "slot": "publish_draft",
+          "task": "Create the pull request with the org tool",
+          "binding": "command",
+          "program_name": "synthetic_org_companion.py",
+          "arguments": ["--request", "{request}", "--response", "{response}"],
+          "effects": ["publish_pull_request", "change_ticket"],
+          "required": false
+        },
+        {
+          "id": "follow",
+          "slot": "finish_publication",
+          "task": "Link the ticket and upload the screenshot",
+          "binding": "command",
+          "program_name": "synthetic_org_companion.py",
+          "arguments": ["--request", "{request}", "--response", "{response}"],
+          "effects": ["change_ticket"],
+          "required": false
+        }
+      ]
+    }
+  ]
+}

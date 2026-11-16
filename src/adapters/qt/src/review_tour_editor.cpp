@@ -22,6 +22,7 @@
 #include "waiting_panel.hpp"
 
 #include <QAbstractButton>
+#include <QAbstractScrollArea>
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
@@ -735,9 +736,17 @@ namespace bpr::qt {
 				}
 				const auto metrics = QFontMetrics{ aOption.font };
 				const auto code    = QFontMetrics{ code_font_of(aOption.font) };
-				const auto width   = std::max(120, aOption.rect.width() > 0 ? aOption.rect.width() : 300);
-				auto       height  = 8 + std::max(ring_size, metrics.height()) + 4 + code.height() + 6;
-				const auto excerpt = aIndex.data(excerpt_role).toString();
+				// [[BPR-2199]]. An option with no width (`sizeHintForRow`,
+				// which the route's height is summed from) measures at the
+				// width the list lays its rows out at, its viewport's, not a
+				// guess: at a guessed 300 an excerpt one line long in a narrow
+				// font wrapped to two at the drawer's real width, the route
+				// fell short of its rows and scrolled.
+				const auto* const view    = qobject_cast<const QAbstractScrollArea*>(aOption.widget);
+				const auto        laidOut = view != nullptr && view->viewport()->width() > 0 ? view->viewport()->width() : 300;
+				const auto        width   = std::max(120, aOption.rect.width() > 0 ? aOption.rect.width() : laidOut);
+				auto              height  = 8 + std::max(ring_size, metrics.height()) + 4 + code.height() + 6;
+				const auto        excerpt = aIndex.data(excerpt_role).toString();
 				if (!Page && !excerpt.isEmpty()) {
 					const auto lines = std::min(2, static_cast<int>(std::ceil(static_cast<double>(metrics.horizontalAdvance(excerpt)) / std::max(1, width - text_left - 10))));
 					height += lines * metrics.lineSpacing() + 2;

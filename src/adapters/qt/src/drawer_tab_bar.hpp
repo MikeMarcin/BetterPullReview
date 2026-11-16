@@ -1,6 +1,10 @@
 #ifndef BPR_SRC_ADAPTERS_QT_SRC_DRAWER_TAB_BAR_HPP
 #define BPR_SRC_ADAPTERS_QT_SRC_DRAWER_TAB_BAR_HPP
 
+#include "bpr/qt/fold_faces.hpp"
+
+#include <QGridLayout>
+#include <QIcon>
 #include <QPainter>
 #include <QStyle>
 #include <QStyleOptionTab>
@@ -8,6 +12,9 @@
 #include <QTabBar>
 
 #include <algorithm>
+#include <cstddef>
+#include <functional>
+#include <span>
 
 /// \file
 /// \brief A drawer's tab row whose tabs are each as wide as what they show.
@@ -52,6 +59,63 @@ namespace bpr::qt::detail {
 				width += glyph_gap + count->sizeHint().width();
 			}
 			return width;
+		}
+
+		/// \brief [[BPR-1684]], [[BPR-2197]]. Gives the tabs the widest face
+		/// whose visible tabs fit `aRoom`, through the shared fold.
+		///
+		/// \details Each tab shows `fold_text` of its name and, when the face
+		/// has glyphs, `aGlyph(index)`; a tab showing only its glyph says its
+		/// accessible name first in its tooltip. With no room yet (a header
+		/// not laid out) every name shows. `aRepaint` redraws the glyphs, as
+		/// after a palette change.
+		void fold(const int aRoom, const std::span<const QString> aNames, const std::span<const QString> aAbout, const std::function<QIcon(int)>& aGlyph, const bool aRepaint)
+		{
+			const auto tabs    = std::min({ static_cast<std::size_t>(count()), aNames.size(), aAbout.size() });
+			const auto current = currentIndex();
+			const auto widthIn = [this, &aNames, tabs, current](const fold_face aFace) {
+				auto width = 0;
+				for (std::size_t index = 0U; index < tabs; ++index) {
+					const auto tab = static_cast<int>(index);
+					if (isTabVisible(tab)) {
+						width += face_width(tab, fold_text(aFace, tab == current, aNames[index]), fold_shows_glyph(aFace));
+					}
+				}
+				return width;
+			};
+			const auto chosen   = aRoom > 0
+				? choose_fold_face({ fold_face::names, fold_face::open_named, fold_face::glyphs }, [&widthIn, aRoom](const fold_face aFace) { return widthIn(aFace) <= aRoom; })
+				: fold_face::names;
+			const auto shown    = fold_shows_glyph(chosen);
+			auto       reshaped = false;
+			for (std::size_t index = 0U; index < tabs; ++index) {
+				const auto tab  = static_cast<int>(index);
+				const auto text = fold_text(chosen, tab == current, aNames[index]);
+				if (aRepaint || tabIcon(tab).isNull() == shown) {
+					reshaped = reshaped || tabIcon(tab).isNull() == shown;
+					setTabIcon(tab, shown ? aGlyph(tab) : QIcon{ });
+				}
+				if (tabText(tab) != text) {
+					reshaped = true;
+					setTabText(tab, text);
+				}
+				if (const auto tip = fold_tooltip(text, accessibleTabName(tab), aAbout[index]); tabToolTip(tab) != tip) {
+					setTabToolTip(tab, tip);
+				}
+			}
+			// [[BPR-1757]]. A hidden QTabBar only marks its tabs dirty when a
+			// face changes; the header's own sizeHint() query then lays them
+			// out, so the bar's showEvent has nothing left to announce and the
+			// header's grid keeps the old width. The bar says it changed size
+			// itself. [[BPR-2201]]: so it does when the face is the same but
+			// the row is not, as when a tab is shown or hidden. Overview's
+			// Status drawer kept every name as its Tour tab appeared, and its
+			// header held the bar at the four tabs' 262 pixels while the five
+			// needed 310; a face change had hidden that in wider fonts.
+			if (const auto hint = sizeHint().width(); reshaped || hint != Announced) {
+				Announced = hint;
+				updateGeometry();
+			}
 		}
 
 	protected:
@@ -138,7 +202,20 @@ namespace bpr::qt::detail {
 		/// The gap QTabBar and the styles leave between a glyph, a name
 		/// and a tab button.
 		static constexpr int glyph_gap = 4;
+		/// The width `fold` last told the header the row needs.
+		int Announced = -1;
 	};
+
+	/// \brief The room a drawer header's grid gives its tabs alone on their
+	/// row: the header's width less its left margin and its columns' spacing.
+	[[nodiscard]] inline auto tab_row_room(const QWidget& aHeader) -> int
+	{
+		auto room = aHeader.width();
+		if (const auto* const grid = qobject_cast<const QGridLayout*>(aHeader.layout()); grid != nullptr && room > 0) {
+			room -= grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing());
+		}
+		return room;
+	}
 
 } // namespace bpr::qt::detail
 

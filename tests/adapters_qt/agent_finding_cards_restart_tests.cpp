@@ -27,12 +27,13 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "../support/scratch_directory.hpp"
+
 #include <QAbstractButton>
 #include <QApplication>
 #include <QLabel>
 #include <QPushButton>
 #include <QTabWidget>
-#include <QTemporaryDir>
 
 #include <cstdlib>
 #include <filesystem>
@@ -234,13 +235,15 @@ namespace {
 
 	void test_cards_and_their_states_survive_a_restart()
 	{
-		QTemporaryDir root;
-		expect(root.isValid(), "a private state root");
-		const auto path   = std::filesystem::path{ root.path().toStdString() };
-		const auto answer = review_answer();
-		auto       kept   = std::vector<qt::agent_thread_turn>{ };
-		auto       asked  = std::vector<qt::agent_finding_card_request>{ };
-		const auto ask    = [&asked](const qt::agent_finding_card_request& aRequest) { asked.push_back(aRequest); };
+		// [[BPR-2205]]. The store keeps its state only under an owner-private
+		// root; on Windows a QTemporaryDir inherits the temporary
+		// directory's shared access, and the store rightly refused it.
+		const auto                      path = bpr::tests::make_scratch_directory("bpr-finding-cards-restart");
+		const bpr::tests::scratch_guard ownedPath{ path };
+		const auto                      answer = review_answer();
+		auto                            kept   = std::vector<qt::agent_thread_turn>{ };
+		auto                            asked  = std::vector<qt::agent_finding_card_request>{ };
+		const auto                      ask    = [&asked](const qt::agent_finding_card_request& aRequest) { asked.push_back(aRequest); };
 
 		// The first run: the review turn, its four findings delivered live,
 		// and the second added as a draft.

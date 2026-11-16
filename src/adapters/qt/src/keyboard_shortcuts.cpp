@@ -147,6 +147,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::review, .Group = views, .Binding = bound, .Title = "Review", .Keys = "Ctrl+2", .Objects = "reviewModalityReviewAction" },
 			shortcut_entry{ .Command = command::discuss, .Group = views, .Binding = bound, .Title = "Discuss", .Keys = "Ctrl+3", .Objects = "reviewModalityDiscussAction" },
 			shortcut_entry{ .Command = command::threads, .Group = views, .Binding = bound, .Title = "Threads", .Keys = "Ctrl+4", .Objects = "reviewModalityThreadsAction" },
+			shortcut_entry{ .Command = command::author, .Group = views, .Binding = bound, .Title = "Author", .Place = "On your own pull request or local draft", .Keys = "Ctrl+5", .Objects = "reviewModalityAuthorAction" },
 			shortcut_entry{ .Command = command::find_thread, .Group = views, .Binding = bound, .Title = "Find a thread, or go back", .Keys = "Ctrl+J", .Objects = "showWorkbenchThreadsAction;desktopShowThreadsAction" },
 			// [[BPR-1581]]. The selected thread in the other view, beside ⌘3 and
 			// ⌘2. Ctrl+Alt is AltGr on Windows, so both step aside while typing.
@@ -238,6 +239,10 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::settings, .Group = application, .Binding = bound, .Title = "Settings", .Keys = "Ctrl+,", .Objects = "openSettingsAction;desktopOpenSettingsAction" },
 			shortcut_entry{ .Command = command::insights, .Group = application, .Binding = bound, .Title = "Insights", .Keys = "Ctrl+Alt+Shift+I", .Objects = "openInsightsAction;desktopOpenInsightsAction" },
 			shortcut_entry{ .Command = command::settings_find, .Group = application, .Binding = bound, .Title = "Search Settings", .Place = "In Settings", .Standard = QKeySequence::Find, .EveryBinding = true, .Shown = 1U, .Objects = "settingsFindShortcut" },
+			// Settings › Prompts: a prompt's conditions take Undo and Redo while
+			// they have the focus (a text field keeps its own).
+			shortcut_entry{ .Command = command::prompts_conditions_undo, .Group = application, .Binding = bound, .Title = "Undo a change to the conditions", .Place = "In Settings › Prompts", .Standard = QKeySequence::Undo, .Objects = "promptsConditionsUndo" },
+			shortcut_entry{ .Command = command::prompts_conditions_redo, .Group = application, .Binding = bound, .Title = "Redo a change to the conditions", .Place = "In Settings › Prompts", .Standard = QKeySequence::Redo, .Objects = "promptsConditionsRedo" },
 			shortcut_entry{ .Command = command::new_window, .Group = application, .Binding = bound, .Title = "New window", .Standard = QKeySequence::New, .Objects = "newBprWindowAction;desktopNewBprWindowAction" },
 			shortcut_entry{ .Command = command::quit, .Group = application, .Binding = bound, .Title = "Quit", .Standard = QKeySequence::Quit, .Objects = "quitProfilesAction;desktopQuitProfilesAction" },
 			shortcut_entry{ .Command = command::connect, .Group = application, .Binding = bound, .Title = "Sign in to GitHub", .Keys = "Ctrl+Shift+C", .Objects = "connectGithubAction" },

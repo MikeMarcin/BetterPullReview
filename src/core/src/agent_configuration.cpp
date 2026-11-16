@@ -2,6 +2,7 @@
 
 #include "bpr/core/hex.hpp"
 #include "bpr/core/json_preflight.hpp"
+#include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_skill.hpp"
 #include "bpr/core/utf8.hpp"
@@ -9,6 +10,7 @@
 #include <glaze/glaze.hpp>
 
 #include <algorithm>
+#include <iterator>
 #include <ranges>
 #include <set>
 #include <utility>
@@ -30,8 +32,8 @@ namespace bpr::core::detail {
 		bool                       StrictRunChecks = true;
 		bool                       ScratchStarts   = true;
 		bool                       BuildsAndTests  = false;
-		std::optional<std::string> McpServers;
-		std::optional<std::string> Instructions;
+		std::string                McpServers;
+		std::string                Instructions;
 	};
 	struct wire_prompt
 	{
@@ -41,6 +43,25 @@ namespace bpr::core::detail {
 		std::optional<std::string> WrittenAgainstSha256;
 		std::string                Text;
 	};
+	/// [[BPR-2198]]. Identity and Repositories: hosts, logins and
+	/// repository names, never a sign-in.
+	struct wire_profile_account
+	{
+		std::string Host;
+		std::string Login;
+	};
+	struct wire_profile_identity
+	{
+		std::string                       ProfileName;
+		std::vector<wire_profile_account> Accounts;
+	};
+	struct wire_profile_repository
+	{
+		std::optional<std::string> Host;
+		std::string                Repository;
+		bool                       Saved    = false;
+		bool                       Followed = false;
+	};
 	struct wire_file
 	{
 		std::string                Format;
@@ -49,6 +70,10 @@ namespace bpr::core::detail {
 		std::string                ExportedBy;
 		std::vector<wire_agent>    Agents;
 		std::vector<wire_prompt>   Prompts;
+		/// Each section after Prompts is left out when it is not exported.
+		std::optional<glz::raw_json>                        Workflows;
+		std::optional<wire_profile_identity>                Identity;
+		std::optional<std::vector<wire_profile_repository>> Repositories;
 	};
 	/// Only the head, read first so a newer or foreign file is named as such.
 	struct wire_head
@@ -75,11 +100,29 @@ struct glz::meta<bpr::core::detail::wire_prompt>
 										 &value_type::WrittenAgainstSha256, "text", &value_type::Text);
 };
 template <>
+struct glz::meta<bpr::core::detail::wire_profile_account>
+{
+	using value_type            = bpr::core::detail::wire_profile_account;
+	static constexpr auto value = object("host", &value_type::Host, "login", &value_type::Login);
+};
+template <>
+struct glz::meta<bpr::core::detail::wire_profile_identity>
+{
+	using value_type            = bpr::core::detail::wire_profile_identity;
+	static constexpr auto value = object("profile_name", &value_type::ProfileName, "accounts", &value_type::Accounts);
+};
+template <>
+struct glz::meta<bpr::core::detail::wire_profile_repository>
+{
+	using value_type            = bpr::core::detail::wire_profile_repository;
+	static constexpr auto value = object("host", &value_type::Host, "repository", &value_type::Repository, "saved", &value_type::Saved, "followed", &value_type::Followed);
+};
+template <>
 struct glz::meta<bpr::core::detail::wire_file>
 {
 	using value_type            = bpr::core::detail::wire_file;
 	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "label", &value_type::Label, "exported_by", &value_type::ExportedBy, "agents", &value_type::Agents,
-										 "prompts", &value_type::Prompts);
+										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows, "identity", &value_type::Identity, "repositories", &value_type::Repositories);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_head>
@@ -175,6 +218,55 @@ namespace bpr::core {
 			return aText.size() <= maximum_writing_instruction_bytes && valid_writing_utf8(aText);
 		}
 
+		[[nodiscard]] auto valid_host(const std::string_view aHost) noexcept -> bool
+		{
+			return !aHost.empty() && aHost.size() <= maximum_host_bytes
+				&& std::ranges::all_of(aHost, [](const char aByte) { return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || aByte == '-' || aByte == '.' || aByte == ':'; });
+		}
+
+		[[nodiscard]] auto valid_login(const std::string_view aLogin) noexcept -> bool
+		{
+			return !aLogin.empty() && aLogin.size() <= maximum_login_bytes
+				&& std::ranges::all_of(aLogin, [](const char aByte) { return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || aByte == '-' || aByte == '_'; });
+		}
+
+		/// "owner/name": one slash, neither part empty, GitHub's characters.
+		[[nodiscard]] auto valid_repository_name(const std::string_view aName) noexcept -> bool
+		{
+			const auto slash = aName.find('/');
+			if (slash == std::string_view::npos) {
+				return false;
+			}
+			const auto owner = aName.substr(0U, slash);
+			const auto name  = aName.substr(slash + 1U);
+			if (owner.starts_with('.') || name == "." || name == "..") {
+				return false;
+			}
+			return aName.size() <= maximum_repository_name_bytes && slash != std::string_view::npos && slash != 0U && slash + 1U < aName.size()
+				&& aName.find('/', slash + 1U) == std::string_view::npos
+				&& std::ranges::all_of(aName, [](const char aByte) { return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || aByte == '-' || aByte == '_' || aByte == '.' || aByte == '/'; });
+		}
+
+		[[nodiscard]] auto same_host(const std::string_view aLeft, const std::string_view aRight) noexcept -> bool
+		{
+			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, [](const char aA, const char aB) {
+					   const auto lower = [](const char aByte) { return aByte >= 'A' && aByte <= 'Z' ? static_cast<char>(aByte - 'A' + 'a') : aByte; };
+					   return lower(aA) == lower(aB);
+				   });
+		}
+
+		[[nodiscard]] auto same_account(const portable_account& aLeft, const portable_account& aRight) noexcept -> bool
+		{
+			return same_host(aLeft.Host, aRight.Host) && same_host(aLeft.Login, aRight.Login);
+		}
+
+		/// The account signed in here on `aHost`, if any.
+		[[nodiscard]] auto signed_in_on(const profile_facts& aHere, const std::string_view aHost) -> const portable_account*
+		{
+			const auto found = std::ranges::find_if(aHere.SignedIn, [aHost](const portable_account& aAccount) { return same_host(aAccount.Host, aHost); });
+			return found == aHere.SignedIn.end() ? nullptr : &*found;
+		}
+
 		/// The entry an imported agent's own values make, with a stand-in
 		/// program where it needs one, for the profile's validators.
 		[[nodiscard]] auto inspect_portable(const portable_agent& aAgent) -> std::optional<agent_entry_refusal>
@@ -186,7 +278,95 @@ namespace bpr::core {
 			}
 			return inspect_agent_entry(entry);
 		}
+
+		/// [[BPR-2198]]. Identity starts unchosen; each repository not here
+		/// yet starts chosen unless it can only be saved and no account is
+		/// signed in on its host ("Sign in to use").
+		void plan_profile_sections(const decoded_configuration& aFile, const profile_facts& aHere, configuration_import_plan& aPlan)
+		{
+			if (aFile.Identity) {
+				auto identity    = identity_import_plan{ };
+				identity.Renames = aFile.Identity->ProfileName != aHere.ProfileName;
+				for (const auto& account : aFile.Identity->Accounts) {
+					const auto signedIn = std::ranges::any_of(aHere.SignedIn, [&account](const portable_account& aKnown) { return same_account(aKnown, account); });
+					identity.Accounts.push_back(signedIn ? account_standing::signed_in : account_standing::sign_in_to_use);
+				}
+				const auto remembered = std::ranges::all_of(aFile.Identity->Accounts, [&aHere](const portable_account& aAccount) {
+					return same_host(aAccount.Host, "github.com") || std::ranges::any_of(aHere.Remembered, [&aAccount](const portable_account& aKnown) { return same_host(aKnown.Host, aAccount.Host); });
+				});
+				identity.Standing     = !identity.Renames && remembered ? import_standing::unchanged : import_standing::updated;
+				identity.Default      = false;
+				aPlan.Identity        = identity;
+			}
+			for (const auto& repository : aFile.Repositories) {
+				auto&      plan     = aPlan.Repositories.emplace_back();
+				const auto saved    = !repository.Saved || std::ranges::any_of(aHere.Repositories, [&repository](const portable_repository& aKnown) {
+					return aKnown.Saved && aKnown.Repository == repository.Repository && same_host(aKnown.Host, repository.Host);
+				});
+				const auto followed = !repository.Followed || std::ranges::any_of(aHere.Repositories, [&repository](const portable_repository& aKnown) {
+					return aKnown.Followed && aKnown.Repository == repository.Repository;
+				});
+				if (saved && followed) {
+					plan.Standing = import_standing::unchanged;
+					continue;
+				}
+				plan.Standing    = import_standing::added;
+				plan.SignInToUse = !saved && signed_in_on(aHere, repository.Host) == nullptr;
+				// Following needs no account; saving alone does.
+				plan.Default = !plan.SignInToUse || !followed;
+			}
+		}
 	} // namespace
+
+	auto stable_name(const profile_settings_section aSection) noexcept -> std::string_view
+	{
+		switch (aSection) {
+		case profile_settings_section::agents:       return "agents";
+		case profile_settings_section::prompts:      return "prompts";
+		case profile_settings_section::workflows:    return "workflows";
+		case profile_settings_section::identity:     return "identity";
+		case profile_settings_section::repositories: return "repositories";
+		}
+		return "agents";
+	}
+
+	auto exported_by_default(const profile_settings_section aSection) noexcept -> bool { return aSection != profile_settings_section::identity; }
+
+	auto portable_identity_of(const profile_facts& aFacts) -> portable_identity
+	{
+		auto identity        = portable_identity{ };
+		identity.ProfileName = aFacts.ProfileName;
+		const auto add       = [&identity](const portable_account& aAccount) {
+			if (!aAccount.Host.empty() && !aAccount.Login.empty()
+				&& std::ranges::none_of(identity.Accounts, [&aAccount](const portable_account& aKnown) { return same_account(aKnown, aAccount); })) {
+				identity.Accounts.push_back(aAccount);
+			}
+		};
+		std::ranges::for_each(aFacts.SignedIn, add);
+		std::ranges::for_each(aFacts.Remembered, add);
+		std::ranges::sort(identity.Accounts);
+		return identity;
+	}
+
+	auto portable_repositories_of(const profile_facts& aFacts) -> std::vector<portable_repository>
+	{
+		// A saved repository and a follow of the same name stay two items: one
+		// names its host, the other follows it on any host.
+		auto repositories = std::vector<portable_repository>{ };
+		for (const auto& repository : aFacts.Repositories) {
+			const auto known = std::ranges::find_if(repositories, [&repository](const portable_repository& aKnown) {
+				return same_host(aKnown.Host, repository.Host) && aKnown.Repository == repository.Repository;
+			});
+			if (known == repositories.end()) {
+				repositories.push_back(repository);
+			} else {
+				known->Saved    = known->Saved || repository.Saved;
+				known->Followed = known->Followed || repository.Followed;
+			}
+		}
+		std::ranges::sort(repositories);
+		return repositories;
+	}
 
 	auto stable_name(const portable_prompt_origin aOrigin) noexcept -> std::string_view
 	{
@@ -211,10 +391,10 @@ namespace bpr::core {
 		switch (aRefusal) {
 		case configuration_file_refusal::too_large:           return "The file is larger than 1 MiB.";
 		case configuration_file_refusal::not_text:            return "The file is not UTF-8 text.";
-		case configuration_file_refusal::malformed:           return "The file is not a configuration this version can read: its JSON is malformed or has fields it does not know.";
-		case configuration_file_refusal::not_a_configuration: return "The file is not a BetterPullReview agent configuration.";
+		case configuration_file_refusal::malformed:           return "The file is not Profile Settings this version can read: its JSON is malformed or has fields it does not know.";
+		case configuration_file_refusal::not_a_configuration: return "The file is not a BetterPullReview Profile Settings file.";
 		case configuration_file_refusal::unsupported_version: return "The file was written by a newer version of BetterPullReview.";
-		case configuration_file_refusal::too_many_items:      return "The file lists more agents or prompts than a configuration may hold.";
+		case configuration_file_refusal::too_many_items:      return "The file lists more items than a Profile Settings file may hold.";
 		}
 		return "The file cannot be read.";
 	}
@@ -272,6 +452,17 @@ namespace bpr::core {
 		case configuration_apply_refusal::refused_list:     return "refused_list";
 		}
 		return "unusable_item";
+	}
+
+	auto stable_name(const import_standing aStanding) noexcept -> std::string_view
+	{
+		switch (aStanding) {
+		case import_standing::added:     return "added";
+		case import_standing::updated:   return "updated";
+		case import_standing::unchanged: return "unchanged";
+		case import_standing::refused:   return "refused";
+		}
+		return "refused";
 	}
 
 	auto portable_ids(const std::span<const std::string> aNames) -> std::vector<std::string>
@@ -381,6 +572,32 @@ namespace bpr::core {
 			wire.Text                 = prompt.Text;
 			file.Prompts.push_back(std::move(wire));
 		}
+		if (!aConfiguration.Workflows.empty()) {
+			auto       workflows = encode_workflows(aConfiguration.Workflows);
+			const auto carried   = [&aConfiguration](const workflow_action& aAction) {
+				return aAction.Binding != workflow_binding::agent || std::ranges::find(aConfiguration.Agents, aAction.Agent, &portable_agent::PortableId) != aConfiguration.Agents.end();
+			};
+			const auto agentsCarried = std::ranges::all_of(aConfiguration.Workflows, [&carried](const workflow_configuration& aWorkflow) { return std::ranges::all_of(aWorkflow.Actions, carried); });
+			if (!workflows || !agentsCarried) {
+				return std::nullopt;
+			}
+			file.Workflows = glz::raw_json{ std::move(*workflows) };
+		}
+		if (aConfiguration.Identity) {
+			auto identity        = detail::wire_profile_identity{ };
+			identity.ProfileName = aConfiguration.Identity->ProfileName;
+			for (const auto& account : aConfiguration.Identity->Accounts) {
+				identity.Accounts.push_back({ .Host = account.Host, .Login = account.Login });
+			}
+			file.Identity = std::move(identity);
+		}
+		if (!aConfiguration.Repositories.empty()) {
+			auto repositories = std::vector<detail::wire_profile_repository>{ };
+			for (const auto& repository : aConfiguration.Repositories) {
+				repositories.push_back({ .Host = repository.Host.empty() ? std::nullopt : std::optional{ repository.Host }, .Repository = repository.Repository, .Saved = repository.Saved, .Followed = repository.Followed });
+			}
+			file.Repositories = std::move(repositories);
+		}
 		auto bytes = std::string{ };
 		if (glz::write<write_options>(file, bytes) || bytes.size() + 1U > maximum_agent_configuration_bytes) {
 			return std::nullopt;
@@ -389,8 +606,7 @@ namespace bpr::core {
 		return bytes;
 	}
 
-	auto decode_agent_configuration(const std::string_view aBytes, const std::span<const local_prompt> aRecognized, const std::span<const prompt_alias> aAliases)
-		-> std::expected<decoded_configuration, configuration_file_refusal>
+	auto decode_agent_configuration(const std::string_view aBytes, const std::span<const local_prompt> aRecognized) -> std::expected<decoded_configuration, configuration_file_refusal>
 	{
 		if (aBytes.size() > maximum_agent_configuration_bytes) {
 			return std::unexpected(configuration_file_refusal::too_large);
@@ -398,7 +614,7 @@ namespace bpr::core {
 		if (!utf8::valid(aBytes)) {
 			return std::unexpected(configuration_file_refusal::not_text);
 		}
-		const auto limits = json_preflight_limits{ .Depth = 8U, .ObjectMembers = 32U, .ArrayElements = 256U, .Values = 50'000U, .StringBytes = maximum_review_skill_bytes * 6U };
+		const auto limits = json_preflight_limits{ .Depth = 8U, .ObjectMembers = 32U, .ArrayElements = maximum_configuration_repositories, .Values = 50'000U, .StringBytes = maximum_review_skill_bytes * 6U };
 		if (const auto report = json_preflight(aBytes, limits); report.Result != json_preflight_result::valid) {
 			return std::unexpected(report.Result == json_preflight_result::structural_limit ? configuration_file_refusal::too_many_items : configuration_file_refusal::malformed);
 		}
@@ -416,7 +632,9 @@ namespace bpr::core {
 		if (glz::read<strict_options>(file, aBytes)) {
 			return std::unexpected(configuration_file_refusal::malformed);
 		}
-		if (file.Agents.size() > maximum_configuration_agents || file.Prompts.size() > maximum_configuration_prompts) {
+		if (file.Agents.size() > maximum_configuration_agents || file.Prompts.size() > maximum_configuration_prompts
+			|| (file.Identity && file.Identity->Accounts.size() > maximum_configuration_accounts)
+			|| (file.Repositories && file.Repositories->size() > maximum_configuration_repositories)) {
 			return std::unexpected(configuration_file_refusal::too_many_items);
 		}
 		auto decoded       = decoded_configuration{ };
@@ -439,11 +657,10 @@ namespace bpr::core {
 			item.Agent.StrictRunChecks = wire.StrictRunChecks;
 			item.Agent.ScratchStarts   = wire.ScratchStarts;
 			item.Agent.BuildsAndTests  = wire.BuildsAndTests;
-			// [[BPR-2139]], [[BPR-2140]]. Absent in a file written before
-			// them: Off and the system prompt. A value this version does not
+			// [[BPR-2139]], [[BPR-2140]]. A value this version does not
 			// know makes the file malformed, as any other unknown value does.
-			const auto mcp          = wire.McpServers ? parse_agent_mcp_servers(*wire.McpServers) : std::optional{ agent_mcp_servers::off };
-			const auto instructions = wire.Instructions ? parse_agent_instruction_delivery(*wire.Instructions) : std::optional{ agent_instruction_delivery::system_prompt };
+			const auto mcp          = parse_agent_mcp_servers(wire.McpServers);
+			const auto instructions = parse_agent_instruction_delivery(wire.Instructions);
 			if (!mcp || !instructions) {
 				return std::unexpected(configuration_file_refusal::malformed);
 			}
@@ -474,11 +691,7 @@ namespace bpr::core {
 			auto item           = decoded_prompt{ };
 			item.Prompt.Purpose = wire.Purpose;
 			item.Prompt.Text    = std::move(wire.Text);
-			auto purpose        = std::string_view{ wire.Purpose };
-			if (const auto alias = std::ranges::find(aAliases, purpose, &prompt_alias::Retired); alias != aAliases.end()) {
-				purpose = alias->Current;
-			}
-			const auto local = std::ranges::find(aRecognized, purpose, &local_prompt::Purpose);
+			const auto local    = std::ranges::find(aRecognized, wire.Purpose, &local_prompt::Purpose);
 			if (local == aRecognized.end()) {
 				item.Problem = configuration_item_problem::unsupported_purpose;
 				decoded.Prompts.push_back(std::move(item));
@@ -501,6 +714,38 @@ namespace bpr::core {
 				item.Problem = configuration_item_problem::duplicate;
 			}
 			decoded.Prompts.push_back(std::move(item));
+		}
+		if (file.Workflows) {
+			auto agents = std::vector<std::string>{ };
+			std::ranges::transform(decoded.Agents, std::back_inserter(agents), [](const decoded_agent& aAgent) { return aAgent.Agent.PortableId; });
+			auto workflows = decode_workflows(file.Workflows->str, agents);
+			if (!workflows) {
+				return std::unexpected(configuration_file_refusal::malformed);
+			}
+			decoded.Workflows = std::move(*workflows);
+		}
+		// [[BPR-2198]]. A host, login or name this version would not accept
+		// makes the file malformed: these sections are plain names, and one
+		// that is not is not a file to trust in part.
+		if (file.Identity) {
+			auto identity = portable_identity{ .ProfileName = file.Identity->ProfileName, .Accounts = { } };
+			if (identity.ProfileName.empty() || identity.ProfileName.size() > maximum_bpr_profile_label_bytes || !plain(identity.ProfileName)) {
+				return std::unexpected(configuration_file_refusal::malformed);
+			}
+			for (const auto& account : file.Identity->Accounts) {
+				if (!valid_host(account.Host) || !valid_login(account.Login)) {
+					return std::unexpected(configuration_file_refusal::malformed);
+				}
+				identity.Accounts.push_back({ .Host = account.Host, .Login = account.Login });
+			}
+			decoded.Identity = std::move(identity);
+		}
+		for (const auto& wire : file.Repositories.value_or(std::vector<detail::wire_profile_repository>{ })) {
+			const auto host = wire.Host.value_or(std::string{ });
+			if ((!host.empty() && !valid_host(host)) || !valid_repository_name(wire.Repository) || (!wire.Saved && !wire.Followed) || (wire.Saved && host.empty())) {
+				return std::unexpected(configuration_file_refusal::malformed);
+			}
+			decoded.Repositories.push_back({ .Host = host, .Repository = wire.Repository, .Saved = wire.Saved, .Followed = wire.Followed });
 		}
 		return decoded;
 	}
@@ -668,5 +913,114 @@ namespace bpr::core {
 			++result.PromptsApplied;
 		}
 		return result;
+	}
+
+	auto plan_configuration_import(const decoded_configuration& aFile, const std::span<const agent_entry> aAgents, const std::span<const local_prompt> aPrompts,
+								   const std::span<const local_workflow> aWorkflows, const profile_facts& aHere) -> configuration_import_plan
+	{
+		auto plan = configuration_import_plan{ };
+		for (std::size_t index = 0U; index < aFile.Agents.size(); ++index) {
+			const auto& item  = aFile.Agents[index];
+			auto&       agent = plan.Agents.emplace_back();
+			if (item.Problem) {
+				continue;
+			}
+			for (const auto& entry : aAgents) {
+				if (compatible_agent(entry, item.Agent)) {
+					agent.StandIns.push_back(entry.Id);
+				}
+			}
+			const auto named = std::ranges::find(aAgents, item.Agent.Name, &agent_entry::Name);
+			if (named == aAgents.end()) {
+				// A popular agent is run as found; any other needs its program.
+				agent.Standing     = import_standing::added;
+				agent.NeedsProgram = !item.Agent.Preset || *item.Agent.Preset == setup_agent::plain_text_harness || item.Agent.Protocol == agent_protocol::external_terminal;
+				agent.Default      = { .Item = index, .Action = agent_import_action::add };
+				continue;
+			}
+			agent.Meets = named->Id;
+			// Unchanged: replacing it, with its own relaxed checks and builds,
+			// would change nothing.
+			const auto same  = agent_import_choice{ .Item = index, .Action = agent_import_action::replace, .Target = named->Id, .AcceptRelaxedChecks = !named->StrictRunChecks, .AcceptBuilds = named->BuildsAndTests };
+			const auto after = imported_entry(item.Agent, same, &*named);
+			if (compatible_agent(*named, item.Agent) && agent_differences(*named, after).empty()) {
+				agent.Standing = import_standing::unchanged;
+				agent.Default  = { .Item = index, .Action = agent_import_action::leave };
+			} else {
+				// An entry of the same name but another kind cannot take the
+				// file's settings: it starts left out and Update is not offered.
+				agent.Standing = import_standing::updated;
+				agent.Default  = compatible_agent(*named, item.Agent) ? agent_import_choice{ .Item = index, .Action = agent_import_action::replace, .Target = named->Id }
+																	  : agent_import_choice{ .Item = index, .Action = agent_import_action::leave };
+			}
+		}
+		for (const auto& item : aFile.Prompts) {
+			auto& prompt = plan.Prompts.emplace_back();
+			if (item.Problem || !item.Local || *item.Local >= aPrompts.size()) {
+				continue;
+			}
+			const auto& local = aPrompts[*item.Local];
+			const auto& mine  = local.Override.empty() ? local.BuiltIn : local.Override;
+			prompt.Standing   = item.Prompt.Text == mine ? import_standing::unchanged : import_standing::updated;
+			prompt.Default    = prompt.Standing == import_standing::updated;
+		}
+		for (const auto& item : aFile.Workflows) {
+			auto& workflow = plan.Workflows.emplace_back();
+			if (item.Problem) {
+				continue;
+			}
+			const auto local = std::ranges::find_if(aWorkflows, [&item](const local_workflow& aLocal) { return aLocal.Workflow.PortableId == item.Workflow.PortableId; });
+			if (local == aWorkflows.end()) {
+				workflow.Standing = import_standing::added;
+				workflow.Default  = workflow_import_action::add;
+				continue;
+			}
+			workflow.Local       = static_cast<std::size_t>(local - aWorkflows.begin());
+			workflow.Differences = workflow_differences(local->Workflow, item.Workflow);
+			workflow.Standing    = workflow.Differences.empty() ? import_standing::unchanged : import_standing::updated;
+			workflow.Default     = workflow.Differences.empty() ? workflow_import_action::leave : workflow_import_action::replace;
+		}
+		plan_profile_sections(aFile, aHere, plan);
+		return plan;
+	}
+
+	auto profile_changes(const decoded_configuration& aFile, const configuration_import_plan& aPlan, const bool aIdentity, const std::span<const std::size_t> aRepositories,
+						 const profile_facts& aHere) -> profile_settings_changes
+	{
+		auto changes = profile_settings_changes{ };
+		if (aIdentity && aFile.Identity && aPlan.Identity && aPlan.Identity->Standing != import_standing::refused) {
+			if (aPlan.Identity->Renames) {
+				changes.Rename = aFile.Identity->ProfileName;
+			}
+			// github.com needs no server remembered; an enterprise server
+			// this profile does not know yet is remembered with the login to
+			// sign in as. Signing in stays the reviewer's.
+			for (const auto& account : aFile.Identity->Accounts) {
+				const auto known = std::ranges::any_of(aHere.Remembered, [&account](const portable_account& aKnown) { return same_host(aKnown.Host, account.Host); });
+				if (!same_host(account.Host, "github.com") && !known) {
+					changes.RememberServers.push_back(account);
+				}
+			}
+		}
+		for (const auto index : aRepositories) {
+			if (index >= aFile.Repositories.size() || index >= aPlan.Repositories.size() || aPlan.Repositories[index].Standing != import_standing::added) {
+				continue;
+			}
+			const auto& repository = aFile.Repositories[index];
+			const auto  has        = [&aHere, &repository](const bool aSaved) {
+				return std::ranges::any_of(aHere.Repositories, [&](const portable_repository& aKnown) {
+					return aKnown.Repository == repository.Repository && (aSaved ? aKnown.Saved && same_host(aKnown.Host, repository.Host) : aKnown.Followed);
+				});
+			};
+			if (repository.Saved && !has(true)) {
+				if (const auto* const account = signed_in_on(aHere, repository.Host)) {
+					changes.Save.push_back({ .Account = *account, .Repository = repository.Repository });
+				}
+			}
+			if (repository.Followed && !has(false)) {
+				changes.Follow.push_back(repository.Repository);
+			}
+		}
+		return changes;
 	}
 } // namespace bpr::core

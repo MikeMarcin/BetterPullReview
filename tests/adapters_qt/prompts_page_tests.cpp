@@ -32,6 +32,7 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -269,6 +270,73 @@ namespace {
 		page.set_filter(qt::prompt_library_filter::all);
 	}
 
+	/// The owner, 2026-11-15: "there's no information on where we're adding
+	/// it to". The library row's Add to heads each group with the surface the
+	/// Surfaces section shows it under, in that order.
+	void test_add_to_headings(harness& aHarness)
+	{
+		auto& page = *aHarness.Page;
+		auto  menu = QMenu{ };
+		page.fill_library_menu(menu, "agent-tab.what-could-break");
+		const auto   actions = menu.actions();
+		const auto   addTo   = std::ranges::find(actions, QStringLiteral("Add to"), &QAction::text);
+		QMenu* const sub     = addTo != actions.end() ? (*addTo)->menu() : nullptr;
+		expect(sub != nullptr, "the library row's menu has Add to");
+		if (sub == nullptr) {
+			return;
+		}
+		// Each group, heading first: its title, then its items' words.
+		auto groups = std::vector<QStringList>{ };
+		for (const auto* const action : sub->actions()) {
+			if (action->isSeparator()) {
+				continue;
+			}
+			if (action->objectName() == QStringLiteral("promptsAddToHeading")) {
+				expect(!action->isEnabled() && action->font().bold() && !action->isCheckable(), "a heading is a bold title, not a choice");
+				groups.push_back({ action->text() });
+			} else if (action->objectName().startsWith(QStringLiteral("promptsAddTo-")) && !groups.empty()) {
+				groups.back() << action->text();
+			}
+		}
+		const auto expected = std::vector<QStringList>{
+			{ QStringLiteral("Pull request"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
+			{ QStringLiteral("File"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
+			{ QStringLiteral("Thread"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
+			{ QStringLiteral("Tour"), QStringLiteral("Tour stop"), QStringLiteral("Tour part"), QStringLiteral("Whole tour") },
+		};
+		auto seen = QStringList{ };
+		for (const auto& group : groups) {
+			seen << group.join(QStringLiteral(" / "));
+		}
+		expect(groups == expected, "Add to heads Pull request, File, Thread and Tour, in that order: " + seen.join(QStringLiteral(" | ")).toStdString());
+		// Every item and every group is the Surfaces section's own words.
+		for (std::size_t surface = 0U; surface < core::prompt_surface_count; ++surface) {
+			const auto* const action = sub->findChild<QAction*>(QStringLiteral("promptsAddTo-%1").arg(QString::fromLatin1(core::stable_name(static_cast<core::prompt_surface>(surface)))));
+			expect(action != nullptr && action->isCheckable(), "every surface is a checkable choice under its heading");
+		}
+		// The tour surfaces are greyed for another chat's prompt, and say why
+		// under them as well as in their tooltips.
+		const auto tours = std::array{ core::prompt_surface::tour_stop, core::prompt_surface::tour_part, core::prompt_surface::whole_tour };
+		auto       why   = QString{ };
+		for (const auto tour : tours) {
+			const auto* const action = sub->findChild<QAction*>(QStringLiteral("promptsAddTo-%1").arg(QString::fromLatin1(core::stable_name(tour))));
+			expect(action != nullptr && !action->isEnabled() && !action->toolTip().isEmpty(), "a tour surface is greyed for this prompt, with its reason as a tooltip");
+			why = action != nullptr ? action->toolTip() : why;
+		}
+		const auto* const note = sub->actions().back();
+		expect(note->objectName() == QStringLiteral("promptsAddToNote") && !note->isEnabled() && note->text() == why && !why.isEmpty(), "the greyed Tour group says why under it: " + note->text().toStdString());
+		const auto notes = std::ranges::count(sub->actions(), QStringLiteral("promptsAddToNote"), &QAction::objectName);
+		expect(notes == 1, "only a group greyed throughout gets a note");
+		const auto root = qEnvironmentVariable("BPR_PROMPT_RENDER_ROOT");
+		if (!root.isEmpty()) {
+			QDir{ }.mkpath(root);
+			sub->ensurePolished();
+			sub->adjustSize();
+			static_cast<void>(sub->grab().save(QDir{ root }.filePath(QStringLiteral("06-add-to-menu.png"))));
+		}
+		static_cast<void>(aHarness);
+	}
+
 	void test_conditions(harness& aHarness)
 	{
 		auto& page = *aHarness.Page;
@@ -453,6 +521,7 @@ auto main(int aArgc, char** aArgv) -> int
 	test_selection_outlines(harnessed);
 	test_placing(harnessed);
 	test_library_actions(harnessed);
+	test_add_to_headings(harnessed);
 	test_conditions(harnessed);
 	test_repository(harnessed);
 	test_saving(harnessed);

@@ -13,7 +13,6 @@
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pending_veil.hpp"
-#include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -207,10 +206,29 @@ namespace bpr::qt {
 		QuitProfilesAction->setEnabled(static_cast<bool>(QuitProfiles));
 	}
 
+	void workbench_window::dispatch_profile_management(application::profile_management_intent aIntent)
+	{
+		if (ProfileManagementDispatch) {
+			ProfileManagementDispatch(std::move(aIntent));
+		}
+	}
+
+	void workbench_window::present_profiles_settings()
+	{
+		open_settings(settings_page::profiles);
+		if (auto* const shown = settings(); shown != nullptr && shown->current_page() == settings_page::profiles) {
+			ProfilesSettings->focus_profiles();
+		}
+	}
+
 	void workbench_window::adopt_profile_management(
 		const application::profile_management_projection& aProjection,
-		const core::bpr_profile_id                        aCurrentProfile)
+		const core::bpr_profile_id                        aCurrentProfile,
+		const std::map<core::bpr_profile_id, int>&        aWindowCounts)
 	{
+		ProfilesSettings->set_current_profile(aCurrentProfile);
+		ProfilesSettings->set_window_counts(aWindowCounts);
+		ProfilesSettings->adopt(aProjection);
 		// [[BPR-0777]]. Adopted before the bounded-list guard: a refused projection is
 		// exactly when this window has to say so.
 		ProfileFailure = aProjection.Failure

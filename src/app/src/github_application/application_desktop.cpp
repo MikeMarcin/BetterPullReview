@@ -1,9 +1,11 @@
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_data_reset.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/agent_configuration_exchange.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/application/profile_activation.hpp"
@@ -39,10 +41,12 @@
 #include "tour_assist.hpp"
 #include "tour_cli_types.hpp"
 #include "tour_owner_service.hpp"
+#include <QFile>
 #include <QJsonDocument>
 
 #include <QPlainTextEdit>
 #include <QString>
+#include <QUuid>
 #include <QWidget>
 
 #include <algorithm>
@@ -387,6 +391,81 @@ namespace bpr::app {
 				return;
 			}
 		}
+	}
+
+	auto github_application::import_workflow_for_look(const std::string& aConfiguration) -> bool
+	{
+		const auto root   = Profile->ApplicationDataRoot;
+		auto       store  = adapters::sqlite::make_agent_configuration_store(root);
+		auto       file   = QFile{ QString::fromStdString(aConfiguration) };
+		auto       before = store ? store->load() : std::nullopt;
+		if (!before || !file.open(QIODevice::ReadOnly)) {
+			return false;
+		}
+		const auto bytes   = file.readAll().toStdString();
+		auto       preview = application::agent_configuration_preview{ .Snapshot = *before };
+		preview.Prompts    = application::local_prompts(preview.Snapshot);
+		auto decoded       = core::decode_agent_configuration(bytes, preview.Prompts);
+		if (!decoded) {
+			return false;
+		}
+		preview.File = std::move(*decoded);
+		// Looks never start an installed agent: the file's agents are not
+		// added, and its agent actions ask the profile's Fixture agent.
+		const auto agents    = std::vector<core::agent_import_choice>{ };
+		const auto fixture   = std::ranges::find(preview.Snapshot.Agents.Agents, std::string{ "Fixture agent" }, &core::agent_entry::Name);
+		const auto folder    = std::filesystem::path{ aConfiguration }.parent_path();
+		auto       workflows = std::vector<core::workflow_import_choice>{ };
+		for (std::size_t index = 0U; index < preview.File.Workflows.size(); ++index) {
+			auto choice = core::workflow_import_choice{ .Item = index, .Action = core::workflow_import_action::add };
+			for (const auto& action : preview.File.Workflows[index].Workflow.Actions) {
+				if (action.Binding == core::workflow_binding::command) {
+					choice.Programs.push_back({ .Action = action.Id, .Program = (folder / action.ProgramName).string() });
+				}
+			}
+			for (const auto& action : preview.File.Workflows[index].Workflow.Actions) {
+				if (action.Binding == core::workflow_binding::agent && fixture != preview.Snapshot.Agents.Agents.end()) {
+					choice.Agents.push_back({ .Action = action.Id, .AgentName = fixture->Name });
+				}
+			}
+			workflows.push_back(std::move(choice));
+		}
+		auto applied = core::apply_agent_configuration(preview.Snapshot.Agents.Agents, preview.Prompts, preview.File, agents, { });
+		auto chosen  = core::apply_workflow_choices(preview.Snapshot.Workflows, preview.File.Workflows, workflows);
+		if (!applied || !chosen) {
+			return false;
+		}
+		auto after      = application::snapshot_after_import(preview.Snapshot, *applied, applied->Replaced, [] { return QUuid::createUuid().toString(QUuid::Id128).toStdString(); });
+		after.Workflows = std::move(*chosen);
+		return store->apply(*before, after) == application::agent_configuration_outcome::applied;
+	}
+
+	auto github_application::fixture_agent_ready_for_look() const -> bool
+	{
+		auto       store    = adapters::sqlite::make_agent_configuration_store(Profile->ApplicationDataRoot);
+		const auto snapshot = store ? store->load() : std::nullopt;
+		return snapshot && std::ranges::any_of(snapshot->Agents.Agents, [](const core::agent_entry& aEntry) { return aEntry.Name == "Fixture agent"; });
+	}
+
+	auto github_application::select_workflow_for_look() -> bool
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				const auto& view = session->DraftDesktop->host().projection();
+				if (view.Draft && view.Draft->Workflow) {
+					session->Window->show_local_publication();
+					return true;
+				}
+				if (view.Workflow.Available.empty()) {
+					session->DraftDesktop->reload_workflows();
+				} else if (!view.Busy) {
+					session->DraftDesktop->host().select_workflow(view.Workflow.Available.front().Id);
+				}
+				return false;
+			}
+		}
+		return false;
 	}
 
 	void github_application::associate_local_draft_for_look(const std::uint64_t aNumber)

@@ -159,6 +159,9 @@ namespace bpr::core {
 		unauthorized,
 		/// The draft changed since it was read.
 		stale,
+		/// [[BPR-2034]], RFC-BPR-0112. The draft's workflow publishes it, or
+		/// an external publication handoff is unresolved: one publisher an attempt.
+		external_publisher,
 	};
 	[[nodiscard]] auto name(local_publication_refusal aRefusal) noexcept -> std::string_view;
 

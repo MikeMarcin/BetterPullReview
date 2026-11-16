@@ -1,0 +1,3622 @@
+{
+ "environment": {
+  "device_pixel_ratio": 1.5,
+  "general_font_family": "Sans Serif",
+  "general_font_points": 9,
+  "mode_keys": [
+   "Ctrl+1",
+   "Ctrl+2",
+   "Ctrl+3",
+   "Ctrl+4",
+   "Ctrl+5"
+  ],
+  "os": "Ubuntu 26.04 LTS",
+  "platform": "offscreen",
+  "qt": "6.12.0",
+  "row_font_family": "Ubuntu Sans",
+  "row_font_pixel_size": 15,
+  "row_font_points": 11.25,
+  "style": "fusion",
+  "system": "linux",
+  "tooltips": [
+   "Overview\nRead the pull request overview, with every drawer closed (Ctrl+1).",
+   "Review\nReview the code in the drawers you last arranged (Ctrl+2). Choose Review again to open Files and Comments.",
+   "Discuss\nCollapse the files drawer and give the thread the room (Ctrl+3).",
+   "Threads\nFind a thread in the pull request (Ctrl+4, Ctrl+J)"
+  ]
+ },
+ "faces": [
+  {
+   "face": "names and keys",
+   "index": 0,
+   "segments": [
+    133,
+    117,
+    118,
+    123,
+    112
+   ],
+   "width": 615,
+   "x": 694,
+   "shown": 625
+  },
+  {
+   "face": "names",
+   "index": 1,
+   "segments": [
+    85,
+    69,
+    70,
+    74,
+    64
+   ],
+   "width": 374,
+   "x": 935,
+   "shown": 384
+  },
+  {
+   "face": "three-letter prefixes",
+   "index": 2,
+   "segments": [
+    48,
+    46,
+    41,
+    43,
+    46
+   ],
+   "width": 236,
+   "x": 1073,
+   "shown": 246
+  },
+  {
+   "face": "icons, the open mode named",
+   "index": 3,
+   "segments": [
+    30,
+    30,
+    30,
+    30,
+    84
+   ],
+   "width": 216,
+   "x": 1093,
+   "shown": 226
+  },
+  {
+   "face": "icons",
+   "index": 4,
+   "segments": [
+    30,
+    30,
+    30,
+    30,
+    30
+   ],
+   "width": 162,
+   "x": 1147,
+   "shown": 172
+  }
+ ],
+ "rows": [
+  {
+   "asked": 1588,
+   "face": "names and keys",
+   "file": "linux-today-long-1600-dark-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match qua…",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 422,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 532
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 566
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 778
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 794
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1600
+  },
+  {
+   "asked": 1347,
+   "face": "names and keys",
+   "file": "linux-today-long-1366-dark-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 560
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1366
+  },
+  {
+   "asked": 1262,
+   "face": "names and keys",
+   "file": "linux-today-long-1280-dark-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 18,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 474
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1280
+  },
+  {
+   "asked": 1021,
+   "face": "names",
+   "file": "linux-today-long-1100-dark-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 79,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 535
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1100
+  },
+  {
+   "asked": 887,
+   "face": "names",
+   "file": "linux-today-long-960-dark-150.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 106
+    },
+    {
+     "name": "Spare",
+     "w": 73,
+     "x": 318
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 395
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 960
+  },
+  {
+   "asked": 1554,
+   "face": "names",
+   "file": "linux-fold-long-1600-dark-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 629,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 739
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 773
+    },
+    {
+     "name": "Spare",
+     "w": 46,
+     "x": 985
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 1035
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1600
+  },
+  {
+   "asked": 1348,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-long-1366-dark-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at re…",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 581,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 691
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 725
+    },
+    {
+     "name": "Spare",
+     "w": 18,
+     "x": 937
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 959
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1366
+  },
+  {
+   "asked": 1268,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-long-1280-dark-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap …",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 501,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 611
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 645
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 857
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 873
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1280
+  },
+  {
+   "asked": 1083,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-long-1100-dark-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search resul…",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 316,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 426
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 460
+    },
+    {
+     "name": "Spare",
+     "w": 17,
+     "x": 672
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 693
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1100
+  },
+  {
+   "asked": 894,
+   "face": "icons",
+   "file": "linux-fold-long-960-dark-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 66,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 628,
+   "width": 960
+  },
+  {
+   "asked": 1588,
+   "face": "names and keys",
+   "file": "linux-today-long-1600-light-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match qua…",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 422,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 532
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 566
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 778
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 794
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1600
+  },
+  {
+   "asked": 1347,
+   "face": "names and keys",
+   "file": "linux-today-long-1366-light-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 560
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1366
+  },
+  {
+   "asked": 1262,
+   "face": "names and keys",
+   "file": "linux-today-long-1280-light-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 18,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 474
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1280
+  },
+  {
+   "asked": 1021,
+   "face": "names",
+   "file": "linux-today-long-1100-light-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 79,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 535
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1100
+  },
+  {
+   "asked": 887,
+   "face": "names",
+   "file": "linux-today-long-960-light-150.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 106
+    },
+    {
+     "name": "Spare",
+     "w": 73,
+     "x": 318
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 395
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 960
+  },
+  {
+   "asked": 1554,
+   "face": "names",
+   "file": "linux-fold-long-1600-light-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 629,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 739
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 773
+    },
+    {
+     "name": "Spare",
+     "w": 46,
+     "x": 985
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 1035
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1600
+  },
+  {
+   "asked": 1348,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-long-1366-light-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at re…",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 581,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 691
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 725
+    },
+    {
+     "name": "Spare",
+     "w": 18,
+     "x": 937
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 959
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1366
+  },
+  {
+   "asked": 1268,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-long-1280-light-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap …",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 501,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 611
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 645
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 857
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 873
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1280
+  },
+  {
+   "asked": 1083,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-long-1100-light-150.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search resul…",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 316,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 426
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 460
+    },
+    {
+     "name": "Spare",
+     "w": 17,
+     "x": 672
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 693
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 1100
+  },
+  {
+   "asked": 894,
+   "face": "icons",
+   "file": "linux-fold-long-960-light-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 66,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 628,
+   "width": 960
+  },
+  {
+   "asked": 1444,
+   "face": "names and keys",
+   "file": "linux-today-short-1600-dark-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 156,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 794
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1600
+  },
+  {
+   "asked": 1347,
+   "face": "names and keys",
+   "file": "linux-today-short-1366-dark-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 560
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1366
+  },
+  {
+   "asked": 1262,
+   "face": "names and keys",
+   "file": "linux-today-short-1280-dark-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 18,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 474
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1280
+  },
+  {
+   "asked": 1021,
+   "face": "names",
+   "file": "linux-today-short-1100-dark-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 79,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 535
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1100
+  },
+  {
+   "asked": 887,
+   "face": "names",
+   "file": "linux-today-short-960-dark-150.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 106
+    },
+    {
+     "name": "Spare",
+     "w": 73,
+     "x": 318
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 395
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 960
+  },
+  {
+   "asked": 1444,
+   "face": "names and keys",
+   "file": "linux-fold-short-1600-dark-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 156,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 794
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1600
+  },
+  {
+   "asked": 1203,
+   "face": "names",
+   "file": "linux-fold-short-1366-dark-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 163,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 801
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1366
+  },
+  {
+   "asked": 1203,
+   "face": "names",
+   "file": "linux-fold-short-1280-dark-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 77,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 715
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1280
+  },
+  {
+   "asked": 1045,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-short-1100-dark-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 55,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 693
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1100
+  },
+  {
+   "asked": 894,
+   "face": "icons",
+   "file": "linux-fold-short-960-dark-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 66,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 278,
+   "width": 960
+  },
+  {
+   "asked": 1444,
+   "face": "names and keys",
+   "file": "linux-today-short-1600-light-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 156,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 794
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1600
+  },
+  {
+   "asked": 1347,
+   "face": "names and keys",
+   "file": "linux-today-short-1366-light-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 560
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1366
+  },
+  {
+   "asked": 1262,
+   "face": "names and keys",
+   "file": "linux-today-short-1280-light-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 18,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 474
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1280
+  },
+  {
+   "asked": 1021,
+   "face": "names",
+   "file": "linux-today-short-1100-light-150.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 96,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 206
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 240
+    },
+    {
+     "name": "Spare",
+     "w": 79,
+     "x": 452
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 535
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1100
+  },
+  {
+   "asked": 887,
+   "face": "names",
+   "file": "linux-today-short-960-light-150.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 106
+    },
+    {
+     "name": "Spare",
+     "w": 73,
+     "x": 318
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 395
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 960
+  },
+  {
+   "asked": 1444,
+   "face": "names and keys",
+   "file": "linux-fold-short-1600-light-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 156,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 615,
+     "x": 794
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2400,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1600
+  },
+  {
+   "asked": 1203,
+   "face": "names",
+   "file": "linux-fold-short-1366-light-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 163,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 801
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2049,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1366
+  },
+  {
+   "asked": 1203,
+   "face": "names",
+   "file": "linux-fold-short-1280-light-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 77,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 374,
+     "x": 715
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1280
+  },
+  {
+   "asked": 1045,
+   "face": "icons, the open mode named",
+   "file": "linux-fold-short-1100-light-150.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 278,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 388
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 422
+    },
+    {
+     "name": "Spare",
+     "w": 55,
+     "x": 634
+    },
+    {
+     "name": "Modes",
+     "w": 216,
+     "x": 693
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1650,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 1100
+  },
+  {
+   "asked": 894,
+   "face": "icons",
+   "file": "linux-fold-short-960-light-150.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 4
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 38
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 72
+    },
+    {
+     "name": "Name",
+     "w": 181,
+     "x": 106
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 291
+    },
+    {
+     "name": "Branch",
+     "w": 208,
+     "x": 325
+    },
+    {
+     "name": "Spare",
+     "w": 66,
+     "x": 537
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1440,
+    45
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 278,
+   "width": 960
+  }
+ ]
+}

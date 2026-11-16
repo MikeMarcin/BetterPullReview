@@ -130,7 +130,7 @@ namespace bpr::core {
 		if (aGrant.ScratchFull) {
 			const auto may = *aProgram == agent_program::codex ? std::string_view{ "may run what is there but not write there" } : std::string_view{ "may read what is there but not write or run anything there" };
 			return "The scratch folder is full: it holds its limit of " + limit + ". The agent " + std::string{ may }
-			+ " until you make room. Open it, or clear scratch folders in Settings, Agents & context.";
+			+ " until you make room. Open it, or clear scratch folders in Settings, Agents.";
 		}
 		return "The agent may create, change and run scripts in a folder of its own, outside the review's workspace, up to " + limit + ". "
 			+ std::string{ scratch_enforcement(*aProgram) } + " The setting carries to the next question.";

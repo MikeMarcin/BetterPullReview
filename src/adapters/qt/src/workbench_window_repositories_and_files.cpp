@@ -1335,11 +1335,28 @@ namespace bpr::qt {
 		if (aEntry == core::workbench_modality_entry::choose && ReviewSheetOpen) {
 			close_review_sheet();
 		}
-		// A local draft has Overview and Review; Discuss and Threads wait
-		// until a pull request exists.
+		// [[BPR-2196]]. Author is chosen only where the core offers it.
+		if (aModality == review_modality::author && !author_case().has_value()) {
+			return;
+		}
+		// The strip shows its choice before it reports it, so where the window
+		// was is the surface last applied, not the strip's.
+		const auto enteringAuthor = aModality == review_modality::author && !AuthorShown;
+		if (AuthorShown && aModality != review_modality::author) {
+			remember_author_mode();
+		}
+		// A local draft has Overview, Review and Author; Discuss and Threads
+		// wait until a pull request exists.
 		if (LocalDraftShown && !showing_home()) {
+			const auto chosen = aModality == review_modality::overview || aModality == review_modality::author ? aModality : review_modality::review;
 			if (Modality != nullptr) {
-				Modality->adopt(aModality == review_modality::overview ? review_modality::overview : review_modality::review);
+				Modality->adopt(chosen);
+			}
+			if (aEntry == core::workbench_modality_entry::choose) {
+				note_mode_left_in(chosen);
+			}
+			if (enteringAuthor) {
+				enter_author_mode();
 			}
 			apply_local_draft_surface();
 			return;
@@ -1429,9 +1446,16 @@ namespace bpr::qt {
 			Modality->adopt(aModality);
 		}
 		// [[BPR-0661]]. "Last used" is the modality chosen while a pull
-		// request was open.
-		if (HasGithubPullRequest) {
+		// request was open. [[BPR-2196]]: Author is the owner's alone, so it
+		// is remembered per pull request, not as the setting's last used.
+		if (HasGithubPullRequest && aModality != review_modality::author) {
 			LastUsedModality = aModality;
+		}
+		// [[BPR-2196]]. The mode a pull request reopens in is the one the
+		// author chose there (its key or segment); links and the window's own
+		// opening move the window without choosing for them.
+		if (aEntry == core::workbench_modality_entry::choose) {
+			note_mode_left_in(aModality);
 		}
 		// [[BPR-1599]]. A choice made while the pull request loads is the
 		// reviewer's, and its arrival keeps it.
@@ -1449,6 +1473,10 @@ namespace bpr::qt {
 		// made those decisions reachable without a comparison, which is when
 		// a preset matters most.
 		if (!Dispatch) {
+			if (enteringAuthor) {
+				enter_author_mode();
+			}
+			apply_author_surface();
 			return;
 		}
 		// [[BPR-0727]]. The core retains the modality first, because Overview
@@ -1469,11 +1497,18 @@ namespace bpr::qt {
 					return core::workbench_modality::discuss;
 				case review_modality::threads:
 					return core::workbench_modality::threads;
+				case review_modality::author:
+					// Author's drawers follow Review's rules; it opens both.
+					return core::workbench_modality::review;
 				}
 				return core::workbench_modality::review;
 			}(),
 			.Entry = aEntry,
 		});
+		if (enteringAuthor) {
+			enter_author_mode();
+		}
+		apply_author_surface();
 		if (entryPath) {
 			if (const auto file = file_for_path(*entryPath); file.has_value()) {
 				Dispatch(core::select_workbench_file_intent{ .File = *file });
@@ -1791,6 +1826,8 @@ namespace bpr::qt {
 			DraftStateAction->setVisible(aOffered.has_value());
 			DraftStateAction->setEnabled(aOffered.has_value());
 		}
+		// [[BPR-2196]]. Ready for review is also Author's handoff.
+		present_author_mode();
 	}
 
 	void workbench_window::set_draft_state_dispatch(std::function<void(core::draft_state_change)> aDispatch)

@@ -3,7 +3,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "native_main_menu_probe.hpp"
 
@@ -451,7 +451,7 @@ try {
 	close_window(initial->window());
 	const auto closing = sample_until([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr && desktop->desktop_menu() != nullptr; },
 									  "the last window closes, its profile retires and the desktop keeps its own menu bar");
-	expect(desktop->management_window() == nullptr || !desktop->management_window()->isVisible(),
+	expect(desktop->profiles_settings() == nullptr || !desktop->profiles_settings()->isVisible(),
 		   "closing the last window presents no chooser");
 	expect(!desktop->is_quiescent(), "and the application is still running with no window");
 	const auto settled = sample_for(1000);

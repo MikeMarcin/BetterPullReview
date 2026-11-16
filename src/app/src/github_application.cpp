@@ -1,5 +1,6 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/application/review_mutation_diagnostics.hpp"
+#include "bpr/core/author_mode.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
 #include "bpr/core/description_edit.hpp"
@@ -1060,6 +1061,12 @@ namespace bpr::app {
 			offered = core::draft_state_offered(reading->facts());
 		}
 		Window->set_draft_state_offer(offered);
+		// [[BPR-2196]]. Author is the viewer's own pull request's mode: the core decides.
+		auto ownCase = std::optional<core::author_case>{ };
+		if (reading.has_value()) {
+			ownCase = core::author_case_of({ .PullRequest = true, .Author = reading->Author, .Viewer = reading->Viewer, .Open = reading->Open, .Draft = reading->Draft });
+		}
+		Window->set_pull_request_author_case(ownCase);
 	}
 
 	/// \brief [[BPR-1852]]. A new accepted read reconciles the viewer's

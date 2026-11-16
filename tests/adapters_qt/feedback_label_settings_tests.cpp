@@ -158,7 +158,7 @@ namespace {
 			   "the switch says what it does, is described like its glyph, and Tab reaches it");
 		// The button draws "&&" as one "&"; a single "&" would draw as a
 		// mnemonic underline ("Agents _context", v002's first render).
-		expect(guidance->text() == QStringLiteral("Agents && context › Review feedback ›") && guidance->accessibleName() == QStringLiteral("Guidance text: Agents & context, Review feedback"),
+		expect(guidance->text() == QStringLiteral("Agents › Review feedback ›") && guidance->accessibleName() == QStringLiteral("Guidance text: Agents, Review feedback"),
 			   "Guidance text names where the guidance lives, with its ampersand drawn");
 		expect(!helper->isChecked(), "the helper is off by default");
 		expect(open->isChecked() && !all->isChecked(), "Overview counts start on Open");
@@ -478,7 +478,7 @@ namespace {
 		expect(!link->isVisibleTo(page) && !editor->reference_offered(), "unbinding takes both away");
 	}
 
-	/// \brief [[BPR-1568]] v002. Guidance text opens Agents & context with the
+	/// \brief [[BPR-1568]] v002. Guidance text opens Agents with the
 	/// Review feedback hook chosen, whose line says whether it is sent and
 	/// where that is decided; the switch is keyboard-operable.
 	void test_the_comment_workshop_group()

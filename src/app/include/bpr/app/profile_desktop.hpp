@@ -3,7 +3,8 @@
 #include "bpr/app/github_application.hpp"
 namespace bpr::qt {
 	class desktop_menu_bar;
-	class profile_management_window;
+	class profiles_settings_panel;
+	class settings_window;
 }
 namespace bpr::app {
 	using profile_desktop_startup_result     = std::expected<github_application*, github_application_startup_failure>;
@@ -47,7 +48,12 @@ namespace bpr::app {
 		[[nodiscard]] auto runtime(core::bpr_profile_id aProfile) const noexcept -> github_application*;
 		[[nodiscard]] auto windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context>;
 		[[nodiscard]] auto window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window*;
-		[[nodiscard]] auto management_window() const noexcept -> qt::profile_management_window*;
+		/// \brief [[BPR-2198]]. RFC-BPR-0033's chooser: the desktop's own
+		/// Settings window, on Profiles alone, shown when no window is open (from
+		/// Manage Profiles…, or for a refusal no window can carry).
+		[[nodiscard]] auto profiles_settings() const noexcept -> qt::settings_window*;
+		/// \brief The chooser's Profiles page.
+		[[nodiscard]] auto profiles_panel() const noexcept -> qt::profiles_settings_panel*;
 		/// \brief The application's own menu bar, once a resident desktop has no window.
 		///
 		/// \details Absent until then, and absent entirely on a platform whose empty

@@ -11,7 +11,7 @@ for the scopes reconciled under RFC-BPR-0028:
 [RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)),
 and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
 Their entry and closeout cards, [[BPR-0592]] through [[BPR-0599]], are Done.
-Home, the Accounts & hosts card page, the empty desktop and the Profiles sheet
+Home, the Accounts & hosts card page, the empty desktop and Settings › Profiles
 are a later revision of those surfaces and are described as they behave
 (RFC-BPR-0032, RFC-BPR-0033, RFC-BPR-0034). The list on Home shows exactly what
 the queue projection supplies; personal discovery fills it with the viewer's
@@ -679,6 +679,23 @@ Every result and failure is announced once, politely, from the button; the
 button's description carries the state and the age. The note is laid over
 the content right-aligned under its button and the status bar's words keep
 their own width, so nothing moves.
+
+### No drawer pans sideways
+
+A drawer scrolls up and down, never sideways (the owner, look
+`workflow-v002`, 2026-11-15: "It's panning horizontally again. I don't like
+my drawers doing that. This should be a rule by now."). Everything in a
+drawer fits its width, down to the narrowest the drawer can be dragged to:
+text wraps, a row of buttons wraps under what it follows, a command line
+scrolls inside its own field, and a button that names something the
+reviewer or a file supplied (an agent, a workflow's publisher) shortens the
+name and keeps it whole in its tooltip. A drawer's scroll area shows no
+horizontal bar and has no sideways range, since a trackpad pans one whose bar
+is only hidden. This holds for every tab of every drawer: Overview's Status,
+Commits, Comments, Tour and Agent; Review's Comments, Tour and Agent;
+Author's Workflow, Tour and Agent; and a local draft's tabs.
+`qt_drawer_surfaces_fit_scale_100`, `_125` and `_200` hold each of them to it
+at the narrowest and a wide width in all four themes.
 
 ## Overview summary
 
@@ -2505,8 +2522,13 @@ for itself, so both answers are drivable on one host:
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS
   applications offer with no document open, and Settings keeping the
-  preferences role is what keeps the merged Preferences item in the application
-  menu. Measured from `[NSApp mainMenu]` by
+  preferences role is what keeps the merged item in the application menu with
+  Command-comma. That item reads **Settings…** there as in every other menu
+  (the owner, 2026-11-15: "Also can we renamed Preferences to settings in the
+  menu too. it's confusing to have it named differently"): the application
+  installs a translator that answers Qt's Cocoa integration, which asks for
+  `MAC_APPLICATION_MENU` "Preferences...", with "Settings…"
+  (`qt_application_menu_wording`). Measured from `[NSApp mainMenu]` by
   `application_profile_empty_desktop_native_menu_bar`, which snapshots the bar
   while a window is open and requires the windowless bar to equal it: both read
   `Apple | ~File | Profiles | View`. AppKit merges Quit into the application
@@ -2553,25 +2575,62 @@ carries it too. The agent panel still says "Not started". The refusal is not a
 failure of the quit, so closing the last window on Windows or Linux still
 exits 0.
 
-### The Profiles sheet
+### Settings › Profiles and the chooser
 
-**Profiles** opens from Profiles › Manage Profiles…, or at startup when no
-profile can be opened. It is a sheet of rows: a letter avatar, the profile
-name, and its state at the right ("Open in 2 windows", "Opening", "Closing",
-"Closed") from the existing projection, which is also the row's accessible
-description. The current profile's row is selected when the sheet opens.
-Return or a double-click opens the selected profile, and the footer's filled
-button says **Open** for a closed profile and **New window** for an open one,
-because that is what the gesture does.
+[[BPR-2198]] (owner, 2026-11-15: "I think the manage profiles window is
+probably kinda booty, maybe it just goes away"). Profiles are managed on
+**Settings › Profiles**, the page right after General, and Profiles › Manage
+Profiles… opens it. The page keeps the retired sheet's model and gestures:
+one row per profile with a letter avatar, the name, and its state at the
+right ("Open in 2 windows", "Opening", "Closing", "Closed") from the existing
+projection, which is also the row's accessible description. The Settings
+window's own profile is selected when the page opens and its name is set in
+the heavier weight. Return or a double-click opens the selected profile, and
+the filled button says **Open** for a closed profile and **New window** for an
+open one. The list is as tall as its rows, two to eight, inside the page's
+rounded surface.
 
-**Rename** and **New profile** are footer actions that turn the row into an
-editor in place, with Save and Cancel replacing the footer's buttons, so a
-name is edited where it is read; the field exists only while an edit is open.
-Escape cancels and keeps the text, and a refused edit stays open on exactly
-what was typed. A failure is one notice above the rows with a single **Try
-again**, and is absent otherwise. There is no permanent name field, no
-permanent status sentence and no Reload Profiles button, and nothing announces
-"Profile saved.": the renamed row is the confirmation.
+**Rename** and **New profile** turn the row into an editor in place, with
+Save and Cancel in the buttons' place, so a name is edited where it is read;
+the field exists only while an edit is open. Escape cancels and keeps the
+text, and a refused edit stays open on exactly what was typed. A failure is
+one notice above the rows with a single **Try again**, and is absent
+otherwise. Nothing announces "Profile saved.": the renamed row is the
+confirmation.
+
+Under the list, **Share profile settings** has **Import Profile Settings…**
+and **Export Profile Settings…** with one line: "A file with this profile's
+agents, prompts and workflows, to move to another computer or share."
+
+Both dialogs are drawn as the accepted import design B
+([workflow-import-v1](../design/workflow-import-v1/README.md), [[BPR-2204]]):
+a semibold title close over a secondary sentence that wraps short of the
+sheet, then the Prompt library's ticked list at the left in one rounded
+well on the panel colour, the detail at the right on the sheet's own ground
+with no frame, and a footer sentence beside Cancel and the default button.
+A list row is a tick (or the refused mark, or the tick's room left empty so
+every name lines up), the agent sparkle for an agent, the name with its tag
+as a small tinted pill (New blue, Updated and Edited teal, Not saved amber,
+the rest grey), and a secondary line; section headings are semibold body
+text with even room above; a selected row is a quiet grey. In Import a
+workflow's tick is its choice: its detail has no Update or Leave out of its
+own. An update is a table of yours beside the file's, with a header band,
+hairlines between rows and sides, each action's lines level on both sides, a
+new action's cell washed teal with New action at its top right, and an
+added effect in the caution colour. Each item opens at the top of its
+detail. Export's sections collapse (owner, look
+profile-settings-dialogs-v001): each section row has a disclosure triangle
+before its tick, all start open, Left and Right close and open the one with
+the cursor, and a closed section's tick still shows all, some (a dash) or
+none of its items. Import's sections are headings without ticks and stay
+open. Export's right side is the file's label, then the file's exact text in
+its own well. Every colour is a palette role or a theme role.
+
+RFC-BPR-0033's chooser, shown when no window exists (Manage Profiles… on the
+resident macOS menu bar, or a failure no window can carry), is the desktop's
+own Settings window with Profiles alone: the sidebar is not shown, and Share
+profile settings is left out because no profile runtime is open to import
+into or export from.
 
 ## Conversation drawer
 
@@ -2714,7 +2773,7 @@ the agent may read on the left; on the right the agent pill (owner decision
 own default by the model it last reported, owner look v004), an icon alone when the field is
 narrower than 300 points; its tooltip names the program that runs and the
 model the last answer reported, and its menu lists every agent added in
-Settings › Agents & context, one press to switch, then the agent's own models
+Settings › Agents, one press to switch, then the agent's own models
 and effort levels or Other…, kept with that agent, and last Agent settings…;
 owner look v006: the models and levels are the harness's own, Codex's from its
 App Server's `model/list` and Claude Code's levels from its `--help`, asked
@@ -2781,7 +2840,7 @@ adds Reset agents… (owner look v006): it asks first, then clears every agent
 setting, the clone folders and links and an edited review skill, forgets
 which agent each pull request was last asked with (its turns stay), and the
 setup starts again at Agent; there is no other way back into the setup.
-[[BPR-1859]]. Settings › Agents & context has Check agent under the agent
+[[BPR-1859]]. Settings › Agents has Check agent under the agent
 list: the setup's own check of the chosen agent, through the same host, with
 the workspace made and removed once while a pull request is open and left
 unchecked otherwise. Beside it one line says what runs, or why it cannot
@@ -3231,7 +3290,7 @@ Settings account card with its GitHub CLI accounts.
   account card); the initials are bold at 0.53 of the side for one letter
   and 0.44 for two. Mine carries a one-pixel ring two pixels outside the
   disc in the placeholder ink, on Threads and Overview alike.
-- The Profiles sheet keeps its neutral letter tile: a profile is not a
+- Settings › Profiles keeps its neutral letter tile: a profile is not a
   person. On Home a person's colour is the person's own; rows, bands and tags
   keep colour for state.
 - **Pictures** ([[BPR-1807]]; owner, 2026-10-28: "Is it possible to show users

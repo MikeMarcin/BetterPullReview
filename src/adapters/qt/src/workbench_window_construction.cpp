@@ -153,6 +153,7 @@ namespace bpr::qt {
 		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_dif_presentation(); });
 
 		build_local_draft_slots();
+		build_author_slots();
 		build_home_selection();
 		configure_tool_buttons();
 		refresh_toolbar_icons();
@@ -627,6 +628,9 @@ namespace bpr::qt {
 		Modality->set_dispatch([this](const review_modality aModality) {
 			choose_modality(aModality, core::workbench_modality_entry::choose);
 		});
+		// [[BPR-2197]]. The face that names the open mode is as wide as its
+		// name, so the row is fitted again when it moves.
+		Modality->set_reshape_observer([this] { apply_strip_width(); });
 		rowWidget(PrimaryToolbar, Modality, QStringLiteral("workbenchModalityAction"));
 		PrimaryToolbar->addAction(Drawers[1].Toggle);
 		// [[BPR-1295]]. Hide Drawers ends the drawer controls, right of the

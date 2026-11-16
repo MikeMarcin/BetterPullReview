@@ -33,7 +33,7 @@ the profile folder: beside it, in a folder named after it with
 `~/Library/Caches/betterpullreview-agent-scratch-v1`). Windows has no scratch
 folders. By default a folder unused for 30 days is removed when
 BetterPullReview starts, and a folder's limit is 256 MiB. Both are set, and
-the folders cleared, in [Settings > Agents & context](settings.md#agents).
+the folders cleared, in [Settings > Agents](settings.md#agents).
 
 Sign-in tokens live in the operating system's credential store. Manual tokens
 are dropped when you quit. Credentials held by `gh` or an AI agent are never

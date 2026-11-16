@@ -2,6 +2,7 @@
 
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
+#include "bpr/qt/local_draft_workflow_area.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 #include "conversation_glyphs.hpp"
 
@@ -299,14 +300,23 @@ namespace bpr::qt {
 		noteColumn->addWidget(NoteEditor);
 		NotesPage->hide();
 
-		// Overview's Status tab: the publish steps (the accepted design).
+		// [[BPR-2196]]. Author's Workflow tab: the author's checklist, then
+		// the publish steps (the accepted design moved them out of Status).
 		auto* const status = new QScrollArea{ Owner };
-		status->setObjectName(QStringLiteral("localDraftStatusPage"));
+		status->setObjectName(QStringLiteral("localDraftWorkflowPage"));
 		status->setFrameShape(QFrame::NoFrame);
 		status->setWidgetResizable(true);
 		status->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		PublicationArea = new local_draft_publication_area{ status };
-		status->setWidget(PublicationArea);
+		// RFC-BPR-0112: the draft's optional workflow above the publish steps.
+		auto* const statusColumn = new QWidget{ status };
+		auto* const statusLayout = new QVBoxLayout{ statusColumn };
+		statusLayout->setContentsMargins(0, 0, 0, 0);
+		WorkflowArea    = new local_draft_workflow_area{ statusColumn };
+		PublicationArea = new local_draft_publication_area{ statusColumn };
+		statusLayout->addWidget(WorkflowArea);
+		statusLayout->addWidget(PublicationArea);
+		statusLayout->addStretch(1);
+		status->setWidget(statusColumn);
 		status->hide();
 		StatusPage = status;
 
@@ -325,8 +335,12 @@ namespace bpr::qt {
 			}
 		});
 		connect(Create, &QPushButton::clicked, this, [this] {
-			if (Dispatch.CreatePullRequest) {
-				Dispatch.CreatePullRequest();
+			if (AuthorMode.Handoff == core::author_handoff::create_draft_pull_request || AuthorMode.Handoff == core::author_handoff::hand_off_plan) {
+				if (Dispatch.CreatePullRequest) {
+					Dispatch.CreatePullRequest();
+				}
+			} else if (HandedOff) {
+				HandedOff(AuthorMode.Handoff);
 			}
 		});
 		connect(Working, &QListWidget::itemChanged, this, [this](QListWidgetItem* const aItem) {
@@ -540,6 +554,7 @@ namespace bpr::qt {
 			WorkingDisclosure->setChecked(false);
 		}
 		PublicationArea->present(aProjection);
+		WorkflowArea->present(aProjection);
 		present_header();
 		present_recovery();
 		present_working();
@@ -822,9 +837,51 @@ namespace bpr::qt {
 		statePalette.setColor(QPalette::WindowText, ink);
 		PublishState->setPalette(statePalette);
 		PublishState->setText(state);
+		present_handoff();
+	}
+
+	void local_draft_parts::present_author_mode(const local_draft_author_mode& aAuthorMode)
+	{
+		AuthorMode = aAuthorMode;
+		WorkflowArea->present_checklist(aAuthorMode.Checklist, aAuthorMode.Case);
+		present_handoff();
+	}
+
+	void local_draft_parts::present_handoff()
+	{
+		// [[BPR-2196]]. The one handoff at the right end of Author's bar, as
+		// the core names it for the case.
 		const auto associated = Projection.Draft && Projection.Draft->Association;
-		Create->setVisible(!associated);
-		Create->setEnabled(Projection.Draft.has_value() && publishing.Linked.empty() && !associated);
+		switch (AuthorMode.Handoff) {
+		case core::author_handoff::create_draft_pull_request:
+			Create->setText(QStringLiteral("Create Draft PR…"));
+			Create->setToolTip(QStringLiteral("Push and create the draft pull request."));
+			Create->setEnabled(Projection.Draft.has_value() && Projection.Publishing.Linked.empty() && !associated);
+			break;
+		case core::author_handoff::hand_off_plan:
+			Create->setText(QStringLiteral("Hand Off Plan…"));
+			Create->setToolTip(QStringLiteral("Hand the plan to the workflow's publisher."));
+			Create->setEnabled(Projection.Draft.has_value() && Projection.Publishing.Linked.empty() && !associated);
+			break;
+		case core::author_handoff::ready_for_review:
+			Create->setText(QStringLiteral("Ready for review"));
+			Create->setToolTip(QStringLiteral("Mark the draft ready for review on GitHub."));
+			Create->setEnabled(AuthorMode.HandoffEnabled);
+			break;
+		case core::author_handoff::publish_update:
+			Create->setText(QStringLiteral("Publish update…"));
+			Create->setToolTip(AuthorMode.HandoffEnabled ? QStringLiteral("Push this update to the pull request.") : QStringLiteral("Nothing to push from your worktree."));
+			Create->setEnabled(AuthorMode.HandoffEnabled);
+			break;
+		}
+		Create->show();
+		// The headline's words beside it: what is left.
+		if (AuthorMode.Checklist.RequiredUnmet > 0U) {
+			auto statePalette = PublishState->palette();
+			statePalette.setColor(QPalette::WindowText, Owner->palette().color(QPalette::Window).lightness() < 128 ? QColor{ 248, 81, 73 } : QColor{ 207, 34, 46 });
+			PublishState->setPalette(statePalette);
+			PublishState->setText(AuthorMode.Checklist.RequiredUnmet == 1U ? QStringLiteral("● 1 check not met") : QStringLiteral("● %1 checks not met").arg(AuthorMode.Checklist.RequiredUnmet));
+		}
 	}
 
 	auto local_draft_parts::edit_refusal() const -> QString
@@ -964,7 +1021,7 @@ namespace bpr::qt {
 	auto local_draft_parts::local_changes() const noexcept -> local_changes_panel* { return LocalChanges; }
 	auto local_draft_parts::edit_page() const noexcept -> QWidget* { return EditPage; }
 	auto local_draft_parts::notes_page() const noexcept -> QWidget* { return NotesPage; }
-	auto local_draft_parts::status_page() const noexcept -> QWidget* { return StatusPage; }
+	auto local_draft_parts::workflow_page() const noexcept -> QWidget* { return StatusPage; }
 	auto local_draft_parts::projection() const noexcept -> const application::local_draft_workbench_projection& { return Projection; }
 	auto local_draft_parts::local_projection() const noexcept -> const application::local_changes_projection& { return LocalProjection; }
 	auto local_draft_parts::identity() const noexcept -> QLabel* { return Identity; }
@@ -986,6 +1043,7 @@ namespace bpr::qt {
 	auto local_draft_parts::create_button() const noexcept -> QPushButton* { return Create; }
 	auto local_draft_parts::branch_button() const noexcept -> QToolButton* { return Branch; }
 	auto local_draft_parts::publication() const noexcept -> local_draft_publication_area* { return PublicationArea; }
+	auto local_draft_parts::workflow() const noexcept -> local_draft_workflow_area* { return WorkflowArea; }
 
 	auto local_draft_parts::candidate_actions() const -> QList<QAction*>
 	{

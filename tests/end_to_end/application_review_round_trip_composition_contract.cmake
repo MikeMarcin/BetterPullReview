@@ -2062,7 +2062,7 @@ endfunction()
 # agent host's process port is application::wrapped_claude_process in front of
 # the existing launcher (in front of the tests-on probe), which replaces the
 # executable of a Claude stream-JSON request alone and re-inspects the path
-# before launch. Settings > Agents & context's Process wrapper row dispatches
+# before launch. The Process wrapper row on Settings > Agents dispatches
 # to application::claude_wrapper_editor, which has the agent adapter inspect
 # the file on the effect lane and then writes the profile preference; the
 # editor joins window shutdown and quiescence. review_cycle_desktop.{hpp,cpp}
@@ -2813,8 +2813,12 @@ function(bpr_verify_full_application_digest source_variable)
 	# [[BPR-1858]] main-merge reseal (2026-11-05): main a2e2ca244's
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
+	# [[BPR-2196]] reseal: present_draft_state_offer also tells the window
+	# the viewer's own case for Author (core::author_case_of over the same
+	# draft-state reading). No provider, admission, mutation branch,
+	# publication or source-inventory change.
 	set(bpr_expected_full_application_digest
-        "3ba90d7ea9ee80cb0da8c555c9c5c5830f6a6781c6ae308e7f5c403c5c6cd614"
+        "0fc72aa0f2a4dc1397c1f77738b6e3e126fc42e1b8896d3a0d3254fdf520c9eb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3156,6 +3160,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/local_draft_handoff.hpp"
         "src/local_draft_search.cpp"
         "src/local_draft_search.hpp"
+        "src/local_draft_workflow_exchange.cpp"
+        "src/local_draft_workflow_exchange.hpp"
         "src/pane_find_controller.cpp"
         "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
@@ -3776,8 +3782,31 @@ function(bpr_verify_app_source_tree app_source_root)
 	# returns tour feedback a crash left (also covers the BPR-2191 correction
 	# a9e612a3a, which landed unsealed). No review mutation or publication
 	# path changed; the mutation-branch pin is unchanged.
+	# Merge of main into the v0.5.0 lane (bdd492c64): main's src/app changes
+	# joined the lane's. No review mutation or publication path changed here.
+	# RFC-BPR-0112 ([[BPR-2032]] to [[BPR-2034]]): local_draft_workflow_exchange
+	# (the companion's request and answer files; it starts nothing), the
+	# draft desktop's Workflow area, Settings' workflow import and export, and
+	# the attended workflow look. No review mutation or submission path changed.
+	# [[BPR-2196]] reseal: Author, the author's mode. The host tells the
+	# window the viewer's own case from the draft-state reading, a fixture
+	# course maps Author's drawers to Review's, and the attended workflow
+	# look waits for the Fixture agent. No review mutation or submission path changed.
+	# Owner, 2026-11-15 reseal: main installs the application menu wording
+	# (Settings… for Qt's MAC_APPLICATION_MENU "Preferences..."), and the
+	# Settings section "Agents & context" is named "Agents" in the app's
+	# notices and comments. No review mutation or submission path changed.
+	# [[BPR-2198]] reseal: Settings › Profiles replaces the Manage Profiles
+	# window (profile_desktop's chooser is its own Settings on Profiles
+	# alone), Import and Export Profile Settings move there with Identity and
+	# Repositories read from the queue host's names, and a tests-on profiles
+	# look. No review mutation or submission path changed.
+	# [[BPR-2204]] reseal: the attended workflow look, given
+	# --attended-profiles-look, goes on to the profiles look's steps (two
+	# profiles, Settings on Profiles). Tests-on only; no review mutation or
+	# submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "8fcaff61d9497215b4b817921e64faa0839cf8517f680aff7794407373d3b87e"
+        "62d96cf0f7796bb15723ba5e6071de54573febffc803b7c53ef53ffa2dee3345"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

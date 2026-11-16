@@ -292,7 +292,7 @@ namespace {
 		// Settings adds a custom agent while the setup shows.
 		test.Setup.Choices = { card(1U, core::setup_agent::claude_code, "Work Claude", "/opt/work/bin/wrapper", core::agent_found_how::saved_program) };
 		test.show();
-		expect(test.View.open_step() == core::setup_step::agent && test.text().contains(QStringLiteral("Work Claude")) && test.text().contains(QStringLiteral("/opt/work/bin/wrapper"))
+		expect(test.View.open_step() == core::setup_step::agent && test.text().contains(QStringLiteral("Work Claude")) && test.text().contains(QDir::toNativeSeparators(QStringLiteral("/opt/work/bin/wrapper")))
 				   && !test.text().contains(QStringLiteral("No agent found on this computer")),
 			   "an agent added in Settings is a card at once");
 		// And a popular agent whose program is not found.

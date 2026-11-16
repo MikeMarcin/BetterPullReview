@@ -21,6 +21,7 @@
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -349,6 +350,24 @@ namespace bpr::qt {
 		present_commit();
 	}
 	void local_changes_panel::set_consent_question(std::function<bool()> aQuestion) { ConsentQuestion = std::move(aQuestion); }
+
+	auto local_changes_panel::select_file(const std::string& aPath) -> bool
+	{
+		const auto wanted = QString::fromStdString(aPath);
+		for (auto* const tree : { unstaged(), staged(), listed() }) {
+			if (tree == nullptr || !tree->isVisibleTo(this)) {
+				continue;
+			}
+			for (auto it = QTreeWidgetItemIterator{ tree }; *it != nullptr; ++it) {
+				const auto path = (*it)->data(0, path_role).toString();
+				if (!path.isEmpty() && (wanted.isEmpty() || path == wanted)) {
+					tree->setCurrentItem(*it);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 
 	auto local_changes_panel::pick(const core::local_comparison aComparison) const -> QAbstractButton* { return Picks[static_cast<std::size_t>(aComparison)]; }
 	auto local_changes_panel::unstaged() const noexcept -> QTreeWidget* { return Unstaged; }

@@ -121,7 +121,7 @@ $ae = [Windows.Automation.AutomationElement]
 $scope = [Windows.Automation.TreeScope]
 $walker = [Windows.Automation.TreeWalker]::RawViewWalker
 $trueCondition = [Windows.Automation.Condition]::TrueCondition
-$categories = @('General', 'Accounts & hosts', 'Reviews & queue', 'Appearance', 'Notifications', 'Agents & context', 'Storage & privacy')
+$categories = @('General', 'Accounts & hosts', 'Reviews & queue', 'Appearance', 'Notifications', 'Agents', 'Storage & privacy')
 $workbenchTitle = '^BetterPullReview\s[\u2014-]\s.*profile'
 $settingsTitle = '^Settings\s[\u2014-]\s.*profile'
 # The file stays ASCII: Windows PowerShell 5.1 reads a file without a BOM in

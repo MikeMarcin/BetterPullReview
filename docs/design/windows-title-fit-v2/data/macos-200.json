@@ -1,0 +1,3822 @@
+{
+ "environment": {
+  "device_pixel_ratio": 2,
+  "general_font_family": ".AppleSystemUIFont",
+  "general_font_points": 13,
+  "mode_keys": [
+   "⌘1",
+   "⌘2",
+   "⌘3",
+   "⌘4",
+   "⌘5"
+  ],
+  "os": "macOS Tahoe (26.6.2)",
+  "platform": "cocoa",
+  "qt": "6.12.0",
+  "row_font_family": ".AppleSystemUIFont",
+  "row_font_pixel_size": 13,
+  "row_font_points": 13,
+  "style": "macos",
+  "system": "macos",
+  "tooltips": [
+   "Overview\nRead the pull request overview, with every drawer closed (⌘1).",
+   "Review\nReview the code in the drawers you last arranged (⌘2). Choose Review again to open Files and Comments.",
+   "Discuss\nCollapse the files drawer and give the thread the room (⌘3).",
+   "Threads\nFind a thread in the pull request (⌘4, ⌘J)"
+  ]
+ },
+ "faces": [
+  {
+   "face": "names and keys",
+   "index": 0,
+   "segments": [
+    103,
+    91,
+    96,
+    98,
+    88
+   ],
+   "width": 488,
+   "x": 821,
+   "shown": 498
+  },
+  {
+   "face": "names",
+   "index": 1,
+   "segments": [
+    78,
+    65,
+    69,
+    71,
+    62
+   ],
+   "width": 357,
+   "x": 952,
+   "shown": 367
+  },
+  {
+   "face": "three-letter prefixes",
+   "index": 2,
+   "segments": [
+    46,
+    45,
+    41,
+    43,
+    45
+   ],
+   "width": 232,
+   "x": 1077,
+   "shown": 242
+  },
+  {
+   "face": "icons, the open mode named",
+   "index": 3,
+   "segments": [
+    30,
+    30,
+    30,
+    30,
+    82
+   ],
+   "width": 214,
+   "x": 1095,
+   "shown": 224
+  },
+  {
+   "face": "icons",
+   "index": 4,
+   "segments": [
+    30,
+    30,
+    30,
+    30,
+    30
+   ],
+   "width": 162,
+   "x": 1147,
+   "shown": 172
+  }
+ ],
+ "rows": [
+  {
+   "asked": 1588,
+   "face": "names and keys",
+   "file": "macos-today-long-1600-dark-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 487,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 679
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 713
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 905
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 921
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1600
+  },
+  {
+   "asked": 1351,
+   "face": "names and keys",
+   "file": "macos-today-long-1366-dark-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search …",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 250,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 442
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 476
+    },
+    {
+     "name": "Spare",
+     "w": 15,
+     "x": 668
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 687
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1366
+  },
+  {
+   "asked": 1261,
+   "face": "names and keys",
+   "file": "macos-today-long-1280-dark-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 601
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1280
+  },
+  {
+   "asked": 1055,
+   "face": "names",
+   "file": "macos-today-long-1100-dark-200.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 85,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 277
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 311
+    },
+    {
+     "name": "Spare",
+     "w": 45,
+     "x": 503
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 552
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1100
+  },
+  {
+   "asked": 932,
+   "face": "names",
+   "file": "macos-today-long-960-dark-200.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 188
+    },
+    {
+     "name": "Spare",
+     "w": 28,
+     "x": 380
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 412
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 960
+  },
+  {
+   "asked": 1531,
+   "face": "names",
+   "file": "macos-fold-long-1600-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 561,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 753
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 787
+    },
+    {
+     "name": "Spare",
+     "w": 69,
+     "x": 979
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 1052
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1600
+  },
+  {
+   "asked": 1351,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-long-1366-dark-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at res…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 524,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 716
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 750
+    },
+    {
+     "name": "Spare",
+     "w": 15,
+     "x": 942
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 961
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1366
+  },
+  {
+   "asked": 1263,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-long-1280-dark-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and ca…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 436,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 628
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 662
+    },
+    {
+     "name": "Spare",
+     "w": 17,
+     "x": 854
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 875
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1280
+  },
+  {
+   "asked": 1081,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-long-1100-dark-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search r…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 254,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 446
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 480
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 672
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 695
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1100
+  },
+  {
+   "asked": 935,
+   "face": "icons",
+   "file": "macos-fold-long-960-dark-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 25,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "dark",
+   "title": "long",
+   "whole_name": 561,
+   "width": 960
+  },
+  {
+   "asked": 1588,
+   "face": "names and keys",
+   "file": "macos-today-long-1600-light-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 487,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 679
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 713
+    },
+    {
+     "name": "Spare",
+     "w": 12,
+     "x": 905
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 921
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1600
+  },
+  {
+   "asked": 1351,
+   "face": "names and keys",
+   "file": "macos-today-long-1366-light-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search …",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 250,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 442
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 476
+    },
+    {
+     "name": "Spare",
+     "w": 15,
+     "x": 668
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 687
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1366
+  },
+  {
+   "asked": 1261,
+   "face": "names and keys",
+   "file": "macos-today-long-1280-light-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 601
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1280
+  },
+  {
+   "asked": 1055,
+   "face": "names",
+   "file": "macos-today-long-1100-light-200.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 85,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 277
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 311
+    },
+    {
+     "name": "Spare",
+     "w": 45,
+     "x": 503
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 552
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1100
+  },
+  {
+   "asked": 932,
+   "face": "names",
+   "file": "macos-today-long-960-light-200.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 188
+    },
+    {
+     "name": "Spare",
+     "w": 28,
+     "x": 380
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 412
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 960
+  },
+  {
+   "asked": 1531,
+   "face": "names",
+   "file": "macos-fold-long-1600-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at result_limit",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 561,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 753
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 787
+    },
+    {
+     "name": "Spare",
+     "w": 69,
+     "x": 979
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 1052
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1600
+  },
+  {
+   "asked": 1351,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-long-1366-light-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and cap the list at res…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 524,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 716
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 750
+    },
+    {
+     "name": "Spare",
+     "w": 15,
+     "x": 942
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 961
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1366
+  },
+  {
+   "asked": 1263,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-long-1280-light-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search results by match quality and ca…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 436,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 628
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 662
+    },
+    {
+     "name": "Spare",
+     "w": 17,
+     "x": 854
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 875
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1280
+  },
+  {
+   "asked": 1081,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-long-1100-light-200.png",
+   "identity_form": "title cut",
+   "identity_text": "bpr-fixtures/engine  #214 Rank search r…",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 254,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 446
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 480
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 672
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 695
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 1100
+  },
+  {
+   "asked": 935,
+   "face": "icons",
+   "file": "macos-fold-long-960-light-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 25,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "light",
+   "title": "long",
+   "whole_name": 561,
+   "width": 960
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-today-short-1600-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 250,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 921
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1600
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-today-short-1366-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 16,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 687
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1366
+  },
+  {
+   "asked": 1261,
+   "face": "names and keys",
+   "file": "macos-today-short-1280-dark-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 601
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1280
+  },
+  {
+   "asked": 1055,
+   "face": "names",
+   "file": "macos-today-short-1100-dark-200.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 85,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 277
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 311
+    },
+    {
+     "name": "Spare",
+     "w": 45,
+     "x": 503
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 552
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1100
+  },
+  {
+   "asked": 932,
+   "face": "names",
+   "file": "macos-today-short-960-dark-200.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 188
+    },
+    {
+     "name": "Spare",
+     "w": 28,
+     "x": 380
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 412
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 960
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-fold-short-1600-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 250,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 921
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1600
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-fold-short-1366-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 16,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 687
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1366
+  },
+  {
+   "asked": 1219,
+   "face": "names",
+   "file": "macos-fold-short-1280-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 61,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 732
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1280
+  },
+  {
+   "asked": 1076,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-short-1100-dark-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 24,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 695
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1100
+  },
+  {
+   "asked": 935,
+   "face": "icons",
+   "file": "macos-fold-short-960-dark-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 25,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "dark",
+   "title": "short",
+   "whole_name": 248,
+   "width": 960
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-today-short-1600-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 250,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 921
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1600
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-today-short-1366-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 16,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 687
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1366
+  },
+  {
+   "asked": 1261,
+   "face": "names and keys",
+   "file": "macos-today-short-1280-light-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 19,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 601
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1280
+  },
+  {
+   "asked": 1055,
+   "face": "names",
+   "file": "macos-today-short-1100-light-200.png",
+   "identity_form": "repository and number",
+   "identity_text": "engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 85,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 277
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 311
+    },
+    {
+     "name": "Spare",
+     "w": 45,
+     "x": 503
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 552
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1100
+  },
+  {
+   "asked": 932,
+   "face": "names",
+   "file": "macos-today-short-960-light-200.png",
+   "identity_form": "hidden",
+   "identity_text": "",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 188
+    },
+    {
+     "name": "Spare",
+     "w": 28,
+     "x": 380
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 412
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "today",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 960
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-fold-short-1600-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 250,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 921
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1413
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1447
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1481
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1515
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1532
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1566
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    3200,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1600
+  },
+  {
+   "asked": 1350,
+   "face": "names and keys",
+   "file": "macos-fold-short-1366-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 16,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 488,
+     "x": 687
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1179
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1213
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1247
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1281
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1298
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1332
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2732,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1366
+  },
+  {
+   "asked": 1219,
+   "face": "names",
+   "file": "macos-fold-short-1280-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 61,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 357,
+     "x": 732
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 1093
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 1127
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 1161
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1195
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1212
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1246
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2560,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1280
+  },
+  {
+   "asked": 1076,
+   "face": "icons, the open mode named",
+   "file": "macos-fold-short-1100-light-200.png",
+   "identity_form": "whole title",
+   "identity_text": "bpr-fixtures/engine  #214 Search results",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 249,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 441
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 475
+    },
+    {
+     "name": "Spare",
+     "w": 24,
+     "x": 667
+    },
+    {
+     "name": "Modes",
+     "w": 214,
+     "x": 695
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 913
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 947
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 981
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 1015
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 1032
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 1066
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    2200,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 1100
+  },
+  {
+   "asked": 935,
+   "face": "icons",
+   "file": "macos-fold-short-960-light-200.png",
+   "identity_form": "owner/repository and number",
+   "identity_text": "bpr-fixtures/engine  #214",
+   "items": [
+    {
+     "name": "Window buttons",
+     "w": 78,
+     "x": 4
+    },
+    {
+     "name": "Home",
+     "w": 30,
+     "x": 86
+    },
+    {
+     "name": "Repositories",
+     "w": 30,
+     "x": 120
+    },
+    {
+     "name": "Files",
+     "w": 30,
+     "x": 154
+    },
+    {
+     "name": "Name",
+     "w": 160,
+     "x": 188
+    },
+    {
+     "name": "Open on GitHub",
+     "w": 30,
+     "x": 352
+    },
+    {
+     "name": "Branch",
+     "w": 188,
+     "x": 386
+    },
+    {
+     "name": "Spare",
+     "w": 25,
+     "x": 578
+    },
+    {
+     "name": "Modes",
+     "w": 162,
+     "x": 607
+    },
+    {
+     "name": "Refresh",
+     "w": 30,
+     "x": 773
+    },
+    {
+     "name": "Comments",
+     "w": 30,
+     "x": 807
+    },
+    {
+     "name": "Hide drawers",
+     "w": 30,
+     "x": 841
+    },
+    {
+     "name": "Rule",
+     "w": 13,
+     "x": 875
+    },
+    {
+     "name": "Account",
+     "w": 30,
+     "x": 892
+    },
+    {
+     "name": "Settings",
+     "w": 30,
+     "x": 926
+    }
+   ],
+   "option": "fold",
+   "overflow": false,
+   "pixels": [
+    1920,
+    60
+   ],
+   "theme": "light",
+   "title": "short",
+   "whole_name": 248,
+   "width": 960
+  }
+ ]
+}

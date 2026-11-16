@@ -1,6 +1,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diagnostic_settings_panel.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -170,7 +170,7 @@ namespace {
 			expect(dynamic_cast<qt::quiet_push_button*>(control) != nullptr, "diagnostic choices and Open opt in");
 		}
 		expect(dynamic_cast<qt::quiet_push_button*>(clear) == nullptr, "destructive Clear keeps its separate presentation");
-		qt::profile_management_window profiles;
+		qt::profiles_settings_panel profiles;
 		profiles.adopt({ .Profiles = { { core::default_bpr_profile_id, "Default", application::profile_management_runtime::closed } }, .Ready = true });
 		for (auto* control : { profiles.create_button(), profiles.rename_button(), profiles.cancel_button(), profiles.try_again_button() }) {
 			expect(dynamic_cast<qt::quiet_push_button*>(control) != nullptr, "profile secondaries opt in");
@@ -232,7 +232,9 @@ namespace {
 			projection.Busy = false;
 			diagnostics.adopt(projection);
 			profiles.setPalette(colours);
-			profiles.present();
+			profiles.resize(560, 420);
+			profiles.show();
+			profiles.focus_profiles();
 			settle();
 			capture(profiles, name + QStringLiteral("-profiles"));
 			profiles.rename_button()->click();

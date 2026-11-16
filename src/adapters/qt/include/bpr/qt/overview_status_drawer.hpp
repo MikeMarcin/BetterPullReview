@@ -107,6 +107,9 @@ namespace bpr::qt {
 		/// local draft's Status tab carries its publish steps. A page given
 		/// here stands in Status's place (and Commits waits) until it is taken
 		/// back with null; the page the drawer was built with is kept.
+		/// \brief [[BPR-2196]]. Shows or hides Status and Commits: a local draft
+		/// has neither until its pull request exists.
+		void               set_status_tabs_shown(bool aShown);
 		void               set_status_page(QWidget* aPage);
 		[[nodiscard]] auto status_page() const noexcept -> QWidget*;
 		/// \brief Told when the open tab changes, by the reviewer or `show_tab`.

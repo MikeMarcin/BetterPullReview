@@ -93,7 +93,10 @@ Startup refusal consumes its callback exactly once, including shutdown reentry.
 ## The empty desktop and the chooser (RFC-BPR-0033)
 
 This section records shipped behavior rather than planned ownership. Closing a
-window no longer presents the management window. `profile_desktop`'s
+window no longer presents the chooser. [[BPR-2198]] retired the management
+window: profiles are managed on each window's Settings › Profiles, and the
+chooser is the desktop's own Settings window with Profiles alone, which
+`profile_desktop` presents only when no window exists. `profile_desktop`'s
 last-runtime branch asks an `empty_desktop_policy` the composition injects, and
 that function — not a platform test inside the desktop — decides between
 staying resident and quitting; the outcome it last gave is observable, so both

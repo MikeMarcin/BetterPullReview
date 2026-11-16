@@ -939,6 +939,31 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# [[BPR-2197]]. The shared fold of the tray tabs, Overview's drawer tabs and
+# the mode switcher: the tray tabs' faces are unchanged by the sharing.
+bpr_add_executable(
+    test_better_pull_review_qt_fold_faces_tests
+    fold_faces_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_fold_faces_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_fold_faces_tests)
+bpr_enable_warnings(test_better_pull_review_qt_fold_faces_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_fold_faces
+    COMMAND test_better_pull_review_qt_fold_faces_tests
+)
+set_tests_properties(
+    qt_fold_faces
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "fold-faces-tests:pass"
+        TIMEOUT 60
+)
+
 bpr_add_executable(
     test_better_pull_review_qt_settings_window_tests
     settings_window_tests.cpp
@@ -1979,12 +2004,12 @@ set_tests_properties(
         TIMEOUT 120
 )
 
-bpr_add_executable(test_better_pull_review_qt_profile_management_window_tests profile_management_window_tests.cpp)
-target_link_libraries(test_better_pull_review_qt_profile_management_window_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_qt_profile_management_window_tests)
-bpr_enable_warnings(test_better_pull_review_qt_profile_management_window_tests)
-bpr_add_network_isolated_test(NAME qt_profile_management_window COMMAND test_better_pull_review_qt_profile_management_window_tests)
-set_tests_properties(qt_profile_management_window PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 60)
+bpr_add_executable(test_better_pull_review_qt_profiles_settings_panel_tests profiles_settings_panel_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_profiles_settings_panel_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_profiles_settings_panel_tests)
+bpr_enable_warnings(test_better_pull_review_qt_profiles_settings_panel_tests)
+bpr_add_network_isolated_test(NAME qt_profiles_settings_panel COMMAND test_better_pull_review_qt_profiles_settings_panel_tests)
+set_tests_properties(qt_profiles_settings_panel PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 60)
 
 # [[BPR-0779]]. RFC-BPR-0032 A8, RFC-BPR-0033 B5 and RFC-BPR-0034 C6's
 # four-appearance, four-scale rendered and reachable course for the Accounts
@@ -2214,14 +2239,16 @@ set_tests_properties(qt_agent_finding_cards_retained PROPERTIES ENVIRONMENT "${b
 # integration.
 if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_add_executable(test_agent_finding_cards_restart agent_finding_cards_restart_tests.cpp)
-    target_link_libraries(test_agent_finding_cards_restart PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite)
+    # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).
+    target_link_libraries(test_agent_finding_cards_restart PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite BetterPullReview::Platform $<$<PLATFORM_ID:Windows>:Advapi32>)
     bpr_enable_hardening(test_agent_finding_cards_restart)
     bpr_enable_warnings(test_agent_finding_cards_restart)
     bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
     set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
     # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
     bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
-    target_link_libraries(test_prompt_macro_chips PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite)
+    # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).
+    target_link_libraries(test_prompt_macro_chips PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite BetterPullReview::Platform $<$<PLATFORM_ID:Windows>:Advapi32>)
     bpr_enable_hardening(test_prompt_macro_chips)
     bpr_enable_warnings(test_prompt_macro_chips)
     bpr_add_network_isolated_test(NAME qt_prompt_macro_chips COMMAND test_prompt_macro_chips)
@@ -2670,7 +2697,10 @@ foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
 endforeach()
 
 # [[BPR-1595]]. RFC-BPR-0085 AC08: every rebuilt drawer surface in the four
-# themes at its narrowest and widest width, at each scale.
+# themes at its narrowest and widest width, at each scale. Since look
+# workflow-v002 it is also the rule that no drawer pans sideways: every tab of
+# every drawer (Overview, Review, Author, a local draft) is checked for a
+# horizontal bar, sideways range and content wider than its viewport.
 bpr_add_executable(test_better_pull_review_qt_drawer_surfaces_fit_tests drawer_surfaces_fit_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_drawer_surfaces_fit_tests PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_better_pull_review_qt_drawer_surfaces_fit_tests)
@@ -2936,6 +2966,16 @@ bpr_add_network_isolated_test(NAME qt_local_draft_window COMMAND test_local_draf
 set_tests_properties(qt_local_draft_window PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "local-draft-window:pass" TIMEOUT 120)
+# Owner, 2026-11-15: the Settings item reads Settings… in every menu, the
+# macOS application menu (Qt's MAC_APPLICATION_MENU "Preferences...") included.
+bpr_add_executable(test_better_pull_review_qt_application_menu_wording_tests application_menu_wording_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_application_menu_wording_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_application_menu_wording_tests)
+bpr_enable_warnings(test_better_pull_review_qt_application_menu_wording_tests)
+bpr_add_network_isolated_test(NAME qt_application_menu_wording COMMAND test_better_pull_review_qt_application_menu_wording_tests)
+set_tests_properties(qt_application_menu_wording PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "application-menu-wording:pass" TIMEOUT 120)
 # RFC-BPR-0128, owner look ask-v001. An Ask row: plain click asks (queued),
 # Shift+click drafts, right click opens the row's own menu.
 bpr_add_executable(test_better_pull_review_qt_ask_menu_tests ask_menu_tests.cpp)
@@ -2944,3 +2984,20 @@ bpr_enable_hardening(test_better_pull_review_qt_ask_menu_tests)
 bpr_enable_warnings(test_better_pull_review_qt_ask_menu_tests)
 bpr_add_network_isolated_test(NAME qt_ask_menu COMMAND test_better_pull_review_qt_ask_menu_tests)
 set_tests_properties(qt_ask_menu PROPERTIES PASS_REGULAR_EXPRESSION "ask-menu-tests:pass")
+
+# [[BPR-2200]]. On Windows every Qt test executable of this directory carries
+# windows_fonts_startup.cpp: the offscreen platform finds the Windows fonts
+# (QT_QPA_FONTDIR, from %WINDIR% unless already set) and the application font
+# is Segoe UI 9 pt, as a desktop gives, not an unnamed fallback twice as wide.
+# Last in the file, so every executable above is in the list.
+if(WIN32)
+    get_property(bpr_qt_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(bpr_qt_test_target IN LISTS bpr_qt_test_targets)
+        get_target_property(bpr_qt_test_type "${bpr_qt_test_target}" TYPE)
+        get_target_property(bpr_qt_test_links "${bpr_qt_test_target}" LINK_LIBRARIES)
+        # As the native look's: only an executable with a Qt GUI application.
+        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE" AND "${bpr_qt_test_links}" MATCHES "Qt6::Widgets|Qt6::Gui|AdapterQt")
+            target_sources("${bpr_qt_test_target}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/windows_fonts_startup.cpp")
+        endif()
+    endforeach()
+endif()

@@ -164,6 +164,11 @@ namespace bpr::qt {
 		/// \brief The editor now holds another text (another note): a run
 		/// going is stopped and a suggestion dropped, unused.
 		void reset();
+		/// \brief [[BPR-2192]]. What a press from now on tells the agent it
+		/// rewrites: a composer switched to Local asks as a note (kept on this
+		/// computer, read by nobody else). The button and panel keep their
+		/// words.
+		void ask_as(enhance_surface aSurface) noexcept { AskedSurface = aSurface; }
 
 	private:
 		void press();
@@ -172,6 +177,7 @@ namespace bpr::qt {
 
 		QPointer<QPlainTextEdit>     Editor;
 		enhance_surface              Surface;
+		enhance_surface              AskedSurface;
 		QPointer<enhance_button>     Button;
 		QPointer<enhance_suggestion> Panel;
 		enhance_dispatch             Dispatch;

@@ -94,7 +94,7 @@ Enhance works on it as on any draft.
 ### Prompts
 
 Evaluation and reply drafting are each briefed by a built-in prompt of
-their own in Settings › Agents & context › Built-in prompts, with the
+their own in Settings › Agents › Built-in prompts, with the
 editor, default, version and Reset the others have, and the stable purpose
 IDs `local-draft.feedback-evaluate` and `local-draft.feedback-reply`,
 recognized by the sharing format of

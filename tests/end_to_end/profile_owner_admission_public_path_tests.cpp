@@ -1,7 +1,8 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
@@ -97,7 +98,7 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(!failure, "owner startup succeeds");
 	wait_for([&] { return desktop->windows(profile).size() == 1; }, "the profile has exactly one window");
 	if (mode == "other") {
-		auto* management = desktop->management_window();
+		auto* management = desktop->profiles_panel();
 		expect(management != nullptr, "management composed");
 		wait_for([&] { return management->open_button()->isEnabled(); }, "the management window offers open");
 		management->profiles()->setCurrentRow(0);
@@ -117,7 +118,7 @@ auto main(int aArgc, char** aArgv) -> int
 	wait_for([&] { return std::filesystem::exists(signal); }, "owner waits for orderly quit signal");
 	// Another profile can advance the global allocator while this process is open.
 	// Reload before Quit exercises the existing explicit CAS recovery course.
-	auto* management = desktop->management_window();
+	auto* management = desktop->profiles_panel();
 	auto* idle       = management->create_button();
 	expect(idle != nullptr, "the chooser's registry-idle indicator");
 	wait_for([&] { return idle->isEnabled(); }, "registry idle before reload");

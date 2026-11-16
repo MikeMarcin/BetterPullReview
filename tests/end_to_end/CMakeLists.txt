@@ -3563,6 +3563,19 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(application_account_setup_public_path PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "account-setup-public-path-tests:pass")
 endif()
 
+# [[BPR-2198]]. Export Profile Settings… with a live sign-in writes no
+# credential: signed in through the composed device flow, exported from
+# Settings › Profiles with Identity ticked, read back.
+bpr_add_executable(test_profile_settings_export_public_path profile_settings_export_public_path_tests.cpp)
+target_link_libraries(test_profile_settings_export_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_profile_settings_export_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_profile_settings_export_public_path)
+bpr_enable_warnings(test_profile_settings_export_public_path)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    bpr_add_network_isolated_test(NAME application_profile_settings_export_public_path WINDOWS_UNCONTAINED COMMAND test_profile_settings_export_public_path)
+    set_tests_properties(application_profile_settings_export_public_path PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "profile-settings-export-public-path-tests:pass")
+endif()
+
 # [[BPR-1329]]. An inline draft published from its Comments-drawer card over a
 # GitHub CLI session, through the per-publication confirmation answered Yes:
 # the drawer says it is publishing, then shows the posted thread, or says why
@@ -4843,7 +4856,7 @@ bpr_add_network_isolated_test(NAME application_review_tour_writing
 set_tests_properties(application_review_tour_writing PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing:pass")
 # [[BPR-1301]]. The shipped bare claude, then the same writing request
-# through a Claude process wrapper saved on Settings > Agents & context.
+# through a Claude process wrapper saved on Settings > Agents.
 bpr_add_network_isolated_test(NAME application_review_tour_writing_wrapper
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing-wrapper "$<TARGET_FILE:test_scoped_writing_agent>")
@@ -5472,6 +5485,22 @@ if(TARGET Git::Git)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-publication-desktop"
         PASS_REGULAR_EXPRESSION "local-draft-publication-desktop-public-path:pass"
         TIMEOUT 180)
+    # RFC-BPR-0112 ([[BPR-2032]], [[BPR-2033]], [[BPR-2034]]): the synthetic
+    # organization companion, run as the author's terminal would.
+    if(NOT WIN32)
+        bpr_add_executable(test_local_draft_workflow_desktop_public_path local_draft_workflow_desktop_public_path.cpp)
+        target_link_libraries(test_local_draft_workflow_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+        target_include_directories(test_local_draft_workflow_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+        target_compile_features(test_local_draft_workflow_desktop_public_path PRIVATE cxx_std_23)
+        bpr_enable_hardening(test_local_draft_workflow_desktop_public_path)
+        bpr_enable_warnings(test_local_draft_workflow_desktop_public_path)
+        bpr_add_network_isolated_test(NAME application_local_draft_workflow_desktop_public_path
+            COMMAND test_local_draft_workflow_desktop_public_path --git "$<TARGET_FILE:Git::Git>" --companion "${PROJECT_SOURCE_DIR}/tests/fixtures/workflow_companion")
+        set_tests_properties(application_local_draft_workflow_desktop_public_path PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-workflow-desktop"
+            PASS_REGULAR_EXPRESSION "local-draft-workflow-desktop-public-path:pass"
+            TIMEOUT 180)
+    endif()
 endif()
 # RFC-BPR-0128 ([[BPR-2163]], [[BPR-2164]]). The Ask menus, on
 # returning-review-v1 at its next push, with the scoped writing stub as the

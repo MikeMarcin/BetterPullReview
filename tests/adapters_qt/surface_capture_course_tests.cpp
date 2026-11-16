@@ -41,7 +41,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/theme_preview_strip.hpp"
@@ -778,14 +778,16 @@ namespace {
 		qt::appearance_profile&     aProfile,
 		const core::appearance_mode aMode)
 	{
-		auto sheet = qt::profile_management_window{ };
+		auto sheet = qt::profiles_settings_panel{ };
+		sheet.resize(560, 420);
 		sheet.set_dispatch([](application::profile_management_intent) { });
 		sheet.set_window_counts({ { core::default_bpr_profile_id, 2 } });
 		sheet.set_current_profile(core::default_bpr_profile_id);
 		auto accepted = profile_projection();
 		sheet.adopt(accepted);
 		apply_appearance(aProfile, sheet);
-		sheet.present();
+		sheet.show();
+		sheet.focus_profiles();
 		process_events();
 
 		expect(
@@ -1011,12 +1013,14 @@ namespace {
 	/// accessible description.
 	void walk_the_profiles_sheet()
 	{
-		auto sheet = qt::profile_management_window{ };
+		auto sheet = qt::profiles_settings_panel{ };
+		sheet.resize(560, 420);
 		sheet.set_dispatch([](application::profile_management_intent) { });
 		sheet.set_window_counts({ { core::default_bpr_profile_id, 2 } });
 		sheet.set_current_profile(core::default_bpr_profile_id);
 		sheet.adopt(profile_projection());
-		sheet.present();
+		sheet.show();
+		sheet.focus_profiles();
 		process_events();
 
 		expect_every_stop_is_named(sheet, QStringLiteral("Profiles sheet"));

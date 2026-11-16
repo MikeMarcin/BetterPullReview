@@ -4071,3 +4071,244 @@ and store the decided expansion on the queued input at the press so the
 release (and the runtime with no window, `review_agent_runtime::state`)
 sends it without deciding again. Then AC11. Card the three
 comparison-shown chat contract failures with the BPR-2191/BPR-2180 owner.
+
+## BPR-2181: AC13, AC11 done; main merged into the lane; card Done (2026-11-15, fifth round)
+
+| Commit | What |
+|---|---|
+| `0dcfce828` | AC13: `core::chat_prompt_facts`, `core::decide_chat_prompts`, `core::decide_quick_ask_prompt`; the composition decides the Agent tab's and tour chats' offers (`prompt_source`), widgets hold no macros or facts; `core::queued_input::Prompt` stored (new `prompt` column) and sent as decided at release, windowless for a pull-request question; pushes since review true on a force push; author-is-me gathered. AC11: restored tour feedback returns to the tour chat as not sent, queue resumed; truthful notice. Courses `application_agent_queue_tour_feedback_crash_public_path`, Ready to look again? steps in `application_ask_queue_public_path` |
+| `e25a153b9` | App manifest pin resealed |
+| `6183d8934` | Qt window tests install the prompt source; runtime test; Windows-uncontained pins for the queue and steer rows |
+| `06d04bf69` | Card evidence; system architecture paragraph |
+| `bdd492c64` | Merge main into the v0.5.0 lane (clean) |
+| `db204d4ae` | Queue windows course presses the shown control (finish-pauses flake) |
+| `252023163` | Pin resealed after the merge |
+| (this commit) | BPR-2181 Done |
+
+Verification (scratch worktree, serial, 187 rows): after the merge 183 of 187,
+then the pin resealed; left failing only BPR-2192's three. Documentation gate
+passes; `architecture_boundaries` passes. AC08 public path not added (every
+public-path fixture serves one pull request). Pre-existing failures outside
+this card, identical at `cb4fdcb7e`: `qt_keyboard_shortcuts_scale_*`,
+`qt_workbench_open_review_from_home_scale_*`, `qt_workbench_conversation_reveal`.
+
+Next action: none for BPR-2181. Mirror branch `claude/BPR-2181-main-mirror`
+holds the card move for main.
+
+## RFC-BPR-0112: workflow-companion-contract and workflow-effectful-actions (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `39a1d486e`, `ea396ede2` | Ready, claim BPR-2032 |
+| `affe49d2d` | Core: `workflow_configuration` (file version 2, item problems, revision, bindings, differences, apply), `workflow_action` (pinned draft workflow, bounded request/response, admission, honest check status, one publisher, handoff, reconciliation); the built-in route's `external_publisher` guard; `core_workflow` |
+| `dcb462ba1` | Storage, application, Qt Workflow area and Settings workflow import/export, app exchange files, the synthetic companion fixture, `application_local_draft_workflow_desktop_public_path`, `--attended-local-draft-workflow`, the companion contract doc; app pin resealed |
+| `001c08ad1` | The area names the selected context a handoff sent; the look script takes a relative root |
+| `bd50815ae`; `be4e88d26`, `8f3c9f125`, `799743edb`; `e361f5016`, `f160e77b2`, `1e1583ef0` | BPR-2032 Done; BPR-2033 ready, claimed, Done; BPR-2034 ready, claimed, Done |
+| `0766ad896`, `27b419091`, `fcdd020a2`, `150d3eb8e` | BPR-2035 ready, claimed; ledger `docs/verification/RFC-BPR-0112.md` and checklist; parked `human-review` |
+
+Runs at `001c08ad1` (dev, Debug), 18 rows, all pass:
+`architecture_boundaries`, `test_network_isolation_manifest`,
+`core_{agent_configuration,local_draft,local_draft_tour,local_draft_publication,workflow}`,
+`sqlite_agent_configuration_storage`, `local_draft`, `local_draft_publication`,
+`qt_local_draft_window`, `qt_agent_configuration_dialogs`,
+`application_review_round_trip_composition_contract`,
+`application_local_draft_{,author_,tour_,publication_,workflow_}desktop_public_path`.
+Scratch worktree at `1e1583ef0`, core-only preset: `core_workflow`,
+`core_agent_configuration`, `core_local_draft_publication` 3/3. The freeze of
+`fcdd020a2` built the application in its own exported root and its
+launcher check reached `ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN`. Documentation
+gate OK. Not run: the whole suite, clang-tidy, Windows and Linux.
+
+Owner look filed and not waited on: session `e9336c1caf748712f3c1056a633c4792`,
+state `/Users/jaeger/.attended-review-state/workflow-v001-2026-11-15/state`,
+cursor 9, host PID 51673 (Tailscale child 51681), three candidates; root
+`/Users/jaeger/workflow-v001.xlei1v22`.
+
+Next action: when the session hands back, reconcile the three verdicts. On
+acceptance finish BPR-2035 and set RFC-BPR-0112 Auto-Verified; on a note,
+engineer it, freeze `workflow-v002` and ask again. Then remove the frozen
+root with `freeze_attended_build.py remove` and stop the host.
+
+## BPR-2196: Author, the author's mode (2026-11-15)
+
+The owner accepted design `local-draft-workflow-v2` (session
+`273f0aafcc76fd284605b51649bbdbdf`, note: no Notes tab) and renamed the mode
+before it landed: "I changed my mind, make it Author". Design merged
+(`6b0214726`).
+
+| Commit | What |
+|---|---|
+| `f1d6b8f5a`, `fdeae4801` | BPR-2035 design rounds; BPR-2196 card, counter and receipt |
+| `c2b7e7da5` | Core decisions (first named `author_revise`) |
+| `737e06d81` | Author: Qt fifth mode on Ctrl+5 (`workbench_window_author_mode.cpp`), the Workflow tab as the core's checklist, the handoff, Status kept to its meaning, per-pull-request memory (comparison, file, view, drawer tab) and left-in mode, Edit for a file being changed; host `set_pull_request_author_case`; core renamed `author_mode`; courses; app pin resealed |
+| `6867e30ef` | BPR-2196 and BPR-2197 in the workflow milestone under RFC-BPR-0112; BPR-2035 in Backlog depending on both; MILESTONES.md regenerated (main `256be7b9c`) |
+
+Runs at `737e06d81` (dev, Debug), all pass: `core_author_mode`,
+`core_workflow`, `qt_workbench_window_scale_100` (new cases
+`test_author_is_the_owners_mode`, `test_my_draft_pull_request_opens_in_author`),
+`qt_local_draft_window`,
+`application_local_draft_{,author_,tour_,publication_,workflow_}desktop_public_path`,
+`architecture_boundaries`, `application_review_round_trip_composition_contract`.
+Documentation gate OK. Not run: the whole suite, clang-tidy, Windows, Linux.
+
+Owner look `workflow-v002`: session `1d68e30d0ac7b53a07163a1f10777bdf`,
+state `/Users/jaeger/.attended-review-state/workflow-v002-2026-11-15/state`,
+cursor 12, host PID 57962 (Tailscale child 57974), root
+`/Users/jaeger/workflow-v002.1z4xyif5`, four questions.
+
+Next action: BPR-2197, the switcher's icon fold (accepted design
+`windows-title-fit-v2` on `claude/windows-title-fit-mockups`): merge the
+design, extract one fold helper shared by `fit_tray_tabs`, the Overview
+drawer and the switcher, platform key hints (⌘N on macOS, Ctrl+N
+elsewhere), remove the Windows 1300 threshold and the BPR-1251 title rule,
+the open mode's glyph in the highlighted-text ink; then a short look of its
+own. On the workflow-v002 hand-back: reconcile the four verdicts, then
+remove the root with `freeze_attended_build.py remove` and stop the host.
+
+## BPR-2197: the mode switcher folds to icons (2026-11-15)
+
+Design `windows-title-fit-v2` merged (`efb750f29`); `frontend-design` loaded
+before the Qt work.
+
+| Commit | What |
+|---|---|
+| `1bc1a79ca` | One shared fold, `bpr/qt/fold_faces.hpp`; `drawer_tab_bar::fold` for the tray and Overview's drawer; `modality_control::set_face` (names and keys, names, open mode named, glyphs); `apply_strip_width` takes the widest face beside which the whole name fits; prefixes, the Windows 1300 threshold and `IdentityTitleBudget` (BPR-1251) gone; `qt_fold_faces`; title-row courses with four and five modes; Author at the floor again |
+| `0f7716a53`, `c58080042`, `2d045a544` | `test_render_the_switcher_fold`, an env-gated title-row render (`BPR_TITLE_FOLD_RENDER_DIR`, `_WIDTHS`, `_FONT`) |
+| `29a0fada8` | Card parked on human review (main `7358c74cd`) |
+
+Runs: see the card. Windows over SSH: two width courses stop with the
+session's misread system font; not confirmed at the real font. src/app not
+touched; the app pin contract passes unchanged.
+
+Owner look `title-fold-v001`: session `84fbe840afbd99aaf6ce0a68bebe6cbc`,
+state `/Users/jaeger/.attended-review-state/title-fold-v001-2026-11-15/state`,
+cursor 3, host PID 97593 (Tailscale child 97603), root
+`/Users/jaeger/title-fold-v001.tfds9x8z` (frozen `0f7716a53878`), one
+question `BPR-2197-title-fold`. Station scratch folders removed.
+
+Next action: on hand-back, reconcile the verdict (Accept: BPR-2197 Done and
+mirrored; Reject: the note's change, then a new look), remove the root with
+`freeze_attended_build.py remove` and stop the host. If Windows matters before
+then, run the two width courses on the Windows desktop font.
+
+## workflow-v002 handed back; no drawer pans sideways (2026-11-15)
+
+Session `1d68e30d0ac7b53a07163a1f10777bdf` handed back at sequence 45:
+`BPR-2196-author-mode` and `BPR-2033-agent-accent-on-actions` accepted;
+`BPR-2035-workflow-tab` rejected (the drawer pans sideways);
+`BPR-2032-workflow-import-preview` rejected (frontend-design pass, a separate
+worker). Verdicts recorded verbatim on BPR-2035, 2196, 2032 and 2033; BPR-2196
+Done. Host 57962 (Tailscale child 57974) stopped with attended-review `stop`;
+root `/Users/jaeger/workflow-v002.1z4xyif5` removed with
+`freeze_attended_build.py remove`.
+
+| Commit | What |
+|---|---|
+| `bb341e584` (main `55338d58b`) | The four verdicts; BPR-2196 Done |
+| `47ab3a062` | Workflow tab wraps (`wrapping_row`); `qt_drawer_surfaces_fit` fails any drawer tab with a horizontal bar, sideways range or content wider than its viewport on every surface; rule in `src/adapters/qt/AGENTS.md` |
+| `0267ad16a` | Settings "Agents & context" is "Agents"; Settings… in the macOS application menu (`application_menu_wording`, `qt_application_menu_wording`); UX spec; app pin resealed |
+| main `b09d995cf` | BPR-2035 rework note |
+
+Guard before the fix: 8 failing states per scale (Author's Workflow at 280,
+pull request and local draft, four themes); after: `qt_drawer_surfaces_fit_scale_100/125/200`
+pass. Also passing: `qt_application_menu_wording`, `qt_settings_window` (all
+scales), `qt_feedback_label_settings`, `qt_quiet_buttons`,
+`qt_home_card_fit_scale_100`, `qt_local_draft_window`,
+`qt_workbench_window_scale_100`, `core_fuzzy_match`, `core_author_mode`,
+`application_local_draft_{author,publication,workflow}_desktop_public_path`,
+`application_review_round_trip_composition_contract`, documentation gate.
+
+Not renamed on purpose: done cards, verification evidence, design mockups,
+RFC drafts and closed RFCs (history); RFC-BPR-0125, whose criteria BPR-2150's
+closeout checklist quotes canonically; the `settings_page::agents_and_context`
+identifier. The import preview's own "Agents & context" sentence is in the
+design worker's rewrite of that dialog.
+
+Next action: AC07 (Workflow tab) and AC02's preview are asked again in one
+look once the import preview redesign lands; BPR-2035 closes RFC-BPR-0112
+after that and BPR-2197.
+
+## BPR-2197 Done (2026-11-15)
+
+The owner accepted `title-fold-v001` with no note (decision
+`a467d680…`, cursor 6). Host 97593/97603 stopped; root removed with
+`freeze_attended_build.py remove`.
+
+The two Windows width courses were failing because Qt's offscreen platform
+has no fonts on Windows unless `QT_QPA_FONTDIR` names them. The fold was not
+the cause, and the review bar was not short of width because of it. The
+`--title-row` courses now point Qt at the Windows fonts and set Segoe UI 9 pt
+(`7038aecdb`, `c2020a55c`). They pass on the Windows station at 100%, 125%
+and 200%, with both courses also passing alone.
+
+Card Done on the lane (`b94147c51`) and main (`6f59996f2`). Station scratch
+folders removed.
+
+Left for its own card: with Segoe UI 9 pt on Windows,
+`test_the_tour_is_a_route_expanding_to_its_page` fails ("every stop in
+view"). It passes with the offscreen fallback, which the window's other
+courses keep. Without fonts, the Windows window course over SSH stops
+earlier, at a Compose review wording check, at `8eb302151` and at HEAD.
+
+Next action: BPR-2035 (RFC-BPR-0112 closeout) no longer waits on BPR-2197.
+
+## BPR-2199 and BPR-2200 Done (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `4bfbbd063` | BPR-2199: `route_delegate::sizeHint` measures at the view's viewport width when its option has none. `fit_route` summed rows measured at a guessed 300, so a narrow font's excerpt wrapped one line short and the route scrolled. The tour case gains the invariant `sizeHintForRow == visualItemRect.height` |
+| `18a70bb96` | BPR-2200: `tests/adapters_qt/windows_fonts_startup.cpp`, linked on Windows into every Qt test of the directory: `QT_QPA_FONTDIR` from `%WINDIR%` unless set, Segoe UI 9 pt on offscreen. The `--title-row` special case is folded in. Rule added to `src/adapters/qt/AGENTS.md` |
+| `2c17d36f6` | Stale 1280 check in `test_the_title_row_and_review_bar_render`: Segoe UI fits the whole "Approve or comment…" at 1280 |
+| main `ba6b79d67` | Mirror: both cards Done; BPR-2201, BPR-2202 and BPR-2203 in Ready |
+
+Evidence: the tour case fails on macOS with Helvetica, Arial and Times at 9
+pt before the fix and passes after. On macOS, the 20 tour, window and
+drawer-fit courses pass. On the Windows station (Release, fonts loaded) the
+window course passes at 100%, 125% and 200%, and so does `--title-row`.
+The whole Windows Qt set (242 entries, run directly with ctest's
+environment) had 16 failures with the fonts and 76 without. Each one is
+recorded on BPR-2200. Three are carded: BPR-2201 (Overview status tabs clip
+in tour-reader), BPR-2202 (line-draft right-click) and BPR-2203 (marked line
+number contrast at 125%). Eight more fail on the same line with and without
+fonts and are left as found. Station scratch folder removed. Not run: Linux.
+
+Note: ctest already sets `QT_QPA_FONTDIR` on Windows (`BprTestIsolation.cmake`);
+only direct SSH runs lacked fonts.
+
+Next action: BPR-2201, BPR-2202 and BPR-2203, Windows station work.
+
+## BPR-2201, BPR-2202, BPR-2203 Done; BPR-2205 carded (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `f278c676f` | BPR-2201: `drawer_tab_bar::fold` announces the row's width whenever its hint changes, not only on a face change. A Tour tab shown with the face unchanged had left Overview's header holding the bar at 262 of 310 |
+| `9cf4cd705` | BPR-2202: test only. The comparison scrolls by the pixel; the drag's first line was under the pane's masked edge, so the press hit `documentTabBar`. Each course starts at the file's top and checks the line is in view |
+| `8a9bae143` | BPR-2203: `number_blend_margin_hundredths` 10 to 30. The painted thin "11" reached 4.45 from an ink of 4.61; it now paints 4.65 or more |
+| main `0550aed42` | Mirror; BPR-2205 (seven Qt courses failing on main too) |
+
+Station, Release, Segoe UI 9 pt: drawer-surfaces-fit, diff-workbench and
+window courses at 100%, 125% and 200%, plus line-draft, 10 of 10 pass. macOS:
+the same courses, `qt_drawer_parts_*`, the Overview and repositories drawers,
+and all 19 `qt_composed_*` pass. Main baseline: seven of the eight
+font-independent failures fail on main the same way (BPR-2205).
+`qt_source_search_panel_scale_1` passes on main, fails on main without fonts,
+and fails on the lane with Segoe UI. It is font-dependent and uncarded, for
+the coordinator to decide. Station scratch removed.
+
+Next action: BPR-2205 (Windows desktop ctest), and a decision on
+`qt_source_search_panel_scale_1`.
+
+## BPR-2208 and BPR-2205 Done (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `1e5ef1e30` | BPR-2208: the source search snippet is laid out once (`QTextLayout`) and drawn from it; the wash comes from its `cursorToX`. The test measures the wash's widest run (one scan line at `top + 3` met the rounded corner, or missed the wash, in short fonts) |
+| `787aaff66` | BPR-2205: owner-private scratch roots for the finding-card and turn-name stores (a Windows `QTemporaryDir` is refused by the store); native separators in the setup view; `claude.exe`; the prose editor's tooltip wording; the wrapper course names `enhance_writing` (BPR-2138) |
+| main `762a97248` | Both cards Done |
+
+Station (Release, Segoe UI 9 pt, run directly over SSH with ctest's
+environment): all 8 pass. macOS: the same 8 pass under ctest, and the wash
+passes in 10 fonts at 100%, 125% and 200%. None of BPR-2205's seven was
+SSH-only. `qt_profile_management_window` left the lane with BPR-2198.
+ctest was not run from a non-SSH session (no desktop may be driven).
+Station scratch removed.

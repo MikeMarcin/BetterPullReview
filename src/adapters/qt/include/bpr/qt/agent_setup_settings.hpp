@@ -36,7 +36,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	/// \brief [[BPR-1753]], RFC-BPR-0092, owner amendment 2026-10-23
 	/// ("for the actual settings it should be more like add agent"). Settings ›
-	/// Agents & context: the agents the Agent tab offers, in order, with
+	/// Agents: the agents the Agent tab offers, in order, with
 	/// **Add agent…** (Claude Code and Codex when found and not yet added, or a
 	/// custom agent), **Edit…**, **Remove**, **Move up** and **Move down**, and
 	/// **Set up agent…**.
@@ -81,10 +81,6 @@ namespace bpr::qt {
 			/// Clear scratch folders now.
 			std::function<bool(std::uint32_t, std::uint32_t)> SetScratchPolicy;
 			std::function<void()>                             ClearScratch;
-			/// [[BPR-2017]], RFC-BPR-0107. Import configuration… and
-			/// Export configuration…, which open their dialogs.
-			std::function<void()> ImportConfiguration;
-			std::function<void()> ExportConfiguration;
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
@@ -120,12 +116,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto scratch_keep_days() const noexcept -> QSpinBox* { return ScratchKeepDays; }
 		[[nodiscard]] auto scratch_usage() const noexcept -> QLabel* { return ScratchUsage; }
 		[[nodiscard]] auto scratch_clear_button() const noexcept -> QPushButton* { return ScratchClear; }
-		/// \brief [[BPR-2017]]. The share row's buttons, and what the last
-		/// import or export did, said under them.
-		[[nodiscard]] auto import_button() const noexcept -> QPushButton* { return ImportButton; }
-		[[nodiscard]] auto export_button() const noexcept -> QPushButton* { return ExportButton; }
-		void               present_exchange(const QString& aSaid);
-		[[nodiscard]] auto exchange_note() const noexcept -> QLabel* { return ExchangeNote; }
 
 		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
 		/// disabled with its reason; its rows, a failure's words and remedy,
@@ -197,9 +187,6 @@ namespace bpr::qt {
 		QSpinBox*                                          ScratchKeepDays = nullptr;
 		QLabel*                                            ScratchUsage    = nullptr;
 		QPushButton*                                       ScratchClear    = nullptr;
-		QPushButton*                                       ImportButton    = nullptr;
-		QPushButton*                                       ExportButton    = nullptr;
-		QLabel*                                            ExchangeNote    = nullptr;
 		void                                               send_scratch_policy();
 		void                                               send_run_limit();
 	};
@@ -232,7 +219,7 @@ namespace bpr::qt {
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D1). Settings ›
-	/// Agents & context › Review skill: the skill's text, Save, Restore
+	/// Agents › Review skill: the skill's text, Save, Restore
 	/// default, and a newer default's Compare, Use version N and Keep mine.
 	class review_skill_panel final : public QWidget
 	{

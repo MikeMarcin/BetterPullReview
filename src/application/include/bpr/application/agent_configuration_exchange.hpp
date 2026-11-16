@@ -36,6 +36,9 @@ namespace bpr::application {
 		std::optional<stored_review_skill>                               ReviewSkill;
 		core::writing_hook_settings                                      Hooks;
 		std::array<std::optional<std::string>, core::writing_hook_count> WrittenAgainst;
+		/// [[BPR-2032]], RFC-BPR-0112. The profile's optional author workflows
+		/// with this computer's bindings. Selecting or importing one runs nothing.
+		std::vector<core::local_workflow> Workflows;
 
 		auto operator<=>(const agent_configuration_snapshot&) const = default;
 	};
@@ -44,8 +47,6 @@ namespace bpr::application {
 	/// the eight writing hooks in `core::writing_hook` order, then the review
 	/// skill.
 	[[nodiscard]] auto local_prompts(const agent_configuration_snapshot& aSnapshot) -> std::vector<core::local_prompt>;
-	/// \brief Earlier purpose IDs this version still reads.
-	[[nodiscard]] auto prompt_aliases() noexcept -> std::span<const core::prompt_alias>;
 	/// \brief The writing hook a purpose names, or none (the review skill, or unknown).
 	[[nodiscard]] auto prompt_hook(std::string_view aPurpose) noexcept -> std::optional<core::writing_hook>;
 
@@ -57,10 +58,17 @@ namespace bpr::application {
 		bool        BuiltIn = false;
 	};
 	/// \brief The exact bytes of an export of the chosen agents (by entry id,
-	/// in the profile's order) and prompts, or none when they exceed the
-	/// file's bound.
+	/// in the profile's order), prompts and workflows (by ID), Identity when
+	/// given and the given repositories, or none when they exceed the file's
+	/// bound or a workflow's agent is not in the profile.
+	/// \details A workflow's agent actions carry the agent they are bound to
+	/// here, which the export then includes; no program path is exported.
+	/// [[BPR-2198]]: Identity and Repositories are names the composition
+	/// read (`core::portable_identity_of`, `core::portable_repositories_of`);
+	/// no credential is ever an input.
 	[[nodiscard]] auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, std::span<const std::uint32_t> aAgents, std::span<const exported_prompt> aPrompts,
-												  std::string aLabel, std::string aExportedBy) -> std::optional<std::string>;
+												  std::string aLabel, std::string aExportedBy, std::span<const std::string> aWorkflows = { }, const core::portable_identity* aIdentity = nullptr,
+												  std::span<const core::portable_repository> aRepositories = { }) -> std::optional<std::string>;
 
 	/// \brief The snapshot an import's result makes from `aBefore`: new and
 	/// re-identified entries get an identity from `aMint`, a replaced entry's
@@ -111,9 +119,20 @@ namespace bpr::application {
 		agent_configuration_snapshot    Snapshot;
 		std::vector<core::local_prompt> Prompts;
 		core::decoded_configuration     File;
+		/// [[BPR-2198]]. The profile's name, sign-ins, servers and
+		/// repositories, which the composition reads for Identity and
+		/// Repositories.
+		core::profile_facts Here;
 
 		auto operator<=>(const agent_configuration_preview&) const = default;
 	};
+
+	/// \brief [[BPR-2032]]. The profile agent each agent action of imported
+	/// workflow `aItem` would run as under the agent choices: the entry an
+	/// added, kept or replaced agent becomes, or the profile's agent of the
+	/// same name. An action whose agent is neither is left unbound.
+	[[nodiscard]] auto default_workflow_agents(const agent_configuration_preview& aPreview, std::span<const core::agent_import_choice> aAgents, std::size_t aItem)
+		-> std::vector<core::workflow_agent_binding>;
 
 	struct agent_configuration_dependencies
 	{
@@ -151,7 +170,10 @@ namespace bpr::application {
 		/// Applies the chosen items of a preview. A refusal of the choices
 		/// answers with that refusal and changes nothing.
 		using applied = std::expected<std::pair<agent_configuration_outcome, agent_configuration_snapshot>, core::configuration_apply_error>;
-		void apply(const agent_configuration_preview& aPreview, std::vector<core::agent_import_choice> aAgents, std::vector<std::size_t> aPrompts, std::function<void(applied)> aAnswered);
+		/// [[BPR-2032]]: `aWorkflows`, each applied with its program bindings
+		/// and, where none is given, `default_workflow_agents`.
+		void apply(const agent_configuration_preview& aPreview, std::vector<core::agent_import_choice> aAgents, std::vector<std::size_t> aPrompts, std::function<void(applied)> aAnswered,
+				   std::vector<core::workflow_import_choice> aWorkflows = { });
 		/// Records a Settings save's provenance, best effort.
 		void record_written_against(core::writing_hook aHook, std::string aText);
 

@@ -125,8 +125,13 @@ namespace {
 	auto expect(const bool aCondition, const std::string_view aMessage) -> void
 	{
 		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
+			std::cerr << "FAILED: " << aMessage << '\n'
+					  << std::flush;
+			// [[BPR-2158]] correction. Leave without static teardown: the windows and
+			// their pending deletions still live, and destroying them after
+			// the platform plugin crashed the course (exit -11) instead of
+			// reporting the failure.
+			std::_Exit(EXIT_FAILURE);
 		}
 	}
 
@@ -3674,6 +3679,9 @@ namespace {
 		expect(cards->current_thread() == "review-thread:t250" && cards->open_thread_id().empty(), "Down moves to the next thread without opening it");
 		press(Qt::Key_Return);
 		expect(cards->open_thread_id() == "review-thread:t250", "Return opens the current thread");
+		// [[BPR-2158]] correction. Sent unspontaneously, as here, a key reaches the
+		// window's shortcuts first: the notes claim N ahead of the window's
+		// Local comment.
 		press(Qt::Key_N);
 		expect(cards->open_thread_id() == "review-thread:t300", "N opens the next thread with new posts");
 		press(Qt::Key_N, Qt::ShiftModifier);

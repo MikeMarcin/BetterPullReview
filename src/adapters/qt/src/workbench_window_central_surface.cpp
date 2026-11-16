@@ -1788,7 +1788,15 @@ namespace bpr::qt {
 				return;
 			}
 			auto* const cards = ConversationPanel->cards();
-			cards->set_edge_chips_compact(trayTools->sizeHint().width() + cards->edge_chips_saving() > aWidth);
+			// [[BPR-2158]] correction. Chips that changed width change the
+			// tools' width: say so up to the header, whose grid otherwise
+			// keeps the tools' old, wider size and squeezes the tabs (since
+			// Previous and Next comment joined the tools, the words no longer
+			// fit beside them at the narrowest drawer).
+			if (cards->set_edge_chips_compact(trayTools->sizeHint().width() + cards->edge_chips_saving() > aWidth)) {
+				CommentsTools->updateGeometry();
+				trayTools->updateGeometry();
+			}
 		});
 		// [[BPR-1592]] [[BPR-1684]]. RFC-BPR-0085 D5: where the names do
 		// not fit the tabs go compact, so the tabs never scroll.

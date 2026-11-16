@@ -63,6 +63,13 @@ namespace bpr::e2e {
 			if (aWindow.session_panel()->status() == core::github_status::session_ready) {
 				return;
 			}
+			// [[BPR-2192]]. Restarted after the account was consented to in
+			// the setup, the application restores that account by itself
+			// (establishing, then ready) and asks nothing: the course does not
+			// open the setup again, and the consent it counts is the first.
+			if (Driver != nullptr && Driver->connects() > 0U && aWindow.session_panel()->status() == core::github_status::establishing_session) {
+				return;
+			}
 			aWindow.home_action()->trigger();
 			QApplication::processEvents();
 			auto plan  = account_setup_driver::plan{ };

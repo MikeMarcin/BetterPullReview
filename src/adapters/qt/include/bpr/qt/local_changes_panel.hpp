@@ -57,6 +57,9 @@ namespace bpr::qt {
 		void set_consent_question(std::function<bool()> aQuestion);
 
 		[[nodiscard]] auto pick(core::local_comparison aComparison) const -> QAbstractButton*;
+		/// \brief [[BPR-2196]]. Makes a listed file current, which opens it;
+		/// an empty path makes the first listed file current.
+		[[nodiscard]] auto select_file(const std::string& aPath) -> bool;
 		[[nodiscard]] auto unstaged() const noexcept -> QTreeWidget*;
 		[[nodiscard]] auto staged() const noexcept -> QTreeWidget*;
 		[[nodiscard]] auto listed() const noexcept -> QTreeWidget*;

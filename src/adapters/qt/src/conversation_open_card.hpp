@@ -550,9 +550,10 @@ namespace bpr::qt {
 		draft_review_state                   Review     = draft_review_state::none;
 		suggestion_mark*                     Suggestion = nullptr;
 		/// [[BPR-2051]].
-		enhance_button*     EnhanceButton = nullptr;
-		enhance_suggestion* EnhancePanel  = nullptr;
-		enhance_binding*    Enhance       = nullptr;
+		enhance_button*     EnhanceButton  = nullptr;
+		enhance_suggestion* EnhancePanel   = nullptr;
+		enhance_binding*    Enhance        = nullptr;
+		enhance_surface     EnhanceSurface = enhance_surface::comment;
 		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
 		/// RFC-BPR-0128 ([[BPR-2165]]). The claim's evidence over the code.
 		void show_claim_evidence(const QWidget& aChip);
