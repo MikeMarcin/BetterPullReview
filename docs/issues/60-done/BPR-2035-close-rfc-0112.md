@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2035"
 title: "Verify and close RFC-BPR-0112"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0112"]
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07","AC08","AC09"],"resolved_choices":["ACTIONS-01"],"milestone_plan":{"id":"v0-5-0-prerelease-targets-v1","path":"docs/rfcs/plans/v0-5-0-prerelease-targets-v1/milestone-plan.json"},"absorbed_from":"local PR drafts pack v1, DRAFT-0020","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-1989--BPR-2035--77a75f3eb099.json","imported_from":"docs/rfcs/assets/v0-5-0-prerelease-targets-v1/cards/DRAFT-0047-close-optional-workflow-integration.md","draft_title":"Close optional workflow integration"}
 depends_on: ["BPR-2032", "BPR-2033", "BPR-2034", "BPR-2196", "BPR-2197"]
@@ -38,14 +38,14 @@ RFC base: `dc5453afa3ba0e1620fe30bf97b17211e09ba4bd`.
 | Criterion | Check | Result | Producing commit |
 |---|---|---|---|
 | **AC01:** (Amended 2026-11-12; see above.) With all extensions absent, local Changes, Description and Tour remain usable; selecting/importing an enterprise-shaped configuration does not make unrelated drafts or existing BPR features depend on it. | `application_local_draft_workflow_desktop_public_path`; the four local-draft desktop courses unchanged | Pass | `dcb462ba1` |
-| **AC02:** A shared configuration binds local agents/skills/actions explicitly, previews conflicts and updates, and never executes or changes credentials merely through import or selection. | `core_workflow`, `qt_agent_configuration_dialogs`, the workflow course | Pass | `affe49d2d`, `dcb462ba1` |
+| **AC02:** A shared configuration binds local agents/skills/actions explicitly, previews conflicts and updates, and never executes or changes credentials merely through import or selection. | `core_workflow`, `core_agent_configuration`, `qt_agent_configuration_dialogs`, the workflow course; owner look `workflow-import-v003` | Pass; owner accepted | `affe49d2d`, `dcb462ba1`, `8af4a4501`, `431c119b2` |
 | **AC03:** A fixture companion supplies context, proposals, repeatable checks and an input request; the author can pause, edit and resume without rerunning unrelated actions or accepting stale proposed edits. | The workflow course; `core_workflow` | Pass | `affe49d2d`, `dcb462ba1` |
 | **AC04:** A changed upstream rule, missing helper, unsupported dry-run or required review marker produces an honest unmet requirement; BPR neither embeds those rules nor fabricates satisfaction or bypasses the chosen publisher. | The workflow course; `core_workflow` | Pass | `affe49d2d`, `dcb462ba1` |
 | **AC05:** The selected publisher receives the exact accepted plan through an interactive handoff whose harness owns approval; BPR launches no supervised effectful action and does not misrepresent a declaration as runtime isolation or execution proof. | The workflow course; `core_workflow` | Pass | `affe49d2d`, `dcb462ba1` |
 | **AC06:** Uncertain publication and failed ticket/visual/checklist follow-up retain actual results, reconcile before retry and cannot create duplicate external objects through automatic replay. | The workflow course; `core_workflow` | Pass | `affe49d2d`, `dcb462ba1` |
-| **AC07:** A synthetic organization adapter qualifies the public preparation integration without creating a PR or requiring enterprise accounts/scripts, and the user can inspect origin, selected context, effect scope and current outcome in the native author workbench. | The workflow course and its renders; owner look `workflow-v001` | Pass on automation; owner look pending | `dcb462ba1`, `001c08ad1` |
+| **AC07:** A synthetic organization adapter qualifies the public preparation integration without creating a PR or requiring enterprise accounts/scripts, and the user can inspect origin, selected context, effect scope and current outcome in the native author workbench. | The workflow course and its renders; `qt_drawer_surfaces_fit_scale_100/125/200` after `workflow-v002` | Pass on automation; the reworked tab had no separate owner look | `dcb462ba1`, `737e06d81`, `47ab3a062` |
 | **AC08:** With extensions absent or unselected, an author completes the built-in journey from worktree selection through GitHub draft creation without enterprise tools, while optional integrations remain available to separately configured drafts. | `application_local_draft_publication_desktop_public_path`; RFC-BPR-0111 live #179 reused | Pass | `dcb462ba1` |
-| **AC09:** An extension action bound to an agent wears the agent accent and one bound to a script does not; importing a workflow configuration turns on builds for no agent without acceptance; and no handoff result is labelled observed. | The workflow course; owner look `workflow-v001` | Pass on automation; owner look pending | `dcb462ba1` |
+| **AC09:** An extension action bound to an agent wears the agent accent and one bound to a script does not; importing a workflow configuration turns on builds for no agent without acceptance; and no handoff result is labelled observed. | The workflow course; `core_author_mode`; owner look `workflow-v002` | Pass; owner accepted | `dcb462ba1`, `737e06d81` |
 
 Ledger: [RFC-BPR-0112 verification](../../verification/RFC-BPR-0112.md).
 
@@ -190,3 +190,21 @@ macOS application menu's Preferences… reads Settings… (`0267ad16a`). AC07
 waits for the next look of the Workflow tab with the redesigned import
 preview (AC02's preview); AC09 is accepted.
 
+## Owner look workflow-import-v003 and closeout (2026-11-15)
+
+The import preview (AC02), rebuilt as the owner's design B and then put in
+the app's theme after `workflow-import-v002` was rejected for its colours,
+was **Accepted** in `workflow-import-v003` (session
+`5052733e41fd0662f09a0e04af730e4c`, decision `09e243f2`), note verbatim:
+"Still not quite as nice as what had settled on but its pretty close." The
+gaps against the mockup are carded as
+[BPR-2204](../10-backlog/BPR-2204-the-import-preview-matches-the-accepted-mockup-b.md),
+not built here. Host 33920 (Tailscale child 33928) stopped; root
+`/Users/jaeger/workflow-import-v003.05jn6zyw` removed with
+`freeze_attended_build.py remove`.
+
+BPR-2032, BPR-2033, BPR-2034, BPR-2196 and BPR-2197 are Done, and RFC-BPR-0107,
+0108, 0110 and 0111 are Auto-Verified. AC07's Workflow tab, rejected in
+`workflow-v002` for panning sideways, is closed on the drawer fit guard; it
+had no separate owner look after the rework. **RFC-BPR-0112 is
+Auto-Verified** (2026-11-15); [ledger](../../verification/RFC-BPR-0112.md).

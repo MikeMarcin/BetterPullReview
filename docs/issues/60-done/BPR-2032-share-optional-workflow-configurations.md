@@ -37,7 +37,7 @@ default? We're trying to improt it? Why does it take so many actions to
 choose between those 3 options? Why is it so hard to read what it does? We
 need to send this window back for a front end design pass." The preview's
 redesign belongs to a frontend-design pass and AC02's preview is judged
-again under [BPR-2035](../10-backlog/BPR-2035-close-rfc-0112.md); the
+again under [BPR-2035](../60-done/BPR-2035-close-rfc-0112.md); the
 Settings section is renamed "Agents".
 
 ## Design chosen: workflow-import-v001 (2026-11-15)
@@ -107,3 +107,15 @@ child 33928). Frozen root `/Users/jaeger/workflow-import-v003.05jn6zyw` from
 with 4 actions and started no real agent). One question,
 `BPR-2032-import-preview-theme`, Accept or Reject, with native Dark and Light
 renders.
+
+## Owner look workflow-import-v003 handed back (2026-11-15)
+
+Session `5052733e41fd0662f09a0e04af730e4c` handed back at sequence 13.
+`BPR-2032-import-preview-theme`: **Accepted** (decision `09e243f2`), note
+verbatim: "Still not quite as nice as what had settled on but its pretty
+close." Two screenshots came with it (kept at the session's attachments):
+the mockup B in Dark and the build. The gaps between them are carded as
+[BPR-2204](../10-backlog/BPR-2204-the-import-preview-matches-the-accepted-mockup-b.md).
+AC02's preview is accepted. Host 33920 (Tailscale child 33928) stopped; root
+`/Users/jaeger/workflow-import-v003.05jn6zyw` removed with
+`freeze_attended_build.py remove`.
