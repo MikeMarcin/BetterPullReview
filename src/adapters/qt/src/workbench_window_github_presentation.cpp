@@ -237,9 +237,6 @@ namespace bpr::qt {
 				enter_opening_modality(review_modality::overview);
 			}
 			if (aTransition.Status->Status != core::github_status::loading_pull_request && !HasGithubPullRequest) {
-				// [[BPR-1842]]. A file chosen from the provisional list goes on
-				// waiting for the accepted review's rows; any other end drops it.
-				PendingReviewPath = aTransition.Status->Status == core::github_status::pull_request_ready ? OverviewPage->pending_open() : QString{ };
 				// [[BPR-1842]]. A read that ended without a review names nothing.
 				if (LoadingIdentity.has_value()) {
 					LoadingIdentity.reset();
@@ -411,9 +408,6 @@ namespace bpr::qt {
 		update_pull_request_queue_actions();
 		if (PendingApproveAgain) {
 			QTimer::singleShot(0, this, [this] { take_pending_approve_again(); });
-		}
-		if (!PendingReviewPath.isEmpty()) {
-			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
 		}
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
@@ -991,7 +985,6 @@ namespace bpr::qt {
 		IdentityRepository.clear();
 		IdentityNumber.clear();
 		LoadingIdentity.reset();
-		PendingReviewPath.clear();
 		OpenQueueRepository.clear();
 		OpenQueueNumber = 0;
 		OpenQueueTitle.clear();

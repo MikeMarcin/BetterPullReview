@@ -693,27 +693,8 @@ namespace bpr::qt {
 		// ([[BPR-1132]]), so a file chosen before it lost to the tab's file:
 		// a double-click on main.cpp opened renderer.cpp.
 		choose_modality(review_modality::review);
-		PendingReviewPath.clear();
 		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
-		}
-	}
-
-	void workbench_window::open_pending_review_path()
-	{
-		// The reviewer may have gone elsewhere since: only an Overview still
-		// shown for the review opens the file it was asked for.
-		if (PendingReviewPath.isEmpty() || !HasGithubPullRequest || !showing_overview()) {
-			return;
-		}
-		// [[BPR-2180]]. Rows a read only reported cannot be opened yet: the
-		// review's own rows bring this back when they replace them.
-		if (!ProvisionalFiles.empty()) {
-			return;
-		}
-		if (file_for_path(PendingReviewPath).has_value()) {
-			const auto path = std::exchange(PendingReviewPath, QString{ });
-			enter_review_at(path);
 		}
 	}
 
