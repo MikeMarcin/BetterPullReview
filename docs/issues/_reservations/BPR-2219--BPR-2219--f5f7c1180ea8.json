@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2219"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A review ask's report reads as a report and drafts comments from its findings",
+  "created": "2026-11-16T22:55:21.145218+00:00",
+  "base": "55e488ea486638525305598d7e988ac1a3db9eab"
+}
