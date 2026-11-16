@@ -3818,8 +3818,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# bar as it now stands (the local draft's hidden controls, Ask, the view
 	# picker; no Comment). Tests-on only; no review mutation or submission
 	# path changed.
+	# [[BPR-2189]] reseal: the tests-on check look asks the draft host to
+	# observe the worktree again (refresh_local_draft_for_look) so its edit
+	# becomes candidate 2. Tests-on only; no review mutation or submission
+	# path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "b2d94248a67688c334eeaacb68c3a044678e46ff68a3c7fdac811750e483ed9d"
+        "6e5cfda408ee93af3b2c26d5e4683aade73350b8ee637e33123a424f9b8aa721"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
