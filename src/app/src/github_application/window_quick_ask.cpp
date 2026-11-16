@@ -616,13 +616,13 @@ namespace bpr::app {
 				.Held      = entry.Held,
 				.Sending   = entry.State != core::queued_state::queued,
 				.Uncertain = entry.State == core::queued_state::delivery_unknown,
+				.Sent      = entry.State == core::queued_state::sent,
 			});
 		}
 		const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")
 			: aQueue.Paused == core::queue_pause::stopped             ? QStringLiteral("Paused: Stop all")
 			: aQueue.Paused == core::queue_pause::failed              ? QStringLiteral("Paused: a run failed")
 			: aQueue.Paused == core::queue_pause::usage_limit         ? QStringLiteral("Paused: the agent's usage limit")
-				.Sent      = entry.State == core::queued_state::sent,
 			: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
 			: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
 			: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")

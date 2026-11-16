@@ -3253,10 +3253,10 @@ namespace bpr::adapters::sqlite {
 						if (const auto prompt = column_text(entries->Value, 10).value_or(std::string{ }); !prompt.empty()) {
 							entry.Input.Prompt = core::decode_queued_prompt(prompt);
 						}
-						queues[column_text(entries->Value, 0).value_or(std::string{ })].Entries.push_back(std::move(entry));
 						if (const auto claim = column_text(entries->Value, 11).value_or(std::string{ }); !claim.empty()) {
 							entry.Claim = core::decode_queued_claim(claim);
 						}
+						queues[column_text(entries->Value, 0).value_or(std::string{ })].Entries.push_back(std::move(entry));
 					}
 					return queues;
 				} catch (...) {
@@ -3317,8 +3317,8 @@ namespace bpr::adapters::sqlite {
 							bind_text(row->Value, 10, std::string{ core::stable_name(entry.State) });
 							sqlite3_bind_int64(row->Value, 11, entry.Held ? 1 : 0);
 							bind_text(row->Value, 12, entry.Input.Prompt ? core::encode_queued_prompt(*entry.Input.Prompt) : std::string{ });
-							ok = sqlite3_step(row->Value) == SQLITE_DONE;
 							bind_text(row->Value, 13, entry.Claim ? core::encode_queued_claim(*entry.Claim) : std::string{ });
+							ok = sqlite3_step(row->Value) == SQLITE_DONE;
 						}
 					}
 					if (!ok) {
