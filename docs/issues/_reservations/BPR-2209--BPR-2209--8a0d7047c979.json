@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2209"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets",
+  "purpose": "Prompts Add to submenu group headings",
+  "created": "2026-11-16T05:24:36.445332+00:00",
+  "base": "b34f9e889bccfd3c42aee3bd7a08abcfa887fc7e"
+}
