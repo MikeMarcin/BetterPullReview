@@ -43,5 +43,5 @@ dependency, BPR-2068, is dropped: a closed card waits on nothing):
 be reopened. The owner then directed, the same day, "Rewrite without evidence":
 [RFC-BPR-0120](../../rfcs/RFC-BPR-0120-the-agent-runs-a-planned-check-on-a-local-pr-draft.md)
 was rewritten and its new implementation is
-[BPR-2189](../20-ready/BPR-2189-plan-and-run-a-check-on-a-local-draft.md). This
+[BPR-2189](../40-parked/BPR-2189-plan-and-run-a-check-on-a-local-draft.md). This
 card stays closed as rejected; nothing depends on it.

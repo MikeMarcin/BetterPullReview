@@ -57,29 +57,27 @@ HEAD src/app`).
 
 ## Verification so far
 
-- `core_local_draft_check` (new) and `core_local_draft_tour` pass.
-- `application_local_draft_check_desktop_public_path` (new; real window and
-  composition, real Git worktree, the fixture agent binary) was green
-  through AC01, AC02, AC03 and most of AC04 at the last run; the remaining
-  assertions were being fixed (report counting across conversations).
-- `frontend-design:frontend-design` loaded before the Qt work.
+All of AC01 to AC06's courses pass at `72955fd96` (see the card's "Parked on
+the owner's look"). Format gate: only `src/application/src/github_window_read_host.cpp`
+(BPR-2181's file) fails it. Documentation gate passes with the card in
+40-parked.
+
+## Commits since the first checkpoint
+
+`00cb7eb4f` (owner-channel hook count), `0cfc8866e` (plan card toggles wrap;
+course captures the side chat and checks the fit), `8891776fc` (report
+commands read "Ran `command`, exited N"), `0986111a5` (the look refreshes
+through `refresh_local_draft_for_look` and includes its edit), `72955fd96`
+(app manifest pin `6e5cfda4…`).
 
 ## Pending
 
-- Rerun `application_local_draft_check_desktop_public_path` (its last
-  edit, test-only, commits a new candidate before the limit check; the run
-  was queued behind another lane's app build); run the affected suites (settings storage
-  schema 33, prompts panel, writing delivery, agent configuration sharing,
-  architecture boundaries, the tour desktop course); format; reseal the app
-  source pin (`bpr_expected_production_app_manifest_digest` in
-  `tests/end_to_end/application_review_round_trip_composition_contract.cmake`)
-  over this commit's tree only (done at `9153284be`; reseal again if
-  src/app changes).
-- AC07: freeze with `--attended-local-draft PATH --attended-local-draft-check`
-  (scripted through the side chat with the Fixture agent; ready line
-  `ATTENDED_LOCAL_DRAFT_CHECK_SHOWN`), generated worktree
-  `tests/fixtures/local-draft/make_worktree.sh`; one Accept/Reject each for
-  the plan card, a passing report, a failing report, and a report on an
-  older candidate; serve on the tailnet; record the session, not the URL.
-- Tracker work in the primary clone on `main`: BPR-2189 to Human Review
-  with the look parked; BPR-2083 waits on AC07.
+- AC07 with the owner: attended session `7a0e21ad68d16a7e91b1c3d0f45f6307`,
+  state `/Users/jaeger/.attended-review-state/local-draft-check-v001-2026-11-16/state`,
+  cursor 12, frozen root `/Users/jaeger/local-draft-check-v001.hu1xgl14`.
+  Next: read `status --after 12`; on four Accepts move BPR-2189 to Done and
+  close BPR-2083 and RFC-BPR-0120; on a Reject, change and freeze a v002.
+- Incomplete freeze roots the tool will not remove (no marker):
+  `/Users/jaeger/local-draft-check-v001.o89_qw_w` and
+  `/Users/jaeger/local-draft-check-v001.spoiehlm` (both stopped mid-build;
+  the owner or a later round removes them).

@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2189"
 title: "Plan and run a check on a local draft, and read its report"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0120"]
 depends_on: []
+parked_on: "human-review"
 metadata: {"criteria":["AC01","AC02","AC03","AC04","AC05","AC06","AC07"],"milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-2189--BPR-2189--1aa8242b9237.json","replaces":"BPR-2082 (closed as rejected with the evidence design)","owner_decision":{"date":"2026-11-15","quote":"Rewrite without evidence"},"owner_review":{"date":"2026-11-15","session":"ab74a8e490f235b4dd24fa66146a9f14","revision":"rfc-0120-rewrite-v001-baf674386","verdicts":"rewrite and Q1 to Q5 accepted at their defaults, no notes"}}
 ---
 
@@ -57,3 +58,27 @@ Built on the v0.5.0 prerelease lane at `d0c5774bd`, `a4fcaf5ed` and `9153284be`
 on the lane. AC01 to AC06 have their courses (`core_local_draft_check`,
 `application_local_draft_check_desktop_public_path` with the fixture agent);
 AC07, the owner look, is not yet frozen.
+
+## Parked on the owner's look (2026-11-16)
+
+AC01 to AC06 pass on the lane: `core_local_draft_check`,
+`application_local_draft_check_desktop_public_path` (real window, real Git
+worktree, the fixture agent), `tour_cli_*`, `application_writing_delivery`,
+`sqlite_workbench_settings_storage` (schema 33),
+`qt_settings_window` at four scales, `qt_prompts_page`,
+`application_profile_tour_handoff_public_path`, `architecture_boundaries`
+and `application_review_round_trip_composition_contract`. Fixed this round:
+the owner channel's hook count (`00cb7eb4f`), the plan card overflowing the
+side chat (toggles now wrap; the course checks the fit, `0cfc8866e`), report
+commands dressed as file references (`8891776fc`), and the look's edit never
+becoming candidate 2 (`0986111a5`, pin `72955fd96`).
+
+AC07 is with the owner: session `7a0e21ad68d16a7e91b1c3d0f45f6307`, state
+`/Users/jaeger/.attended-review-state/local-draft-check-v001-2026-11-16/state`
+(the URL stays in that directory's `serve.log`), cursor 12, host PID 93158
+(Tailscale child 93168). Frozen root `/Users/jaeger/local-draft-check-v001.hu1xgl14`
+from `72955fd96cf4` (launcher check reached `ATTENDED_LOCAL_DRAFT_CHECK_SHOWN`
+with 3 plans and 2 reports, fixture agent only; executable SHA-256
+`0e0b4e46bf80…`). Four Accept/Reject questions: `check-plan-card`,
+`check-passing-report`, `check-failing-report`, `check-older-candidate`.
+BPR-2083 stays open until they are accepted.

@@ -186,7 +186,7 @@ Each was accepted at its recommended default, which is now the design.
 
 ## Proposed delivery
 
-[Plan and run a check, and its report](../issues/20-ready/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
+[Plan and run a check, and its report](../issues/40-parked/BPR-2189-plan-and-run-a-check-on-a-local-draft.md)
 and [closeout](../issues/10-backlog/BPR-2083-close-rfc-0120.md) form the
 fifth [milestone](plans/agent-assistance-v1/milestone-plan.json). The owner
 accepted the rewrite on 2026-11-15, and BPR-2189 is Ready.
