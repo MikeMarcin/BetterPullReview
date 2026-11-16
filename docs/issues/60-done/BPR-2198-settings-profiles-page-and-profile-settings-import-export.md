@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2198"
 title: "Settings › Profiles, and Profile Settings import and export"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0107", "RFC-BPR-0033", "RFC-BPR-0112"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2198--BPR-2198--7acef9c46352.json","follows":"BPR-2032","import_preview":"8af4a4501"}
 depends_on: ["BPR-2032"]
-parked_on: "human-review"
+acceptance: [{"criterion": "1 Settings › Profiles", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "observation", "detail": "Owner Accept, profiles-v001 BPR-2198-profiles-page, decision e7b5578b-a40a-4d26-80bf-e618d2b6bb53, on the frozen build of 304a77a08 (sha256 0df8680285ec…). qt_profiles_settings_panel and qt_settings_window (4 scales) pass."}}, {"criterion": "2 Retire profile_management_window; the chooser's home", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "observation", "detail": "Window and its tests deleted; the chooser is the desktop's Settings on Profiles alone. Owner Accept BPR-2198-chooser-home, decision 6afdefa0-cb0a-44b1-ab2d-63844436cc8a. Migrated courses pass: profile multi-window, activation, owner admission, window restart, personal discovery; profile management passes with its Dif checks set aside (Dif carded separately)."}}, {"criterion": "3 Share configuration on the page", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^qt_profiles_settings_panel$'", "detail": "Import/Export Profile Settings… and the owner's line on Profiles; none on Agents; settings.md matches."}}, {"criterion": "4 Sections incl. Identity and Repositories", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "observation", "detail": "Owner Accept BPR-2198-export-sections (a5f97af6, note: \"export is rough but presumably this is getting fixed by the other implementer\") and BPR-2198-import-identity-repositories (dfb1d8e7, note: \"import is rough but presumably this is getting fixed by the other implementer\"); polish is BPR-2204's. core_agent_configuration and qt_agent_configuration_dialogs pass."}}, {"criterion": "5 Never a credential in the file", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^application_profile_settings_export_public_path$'", "detail": "Signs in through the composed device flow, exports with Identity ticked, finds the login and no token, device code or secret."}}, {"criterion": "6 One format, no compatibility", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(core_agent_configuration|core_workflow|sqlite_agent_configuration_storage)$'", "detail": "bpr.profile-settings version 1 only; version 2, aliases and optional agent fields deleted with their tests."}}, {"criterion": "7 Architecture", "outcome": "pass", "revision": "304a77a08", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(architecture_boundaries|application_review_round_trip_composition_contract)$'", "detail": "Core decides contents and starts (exported_by_default, plan_configuration_import, profile_changes); host applies through existing intents; Qt presents. App pin resealed."}}]
 ---
 
 # BPR-2198: Settings › Profiles, and Profile Settings import and export
@@ -97,8 +97,9 @@ And: the configuration file has never been released (no v0.4.x tag contains
 
 ## Status
 
-Built at `304a77a08` on `claude/v0-5-0-prerelease-targets-52265d`; parked
-on the owner's look `profiles-v001`.
+**Done** (2026-11-15). Built at `304a77a08` on
+`claude/v0-5-0-prerelease-targets-52265d` (follow-up `0642d3a36`); the owner
+accepted all four questions of the look `profiles-v001`.
 
 - **Settings › Profiles** (after General): the retired window's list,
   gestures and failure notice, with Share profile settings (Import Profile
@@ -160,6 +161,29 @@ that directory's `serve.log`), cursor 12, host PID 72549. Frozen root
 Fixture agent and no real agent). Four Accept/Reject questions:
 `BPR-2198-profiles-page`, `BPR-2198-export-sections`,
 `BPR-2198-import-identity-repositories`, `BPR-2198-chooser-home`.
+
+### Owner look profiles-v001 handed back (2026-11-15)
+
+Session `9548f96f68d753d4e887ba9f3e444eb6` handed back at sequence 36; all
+four questions **Accepted** on the frozen build of `304a77a08`:
+
+- `BPR-2198-profiles-page`: Accept (decision `e7b5578b`), no note.
+- `BPR-2198-export-sections`: Accept (decision `a5f97af6`), note verbatim:
+  "export is rough but presumably this is getting fixed by the other
+  implementer".
+- `BPR-2198-import-identity-repositories`: Accept (decision `dfb1d8e7`),
+  note verbatim: "import is rough but presumably this is getting fixed by
+  the other implementer".
+- `BPR-2198-chooser-home`: Accept (decision `6afdefa0`), no note.
+
+Both dialogs' polish is [[BPR-2204]]'s, under its own implementer. Host
+72549 stopped; root `/Users/jaeger/profiles-v001.xsxjloz8` removed with
+`freeze_attended_build.py remove`.
+
+`0642d3a36` then gave the windowless menu bar's Pull Request the window's
+Mark New Commits Seen and What Changed Since My Review (disabled) and made
+Compose review a toggle there, as on the window; `qt_profiles_settings_panel`
+passes whole.
 
 ### Open questions for the owner (recommended out, not built)
 
