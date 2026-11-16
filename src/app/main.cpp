@@ -6648,12 +6648,26 @@ namespace {
 						file.write("int search(const char* aText)\n{\n\treturn aText == nullptr || aText[0] == 0 ? 0 : 1;\n}\n");
 					}
 					file.close();
-					page->refresh_button()->click();
+					aApplication.refresh_local_draft_for_look();
 					*stage = 5;
 				}
 				return;
 			case 5:
-				if (bpr::core::latest_candidate(*view.Draft)->Ordinal >= 2U && plan(QStringLiteral("run the failing search case"))) {
+				// A working edit joins a candidate only once it is included, as
+				// the author would tick it, and the draft is refreshed.
+				if (bpr::core::latest_candidate(*view.Draft)->Ordinal < 2U) {
+					for (int row = 0; row < page->working()->count(); ++row) {
+						if (auto* const item = page->working()->item(row); item->text() == QStringLiteral("src/search.cpp") && item->checkState() != Qt::Checked) {
+							item->setCheckState(Qt::Checked);
+							return;
+						}
+					}
+					if (view.RefreshOffered) {
+						aApplication.refresh_local_draft_for_look();
+					}
+					return;
+				}
+				if (plan(QStringLiteral("run the failing search case"))) {
 					*stage = 6;
 				}
 				return;

@@ -710,6 +710,10 @@ namespace bpr::app {
 		/// the first build question answered `aAnswer` without a dialog;
 		/// none restores the dialog, which the person then sees.
 		void answer_build_question_for_look(std::optional<bool> aAnswer);
+		/// \brief RFC-BPR-0120. For an attended look's scripted preparation:
+		/// observes the shown local draft's worktree again, as its Refresh
+		/// does, so an edit the look made appears among the working files.
+		void refresh_local_draft_for_look();
 		/// \brief Selects the profile's first workflow on the shown draft and
 		/// shows the Workflow area; true once it is selected and shown.
 		[[nodiscard]] auto select_workflow_for_look() -> bool;

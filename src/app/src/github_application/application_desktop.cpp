@@ -457,6 +457,17 @@ namespace bpr::app {
 		}
 	}
 
+	void github_application::refresh_local_draft_for_look()
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->host().refresh();
+				return;
+			}
+		}
+	}
+
 	auto github_application::select_workflow_for_look() -> bool
 	{
 		for (const auto& [context, session] : Sessions) {
