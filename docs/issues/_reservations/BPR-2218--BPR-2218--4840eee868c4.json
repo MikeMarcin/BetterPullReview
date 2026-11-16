@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2218"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Opening an agent attachment from Overview brings it to the front in Review",
+  "created": "2026-11-16T22:50:00.557494+00:00",
+  "base": "15d081109a0b8193dfa6cf3a63b46fb7f8c8ac87"
+}
