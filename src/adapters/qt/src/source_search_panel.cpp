@@ -24,6 +24,7 @@
 #include <QPlainTextEdit>
 #include <QSignalBlocker>
 #include <QStyledItemDelegate>
+#include <QTextLayout>
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
@@ -517,20 +518,28 @@ namespace bpr::qt {
 				text  = QChar{ 0x2026 } + text.mid(cut);
 				start = start - cut + 1;
 			}
-			const int  top      = centre - metrics.height() / 2;
-			const auto baseline = top + metrics.ascent();
-			if (length > 0) {
+			const int top = centre - metrics.height() / 2;
+			// [[BPR-2208]]. The snippet is laid out once and drawn from that
+			// layout, and the wash is placed from the same layout's cursor
+			// positions: the match is where the drawn text puts it, with the
+			// font's kerning and fractional advances, in any font. Measuring
+			// the text before the match as a string of its own guessed it.
+			auto layout = QTextLayout{ text, code, aPainter.device() };
+			layout.beginLayout();
+			auto line = layout.createLine();
+			layout.endLayout();
+			const auto origin = QPointF{ static_cast<qreal>(x), static_cast<qreal>(top + metrics.ascent()) - (line.isValid() ? line.ascent() : 0.0) };
+			if (length > 0 && line.isValid()) {
 				// Already composited over the code background, so the match
 				// reads in the same amber on a selected row as on the others.
-				const auto wash  = Colours.Find;
-				const auto left  = x + metrics.horizontalAdvance(text.left(start));
-				const auto right = x + metrics.horizontalAdvance(text.left(start + length));
+				const auto left  = origin.x() + line.cursorToX(start);
+				const auto right = origin.x() + line.cursorToX(start + length);
 				aPainter.setPen(Qt::NoPen);
-				aPainter.setBrush(wash);
-				aPainter.drawRoundedRect(QRectF{ static_cast<qreal>(left) - 1.0, static_cast<qreal>(top) - 1.0, static_cast<qreal>(right - left) + 2.0, static_cast<qreal>(metrics.height()) + 2.0 }, 2.0, 2.0);
+				aPainter.setBrush(Colours.Find);
+				aPainter.drawRoundedRect(QRectF{ left - 1.0, static_cast<qreal>(top) - 1.0, right - left + 2.0, static_cast<qreal>(metrics.height()) + 2.0 }, 2.0, 2.0);
 			}
 			aPainter.setPen(aInk);
-			aPainter.drawText(QPoint{ x, baseline }, text);
+			layout.draw(&aPainter, origin);
 		}
 	};
 
