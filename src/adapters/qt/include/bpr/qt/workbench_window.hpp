@@ -58,6 +58,7 @@
 #include "bpr/qt/home_refusal.hpp"
 #include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -784,9 +785,19 @@ namespace bpr::qt {
 		/// \brief Routes profile gestures and desktop management/quit to their composition owner.
 		void set_profile_management_dispatch(application::profile_management_dispatch aDispatch,
 											 std::function<void()> aManage, std::function<void()> aQuit = { });
-		/// \brief Updates native menu rows by profile ID and marks this window's profile.
-		void               adopt_profile_management(const application::profile_management_projection& aProjection,
-													core::bpr_profile_id                              aCurrentProfile);
+		/// \brief Updates native menu rows and Settings › Profiles by profile ID
+		/// and marks this window's profile; `aWindowCounts` is what each open
+		/// profile's row says.
+		void adopt_profile_management(const application::profile_management_projection& aProjection,
+									  core::bpr_profile_id                              aCurrentProfile,
+									  const std::map<core::bpr_profile_id, int>&        aWindowCounts = { });
+		/// \brief [[BPR-2198]]. Settings › Profiles, which Manage Profiles… opens.
+		[[nodiscard]] auto profiles_settings() const noexcept -> profiles_settings_panel* { return ProfilesSettings; }
+		/// \brief Opens Settings on Profiles with this window's profile selected.
+		void present_profiles_settings();
+		/// \brief Sends a profile gesture to the composition owner, as the
+		/// Profiles menu and page do.
+		void               dispatch_profile_management(application::profile_management_intent aIntent);
 		[[nodiscard]] auto profiles_menu() const noexcept -> QMenu*;
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
@@ -3924,13 +3935,14 @@ namespace bpr::qt {
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
-		writing_hooks_panel*                               WritingHooks  = nullptr;
-		prompts_page*                                      Prompts       = nullptr;
-		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
-		agent_setup_view*                                  AgentSetup    = nullptr;
-		agent_programs_panel*                              AgentPrograms = nullptr;
-		clone_folders_panel*                               CloneFolders  = nullptr;
-		review_skill_panel*                                ReviewSkill   = nullptr;
+		writing_hooks_panel*                               WritingHooks     = nullptr;
+		prompts_page*                                      Prompts          = nullptr;
+		claude_wrapper_panel*                              ClaudeWrapper    = nullptr;
+		agent_setup_view*                                  AgentSetup       = nullptr;
+		agent_programs_panel*                              AgentPrograms    = nullptr;
+		profiles_settings_panel*                           ProfilesSettings = nullptr;
+		clone_folders_panel*                               CloneFolders     = nullptr;
+		review_skill_panel*                                ReviewSkill      = nullptr;
 		std::function<void()>                              InsightsPresenter;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow          = nullptr;

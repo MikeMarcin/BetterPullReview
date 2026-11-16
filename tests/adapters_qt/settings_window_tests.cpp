@@ -286,8 +286,8 @@ namespace {
 		for (auto row = 0; row < settings->sidebar()->count(); ++row) {
 			pages.push_back(settings->sidebar()->item(row)->text());
 		}
-		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents"), QStringLiteral("Prompts"), QStringLiteral("Storage & privacy") },
-			   "the sidebar is General, Accounts & hosts, Repositories, Home & queue, Review, Comments, then the rest as before");
+		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Profiles"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents"), QStringLiteral("Prompts"), QStringLiteral("Storage & privacy") },
+			   "the sidebar is General, Profiles, Accounts & hosts, Repositories, Home & queue, Review, Comments, then the rest as before");
 		for (auto index = std::size_t{ 0U }; index < qt::settings_page_count; ++index) {
 			const auto page = static_cast<qt::settings_page>(index);
 			expect(qt::settings_page_title(page) == pages.at(static_cast<int>(index)), "each page's row is its own value");

@@ -4,6 +4,48 @@ Open Settings with `Command+,` on macOS (`Ctrl+,` on Windows and Linux), and
 find any setting with `Command+F` (`Ctrl+F`). Each profile has its own
 settings, and changes apply at once.
 
+## Profiles
+
+**Profiles** comes right after General. It lists every profile, with the one
+this Settings window belongs to selected and named in bold, and each one's
+state at the right (Open in 2 windows, Closed). **Profiles › Manage
+Profiles…** opens this page.
+
+- **Open** opens the selected profile; for a profile that is already open the
+  button says **New window**. Return or a double-click opens or focuses it.
+- **Rename** and **New profile** edit the name in the row; **Save** keeps it
+  and **Cancel** or Escape leaves the name as it was.
+- When a profile change fails, one notice says why with **Try again**.
+
+With no window open (macOS keeps BetterPullReview running), **Manage
+Profiles…** and a failure that no window can show open a Settings window
+with Profiles alone: the same list and actions, without the sharing below,
+because no profile is open to import into.
+
+**Share profile settings** holds **Import Profile Settings…** and **Export
+Profile Settings…**: a file with this profile's agents, prompts and
+workflows, to move to another computer or share. The file has five sections,
+each ticked or unticked as a whole or item by item:
+
+- **Agents**, **Prompts** and **Workflows**: what each is set to. A
+  program's location on this computer is never written; an imported custom
+  agent asks for its program.
+- **Identity** (unticked to begin with): the profile's name and the accounts
+  it uses, each by host and login.
+- **Repositories** (ticked): saved and followed repositories, by host and
+  owner/name. No local folder or clone location is written.
+
+The file never holds a sign-in: no token, keychain item, `gh` sign-in, cookie
+or other secret. **Import Profile Settings…** imports into the profile whose
+Settings you opened it from, and its preview names that profile. Each item
+says whether it is new, updated or the same as yours, and you choose what to
+save. Importing Identity renames the profile and remembers its enterprise
+servers; it signs in to nothing, so each account says **Sign in to use** until
+you sign in on Accounts & hosts. A saved repository whose host has no account
+signed in here also says **Sign in to use**; a followed one needs no account.
+Nothing runs, and an imported agent keeps strict run checks on and Build and
+run tests off unless you tick them.
+
 ## Signing in
 
 - **Device sign-in** (GitHub.com) is remembered across restarts.
@@ -149,12 +191,8 @@ The rest of the page applies to every agent:
   a folder stays until you clear it. **Clear scratch folders** removes every
   agent's scratch folder now, except those of the open pull request's agents,
   and keeps the agents' conversations.
-- **Export configuration…** writes chosen agents and prompts to a file of at
-  most 1 MiB that another computer or profile can import; program locations
-  and accounts stay here. **Import configuration…** shows what each item would
-  change and saves only what you choose. Nothing runs, and an imported agent
-  keeps strict run checks on and Build and run tests off unless you tick
-  them.
+- Agents are shared with the rest of the profile from **Profiles › Share
+  profile settings** ([Profiles](#profiles)).
 
 ## Prompts
 
@@ -232,8 +270,8 @@ every other question in its Tour and Description areas. Both cite code as
 `path:first-last` in the candidate and keep moved behaviour described as kept.
 A third, **Commit message**, is sent when you ask the agent to fill in a
 commit; its answer fills the fields for you to edit and commits nothing. Each
-has **Reset to built-in**, and all three are in Export configuration… and
-Import configuration….
+has **Reset to built-in**, and all three are in Export Profile Settings… and
+Import Profile Settings… ([Profiles](#profiles)).
 
 See the [AI agent boundary](../architecture/ai-agent-boundary.md) for exactly
 what an agent receives and may do.

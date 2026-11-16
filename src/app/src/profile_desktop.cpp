@@ -8,8 +8,9 @@
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/motion_observer.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/release_update_recovery_dialog.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "terminal_diagnostics.hpp"
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
@@ -183,7 +184,8 @@ namespace bpr::app {
 			const auto selected = found->second.Windows.find(aContext.Window);
 			return selected != found->second.Windows.end() && selected->second.Context == aContext && !selected->second.Closing;
 		}
-		auto management_window() const noexcept -> qt::profile_management_window* { return Management.get(); }
+		auto profiles_settings() const noexcept -> qt::settings_window* { return Chooser.get(); }
+		auto profiles_panel() const noexcept -> qt::profiles_settings_panel* { return ChooserPanel; }
 		auto desktop_menu() const noexcept -> qt::desktop_menu_bar* { return DesktopMenu.get(); }
 		auto status_item() const noexcept -> QSystemTrayIcon* { return StatusItem.get(); }
 		auto last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return LastEmptyOutcome; }
@@ -289,8 +291,8 @@ namespace bpr::app {
 				static_cast<void>(profile);
 				complete_activation(entry, application::profile_activation_outcome::refused);
 			}
-			if (Management) {
-				Management->hide();
+			if (Chooser) {
+				Chooser->hide();
 			}
 			for (auto& [profile, entry] : Runtimes) {
 				static_cast<void>(profile);
@@ -349,11 +351,12 @@ namespace bpr::app {
 					found->second.Runtime->begin_shutdown();
 				}
 			}
-			if (Management) {
-				// [[BPR-0778]]. The projection carries a runtime state and no count, so
-				// the composition that owns the windows supplies what a row says.
-				Management->set_window_counts(window_counts());
-				Management->adopt(aProjection);
+			// [[BPR-0778]]. The projection carries a runtime state and no count, so
+			// the composition that owns the windows supplies what a row says.
+			const auto counts = window_counts();
+			if (ChooserPanel != nullptr) {
+				ChooserPanel->set_window_counts(counts);
+				ChooserPanel->adopt(aProjection);
 			}
 			if (DesktopMenu) {
 				DesktopMenu->adopt(aProjection, most_recent_profile());
@@ -373,16 +376,16 @@ namespace bpr::app {
 					if (!presented) {
 						continue;
 					}
-					presented->adopt_profile_management(aProjection, profile);
+					presented->adopt_profile_management(aProjection, profile, counts);
 				}
 			}
 			// RFC-BPR-0033 B3. Every live window has just adopted this projection and
 			// reports the refusal itself, so the chooser is presented for a failure only
 			// when no window exists to carry it - the startup case RFC-BPR-0024
-			// describes. While the chooser is already open, its own notice says it.
-			if (aProjection.Failure && Management && !Quitting && !Management->isVisible() && !presented_window_exists()) {
-				Management->set_current_profile(most_recent_profile());
-				Management->present();
+			// describes. [[BPR-2198]]: the chooser is the desktop's Settings, on
+			// Profiles alone. While it is already open, its own notice says it.
+			if (aProjection.Failure && Chooser && !Quitting && !Chooser->isVisible() && !presented_window_exists()) {
+				present_chooser(most_recent_profile());
 			}
 			if (!InitialRegistered && aProjection.Ready && !aProjection.Closing && !Quitting) {
 				InitialRegistered = true;
@@ -467,7 +470,7 @@ namespace bpr::app {
 	protected:
 		auto eventFilter(QObject* aObject, QEvent* aEvent) -> bool override
 		{
-			if (aEvent->type() == QEvent::Close && aObject == Management.get() && Runtimes.empty() && !Quitting) {
+			if (aEvent->type() == QEvent::Close && aObject == Chooser.get() && Runtimes.empty() && !Quitting) {
 				// Closing the chooser leaves the desktop empty again, so the same named
 				// policy decides. [[BPR-0696]] quit here unconditionally, which is what
 				// kept an invisible process from being left behind; on macOS staying
@@ -653,8 +656,8 @@ namespace bpr::app {
 #endif
 		void set_update_enabled(bool aEnabled)
 		{
-			if (Management) {
-				Management->setEnabled(aEnabled);
+			if (Chooser) {
+				Chooser->setEnabled(aEnabled);
 			}
 			if (DesktopMenu) {
 				DesktopMenu->setEnabled(aEnabled);
@@ -779,7 +782,7 @@ namespace bpr::app {
 				DesktopMenu->set_dispatch(
 					[weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
 } },
-					[weak = weak_from_this()] {if (const auto self=weak.lock();self && self->Management && !self->Quitting){ if (self->Host && !self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->set_current_profile(self->most_recent_profile()); self->Management->present();
+					[weak = weak_from_this()] {if (const auto self=weak.lock();self && self->Chooser && !self->Quitting){ if (self->Host && !self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->present_chooser(self->most_recent_profile());
 } },
 					[weak = weak_from_this()] {if (const auto self=weak.lock()){ self->quit(0);
 } });
@@ -996,11 +999,11 @@ namespace bpr::app {
 			presented->set_profile_management_dispatch(
 				[weak, aContext](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && self->current(aContext)){ self->dispatch(std::move(aIntent));
 } },
-				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext) && self->Management){ if (!self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->set_current_profile(aContext.Profile); self->Management->present();
+				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext)){ if (!self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } if (auto* const shown = self->window(aContext)) { shown->present_profiles_settings(); }
 } },
 				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext)){ self->quit(0);
 } });
-			presented->adopt_profile_management(Projection, aContext.Profile);
+			presented->adopt_profile_management(Projection, aContext.Profile, window_counts());
 			// [[BPR-1602]]. A confirmed Troubleshooting reset closes this
 			// profile's windows here and reopens it with the reset.
 			presented->set_profile_data_reset_dispatch([weak, aContext](core::profile_data_reset_request aRequest) {
@@ -1015,6 +1018,13 @@ namespace bpr::app {
 				}
 			}
 		}
+		/// \brief [[BPR-2198]]. Shows the chooser with `aProfile` selected.
+		void present_chooser(const core::bpr_profile_id aProfile)
+		{
+			ChooserPanel->set_current_profile(aProfile);
+			Chooser->present(qt::settings_page::profiles);
+			ChooserPanel->focus_profiles();
+		}
 		void initialize_management(github_application& aRuntime)
 		{
 			RegistryRoot = aRuntime.desktop_registry_root();
@@ -1022,13 +1032,26 @@ namespace bpr::app {
 			About        = make_about_menu();
 			Scratch      = aRuntime.desktop_scratch();
 			Registry     = adapters::sqlite::make_profile_registry_store(RegistryRoot);
-			Management   = std::make_unique<qt::profile_management_window>();
-			Management->installEventFilter(this);
-			// [[BPR-0777]]. The appended recovery notice and Reload Profiles button are
-			// gone: RFC-BPR-0033 puts one failure notice with Try again inside the
-			// chooser, over the same reload intent this dispatch already carries.
+			// [[BPR-2198]]. RFC-BPR-0033's chooser is the desktop's own Settings
+			// window on Profiles alone: the page every window has, for when no
+			// window is open. It belongs to no profile runtime, so it carries no
+			// other page and no Share profile settings.
+			Chooser = std::make_unique<qt::settings_window>();
+			Chooser->setObjectName(QStringLiteral("desktopProfilesSettings"));
+			for (std::size_t page = 0U; page < qt::settings_page_count; ++page) {
+				if (static_cast<qt::settings_page>(page) != qt::settings_page::profiles) {
+					Chooser->withdraw_page(static_cast<qt::settings_page>(page));
+				}
+			}
+			Chooser->setWindowTitle(QStringLiteral("Settings"));
+			Chooser->setAccessibleName(QStringLiteral("Settings"));
+			ChooserPanel = new qt::profiles_settings_panel;
+			Chooser->adopt_panel(qt::settings_page::profiles, ChooserPanel);
+			Chooser->installEventFilter(this);
+			// [[BPR-0777]]. One failure notice with Try again, over the same reload
+			// intent this dispatch already carries.
 			Host = std::make_unique<application::profile_management_host>(*Registry, Effects, Decisions, *this, core::application_session_id{ 1U });
-			Management->set_dispatch([weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
+			ChooserPanel->set_dispatch([weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
 } });
 			Host->reload();
 		}
@@ -1549,7 +1572,8 @@ namespace bpr::app {
 		qt::event_loop_executor                                                     Decisions;
 		std::unique_ptr<application::profile_registry_port>                         Registry;
 		std::unique_ptr<application::profile_management_host>                       Host;
-		std::unique_ptr<qt::profile_management_window>                              Management;
+		std::unique_ptr<qt::settings_window>                                        Chooser;
+		qt::profiles_settings_panel*                                                ChooserPanel = nullptr;
 		std::unique_ptr<qt::desktop_menu_bar>                                       DesktopMenu;
 		std::unique_ptr<release_update_desktop>                                     Updater;
 		std::unique_ptr<qt::about_menu>                                             About;
@@ -1660,7 +1684,8 @@ namespace bpr::app {
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }
 	auto profile_desktop::windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context> { return Implementation->windows(aProfile); }
 	auto profile_desktop::window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window* { return Implementation->window(aContext); }
-	auto profile_desktop::management_window() const noexcept -> qt::profile_management_window* { return Implementation->management_window(); }
+	auto profile_desktop::profiles_settings() const noexcept -> qt::settings_window* { return Implementation->profiles_settings(); }
+	auto profile_desktop::profiles_panel() const noexcept -> qt::profiles_settings_panel* { return Implementation->profiles_panel(); }
 	auto profile_desktop::desktop_menu() const noexcept -> qt::desktop_menu_bar* { return Implementation->desktop_menu(); }
 	auto profile_desktop::status_item() const noexcept -> QSystemTrayIcon* { return Implementation->status_item(); }
 	auto profile_desktop::last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return Implementation->last_empty_desktop_outcome(); }

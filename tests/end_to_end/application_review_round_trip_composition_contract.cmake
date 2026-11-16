@@ -3796,8 +3796,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (Settings… for Qt's MAC_APPLICATION_MENU "Preferences..."), and the
 	# Settings section "Agents & context" is named "Agents" in the app's
 	# notices and comments. No review mutation or submission path changed.
+	# [[BPR-2198]] reseal: Settings › Profiles replaces the Manage Profiles
+	# window (profile_desktop's chooser is its own Settings on Profiles
+	# alone), Import and Export Profile Settings move there with Identity and
+	# Repositories read from the queue host's names, and a tests-on profiles
+	# look. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "976bbc5ec207f158ca89fab50447ce3e4efe8c25c7eb116d57477a75dae3d117"
+        "38b6a7627ffff5335587ba465bf0171aac1311c92a808ce9942674b9e141d1d1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -17,7 +17,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -668,8 +668,8 @@ try {
 	stale.Generation = core::bpr_window_generation{ second.Generation.value() + 1U };
 	expect(owner->window(stale) == nullptr && !owner->status(stale), "foreign generation cannot address surviving window");
 	action(*windowB, "manageProfilesAction")->trigger();
-	wait_for([&] { return desktop->management_window() != nullptr; }, "management remains reachable from survivor");
-	auto& management = *desktop->management_window();
+	wait_for([&] { return desktop->profiles_panel() != nullptr; }, "management remains reachable from survivor");
+	auto& management = *desktop->profiles_panel();
 	wait_for([&] { return management.open_button()->isEnabled(); }, "the chooser's filled action is available for the current profile");
 	// [[BPR-0778]]. Return on the row activates an open profile; the footer's filled
 	// action now offers that profile a new window instead, so activation is the row's.

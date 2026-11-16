@@ -8,10 +8,10 @@ workflow at all.
 
 ## Sharing a workflow
 
-A workflow travels in the agent configuration file that Settings › Agents &
-context exports and imports (RFC-BPR-0107). A file that carries one is
-written as version 2, so an earlier BetterPullReview refuses it as a newer
-file instead of dropping its actions. Each workflow names:
+A workflow travels in the Profile Settings file that Settings › Profiles
+exports and imports (RFC-BPR-0107, [[BPR-2198]]), in its Workflows section.
+The file has one format, `bpr.profile-settings` version 1. Each workflow
+names:
 
 - `id`, `name`, `origin` (who it says it comes from; shown, never trusted)
   and `guidance` (writing guidance for its agent actions);

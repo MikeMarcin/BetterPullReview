@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -54,9 +55,9 @@ namespace {
 	void reject_locked_lifecycle(app::profile_desktop& aDesktop, qt::workbench_window& aWindow,
 								 const std::filesystem::path& aRoot, bool aQuit)
 	{
-		auto* management = aDesktop.management_window();
+		auto* management = aDesktop.profiles_panel();
 		expect(management != nullptr, "management available for recovery");
-		management->present();
+		aDesktop.profiles_settings()->present(qt::settings_page::profiles);
 		// [[BPR-0777]]. The appended recovery notice and Reload Profiles button are gone.
 		// RFC-BPR-0033 B3 reports a refusal in a window that exists, so recovery is
 		// observed there: the window's Profiles menu carries the refusal, and Manage
@@ -102,7 +103,7 @@ namespace {
 		}
 		return result;
 	}
-	auto profile_item(qt::profile_management_window& aManagement, core::bpr_profile_id aProfile) -> QListWidgetItem*
+	auto profile_item(qt::profiles_settings_panel& aManagement, core::bpr_profile_id aProfile) -> QListWidgetItem*
 	{
 		for (auto index = 0; index < aManagement.profiles()->count(); ++index) {
 			auto* row = aManagement.profiles()->item(index);
@@ -114,9 +115,9 @@ namespace {
 	}
 	void open_profile(app::profile_desktop& aDesktop, core::bpr_profile_id aProfile)
 	{
-		auto* management = aDesktop.management_window();
+		auto* management = aDesktop.profiles_panel();
 		expect(management != nullptr, "profile management exists");
-		management->present();
+		aDesktop.profiles_settings()->present(qt::settings_page::profiles);
 		auto* row = profile_item(*management, aProfile);
 		expect(row != nullptr, "durable profile remains listed");
 		management->profiles()->setCurrentItem(row);
@@ -174,7 +175,7 @@ auto main(int aArgc, char** aArgv) -> int
 		reject_locked_lifecycle(*desktop, *a, root, false);
 		reject_locked_lifecycle(*desktop, *a, root, true);
 		trigger(*a, "manageProfilesAction");
-		auto* management = desktop->management_window();
+		auto* management = desktop->profiles_panel();
 		wait_for([&] { return management && management->create_button()->isEnabled(); }, "profile creation available");
 		// [[BPR-0778]]. New profile appends a row already in its editor, so the name is
 		// typed there and saved; the sheet has no permanent name field to fill first. The

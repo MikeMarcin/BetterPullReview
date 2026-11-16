@@ -11,7 +11,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"

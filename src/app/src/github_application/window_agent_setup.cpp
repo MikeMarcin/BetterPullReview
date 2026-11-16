@@ -1753,6 +1753,9 @@ namespace bpr::app {
 					}
 				},
 		});
+		// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and
+		// Export Profile Settings… are on Settings › Profiles.
+		Window->profiles_settings()->set_share_handlers([this] { import_agent_configuration(); }, [this] { export_agent_configuration(); });
 		Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
 			// [[BPR-1859]]. Check agent is the setup's check, and its Stop
 			// the setup's Stop.
@@ -1802,18 +1805,16 @@ namespace bpr::app {
 						AgentSetup->move_agent(aId, aDelta);
 					}
 				},
-			.SetRunLimit         = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
-			.SetFollowUpSteer    = [this](const bool aSteer) {
+			.SetRunLimit      = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetFollowUpSteer = [this](const bool aSteer) {
                 if (!Closing && AgentSetup) {
                     AgentSetup->set_follow_up_steer(aSteer);
                 } },
-			.SetScratchPolicy    = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
+			.SetScratchPolicy = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
 				const auto taken = !Closing && AgentSetup && AgentSetup->set_scratch_policy(aLimitMiB, aKeepDays);
 				present_run_settings();
 				return taken; },
-			.ClearScratch        = [this] { clear_agent_scratch(std::nullopt, true); },
-			.ImportConfiguration = [this] { import_agent_configuration(); },
-			.ExportConfiguration = [this] { export_agent_configuration(); },
+			.ClearScratch     = [this] { clear_agent_scratch(std::nullopt, true); },
 			.SetProgram =
 				[this](const core::setup_agent aAgent, std::string aPath) {
 					if (Closing || !AgentSetup) {
@@ -2503,19 +2504,37 @@ namespace bpr::app {
 		return true;
 	}
 
-	namespace {
-		[[nodiscard]] auto configuration_count(const std::size_t aCount, const bool aAgents) -> QString
-		{
-			if (aAgents) {
-				return aCount == 1U ? QObject::tr("1 agent") : QObject::tr("%1 agents").arg(aCount);
-			}
-			return aCount == 1U ? QObject::tr("1 prompt") : QObject::tr("%1 prompts").arg(aCount);
+	// [[BPR-2198]]. What Identity and Repositories read: the profile's name,
+	// the account signed in, the servers it remembers and its saved and
+	// followed repositories. Names only: no credential is reachable from here.
+	auto github_application::implementation::profile_settings_facts() const -> core::profile_facts
+	{
+		auto facts = core::profile_facts{ .ProfileName = Profile->Admission.Label };
+		if (QueueHost == nullptr) {
+			return facts;
 		}
+		const auto& session = QueueHost->session();
+		if (!session.Host.empty() && !session.Account.empty()) {
+			facts.SignedIn.push_back({ .Host = session.Host, .Login = session.Account });
+		}
+		for (const auto& server : QueueHost->saved_servers()) {
+			facts.Remembered.push_back({ .Host = server.Hostname, .Login = server.Account });
+		}
+		for (const auto& repository : QueueHost->saved_repositories()) {
+			facts.Repositories.push_back({ .Host = repository.Host, .Repository = repository.Repository, .Saved = true });
+		}
+		for (const auto& rule : QueueHost->rules()) {
+			if (rule.Kind == core::observer_rule_kind::repository && !rule.Excluding) {
+				facts.Repositories.push_back({ .Repository = rule.Pattern, .Followed = true });
+			}
+		}
+		return facts;
 	}
 
-	// [[BPR-2016]], [[BPR-2017]], RFC-BPR-0107. Export configuration…: the
-	// stored snapshot, the dialog's choice, then the bytes written where the
-	// reviewer chose. Nothing else is read or run.
+	// [[BPR-2016]], [[BPR-2017]], RFC-BPR-0107; [[BPR-2198]]. Export Profile
+	// Settings…: the stored snapshot and the profile's names, the dialog's
+	// choice, then the bytes written where the reviewer chose. Nothing else
+	// is read or run.
 	void github_application::implementation::export_agent_configuration()
 	{
 		if (Closing || !AgentConfiguration || Window == nullptr) {
@@ -2526,7 +2545,7 @@ namespace bpr::app {
 				return;
 			}
 			if (!aSnapshot) {
-				Window->agent_programs()->present_exchange(QObject::tr("The agent settings could not be read, so nothing was exported."));
+				Window->profiles_settings()->present_exchange(QObject::tr("The agent settings could not be read, so nothing was exported."));
 				return;
 			}
 			auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
@@ -2534,8 +2553,8 @@ namespace bpr::app {
 				unsaved[index] = Window->writing_hooks()->has_unsaved(static_cast<core::writing_hook>(index));
 			}
 			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
-																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(),
-																			Window->agent_programs()->window() };
+																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(), profile_settings_facts(),
+																			Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_file_chooser([dialog] {
 	#if defined(BPR_BUILD_TESTING)
@@ -2545,19 +2564,17 @@ namespace bpr::app {
 				}
 	#endif
 				const auto folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-				return QFileDialog::getSaveFileName(dialog, QObject::tr("Export configuration"), folder + QStringLiteral("/agents.bpr-config.json"), QObject::tr("Agent configuration (*.json)"));
+				return QFileDialog::getSaveFileName(dialog, QObject::tr("Export Profile Settings"), folder + QStringLiteral("/profile-settings.bpr-config.json"), QObject::tr("Profile Settings (*.json)"));
 			});
 			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] {
 				if (Closing || !AgentConfiguration) {
 					return;
 				}
-				const auto agents  = dialog->agents().size();
-				const auto prompts = dialog->prompts().size();
-				const auto path    = dialog->chosen_path();
-				AgentConfiguration->write(path.toStdString(), dialog->bytes(), [this, agents, prompts, path](const bool aWritten) {
+				const auto path = dialog->chosen_path();
+				AgentConfiguration->write(path.toStdString(), dialog->bytes(), [this, path](const bool aWritten) {
 					if (!Closing && Window != nullptr) {
-						Window->agent_programs()->present_exchange(aWritten ? QObject::tr("Exported %1 and %2 to %3.").arg(configuration_count(agents, true), configuration_count(prompts, false), QFileInfo{ path }.fileName())
-																			: QObject::tr("%1 could not be written. Nothing was exported.").arg(QFileInfo{ path }.fileName()));
+						Window->profiles_settings()->present_exchange(aWritten ? QObject::tr("Exported this profile's settings to %1.").arg(QFileInfo{ path }.fileName())
+																			   : QObject::tr("%1 could not be written. Nothing was exported.").arg(QFileInfo{ path }.fileName()));
 					}
 				});
 			});
@@ -2565,7 +2582,7 @@ namespace bpr::app {
 		});
 	}
 
-	// Import configuration…: the file is read and decoded against what the
+	// Import Profile Settings…: the file is read and decoded against what the
 	// profile holds now; the dialog decides; one all-or-nothing application;
 	// then the hosts read back what was stored. No agent is checked or run.
 	void github_application::implementation::import_agent_configuration()
@@ -2578,8 +2595,8 @@ namespace bpr::app {
 		path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
 	#endif
 		if (path.isEmpty()) {
-			path = QFileDialog::getOpenFileName(Window->agent_programs()->window(), QObject::tr("Import configuration"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
-												QObject::tr("Agent configuration (*.json);;All files (*)"));
+			path = QFileDialog::getOpenFileName(Window->profiles_settings()->window(), QObject::tr("Import Profile Settings"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+												QObject::tr("Profile Settings (*.json);;All files (*)"));
 		}
 		if (path.isEmpty()) {
 			return;
@@ -2589,8 +2606,8 @@ namespace bpr::app {
 				return;
 			}
 			if (!aPreview) {
-				Window->agent_programs()->present_exchange(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
-																					: QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
+				Window->profiles_settings()->present_exchange(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
+																					   : QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
 				return;
 			}
 			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog, .Found = { }, .Profile = Profile->Admission.Label };
@@ -2599,7 +2616,8 @@ namespace bpr::app {
 					facts.Found.push_back(row.Agent);
 				}
 			}
-			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), Window->agent_programs()->window() };
+			aPreview->Here     = profile_settings_facts();
+			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_program_chooser([dialog](const QString& aHint) {
 	#if defined(BPR_BUILD_TESTING)
@@ -2614,21 +2632,45 @@ namespace bpr::app {
 		});
 	}
 
+	void github_application::implementation::apply_profile_changes(const core::profile_settings_changes& aChanges)
+	{
+		if (QueueHost != nullptr) {
+			for (const auto& server : aChanges.RememberServers) {
+				QueueHost->apply(application::saved_server_intent{ .Action = application::saved_server_action::add, .Server = { .Hostname = server.Host, .Account = server.Login } });
+			}
+			for (const auto& saved : aChanges.Save) {
+				QueueHost->apply(application::saved_repository_intent{ .Action = application::saved_repository_action::add, .Repository = { .Host = saved.Account.Host, .Account = saved.Account.Login, .Repository = saved.Repository } });
+			}
+			for (const auto& followed : aChanges.Follow) {
+				QueueHost->apply(application::queue_rule_intent{ .Action = application::queue_rule_action::add, .Rule = { .Kind = core::observer_rule_kind::repository, .Pattern = followed } });
+			}
+		}
+		if (aChanges.Rename && Window != nullptr) {
+			Window->dispatch_profile_management(application::rename_bpr_profile_intent{ Profile->Admission.Authority.profile(), *aChanges.Rename });
+		}
+	}
+
 	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog)
 	{
 		if (Closing || !AgentConfiguration || Window == nullptr) {
 			return;
 		}
 		if (Profile->WorkbenchPreferences->is_busy()) {
-			Window->agent_programs()->present_exchange(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
+			Window->profiles_settings()->present_exchange(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
 			return;
 		}
-		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, agents = aDialog.agent_choices().size(), prompts = aDialog.prompt_choices().size()](application::agent_configuration_host::applied aApplied) {
+		// [[BPR-2198]]. Identity and Repositories go through the profile's own
+		// durable paths once the rest is stored: the core says what changes.
+		auto profileChanges = core::profile_changes(aDialog.preview().File, aDialog.plan(), aDialog.identity_choice(), aDialog.repository_choices(), profile_settings_facts());
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges)](application::agent_configuration_host::applied aApplied) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			if (aApplied && aApplied->first == application::agent_configuration_outcome::applied) {
+				apply_profile_changes(changes);
+			}
 			if (!aApplied) {
-				Window->agent_programs()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(core::stable_name(aApplied.error().Refusal).data())));
+				Window->profiles_settings()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(core::stable_name(aApplied.error().Refusal).data())));
 				return;
 			}
 			switch (aApplied->first) {
@@ -2645,14 +2687,13 @@ namespace bpr::app {
 				if (DraftDesktop) {
 					DraftDesktop->reload_workflows();
 				}
-				Window->agent_programs()->present_exchange((agents > 0U ? QObject::tr("Imported %1 and %2. Check a new agent before you ask it anything.") : QObject::tr("Imported %1 and %2."))
-															   .arg(configuration_count(agents, true), configuration_count(prompts, false)));
+				Window->profiles_settings()->present_exchange(agents > 0U ? QObject::tr("Imported into this profile. Check a new agent before you ask it anything.") : QObject::tr("Imported into this profile."));
 				break;
 			case application::agent_configuration_outcome::changed_since:
-				Window->agent_programs()->present_exchange(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
+				Window->profiles_settings()->present_exchange(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
 				break;
 			case application::agent_configuration_outcome::storage_failed:
-				Window->agent_programs()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
+				Window->profiles_settings()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
 				break;
 			} }, aDialog.workflow_choices());
 	}

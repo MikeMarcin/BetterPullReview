@@ -327,7 +327,7 @@ try {
 	}
 	auto preview    = application::agent_configuration_preview{ .Snapshot = *before };
 	preview.Prompts = application::local_prompts(preview.Snapshot);
-	preview.File    = core::decode_agent_configuration(bytes, preview.Prompts, application::prompt_aliases()).value();
+	preview.File    = core::decode_agent_configuration(bytes, preview.Prompts).value();
 	expect(preview.File.Workflows.size() == 1U && !preview.File.Workflows[0].Problem, "the shared workflow reads");
 	const auto agents   = std::vector<core::agent_import_choice>{ { .Item = 0U, .Action = core::agent_import_action::add } };
 	auto       programs = std::vector<core::workflow_program>{ };

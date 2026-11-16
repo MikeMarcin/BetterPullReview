@@ -176,6 +176,16 @@ records names its check (`record-malformed`, `record-moved` with what was
 found, or `record-cleanup-failed`), the first record, and how many records
 were refused, so the reviewer can move them all before one restart.
 
+**Note, 2026-11-15 ([[BPR-2198]]).** The owner retired the Manage Profiles
+window ("I think the manage profiles window is probably kinda booty, maybe it
+just goes away") and moved profiles into Settings. The sheet's rows, gestures,
+in-place editing and failure notice are now **Settings › Profiles**, which
+Manage Profiles… opens in the window's own Settings. The chooser this RFC
+presents when no window exists (B3, and Manage Profiles… on the resident
+macOS menu bar) is the desktop's own Settings window with Profiles alone. B4's
+rows and B3's routing are unchanged; B4's 440 by 360 sheet size and B5's
+captures now describe the page.
+
 ## Acceptance criteria
 
 - **B1 — A close is a close.** Closing the last window of the last open profile

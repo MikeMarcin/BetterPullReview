@@ -5,7 +5,8 @@
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
@@ -154,11 +155,11 @@ auto main(int aArgc, char** aArgv) -> int
 			auto*      window  = desktop->window(context);
 			QEvent     event{ QEvent::WindowActivate };
 			QApplication::sendEvent(window, &event);
-			desktop->management_window()->show();
-			desktop->management_window()->activateWindow();
+			desktop->profiles_settings()->show();
+			desktop->profiles_settings()->activateWindow();
 			focusStage = 1;
 		}
-		if (focusStage == 1 && QApplication::activeWindow() == desktop->management_window()) {
+		if (focusStage == 1 && QApplication::activeWindow() == desktop->profiles_settings()) {
 			focusStage = 2;
 			std::cout << "MRU_FOCUSED\n"
 					  << std::flush;
@@ -178,7 +179,7 @@ auto main(int aArgc, char** aArgv) -> int
 	// chooser, because RFC-BPR-0033 moves recovery into the chooser's own failure
 	// notice. The reload this course needs is the one Manage Profiles already performs,
 	// and Create's enablement is the same registry-idle fact the button carried.
-	auto* idle = desktop->management_window()->create_button();
+	auto* idle = desktop->profiles_panel()->create_button();
 	expect(idle != nullptr, "the chooser's registry-idle indicator");
 	wait_for([&] { return idle->isEnabled(); });
 	auto* manage = desktop->window(desktop->windows(profile).front())

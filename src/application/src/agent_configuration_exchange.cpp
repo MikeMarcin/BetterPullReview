@@ -12,11 +12,6 @@
 
 namespace bpr::application {
 	namespace {
-		constexpr auto Aliases = std::array{
-			core::prompt_alias{ .Retired = "enhance.comment", .Current = "enhance.writing" },
-			core::prompt_alias{ .Retired = "enhance.note", .Current = "enhance.writing" },
-		};
-
 		[[nodiscard]] auto digest_of(const std::string_view aText) -> std::array<std::uint8_t, 32>
 		{
 			return core::sha256({ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() });
@@ -46,8 +41,6 @@ namespace bpr::application {
 			return facts && facts->Version ? *facts->Version : 0U;
 		}
 	} // namespace
-
-	auto prompt_aliases() noexcept -> std::span<const core::prompt_alias> { return Aliases; }
 
 	auto prompt_hook(const std::string_view aPurpose) noexcept -> std::optional<core::writing_hook>
 	{
@@ -85,7 +78,8 @@ namespace bpr::application {
 	}
 
 	auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, const std::span<const std::uint32_t> aAgents, const std::span<const exported_prompt> aPrompts,
-									std::string aLabel, std::string aExportedBy, const std::span<const std::string> aWorkflows) -> std::optional<std::string>
+									std::string aLabel, std::string aExportedBy, const std::span<const std::string> aWorkflows,
+									const core::portable_identity* const aIdentity, const std::span<const core::portable_repository> aRepositories) -> std::optional<std::string>
 	{
 		// [[BPR-2032]]. A chosen workflow's agents travel with it.
 		auto workflows = std::vector<const core::local_workflow*>{ };
@@ -109,6 +103,12 @@ namespace bpr::application {
 		}
 		const auto ids           = core::portable_ids(names);
 		auto       configuration = core::agent_configuration{ .Label = std::move(aLabel), .ExportedBy = std::move(aExportedBy) };
+		// [[BPR-2198]]. Names only: the composition hands over hosts, logins
+		// and repository names, and nothing here can reach a sign-in.
+		if (aIdentity != nullptr) {
+			configuration.Identity = *aIdentity;
+		}
+		configuration.Repositories.assign(aRepositories.begin(), aRepositories.end());
 		for (std::size_t index = 0U; index < chosen.size(); ++index) {
 			configuration.Agents.push_back(core::portable_agent_of(*chosen[index], ids[index]));
 		}
@@ -306,7 +306,7 @@ namespace bpr::application {
 				}
 				auto preview    = agent_configuration_preview{ .Snapshot = std::move(*snapshot) };
 				preview.Prompts = local_prompts(preview.Snapshot);
-				auto decoded    = core::decode_agent_configuration(*bytes, preview.Prompts, prompt_aliases());
+				auto decoded    = core::decode_agent_configuration(*bytes, preview.Prompts);
 				if (!decoded) {
 					return std::unexpected(agent_configuration_read_error{ .Refusal = decoded.error() });
 				}

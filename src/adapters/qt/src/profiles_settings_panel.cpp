@@ -1,8 +1,7 @@
-#include "bpr/qt/profile_management_window.hpp"
-
-#include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
 #include <QFontMetrics>
@@ -51,10 +50,14 @@ namespace bpr::qt {
 				profile = Qt::UserRole,
 				runtime = Qt::UserRole + 1,
 				state   = Qt::UserRole + 2,
+				current = Qt::UserRole + 3,
 			};
 		}
-		constexpr int row_inset = 12;
-		constexpr int row_gap   = 12;
+		constexpr int row_inset    = 12;
+		constexpr int row_gap      = 12;
+		constexpr int fewest_rows  = 2;
+		constexpr int most_rows    = 8;
+		constexpr int section_rise = 20;
 
 		auto item_profile(const QListWidgetItem* aItem) -> core::bpr_profile_id
 		{
@@ -77,11 +80,29 @@ namespace bpr::qt {
 			return QStringLiteral("Closed");
 		}
 
+		[[nodiscard]] auto heading(const QString& aText, QWidget* aParent) -> QLabel*
+		{
+			auto* const label = new QLabel{ aText, aParent };
+			auto        bold  = label->font();
+			bold.setWeight(QFont::DemiBold);
+			label->setFont(bold);
+			return label;
+		}
+
+		[[nodiscard]] auto note(const QString& aText, QWidget* aParent) -> QLabel*
+		{
+			auto* const label = new QLabel{ aText, aParent };
+			label->setWordWrap(true);
+			label->setTextFormat(Qt::PlainText);
+			label->setForegroundRole(QPalette::PlaceholderText);
+			return label;
+		}
+
 		/// \brief One profile row: a letter avatar, the name, and the state at the right.
 		///
 		/// \details Selection, hover and focus painting stay the style's own. The only
 		/// ink added is the quiet palette role for the state and one hairline between
-		/// rows; remote literal text is not elided into an ambiguous prefix.
+		/// rows; the Settings window's own profile is named in the heavier weight.
 		class profile_row_delegate final : public QStyledItemDelegate
 		{
 		public:
@@ -102,22 +123,23 @@ namespace bpr::qt {
 				const auto extent   = home_tile_extent(option.font);
 				const auto content  = option.rect.adjusted(row_inset, 0, -row_inset, 0);
 				aPainter->save();
-				draw_home_tile(*aPainter,
-							   QRect{ content.left(), content.center().y() - extent / 2, extent, extent },
-							   home_tile_initial(name), true, option.font, ink);
+				draw_home_tile(*aPainter, QRect{ content.left(), content.center().y() - extent / 2, extent, extent }, home_tile_initial(name), true, option.font, ink);
 				const auto ground     = selected ? QPalette::HighlightedText : QPalette::PlaceholderText;
 				const auto metrics    = QFontMetrics{ option.font };
 				const auto stateWidth = state.isEmpty() ? 0 : metrics.horizontalAdvance(state);
 				if (!state.isEmpty()) {
 					aPainter->setPen(option.palette.color(group, ground));
-					aPainter->drawText(QRect{ content.right() - stateWidth, content.top(), stateWidth, content.height() },
-									   Qt::AlignRight | Qt::AlignVCenter, state);
+					aPainter->drawText(QRect{ content.right() - stateWidth, content.top(), stateWidth, content.height() }, Qt::AlignRight | Qt::AlignVCenter, state);
 				}
+				auto nameFont = option.font;
+				if (aIndex.data(profile_row_role::current).toBool()) {
+					nameFont.setWeight(QFont::DemiBold);
+				}
+				aPainter->setFont(nameFont);
 				aPainter->setPen(option.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text));
 				const auto nameLeft  = content.left() + extent + row_gap;
 				const auto nameWidth = content.right() - (stateWidth == 0 ? 0 : stateWidth + row_gap) - nameLeft;
-				aPainter->drawText(QRect{ nameLeft, content.top(), std::max(0, nameWidth), content.height() },
-								   Qt::AlignLeft | Qt::AlignVCenter, name);
+				aPainter->drawText(QRect{ nameLeft, content.top(), std::max(0, nameWidth), content.height() }, Qt::AlignLeft | Qt::AlignVCenter, name);
 				if (aIndex.row() != 0) {
 					aPainter->setPen(option.palette.color(group, QPalette::Mid));
 					aPainter->drawLine(option.rect.topLeft(), option.rect.topRight());
@@ -125,19 +147,17 @@ namespace bpr::qt {
 				aPainter->restore();
 			}
 
-			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
-				-> QSize override
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
 			{
 				auto size = QStyledItemDelegate::sizeHint(aOption, aIndex);
-				size.setHeight(std::max(size.height(), profile_management_window::row_height));
+				size.setHeight(std::max(size.height(), profiles_settings_panel::row_height));
 				return size;
 			}
 		};
 
-		/// \brief The sheet's bordered, rounded surfaces, painted rather than styled.
-		///
-		/// \details RFC-BPR-0018 forbids a stylesheet, so the one 8-point radius the
-		/// design asks for is drawn from the palette's own Base and Mid roles.
+		/// \brief The list's and the notice's bordered, rounded surfaces, painted
+		/// rather than styled: RFC-BPR-0018 forbids a stylesheet, so the radius
+		/// is drawn from the palette's own Base and Mid roles.
 		class rounded_surface final : public QWidget
 		{
 		public:
@@ -150,20 +170,20 @@ namespace bpr::qt {
 				painter.setRenderHint(QPainter::Antialiasing, true);
 				painter.setPen(palette().color(QPalette::Mid));
 				painter.setBrush(palette().color(QPalette::Base));
-				const auto radius = static_cast<qreal>(profile_management_window::list_radius);
+				const auto radius = static_cast<qreal>(profiles_settings_panel::list_radius);
 				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
 			}
 		};
 	}
 
-	profile_management_window::profile_management_window(QWidget* aParent)
-		: QWidget{ aParent, Qt::Window }
+	profiles_settings_panel::profiles_settings_panel(QWidget* aParent)
+		: QWidget{ aParent }
 	{
-		setObjectName(QStringLiteral("profileManagementWindow"));
-		setWindowTitle(QStringLiteral("Profiles"));
+		setObjectName(QStringLiteral("profilesSettings"));
 		setAccessibleName(QStringLiteral("Profiles"));
-		setMinimumSize(360, 280);
-		resize(sheet_width, sheet_height);
+
+		auto* const intro = note(QStringLiteral("Each profile keeps its own accounts, repositories, agents and reviews, and opens in its own windows."), this);
+		intro->setObjectName(QStringLiteral("profilesIntro"));
 
 		Notice = new rounded_surface{ this };
 		Notice->setObjectName(QStringLiteral("profileFailureNotice"));
@@ -175,23 +195,24 @@ namespace bpr::qt {
 		TryAgain = new quiet_push_button{ QStringLiteral("Try again"), Notice };
 		TryAgain->setObjectName(QStringLiteral("profileTryAgain"));
 		TryAgain->setAccessibleName(QStringLiteral("Try the profile operation again"));
-		auto* noticeRow = new QHBoxLayout{ Notice };
+		auto* const noticeRow = new QHBoxLayout{ Notice };
 		noticeRow->setContentsMargins(12, 8, 12, 8);
 		noticeRow->addWidget(NoticeText, 1);
 		noticeRow->addWidget(TryAgain);
 		Notice->hide();
 
-		auto* surface = new rounded_surface{ this };
+		auto* const surface = new rounded_surface{ this };
 		surface->setObjectName(QStringLiteral("profileRowSurface"));
 		Profiles = new QListWidget{ surface };
 		Profiles->setObjectName(QStringLiteral("managedProfiles"));
 		Profiles->setAccessibleName(QStringLiteral("Profiles"));
 		Profiles->setSelectionMode(QAbstractItemView::SingleSelection);
 		Profiles->setFrameShape(QFrame::NoFrame);
+		Profiles->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Profiles->viewport()->setAutoFillBackground(false);
 		Profiles->setItemDelegate(new profile_row_delegate{ Profiles });
 		Profiles->installEventFilter(this);
-		auto* surfaceColumn = new QVBoxLayout{ surface };
+		auto* const surfaceColumn = new QVBoxLayout{ surface };
 		surfaceColumn->setContentsMargins(1, 1, 1, 1);
 		surfaceColumn->addWidget(Profiles);
 
@@ -207,7 +228,6 @@ namespace bpr::qt {
 
 		Create = new quiet_push_button{ QStringLiteral("New profile"), this };
 		Create->setObjectName(QStringLiteral("newProfile"));
-		Create->setFlat(true);
 		Create->setAccessibleName(QStringLiteral("New profile"));
 		Rename = new quiet_push_button{ QStringLiteral("Rename"), this };
 		Rename->setObjectName(QStringLiteral("renameProfile"));
@@ -215,65 +235,135 @@ namespace bpr::qt {
 		Open = new QPushButton{ QStringLiteral("Open"), this };
 		Open->setObjectName(QStringLiteral("openProfile"));
 		Open->setAccessibleName(QStringLiteral("Open the selected profile"));
-		Open->setDefault(true);
 		Save = new QPushButton{ QStringLiteral("Save"), this };
 		Save->setObjectName(QStringLiteral("saveProfileName"));
 		Save->setAccessibleName(QStringLiteral("Save the profile name"));
-		Save->setDefault(true);
 		Cancel = new quiet_push_button{ QStringLiteral("Cancel"), this };
 		Cancel->setObjectName(QStringLiteral("cancelProfileName"));
 		Cancel->setAccessibleName(QStringLiteral("Cancel the profile name"));
 		Save->hide();
 		Cancel->hide();
 
-		auto* footer = new QHBoxLayout;
-		footer->addWidget(Create);
-		footer->addStretch();
-		footer->addWidget(Rename);
-		footer->addWidget(Cancel);
-		footer->addWidget(Open);
-		footer->addWidget(Save);
-		auto* column = new QVBoxLayout{ this };
-		column->setContentsMargins(12, 12, 12, 12);
+		auto* const actions = new QHBoxLayout;
+		actions->addWidget(Create);
+		actions->addStretch();
+		actions->addWidget(Rename);
+		actions->addWidget(Cancel);
+		actions->addWidget(Open);
+		actions->addWidget(Save);
+
+		// [[BPR-2198]] (owner, 2026-11-15). The file moves this profile's
+		// settings; it never carries a sign-in.
+		Share = new QWidget{ this };
+		Share->setObjectName(QStringLiteral("profileShareSection"));
+		auto* const shareColumn = new QVBoxLayout{ Share };
+		shareColumn->setContentsMargins(0, section_rise, 0, 0);
+		auto* const shareHeading = heading(QStringLiteral("Share profile settings"), Share);
+		shareHeading->setObjectName(QStringLiteral("profileShareHeading"));
+		shareColumn->addWidget(shareHeading);
+		auto* const shareSays = note(QStringLiteral("A file with this profile's agents, prompts and workflows, to move to another computer or share."), Share);
+		shareSays->setObjectName(QStringLiteral("profileShareNote"));
+		shareColumn->addWidget(shareSays);
+		ImportButton = new quiet_push_button{ QStringLiteral("Import Profile Settings…"), Share };
+		ImportButton->setObjectName(QStringLiteral("settingsImportProfileSettings"));
+		ImportButton->setToolTip(QStringLiteral("Read a Profile Settings file, see what each part would change in this profile and choose what to import. Nothing runs."));
+		ExportButton = new quiet_push_button{ QStringLiteral("Export Profile Settings…"), Share };
+		ExportButton->setObjectName(QStringLiteral("settingsExportProfileSettings"));
+		ExportButton->setToolTip(QStringLiteral("Write the parts of this profile you choose to a file. No sign-in, token or program location is written."));
+		auto* const shareRow = new QHBoxLayout;
+		shareRow->addWidget(ImportButton);
+		shareRow->addWidget(ExportButton);
+		shareRow->addStretch();
+		shareColumn->addLayout(shareRow);
+		ExchangeNote = note({ }, Share);
+		ExchangeNote->setObjectName(QStringLiteral("settingsProfileSettingsNote"));
+		ExchangeNote->hide();
+		shareColumn->addWidget(ExchangeNote);
+		Share->hide();
+
+		auto* const column = new QVBoxLayout{ this };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->addWidget(intro);
 		column->addWidget(Notice);
-		column->addWidget(surface, 1);
-		column->addLayout(footer);
+		column->addWidget(surface);
+		column->addLayout(actions);
+		column->addWidget(Share);
 
 		setTabOrder(Profiles, Create);
 		setTabOrder(Create, Rename);
 		setTabOrder(Rename, Open);
+		setTabOrder(Open, ImportButton);
+		setTabOrder(ImportButton, ExportButton);
 
 		connect(TryAgain, &QPushButton::clicked, this, [this] {
 			if (Dispatch) {
 				Dispatch(application::reload_bpr_profiles_intent{ });
 			}
 		});
-		connect(Profiles, &QListWidget::currentRowChanged, this, [this] { select_profile(); });
+		connect(Profiles, &QListWidget::currentRowChanged, this, [this] {
+			if (Mode == edit_mode::none) {
+				PreserveCandidate = false;
+			}
+			update_actions();
+		});
 		connect(Profiles, &QListWidget::itemDoubleClicked, this, [this] { open_selected(); });
 		connect(Create, &QPushButton::clicked, this, [this] { begin_create(); });
 		connect(Rename, &QPushButton::clicked, this, [this] { begin_rename(); });
-		connect(Open, &QPushButton::clicked, this, [this] { activate_footer(); });
+		connect(Open, &QPushButton::clicked, this, [this] { activate_open(); });
 		connect(Save, &QPushButton::clicked, this, [this] { commit_edit(); });
 		connect(Cancel, &QPushButton::clicked, this, [this] { cancel_edit(); });
+		connect(ImportButton, &QPushButton::clicked, this, [this] {
+			if (Import) {
+				Import();
+			}
+		});
+		connect(ExportButton, &QPushButton::clicked, this, [this] {
+			if (Export) {
+				Export();
+			}
+		});
+		fit_list();
 		update_actions();
 	}
 
-	void profile_management_window::set_dispatch(application::profile_management_dispatch aDispatch)
+	void profiles_settings_panel::set_dispatch(application::profile_management_dispatch aDispatch) { Dispatch = std::move(aDispatch); }
+
+	void profiles_settings_panel::set_share_handlers(std::function<void()> aImport, std::function<void()> aExport)
 	{
-		Dispatch = std::move(aDispatch);
+		Import = std::move(aImport);
+		Export = std::move(aExport);
+		Share->setVisible(Import || Export);
+		ImportButton->setEnabled(static_cast<bool>(Import));
+		ExportButton->setEnabled(static_cast<bool>(Export));
 	}
 
-	void profile_management_window::set_window_counts(const std::map<core::bpr_profile_id, int>& aCounts)
+	void profiles_settings_panel::present_exchange(const QString& aSaid)
+	{
+		ExchangeNote->setText(aSaid);
+		ExchangeNote->setVisible(!aSaid.isEmpty());
+	}
+
+	void profiles_settings_panel::set_window_counts(const std::map<core::bpr_profile_id, int>& aCounts)
 	{
 		WindowCounts = aCounts;
+		refresh_states();
 	}
 
-	void profile_management_window::set_current_profile(const core::bpr_profile_id aProfile)
+	void profiles_settings_panel::set_current_profile(const core::bpr_profile_id aProfile)
 	{
 		CurrentProfile = aProfile;
+		refresh_states();
 	}
 
-	auto profile_management_window::pending_row() const -> QListWidgetItem*
+	void profiles_settings_panel::focus_profiles()
+	{
+		if (Mode == edit_mode::none) {
+			select_current();
+		}
+		Profiles->setFocus(Qt::OtherFocusReason);
+	}
+
+	auto profiles_settings_panel::pending_row() const -> QListWidgetItem*
 	{
 		for (auto row = 0; row < Profiles->count(); ++row) {
 			if (item_profile(Profiles->item(row)).value() == 0U) {
@@ -283,7 +373,39 @@ namespace bpr::qt {
 		return nullptr;
 	}
 
-	void profile_management_window::adopt(const application::profile_management_projection& aProjection)
+	void profiles_settings_panel::select_current()
+	{
+		for (auto row = 0; row < Profiles->count(); ++row) {
+			if (item_profile(Profiles->item(row)) == CurrentProfile) {
+				Profiles->setCurrentRow(row);
+				return;
+			}
+		}
+		if (Profiles->currentItem() == nullptr && Profiles->count() != 0) {
+			Profiles->setCurrentRow(0);
+		}
+	}
+
+	void profiles_settings_panel::refresh_states()
+	{
+		for (auto row = 0; row < Profiles->count(); ++row) {
+			auto* const item    = Profiles->item(row);
+			const auto  profile = item_profile(item);
+			if (profile.value() == 0U) {
+				continue;
+			}
+			const auto counted = WindowCounts.find(profile);
+			const auto runtime = static_cast<application::profile_management_runtime>(item->data(profile_row_role::runtime).toInt());
+			const auto state   = state_text(runtime, counted == WindowCounts.end() ? 0 : counted->second);
+			const auto current = profile == CurrentProfile;
+			item->setData(profile_row_role::state, state);
+			item->setData(profile_row_role::current, current);
+			item->setData(Qt::AccessibleDescriptionRole, state);
+			item->setToolTip(state);
+		}
+	}
+
+	void profiles_settings_panel::adopt(const application::profile_management_projection& aProjection)
 	{
 		if (aProjection.Profiles.size() > core::maximum_bpr_profiles) {
 			Ready = false;
@@ -297,9 +419,7 @@ namespace bpr::qt {
 			if (item == pending_row()) {
 				continue;
 			}
-			if (std::ranges::none_of(aProjection.Profiles, [item](const auto& aProfile) {
-					return aProfile.Profile == item_profile(item);
-				})) {
+			if (std::ranges::none_of(aProjection.Profiles, [item](const auto& aProfile) { return aProfile.Profile == item_profile(item); })) {
 				delete Profiles->takeItem(row);
 			}
 		}
@@ -320,12 +440,7 @@ namespace bpr::qt {
 				Profiles->takeItem(Profiles->row(item));
 				Profiles->insertItem(static_cast<int>(index), item);
 			}
-			const auto counted = WindowCounts.find(profile.Profile);
-			const auto state   = state_text(profile.Runtime, counted == WindowCounts.end() ? 0 : counted->second);
 			item->setData(profile_row_role::runtime, static_cast<int>(profile.Runtime));
-			item->setData(profile_row_role::state, state);
-			item->setData(Qt::AccessibleDescriptionRole, state);
-			item->setToolTip(state);
 			const auto label = QString::fromStdString(profile.Label);
 			if (item->text() != label) {
 				item->setText(label);
@@ -334,29 +449,21 @@ namespace bpr::qt {
 				Profiles->setCurrentItem(item);
 			}
 		}
+		refresh_states();
 		Ready   = aProjection.Ready;
 		Busy    = aProjection.Busy;
 		Closing = aProjection.Closing;
-		// RFC-BPR-0033: the current profile's row is selected when the sheet opens.
-		if (Profiles->currentItem() == nullptr && Profiles->count() != 0) {
-			auto* current = static_cast<QListWidgetItem*>(nullptr);
-			for (auto row = 0; row < Profiles->count(); ++row) {
-				if (item_profile(Profiles->item(row)) == CurrentProfile) {
-					current = Profiles->item(row);
-					break;
-				}
-			}
-			Profiles->setCurrentItem(current != nullptr ? current : Profiles->item(0));
+		// RFC-BPR-0033: the current profile's row is selected when the list is shown.
+		if (Profiles->currentItem() == nullptr) {
+			select_current();
 		}
 		if (aProjection.Failure) {
 			// The name is kept: a refused edit stays open on exactly what was typed.
 			NoticeText->setText(profile_management_failure_text(aProjection.Failure->Reason));
 			Notice->show();
 			PendingEdit.reset();
-		} else if (aProjection.AcceptedEdit && PendingEdit
-				   && aProjection.AcceptedEdit->Operation == *PendingEdit
-				   && (*PendingEdit == application::profile_management_operation::create
-					   || aProjection.AcceptedEdit->Profile == PendingProfile)) {
+		} else if (aProjection.AcceptedEdit && PendingEdit && aProjection.AcceptedEdit->Operation == *PendingEdit
+				   && (*PendingEdit == application::profile_management_operation::create || aProjection.AcceptedEdit->Profile == PendingProfile)) {
 			// The renamed row is the confirmation, so nothing is announced here.
 			if (Name->text() == SubmittedLabel) {
 				PreserveCandidate = false;
@@ -373,39 +480,20 @@ namespace bpr::qt {
 		} else if (!PreserveCandidate) {
 			Notice->hide();
 		}
+		fit_list();
 		update_actions();
 		place_editor();
 	}
 
-	void profile_management_window::present()
-	{
-		show();
-		raise();
-		activateWindow();
-		Profiles->setFocus(Qt::OtherFocusReason);
-	}
+	auto profiles_settings_panel::selected_profile() const -> core::bpr_profile_id { return item_profile(Profiles->currentItem()); }
 
-	auto profile_management_window::selected_profile() const -> core::bpr_profile_id
-	{
-		return item_profile(Profiles->currentItem());
-	}
-
-	auto profile_management_window::selected_is_open() const -> bool
+	auto profiles_settings_panel::selected_is_open() const -> bool
 	{
 		auto* const item = Profiles->currentItem();
-		return item != nullptr
-			&& item->data(profile_row_role::runtime).toInt() == static_cast<int>(application::profile_management_runtime::open);
+		return item != nullptr && item->data(profile_row_role::runtime).toInt() == static_cast<int>(application::profile_management_runtime::open);
 	}
 
-	void profile_management_window::select_profile()
-	{
-		if (Mode == edit_mode::none) {
-			PreserveCandidate = false;
-		}
-		update_actions();
-	}
-
-	void profile_management_window::begin_rename()
+	void profiles_settings_panel::begin_rename()
 	{
 		if (!Rename->isEnabled() || Profiles->currentItem() == nullptr) {
 			return;
@@ -419,7 +507,7 @@ namespace bpr::qt {
 		place_editor();
 	}
 
-	void profile_management_window::begin_create()
+	void profiles_settings_panel::begin_create()
 	{
 		if (!Create->isEnabled()) {
 			return;
@@ -432,6 +520,8 @@ namespace bpr::qt {
 		item->setData(profile_row_role::state, QString{ });
 		Profiles->addItem(item);
 		Profiles->setCurrentItem(item);
+		fit_list();
+		Profiles->scrollToItem(item);
 		Name->clear();
 		Name->show();
 		Name->setFocus(Qt::OtherFocusReason);
@@ -439,15 +529,13 @@ namespace bpr::qt {
 		place_editor();
 	}
 
-	void profile_management_window::commit_edit()
+	void profiles_settings_panel::commit_edit()
 	{
 		if (Mode == edit_mode::none || !Dispatch || !Save->isEnabled()) {
 			return;
 		}
 		PreserveCandidate = true;
-		PendingEdit       = Mode == edit_mode::create
-			? application::profile_management_operation::create
-			: application::profile_management_operation::rename;
+		PendingEdit       = Mode == edit_mode::create ? application::profile_management_operation::create : application::profile_management_operation::rename;
 		PendingProfile    = selected_profile();
 		SubmittedLabel    = Name->text();
 		if (Mode == edit_mode::create) {
@@ -457,10 +545,10 @@ namespace bpr::qt {
 		}
 	}
 
-	void profile_management_window::cancel_edit()
+	void profiles_settings_panel::cancel_edit()
 	{
-		// RFC-BPR-0033: Escape cancels and keeps the name. Nothing is dispatched, so
-		// the profile keeps the name it already had.
+		// RFC-BPR-0033: Escape cancels. Nothing is dispatched, so the profile
+		// keeps the name it already had.
 		PreserveCandidate = false;
 		PendingEdit.reset();
 		end_edit();
@@ -468,7 +556,7 @@ namespace bpr::qt {
 		update_actions();
 	}
 
-	void profile_management_window::end_edit()
+	void profiles_settings_panel::end_edit()
 	{
 		if (Mode == edit_mode::create) {
 			const auto blocker = QSignalBlocker{ Profiles };
@@ -479,12 +567,13 @@ namespace bpr::qt {
 		Mode = edit_mode::none;
 		Name->hide();
 		Name->clear();
+		fit_list();
 		if (Profiles->isVisible()) {
 			Profiles->setFocus(Qt::OtherFocusReason);
 		}
 	}
 
-	void profile_management_window::open_selected()
+	void profiles_settings_panel::open_selected()
 	{
 		// Return and double-click open the selected profile, and the existing activate
 		// intent focuses it when it is already open.
@@ -493,7 +582,7 @@ namespace bpr::qt {
 		}
 	}
 
-	void profile_management_window::activate_footer()
+	void profiles_settings_panel::activate_open()
 	{
 		if (!Dispatch || !Open->isEnabled()) {
 			return;
@@ -505,7 +594,7 @@ namespace bpr::qt {
 		Dispatch(application::open_bpr_profile_intent{ selected_profile() });
 	}
 
-	void profile_management_window::update_actions()
+	void profiles_settings_panel::update_actions()
 	{
 		const auto editing = Mode != edit_mode::none;
 		const auto idle    = Ready && !Busy && !Closing;
@@ -516,13 +605,9 @@ namespace bpr::qt {
 		Cancel->setVisible(editing);
 		Rename->setEnabled(idle && selected_profile().value() != 0U);
 		Open->setText(selected_is_open() ? QStringLiteral("New window") : QStringLiteral("Open"));
-		Open->setAccessibleName(selected_is_open()
-									? QStringLiteral("Open a new window in the selected profile")
-									: QStringLiteral("Open the selected profile"));
-		Open->setEnabled(Ready && !Closing && selected_profile().value() != 0U
-						 && Profiles->currentItem() != nullptr
-						 && Profiles->currentItem()->data(profile_row_role::runtime).toInt()
-							 != static_cast<int>(application::profile_management_runtime::closing));
+		Open->setAccessibleName(selected_is_open() ? QStringLiteral("Open a new window in the selected profile") : QStringLiteral("Open the selected profile"));
+		Open->setEnabled(Ready && !Closing && selected_profile().value() != 0U && Profiles->currentItem() != nullptr
+						 && Profiles->currentItem()->data(profile_row_role::runtime).toInt() != static_cast<int>(application::profile_management_runtime::closing));
 		// A blank name is the host's to refuse, so Save stays reachable and the
 		// refusal explains itself in the notice.
 		Save->setEnabled(!Busy && !Closing);
@@ -533,7 +618,15 @@ namespace bpr::qt {
 		}
 	}
 
-	void profile_management_window::place_editor()
+	void profiles_settings_panel::fit_list()
+	{
+		// The list is as tall as its rows, between two and eight, so a page of
+		// three profiles does not end in an empty well.
+		const auto rows = std::clamp(Profiles->count(), fewest_rows, most_rows);
+		Profiles->setFixedHeight((rows * row_height) + (2 * Profiles->frameWidth()));
+	}
+
+	void profiles_settings_panel::place_editor()
 	{
 		if (Mode == edit_mode::none || Profiles->currentItem() == nullptr) {
 			return;
@@ -542,10 +635,10 @@ namespace bpr::qt {
 		const auto extent = home_tile_extent(Profiles->font());
 		const auto left   = row.left() + row_inset + extent + row_gap;
 		const auto height = std::min(row.height() - 8, Name->sizeHint().height());
-		Name->setGeometry(QRect{ left, row.center().y() - height / 2, std::max(0, row.right() - row_inset - left), height });
+		Name->setGeometry(QRect{ left, row.center().y() - (height / 2), std::max(0, row.right() - row_inset - left), height });
 	}
 
-	bool profile_management_window::eventFilter(QObject* aObject, QEvent* aEvent)
+	bool profiles_settings_panel::eventFilter(QObject* aObject, QEvent* aEvent)
 	{
 		if (aEvent->type() == QEvent::KeyPress) {
 			const auto* key = static_cast<QKeyEvent*>(aEvent);
@@ -563,32 +656,21 @@ namespace bpr::qt {
 				return true;
 			}
 		}
+		if (aEvent->type() == QEvent::Resize && aObject == Profiles) {
+			place_editor();
+		}
 		return QWidget::eventFilter(aObject, aEvent);
 	}
 
-	void profile_management_window::keyPressEvent(QKeyEvent* aEvent)
+	void profiles_settings_panel::keyPressEvent(QKeyEvent* aEvent)
 	{
-		if (aEvent->key() == Qt::Key_Escape) {
-			if (Mode != edit_mode::none) {
-				cancel_edit();
-				aEvent->accept();
-				return;
-			}
-			close();
+		if (aEvent->key() == Qt::Key_Escape && Mode != edit_mode::none) {
+			cancel_edit();
 			aEvent->accept();
 			return;
 		}
 		QWidget::keyPressEvent(aEvent);
 	}
 
-	auto profile_management_window::profiles() const noexcept -> QListWidget* { return Profiles; }
-	auto profile_management_window::name_editor() const noexcept -> QLineEdit* { return Name; }
-	auto profile_management_window::create_button() const noexcept -> QPushButton* { return Create; }
-	auto profile_management_window::rename_button() const noexcept -> QPushButton* { return Rename; }
-	auto profile_management_window::open_button() const noexcept -> QPushButton* { return Open; }
-	auto profile_management_window::save_button() const noexcept -> QPushButton* { return Save; }
-	auto profile_management_window::cancel_button() const noexcept -> QPushButton* { return Cancel; }
-	auto profile_management_window::try_again_button() const noexcept -> QPushButton* { return TryAgain; }
-	auto profile_management_window::status_text() const -> QString { return Notice->isVisible() ? NoticeText->text() : QString{ }; }
-	auto profile_management_window::editing() const noexcept -> bool { return Mode != edit_mode::none; }
+	auto profiles_settings_panel::status_text() const -> QString { return Notice->isVisible() ? NoticeText->text() : QString{ }; }
 }

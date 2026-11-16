@@ -11,7 +11,7 @@ for the scopes reconciled under RFC-BPR-0028:
 [RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)),
 and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
 Their entry and closeout cards, [[BPR-0592]] through [[BPR-0599]], are Done.
-Home, the Accounts & hosts card page, the empty desktop and the Profiles sheet
+Home, the Accounts & hosts card page, the empty desktop and Settings › Profiles
 are a later revision of those surfaces and are described as they behave
 (RFC-BPR-0032, RFC-BPR-0033, RFC-BPR-0034). The list on Home shows exactly what
 the queue projection supplies; personal discovery fills it with the viewer's
@@ -2575,25 +2575,38 @@ carries it too. The agent panel still says "Not started". The refusal is not a
 failure of the quit, so closing the last window on Windows or Linux still
 exits 0.
 
-### The Profiles sheet
+### Settings › Profiles and the chooser
 
-**Profiles** opens from Profiles › Manage Profiles…, or at startup when no
-profile can be opened. It is a sheet of rows: a letter avatar, the profile
-name, and its state at the right ("Open in 2 windows", "Opening", "Closing",
-"Closed") from the existing projection, which is also the row's accessible
-description. The current profile's row is selected when the sheet opens.
-Return or a double-click opens the selected profile, and the footer's filled
-button says **Open** for a closed profile and **New window** for an open one,
-because that is what the gesture does.
+[[BPR-2198]] (owner, 2026-11-15: "I think the manage profiles window is
+probably kinda booty, maybe it just goes away"). Profiles are managed on
+**Settings › Profiles**, the page right after General, and Profiles › Manage
+Profiles… opens it. The page keeps the retired sheet's model and gestures:
+one row per profile with a letter avatar, the name, and its state at the
+right ("Open in 2 windows", "Opening", "Closing", "Closed") from the existing
+projection, which is also the row's accessible description. The Settings
+window's own profile is selected when the page opens and its name is set in
+the heavier weight. Return or a double-click opens the selected profile, and
+the filled button says **Open** for a closed profile and **New window** for an
+open one. The list is as tall as its rows, two to eight, inside the page's
+rounded surface.
 
-**Rename** and **New profile** are footer actions that turn the row into an
-editor in place, with Save and Cancel replacing the footer's buttons, so a
-name is edited where it is read; the field exists only while an edit is open.
-Escape cancels and keeps the text, and a refused edit stays open on exactly
-what was typed. A failure is one notice above the rows with a single **Try
-again**, and is absent otherwise. There is no permanent name field, no
-permanent status sentence and no Reload Profiles button, and nothing announces
-"Profile saved.": the renamed row is the confirmation.
+**Rename** and **New profile** turn the row into an editor in place, with
+Save and Cancel in the buttons' place, so a name is edited where it is read;
+the field exists only while an edit is open. Escape cancels and keeps the
+text, and a refused edit stays open on exactly what was typed. A failure is
+one notice above the rows with a single **Try again**, and is absent
+otherwise. Nothing announces "Profile saved.": the renamed row is the
+confirmation.
+
+Under the list, **Share profile settings** has **Import Profile Settings…**
+and **Export Profile Settings…** with one line: "A file with this profile's
+agents, prompts and workflows, to move to another computer or share."
+
+RFC-BPR-0033's chooser, shown when no window exists (Manage Profiles… on the
+resident macOS menu bar, or a failure no window can carry), is the desktop's
+own Settings window with Profiles alone: the sidebar is not shown, and Share
+profile settings is left out because no profile runtime is open to import
+into or export from.
 
 ## Conversation drawer
 
@@ -3253,7 +3266,7 @@ Settings account card with its GitHub CLI accounts.
   account card); the initials are bold at 0.53 of the side for one letter
   and 0.44 for two. Mine carries a one-pixel ring two pixels outside the
   disc in the placeholder ink, on Threads and Overview alike.
-- The Profiles sheet keeps its neutral letter tile: a profile is not a
+- Settings › Profiles keeps its neutral letter tile: a profile is not a
   person. On Home a person's colour is the person's own; rows, bands and tags
   keep colour for state.
 - **Pictures** ([[BPR-1807]]; owner, 2026-10-28: "Is it possible to show users

@@ -44,7 +44,31 @@ namespace bpr::qt {
 		constexpr int PromptKind = 2;
 		/// [[BPR-2032]].
 		constexpr int WorkflowKind = 3;
+		/// [[BPR-2198]]. Identity's own row, and one repository.
+		constexpr int IdentityKind   = 4;
+		constexpr int RepositoryKind = 5;
+		/// A section's row, by `core::profile_settings_section`.
+		constexpr int SectionKind = 6;
 
+		/// \brief A section's row: ticking it ticks every item under it, and
+		/// unticking it unticks them; its tick says whether all, some or none
+		/// are chosen.
+		[[nodiscard]] auto section_row(QTreeWidget* const aItems, const QString& aName, const QString& aSays, const core::profile_settings_section aSection) -> QTreeWidgetItem*
+		{
+			auto* const row = new QTreeWidgetItem{ aItems, { aName, aSays } };
+			row->setData(0, ItemRole, SectionKind);
+			row->setData(0, IndexRole, static_cast<int>(aSection));
+			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+			auto font = row->font(0);
+			font.setWeight(QFont::DemiBold);
+			row->setFont(0, font);
+			return row;
+		}
+
+		/// A dialog is a window, and Qt does not pass a window's palette to
+		/// the windows it opens: it takes its opener's, every role, and its
+		/// font, and follows later changes (owner, look workflow-import-v002:
+		/// "Something went way wrong with the colors").
 		/// A dialog is a window, and Qt does not pass a window's palette to
 		/// the windows it opens unless asked (owner, look workflow-import-v002:
 		/// "Something went way wrong with the colors"). Asked, and attached
@@ -200,41 +224,45 @@ namespace bpr::qt {
 	// ----- Export -----
 
 	agent_configuration_export_dialog::agent_configuration_export_dialog(application::agent_configuration_snapshot aSnapshot, const std::array<bool, core::writing_hook_count + 1U> aUnsaved,
-																		 std::string aExportedBy, QWidget* const aParent)
+																		 std::string aExportedBy, core::profile_facts aProfile, QWidget* const aParent)
 		: QDialog{ aParent }
 		, Snapshot{ std::move(aSnapshot) }
 		, Local{ application::local_prompts(Snapshot) }
 		, ExportedBy{ std::move(aExportedBy) }
+		, Identity{ core::portable_identity_of(aProfile) }
+		, Repositories{ core::portable_repositories_of(aProfile) }
 	{
+		using core::profile_settings_section;
 		adopt_opener_look(*this, aParent);
-		setWindowTitle(tr("Export configuration"));
+		setWindowTitle(tr("Export Profile Settings"));
 		setObjectName(QStringLiteral("agentConfigurationExport"));
 		auto* const column = new QVBoxLayout{ this };
-		column->addWidget(note(tr("Choose the agents and prompts to share. The file holds what each one is set to, never where its program is on this computer, your accounts or your history. "
+		column->addWidget(note(tr("Tick the parts of this profile to put in the file. It never holds a sign-in, a token, where a program is on this computer, a local folder or your history. "
 								  "Read the text below before you share it: arguments and prompts can hold anything you typed."),
 							   this));
 		Items = new QTreeWidget{ this };
 		Items->setObjectName(QStringLiteral("agentConfigurationExportItems"));
-		Items->setAccessibleName(tr("Agents and prompts to export"));
+		Items->setAccessibleName(tr("Parts of the profile to export"));
 		Items->setColumnCount(2);
 		Items->setHeaderLabels({ tr("Item"), tr("What is shared") });
 		Items->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-		Items->setRootIsDecorated(false);
-		auto* const agents = new QTreeWidgetItem{ Items, { tr("Agents") } };
-		agents->setFlags(Qt::ItemIsEnabled);
+		Items->setRootIsDecorated(true);
+		// [[BPR-2198]]. Each section starts as the core says
+		// (`core::exported_by_default`): ticked, but for Identity.
+		const auto  ticked = [](const profile_settings_section aSection) { return core::exported_by_default(aSection) ? Qt::Checked : Qt::Unchecked; };
+		auto* const agents = section_row(Items, tr("Agents"), tr("What each agent is set to; no program locations"), profile_settings_section::agents);
 		for (const auto& entry : Snapshot.Agents.Agents) {
 			auto* const row = new QTreeWidgetItem{ agents, { text_of(entry.Name), agent_kind(entry.Protocol, entry.Preset) } };
 			row->setData(0, ItemRole, AgentKind);
 			row->setData(0, IndexRole, entry.Id);
 			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
-			row->setCheckState(0, Qt::Checked);
+			row->setCheckState(0, ticked(profile_settings_section::agents));
 		}
 		if (Snapshot.Agents.Agents.empty()) {
-			auto* const none = new QTreeWidgetItem{ agents, { tr("No agents added") } };
-			none->setFlags(Qt::ItemIsEnabled);
+			agents->setFlags(Qt::ItemIsEnabled);
+			agents->setText(1, tr("No agents added"));
 		}
-		auto* const prompts = new QTreeWidgetItem{ Items, { tr("Prompts") } };
-		prompts->setFlags(Qt::ItemIsEnabled);
+		auto* const prompts = section_row(Items, tr("Prompts"), tr("Your edited prompts; tick a built-in one to send its text"), profile_settings_section::prompts);
 		for (std::size_t index = 0U; index < Local.size(); ++index) {
 			const auto& prompt = Local[index];
 			const auto  edited = !prompt.Override.empty();
@@ -244,29 +272,60 @@ namespace bpr::qt {
 			row->setData(0, ItemRole, PromptKind);
 			row->setData(0, IndexRole, static_cast<qulonglong>(index));
 			if (index < aUnsaved.size() && aUnsaved[index]) {
+				// No tick at all, so ticking Prompts cannot tick it either.
 				row->setFlags(Qt::ItemIsSelectable);
-				row->setCheckState(0, Qt::Unchecked);
 				row->setText(1, tr("Has edits not saved: save or discard them first"));
 				row->setToolTip(0, row->text(1));
 			} else {
 				row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
-				row->setCheckState(0, edited ? Qt::Checked : Qt::Unchecked);
+				row->setCheckState(0, edited && ticked(profile_settings_section::prompts) == Qt::Checked ? Qt::Checked : Qt::Unchecked);
 			}
 		}
-		// [[BPR-2032]]. Workflows start unchosen; a chosen one brings its agents.
-		if (!Snapshot.Workflows.empty()) {
-			auto* const workflows = new QTreeWidgetItem{ Items, { tr("Workflows") } };
+		// [[BPR-2032]]. A chosen workflow brings its agents.
+		auto* const workflows = section_row(Items, tr("Workflows"), Snapshot.Workflows.empty() ? tr("No workflows added") : tr("Actions and guidance, with the agents they ask; no program paths"),
+											profile_settings_section::workflows);
+		for (std::size_t index = 0U; index < Snapshot.Workflows.size(); ++index) {
+			const auto& workflow = Snapshot.Workflows[index].Workflow;
+			auto* const row      = new QTreeWidgetItem{ workflows, { text_of(workflow.Name), tr("Its actions and guidance") } };
+			row->setData(0, ItemRole, WorkflowKind);
+			row->setData(0, IndexRole, static_cast<qulonglong>(index));
+			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
+			row->setCheckState(0, ticked(profile_settings_section::workflows));
+		}
+		if (Snapshot.Workflows.empty()) {
 			workflows->setFlags(Qt::ItemIsEnabled);
-			for (std::size_t index = 0U; index < Snapshot.Workflows.size(); ++index) {
-				const auto& workflow = Snapshot.Workflows[index].Workflow;
-				auto* const row      = new QTreeWidgetItem{ workflows, { text_of(workflow.Name), tr("Its actions and guidance, with the agents it asks; no program paths") } };
-				row->setData(0, ItemRole, WorkflowKind);
-				row->setData(0, IndexRole, static_cast<qulonglong>(index));
-				row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
-				row->setCheckState(0, Qt::Unchecked);
-			}
+		}
+		// [[BPR-2198]] (owner, 2026-11-15). Identity: the profile's name and
+		// the accounts it uses, each by host and login. Ticked as one.
+		auto* const identity = section_row(Items, tr("Identity"), tr("This profile's name and the accounts it uses; never a sign-in"), profile_settings_section::identity);
+		identity->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+		identity->setData(0, ItemRole, IdentityKind);
+		auto* const name = new QTreeWidgetItem{ identity, { text_of(Identity.ProfileName), tr("Profile name") } };
+		name->setFlags(Qt::ItemIsEnabled);
+		for (const auto& account : Identity.Accounts) {
+			auto* const row = new QTreeWidgetItem{ identity, { text_of(account.Login), text_of(account.Host) } };
+			row->setFlags(Qt::ItemIsEnabled);
+		}
+		identity->setCheckState(0, ticked(profile_settings_section::identity));
+		// Repositories: each saved or followed one, by host and owner/name.
+		auto* const repositories = section_row(Items, tr("Repositories"), Repositories.empty() ? tr("No saved or followed repositories") : tr("Saved and followed, by host and name; no local folders"),
+											   profile_settings_section::repositories);
+		for (std::size_t index = 0U; index < Repositories.size(); ++index) {
+			const auto& repository = Repositories[index];
+			const auto  kind       = repository.Saved && repository.Followed ? tr("Saved on %1 and followed").arg(text_of(repository.Host))
+				: repository.Saved                                           ? tr("Saved on %1").arg(text_of(repository.Host))
+																			 : tr("Followed");
+			auto* const row        = new QTreeWidgetItem{ repositories, { text_of(repository.Repository), kind } };
+			row->setData(0, ItemRole, RepositoryKind);
+			row->setData(0, IndexRole, static_cast<qulonglong>(index));
+			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
+			row->setCheckState(0, ticked(profile_settings_section::repositories));
+		}
+		if (Repositories.empty()) {
+			repositories->setFlags(Qt::ItemIsEnabled);
 		}
 		Items->expandAll();
+		identity->setExpanded(true);
 		column->addWidget(Items, 3);
 		auto* const tools = new QHBoxLayout{ };
 		AllPrompts        = new quiet_push_button{ tr("Choose every prompt"), this };
@@ -293,6 +352,7 @@ namespace bpr::qt {
 		column->addWidget(Size);
 		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Cancel, this };
 		ExportButton        = buttons->addButton(tr("Export…"), QDialogButtonBox::AcceptRole);
+		ExportButton->setDefault(true);
 		ExportButton->setObjectName(QStringLiteral("agentConfigurationExportButton"));
 		column->addWidget(buttons);
 		connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -354,20 +414,69 @@ namespace bpr::qt {
 		return chosen;
 	}
 
+	auto agent_configuration_export_dialog::identity_chosen() const -> bool
+	{
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == IdentityKind) {
+				return (*it)->checkState(0) == Qt::Checked;
+			}
+		}
+		return false;
+	}
+
+	auto agent_configuration_export_dialog::repositories() const -> std::vector<core::portable_repository>
+	{
+		auto chosen = std::vector<core::portable_repository>{ };
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == RepositoryKind && (*it)->checkState(0) == Qt::Checked) {
+				chosen.push_back(Repositories[(*it)->data(0, IndexRole).toULongLong()]);
+			}
+		}
+		return chosen;
+	}
+
+	auto agent_configuration_export_dialog::section(const core::profile_settings_section aSection) const -> QTreeWidgetItem*
+	{
+		for (auto index = 0; index < Items->topLevelItemCount(); ++index) {
+			auto* const row = Items->topLevelItem(index);
+			if (row->data(0, IndexRole).toInt() == static_cast<int>(aSection) && (row->data(0, ItemRole).toInt() == SectionKind || row->data(0, ItemRole).toInt() == IdentityKind)) {
+				return row;
+			}
+		}
+		return nullptr;
+	}
+
 	void agent_configuration_export_dialog::refresh()
 	{
 		const auto chosenAgents    = agents();
 		const auto chosenPrompts   = prompts();
 		const auto chosenWorkflows = workflows();
-		const auto encoded         = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows);
+		const auto chosenIdentity  = identity_chosen();
+		const auto chosenRepos     = repositories();
+		const auto encoded         = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows,
+																			 chosenIdentity ? &Identity : nullptr, chosenRepos);
 		Bytes                      = encoded.value_or(std::string{ });
 		Exact->setPlainText(text_of(Bytes));
-		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty();
-		Size->setText(!encoded      ? tr("Too large, or a chosen workflow's agent is no longer here: a configuration file holds at most 1 MiB.")
-						  : nothing ? tr("Choose at least one agent or prompt.")
-									: tr("%1 and %2, %3.")
-										  .arg(counted(chosenAgents.size(), tr("1 agent"), tr("%1 agents")), counted(chosenPrompts.size(), tr("1 prompt"), tr("%1 prompts")),
-											   QLocale{ }.formattedDataSize(static_cast<qint64>(Bytes.size()))));
+		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty();
+		auto       parts   = QStringList{ };
+		if (!chosenAgents.empty()) {
+			parts.push_back(counted(chosenAgents.size(), tr("1 agent"), tr("%1 agents")));
+		}
+		if (!chosenPrompts.empty()) {
+			parts.push_back(counted(chosenPrompts.size(), tr("1 prompt"), tr("%1 prompts")));
+		}
+		if (!chosenWorkflows.empty()) {
+			parts.push_back(counted(chosenWorkflows.size(), tr("1 workflow"), tr("%1 workflows")));
+		}
+		if (chosenIdentity) {
+			parts.push_back(tr("Identity"));
+		}
+		if (!chosenRepos.empty()) {
+			parts.push_back(counted(chosenRepos.size(), tr("1 repository"), tr("%1 repositories")));
+		}
+		Size->setText(!encoded      ? tr("Too large, or a chosen workflow's agent is no longer here: a Profile Settings file holds at most 1 MiB.")
+						  : nothing ? tr("Tick at least one part of the profile.")
+									: tr("%1, %2.").arg(QLocale{ }.createSeparatedList(parts), QLocale{ }.formattedDataSize(static_cast<qint64>(Bytes.size()))));
 		ExportButton->setEnabled(encoded.has_value() && !nothing);
 	}
 
@@ -442,10 +551,11 @@ namespace bpr::qt {
 		: QDialog{ aParent }
 		, Preview{ std::move(aPreview) }
 		, Facts{ std::move(aFacts) }
-		, Plan{ core::plan_configuration_import(Preview.File, Preview.Snapshot.Agents.Agents, Preview.Prompts, Preview.Snapshot.Workflows) }
+		, Plan{ core::plan_configuration_import(Preview.File, Preview.Snapshot.Agents.Agents, Preview.Prompts, Preview.Snapshot.Workflows, Preview.Here) }
 		, Agents(Preview.File.Agents.size())
 		, Prompts(Preview.File.Prompts.size(), false)
 		, Workflows(Preview.File.Workflows.size())
+		, Repositories(Preview.File.Repositories.size(), false)
 	{
 		adopt_opener_look(*this, aParent);
 		setWindowTitle(tr("Import Profile Settings"));
@@ -465,6 +575,11 @@ namespace bpr::qt {
 		for (std::size_t index = 0U; index < Workflows.size(); ++index) {
 			Workflows[index].Action = Plan.Workflows[index].Default;
 		}
+		// [[BPR-2198]]. Identity starts unchosen; repositories as the core says.
+		IdentityChosen = Plan.Identity && Plan.Identity->Default;
+		for (std::size_t index = 0U; index < Repositories.size(); ++index) {
+			Repositories[index] = Plan.Repositories[index].Default;
+		}
 
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(20, 18, 20, 16);
@@ -478,7 +593,7 @@ namespace bpr::qt {
 		const auto  by    = Preview.File.ExportedBy.empty() ? tr("Exported by an unnamed application.") : tr("Exported by %1.").arg(text_of(Preview.File.ExportedBy));
 		const auto  where = Facts.Profile.empty() ? tr("Importing saves what is ticked here into this profile and runs nothing.")
 												  : tr("Importing saves what is ticked here into the profile “%1” and runs nothing.").arg(text_of(Facts.Profile));
-		auto* const intro = note(by + QLatin1Char(' ') + where + QLatin1Char(' ') + tr("No program paths, accounts, sign-ins or history came with the file."), this);
+		auto* const intro = note(by + QLatin1Char(' ') + where + QLatin1Char(' ') + tr("No sign-in, token, program path, local folder or history came with the file."), this);
 		intro->setObjectName(QStringLiteral("agentConfigurationIntro"));
 		column->addWidget(intro);
 
@@ -631,9 +746,11 @@ namespace bpr::qt {
 	auto agent_configuration_import_dialog::standing(const item_kind aKind, const std::size_t aItem) const -> core::import_standing
 	{
 		switch (aKind) {
-		case item_kind::agent:    return Plan.Agents[aItem].Standing;
-		case item_kind::prompt:   return Plan.Prompts[aItem].Standing;
-		case item_kind::workflow: return Plan.Workflows[aItem].Standing;
+		case item_kind::agent:      return Plan.Agents[aItem].Standing;
+		case item_kind::prompt:     return Plan.Prompts[aItem].Standing;
+		case item_kind::workflow:   return Plan.Workflows[aItem].Standing;
+		case item_kind::identity:   return Plan.Identity ? Plan.Identity->Standing : core::import_standing::refused;
+		case item_kind::repository: return Plan.Repositories[aItem].Standing;
 		}
 		return core::import_standing::refused;
 	}
@@ -641,9 +758,11 @@ namespace bpr::qt {
 	auto agent_configuration_import_dialog::chosen(const item_kind aKind, const std::size_t aItem) const -> bool
 	{
 		switch (aKind) {
-		case item_kind::agent:    return Agents[aItem].Action != core::agent_import_action::leave;
-		case item_kind::prompt:   return Prompts[aItem];
-		case item_kind::workflow: return Workflows[aItem].Action != core::workflow_import_action::leave;
+		case item_kind::agent:      return Agents[aItem].Action != core::agent_import_action::leave;
+		case item_kind::prompt:     return Prompts[aItem];
+		case item_kind::workflow:   return Workflows[aItem].Action != core::workflow_import_action::leave;
+		case item_kind::identity:   return IdentityChosen;
+		case item_kind::repository: return Repositories[aItem];
 		}
 		return false;
 	}
@@ -673,6 +792,22 @@ namespace bpr::qt {
 		const auto stood = standing(aKind, aItem);
 		if (stood == core::import_standing::unchanged) {
 			return tr("Same as yours");
+		}
+		if (aKind == item_kind::identity) {
+			if (!IdentityChosen) {
+				return tr("Left out");
+			}
+			return Plan.Identity->Renames ? tr("Renames this profile “%1”").arg(text_of(Preview.File.Identity->ProfileName)) : tr("Remembers its servers");
+		}
+		if (aKind == item_kind::repository) {
+			const auto& plan = Plan.Repositories[aItem];
+			const auto& item = Preview.File.Repositories[aItem];
+			if (plan.SignInToUse) {
+				return Repositories[aItem] && item.Followed ? tr("Followed; sign in to save it") : tr("Sign in to use");
+			}
+			return !Repositories[aItem] ? tr("Left out") : item.Saved && item.Followed ? tr("Saved and followed")
+				: item.Saved                                                           ? tr("Saved")
+																					   : tr("Followed");
 		}
 		if (aKind == item_kind::agent) {
 			const auto& item = Preview.File.Agents[aItem];
@@ -752,6 +887,9 @@ namespace bpr::qt {
 		section(tr("Agents"), item_kind::agent, Agents.size(), agentName);
 		section(tr("Workflows"), item_kind::workflow, Workflows.size(), workflowName);
 		section(tr("Prompts"), item_kind::prompt, Prompts.size(), promptName);
+		// [[BPR-2198]]. Identity and Repositories, as Export lists them.
+		section(tr("Identity"), item_kind::identity, Plan.Identity ? 1U : 0U, [this](std::size_t) { return text_of(Preview.File.Identity->ProfileName); });
+		section(tr("Repositories"), item_kind::repository, Repositories.size(), [this](const std::size_t aIndex) { return text_of(Preview.File.Repositories[aIndex].Repository); });
 		auto       titled  = false;
 		const auto refused = [&](const item_kind aKind, const std::size_t aCount, const auto& aName) {
 			for (std::size_t index = 0U; index < aCount; ++index) {
@@ -782,6 +920,7 @@ namespace bpr::qt {
 			const auto kind  = static_cast<item_kind>(item->data(KindRole).toInt());
 			const auto index = static_cast<std::size_t>(item->data(IndexRole).toULongLong());
 			const auto stood = standing(kind, index);
+			// The library's row: the name, its tag, and one line of what happens.
 			// The library's row: the name, its tag, and one line of what
 			// happens; under Cannot be imported the section says the tag.
 			const auto name = item->data(ItemRole).toString();
@@ -790,7 +929,8 @@ namespace bpr::qt {
 			// Something to choose is ticked; an agent of another kind under
 			// its name, with none of yours to stand for it, has nothing.
 			const auto choosable = (stood == core::import_standing::added || stood == core::import_standing::updated)
-				&& (kind != item_kind::agent || Plan.Agents[index].Default.Action != core::agent_import_action::leave || !Plan.Agents[index].StandIns.empty());
+				&& (kind != item_kind::agent || Plan.Agents[index].Default.Action != core::agent_import_action::leave || !Plan.Agents[index].StandIns.empty())
+				&& (kind != item_kind::repository || !Plan.Repositories[index].SignInToUse || Preview.File.Repositories[index].Followed);
 			if (choosable) {
 				flags |= Qt::ItemIsUserCheckable;
 				item->setFlags(flags);
@@ -843,6 +983,13 @@ namespace bpr::qt {
 		if (prompts > 0U) {
 			updates << counted(prompts, tr("1 prompt"), tr("%1 prompts"));
 		}
+		const auto repositories = repository_choices().size();
+		if (repositories > 0U) {
+			adds << counted(repositories, tr("1 repository"), tr("%1 repositories"));
+		}
+		if (IdentityChosen) {
+			updates << tr("this profile's identity");
+		}
 		auto parts = QStringList{ };
 		if (!adds.isEmpty()) {
 			parts << tr("adds %1").arg(adds.join(tr(" and ")));
@@ -864,7 +1011,7 @@ namespace bpr::qt {
 			words += QLatin1Char(' ') + tr("Nothing runs until you start an action in a draft.");
 		}
 		Summary->setText(words);
-		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty());
+		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U);
 	}
 
 	void agent_configuration_import_dialog::select(const item_kind aKind, const std::size_t aItem)
@@ -882,6 +1029,21 @@ namespace bpr::qt {
 	void agent_configuration_import_dialog::select_agent(const std::size_t aItem) { select(item_kind::agent, aItem); }
 	void agent_configuration_import_dialog::select_prompt(const std::size_t aItem) { select(item_kind::prompt, aItem); }
 	void agent_configuration_import_dialog::select_workflow(const std::size_t aItem) { select(item_kind::workflow, aItem); }
+	void agent_configuration_import_dialog::select_identity() { select(item_kind::identity, 0U); }
+	void agent_configuration_import_dialog::select_repository(const std::size_t aItem) { select(item_kind::repository, aItem); }
+
+	auto agent_configuration_import_dialog::repository_choices() const -> std::vector<std::size_t>
+	{
+		auto chosen = std::vector<std::size_t>{ };
+		for (std::size_t index = 0U; index < Repositories.size(); ++index) {
+			if (Repositories[index] && Plan.Repositories[index].Standing == core::import_standing::added) {
+				chosen.push_back(index);
+			}
+		}
+		return chosen;
+	}
+
+	auto agent_configuration_import_dialog::identity_choice() const -> bool { return IdentityChosen && Plan.Identity && Plan.Identity->Standing == core::import_standing::updated; }
 
 	auto agent_configuration_import_dialog::choice_buttons() const -> QList<QToolButton*>
 	{
@@ -919,7 +1081,9 @@ namespace bpr::qt {
 			}
 			break;
 		}
-		case item_kind::prompt: Prompts[aItem] = aPart == TakePart; break;
+		case item_kind::prompt:     Prompts[aItem] = aPart == TakePart; break;
+		case item_kind::identity:   IdentityChosen = aPart == TakePart; break;
+		case item_kind::repository: Repositories[aItem] = aPart == TakePart; break;
 		case item_kind::workflow:
 			Workflows[aItem].Action = aPart != TakePart ? core::workflow_import_action::leave
 				: Plan.Workflows[aItem].Local           ? core::workflow_import_action::replace
@@ -962,6 +1126,10 @@ namespace bpr::qt {
 			show_agent(Shown->second, *Detail);
 		} else if (Shown->first == item_kind::prompt) {
 			show_prompt(Shown->second, *Detail);
+		} else if (Shown->first == item_kind::identity) {
+			show_identity(*Detail);
+		} else if (Shown->first == item_kind::repository) {
+			show_repository(Shown->second, *Detail);
 		} else {
 			show_workflow(Shown->second, *Detail);
 		}
@@ -1469,5 +1637,98 @@ namespace bpr::qt {
 			(mineSide ? Yours : Theirs) = text;
 		}
 		column.addLayout(compare);
+	}
+	void agent_configuration_import_dialog::choice_row(const item_kind aKind, const std::size_t aItem, const QString& aTake, QWidget& aPage)
+	{
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		auto* const parts  = new QHBoxLayout{ };
+		parts->setSpacing(0);
+		Choice            = new QButtonGroup{ &aPage };
+		auto* const take  = segmented(aTake, &aPage);
+		auto* const leave = segmented(tr("Leave out"), &aPage);
+		Choice->addButton(take, TakePart);
+		Choice->addButton(leave, LeavePart);
+		parts->addWidget(take);
+		parts->addWidget(leave);
+		parts->addStretch(1);
+		(chosen(aKind, aItem) ? take : leave)->setChecked(true);
+		connect(Choice, &QButtonGroup::idClicked, this, [this, aKind, aItem](const int aPart) { QTimer::singleShot(0, this, [this, aKind, aItem, aPart] { choose(aKind, aItem, aPart); }); });
+		column.addLayout(parts);
+	}
+
+	/// [[BPR-2198]] (owner, 2026-11-15). Identity: the profile's name and the
+	/// accounts it uses. Importing it renames this profile and remembers its
+	/// enterprise servers; it signs in to nothing.
+	void agent_configuration_import_dialog::show_identity(QWidget& aPage)
+	{
+		auto&       column   = *static_cast<QVBoxLayout*>(aPage.layout());
+		const auto& identity = *Preview.File.Identity;
+		const auto& plan     = *Plan.Identity;
+		title_row(column, tr("Identity"), standing_tag(plan.Standing), aPage);
+		if (plan.Standing == core::import_standing::updated) {
+			choice_row(item_kind::identity, 0U, tr("Import"), aPage);
+		}
+		auto words = QStringList{ };
+		if (plan.Standing == core::import_standing::unchanged) {
+			words << tr("This profile already has this name and knows these accounts' servers.");
+		} else if (plan.Renames) {
+			words << tr("Importing renames this profile from “%1” to “%2” and remembers each enterprise server below.").arg(text_of(Preview.Here.ProfileName), text_of(identity.ProfileName));
+		} else {
+			words << tr("Importing remembers each enterprise server below.");
+		}
+		words << tr("It signs in to nothing: an account says Sign in to use until you sign in on Settings › Accounts & hosts.");
+		Outcome = note(words.join(QLatin1Char(' ')), &aPage);
+		Outcome->setObjectName(QStringLiteral("agentConfigurationIdentityNote"));
+		column.addWidget(Outcome);
+		auto [frame, rows] = group_box(&aPage);
+		frame->setObjectName(QStringLiteral("agentConfigurationAccounts"));
+		auto* const name = new QHBoxLayout{ };
+		name->addWidget(new QLabel{ tr("Profile name"), frame });
+		name->addStretch(1);
+		name->addWidget(new QLabel{ text_of(identity.ProfileName), frame });
+		rows->addLayout(name);
+		for (std::size_t index = 0U; index < identity.Accounts.size(); ++index) {
+			const auto& account = identity.Accounts[index];
+			auto* const row     = new QHBoxLayout{ };
+			auto* const who     = new QLabel{ tr("%1 on %2").arg(text_of(account.Login), text_of(account.Host)), frame };
+			who->setWordWrap(true);
+			row->addWidget(who, 1);
+			const auto  signedIn = index < plan.Accounts.size() && plan.Accounts[index] == core::account_standing::signed_in;
+			auto* const state    = new QLabel{ signedIn ? tr("Signed in") : tr("Sign in to use"), frame };
+			state->setObjectName(QStringLiteral("agentConfigurationAccountState"));
+			state->setForegroundRole(signedIn ? QPalette::PlaceholderText : QPalette::WindowText);
+			row->addWidget(state);
+			rows->addLayout(row);
+		}
+		column.addWidget(frame);
+	}
+
+	/// [[BPR-2198]]. One repository: saved under the account signed in on its
+	/// host, followed on any host. No local folder comes with it.
+	void agent_configuration_import_dialog::show_repository(const std::size_t aItem, QWidget& aPage)
+	{
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		const auto& item   = Preview.File.Repositories[aItem];
+		const auto& plan   = Plan.Repositories[aItem];
+		title_row(column, text_of(item.Repository), plan.SignInToUse && !item.Followed ? tr("Sign in to use") : standing_tag(plan.Standing), aPage);
+		if (plan.Standing == core::import_standing::added && (!plan.SignInToUse || item.Followed)) {
+			choice_row(item_kind::repository, aItem, tr("Add"), aPage);
+		}
+		auto words = QStringList{ };
+		if (plan.Standing == core::import_standing::unchanged) {
+			words << tr("This profile already has it.");
+		}
+		if (item.Saved) {
+			words << (plan.SignInToUse ? tr("Saved on %1 in the file. Sign in to use: no account is signed in on %1 here, so it cannot be saved yet. Sign in on Settings › Accounts & hosts, then import the file again.")
+											 .arg(text_of(item.Host))
+									   : tr("Saved on %1: Home finds your pull requests in it.").arg(text_of(item.Host)));
+		}
+		if (item.Followed) {
+			words << tr("Followed: its pull requests join your queue on any host.");
+		}
+		words << tr("No local folder came with it; Settings › Repositories finds its clone.");
+		Outcome = note(words.join(QLatin1Char(' ')), &aPage);
+		Outcome->setObjectName(QStringLiteral("agentConfigurationRepositoryNote"));
+		column.addWidget(Outcome);
 	}
 } // namespace bpr::qt

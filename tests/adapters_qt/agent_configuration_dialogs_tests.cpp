@@ -98,37 +98,41 @@ namespace {
 		expect(aWidget.grab().save(QString::fromStdString(aRoot) + QLatin1Char('/') + aName + QLatin1Char('-') + scheme + QStringLiteral(".png")), "render saved");
 	}
 
-	void test_share_row(const std::string& aRoot)
-	{
-		auto panel   = qt::agent_programs_panel{ };
-		auto imports = 0;
-		auto exports = 0;
-		panel.set_dispatch({ .ImportConfiguration = [&imports] { ++imports; }, .ExportConfiguration = [&exports] { ++exports; } });
-		auto preferences   = application::agent_setup_preferences{ };
-		preferences.Agents = sender().Agents.Agents;
-		panel.present(preferences);
-		auto* const reset = panel.findChild<QPushButton*>(QStringLiteral("settingsResetAgents"));
-		expect(panel.import_button() != nullptr && panel.export_button() != nullptr && reset != nullptr, "the share row's buttons and Reset agents…");
-		expect(panel.import_button()->text() == QStringLiteral("Import configuration…") && panel.export_button()->text() == QStringLiteral("Export configuration…"), "RFC-BPR-0107's names");
-		panel.resize(640, 900);
-		panel.show();
-		settle();
-		expect(panel.import_button()->mapTo(&panel, QPoint{ }).y() < reset->mapTo(&panel, QPoint{ }).y(), "the row sits above Remove every agent and set up again");
-		expect(panel.import_button()->focusPolicy() & Qt::TabFocus, "Import is reached by Tab");
-		press_space(panel.import_button());
-		panel.export_button()->click();
-		expect(imports == 1 && exports == 1, "each button opens its own dialog");
-		panel.present_exchange(QStringLiteral("Imported 2 agents and 1 prompts."));
-		expect(panel.exchange_note()->isVisible(), "what the last import did is said under the row");
-		render(panel, aRoot, QStringLiteral("share-row"));
-	}
-
 	[[nodiscard]] auto test_export(const std::string& aRoot) -> std::string
 	{
 		auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
 		unsaved[1]   = true;
-		auto dialog  = qt::agent_configuration_export_dialog{ sender(), unsaved, "BetterPullReview test" };
+		// [[BPR-2198]]. A profile signed in to github.com, remembering an
+		// enterprise server, with a saved and a followed repository.
+		auto facts         = core::profile_facts{ .ProfileName = "Work" };
+		facts.SignedIn     = { { .Host = "github.com", .Login = "octo" } };
+		facts.Remembered   = { { .Host = "ghe.example.com", .Login = "octo-corp" } };
+		facts.Repositories = { { .Host = "github.com", .Repository = "octo/app", .Saved = true }, { .Repository = "octo/lib", .Followed = true } };
+		auto dialog        = qt::agent_configuration_export_dialog{ sender(), unsaved, "BetterPullReview test", facts };
+		expect(dialog.windowTitle() == QStringLiteral("Export Profile Settings"), "the dialog is named for Profile Settings");
 		expect(dialog.agents() == std::vector<std::uint32_t>{ 1U, 2U }, "every agent starts chosen");
+		using core::profile_settings_section;
+		auto* const identity     = dialog.section(profile_settings_section::identity);
+		auto* const repositories = dialog.section(profile_settings_section::repositories);
+		auto* const agents       = dialog.section(profile_settings_section::agents);
+		expect(identity != nullptr && repositories != nullptr && agents != nullptr && dialog.section(profile_settings_section::prompts) != nullptr
+				   && dialog.section(profile_settings_section::workflows) != nullptr,
+			   "the five sections are listed");
+		expect(identity->checkState(0) == Qt::Unchecked && !dialog.identity_chosen() && dialog.bytes().find("\"identity\"") == std::string::npos, "Identity starts unticked and stays out of the file");
+		expect(repositories->checkState(0) == Qt::Checked && dialog.repositories().size() == 2U && dialog.bytes().find("\"repository\": \"octo/app\"") != std::string::npos,
+			   "Repositories starts ticked and is in the file");
+		identity->setCheckState(0, Qt::Checked);
+		expect(dialog.identity_chosen() && dialog.bytes().find("\"login\": \"octo-corp\"") != std::string::npos && dialog.bytes().find("\"profile_name\": \"Work\"") != std::string::npos,
+			   "ticking Identity puts the name and the accounts in the file");
+		identity->setCheckState(0, Qt::Unchecked);
+		repositories->setCheckState(0, Qt::Unchecked);
+		expect(dialog.repositories().empty() && dialog.bytes().find("\"repositories\"") == std::string::npos, "unticking a section unticks every item in it");
+		repositories->setCheckState(0, Qt::Checked);
+		expect(dialog.repositories().size() == 2U, "and ticking it ticks them all again");
+		agents->setCheckState(0, Qt::Unchecked);
+		expect(dialog.agents().empty(), "unticking Agents unticks each agent");
+		agents->setCheckState(0, Qt::Checked);
+		expect(dialog.agents() == std::vector<std::uint32_t>{ 1U, 2U }, "and ticking it ticks each again");
 		auto prompts = dialog.prompts();
 		expect(prompts.size() == 1U && prompts[0].Purpose == "tour.problem" && !prompts[0].BuiltIn, "the edited prompt starts chosen; built-in ones do not");
 		const auto& text = dialog.bytes();
@@ -200,6 +204,33 @@ namespace {
 		settle();
 	}
 
+	/// [[BPR-2198]]. Import shows Identity and Repositories in the same list
+	/// and detail; an account not signed in says Sign in to use.
+	void test_identity_and_repositories(qt::agent_configuration_import_dialog& aDialog)
+	{
+		auto* const identity = row_named(aDialog, QStringLiteral("Work"));
+		expect(identity != nullptr && identity->checkState() == Qt::Unchecked && identity->text().contains(QStringLiteral("Left out")), "Identity is listed and starts unticked");
+		auto* const saved    = row_named(aDialog, QStringLiteral("octo/app"));
+		auto* const followed = row_named(aDialog, QStringLiteral("octo/lib"));
+		expect(saved != nullptr && saved->text().contains(QStringLiteral("Sign in to use")) && !saved->flags().testFlag(Qt::ItemIsUserCheckable),
+			   "a saved repository with no account signed in on its host says Sign in to use");
+		expect(followed != nullptr && followed->checkState() == Qt::Checked, "a followed repository starts ticked");
+		expect(aDialog.repository_choices() == std::vector<std::size_t>{ 1U } && !aDialog.identity_choice(), "only the followed repository is chosen to begin with");
+		aDialog.select_identity();
+		auto* const state = aDialog.detail()->findChild<QLabel*>(QStringLiteral("agentConfigurationAccountState"));
+		expect(state != nullptr && state->text() == QStringLiteral("Sign in to use"), "the account says Sign in to use");
+		expect(aDialog.outcome()->text().contains(QStringLiteral("renames this profile from “Default” to “Work”")), "Identity says what it renames");
+		part(aDialog, QStringLiteral("Import"))->click();
+		settle();
+		expect(aDialog.identity_choice() && row_named(aDialog, QStringLiteral("Work"))->checkState() == Qt::Checked, "one click chooses Identity");
+		part(aDialog, QStringLiteral("Leave out"))->click();
+		settle();
+		expect(!aDialog.identity_choice(), "and one leaves it out");
+		aDialog.select_repository(0U);
+		expect(aDialog.outcome()->text().contains(QStringLiteral("Sign in to use")) && aDialog.choice_buttons().isEmpty(), "the waiting repository explains itself and offers no choice");
+		expect_no_sideways_pan(aDialog, "the Identity and repository details fit");
+	}
+
 	/// [[BPR-2032]] (design workflow-import-v1, B, the owner's choice). The
 	/// Prompt library's shape: a ticked list and the selected item in full;
 	/// everything the file can bring starts chosen; each choice is one click.
@@ -213,16 +244,22 @@ namespace {
 		mine.Agents.Agents      = { work };
 		mine.Hooks.Overrides[0] = "My own problem prompt.";
 		auto preview            = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
-		auto decoded            = core::decode_agent_configuration(aBytes, preview.Prompts, application::prompt_aliases());
+		auto decoded            = core::decode_agent_configuration(aBytes, preview.Prompts);
 		expect(decoded.has_value(), "the export reads back");
 		preview.File = std::move(*decoded);
-		auto dialog  = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { }, .Profile = "Work" } };
+		// [[BPR-2198]]. The file's Identity and Repositories, on a computer
+		// signed in to nothing, in a profile named Default.
+		preview.File.Identity     = core::portable_identity{ .ProfileName = "Work", .Accounts = { { .Host = "github.com", .Login = "octo" } } };
+		preview.File.Repositories = { { .Host = "github.com", .Repository = "octo/app", .Saved = true }, { .Repository = "octo/lib", .Followed = true } };
+		preview.Here              = core::profile_facts{ .ProfileName = "Default" };
+		auto dialog               = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { }, .Profile = "Work" } };
 		dialog.set_program_chooser([](const QString& aHint) { return aHint == QStringLiteral("lint-bot") ? QStringLiteral("/usr/local/bin/lint-bot") : QString{ }; });
 		auto* const intro = dialog.findChild<QLabel*>(QStringLiteral("agentConfigurationIntro"));
 		expect(intro != nullptr && intro->text().contains(QStringLiteral("into the profile “Work”")), "the preview says which profile it lands in");
 		// Defaults: Work Claude's update starts chosen, the new Lint bot waits
 		// for its program, the edited prompt's update starts chosen.
 		expect(dialog.apply_button()->isEnabled() && dialog.apply_button()->text() == QStringLiteral("Import"), "Import is enabled as the window opens");
+		test_identity_and_repositories(dialog);
 		auto* const workRow = row_named(dialog, QStringLiteral("Work Claude"));
 		auto* const lintRow = row_named(dialog, QStringLiteral("Lint bot"));
 		expect(workRow != nullptr && workRow->text().contains(QStringLiteral("Updated")) && workRow->checkState() == Qt::Checked && workRow->text().contains(QStringLiteral("Updates yours")),
@@ -321,16 +358,18 @@ namespace {
 				(*it)->setCheckState(0, Qt::Unchecked);
 			}
 		}
-		expect(workflowRow != nullptr && workflowRow->checkState(0) == Qt::Unchecked, "a workflow is offered for export, unchosen");
+		// [[BPR-2198]]. Workflows is a section, ticked to begin with as every
+		// section but Identity is (core::exported_by_default).
+		expect(workflowRow != nullptr && workflowRow->checkState(0) == Qt::Checked, "a workflow is offered for export, ticked with its section");
 		workflowRow->setCheckState(0, Qt::Checked);
 		const auto bytes = exporter.bytes();
-		expect(bytes.find("\"version\": 2") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
+		expect(bytes.find("\"version\": 1") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
 			   "the workflow travels with the agent it asks, without its program path");
 		render(exporter, aRoot, QStringLiteral("export-workflow"));
 
 		auto mine     = application::agent_configuration_snapshot{ };
 		auto preview  = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
-		preview.File  = core::decode_agent_configuration(bytes, preview.Prompts, application::prompt_aliases()).value();
+		preview.File  = core::decode_agent_configuration(bytes, preview.Prompts).value();
 		auto importer = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { } } };
 		auto asked    = 0;
 		importer.set_program_chooser([&asked](const QString& aHint) {
@@ -447,9 +486,8 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	const auto   root = argc > 2 && std::string_view{ argv[1] } == "--render" ? std::string{ argv[2] } : std::string{ };
-	test_share_row(root);
-	const auto bytes = test_export(root);
+	const auto   root  = argc > 2 && std::string_view{ argv[1] } == "--render" ? std::string{ argv[2] } : std::string{ };
+	const auto   bytes = test_export(root);
 	test_import(bytes, root);
 	const auto update = test_workflow(root);
 	test_theme_matches_prompts(update, root);

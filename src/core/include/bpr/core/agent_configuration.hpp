@@ -15,24 +15,25 @@
 #include <vector>
 
 /// \file
-/// \brief [[BPR-2016]], RFC-BPR-0107. One portable file of selected agents
-/// and prompts: its format, what it may hold, what an import of it would
+/// \brief [[BPR-2016]], RFC-BPR-0107; [[BPR-2198]]. One Profile Settings
+/// file: its format, the sections it may hold, what an import of it would
 /// change, and the profile's settings after the reviewer's choices.
 ///
 /// \details Pure: the host reads and writes the file, mints identities and
 /// stores the result. The file is one UTF-8 JSON document read and written
 /// with glaze after `json_preflight`, at most
-/// `maximum_agent_configuration_bytes`. It holds no program path, numeric
-/// agent ID, host-minted identity, account, workspace, history or other
-/// profile setting.
+/// `maximum_agent_configuration_bytes`, in five sections: Agents, Prompts,
+/// Workflows, Identity and Repositories. It holds no credential of any kind
+/// (no token, keychain item, `gh` sign-in or cookie), no program path, no
+/// local folder, numeric agent ID, host-minted identity, workspace or
+/// history. There is one format and one version: the file was never
+/// released before it, so nothing older is read.
 namespace bpr::core {
-	inline constexpr std::string_view agent_configuration_format  = "bpr.agent-configuration";
-	inline constexpr std::uint32_t    agent_configuration_version = 1U;
-	/// [[BPR-2032]], RFC-BPR-0112. A file that carries workflows is written
-	/// at this version, so an importer from before them refuses it as newer
-	/// instead of dropping its actions; a file without any stays at 1.
-	inline constexpr std::uint32_t agent_configuration_workflow_version = 2U;
-	inline constexpr std::size_t   maximum_agent_configuration_bytes    = 1024U * 1024U;
+	/// [[BPR-2198]]. The one format marker and its one version; a file of
+	/// any other version is refused as newer.
+	inline constexpr std::string_view agent_configuration_format        = "bpr.profile-settings";
+	inline constexpr std::uint32_t    agent_configuration_version       = 1U;
+	inline constexpr std::size_t      maximum_agent_configuration_bytes = 1024U * 1024U;
 	/// The free-text label an exporter gives the file, and its own name.
 	inline constexpr std::size_t maximum_agent_configuration_label_bytes = 128U;
 	inline constexpr std::size_t maximum_portable_id_bytes               = 64U;
@@ -42,6 +43,84 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_configuration_prompts = 64U;
 	inline constexpr std::size_t maximum_purpose_bytes         = 64U;
 	inline constexpr std::size_t maximum_prompt_version_bytes  = 64U;
+	/// [[BPR-2198]]. Accounts and repositories one file may list.
+	inline constexpr std::size_t maximum_configuration_accounts     = 64U;
+	inline constexpr std::size_t maximum_configuration_repositories = 1024U;
+	inline constexpr std::size_t maximum_host_bytes                 = 253U;
+	inline constexpr std::size_t maximum_login_bytes                = 39U;
+	inline constexpr std::size_t maximum_repository_name_bytes      = 201U;
+
+	/// \brief [[BPR-2198]] (owner, 2026-11-15). The parts of a profile a
+	/// Profile Settings file can carry, in the order Export and Import list them.
+	enum class profile_settings_section : std::uint8_t {
+		agents,
+		prompts,
+		workflows,
+		/// The profile's name and the accounts it uses: host and login, never
+		/// a sign-in.
+		identity,
+		/// Saved and followed repositories by host and owner/name; never a
+		/// local folder.
+		repositories,
+	};
+	inline constexpr std::size_t profile_settings_section_count = 5U;
+	[[nodiscard]] auto           stable_name(profile_settings_section aSection) noexcept -> std::string_view;
+	/// \brief Whether Export starts with a section ticked: every section but
+	/// Identity, which a reviewer shares only on purpose.
+	[[nodiscard]] auto exported_by_default(profile_settings_section aSection) noexcept -> bool;
+
+	/// \brief One account a profile uses: the host and the login there.
+	struct portable_account
+	{
+		/// `github.com` or an enterprise server's hostname.
+		std::string Host;
+		std::string Login;
+
+		auto operator<=>(const portable_account&) const = default;
+	};
+	/// \brief The Identity section.
+	struct portable_identity
+	{
+		std::string                   ProfileName;
+		std::vector<portable_account> Accounts;
+
+		auto operator<=>(const portable_identity&) const = default;
+	};
+	/// \brief One repository of the Repositories section.
+	///
+	/// \details A saved repository is saved under an account on its host
+	/// (Home finds pull requests there); a followed one is an observer rule
+	/// that adds its pull requests to the queue on any host, so it names no
+	/// host. Per-repository settings beyond these two have no home in a
+	/// profile yet, and no local path is ever carried.
+	struct portable_repository
+	{
+		/// Empty for a repository only followed.
+		std::string Host;
+		/// "owner/name".
+		std::string Repository;
+		bool        Saved    = false;
+		bool        Followed = false;
+
+		auto operator<=>(const portable_repository&) const = default;
+	};
+	/// \brief The profile as Identity and Repositories see it here: its
+	/// name, the accounts signed in, the servers it remembers and its
+	/// repositories. The host reads these; nothing here is a credential.
+	struct profile_facts
+	{
+		std::string                      ProfileName;
+		std::vector<portable_account>    SignedIn;
+		std::vector<portable_account>    Remembered;
+		std::vector<portable_repository> Repositories;
+
+		auto operator<=>(const profile_facts&) const = default;
+	};
+	/// \brief The Identity and Repositories an export of `aFacts` carries:
+	/// every account signed in or remembered once each, and every saved or
+	/// followed repository once each, in a stable order.
+	[[nodiscard]] auto portable_identity_of(const profile_facts& aFacts) -> portable_identity;
+	[[nodiscard]] auto portable_repositories_of(const profile_facts& aFacts) -> std::vector<portable_repository>;
 
 	/// \brief One agent as the file carries it: everything an entry keeps but
 	/// where its program is, its numeric ID and its identity.
@@ -101,6 +180,9 @@ namespace bpr::core {
 		std::vector<portable_prompt> Prompts;
 		/// [[BPR-2032]]. Each agent action names an agent in `Agents`.
 		std::vector<workflow_configuration> Workflows;
+		/// [[BPR-2198]]. Absent unless Identity was chosen.
+		std::optional<portable_identity> Identity;
+		std::vector<portable_repository> Repositories;
 
 		auto operator<=>(const agent_configuration&) const = default;
 	};
@@ -128,13 +210,6 @@ namespace bpr::core {
 		std::optional<std::string> WrittenAgainst;
 
 		auto operator<=>(const local_prompt&) const = default;
-	};
-
-	/// \brief An earlier purpose ID that names a current one.
-	struct prompt_alias
-	{
-		std::string_view Retired;
-		std::string_view Current;
 	};
 
 	/// \brief A portable ID for each name, unique within `aNames`: the name in
@@ -208,13 +283,16 @@ namespace bpr::core {
 		std::vector<decoded_prompt> Prompts;
 		/// [[BPR-2032]]. A workflow with a problem is listed and cannot be applied.
 		std::vector<decoded_workflow> Workflows;
+		/// [[BPR-2198]].
+		std::optional<portable_identity> Identity;
+		std::vector<portable_repository> Repositories;
 
 		auto operator<=>(const decoded_configuration&) const = default;
 	};
 
 	/// \brief Reads a file against the prompts this version recognizes. A
 	/// whole-file refusal changes nothing; an item problem is listed with the item.
-	[[nodiscard]] auto decode_agent_configuration(std::string_view aBytes, std::span<const local_prompt> aRecognized, std::span<const prompt_alias> aAliases = { })
+	[[nodiscard]] auto decode_agent_configuration(std::string_view aBytes, std::span<const local_prompt> aRecognized)
 		-> std::expected<decoded_configuration, configuration_file_refusal>;
 
 	/// \brief An agent field an import can change.
@@ -389,11 +467,44 @@ namespace bpr::core {
 
 		auto operator<=>(const workflow_import_plan&) const = default;
 	};
+	/// \brief [[BPR-2198]]. Whether an account named by the file can be
+	/// used here now.
+	enum class account_standing : std::uint8_t {
+		signed_in,
+		/// No sign-in here for that login on that host: "Sign in to use".
+		sign_in_to_use,
+	};
+	/// \brief The file's Identity. It starts unchosen: importing it renames
+	/// this profile and remembers its enterprise servers.
+	struct identity_import_plan
+	{
+		import_standing Standing = import_standing::refused;
+		bool            Default  = false;
+		/// Whether the file's name differs from this profile's.
+		bool Renames = false;
+		/// One per account of the file, in its order.
+		std::vector<account_standing> Accounts;
+
+		auto operator<=>(const identity_import_plan&) const = default;
+	};
+	/// \brief One repository of the file. New ones start chosen; a saved
+	/// one whose host has no account signed in here says "Sign in to use" and
+	/// cannot be saved until one is.
+	struct repository_import_plan
+	{
+		import_standing Standing    = import_standing::refused;
+		bool            Default     = false;
+		bool            SignInToUse = false;
+
+		auto operator<=>(const repository_import_plan&) const = default;
+	};
 	struct configuration_import_plan
 	{
-		std::vector<agent_import_plan>    Agents;
-		std::vector<prompt_import_plan>   Prompts;
-		std::vector<workflow_import_plan> Workflows;
+		std::vector<agent_import_plan>      Agents;
+		std::vector<prompt_import_plan>     Prompts;
+		std::vector<workflow_import_plan>   Workflows;
+		std::optional<identity_import_plan> Identity;
+		std::vector<repository_import_plan> Repositories;
 
 		auto operator<=>(const configuration_import_plan&) const = default;
 	};
@@ -402,8 +513,39 @@ namespace bpr::core {
 	/// unchanged only against an entry of its own name; unchanged when
 	/// replacing that entry, its relaxed checks and builds as the entry has
 	/// them, would change no field.
+	/// [[BPR-2198]]: Identity and each repository against `aHere`.
 	[[nodiscard]] auto plan_configuration_import(const decoded_configuration& aFile, std::span<const agent_entry> aAgents, std::span<const local_prompt> aPrompts,
-												 std::span<const local_workflow> aWorkflows) -> configuration_import_plan;
+												 std::span<const local_workflow> aWorkflows, const profile_facts& aHere = { }) -> configuration_import_plan;
+
+	/// \brief [[BPR-2198]]. What importing Identity and the chosen
+	/// repositories does to the profile, for the host to apply through the
+	/// profile's own paths. Nothing here signs in.
+	struct saved_repository_change
+	{
+		portable_account Account;
+		std::string      Repository;
+
+		auto operator<=>(const saved_repository_change&) const = default;
+	};
+	struct profile_settings_changes
+	{
+		/// The profile's new name; none when Identity is not chosen or the
+		/// name is the same.
+		std::optional<std::string> Rename;
+		/// Enterprise servers to remember, with the login to sign in as.
+		std::vector<portable_account> RememberServers;
+		/// Repositories to save, each under the account signed in on its host.
+		std::vector<saved_repository_change> Save;
+		/// Repositories to follow ("owner/name").
+		std::vector<std::string> Follow;
+
+		auto operator<=>(const profile_settings_changes&) const = default;
+	};
+	/// \brief The changes `aIdentity` (chosen or not) and the chosen
+	/// repositories (indexes into the file's) make against `aHere`. A
+	/// repository with no choice in the plan is skipped.
+	[[nodiscard]] auto profile_changes(const decoded_configuration& aFile, const configuration_import_plan& aPlan, bool aIdentity, std::span<const std::size_t> aRepositories,
+									   const profile_facts& aHere) -> profile_settings_changes;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONFIGURATION_HPP

@@ -47,8 +47,6 @@ namespace bpr::application {
 	/// the eight writing hooks in `core::writing_hook` order, then the review
 	/// skill.
 	[[nodiscard]] auto local_prompts(const agent_configuration_snapshot& aSnapshot) -> std::vector<core::local_prompt>;
-	/// \brief Earlier purpose IDs this version still reads.
-	[[nodiscard]] auto prompt_aliases() noexcept -> std::span<const core::prompt_alias>;
 	/// \brief The writing hook a purpose names, or none (the review skill, or unknown).
 	[[nodiscard]] auto prompt_hook(std::string_view aPurpose) noexcept -> std::optional<core::writing_hook>;
 
@@ -60,12 +58,17 @@ namespace bpr::application {
 		bool        BuiltIn = false;
 	};
 	/// \brief The exact bytes of an export of the chosen agents (by entry id,
-	/// in the profile's order), prompts and workflows (by ID), or none when
-	/// they exceed the file's bound or a workflow's agent is not in the profile.
+	/// in the profile's order), prompts and workflows (by ID), Identity when
+	/// given and the given repositories, or none when they exceed the file's
+	/// bound or a workflow's agent is not in the profile.
 	/// \details A workflow's agent actions carry the agent they are bound to
 	/// here, which the export then includes; no program path is exported.
+	/// [[BPR-2198]]: Identity and Repositories are names the composition
+	/// read (`core::portable_identity_of`, `core::portable_repositories_of`);
+	/// no credential is ever an input.
 	[[nodiscard]] auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, std::span<const std::uint32_t> aAgents, std::span<const exported_prompt> aPrompts,
-												  std::string aLabel, std::string aExportedBy, std::span<const std::string> aWorkflows = { }) -> std::optional<std::string>;
+												  std::string aLabel, std::string aExportedBy, std::span<const std::string> aWorkflows = { }, const core::portable_identity* aIdentity = nullptr,
+												  std::span<const core::portable_repository> aRepositories = { }) -> std::optional<std::string>;
 
 	/// \brief The snapshot an import's result makes from `aBefore`: new and
 	/// re-identified entries get an identity from `aMint`, a replaced entry's
@@ -116,6 +119,10 @@ namespace bpr::application {
 		agent_configuration_snapshot    Snapshot;
 		std::vector<core::local_prompt> Prompts;
 		core::decoded_configuration     File;
+		/// [[BPR-2198]]. The profile's name, sign-ins, servers and
+		/// repositories, which the composition reads for Identity and
+		/// Repositories.
+		core::profile_facts Here;
 
 		auto operator<=>(const agent_configuration_preview&) const = default;
 	};

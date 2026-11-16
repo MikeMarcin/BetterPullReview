@@ -37,19 +37,23 @@ namespace bpr::qt {
 	/// \brief A prompt's name as Settings › Built-in prompts shows it.
 	[[nodiscard]] auto prompt_title(std::string_view aPurpose) -> QString;
 
-	/// \brief [[BPR-2017]], RFC-BPR-0107. Export configuration…: the agents
-	/// and prompts to share, and the file's exact text as it will be written.
+	/// \brief [[BPR-2017]], RFC-BPR-0107; [[BPR-2198]]. Export Profile
+	/// Settings…: the profile's parts to share, as sections to tick, and the
+	/// file's exact text as it will be written.
 	///
 	/// \details Effect-free: Export… asks where through `set_file_chooser`
-	/// and closes accepted; the composition writes the bytes. Every agent and
-	/// every edited prompt starts chosen; a prompt not edited is offered with
-	/// its shipped text (owner, 2026-11-11) and starts unchosen. A prompt with
-	/// edits not saved yet cannot be chosen until they are saved or discarded.
+	/// and closes accepted; the composition writes the bytes. The sections are
+	/// Agents, Prompts, Workflows, Identity and Repositories; ticking a section
+	/// ticks every item in it and unticking it unticks them, and each starts as
+	/// `core::exported_by_default` says (all but Identity). Within Prompts an
+	/// edited prompt starts chosen and a prompt not edited is offered with its
+	/// shipped text (owner, 2026-11-11), unchosen; a prompt with edits not
+	/// saved yet cannot be chosen until they are saved or discarded.
 	class agent_configuration_export_dialog final : public QDialog
 	{
 	public:
 		agent_configuration_export_dialog(application::agent_configuration_snapshot aSnapshot, std::array<bool, core::writing_hook_count + 1U> aUnsaved, std::string aExportedBy,
-										  QWidget* aParent = nullptr);
+										  core::profile_facts aProfile = { }, QWidget* aParent = nullptr);
 		/// \brief How Export… asks for the file; none answers cancelled.
 		void set_file_chooser(std::function<QString()> aChooser);
 
@@ -57,6 +61,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto prompts() const -> std::vector<application::exported_prompt>;
 		/// \brief [[BPR-2032]]. The workflows chosen, by ID; their agents travel with them.
 		[[nodiscard]] auto workflows() const -> std::vector<std::string>;
+		/// \brief [[BPR-2198]]. Whether Identity is ticked, and the repositories ticked.
+		[[nodiscard]] auto identity_chosen() const -> bool;
+		[[nodiscard]] auto repositories() const -> std::vector<core::portable_repository>;
+		/// \brief A section's row; ticking it ticks the section.
+		[[nodiscard]] auto section(core::profile_settings_section aSection) const -> QTreeWidgetItem*;
 		/// \brief The exact bytes the current choice writes; empty when over the bound.
 		[[nodiscard]] auto bytes() const -> const std::string& { return Bytes; }
 		[[nodiscard]] auto chosen_path() const -> const QString& { return Path; }
@@ -72,6 +81,8 @@ namespace bpr::qt {
 		application::agent_configuration_snapshot Snapshot;
 		std::vector<core::local_prompt>           Local;
 		std::string                               ExportedBy;
+		core::portable_identity                   Identity;
+		std::vector<core::portable_repository>    Repositories;
 		std::string                               Bytes;
 		QString                                   Path;
 		std::function<QString()>                  Chooser;
@@ -122,6 +133,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-2032]]. The workflows chosen, with the programs bound
 		/// here; agents are bound by the agent choices.
 		[[nodiscard]] auto workflow_choices() const -> std::vector<core::workflow_import_choice>;
+		/// \brief [[BPR-2198]]. Whether Identity is chosen, and the
+		/// repositories chosen (indexes into the file's); the composition
+		/// applies them through `core::profile_changes`.
+		[[nodiscard]] auto identity_choice() const -> bool;
+		[[nodiscard]] auto repository_choices() const -> std::vector<std::size_t>;
 		[[nodiscard]] auto preview() const -> const application::agent_configuration_preview& { return Preview; }
 		[[nodiscard]] auto plan() const -> const core::configuration_import_plan& { return Plan; }
 
@@ -129,6 +145,8 @@ namespace bpr::qt {
 		void select_agent(std::size_t aItem);
 		void select_prompt(std::size_t aItem);
 		void select_workflow(std::size_t aItem);
+		void select_identity();
+		void select_repository(std::size_t aItem);
 
 		[[nodiscard]] auto items() const noexcept -> QListWidget* { return Items; }
 		/// \brief The shown item's choice, one button per part (Add, Use …,
@@ -162,6 +180,8 @@ namespace bpr::qt {
 			agent,
 			prompt,
 			workflow,
+			identity,
+			repository,
 		};
 		struct agent_state
 		{
@@ -186,6 +206,9 @@ namespace bpr::qt {
 		void               show_prompt(std::size_t aItem, QWidget& aPage);
 		void               show_workflow(std::size_t aItem, QWidget& aPage);
 		void               show_refused(const QString& aName, const QString& aWhy, QWidget& aPage);
+		void               show_identity(QWidget& aPage);
+		void               show_repository(std::size_t aItem, QWidget& aPage);
+		void               choice_row(item_kind aKind, std::size_t aItem, const QString& aTake, QWidget& aPage);
 		void               choose(item_kind aKind, std::size_t aItem, int aPart, std::uint32_t aTarget = 0U);
 		void               select(item_kind aKind, std::size_t aItem);
 		[[nodiscard]] auto row_line(item_kind aKind, std::size_t aItem) const -> QString;
@@ -201,6 +224,8 @@ namespace bpr::qt {
 		std::vector<agent_state>                         Agents;
 		std::vector<bool>                                Prompts;
 		std::vector<workflow_state>                      Workflows;
+		std::vector<bool>                                Repositories;
+		bool                                             IdentityChosen = false;
 		std::optional<std::pair<item_kind, std::size_t>> Shown;
 		std::function<QString(const QString&)>           Chooser;
 		bool                                             Filling       = false;

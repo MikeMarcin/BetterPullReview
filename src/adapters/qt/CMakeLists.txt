@@ -103,7 +103,7 @@ add_library(
         src/destructive_question.cpp
         src/settings_window.cpp
             src/diagnostic_settings_panel.cpp
-        src/profile_management_window.cpp
+        src/profiles_settings_panel.cpp
         src/workbench_strip.cpp
         src/view_picker.cpp
         src/local_changes_panel.cpp

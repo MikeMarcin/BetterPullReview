@@ -17,7 +17,7 @@
 // Profiles window and that direction, and names those three outright.
 
 #include "bpr/qt/diff_workbench.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -295,9 +295,11 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 	{
-		qt::profile_management_window profiles;
+		qt::profiles_settings_panel profiles;
 		profiles.adopt({ .Profiles = { { core::default_bpr_profile_id, "Default", application::profile_management_runtime::closed } }, .Ready = true });
-		profiles.present();
+		profiles.resize(560, 420);
+		profiles.show();
+		profiles.focus_profiles();
 		settle();
 		swept += sweep(*probe, profiles, ratio, where + " profiles");
 		expect_fits(*probe, *profiles.create_button(), ratio, where + " profiles");

@@ -321,6 +321,24 @@ right?" The answer is yes, and it changes the selective export above:
 
 The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: purpose IDs are unchanged (`enhance.note` stays readable as `enhance.writing`); wording only. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
 
+### Owner amendment (2026-11-15, [[BPR-2198]]): Profile Settings
+
+The owner, 2026-11-15: "this feature becomes import profile settings export
+profile settings and identity is one of the options", and "Repositories
+should also be in that list". The file is now **Profile Settings**:
+`bpr.profile-settings`, version 1, the one format and version marker (the
+agent configuration file was never released, so nothing older is read: the
+version 2 workflow file, the retired prompt purpose aliases and the agent
+fields a file before [[BPR-2139]] could leave out are gone). Its sections are
+Agents, Prompts, Workflows, **Identity** (the profile's name and the accounts
+it uses by host and login; unticked on export) and **Repositories** (saved and
+followed repositories by host and owner/name; ticked; no local paths). It
+never holds a credential. Import Profile Settings… and Export Profile
+Settings… live on Settings › Profiles, not on Agents. The core decides each
+section's contents and starting choice (`core::exported_by_default`,
+`core::plan_configuration_import`, `core::profile_changes`); every other
+obligation here stands.
+
 ## Acceptance criteria
 
 - **AC01:** A user exports selected custom agents and existing prompt overrides, imports them into another profile, and obtains equivalent configured behavior after explicit local binding without any local-PR or enterprise feature installed.

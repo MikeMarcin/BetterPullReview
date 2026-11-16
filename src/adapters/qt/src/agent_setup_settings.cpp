@@ -426,34 +426,8 @@ namespace bpr::qt {
 				Dispatch.ClearScratch();
 			}
 		});
-		// [[BPR-2017]], RFC-BPR-0107 (placement: the owner's Agents roster,
-		// 2026-11-11). Share agents and edited prompts, before Reset agents….
-		auto* const shareRow  = new QHBoxLayout{ };
-		auto* const shareSays = new QLabel{ tr("Share agents and edited prompts"), this };
-		shareRow->addWidget(shareSays, 1);
-		ImportButton = new quiet_push_button{ tr("Import configuration…"), this };
-		ImportButton->setObjectName(QStringLiteral("settingsImportConfiguration"));
-		ImportButton->setToolTip(tr("Read agents and prompts from a configuration file, see what each would change and choose what to import. Nothing runs."));
-		ExportButton = new quiet_push_button{ tr("Export configuration…"), this };
-		ExportButton->setObjectName(QStringLiteral("settingsExportConfiguration"));
-		ExportButton->setToolTip(tr("Write chosen agents and prompts to a file another computer or profile can import. Program locations and accounts stay here."));
-		shareRow->addWidget(ImportButton);
-		shareRow->addWidget(ExportButton);
-		column->addLayout(shareRow);
-		ExchangeNote = note({ }, this);
-		ExchangeNote->setObjectName(QStringLiteral("settingsConfigurationNote"));
-		ExchangeNote->hide();
-		column->addWidget(ExchangeNote);
-		connect(ImportButton, &QPushButton::clicked, this, [this] {
-			if (Dispatch.ImportConfiguration) {
-				Dispatch.ImportConfiguration();
-			}
-		});
-		connect(ExportButton, &QPushButton::clicked, this, [this] {
-			if (Dispatch.ExportConfiguration) {
-				Dispatch.ExportConfiguration();
-			}
-		});
+		// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and
+		// Export Profile Settings… moved to Settings › Profiles.
 		// Owner look v006: the setup is not entered again except to start
 		// afresh; Reset agents… asks first, then clears every agent setting.
 		auto* const resetRow  = new QHBoxLayout{ };
@@ -473,12 +447,6 @@ namespace bpr::qt {
 	}
 
 	void agent_programs_panel::set_dispatch(dispatch aDispatch) { Dispatch = std::move(aDispatch); }
-
-	void agent_programs_panel::present_exchange(const QString& aSaid)
-	{
-		ExchangeNote->setText(aSaid);
-		ExchangeNote->setVisible(!aSaid.isEmpty());
-	}
 
 	void agent_programs_panel::send_run_limit()
 	{

@@ -21,6 +21,7 @@
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
@@ -311,6 +312,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-prompt-examples" },
 		bpr::app::command_line_option{ .Name = "attended-queue-windows" },
 		bpr::app::command_line_option{ .Name = "attended-share-look" },
+		bpr::app::command_line_option{ .Name = "attended-profiles-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5654,6 +5656,7 @@ namespace {
 	void          prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* aTimer);
 	void          schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
 	void          schedule_attended_share_look(bpr::app::github_application& aApplication);
+	void          schedule_attended_profiles_look(bpr::app::github_application& aApplication);
 	void          schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
 	void          schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
@@ -5765,6 +5768,8 @@ namespace {
 						schedule_attended_prompt_editor_look(aApplication);
 					} else if (look == "share") {
 						schedule_attended_share_look(aApplication);
+					} else if (look == "profiles") {
+						schedule_attended_profiles_look(aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
@@ -6011,12 +6016,86 @@ namespace {
 		timer->start();
 	}
 
+	// [[BPR-2198]]. `--attended-profiles-look`: once the file shows, signed
+	// in on the fixture, the profile gets what Export's sections show (a
+	// saved repository and a followed one) through Settings' own controls, a
+	// second profile, Work, is created through the profile intent if there is
+	// none, and Settings opens on Profiles. One line says when it shows. A
+	// profile that already has them is left as it is; nothing runs.
+	void schedule_attended_profiles_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  started = automated_clock::now();
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, step = 0, alive = aApplication.liveness()]() mutable {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window   = aApplication.window();
+			auto* const profiles = window.profiles_settings();
+			const auto  finish   = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - started > std::chrono::seconds{ 30 }) {
+				finish(QStringLiteral("ATTENDED_PROFILES_FAILED:timeout:step=%1").arg(step));
+				return;
+			}
+			if (profiles == nullptr) {
+				finish(QStringLiteral("ATTENDED_PROFILES_FAILED:surfaces"));
+				return;
+			}
+			const auto named = [profiles](const QString& aName) {
+				for (auto row = 0; row < profiles->profiles()->count(); ++row) {
+					if (profiles->profiles()->item(row)->text() == aName) {
+						return true;
+					}
+				}
+				return false;
+			};
+			if (step == 0) {
+				const auto saved = window.saved_repository_list() != nullptr ? window.saved_repository_list()->count() : 0;
+				if (saved == 0 && window.saved_repository_name() != nullptr && window.add_saved_repository_action() != nullptr) {
+					window.saved_repository_name()->setText(QStringLiteral("MikeMarcin/BPR-Test"));
+					window.add_saved_repository_action()->trigger();
+				}
+				if (window.queue_rule_pattern_editor() != nullptr && window.add_queue_rule_action() != nullptr) {
+					window.queue_rule_pattern_editor()->setText(QStringLiteral("octo-org/widgets"));
+					window.add_queue_rule_action()->trigger();
+				}
+				step = 1;
+				return;
+			}
+			if (step == 1) {
+				if (profiles->profiles()->count() == 0 || !profiles->create_button()->isEnabled()) {
+					return;
+				}
+				if (!named(QStringLiteral("Work"))) {
+					window.dispatch_profile_management(bpr::application::create_bpr_profile_intent{ "Work" });
+				}
+				step = 2;
+				return;
+			}
+			if (step == 2 && named(QStringLiteral("Work"))) {
+				window.present_profiles_settings();
+				QApplication::processEvents();
+				finish(QStringLiteral("ATTENDED_PROFILES_SHOWN:profiles=%1:page=%2:share=%3")
+						   .arg(profiles->profiles()->count())
+						   .arg(window.settings()->current_page() == bpr::qt::settings_page::profiles ? QStringLiteral("profiles") : QStringLiteral("other"))
+						   .arg(profiles->export_button()->isVisible() ? QStringLiteral("shown") : QStringLiteral("hidden")));
+			}
+		});
+		timer->start();
+	}
+
 	// [[BPR-2017]], RFC-BPR-0107. `--attended-share-look`: once the file
 	// shows, the profile is given what a person shares, through Settings' own
 	// surfaces: two custom agents added through Add agent… (one asking for
 	// relaxed checks, builds and its scratch folder off) and two prompts
-	// edited and saved. Settings then opens on Agents, where Import
-	// configuration… and Export configuration… are. Nothing is run or
+	// edited and saved. Settings then opens on Profiles, where Import
+	// Profile Settings… and Export Profile Settings… are. Nothing is run or
 	// checked. A profile that already has them is left as it is.
 	void schedule_attended_share_look(bpr::app::github_application& aApplication)
 	{
@@ -6030,6 +6109,8 @@ namespace {
 			auto&       window = aApplication.window();
 			auto* const hooks  = window.writing_hooks();
 			auto* const agents = window.agent_programs();
+			// [[BPR-2198]]. The share buttons are on Settings › Profiles.
+			auto* const share  = window.profiles_settings();
 			const auto  finish = [timer](const QString& aLine) {
 				QTextStream{ stdout } << aLine << '\n';
 				QTextStream{ stdout }.flush();
@@ -6042,7 +6123,7 @@ namespace {
 			}
 			auto* const text = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
 			auto* const save = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
-			if (text == nullptr || save == nullptr || agents == nullptr || agents->import_button() == nullptr) {
+			if (text == nullptr || save == nullptr || agents == nullptr || share == nullptr) {
 				finish(QStringLiteral("ATTENDED_SHARE_FAILED:surfaces"));
 				return;
 			}
@@ -6051,7 +6132,7 @@ namespace {
 			// `BPR_ATTENDED_CONFIGURATION_PROGRAM` through Choose program….
 			const auto recipient = qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") == QStringLiteral("recipient");
 			if (recipient) {
-				const auto said  = agents->exchange_note()->text();
+				const auto said  = share->exchange_note()->text();
 				auto*      found = static_cast<QWidget*>(nullptr);
 				for (auto* const widget : QApplication::topLevelWidgets()) {
 					if (widget->objectName() == QStringLiteral("agentConfigurationImport") && widget->isVisible()) {
@@ -6060,8 +6141,8 @@ namespace {
 				}
 				if (step == 0) {
 					window.settings_action()->trigger();
-					window.settings()->present(bpr::qt::settings_page::agents_and_context);
-					agents->import_button()->click();
+					window.settings()->present(bpr::qt::settings_page::profiles);
+					share->import_button()->click();
 					step = 1;
 				} else if (step == 1 && found != nullptr) {
 					auto* const importing = static_cast<bpr::qt::agent_configuration_import_dialog*>(found);
@@ -6133,8 +6214,8 @@ namespace {
 			const auto file = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
 			if (qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") != QStringLiteral("1") || file.isEmpty()) {
 				hooks->select_hook(bpr::core::writing_hook::problem);
-				window.settings()->present(bpr::qt::settings_page::agents_and_context);
-				agents->import_button()->setFocus();
+				window.settings()->present(bpr::qt::settings_page::profiles);
+				share->import_button()->setFocus();
 				finish(QStringLiteral("ATTENDED_SHARE_SHOWN:agents=%1").arg(agents->agent_list()->count()));
 				return;
 			}
@@ -6146,10 +6227,10 @@ namespace {
 				}
 				return nullptr;
 			};
-			const auto said     = agents->exchange_note()->text();
+			const auto said     = share->exchange_note()->text();
 			const auto improved = QStringLiteral("Lead with the risk, then the fix. One point per comment.");
 			if (step == 1) {
-				agents->export_button()->click();
+				share->export_button()->click();
 				step = 2;
 			} else if (step == 2) {
 				if (auto* const exporting = dialog(QStringLiteral("agentConfigurationExport"))) {
@@ -6187,7 +6268,7 @@ namespace {
 					return;
 				}
 				out.close();
-				agents->import_button()->click();
+				share->import_button()->click();
 				step = 4;
 			} else if (step == 4) {
 				if (auto* const importing = dialog(QStringLiteral("agentConfigurationImport"))) {
@@ -13593,6 +13674,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedShareLook) {
 						look = std::string{ "share" };
+					}
+					if (launch.has("--attended-profiles-look")) {
+						look = std::string{ "profiles" };
 					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };

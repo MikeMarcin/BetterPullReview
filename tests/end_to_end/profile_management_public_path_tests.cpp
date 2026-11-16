@@ -8,7 +8,7 @@
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/dif_runtime.hpp"
-#include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "private_data_root.hpp"
 
@@ -62,7 +62,7 @@ namespace {
 			QThread::msleep(1);
 		}
 	}
-	auto item(qt::profile_management_window& aManagement, const QString& aLabel) -> QListWidgetItem*
+	auto item(qt::profiles_settings_panel& aManagement, const QString& aLabel) -> QListWidgetItem*
 	{
 		for (auto index = 0; index < aManagement.profiles()->count(); ++index) {
 			auto* candidate = aManagement.profiles()->item(index);
@@ -72,7 +72,7 @@ namespace {
 		}
 		return nullptr;
 	}
-	auto create(qt::profile_management_window& aManagement, const QString& aLabel) -> core::bpr_profile_id
+	auto create(qt::profiles_settings_panel& aManagement, const QString& aLabel) -> core::bpr_profile_id
 	{
 		// [[BPR-0778]]. New profile appends a row already in its editor, so the name is
 		// typed into that row and saved; there is no permanent name field to fill first.
@@ -85,14 +85,14 @@ namespace {
 		aManagement.profiles()->setCurrentItem(created);
 		return core::bpr_profile_id{ created->data(Qt::UserRole).toULongLong() };
 	}
-	auto open(app::profile_desktop& aDesktop, qt::profile_management_window& aManagement, const core::bpr_profile_id aProfile) -> app::github_application*
+	auto open(app::profile_desktop& aDesktop, qt::profiles_settings_panel& aManagement, const core::bpr_profile_id aProfile) -> app::github_application*
 	{
 		expect(aManagement.open_button()->isEnabled(), "Open Profile is reachable");
 		aManagement.open_button()->click();
 		wait_for([&] { return aDesktop.runtime(aProfile) != nullptr; }, "selected profile runtime opens");
 		return aDesktop.runtime(aProfile);
 	}
-	void capture(qt::profile_management_window& aManagement)
+	void capture(qt::profiles_settings_panel& aManagement)
 	{
 		const auto path = qEnvironmentVariable("BPR_PROFILE_MANAGEMENT_ARTIFACT_ROOT");
 		if (path.isEmpty()) {
@@ -150,12 +150,15 @@ try {
 	expect(manage != nullptr, "profile menu exposes management");
 	wait_for([&] { return manage->isEnabled(); }, "profile menu becomes available");
 	manage->trigger();
-	wait_for([&] { return desktop->management_window() != nullptr && desktop->management_window()->isVisible(); }, "modeless management opens from real menu");
-	auto& management = *desktop->management_window();
-	wait_for([&] { return management.create_button()->isEnabled(); }, "registry is ready for management");
-	const auto workId = create(management, QStringLiteral("Work"));
+	// [[BPR-2198]]. Manage Profiles… opens the window's own Settings on Profiles.
+	wait_for([&] { return initial->window().settings()->isVisible() && initial->window().settings()->current_page() == qt::settings_page::profiles; },
+			 "Manage Profiles… opens Settings on Profiles from the real menu");
+	expect(desktop->profiles_settings() == nullptr || !desktop->profiles_settings()->isVisible(), "and not the desktop's chooser while a window is open");
+	auto* managed = initial->window().profiles_settings();
+	wait_for([&] { return managed->create_button()->isEnabled(); }, "registry is ready for management");
+	const auto workId = create(*managed, QStringLiteral("Work"));
 	expect(workId != core::default_bpr_profile_id, "new profile has distinct durable identity");
-	auto* work = open(*desktop, management, workId);
+	auto* work = open(*desktop, *managed, workId);
 	wait_for([&] { return work->status().AppearancePersistenceAvailable; }, "Work profile settings composed");
 	expect(work->window().dif() != nullptr
 			   && work->window().dif()->cache_identity() == initial->window().dif()->cache_identity()
@@ -164,22 +167,22 @@ try {
 		   "a second profile shares the same once-decoded catalog");
 	expect(work->status().ProfileMode == core::appearance_mode::system, "new profile begins with standard preferences");
 	expect(initial->status().ProfileMode == core::appearance_mode::dark, "new profile does not replace Default");
-	const auto stableRow = QPersistentModelIndex{ management.profiles()->model()->index(management.profiles()->currentRow(), 0) };
-	management.rename_button()->click();
-	management.name_editor()->setText(QStringLiteral("Work renamed"));
-	management.save_button()->click();
+	const auto stableRow = QPersistentModelIndex{ managed->profiles()->model()->index(managed->profiles()->currentRow(), 0) };
+	managed->rename_button()->click();
+	managed->name_editor()->setText(QStringLiteral("Work renamed"));
+	managed->save_button()->click();
 	wait_for([&] { return work->window().windowTitle().contains(QStringLiteral("Work renamed")); }, "accepted rename reaches open chrome");
 	expect(stableRow.isValid() && stableRow.data().toString() == QStringLiteral("Work renamed"), "rename preserves semantic model index");
 	// [[BPR-0778]]. Return on the row activates an open profile; the footer's filled
 	// action says New window for one, because that is what that gesture does.
-	expect(management.open_button()->text() == QStringLiteral("New window"),
+	expect(managed->open_button()->text() == QStringLiteral("New window"),
 		   "the filled action offers a new window for the open profile");
 	auto openRow = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-	QApplication::sendEvent(management.profiles(), &openRow);
+	QApplication::sendEvent(managed->profiles(), &openRow);
 	QApplication::processEvents();
 	expect(desktop->runtime(workId) == work, "reopening the live profile activates its existing runtime");
 	expect(desktop->windows(workId).size() == 1U, "and does not add a window");
-	capture(management);
+	capture(*managed);
 
 	const auto writes = work->status().AppearanceDurableWrites;
 	work->window().open_settings(qt::settings_page::appearance);
@@ -198,9 +201,12 @@ try {
 	initial->window().close();
 	wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr; }, "closed initial profile drains and retires");
 	expect(!work->status().Closing, "closing initial profile leaves Work usable");
-	management.present();
-	const auto personalId = create(management, QStringLiteral("Personal"));
-	auto*      personal   = open(*desktop, management, personalId);
+	// The initial window and its Settings are gone; Work's Settings carries Profiles now.
+	work->window().present_profiles_settings();
+	managed = work->window().profiles_settings();
+	wait_for([&] { return managed->create_button()->isEnabled(); }, "Work's Settings › Profiles is ready");
+	const auto personalId = create(*managed, QStringLiteral("Personal"));
+	auto*      personal   = open(*desktop, *managed, personalId);
 	expect(personal != work, "desktop owner remains usable after initial profile closes");
 	expect(personal->window().dif() != nullptr
 			   && personal->window().dif()->cache_identity() == work->window().dif()->cache_identity()
@@ -211,8 +217,12 @@ try {
 		   "a third profile shares decoded pixels while keeping its own motion preference");
 	work->window().close();
 	wait_for([&] { return desktop->runtime(workId) == nullptr; }, "Work closes before owner reuse");
-	management.profiles()->setCurrentItem(item(management, QStringLiteral("Work renamed")));
-	work = open(*desktop, management, workId);
+	// Work's window took its Settings with it; Personal's lists every profile too.
+	personal->window().present_profiles_settings();
+	managed = personal->window().profiles_settings();
+	wait_for([&] { return item(*managed, QStringLiteral("Work renamed")) != nullptr && managed->create_button()->isEnabled(); }, "Personal's Settings › Profiles lists Work");
+	managed->profiles()->setCurrentItem(item(*managed, QStringLiteral("Work renamed")));
+	work = open(*desktop, *managed, workId);
 	wait_for([&] {
 		return work->status().ProfileMode == core::appearance_mode::high_contrast_dark
 			&& work->status().DifResolution.Preferences.Motion == core::motion_mode::full;
@@ -276,13 +286,15 @@ try {
 	wait_for([&] { return terminal; }, "resident desktop startup");
 	expect(initial != nullptr, "the resident desktop admits Default");
 	initial->show();
-	wait_for([&] { return desktop->management_window() != nullptr; }, "desktop management composed");
-	auto& resident = *desktop->management_window();
+	wait_for([&] { return desktop->profiles_panel() != nullptr; }, "desktop management composed");
+	// [[BPR-2198]]. RFC-BPR-0033's chooser: the desktop's Settings, on Profiles alone.
+	auto& resident = *desktop->profiles_panel();
+	auto& chooser  = *desktop->profiles_settings();
 	wait_for([&] { return resident.rename_button()->isEnabled(); }, "the registry is ready for management");
 	const auto closedTheLastWindow = [&] {
 		wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr; },
 				 "the last window closes and its profile retires");
-		expect(!resident.isVisible(), "closing the last window presents no chooser");
+		expect(!chooser.isVisible(), "closing the last window presents no chooser");
 		expect(desktop->last_empty_desktop_outcome() == app::empty_desktop_outcome::stay_resident,
 			   "the injected policy decided to stay resident");
 		expect(!desktop->is_quiescent(), "so the application is still running with no window");
@@ -293,7 +305,7 @@ try {
 		QApplication::processEvents();
 		expect(desktop->windows(core::default_bpr_profile_id).size() == 1U,
 			   "exactly one window, under one runtime owner");
-		expect(!resident.isVisible(), "and still no chooser");
+		expect(!chooser.isVisible(), "and still no chooser");
 		expect(runtime->window().showing_home(), "the reopened window arrives at Home");
 		// [[BPR-0796]]. The application's own menu bar belongs to a desktop with no
 		// window. Qt hands a parentless menu bar to any focused window that carries
@@ -338,11 +350,11 @@ try {
 	resident.rename_button()->click();
 	resident.name_editor()->setText(QString{ });
 	resident.save_button()->click();
-	wait_for([&] { return resident.isVisible(); }, "a refusal with no window presents the chooser");
+	wait_for([&] { return chooser.isVisible() && chooser.current_page() == qt::settings_page::profiles && !chooser.sidebar()->isVisible(); }, "a refusal with no window presents the chooser");
 	expect(resident.status_text().contains(QStringLiteral("nonblank profile name")), "and says what was refused");
 	desktopMenu->manage_profiles_action()->trigger();
 	wait_for([&] { return resident.rename_button()->isEnabled(); }, "management from the menu bar reloads profiles");
-	resident.hide();
+	chooser.hide();
 
 	desktopMenu->new_window_action()->trigger();
 	auto* const byMenuBar = reopenedExactlyOnce("New Window on the application's menu bar reopens the most recently used profile");
@@ -353,12 +365,15 @@ try {
 	resident.save_button()->click();
 	wait_for([&] { return byMenuBar->window().status_text().contains(QStringLiteral("nonblank profile name")); },
 			 "a refusal with a live window is reported in that window");
-	expect(!resident.isVisible(), "and the chooser is not presented to carry it");
+	expect(!chooser.isVisible(), "and the chooser is not presented to carry it");
 	auto* const windowStatus = byMenuBar->window().findChild<QAction*>(QStringLiteral("profileManagementStatusAction"));
 	expect(windowStatus != nullptr && windowStatus->isVisible(), "the window's own Profiles menu carries it too");
 	byMenuBar->window().findChild<QAction*>(QStringLiteral("manageProfilesAction"))->trigger();
-	wait_for([&] { return resident.rename_button()->isEnabled(); }, "management from the window reloads profiles");
-	resident.hide();
+	wait_for([&] { return byMenuBar->window().settings()->isVisible() && byMenuBar->window().settings()->current_page() == qt::settings_page::profiles
+					   && byMenuBar->window().profiles_settings()->rename_button()->isEnabled(); },
+			 "management from the window opens its Settings on Profiles, reloaded");
+	expect(!chooser.isVisible(), "the desktop's chooser stays away while a window is open");
+	byMenuBar->window().settings()->hide();
 
 	byMenuBar->window().close();
 	closedTheLastWindow();
@@ -396,13 +411,13 @@ try {
 	wait_for([&] { return terminal; }, "quitting-policy desktop startup");
 	expect(initial != nullptr, "it admits Default");
 	initial->show();
-	wait_for([&] { return desktop->management_window() != nullptr; }, "its management is composed");
+	wait_for([&] { return desktop->profiles_settings() != nullptr; }, "its management is composed");
 	const auto quitWindow = desktop->windows(core::default_bpr_profile_id).front().Window;
 	initial->window().close();
 	wait_for([&] { return desktop->is_quiescent(); }, "closing the last window quits the application");
 	expect(desktop->last_empty_desktop_outcome() == app::empty_desktop_outcome::quit,
 		   "through the injected policy rather than a platform test in the desktop");
-	expect(!desktop->management_window()->isVisible(), "with no chooser presented on the way out");
+	expect(!desktop->profiles_settings()->isVisible(), "with no chooser presented on the way out");
 	expect(desktop->exit_code() == 0, "and an orderly exit code");
 	desktop.reset();
 	settle(300);

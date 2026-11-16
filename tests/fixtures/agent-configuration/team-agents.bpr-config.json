@@ -1,5 +1,5 @@
 {
-  "format": "bpr.agent-configuration",
+  "format": "bpr.profile-settings",
   "version": 1,
   "label": "Fixture team agents",
   "exported_by": "BetterPullReview fixture",
@@ -15,7 +15,9 @@
       "effort": "medium",
       "strict_run_checks": false,
       "scratch_starts": false,
-      "builds_and_tests": true
+      "builds_and_tests": true,
+      "mcp_servers": "off",
+      "instructions": "system-prompt"
     },
     {
       "id": "work-claude",
@@ -28,7 +30,9 @@
       "effort": "high",
       "strict_run_checks": true,
       "scratch_starts": true,
-      "builds_and_tests": false
+      "builds_and_tests": false,
+      "mcp_servers": "off",
+      "instructions": "system-prompt"
     },
     {
       "id": "claude-code",
@@ -41,7 +45,9 @@
       "effort": "",
       "strict_run_checks": true,
       "scratch_starts": true,
-      "builds_and_tests": false
+      "builds_and_tests": false,
+      "mcp_servers": "off",
+      "instructions": "system-prompt"
     },
     {
       "id": "future-agent",
@@ -53,7 +59,9 @@
       "effort": "",
       "strict_run_checks": true,
       "scratch_starts": true,
-      "builds_and_tests": false
+      "builds_and_tests": false,
+      "mcp_servers": "off",
+      "instructions": "system-prompt"
     }
   ],
   "prompts": [

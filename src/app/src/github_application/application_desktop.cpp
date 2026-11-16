@@ -405,7 +405,7 @@ namespace bpr::app {
 		const auto bytes   = file.readAll().toStdString();
 		auto       preview = application::agent_configuration_preview{ .Snapshot = *before };
 		preview.Prompts    = application::local_prompts(preview.Snapshot);
-		auto decoded       = core::decode_agent_configuration(bytes, preview.Prompts, application::prompt_aliases());
+		auto decoded       = core::decode_agent_configuration(bytes, preview.Prompts);
 		if (!decoded) {
 			return false;
 		}

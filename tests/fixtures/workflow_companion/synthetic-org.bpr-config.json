@@ -1,6 +1,6 @@
 {
-  "format": "bpr.agent-configuration",
-  "version": 2,
+  "format": "bpr.profile-settings",
+  "version": 1,
   "label": "Synthetic Org pull request workflow",
   "exported_by": "Synthetic Org",
   "agents": [

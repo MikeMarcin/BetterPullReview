@@ -104,9 +104,10 @@ namespace {
 	void test_file_version_and_problems()
 	{
 		const auto bytes = ok(core::encode_agent_configuration(file_with_workflow()), "a file with a workflow encodes");
-		expect(bytes.find("\"version\": 2") != std::string::npos, "a file with a workflow is version 2, refused as newer by an importer from before workflows");
+		// [[BPR-2198]]. One format and one version, workflows or none.
+		expect(bytes.find("\"version\": 1") != std::string::npos, "a file with a workflow is the one version");
 		const auto plain = ok(core::encode_agent_configuration({ .Label = "x", .ExportedBy = "y", .Agents = file_with_workflow().Agents }), "a file without one");
-		expect(plain.find("\"version\": 1") != std::string::npos && plain.find("workflows") == std::string::npos, "a file with no workflow stays version 1");
+		expect(plain.find("\"version\": 1") != std::string::npos && plain.find("workflows") == std::string::npos, "a file with no workflow leaves the section out");
 		const auto decoded = ok(core::decode_agent_configuration(bytes, { }), "it reads back");
 		expect(decoded.Workflows.size() == 1U && !decoded.Workflows[0].Problem && decoded.Workflows[0].Workflow == organization(), "the workflow reads back exactly");
 		expect(bytes.find("/") == std::string::npos || bytes.find("\"program\"") == std::string::npos, "no program path travels");
@@ -126,9 +127,6 @@ namespace {
 		auto noAgent = file_with_workflow();
 		noAgent.Agents.clear();
 		expect(!core::encode_agent_configuration(noAgent), "an agent action needs the agent in the file");
-		auto version1 = bytes;
-		version1.replace(version1.find("\"version\": 2"), 12U, "\"version\": 1");
-		expect(core::decode_agent_configuration(version1, { }).error() == core::configuration_file_refusal::malformed, "workflows at version 1 are malformed");
 	}
 
 	void test_apply_choices_and_bindings()
