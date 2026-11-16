@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2195"
 title: "A review's comparison fails to prepare with repair_required under heavy load"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"seen while investigating BPR-2191, 2026-11-15","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-2191"],"reservation":"docs/issues/_reservations/BPR-2194--BPR-2195--007cce25d132.json"}
+metadata: {"origin":"seen while investigating BPR-2191, 2026-11-15","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-2191"],"reservation":"docs/issues/_reservations/BPR-2194--BPR-2195--007cce25d132.json","lane":"claude/v0-5-0-prerelease-targets-52265d","commits":["ade6b9a55","42a1fe963","964318c3a"]}
 ---
 
 # BPR-2195: A review's comparison fails to prepare with repair_required under heavy load
@@ -175,3 +175,60 @@ witness. That change was not kept.
    artifacts, so a cancelled import leaves the store as it was.
 3. Make `git_cache_contract` hold that, and then repeat
    `application_pending_states_public_path` 10 times while builds run.
+
+## Fixed, 2026-11-16 (`964318c3a`)
+
+**What a stopped `index-pack` leaves (measured).** I killed the system Git's
+`index-pack` (2.50.1, run with the cache's own arguments) with SIGKILL 1,500
+times, at random points while it imported a 78 KB pack:
+
+| Count | Pack directory afterwards | Before the fix |
+|---:|---|---|
+| 1,049 | `pack-H.pack` and `pack-H.idx` (the import was complete) | rolled back |
+| 334 | `tmp_pack_*` | removed by the cleanup |
+| 38 | `tmp_pack_*` and `tmp_idx_*` | removed by the cleanup |
+| **45** | `pack-H.pack` also linked as `tmp_pack_*` (2 links), plus `tmp_idx_*` | **repair** |
+| **30** | `pack-H.pack`, with `pack-H.idx` also linked as `tmp_idx_*` (2 links) | **repair** |
+| **4** | `pack-H.pack` and `tmp_idx_*`, no `.idx` | **repair** |
+
+Git finalizes each file by linking its final name and then unlinking the
+temporary one. A stop (a newer read) lands between the two steps.
+
+- The failed-index cleanup removes only single-link temporary files.
+- The rollback needs a single-link `.pack` and `.idx`.
+
+So the last three states ended the import as `repair_required`. The host's
+undo was then refused, and the next open found the repository invalid. That
+is the run this card recorded.
+
+**Fix.** On the failed-index path, `settle_interrupted_index` runs first. It
+touches only the expected pack's own names, and only if they were absent
+before the import:
+
+1. A new temporary name that is a second link to one of them is unlinked.
+2. A new `.pack` whose `.idx` never arrived is removed.
+
+Each is a private regular file this user owns. The rollback then inspects the
+pack as settled. Anything else is still left for the inventory to refuse: a
+foreign pack, hard links among the temporary names, or residue that is not
+private. Those are the existing courses.
+
+## Evidence
+
+- AC01: the stage and the step are named from the host's own diagnostics
+  (`42a1fe963`, `preparation_abort`). The course keeps its log, and now its
+  pack listing, when it fails (`ade6b9a55`).
+- AC02, deterministic course: `git_cache_contract` puts the import into each
+  of the three interrupted states, through the existing fault-injection build,
+  on a terminal `index-pack` failure.
+  - With the fix, each ends as `process_failure`, with the pack directory as
+    it was and the spool kept for the abort.
+  - With `settle_interrupted_index` disabled, the first state fails as
+    `repair_required` (code 13).
+  - `application_epoch_host` (`refused_preparation_abort_names_its_step`),
+    `git_haves_trimmed_pack_*` and `architecture_boundaries` pass.
+- AC03: `application_pending_states_public_path --repeat until-fail:10`
+  passes 10 of 10 (137 to 168 s each). It ran while a build loop (clean, then
+  rebuild `core-only`) and 4 concurrent copies of the course loaded the
+  machine (load 49 to 89). The copies passed 24 of 24. Before the fix the
+  failure showed about once in 35 to 70 runs under such load.
