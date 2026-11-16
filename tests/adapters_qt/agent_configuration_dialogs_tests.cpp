@@ -164,7 +164,8 @@ namespace {
 	[[nodiscard]] auto row_named(qt::agent_configuration_import_dialog& aDialog, const QString& aName) -> QListWidgetItem*
 	{
 		for (int row = 0; row < aDialog.items()->count(); ++row) {
-			if (aDialog.items()->item(row)->text().startsWith(aName + QStringLiteral("   "))) {
+			const auto text = aDialog.items()->item(row)->text();
+			if (text.startsWith(aName + QStringLiteral("   ")) || text.startsWith(aName + QLatin1Char('\n'))) {
 				return aDialog.items()->item(row);
 			}
 		}
@@ -380,7 +381,13 @@ namespace {
 		refusedPreview.File              = unknown;
 		auto        refuser              = qt::agent_configuration_import_dialog{ refusedPreview, { .Skills = { }, .Found = { } } };
 		auto* const refusedRow           = row_named(refuser, QStringLiteral("Synthetic Org pull request"));
-		expect(refusedRow != nullptr && refusedRow->text().contains(QStringLiteral("Cannot be imported")) && refusedRow->text().contains(QStringLiteral("deploy_preview"))
+		auto        under                = QString{ };
+		for (int row = 0; row < refuser.items()->count() && refuser.items()->item(row) != refusedRow; ++row) {
+			if (refuser.items()->item(row)->flags() == Qt::NoItemFlags) {
+				under = refuser.items()->item(row)->text();
+			}
+		}
+		expect(refusedRow != nullptr && under == QStringLiteral("Cannot be imported") && refusedRow->text().contains(QStringLiteral("deploy_preview"))
 				   && !refusedRow->flags().testFlag(Qt::ItemIsUserCheckable),
 			   "an unknown action is named and its workflow cannot be ticked");
 		refuser.select_workflow(0U);
