@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2199",
+    "BPR-2200"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Windows follow-ups from BPR-2197: Tour route layout with Segoe UI; Qt tests load Windows fonts under offscreen",
+  "created": "2026-11-16T02:11:56.841541+00:00",
+  "base": "6f59996f21fd5d155dd34373db96400913cad22c"
+}
