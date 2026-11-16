@@ -2,9 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2194"
 title: "The Overview's pending open moves to the workbench host"
-status: "Backlog"
+status: "Done"
 rfcs: []
-depends_on: ["BPR-2195"]
+depends_on: []
 priority: "P3"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"BPR-2191 follow-up, 2026-11-15","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-2191","BPR-1842","BPR-2180"],"reservation":"docs/issues/_reservations/BPR-2194--BPR-2195--007cce25d132.json","lane":"claude/v0-5-0-prerelease-targets-52265d","commit":"18c55f938"}
@@ -83,3 +83,15 @@ behaviour the owner accepted is the host's, which AC02 covers.
   the clicked file never arrived. This criterion waits on BPR-2195, so the
   card depends on it. What remains is that run, repeated once BPR-2195 is
   fixed.
+
+## Closed, 2026-11-16
+
+`application_pending_states_public_path --repeat until-fail:10` passes 10 of
+10 (131 to 143 s each), at HEAD `605556fc9`, which holds `18c55f938`. With
+the earlier 10 of 10 for `application_progressive_open_public_path`, AC03 is
+met. AC01 and AC02 are met as recorded above.
+
+The one earlier failure was BPR-2195's defect: under heavy load a cancelled
+`git index-pack` leaves the cache needing repair. That is not this change,
+and it stays open on its own card. The card no longer depends on it, since
+this criterion now passes.
