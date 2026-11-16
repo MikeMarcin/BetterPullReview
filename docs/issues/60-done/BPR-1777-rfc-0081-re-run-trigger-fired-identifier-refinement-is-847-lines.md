@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1777"
 title: "RFC-BPR-0081's re-run trigger fired: the identifier refinement is 847 lines"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1777--BPR-1777--494d5971aa76.json","origin":"Found during BPR-1445's closeout recheck of RFC-BPR-0081, 2026-10-27","related_rfcs":["RFC-BPR-0081"],"related_cards":["BPR-1445","BPR-1474","BPR-1710","BPR-1711","BPR-1714"],"kind":"owner-decision"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1777--BPR-1777--494d5971aa76.json","origin":"Found during BPR-1445's closeout recheck of RFC-BPR-0081, 2026-10-27","related_rfcs":["RFC-BPR-0081"],"related_cards":["BPR-1445","BPR-1474","BPR-1710","BPR-1711","BPR-1714"],"kind":"owner-decision","owner_decision":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"keep the heuristic; raise the 800-line trigger to 1000; close if the file is under it"}}
 ---
 
 # BPR-1777: RFC-BPR-0081's re-run trigger fired: the identifier refinement is 847 lines
@@ -51,3 +51,27 @@ evaluation is re-run.
   limited only the original run to macOS.
 - AC2: The decision is recorded in the report's re-run section and on this
   card. Nothing is implemented, measured or adopted before it.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. src/core/src/cpp_identifier_context.cpp is still 847 lines. Its AC1 is the owner's question: re-run RFC-BPR-0081's evaluation, or keep the heuristic and raise or retire the 800-line trigger?
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: the trigger is 1000 lines; closed
+
+Owner, 2026-11-16, on the hygiene audit (relayed by the coordinator): raise
+the 800-line trigger to 1000, update RFC-BPR-0081 and whatever enforces it,
+then close if the file is under the trigger.
+
+- AC1: answered. Keep the heuristic; the line trigger is 1000 lines. No
+  re-run.
+- AC2: recorded in the [report's re-run section](../../verification/RFC-BPR-0081.md)
+  and on [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md)
+  (owner amendment of 2026-11-16, and the Keep outcome's wording).
+- Enforcement: nothing enforces the count. `git grep` over `scripts/`,
+  `tests/`, `cmake/` and the coding standard finds no 800-line check; the
+  trigger lived only in the RFC and its report. The protected import assets
+  under `docs/rfcs/assets/cpp-identifier-parser-evaluation-v1/` keep their
+  historical 800.
+- `src/core/src/cpp_identifier_context.cpp` is 847 lines at `176d127e8`
+  (`wc -l`), under 1000. The card closes.

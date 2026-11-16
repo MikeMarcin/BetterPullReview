@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0116"
 title: "A returning pull request says what changed, and whether a comment was addressed"
-status: "In Progress"
+status: "Auto-Verified"
 metadata: {"origin":"imported 2026-11-10 from the agent-assistance-v1 pack, where it was RFC-DRAFT-0001","inspected_revision":"90785ae34aeccf63724b9e5e7a70446f89341ec5","milestone_plan":{"id":"agent-assistance-v1","path":"docs/rfcs/plans/agent-assistance-v1/milestone-plan.json"},"baseline":"a9663a706fd72061f60b615bd8e749ee0ddb66b5"}
 depends_on: ["RFC-BPR-0009", "RFC-BPR-0094", "RFC-BPR-0101", "RFC-BPR-0102"]
 ---
@@ -154,6 +154,13 @@ The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-thre
 ## Proposed delivery
 
 [What changed since my review](../issues/60-done/BPR-2073-what-changed-since-my-review.md),
-[Was this addressed?](../issues/40-parked/BPR-2074-was-this-addressed-on-a-thread.md) and
-[closeout](../issues/10-backlog/BPR-2075-close-rfc-0116.md) form the first
+[Was this addressed?](../issues/60-done/BPR-2074-was-this-addressed-on-a-thread.md) and
+[closeout](../issues/60-done/BPR-2075-close-rfc-0116.md) form the first
 [milestone](plans/agent-assistance-v1/milestone-plan.json).
+
+## Closeout, 2026-11-16
+
+Auto-Verified, delivered through
+[RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-three-scopes-reports-in-a-file-tab.md)
+on the owner's decision of 2026-11-16 to close it. Every criterion is
+evidenced on [[BPR-2075]] and in the [verification](../verification/RFC-BPR-0116.md#closeout-2026-11-16).

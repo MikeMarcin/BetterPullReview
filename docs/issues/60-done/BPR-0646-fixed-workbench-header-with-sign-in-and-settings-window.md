@@ -456,7 +456,7 @@ Read as five findings, none of them this card's criterion as written:
 - Comment and include colours have not changed since BPR-0199 (2026-08-07)
   and were not swapped; the request is a requirement under RFC-BPR-0006 held
   for the owner's confirmation of its extent:
-  [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
+  [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 - The collapsed drawers' footprint, the setting to hide the drawer-side
   controls, and the heading row that `adopt()` leaves visible above each
   rail (the "…"):
@@ -500,7 +500,7 @@ mode viewing experience is not great" meant "it was difficult to read the
 code because of a lack of horizontal area for the text display", carded as
 [BPR-0724](BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md).
 The dark palette question: "the whole palette, yes reset", landed on
-[BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
+[BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 The strip below about 960 pixels: "leave it be for now", recorded on
 [BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
 This card's remaining criterion is unchanged and is asked again on the

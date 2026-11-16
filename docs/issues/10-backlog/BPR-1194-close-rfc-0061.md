@@ -103,3 +103,17 @@ The chain after BPR-0653:
    and 0037.
 4. BPR-1194 (this card) closes RFC-BPR-0061 once [[BPR-1193]] is Done and
    RFC-BPR-0052 and 0037 are Auto-Verified.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Last link of the BPR-0653 to 1021 to 1135 chain. Gap: no open card records RFC-BPR-0037's status change, which this chain needs.
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## After the owner's BPR-0653 decision (2026-11-16)
+
+Owner, 2026-11-16, on the hygiene audit: close RFC-BPR-0028, 0052 and 0061
+only where their other criteria are already satisfied, and card what is left.
+[[BPR-0653]] is Done by the owner's amendment, so step 1 of the chain above
+([[BPR-1021]]) is Ready. Step 2, the missing card for RFC-BPR-0037's status,
+is [[BPR-2214]]. This card stays in Backlog: RC61-07 is Not run, and
+RFC-BPR-0052 and 0037 are not Auto-Verified.

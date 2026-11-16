@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1021"
 title: "Verify and close RFC-BPR-0028"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0653","BPR-0746"]
 closeout_for: ["RFC-BPR-0028"]
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md","reservation":"docs/issues/_reservations/BPR-1020--BPR-1022--f3b33a48cfc4.json","unmet_dependencies":{"BPR-0653":"Parked on human-review for its Windows capture at 100% display scale (criteria 2 and 4; the 150% capture was accepted 2026-09-25, decision 1aba8610), which needs the owner to change the display scale first; criterion 3 also owes one unattended Windows station pass at a single current main revision"},"owner_decisions":"2026-09-24, attended session cbd48b91 (hand-back 589): AC-01 amended to admit the entry rows (decision 007a6eb5); BPR-0746 AC1/AC2 withdrawn by amendment (decision 14327a18); private Qt API accepted (decision 8dde5e4d); 2026-09-25, attended session df5859c7 (hand-back at sequence 6): BPR-0653's station capture accepted at 150% only (decision 1aba8610), 100% still owed, no amendment"}
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md","reservation":"docs/issues/_reservations/BPR-1020--BPR-1022--f3b33a48cfc4.json","owner_decisions":"2026-09-24, attended session cbd48b91 (hand-back 589): AC-01 amended to admit the entry rows (decision 007a6eb5); BPR-0746 AC1/AC2 withdrawn by amendment (decision 14327a18); private Qt API accepted (decision 8dde5e4d); 2026-09-25, attended session df5859c7 (hand-back at sequence 6): BPR-0653's station capture accepted at 150% only (decision 1aba8610), 100% still owed, no amendment","owner_decision_20261116":"BPR-0653 Done by owner amendment (criteria 2 and 4 close on the 150% accept, decision 1aba8610); the closeout's own checks are still Not run"}
 ---
 
 # Verify and close RFC-BPR-0028
@@ -173,3 +173,33 @@ decides what the activation changes here.
   lands meanwhile. Criterion 3's station pass is best taken before
   [[BPR-1129]] lands. After that it would measure RFC-BPR-0052's title row
   instead.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. Waits only on BPR-0653's Windows 100% look (see that card's question).
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## BPR-0653 Done; this card Ready, its checks still owed (2026-11-16)
+
+Owner, 2026-11-16, on the hygiene audit: amend BPR-0653's AC-01 look to close
+on the 150% accept, then close RFC-BPR-0028 only if its other criteria are
+already satisfied, and otherwise card what is left. [[BPR-0653]] is Done by
+that amendment, and [[BPR-0746]] was already Done, so every dependency of
+this card is Done and it moves to Ready.
+
+RFC-BPR-0028 does not close in this round. Every row of the checklist above
+is Not run; nothing was run for this decision. What is left is this card's
+own work:
+
+- one integration pass over the selectors each row names, on `main`, recorded
+  with command, result and revision;
+- AC-01: since [[BPR-1129]] and [[BPR-1130]] landed, `main` draws
+  RFC-BPR-0052's title row and review bar, not the strip, entry rows and epoch
+  line AC-01 describes. Bind AC-01 to evidence from a revision before those
+  slices (BPR-0653's criterion 1 at `38cc26d7` is one), or record the clauses
+  RFC-BPR-0052 replaced as superseded, never as passed;
+- BPR-0653's Windows evidence is as its card records: criteria 2 and 4 by
+  the owner's amendment at 150%, not a 100% pass.
+
+After this card, [[BPR-2214]] records RFC-BPR-0037's status, which
+[[BPR-1135]] and [[BPR-1194]] wait on.

@@ -602,3 +602,18 @@ RFC-BPR-0037 then needs only its status recorded. The native
 Windows/Linux/station evidence named above is still owed at closeout. Under
 the owner's 2026-09-27 amendment the canonical-order gate no longer applies.
 The card stays in Backlog.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **STILL-VALID**. All 17 card dependencies are Done; it waits only on RFC-BPR-0028 (BPR-1021, BPR-0653) and RFC-BPR-0037.
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## After the owner's BPR-0653 decision (2026-11-16)
+
+Owner, 2026-11-16, on the hygiene audit: close RFC-BPR-0028, 0052 and 0061
+only where their other criteria are already satisfied, and card what is left.
+[[BPR-0653]] is Done by the owner's amendment, and [[BPR-1021]] is Ready. This
+card stays in Backlog: RFC-BPR-0028 and RFC-BPR-0037 are not yet
+Auto-Verified, and the native Windows, Linux and station evidence named in its
+checklist is still owed. RFC-BPR-0037's status record now has its own card,
+[[BPR-2214]].

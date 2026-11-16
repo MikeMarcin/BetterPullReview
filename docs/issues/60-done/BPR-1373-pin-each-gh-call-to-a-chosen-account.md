@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1373"
 title: "Pin each gh call to a chosen account, and list every gh account on Accounts & hosts"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
-metadata: {"owner_request":{"date":"2026-10-09","channel":"chat","quotes":["pin each gh call to a chosen account, and let the Accounts tab recognise every gh-authenticated account"]},"owner_decision":{"date":"2026-10-09","channel":"chat, relayed by the coordinator","quote":"Go with B","amendment":"docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md#owner-per-account-configuration-amendment--2026-10-09"},"reservation":"docs/issues/_reservations/BPR-1373--BPR-1373--6ccd2111f21d.json","related_cards":["BPR-1370","BPR-0909","BPR-0913","BPR-0914","BPR-0915"],"related_rfcs":["RFC-BPR-0015","RFC-BPR-0024","RFC-BPR-0032"],"filed_by":"rfc-implementer, at the coordinator's request"}
-parked_on: "human-review"
+metadata: {"owner_request":{"date":"2026-10-09","channel":"chat","quotes":["pin each gh call to a chosen account, and let the Accounts tab recognise every gh-authenticated account"]},"owner_decision":{"date":"2026-10-09","channel":"chat, relayed by the coordinator","quote":"Go with B","amendment":"docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md#owner-per-account-configuration-amendment--2026-10-09"},"reservation":"docs/issues/_reservations/BPR-1373--BPR-1373--6ccd2111f21d.json","related_cards":["BPR-1370","BPR-0909","BPR-0913","BPR-0914","BPR-0915"],"related_rfcs":["RFC-BPR-0015","RFC-BPR-0024","RFC-BPR-0032"],"filed_by":"rfc-implementer, at the coordinator's request","owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"close","quote":"the new account is good","cites":"BPR-2132"}}
 ---
 
 # BPR-1373: Pin each gh call to a chosen account
@@ -196,3 +195,27 @@ keychain entry, and its own `gh auth status` reports the missing login as
   frozen in this round: the owner was low on usage and asked for a freeze
   only if cheap. The freeze script has no Settings opening yet, and the app
   has no flag to seed a fixture inventory for the look.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. The pin is built (gh_cli_transport.cpp:994 `auth token --hostname --user`); only the owner's look at the Accounts & hosts list is pending. The account surface was rebuilt by BPR-2132 (Done; owner accepted the account step, session dcb3c9f7). Question for the owner: does that acceptance cover this look, or is a separate look at the multi-account list wanted?
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: closed on BPR-2132's accept
+
+Owner, 2026-11-16: "the new account is good". The only pending criterion
+was the owner's look at the Accounts & hosts list. The account surface was
+rebuilt by [[BPR-2132]] (Done), whose progression the owner accepted in
+attended session `dcb3c9f7` (server step, Add account, gh consent in place);
+the owner takes that acceptance as covering this look. Every other criterion
+passed as recorded in Verification above: the pin
+(`gh_cli_transport.cpp`, `auth token --hostname --user`), the silent-fallback
+refusals, the canary sweep, the pinned clone, the private directories and the
+live read as each account on BPR-Test.
+
+Three protected import records linked this card's Parked path (the
+`remember-cli-connections-v1` proposed amendment and the
+`strict-cli-account-publication-v1` draft and proposed amendments). As the
+local-draft-authoring pack did on 2026-11-13 (`d3e7cb8a8`), those links now
+name the card as `[[BPR-1373]]` instead of a lane path, and each pack's
+editable `LIVE_IMPORT.md` records why.

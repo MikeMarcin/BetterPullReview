@@ -2,17 +2,17 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2169"
 title: "The live second-account course waits for sign-in's outcome, not the account step"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0032"]
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-2169--BPR-2169--be5f904c510f.json","origin":"found 2026-11-13 on lane claude/v0-5-0-prerelease-targets-52265d diagnosing the RFC-BPR-0111 live draft course; the defect is on main since f0dfd707c (BPR-2132)"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-2169--BPR-2169--be5f904c510f.json","origin":"found 2026-11-13 on lane claude/v0-5-0-prerelease-targets-52265d diagnosing the RFC-BPR-0111 live draft course; the defect is on main since f0dfd707c (BPR-2132)","owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"move to Done"}}
 ---
 
 # BPR-2169: The live second-account course waits for sign-in's outcome, not the account step
 
-Belongs to RFC-BPR-0032's account setup (amendment r1, [BPR-2132](../60-done/BPR-2132-account-setup-in-one-surface.md)), whose commit `f0dfd707c` moved `tests/end_to_end/live_second_account_course.cpp` onto the account setup driver.
+Belongs to RFC-BPR-0032's account setup (amendment r1, [BPR-2132](BPR-2132-account-setup-in-one-surface.md)), whose commit `f0dfd707c` moved `tests/end_to_end/live_second_account_course.cpp` onto the account setup driver.
 
 ## Defect
 
@@ -31,3 +31,22 @@ Lane commit `0a85bc2b5` ("Live course sign-in waits for the outcome, not the acc
 ## Notes
 
 Verified on the lane after the fix (2026-11-13): the reader course signs in (`cli-account:MikeMarcin (active in gh)`, `cli-account:MikeMarcinTest`, `setup-connects:1`, `signed-in-card:MikeMarcin kind=GitHub.com, GitHub CLI`); the live draft course then pushed and created draft pull requests on BPR-Test (#181, #182, closed after).
+
+## Hygiene audit 2026-11-15
+
+Verdict: **DONE-ALREADY**. Lane fix 0a85bc2b5 is an ancestor of main. tests/end_to_end/live_second_account_course.cpp:284 reads `driver.offered()`, and the lane verified the run on 2026-11-13. The live re-run on main itself is not recorded.
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: Done
+
+Owner, 2026-11-16 (on the hygiene audit, relayed by the coordinator): move to
+Done.
+
+The fix is on `main`: `0a85bc2b5` is an ancestor of `main`, and both course
+files are byte-identical on `main` (`176d127e8`) and on the lane
+(`75539b306`): `git diff main claude/v0-5-0-prerelease-targets-52265d --
+tests/end_to_end/live_second_account_course.cpp
+tests/end_to_end/account_setup_course.hpp` is empty. The lane's live run of
+2026-11-13 (Notes above) therefore exercised the code `main` carries. A
+separate live re-run from a `main` build was not taken; the owner closed the
+card without it. The course is opt-in and never a registered row.

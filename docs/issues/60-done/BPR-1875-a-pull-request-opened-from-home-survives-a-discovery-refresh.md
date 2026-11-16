@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1875"
 title: "A pull request opened from Home is not cancelled by a discovery refresh"
-status: "Parked"
-parked_on: "awaiting-live-github"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
-metadata: {"kind":"defect","found_by":"owner, 2026-11-05, split from BPR-1873","frontend_design":"not loaded: no surface the owner sees changed; diagnostics and a fixture course only"}
+metadata: {"kind":"defect","found_by":"owner, 2026-11-05, split from BPR-1873","frontend_design":"not loaded: no surface the owner sees changed; diagnostics and a fixture course only","owner_closure":{"date":"2026-11-16","source":"owner decisions on the 2026-11-15 hygiene audit, relayed by the coordinator","decision":"close"}}
 acceptance: [{"criterion":"AC1 On fixtures, an open started from Home, then a discovery refresh, completes without cancellation or waiting for the refresh's retained read","outcome":"pass","revision":"f23601054","evidence":{"kind":"command","command":"QT_QPA_PLATFORM=offscreen ctest --preset dev -R '^(application_home_open_feedback_public_path|application_home_open_feedback_cli_public_path)$' -V","detail":"The composed application on the fixture network, native (device) account and CLI account. The open's first answers are held 3 s each and the refresh's batched retained read (ListHomePullRequests, new fixture hold RetainedMilliseconds) 15 s. Refresh begun 200 ms after the open: #17 opened in 9.1 s (native) / 9.1 s (CLI); refresh begun 2 s before the open, its retained read on the wire: #4001 opened in 9.1 s / 9.1 s (native: the retained read preempted, preempted=1; CLI: beside it, preempted=0), both with the refresh still running. Three held first answers make the 9 s; the limit is 13 s, under the 15 s hold. No pull_request_cancelled status, no fixture-side cancel, and the diagnostics file names no cancelled read other than the course's own Cancel presses."}},{"criterion":"AC2 Every github.pull_request.cancelled names its cause","outcome":"pass","revision":"f23601054","evidence":{"kind":"command","command":"ctest --preset dev -R '^(application_github_window_read_host|github_provider|application_release_maintenance|application_home_open_feedback_public_path|application_home_open_feedback_cli_public_path)$'","detail":"Each cancelled line's detail is cancel_cause=CAUSE (application::pull_request_cancel_cause): reviewer, restoration, review_closed, session_retired, window_closed, provider_stopped, provider_closing, transport. test_cancelled_read_names_its_cause drives every cause through the window read host and checks every cancelled line parses; the provider test names a transport's own cancellation transport and a cancel_pull_request stop_requested; the export keeps exactly a known cause and omits any other word; the composed course reads the profile's diagnostics file and finds four cancel_cause=reviewer lines (native) and none (CLI)."}},{"criterion":"AC3 python3 scripts/verify_documentation.py --root . passes","outcome":"pass","revision":"f23601054","evidence":{"kind":"command","command":"python3 scripts/verify_documentation.py --root .","detail":"DOCUMENTATION_OK on this branch merged with origin/main. The gate reads the counter's high water from every local branch. An unlanded branch (d823bb0a9, BPR-1878's allocation) holds BPR-1879, so the gate passes once that allocation lands. Raising the counter to BPR-1879 in the working tree only gives DOCUMENTATION_OK, and there are no other findings."}}]
 ---
 
@@ -88,3 +87,17 @@ pressed, the cause is below the window, in the transport or in another holder
 of the provider, and a follow-up card should start there. This card adds no
 behaviour change for it, because none of the traced paths is reached from a
 refresh.
+
+## Hygiene audit 2026-11-15
+
+Verdict: **UNSURE**. The diagnostics are in place: `cancel_cause` is logged and a course covers a refresh during an open. The real-network cancellation has not been explained and is waiting for a recurrence. Its parked_on `awaiting-live-github` is really 'awaiting a recurrence in the owner's use'. Question for the owner: keep it parked, or close it until it recurs?
+This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner decision 2026-11-16: closed until it recurs
+
+Owner, 2026-11-16 (on the hygiene audit, relayed by the coordinator): close.
+AC1 to AC3 pass as recorded. The real-network cancellation the owner saw is
+still unexplained, but the card was never waiting on GitHub: it was waiting
+for the cancellation to happen again. If it does, the
+`github.pull_request.cancelled` line's `cancel_cause` names the path, and a
+new card starts from that line as Open above describes.

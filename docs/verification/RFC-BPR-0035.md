@@ -11,7 +11,7 @@ Accepted bounded milestones are
 `rfc0035-auto-updater/m2-download-staging` (child `/root/rfc0035_m2`), followed by
 `m3-install-recovery` (child `/root/rfc0035_m3_resume`). M4 available-target
 engineering is committed at `518c384a`; its live-service/dependency exit is pending.
-The [live closeout](../issues/10-backlog/BPR-0912-close-rfc-0035.md) retains all
+The [live closeout](../issues/20-ready/BPR-0912-close-rfc-0035.md) retains all
 full RFC acceptance; this ledger describes bounded component evidence only.
 
 ## Milestone 4 owner acceptance amendment and reassessment (mandate r3)
@@ -701,7 +701,7 @@ does not claim an unbuilt wizard, attended usability verdict or Intel behavior.
 No required human or independent review is being silently marked accepted.
 
 BPR-0949 is Blocked on `intel-and-private-service-qualification`; BPR-0911/0912
-remain Backlog. The [closeout](../issues/10-backlog/BPR-0912-close-rfc-0035.md)
+remain Backlog. The [closeout](../issues/20-ready/BPR-0912-close-rfc-0035.md)
 reconciles all eight criteria. RFC-0035/index stay Proposed: RFC-0014 is Proposed
 and depends on Proposed RFC-0013; canonical closure begins at RFC-0008/BPR-0242.
 M4's exit and all its whole-card obligations remain pending. No plan criterion,

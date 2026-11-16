@@ -33,12 +33,12 @@ things that held it open:
 - **[[BPR-0746]] is Done** by an owner amendment that withdraws its
   unobtainable AC1 and AC2. The amendment is recorded as an amendment, not as
   a pass.
-- **[[BPR-0653]]**, the Windows title row, is still parked on human-review.
-  On 2026-09-25 the owner accepted the station's Windows capture at 150%
-  (decision `1aba8610`). The capture at 100% display scale is still owed, and
-  so is one Windows station pass for its criterion 3; [[BPR-1021]] lists what
-  blocks the closeout. The owner accepted Qt's private Windows native
-  interface, and its criterion 1 passes under the amended AC-01.
+- **[[BPR-0653]] is Done** by an owner amendment of 2026-11-16: its Windows
+  look closes on the station capture the owner accepted at 150% on 2026-09-25
+  (decision `1aba8610`); 100% display scale was never pictured, and that is
+  recorded as an amendment, not a pass. The owner accepted Qt's private Windows
+  native interface, and its criterion 1 passes under the amended AC-01.
+  [[BPR-1021]] is Ready; its checks are not yet run.
 
 ## Current attended pointer, 2026-09-12 (d30)
 
@@ -998,3 +998,15 @@ reply", and Discuss's Reply, are amended to include outdated threads:
 
 The amendment adds a reply route; it does not change this RFC's closeout
 dependencies or its other criteria.
+
+## Owner decision, 2026-11-16: BPR-0653 closes on the 150% accept
+
+On the 2026-11-15 hygiene audit's question, the owner, 2026-11-16: "if you can
+do it do it" (take the Windows 100% look), and otherwise amend the AC-01 look
+to close on the 150% accept. The 100% look needs the owner's JaegAW display at
+100% and a real window on the owner's desktop, which no agent may set or
+drive, so [[BPR-0653]]'s criteria 2 and 4 close on the 150% capture the owner
+accepted on 2026-09-25 (decision `1aba8610`). AC-01's wording is unchanged: it
+names no display scale. The Windows half of its evidence is the 150% capture,
+recorded as an amendment, not as a 100% pass. This RFC's closeout,
+[[BPR-1021]], is Ready and still has every check to run.
