@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2204"
 title: "The import preview matches the accepted mockup B"
-status: "Backlog"
+status: "Parked"
+parked_on: "human-review"
 rfcs: ["RFC-BPR-0112"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-2204--BPR-2204--bd14773b7352.json","design":"docs/design/workflow-import-v1/README.md","follows":"BPR-2032","accepted_look":"workflow-import-v003"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-2204--BPR-2204--bd14773b7352.json","design":"docs/design/workflow-import-v1/README.md","follows":"BPR-2032","accepted_look":"workflow-import-v003","widened":"Export Profile Settings in the same language (coordinator, 2026-11-15)","built":"7d036ba93"}
 depends_on: ["BPR-2032"]
 ---
 
@@ -103,3 +104,52 @@ Prompts page's in Dark, Light and both high-contrast themes) and its
 no-sideways-pan check; add checks for the row alignment (13) and the
 scroll reset (9). Native Cocoa renders in Dark and Light, compared with
 `png/b-dark.png` and `png/b-light.png`, then one owner Accept/Reject.
+
+## Built and parked (2026-11-15)
+
+Built at `7d036ba93` on `claude/v0-5-0-prerelease-targets-52265d`. Scope
+widened by the coordinator to Export Profile Settings, which has no mockup
+and is drawn in mockup B's language. All 22 gaps are closed; the shared
+parts are `src/adapters/qt/src/profile_settings_parts.{hpp,cpp}`. Every
+colour is a palette role, the agent accent, or a theme role
+(`state_unread` New, `state_verified` Updated/Edited/New action,
+`state_attention` the added effect and Not saved, `state_defect` the refused
+mark) of the theme the dialog inherits, made readable with
+`readable_signal_ink`; the palette inheritance of `431c119b2` is kept.
+
+Gap 10: the mockup is followed. A workflow's tick is its choice, and its
+detail has no Update / Leave out. Agents keep their Add / Use / Leave out
+control (mockup B draws radio buttons there; not in this card's list).
+
+Export, as designed here: the title close over a sentence that wraps short;
+the five sections as the import list's rows in one rounded well (section
+rows semibold with their line, items indented so their tick sits under the
+section's name, agents with the sparkle, Edited and Not saved as tinted
+pills, the unsaved prompt dimmed with no tick, a section's tick shown
+mixed from its ticked items); Choose every prompt under the list; at the
+right the Label field, "The file" with its warning line, and the exact text
+in its own well; the footer "Puts 2 agents, 1 prompt, and 2 repositories in
+the file, 1.61 KiB." beside Cancel and Export….
+
+Verification at `7d036ba93`: `qt_agent_configuration_dialogs` (new checks:
+the two sides of a row level (13), another item opens at its top (9), tick
+as a workflow's choice, the added effect in the caution colour without Does
+more, New action tinting its cell on the task's line, the refused mark, the
+list on the Prompts page's panel and the detail on the window by role and
+by pixels in Dark, Light and both high-contrast themes, export's wells on
+the panel in all four), `qt_profiles_settings_panel`,
+`application_review_round_trip_composition_contract` (app pin resealed for
+the look's `--attended-profiles-look` chaining) and `architecture_boundaries`
+pass; the dialogs test passes offscreen at 100 and 200 percent and natively
+in Dark and Light; `verify_documentation` passes.
+
+Owner look `profile-settings-dialogs-v001`: session
+`b27beb61d941c378e9fa1b2e0fd9dbdb`, state
+`/Users/jaeger/.attended-review-state/profile-settings-dialogs-v001-2026-11-15/state`
+(URL in that directory's `serve.log`), cursor 9, host PID 54853 (Tailscale
+child 54863). Frozen root `/Users/jaeger/profile-settings-dialogs-v001.vsd_9gwm`
+from `7d036ba93` (executable SHA-256 `3b8e2863d470…`); its check reached
+`ATTENDED_PROFILES_SHOWN:profiles=2:page=profiles:share=shown` with the
+workflow look fixture imported and the Fixture agent only. Two questions,
+Accept or Reject each: `BPR-2204-import-preview` and `BPR-2204-export`, with
+native Dark and Light renders beside mockup B.
