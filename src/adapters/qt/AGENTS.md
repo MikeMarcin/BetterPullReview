@@ -89,6 +89,11 @@ themes, rendering mechanics, and event translation.
   2026-11-10 ("some kind of theme disparity ... between what I see and your
   offscreen renders") came from offscreen renders: Fusion, always Light,
   another font database.
+- On Windows every Qt test executable of `tests/adapters_qt` runs offscreen
+  with the Windows fonts (`QT_QPA_FONTDIR` from `%WINDIR%` unless set) and
+  Segoe UI 9 pt (`windows_fonts_startup.cpp`, [[BPR-2200]]). Without them
+  offscreen falls back to an unnamed font twice as wide. Do not set fonts per
+  test; a layout that only holds in one font is a product bug ([[BPR-2199]]).
 - Treat `assets/dif/source/` plus the manifest as the editable Dif authority;
   never hand-edit `assets/dif/generated/` or use a generative prompt as the
   regeneration source.

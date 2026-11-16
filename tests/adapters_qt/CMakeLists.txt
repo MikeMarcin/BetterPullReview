@@ -2982,3 +2982,20 @@ bpr_enable_hardening(test_better_pull_review_qt_ask_menu_tests)
 bpr_enable_warnings(test_better_pull_review_qt_ask_menu_tests)
 bpr_add_network_isolated_test(NAME qt_ask_menu COMMAND test_better_pull_review_qt_ask_menu_tests)
 set_tests_properties(qt_ask_menu PROPERTIES PASS_REGULAR_EXPRESSION "ask-menu-tests:pass")
+
+# [[BPR-2200]]. On Windows every Qt test executable of this directory carries
+# windows_fonts_startup.cpp: the offscreen platform finds the Windows fonts
+# (QT_QPA_FONTDIR, from %WINDIR% unless already set) and the application font
+# is Segoe UI 9 pt, as a desktop gives, not an unnamed fallback twice as wide.
+# Last in the file, so every executable above is in the list.
+if(WIN32)
+    get_property(bpr_qt_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(bpr_qt_test_target IN LISTS bpr_qt_test_targets)
+        get_target_property(bpr_qt_test_type "${bpr_qt_test_target}" TYPE)
+        get_target_property(bpr_qt_test_links "${bpr_qt_test_target}" LINK_LIBRARIES)
+        # As the native look's: only an executable with a Qt GUI application.
+        if(bpr_qt_test_target MATCHES "^test_" AND bpr_qt_test_type STREQUAL "EXECUTABLE" AND "${bpr_qt_test_links}" MATCHES "Qt6::Widgets|Qt6::Gui|AdapterQt")
+            target_sources("${bpr_qt_test_target}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/windows_fonts_startup.cpp")
+        endif()
+    endforeach()
+endif()

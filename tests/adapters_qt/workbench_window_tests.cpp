@@ -68,7 +68,6 @@
 #include <QContextMenuEvent>
 #include <QCursor>
 #include <QDialogButtonBox>
-#include <QDir>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
@@ -25540,33 +25539,14 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
-#if defined(_WIN32)
-	// [[BPR-2197]]. The title-row courses measure the title row and the
-	// review bar against fixed window widths, so they need the font a
-	// Windows desktop gives: Segoe UI 9 pt. Qt's offscreen platform, which
-	// the courses run on, has no fonts on Windows unless it is told where
-	// they are: every font resolves to an unnamed fallback about twice as
-	// wide, and the rows yield at widths no desktop sees (the title at 1600,
-	// the review bar's words at 1280). Only these courses take the fonts:
-	// the window's other courses were written against the fallback.
-	const auto titleRow = std::ranges::any_of(std::span{ argv, static_cast<std::size_t>(argc) }, [](const char* const aArgument) {
-		return std::string_view{ aArgument } == "--title-row";
-	});
-	if (titleRow && qEnvironmentVariableIsEmpty("QT_QPA_FONTDIR")) {
-		const auto windows = qEnvironmentVariable("WINDIR", QStringLiteral("C:/Windows"));
-		qputenv("QT_QPA_FONTDIR", QDir{ windows }.filePath(QStringLiteral("Fonts")).toLocal8Bit());
-	}
-#endif
+	// [[BPR-2197]], [[BPR-2200]]. On Windows the offscreen courses use the
+	// Windows fonts and Segoe UI 9 pt, as a desktop does: every Qt course of
+	// this directory takes them from windows_fonts_startup.cpp.
 	QApplication application{ argc, argv };
-#if defined(_WIN32)
-	if (titleRow) {
-		QApplication::setFont(QFont{ QStringLiteral("Segoe UI"), 9 });
-	}
-#endif
-	const auto arguments  = QCoreApplication::arguments().mid(1);
-	const auto listCases  = arguments.contains(QStringLiteral("--list-cases"));
-	const auto traceCases = qEnvironmentVariableIsSet("BPR_TEST_CASE_TRACE");
-	const auto selectors  = QStringList{
+	const auto   arguments  = QCoreApplication::arguments().mid(1);
+	const auto   listCases  = arguments.contains(QStringLiteral("--list-cases"));
+	const auto   traceCases = qEnvironmentVariableIsSet("BPR_TEST_CASE_TRACE");
+	const auto   selectors  = QStringList{
 		QStringLiteral("--thread-scroll-stability"),
 		QStringLiteral("--current-file-unread-badge"),
 		QStringLiteral("--center-ribbon-width"),
