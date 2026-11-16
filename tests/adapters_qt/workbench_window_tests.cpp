@@ -14705,6 +14705,14 @@ namespace {
 		auto* const tools   = window.findChild<QWidget*>(QStringLiteral("workbenchTourTools"));
 		expect(editor->mode() == qt::tour_editor_mode::route && outline->isVisible() && outline->count() == 2 && outline->verticalScrollBar()->maximum() == 0,
 			   "the Tour tab is the route: every stop in view, no list of its own to scroll");
+		// [[BPR-2199]]. The route's height is summed from each row's measure,
+		// so each row measures what the list lays it out at, in any font:
+		// measured at a guessed width, a narrow font's excerpt took one line
+		// where the drawer gave it two, and the route scrolled.
+		for (int row = 0; row < outline->count(); ++row) {
+			expect(outline->sizeHintForRow(row) == outline->visualItemRect(outline->item(row)).height(),
+				   "route row " + std::to_string(row) + " measures as tall as the list lays it out");
+		}
 		// [[BPR-1805]]. A written stop opens in place to read, its pencil beside it.
 		expect(editor->stop_view().Mode == core::tour_stop_view_mode::read && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()) && outline->itemWidget(outline->item(1)) != nullptr,
 			   "the current stop opens in place on the route");
