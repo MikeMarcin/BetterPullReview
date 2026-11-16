@@ -129,6 +129,7 @@ namespace bpr::qt {
 	private:
 		void refresh();
 		void match_fonts();
+		void fit_line();
 		void tick();
 		void stop_all();
 		void rebuild_menu();

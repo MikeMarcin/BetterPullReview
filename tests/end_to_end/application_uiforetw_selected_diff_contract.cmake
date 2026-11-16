@@ -325,7 +325,6 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         next_file_rect_in_bar
         private_progress_rect_in_bar
         compose_review_rect_in_bar
-        comment_rect_in_bar
         comparison_rect_in_window
         left_pane_rect_in_window
         right_pane_rect_in_window
@@ -384,7 +383,6 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		next_file_rect_in_bar
 		private_progress_rect_in_bar
 		compose_review_rect_in_bar
-		comment_rect_in_bar
 	)
 		math(EXPR ${control}_right "${${control}_x} + ${${control}_width}")
 	endforeach()
@@ -410,14 +408,15 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		)
 	endif()
 	# [[BPR-1129]]. The review bar reads, from its left, the comparison's menu,
-	# the file pair, the change pair and private progress; Compose review and
-	# Comment close its right, after a flexible gap. [[BPR-1700]]: with no
+	# the file pair, the change pair and private progress; Compose review
+	# closes its right, after a flexible gap ([[BPR-2176]] took Comment off
+	# the bar). [[BPR-1700]]: with no
 	# review in progress Compose review's words take that gap's room as far as
 	# they fit ("Approve…" at 1280, 35 pixels from private progress on macOS),
 	# so the gap is bound by the bar's own group separation, 8 pixels, rather
 	# than by the 100 pixels an icon left.
 	math(EXPR bar_right_gap
-		"${review_bar_rect_in_window_width} - ${comment_rect_in_bar_right}")
+		"${review_bar_rect_in_window_width} - ${compose_review_rect_in_bar_right}")
 	math(EXPR bar_gap_width
 		"${compose_review_rect_in_bar_x} - ${private_progress_rect_in_bar_right}")
 	if(comparing_rect_in_bar_x GREATER 160
@@ -427,7 +426,6 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 			OR previous_change_rect_in_bar_right GREATER next_change_rect_in_bar_x
 			OR next_change_rect_in_bar_right GREATER private_progress_rect_in_bar_x
 			OR private_progress_rect_in_bar_right GREATER compose_review_rect_in_bar_x
-			OR compose_review_rect_in_bar_right GREATER comment_rect_in_bar_x
 			OR bar_right_gap GREATER 20
 			OR bar_gap_width LESS 8)
 		message(FATAL_ERROR

@@ -223,6 +223,27 @@ auto main(int argc, char** argv) -> int
 	auto* const picker   = footer->picker();
 	const auto  pickerAt = [&] { return picker->mapTo(&window, QPoint{ 0, 0 }); };
 
+	// [[BPR-2190]]. The footer fits the status line: with it the bar is as tall
+	// as with the review's line alone, so the comparison above keeps its
+	// height floor. The parts' heights are printed for the record.
+	QMainWindow lineOnly;
+	auto* const lineAlone = new QLabel{ review->text(), &lineOnly };
+	lineAlone->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+	lineOnly.statusBar()->addWidget(lineAlone, 1);
+	lineOnly.resize(1100, 200);
+	lineOnly.show();
+	settle();
+	const auto statusLine = lineOnly.statusBar()->height();
+	lineOnly.hide();
+	std::cout << "agent-footer:heights status_line=" << statusLine << " with_footer=" << window.statusBar()->height() << " footer=" << footer->height()
+			  << " picker=" << picker->sizeHint().height() << " stop=" << footer->stop_button()->sizeHint().height() << " runs=" << footer->runs_button()->sizeHint().height()
+			  << " settings=" << footer->settings_button()->sizeHint().height() << " cost=" << footer->cost_label()->sizeHint().height() << " words_fm=" << picker->fontMetrics().height() << " words_pt=" << picker->font().pointSizeF() << " line_fm=" << lineOnly.statusBar()->fontMetrics().height() << " line_pt=" << lineOnly.statusBar()->font().pointSizeF() << '\n';
+	const auto fitsStatusLine = [&](const std::string& aState) {
+		expect(window.statusBar()->height() == statusLine,
+			   aState + ": the footer keeps the status bar at the line's height, " + std::to_string(window.statusBar()->height()) + " against " + std::to_string(statusLine));
+	};
+	fitsStatusLine("idle");
+
 	// Idle: the picker, nothing running, no cost yet.
 	expect(picker->isVisible() && picker->full_text().startsWith(QStringLiteral("Claude Code · Opus 5.5")) && !footer->stop_button()->isVisible() && !footer->runs_button()->isVisible() && footer->cost_label()->text().isEmpty(),
 		   "idle: the chosen agent in the picker, nothing running, no cost");
@@ -271,6 +292,7 @@ auto main(int argc, char** argv) -> int
 	expect(footer->runs_button()->isVisible() && footer->stop_button()->isVisible() && footer->stop_button()->text() == QStringLiteral("Stop all") && footer->runs_button()->text().contains(QStringLiteral("2 running")) && footer->runs_button()->text().contains(QStringLiteral("Agent tab, Enhance")),
 		   "two runs: a count naming where each started");
 	expect(pickerAt() == idleAt, "the picker keeps its place with two runs");
+	fitsStatusLine("two runs");
 	emit footer->runs_menu()->aboutToShow();
 	auto stops = 0;
 	for (auto* const item : footer->runs_menu()->actions()) {
@@ -310,6 +332,7 @@ auto main(int argc, char** argv) -> int
 	// Owner note on the footer look ("Why is it red?"): a failed check is
 	// drawn in the failed check's colour; an agent not checked yet is quiet.
 	expect(!picker->attention_failed(), "a need given without a failed check is drawn quiet");
+	fitsStatusLine("setup");
 	render(window, root, "needs-setup");
 	footer->present_setup(QStringLiteral("check failed"), true);
 	settle();

@@ -8,6 +8,7 @@
 
 #include <QAction>
 #include <QEvent>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -208,9 +209,7 @@ namespace bpr::qt {
 		Cost->setMinimumWidth(Cost->fontMetrics().horizontalAdvance(QStringLiteral("$00.00")));
 		row->addWidget(Cost);
 
-		// One height for every state, so the status bar, and the window above
-		// it, never moves when a run starts or ends.
-		setFixedHeight(std::max({ Picker->sizeHint().height(), StopButton->sizeHint().height(), RunsButton->sizeHint().height(), SettingsButton->sizeHint().height(), Cost->sizeHint().height() }));
+		fit_line();
 		Ticker = new QTimer{ this };
 		Ticker->setInterval(1000);
 		connect(Ticker, &QTimer::timeout, this, [this] { tick(); });
@@ -340,6 +339,22 @@ namespace bpr::qt {
 		}
 		Elapsed->setMinimumWidth(Elapsed->fontMetrics().horizontalAdvance(QStringLiteral("00:00")));
 		Cost->setMinimumWidth(Cost->fontMetrics().horizontalAdvance(QStringLiteral("$00.00")));
+		fit_line();
+	}
+
+	void agent_footer::fit_line()
+	{
+		// [[BPR-2190]]. One height for every state, and that height is a line
+		// of the footer's words: no taller than the review's line beside it in
+		// the status bar. The bar, and the comparison above it, keep their
+		// height whether the footer shows the picker, a run with Stop all,
+		// several runs, Agent settings… or the cost. Each control draws its
+		// chip or pill in that line.
+		const auto line = QFontMetrics{ Picker->font() }.height() + 2;
+		for (QWidget* const control : { static_cast<QWidget*>(Picker), static_cast<QWidget*>(StopButton), static_cast<QWidget*>(RunsButton), static_cast<QWidget*>(SettingsButton) }) {
+			control->setFixedHeight(line);
+		}
+		setFixedHeight(line);
 	}
 
 	void agent_footer::refresh()

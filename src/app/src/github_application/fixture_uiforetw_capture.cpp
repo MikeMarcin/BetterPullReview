@@ -1070,39 +1070,43 @@ namespace bpr::app {
 			&& named(17, "workbenchCaptionButtonsAction")
 	#endif
 			;
-		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
-		// comparison's menu and a rule, the file pair with its position, the
-		// change pair with its position, a gap, the progress track holding
-		// Seen, Read, Accept file ([[BPR-1507]]) and private progress on one
-		// rail ([[BPR-1578]]), a spacer, the
-		// review chip ([[BPR-1345]], hidden with no review in progress),
-		// Compose review and Comment. Review details is the comparison's
-		// menu's.
+		// [[BPR-1129]]. The review bar, left to right: an inset, the local
+		// draft's leading controls (hidden over a pull request), Updates, the
+		// comparison's menu, Ask ([[BPR-2164]], hidden until it has asks) and a
+		// rule, the file pair with its position, the change pair with its
+		// position, a gap, the progress track holding Seen, Read, Accept file
+		// ([[BPR-1507]]) and private progress on one rail ([[BPR-1578]]), the
+		// hidden rule and the view picker (owner, 2026-11-12), Go to
+		// header/source ([[BPR-1815]]), a spacer, the local draft's publish
+		// controls (hidden over a pull request), the review chip ([[BPR-1345]],
+		// hidden with no review in progress) and Compose review. [[BPR-2176]]
+		// took Comment off the bar. Review details is the comparison's menu's.
 		const auto* const acceptFile          = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto        exactReviewBarOrder = reviewBarActions.size() == 19
+		const auto        exactReviewBarOrder = reviewBarActions.size() == 21
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
-			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
-			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
-			&& widgetActionNamed(reviewBarActions, 3, "reviewBarComparisonDividerAction")
-			&& widgetActionNamed(reviewBarActions, 4, "workbenchStripFilePositionAction")
-			&& reviewBarActions[5] == previousFile
-			&& reviewBarActions[6] == nextFile
-			&& widgetActionNamed(reviewBarActions, 7, "workbenchStripChangePositionAction")
-			&& reviewBarActions[8] == previousChange
-			&& reviewBarActions[9] == nextChange
-			&& widgetActionNamed(reviewBarActions, 10, "reviewBarProgressGapAction")
-			&& widgetActionNamed(reviewBarActions, 11, "workbenchProgressTrackAction")
-			&& acceptFile != nullptr && acceptFile->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
+			&& widgetActionNamed(reviewBarActions, 1, "reviewBarLocalDraftAction")
+			&& widgetActionNamed(reviewBarActions, 2, "reviewBarUpdatesAction")
+			&& widgetActionNamed(reviewBarActions, 3, "reviewBarComparingAction")
+			&& widgetActionNamed(reviewBarActions, 4, "reviewBarAskAction")
+			&& widgetActionNamed(reviewBarActions, 5, "reviewBarComparisonDividerAction")
+			&& widgetActionNamed(reviewBarActions, 6, "workbenchStripFilePositionAction")
+			&& reviewBarActions[7] == previousFile
+			&& reviewBarActions[8] == nextFile
+			&& widgetActionNamed(reviewBarActions, 9, "workbenchStripChangePositionAction")
+			&& reviewBarActions[10] == previousChange
+			&& reviewBarActions[11] == nextChange
+			&& widgetActionNamed(reviewBarActions, 12, "reviewBarProgressGapAction")
+			&& widgetActionNamed(reviewBarActions, 13, "workbenchProgressTrackAction")
+			&& acceptFile != nullptr && acceptFile->parentWidget() == reviewBar->widgetForAction(reviewBarActions[13])
 			&& acceptFile->defaultAction() == window->accept_action()
-			&& reviewControls->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
-			// [[BPR-1815]]. A rule, the layout toggle and Go to header/source.
-			&& widgetActionNamed(reviewBarActions, 12, "reviewBarViewDividerAction")
-			&& reviewBarActions[13] == window->one_pane_action()
-			&& reviewBarActions[14] == window->header_source_action()
-			&& widgetActionNamed(reviewBarActions, 15, "reviewBarSpacerAction")
-			&& reviewBarActions[16] == window->review_chip_action()
-			&& reviewBarActions[17] == window->compose_review_action()
-			&& reviewBarActions[18] == window->comment_action()
+			&& reviewControls->parentWidget() == reviewBar->widgetForAction(reviewBarActions[13])
+			&& widgetActionNamed(reviewBarActions, 14, "reviewBarViewDividerAction")
+			&& widgetActionNamed(reviewBarActions, 15, "workbenchViewPickerAction")
+			&& reviewBarActions[16] == window->header_source_action()
+			&& widgetActionNamed(reviewBarActions, 17, "reviewBarSpacerAction")
+			&& widgetActionNamed(reviewBarActions, 18, "reviewBarLocalPublishAction")
+			&& reviewBarActions[19] == window->review_chip_action()
+			&& reviewBarActions[20] == window->compose_review_action()
 			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
 		if (!exactRowOrder || !exactReviewBarOrder) {
 			// [[BPR-0859]]. An exact row order that no longer holds names the
@@ -1499,8 +1503,6 @@ namespace bpr::app {
 			rectangle_json(QRect{ reviewControls->mapTo(reviewBar, QPoint{ }), reviewControls->size() }),
 			"compose_review_rect_in_bar",
 			rectangle_json(reviewBar->actionGeometry(window->compose_review_action())),
-			"comment_rect_in_bar",
-			rectangle_json(reviewBar->actionGeometry(window->comment_action())),
 			"review_details_in_comparison_menu",
 			window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails),
 			"comparison_rect_in_window",
