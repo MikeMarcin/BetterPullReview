@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2199"
 title: "On Windows, the Tour tab shows every stop of the route with Segoe UI 9 pt"
-status: "Ready"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -73,3 +73,48 @@ or run ctest from a desktop session.
 the fonts loaded (after BPR-2200, the ordinary window course), and on macOS
 and Linux. A native render of the Tour tab at Segoe UI 9 pt if the layout
 changes.
+
+## Cause and fix (2026-11-15)
+
+The font was not the fault; it only exposed one. `fit_route` sets the
+route's height to the sum of `sizeHintForRow` over its stops.
+`sizeHintForRow` hands the delegate an option with no rect, so
+`route_delegate::sizeHint` measured each stop's excerpt at a guessed 300
+pixels. The list itself lays the rows out at its viewport's width, 268 in
+this drawer. An excerpt that fits one line at 300 but needs two at 268 was
+summed one line short, and the route scrolled by the difference. In this
+case that was 72 against 84 pixels for the first stop, with a scroll maximum
+of 8.
+
+The offscreen fallback font is about twice as wide, so its excerpt took
+two lines at either width and the case passed. The same fault reproduced
+on macOS with narrow fonts: Helvetica 8 and 9, Arial 9 and Times 9 failed,
+while Helvetica 10 to 14 and Verdana 9 passed.
+
+Fix (`4bfbbd063`, presentation only): with no width in the option, the
+delegate measures at the view's viewport width, and only falls back to 300
+when it has no view. The case keeps its check unchanged and adds the
+invariant that held the bug: every route row measures what the list lays it
+out at (`sizeHintForRow(row) == visualItemRect(row).height()`).
+
+## Verification
+
+- macOS, before the fix, with the application font forced through a
+  temporary local hook (not committed): Helvetica 9 had route rows 72/84
+  and scroll maximum 8, and failed. After: rows 84/84 and maximum 0, and
+  every font listed above passes.
+- macOS `dev`, after the fix: `qt_workbench_window_scale_100/125/200`,
+  `qt_drawer_surfaces_fit_scale_100/125/200`, every `qt_*tour*` course
+  (`qt_review_tour_*`, `qt_tour_*`) and
+  `application_local_draft_tour_desktop_public_path`, 20 of 20 passed.
+  `qt_workbench_window_scale_*` passed again at `2c17d36f6`.
+- Windows station, Release, `18a70bb96`, with the fonts loaded and Segoe UI
+  9 pt through BPR-2200's startup:
+  `BPR_WORKBENCH_ONLY_CASE=test_the_tour_is_a_route_expanding_to_its_page`
+  passes. With BPR-2200's 1280 correction, the whole window course passes
+  at 100%, 125% and 200%. It was run directly with ctest's environment,
+  since ctest's sandbox cannot start a process over SSH.
+- Linux: not run. The change is platform-neutral Qt layout, and the macOS
+  courses above cover it.
+- No layout change, so no new render: the route now holds the height it
+  was always meant to.

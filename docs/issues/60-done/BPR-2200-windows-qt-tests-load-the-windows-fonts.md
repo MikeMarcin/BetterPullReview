@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2200"
 title: "On Windows, the Qt tests load the platform's fonts under offscreen"
-status: "Ready"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -91,3 +91,71 @@ screen is about 1028 pixels wide, and Windows clamps larger windows to it.
 
 The Windows Qt courses on the station with the fonts loaded, each new
 failure recorded. macOS and Linux unchanged.
+
+## What was done (2026-11-15)
+
+- `tests/adapters_qt/windows_fonts_startup.cpp` (`18a70bb96`), linked on
+  Windows into every `test_` executable of `tests/adapters_qt` that links Qt
+  Widgets, Gui or the Qt adapter. The loop is last in the directory's
+  `CMakeLists.txt`, like the macOS native-look startup. Before `main`, it
+  points `QT_QPA_FONTDIR` at `%WINDIR%/Fonts` unless that is already set.
+  Once the application exists on the offscreen platform, it sets Segoe UI
+  9 pt. It does nothing on another platform, and macOS and Linux build
+  nothing from it.
+- The window course's `--title-row` special case is gone. Its `main` names
+  the shared startup.
+- `src/adapters/qt/AGENTS.md`: Windows offscreen tests use the real fonts
+  from one place, and a layout that holds in only one font is a product bug.
+
+One correction to the premise: ctest itself already set
+`QT_QPA_FONTDIR=%WINDIR%/Fonts` for every Qt test on Windows
+(`cmake/BprTestIsolation.cmake`, BPR-0412). The fonts were missing only
+when a course was run directly over SSH without that environment, as
+BPR-2197 and this card ran them. What ctest lacked was the desktop's
+font: the application font was offscreen's default, not Segoe UI 9 pt.
+The startup now covers both.
+
+## Compose review wording, settled
+
+`with no review in progress Compose review reads "Approve or comment…" beside its pencil`
+failed only on the no-font fallback. With the fonts loaded,
+`test_compose_review_says_approve_or_comment_with_no_review` passes alone,
+and the whole window course gets past it. No product fault.
+
+## The Windows Qt set with the fonts (station, Release, `18a70bb96`)
+
+All 242 ctest entries whose executable is under `tests/adapters_qt` ran
+directly with ctest's environment (`ENVIRONMENT` and
+`ENVIRONMENT_MODIFICATION`), its pass and fail expressions, and `RUN_SERIAL`
+entries run alone. They ran twice: as built (fonts), and with
+`QT_QPA_FONTDIR` pointed at an empty folder (no fonts, the earlier SSH
+state). Fonts: 16 failed. No fonts: 76 failed. 61 entries pass only with
+the fonts.
+
+Failed with the fonts, and settled here or carded:
+
+| Entry | Failure line with the fonts | Without fonts | Outcome |
+|---|---|---|---|
+| `qt_workbench_window_scale_100/125/200` | `at 1280 the review bar fits the view controls, the position and "Approve…", and the title row names the pull request whole` | stopped earlier, at the Compose review wording | Stale test, corrected (`2c17d36f6`). Segoe UI 9 pt fits the whole "Approve or comment…" at 1280 (bar hint 1234 of 1280), and the product keeps the words because they fit. The 1366 check already accepted either form. The whole course then passes at all three scales. |
+| `qt_drawer_surfaces_fit_scale_100/125/200` | `16 surface states are clipped or break the principles` (Overview tour-reader: `"Agent" ends at 310 in a 262 px bar`) | stopped earlier, on the Agent tab | Product bug, carded [[BPR-2201]] |
+| `qt_workbench_line_draft` | `a right-click inside a dragged selection names its lines` (caption `Line 4`) | passed | Carded [[BPR-2202]] |
+| `qt_diff_workbench_scale_125` | `light: every marked line number reaches the theme's text floor on its tinted cell` (line 11, 4.45) | stopped earlier, on the open-thread bar | Carded [[BPR-2203]] |
+
+These failed on the same line with and without fonts, so the fonts did not
+cause them: `qt_agent_finding_cards_restart`, `qt_agent_setup_view`,
+`qt_agent_steering_fixture`, `qt_claude_process_wrapper`,
+`qt_profile_management_window`, `qt_prompt_macro_chips`,
+`qt_scoped_prose_editor`, `qt_source_search_panel_scale_1`. They are left
+as found: direct runs outside ctest's sandbox, and work in progress
+elsewhere on the lane.
+
+## Verification
+
+- Windows station: the `--title-row` course passes at 100%, 125% and 200%
+  through the shared startup alone, with no `QT_QPA_FONTDIR` given. It
+  failed on the fallback, so the fonts load. The tour case passes alone,
+  and so does the whole window course at all three scales.
+- macOS `dev`: `qt_workbench_window_scale_100/125/200` pass at `2c17d36f6`.
+  The startup compiles to nothing there.
+- Documentation gate: `DOCUMENTATION_OK`.
+- Station scratch folder removed.
