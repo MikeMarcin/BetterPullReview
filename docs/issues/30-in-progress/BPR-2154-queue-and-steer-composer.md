@@ -219,3 +219,17 @@ every local-draft session outright. Fixed at the layer that launches it:
   status says it was steered, the message becomes the author's turn in that
   conversation, the fixture agent's answer says it took the correction, and
   nothing goes after it as a question of its own.
+
+### Look queue-tour-v002 (filed 2026-11-16, not waited on)
+
+Session `3558379118e2910af1907d4aafcf79df`, state
+`/Users/jaeger/.attended-review-state/queue-tour-v002-2026-11-16/state`
+(URL in `serve.log` beside it), cursor 2, served on the tailnet (host PID
+58701, Tailscale child 58709). Root `/Users/jaeger/queue-tour-v002.u3mku38k`
+from `b0bbe187d336`, returning-review-v1 with `--next-push`, Fixture agent
+only (launcher check: 17 asks answered, no real agent started; executable
+SHA-256 `2857c9074b93…`). The local draft's worktree is
+`/Users/jaeger/queue-tour-v002-draft/engine` (made by
+`tests/fixtures/local-draft/make_worktree.sh`; outside the root, remove it
+with the root). One Accept/Reject question, `local-draft-steer`: Steer
+(Cmd+Return) into a local draft's running whole-tour question.

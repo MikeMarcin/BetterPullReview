@@ -4387,3 +4387,22 @@ worktree `/Users/jaeger/queue-tour-v001-draft`) waits on the owner, not
 waited on. Next: read its decisions; then BPR-2155 (closeout). The format
 gate's one finding, `src/application/src/github_window_read_host.cpp`, is
 another lane's.
+
+### Checkpoint (2026-11-16): BPR-2154 queue-tour-v001 read; local draft Steer fixed; look queue-tour-v002 filed
+
+queue-tour-v001 handed back: stop chat and local draft queue Accepted, whole
+tour Rejected (a local draft's whole-tour Steer said "isn't running on a kept
+agent session"). Host 28483/28491 stopped, root and draft folder removed.
+Commit `b0bbe187d`: a local draft's discussion question runs on a kept
+connection of its number, Steer goes there, its end settles what was steered.
+Passing: `application_tour_chat_queue_{stop,whole_tour,local_draft}_public_path`
+(the local draft row now asserts a steer lands),
+`application_agent_protocol_loop`, `application_agent_queue_handoff`,
+`local_draft`, `application_local_draft_{,author_,tour_}desktop_public_path`,
+resealed `application_review_round_trip_composition_contract`, documentation
+gate. `application_agent_launch` fails on "another protocol failure ends it
+as failed" (`queued_finish_of` with no sign maps to delivery unknown since
+BPR-2152); not touched by this commit. Look `queue-tour-v002` (session
+`35583791…`, host 58701/58709, root `queue-tour-v002.u3mku38k`, worktree
+`/Users/jaeger/queue-tour-v002-draft`) waits on the owner, not waited on.
+Next: read its decision; then BPR-2155.
