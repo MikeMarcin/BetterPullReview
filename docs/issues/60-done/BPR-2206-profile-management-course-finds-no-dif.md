@@ -69,3 +69,13 @@ resting in its corner. Before this fix it had no Dif at all.
 - `ctest --preset dev -R '^application_profile_management_public_path$'
   --repeat until-fail:3`: passes 3 of 3 (5 to 7 s each). Before the fix it
   failed at "the desktop composes one complete accepted Dif catalog".
+
+## Owner's look, 2026-11-16
+
+**Accepted.** The owner judged Dif resting in the corner beside the signed-out
+account setup, in attended session `1924669e55ed8a79ae40e9320a64c32b`, at
+15:34 UTC. Candidate `BPR-2206-setup-dif-v001`, revision
+`frozen-72955fd96-v002`, decision `3757ac8b-1bdd-4894-a701-3a77709caa98`, no
+note. The build was frozen from `72955fd96` with `--attended-account-setup-look`.
+Its check reached `ATTENDED_ACCOUNT_SETUP_SHOWN`, and no real agent started.
+The session host has been stopped and the frozen root removed.
