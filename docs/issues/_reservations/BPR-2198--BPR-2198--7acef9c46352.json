@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2198"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Settings > Profiles page and Profile Settings import/export (Agents, Prompts, Workflows, Identity, Repositories); retire Manage Profiles window",
+  "created": "2026-11-16T02:05:00.224300+00:00",
+  "base": "2906e796cadcffb8714c073233dec7626183faf5"
+}
