@@ -12566,13 +12566,22 @@ namespace {
 		};
 		// Each course starts from line 21, away from the hunk, with nothing
 		// being written.
+		// [[BPR-2202]]. The comparison scrolls by the pixel, so an earlier
+		// course can leave the top line partly under the pane's masked
+		// edge. With Segoe UI 9 pt the drag's first line was there, and the
+		// press hit the document tab strip above. Each course starts with
+		// the file at its top, so every line it points at is in view.
 		const auto reset = [&] {
 			if (drawer_writing(window)) {
 				escape();
 			}
+			surface->scroll_controller()->home();
+			process_events();
 			click(point(*right, core::diff_side::right, 20U));
 			wait_for([&] { return accepted && accepted->Draft.Anchor.Line == 20U; }, 2000);
 			settle();
+			expect(right->viewport()->visibleRegion().contains(right->viewport()->mapFrom(&window, point(*right, core::diff_side::right, 2U))),
+				   "each line-draft course starts with the lines it points at in view");
 		};
 
 		// (1) The owner's course. Lines 4 to 6 dragged, two context lines and
