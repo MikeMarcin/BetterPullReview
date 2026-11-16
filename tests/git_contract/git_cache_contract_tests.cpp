@@ -3064,6 +3064,54 @@ namespace {
 				.has_value(),
 			"reconciled index failure retains exact spool for abort");
 
+		// [[BPR-2195]]. An `index-pack` killed on a stop while it finalized
+		// the pack (measured on the system Git: its `.pack` still also named
+		// `tmp_pack_*`, its `.idx` still also named `tmp_idx_*`, or its `.pack`
+		// with no `.idx`) is rolled back like any failed import: the store is
+		// as it was, the failure is the process's, and the spool stays for the
+		// abort. Before, each left the cache for repair.
+		auto interruptedOrdinal = std::uint8_t{ 0x60U };
+		for (const auto* const shape : { "inject-cache-interrupted-pack-link", "inject-cache-interrupted-index-link", "inject-cache-interrupted-index-missing" }) {
+			const auto operation = identity<core::epoch_operation_id>(interruptedOrdinal++);
+			auto       sink      = (*isolated)->create_pack_sink(operation, sha1_pack.size(), { });
+			require(sink.has_value(), "create interrupted-finalize sink");
+			append_pack(**sink, sha1_pack);
+			const auto receipt = (*sink)->finish({ });
+			require(receipt.has_value(), "finish interrupted-finalize spool");
+			sink->reset();
+			const auto observation = (*isolated)->observe_preimport(*receipt, { });
+			require(observation.has_value(), "observe interrupted-finalize inventory");
+			const auto shapeMarker = root.Path / shape;
+			write_file(indexFailureMarker, "inject");
+			write_file(shapeMarker, "inject");
+			const auto interrupted = (*isolated)->prepare_revision(
+				application::git_prepare_revision_request{
+					.Receipt       = *receipt,
+					.Inventory     = *observation,
+					.Authorization = {
+						.CatalogIncarnation      = identity<core::epoch_catalog_incarnation_id>(0x6aU),
+						.ExpectedCatalogRevision = core::epoch_catalog_revision{ 0 },
+						.Operation               = operation,
+						.ExpectedPack            = receipt->ExpectedPack,
+						.ReceiptToken            = receipt->OpaqueToken,
+						.InventoryToken          = observation->OpaqueToken,
+						.DurableRecordToken      = token(0x6bU),
+					},
+					.Base = *rollbackHead,
+					.Head = *rollbackHead,
+				},
+				{ });
+			std::filesystem::remove(indexFailureMarker);
+			std::filesystem::remove(shapeMarker);
+			if (!interrupted.has_value()) {
+				std::cout << "INTERRUPTED_FINALIZE:" << shape << ':' << static_cast<int>(interrupted.error().Code) << '\n';
+			}
+			require(!interrupted.has_value() && interrupted.error() == application::git_cache_failure::process_failure
+						&& (!std::filesystem::exists(isolatedPackDirectory) || std::filesystem::is_empty(isolatedPackDirectory)),
+					std::string{ "an index-pack stopped while finalizing is rolled back, not left for repair: " } + shape);
+			require((*isolated)->abort_operation(operation, { }).has_value(), "the interrupted import's spool stays for the abort");
+		}
+
 		const auto malformedOperation = identity<core::epoch_operation_id>(0x51U);
 		auto       malformedSink      = (*primary)->create_pack_sink(
 			malformedOperation,

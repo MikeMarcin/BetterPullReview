@@ -43,6 +43,7 @@
 #include <chrono>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -123,7 +124,8 @@ namespace bpr::e2e {
 	/// course, the time and the process. The course's CTest entry names a root
 	/// in the build tree: the network-isolation runner points `TMPDIR` into a
 	/// root it removes. Without one the copy goes to `bpr-course-logs` in the
-	/// system temporary directory. It prints `COURSE_LOGS_KEPT:<folder>`. A course
+	/// system temporary directory. It also lists every Git object store's
+	/// pack directory there (`pack-directories.txt`). It prints `COURSE_LOGS_KEPT:<folder>`. A course
 	/// that passes, or a failure that exits without unwinding, keeps nothing.
 	class course_logs_on_failure final
 	{
@@ -160,6 +162,30 @@ namespace bpr::e2e {
 					std::filesystem::create_directories(to / folder.lexically_relative(from), error);
 					std::filesystem::copy(folder, to / folder.lexically_relative(from), std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing, error);
 					kept += error ? 0 : 1;
+				}
+				// [[BPR-2195]]. What each Git object store's pack directory holds,
+				// so residue a stopped import left is named, not guessed.
+				auto stores  = QDirIterator{ Root, { QStringLiteral("pack") }, QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories };
+				auto listing = std::string{ };
+				while (stores.hasNext()) {
+					const auto directory = std::filesystem::path{ stores.next().toStdString() };
+					if (directory.parent_path().filename() != "objects") {
+						continue;
+					}
+					listing += directory.lexically_relative(from).generic_string() + ":\n";
+					auto error = std::error_code{ };
+					for (const auto& entry : std::filesystem::directory_iterator{ directory, error }) {
+						auto       entryError = std::error_code{ };
+						const auto links      = std::filesystem::hard_link_count(entry.path(), entryError);
+						const auto bytes      = entry.is_regular_file(entryError) ? std::filesystem::file_size(entry.path(), entryError) : 0U;
+						listing += "  " + entry.path().filename().string() + " bytes=" + std::to_string(bytes) + " links=" + std::to_string(links) + "\n";
+					}
+				}
+				if (!listing.empty()) {
+					auto error = std::error_code{ };
+					std::filesystem::create_directories(to, error);
+					auto file = std::ofstream{ to / "pack-directories.txt" };
+					file << listing;
 				}
 				std::cerr << (kept > 0 ? "COURSE_LOGS_KEPT:" : "COURSE_LOGS_NONE:") << QDir::toNativeSeparators(target).toStdString() << '\n';
 			} catch (...) {
