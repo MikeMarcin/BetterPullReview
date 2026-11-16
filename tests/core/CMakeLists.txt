@@ -1806,6 +1806,14 @@ bpr_enable_hardening(test_better_pull_review_local_draft_tour_core_tests)
 bpr_enable_warnings(test_better_pull_review_local_draft_tour_core_tests)
 bpr_add_network_isolated_test(NAME core_local_draft_tour COMMAND test_better_pull_review_local_draft_tour_core_tests)
 
+# RFC-BPR-0120 ([[BPR-2189]]). A check on a local draft: its plan, Run's
+# reasons, its report and their stored form.
+bpr_add_executable(test_better_pull_review_local_draft_check_core_tests local_draft_check_tests.cpp)
+target_link_libraries(test_better_pull_review_local_draft_check_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_local_draft_check_core_tests)
+bpr_enable_warnings(test_better_pull_review_local_draft_check_core_tests)
+bpr_add_network_isolated_test(NAME core_local_draft_check COMMAND test_better_pull_review_local_draft_check_core_tests)
+
 # RFC-BPR-0111 ([[BPR-2029]], [[BPR-2030]]).
 bpr_add_executable(test_better_pull_review_local_draft_publication_core_tests local_draft_publication_tests.cpp)
 target_link_libraries(test_better_pull_review_local_draft_publication_core_tests PRIVATE BetterPullReview::Core)

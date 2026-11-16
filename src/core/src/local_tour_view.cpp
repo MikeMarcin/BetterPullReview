@@ -238,6 +238,8 @@ namespace bpr::core {
 					const auto& answer = conversation->Turns[index + 1U];
 					run.State          = tour_agent_run_state::answered;
 					run.Reply          = answer.Text;
+					run.Check          = answer.Check;
+					run.CheckLatest    = latest == nullptr ? 0U : latest->Ordinal;
 					if (const auto cost = cost_of(answer.CostMicros)) {
 						total += *cost;
 						known    = true;

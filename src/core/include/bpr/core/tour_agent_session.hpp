@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_TOUR_AGENT_SESSION_HPP
 
 #include "bpr/core/agent_cost.hpp"
+#include "bpr/core/local_draft_check.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_tour.hpp"
 
@@ -344,8 +345,16 @@ namespace bpr::core {
 		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). An Enhance on a
 		/// stop or a part: a fresh run, never a turn of its side chat, so no
 		/// conversation replays it.
-		bool Fresh                                           = false;
-		auto operator==(const tour_agent_run&) const -> bool = default;
+		bool Fresh = false;
+		/// RFC-BPR-0120. A local draft's check: the answer is its plan card
+		/// or its report. Presented only; a pull request's tour has none.
+		std::optional<local_check> Check;
+		/// Why the plan card's Run is unavailable, in the author's words;
+		/// empty when it is available.
+		std::string CheckBlocked;
+		/// The draft's latest candidate, for a report on an older one.
+		std::uint64_t CheckLatest                                     = 0U;
+		auto          operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;

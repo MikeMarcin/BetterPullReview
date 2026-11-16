@@ -706,6 +706,10 @@ namespace bpr::app {
 		/// \brief Whether the profile holds the Fixture agent yet, so the
 		/// look's agent actions are bound to it and can be asked.
 		[[nodiscard]] auto fixture_agent_ready_for_look() const -> bool;
+		/// \brief RFC-BPR-0120. For an attended look's scripted preparation:
+		/// the first build question answered `aAnswer` without a dialog;
+		/// none restores the dialog, which the person then sees.
+		void answer_build_question_for_look(std::optional<bool> aAnswer);
 		/// \brief Selects the profile's first workflow on the shown draft and
 		/// shows the Workflow area; true once it is selected and shown.
 		[[nodiscard]] auto select_workflow_for_look() -> bool;

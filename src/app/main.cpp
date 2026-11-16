@@ -29,6 +29,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "src/attended_source_identity.hpp"
 #include "src/installed_resources.hpp"
@@ -288,6 +289,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-local-draft", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-tour" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-author" },
+		bpr::app::command_line_option{ .Name = "attended-local-draft-check" },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-workflow", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-local-draft-pull-request", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
@@ -5650,6 +5652,9 @@ namespace {
 	/// once as the author would, and optionally the draft associated with a
 	/// pull request so the window is a pull request opened by its author.
 	bool AttendedLocalDraftAuthor = false;
+	/// RFC-BPR-0120. The look plans and runs checks with the Fixture agent.
+	bool AttendedLocalDraftCheck = false;
+	void prepare_attended_local_draft_check(bpr::app::github_application& aApplication, QTimer* aTimer);
 	/// RFC-BPR-0112. A workflow file the look imports and selects on the draft.
 	std::string   AttendedLocalDraftWorkflow;
 	std::uint64_t AttendedLocalDraftPullRequest = 0U;
@@ -6448,7 +6453,7 @@ namespace {
 
 	void schedule_attended_local_draft_look(bpr::app::github_application& aApplication)
 	{
-		if (AttendedLocalDraftAuthor) {
+		if (AttendedLocalDraftAuthor || AttendedLocalDraftCheck) {
 			AttendedLocalDraftPath = writable_author_look(AttendedLocalDraftPath);
 		}
 		auto* const timer = new QTimer{ &aApplication.window() };
@@ -6479,6 +6484,16 @@ namespace {
 					timer->stop();
 					timer->deleteLater();
 					prepare_attended_local_draft_tour(aApplication, new QTimer{ &window });
+					return;
+				}
+				// RFC-BPR-0120: once the Fixture agent is set up, the checks.
+				if (AttendedLocalDraftCheck) {
+					if (*ticks < 600 && !aApplication.fixture_agent_ready_for_look()) {
+						return;
+					}
+					timer->stop();
+					timer->deleteLater();
+					prepare_attended_local_draft_check(aApplication, new QTimer{ &window });
 					return;
 				}
 				if (!AttendedLocalDraftWorkflow.empty()) {
@@ -6545,6 +6560,127 @@ namespace {
 			}
 		});
 		timer->start();
+	}
+
+	/// RFC-BPR-0120 ([[BPR-2189]]). Through the Tour panel's whole-change
+	/// conversation, as an author would, with the Fixture agent: a plan with
+	/// no words, Allow build and run tests, Run (it passes); a new candidate
+	/// captured; a plan for the failing case, Run (it fails); and a third
+	/// plan left for Run or Discard. The look then shows a plan card, a
+	/// passing report on an older candidate with Run again, and a failing one.
+	void prepare_attended_local_draft_check(bpr::app::github_application& aApplication, QTimer* const aTimer)
+	{
+		aTimer->setInterval(50);
+		const auto stage = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		aApplication.answer_build_question_for_look(true);
+		QObject::connect(aTimer, &QTimer::timeout, aTimer, [&aApplication, aTimer, stage, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto finish = [aTimer](const QString& aLine) {
+				aTimer->stop();
+				aTimer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 2'400) {
+				finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:check-%1").arg(*stage));
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const page   = window.local_draft();
+			if (page == nullptr || !page->projection().Draft || page->projection().Busy || page->projection().Asking) {
+				return;
+			}
+			auto* const tour  = window.tour_editor();
+			auto* const chat  = tour->side_chat();
+			const auto& view  = page->projection();
+			const auto  cards = [chat](const char* aName) { return chat->findChildren<QWidget*>(QString::fromLatin1(aName)); };
+			const auto  press = [chat](const char* aCard, const char* aButton) {
+				const auto found = chat->findChildren<QWidget*>(QString::fromLatin1(aCard));
+				if (found.isEmpty()) {
+					return false;
+				}
+				auto* const button = found.back()->findChild<QAbstractButton*>(QString::fromLatin1(aButton));
+				if (button == nullptr || !button->isEnabled()) {
+					return false;
+				}
+				button->click();
+				return true;
+			};
+			const auto plan = [chat](const QString& aWords) {
+				auto* const button = chat->findChild<QPushButton*>(QStringLiteral("tourChatPlanCheck"));
+				if (button == nullptr || !button->isVisible() || !button->isEnabled()) {
+					return false;
+				}
+				chat->composer()->setPlainText(aWords);
+				button->click();
+				return true;
+			};
+			switch (*stage) {
+			case 0:
+				window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
+				window.tray_tabs()->setCurrentIndex(1);
+				tour->open_side_chat(bpr::core::tour_thread{ });
+				*stage = 1;
+				return;
+			case 1:
+				if (plan({ })) {
+					*stage = 2;
+				}
+				return;
+			case 2:
+				if (cards("localCheckPlanCard").size() == 1 && press("localCheckPlanCard", "localCheckBuilds")) {
+					*stage = 3;
+				}
+				return;
+			case 3:
+				if (press("localCheckPlanCard", "localCheckRun")) {
+					*stage = 4;
+				}
+				return;
+			case 4:
+				// A new candidate: the author edits on while the report is read.
+				if (cards("localCheckReportCard").size() == 1) {
+					auto file = QFile{ QDir{ QString::fromStdString(AttendedLocalDraftPath) }.filePath(QStringLiteral("src/search.cpp")) };
+					if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+						file.write("int search(const char* aText)\n{\n\treturn aText == nullptr || aText[0] == 0 ? 0 : 1;\n}\n");
+					}
+					file.close();
+					page->refresh_button()->click();
+					*stage = 5;
+				}
+				return;
+			case 5:
+				if (bpr::core::latest_candidate(*view.Draft)->Ordinal >= 2U && plan(QStringLiteral("run the failing search case"))) {
+					*stage = 6;
+				}
+				return;
+			case 6:
+				if (cards("localCheckPlanCard").size() == 2 && press("localCheckPlanCard", "localCheckRun")) {
+					*stage = 7;
+				}
+				return;
+			case 7:
+				if (cards("localCheckReportCard").size() == 2 && plan(QStringLiteral("check it still builds and the search tests pass"))) {
+					*stage = 8;
+				}
+				return;
+			case 8:
+				if (cards("localCheckPlanCard").size() == 3) {
+					// The person sees the real question from here on.
+					aApplication.answer_build_question_for_look(std::nullopt);
+					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_CHECK_SHOWN:%1:plans=%2:reports=%3")
+							   .arg(QString::fromStdString(AttendedLocalDraftPath))
+							   .arg(cards("localCheckPlanCard").size())
+							   .arg(cards("localCheckReportCard").size()));
+				}
+				return;
+			default: return;
+			}
+		});
+		aTimer->start();
 	}
 
 	/// RFC-BPR-0110 as amended (owner: "stick with the PR view and just
@@ -13698,6 +13834,7 @@ auto main(int argc, char** argv) -> int
 						AttendedLocalDraftPath   = std::string{ *attendedLocalDraft };
 						AttendedLocalDraftTour   = launch.has("--attended-local-draft-tour");
 						AttendedLocalDraftAuthor = launch.has("--attended-local-draft-author");
+						AttendedLocalDraftCheck  = launch.has("--attended-local-draft-check");
 						if (const auto workflow = launch.value("--attended-local-draft-workflow"); workflow.has_value()) {
 							AttendedLocalDraftWorkflow = std::string{ *workflow };
 						}

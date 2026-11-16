@@ -87,6 +87,8 @@ namespace bpr::app {
 		case core::writing_hook::review_explain_file: return "review-explain-file";
 		// RFC-BPR-0118 Suggest the change.
 		case core::writing_hook::review_suggest_change: return "review-suggest-change";
+		// RFC-BPR-0120 a local draft's check.
+		case core::writing_hook::local_run_check: return "local-run-check";
 		}
 		return "problem";
 	}

@@ -8,6 +8,7 @@ add_library(
         src/review_tour_editor.cpp
         src/tour_agent_panel.cpp
         src/tour_side_chat.cpp
+        src/local_check_card.cpp
         src/waiting_panel.cpp
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp

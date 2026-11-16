@@ -17,6 +17,15 @@
 // `BPR_FIXTURE_AGENT_STEERABLE=0` makes it the one-shot agent with no version,
 // and `FIXTURE_UNVERSIONED` in a question makes that turn name no version
 // (an agent BPR can't steer, reachable through the app).
+//
+// RFC-BPR-0120 ([[BPR-2189]]). A local draft's check: a request that asks
+// for a `bpr-check-plan` block is answered with a plan (the author's words
+// choose it: "fail" plans a failing test, "touch" a command that changes a
+// file Git tracks, "scratch" a script in the scratch folder); one that asks
+// for a `bpr-check-report` runs that plan in its working folder, the check
+// copy, as Bash tool calls with their output. "touch" really rewrites the
+// copy's first file, so the host sees a tracked file changed; nothing else is
+// run or written.
 
 #include <algorithm>
 #include <array>
@@ -25,6 +34,7 @@
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -96,9 +106,150 @@ namespace {
 		}
 	}
 
+	/// The text after `aMarker` up to the end of its line, in a request
+	/// whose message is JSON-escaped or not.
+	auto line_after(const std::string& aText, const std::string_view aMarker) -> std::string
+	{
+		const auto found = aText.find(aMarker);
+		if (found == std::string::npos) {
+			return { };
+		}
+		const auto from = found + aMarker.size();
+		auto       end  = std::min(aText.find("\\n", from), aText.find('\n', from));
+		end             = std::min(end, aText.find('"', from));
+		return aText.substr(from, end == std::string::npos ? std::string::npos : end - from);
+	}
+
+	auto check_plan_answer(const std::string& aRequest) -> std::string
+	{
+		const auto words   = line_after(aRequest, "The author asks: ");
+		auto       steps   = std::vector<std::pair<std::string, std::string>>{ { "cmake --build build --target parser_tests", "the change still builds" } };
+		const auto failing = holds(words, "fail");
+		steps.emplace_back(failing ? "ctest --test-dir build -R parser_fails" : "ctest --test-dir build -R parser", failing ? "the parser's edge cases pass" : "the parser tests pass");
+		if (holds(words, "touch")) {
+			steps.emplace_back("tools/stamp-version", "the version stamp still applies; it rewrites a file Git tracks");
+		}
+		const auto scratch = holds(words, "scratch");
+		if (scratch) {
+			steps.emplace_back("python3 scratch/summarize.py", "a summary of the test log, from a script in the scratch folder");
+		}
+		auto json = std::string{ R"({"commands":[)" };
+		for (std::size_t index = 0U; index < steps.size(); ++index) {
+			json += (index == 0U ? "" : ",") + std::string{ R"({"command":")" } + steps[index].first + R"(","shows":")" + steps[index].second + R"("})";
+		}
+		json += std::string{ R"(],"needs":["builds")" } + (scratch ? R"(,"scratch")" : "") + R"(],"not_covered":"The GUI and the slow integration tests."})";
+		const auto lead = words.empty() ? std::string{ "You gave no words, so I chose the checks that matter most here: build the parser and run its tests." }
+										: "Here is a check for \"" + words + "\".";
+		return lead + " This is the fixture agent; nothing runs until you press Run.\n\n```bpr-check-plan\n" + json + "\n```";
+	}
+
+	struct check_step
+	{
+		std::string Command;
+		std::string Output;
+		int         Exit = 0;
+	};
+
+	/// The plan's commands, as the run request numbers them ("1. `cmd`: ...").
+	auto check_run_steps(const std::string& aRequest) -> std::vector<check_step>
+	{
+		auto steps = std::vector<check_step>{ };
+		for (auto at = aRequest.find(". `"); at != std::string::npos; at = aRequest.find(". `", at + 3U)) {
+			const auto close = aRequest.find('`', at + 3U);
+			if (close == std::string::npos || at == 0U || aRequest[at - 1U] < '0' || aRequest[at - 1U] > '9') {
+				continue;
+			}
+			auto command = aRequest.substr(at + 3U, close - at - 3U);
+			if (std::ranges::any_of(steps, [&command](const check_step& aStep) { return aStep.Command == command; })) {
+				continue;
+			}
+			const auto fails = holds(command, "parser_fails");
+			steps.push_back({ .Command = command, .Output = fails ? "parser_tests: expected 3, got 2" : "ok", .Exit = fails ? 8 : 0 });
+		}
+		if (std::ranges::any_of(steps, [](const check_step& aStep) { return aStep.Exit != 0; })) {
+			steps.push_back({ .Command = "ls build", .Output = "parser_tests" });
+		}
+		return steps;
+	}
+
+	/// The copy's first file, in path order, skipping hidden ones.
+	auto first_file() -> std::string
+	{
+		auto files = std::vector<std::string>{ };
+		auto error = std::error_code{ };
+		for (auto entry = std::filesystem::recursive_directory_iterator{ std::filesystem::current_path(), error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+			const auto relative = std::filesystem::relative(entry->path(), std::filesystem::current_path(), error).generic_string();
+			if (entry->is_regular_file() && !relative.starts_with('.') && relative.find("/.") == std::string::npos) {
+				files.push_back(relative);
+			}
+		}
+		std::ranges::sort(files);
+		return files.empty() ? std::string{ } : files.front();
+	}
+
+	/// Runs the plan as tool calls: each command and its output.
+	void emit_check_run(const std::vector<check_step>& aSteps)
+	{
+		auto index = 0;
+		for (const auto& step : aSteps) {
+			pause();
+			const auto id = "check-" + std::to_string(++index);
+			std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-)" << id << R"(","role":"assistant","content":[{"type":"tool_use","id":")" << id
+					  << R"(","name":"Bash","input":{"command":")" << escape(step.Command) << R"("}}]}})" << '\n'
+					  << std::flush;
+			if (holds(step.Command, "stamp-version")) {
+				if (const auto file = first_file(); !file.empty()) {
+					auto out = std::ofstream{ file, std::ios::app };
+					out << "\nstamped by the fixture agent's check\n";
+				}
+			}
+			pause();
+			std::cout << R"({"type":"user","session_id":"fixture-agent","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" << id << R"(","content":")"
+					  << escape(step.Output) << R"(","is_error":)" << (step.Exit == 0 ? "false" : "true") << "}]}}\n"
+					  << std::flush;
+		}
+	}
+
+	auto check_run_answer(const std::string& aRequest, const std::vector<check_step>& aSteps) -> std::string
+	{
+		const auto failed = std::ranges::any_of(aSteps, [](const check_step& aStep) { return aStep.Exit != 0; });
+		auto       json   = std::string{ R"({"outcome":")" } + (aSteps.empty() ? "didnt_run" : failed ? "failed"
+																									  : "passed")
+			+ R"(","summary":")"
+			+ (aSteps.empty() ? "The plan named no command I could run."
+				   : failed   ? "The parser built, but its edge-case test failed: an empty token is counted."
+							  : "The parser built and its tests passed.")
+			+ R"(","commands":[)";
+		for (std::size_t index = 0U; index < aSteps.size(); ++index) {
+			json += (index == 0U ? "" : ",") + std::string{ R"({"command":")" } + escape(aSteps[index].Command) + R"(","exit":)" + std::to_string(aSteps[index].Exit) + "}";
+		}
+		json += "]";
+		if (failed) {
+			auto file = line_after(aRequest, "Changed in this candidate:\\n- ");
+			if (file.empty()) {
+				file = line_after(aRequest, "Changed in this candidate:\n- ");
+			}
+			if (file.empty()) {
+				file = first_file();
+			}
+			json += R"(,"output":["parser_tests: expected 3, got 2","  at the empty token"])";
+			if (!file.empty()) {
+				json += R"(,"references":[{"path":")" + escape(file) + R"(","line":2}])";
+			}
+		}
+		json += R"(,"not_covered":"The GUI and the slow integration tests."})";
+		return "I ran the plan in the check copy (" + std::filesystem::current_path().generic_string() + "). This is the fixture agent's report.\n\n```bpr-check-report\n" + json + "\n```";
+	}
+
 	/// The canned answer for what the request asks.
 	auto answer_for(const std::string& aRequest) -> std::string
 	{
+		if (holds(aRequest, "bpr-check-report")) {
+			return check_run_answer(aRequest, check_run_steps(aRequest));
+		}
+		if (holds(aRequest, "bpr-check-plan")) {
+			return check_plan_answer(aRequest);
+		}
 		if (slow(aRequest)) {
 			return "Took my time: twenty slow steps, about twenty seconds, so you could queue follow-ups while I worked. This is the fixture agent; nothing real ran.";
 		}
@@ -289,7 +440,9 @@ namespace {
 		}
 		// The slow ask: one read a second, so the footer and the pending
 		// list have a running turn to show.
-		if (slow(aRequest)) {
+		if (holds(aRequest, "bpr-check-report")) {
+			emit_check_run(check_run_steps(aRequest));
+		} else if (slow(aRequest)) {
 			const auto reads = std::ranges::find(aTools, std::string{ "Read" }) != aTools.end();
 			for (int step = 1; step <= slow_steps; ++step) {
 				slow_step();
@@ -439,8 +592,11 @@ namespace {
 						  << std::flush;
 				std::_Exit(1);
 			}
-			auto       steered = std::string{ };
-			const auto steps   = slow(request) ? slow_steps : 1;
+			auto steered = std::string{ };
+			if (holds(request, "bpr-check-report")) {
+				emit_check_run(check_run_steps(request));
+			}
+			const auto steps = slow(request) ? slow_steps : 1;
 			for (int step = 1; step <= steps; ++step) {
 				slow(request) ? slow_step() : pause();
 				if (reads) {

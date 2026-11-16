@@ -178,6 +178,22 @@ namespace bpr::qt {
 		/// Enhance's suggestion: this thread's next turn starts from it.
 		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
 		void set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
+		/// \brief RFC-BPR-0120. A local draft's checks: Plan a check… in the
+		/// whole-change conversation (the composer's words, or none), and its
+		/// plan and report cards' controls by turn. Unset, there is no check.
+		struct check_dispatch
+		{
+			std::function<void(const QString&)>          Plan;
+			std::function<void(core::tour_agent_run_id)> Run;
+			std::function<void(core::tour_agent_run_id)> Discard;
+			std::function<void(core::tour_agent_run_id)> Open;
+			std::function<void(core::tour_agent_run_id)> Again;
+			std::function<void(bool, bool)>              Grants;
+		};
+		void set_check_dispatch(check_dispatch aDispatch);
+		/// \brief The draft's two grants for the chosen agent, and whether a
+		/// check can be planned now (and why not).
+		void set_check_state(bool aScratch, bool aBuilds, bool aAvailable, const QString& aWhy, bool aRebuild = false);
 		/// \brief Show: brings the tour to the chat's part, and a stop's code
 		/// into the diff.
 		void set_reveal_dispatch(std::function<void(const core::tour_thread&)> aReveal) { RevealDispatch = std::move(aReveal); }
@@ -413,6 +429,12 @@ namespace bpr::qt {
 		std::function<void(const core::tour_thread&)>                               RevealDispatch;
 		std::function<void(bool)>                                                   VisibilityDispatch;
 		std::function<void()>                                                       ChangeObserver;
+		check_dispatch                                                              Checks;
+		bool                                                                        CheckScratch   = false;
+		bool                                                                        CheckBuilds    = false;
+		bool                                                                        CheckAvailable = false;
+		QString                                                                     CheckWhy;
+		QPushButton*                                                                PlanCheck  = nullptr;
 		bool                                                                        ColumnOpen = false;
 		core::tour_agent_session                                                    Session;
 		std::optional<core::tour_proposal>                                          Proposal;

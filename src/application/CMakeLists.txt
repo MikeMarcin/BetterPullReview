@@ -23,9 +23,11 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-propo
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-explain-file.md" WRITING_REVIEW_EXPLAIN_FILE)
 # RFC-BPR-0118: Suggest the change's prompt.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-suggest-change.md" WRITING_REVIEW_SUGGEST_CHANGE)
+# RFC-BPR-0120: a local draft's check prompt.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-run-check.md" WRITING_LOCAL_RUN_CHECK)
 # RFC-BPR-0128: the report shape the Agent tab's requests carry.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/report-templates.md" WRITING_REPORT_TEMPLATES)
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change report-templates)
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
@@ -220,6 +222,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_scratch_folder.cpp
+            src/local_check_copies.cpp
             src/agent_realignment.cpp
             src/mcp_context_helper_supervisor.cpp
             src/review_cycle_agent_sender.cpp

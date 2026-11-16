@@ -175,7 +175,7 @@ int main()
 			   "each Enhance prompt has its own built-in version");
 		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment",
 																					  "local.description", "local.discussion", "local.commit-message",
-																					  "review.latest-upload", "review.proposed-fix", "review.explain-file", "review.suggest-change" };
+																					  "review.latest-upload", "review.proposed-fix", "review.explain-file", "review.suggest-change", "local-draft.run-check" };
 		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
 			const auto hook = static_cast<core::writing_hook>(index);
 			expect(application::writing_hook_purpose(hook) == purposes[index] && application::writing_hook_of_purpose(purposes[index]) == hook, "every prompt has one stable purpose ID, and the ID names it");

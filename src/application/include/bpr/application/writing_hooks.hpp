@@ -90,6 +90,9 @@ namespace bpr::application {
 	/// \brief RFC-BPR-0118 ([[BPR-2078]]). Version of Suggest the change's
 	/// prompt, `resources/review-preparation/review-suggest-change.md`.
 	inline constexpr std::string_view review_suggest_change_hook_version = "review-suggest-change-v1";
+	/// \brief RFC-BPR-0120 ([[BPR-2189]]). Version of a local draft's check
+	/// prompt, `resources/review-preparation/local-run-check.md`.
+	inline constexpr std::string_view local_run_check_hook_version = "local-draft-run-check-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

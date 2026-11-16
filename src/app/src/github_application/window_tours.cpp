@@ -34,6 +34,7 @@
 #include <vector>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/application/agent_scratch_folder.hpp"
 	#include "bpr/application/tour_agent_conversation.hpp"
 	#include "bpr/application/tour_agent_drafting.hpp"
 	#include "bpr/core/agent_entry.hpp"
@@ -1044,7 +1045,34 @@ namespace bpr::app {
 			auto supplement    = core::agent_context_supplement{ };
 			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
 			supplement.Message = aRun.Prompt;
-			const auto launch  = application::build_agent_launch(
+			auto options       = application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery };
+			// RFC-BPR-0120. A check runs in the candidate's check copy, never
+			// the worktree: its plan with read-only tools, its run with the
+			// draft's grants for this agent (RFC-BPR-0104). The copy's own
+			// agent settings are the change's, so they are never loaded.
+			const auto checking = aRun.Check != application::local_check_mode::none;
+			if (checking) {
+				auto spellings = application::agent_checkout_spellings(aRun.Folder);
+				if (!spellings) {
+					return { .Failure = "The check copy could not be resolved, so its own agent settings could not be shut out. Nothing ran." };
+				}
+				options.WritingOnly         = false;
+				options.PullRequestCheckout = std::move(*spellings);
+				options.ReadOnlyTools       = aRun.Check == application::local_check_mode::plan;
+				if (aRun.Check == application::local_check_mode::run) {
+					auto grant = application::agent_launch_grant{ .ScratchLimitMiB = aRun.ScratchLimitMiB };
+					if (!aRun.Scratch.empty() && application::valid_agent_grant_path(aRun.Scratch)) {
+						grant.ScratchFolder = aRun.Scratch;
+					}
+					if (aRun.Builds && application::valid_agent_build_path(aRun.Folder)) {
+						grant.BuildWorkspace = aRun.Folder;
+					}
+					if (!grant.ScratchFolder.empty() || !grant.BuildWorkspace.empty()) {
+						options.Grant = std::move(grant);
+					}
+				}
+			}
+			const auto launch = application::build_agent_launch(
 				*profile, supplement,
 				[](const std::string& aName) -> std::optional<std::string> {
 					if (!qEnvironmentVariableIsSet(aName.c_str())) {
@@ -1052,7 +1080,7 @@ namespace bpr::app {
 					}
 					return qEnvironmentVariable(aName.c_str()).toStdString();
 				},
-				application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery });
+				options);
 			if (!launch) {
 				return { .Failure = launch.error() == application::agent_launch_failure::input_too_large
 							 ? "The question is longer than one request can carry."
@@ -1075,14 +1103,29 @@ namespace bpr::app {
 				request                  = std::move(*resumed);
 				request.WorkingDirectory = folder.string();
 			}
-			const auto result = process->run(request, 10 * 60 * 1000, { }, aStop);
+			// RFC-BPR-0103. A check's activity is heard as it happens: the
+			// commands it runs are what its report lists.
+			auto activity = core::agent_turn_activity{ };
+			auto sink     = application::agent_output_sink{ };
+			if (checking) {
+				request.WorkingDirectory = aRun.Folder;
+				sink                     = [&activity, &aRun, started = std::chrono::steady_clock::now()](const application::agent_stream_event& aEvent) {
+					const auto at = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count());
+					activity      = aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity ? core::apply_agent_activity(std::move(activity), *aEvent.Activity, at)
+																											   : core::note_agent_frame(std::move(activity), at);
+					if (aRun.Progress) {
+						aRun.Progress(activity);
+					}
+				};
+			}
+			const auto result = process->run(request, (aRun.Check == application::local_check_mode::run ? 60 : 10) * 60 * 1000, sink, aStop);
 			if (aStop.stop_requested()) {
-				return { .Failure = "Stopped." };
+				return { .Failure = "Stopped.", .Commands = activity.CommandsRun, .Stopped = true };
 			}
 			if (result.Outcome != application::agent_run_outcome::success) {
-				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ")." };
+				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ").", .Commands = activity.CommandsRun };
 			}
-			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle };
+			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle, .Commands = activity.CommandsRun };
 			for (const auto& item : result.AssistantItems) {
 				answer.Text += answer.Text.empty() ? item : "\n\n" + item;
 			}
@@ -1123,8 +1166,17 @@ namespace bpr::app {
 				.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
 				.CommitMessage      = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_commit_message) },
 				.Delivery           = delivery,
+				.Check              = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_run_check) },
+				.CheckVersion       = std::string{ application::writing_hook_version_of(core::writing_hook::local_run_check) },
 			};
 		});
+		// RFC-BPR-0120. A check's copies are scratch folders: counted,
+		// cleared and aged out with them (RFC-BPR-0104). No root, no check.
+		if (!AgentScratchRoot.empty()) {
+			DraftDesktop->set_check_copies(std::make_unique<application::local_check_copies>(AgentScratchRoot), [this] {
+				return core::agent_scratch_limit_bytes(AgentSetup ? AgentSetup->projection().Preferences.ScratchLimitMiB : 0U);
+			});
+		}
 	}
 
 	/// [[BPR-1900]]. What a drafting run says while it reads, and that a
@@ -3213,6 +3265,8 @@ namespace bpr::app {
 			return;
 		}
 		Window->tour_editor()->set_local_words(std::nullopt);
+		// RFC-BPR-0120. A pull request's tour plans no check.
+		Window->tour_editor()->side_chat()->set_check_dispatch({ });
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		if (TourHost) {
 			auto shown         = TourHost->presentation();

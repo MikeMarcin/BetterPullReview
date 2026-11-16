@@ -22,6 +22,7 @@ namespace bpr::application {
 		case core::writing_hook::review_proposed_fix:   return review_proposed_fix_hook_version;
 		case core::writing_hook::review_explain_file:   return review_explain_file_hook_version;
 		case core::writing_hook::review_suggest_change: return review_suggest_change_hook_version;
+		case core::writing_hook::local_run_check:       return local_run_check_hook_version;
 		case core::writing_hook::comment:               return tour_stop_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
@@ -48,6 +49,7 @@ namespace bpr::application {
 			"review.proposed-fix",
 			"review.explain-file",
 			"review.suggest-change",
+			"local-draft.run-check",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view

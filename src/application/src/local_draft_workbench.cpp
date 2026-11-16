@@ -1,13 +1,16 @@
 #include "bpr/application/local_draft_workbench.hpp"
 
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <atomic>
+#include <map>
 #include <mutex>
 #include <random>
+#include <set>
 #include <utility>
 
 namespace bpr::application {
@@ -379,7 +382,8 @@ namespace bpr::application {
 		void publish()
 		{
 			if (!Stopped) {
-				Projection.AgentAvailable = AgentRunner && AgentLane != nullptr;
+				Projection.AgentAvailable  = AgentRunner && AgentLane != nullptr;
+				Projection.ChecksAvailable = Projection.AgentAvailable && CheckCopies != nullptr;
 				project_workflow();
 				Port.publish(Projection);
 			}
@@ -1091,8 +1095,13 @@ namespace bpr::application {
 			}
 			run(
 				[id = Projection.Draft->Id](implementation& aSelf, std::stop_token) -> local_draft_store_result<void> {
-					auto* stored = aSelf.store();
-					return stored == nullptr ? local_draft_store_result<void>{ std::unexpected{ local_draft_store_error{ } } } : stored->remove(id);
+					auto* stored  = aSelf.store();
+					auto  removed = stored == nullptr ? local_draft_store_result<void>{ std::unexpected{ local_draft_store_error{ } } } : stored->remove(id);
+					// RFC-BPR-0120. Its check copies go with it.
+					if (removed && aSelf.CheckCopies != nullptr) {
+						aSelf.CheckCopies->prune(id.Value, std::nullopt);
+					}
+					return removed;
 				},
 				[](implementation& aSelf, local_draft_store_result<void> aRemoved) {
 					if (!aRemoved && aRemoved.error().Failure != local_draft_store_failure::missing) {
@@ -1329,6 +1338,323 @@ namespace bpr::application {
 				}
 			}
 			prepare(std::move(reply->first));
+		}
+
+		// --- RFC-BPR-0120: a check ------------------------------------------------
+
+		struct check_copy_made
+		{
+			std::optional<local_check_copy> Copy;
+			std::string                     Failure;
+			/// The candidate's changed paths, for the plan's request.
+			std::vector<std::string> Paths;
+		};
+
+		/// Effect lane. The candidate's check copy, made from its own bytes
+		/// (its head's tree from the objects, the included working files from
+		/// the store), or the one made before; the draft's other copies go,
+		/// none being in use while this one is made.
+		auto make_check_copy(const core::local_draft& aDraft, const core::local_draft_candidate& aCandidate, const std::uint64_t aLimit, const std::stop_token aStop) -> check_copy_made
+		{
+			auto out = check_copy_made{ };
+			for (const auto& change : aCandidate.Changes) {
+				out.Paths.push_back(change.Path);
+			}
+			const auto copy = CheckCopies->locate(aDraft.Id.Value, aCandidate.Ordinal);
+			CheckCopies->prune(aDraft.Id.Value, aCandidate.Ordinal);
+			if (CheckCopies->ready(copy)) {
+				out.Copy = copy;
+				return out;
+			}
+			auto* const stored = store();
+			auto        reader = git(aStop);
+			if (!Discovery || stored == nullptr || !reader) {
+				out.Failure = "The candidate's files could not be read, so no check copy was made.";
+				return out;
+			}
+			const auto repository = Discovery->repository();
+			auto       listing    = (*reader)->list_tree_of(repository, aCandidate.Head, aStop);
+			if (!listing) {
+				out.Failure = "The candidate's committed files could not be read, so no check copy was made.";
+				return out;
+			}
+			if (!CheckCopies->begin(copy)) {
+				out.Failure = "The check copy's folder could not be made.";
+				return out;
+			}
+			const auto limit    = aLimit;
+			const auto included = std::set<std::string>{ aCandidate.Included.begin(), aCandidate.Included.end() };
+			auto       total    = std::uint64_t{ 0U };
+			const auto tooLarge = "This candidate is larger than the scratch folder limit allows for a check copy. Raise the limit in Settings › Agents & context.";
+			for (const auto& entry : listing->Entries) {
+				// Regular files only: links and submodules are not copied.
+				const auto kind = entry.Mode & 0170000U;
+				if (included.contains(entry.Path) || kind != 0100000U) {
+					continue;
+				}
+				if (aStop.stop_requested()) {
+					out.Failure = "Stopped.";
+					return out;
+				}
+				auto bytes = (*reader)->read_blob(repository, entry.Object, limit - std::min(total, limit), aStop);
+				if (!bytes) {
+					out.Failure = bytes.error().Failure == publication_git_failure::bounds ? tooLarge : "A committed file of the candidate could not be read, so no check copy was made.";
+					return out;
+				}
+				total += bytes->size();
+				if (total > limit || !CheckCopies->put(copy, entry.Path, *bytes, (entry.Mode & 0111U) != 0U)) {
+					out.Failure = total > limit ? tooLarge : "A file of the candidate could not be written to its check copy.";
+					return out;
+				}
+			}
+			for (const auto& change : aCandidate.Changes) {
+				if (!included.contains(change.Path) || !change.Right) {
+					continue;
+				}
+				auto bytes = stored->object(change.Right->Object);
+				if (!bytes || !*bytes) {
+					out.Failure = "An included working file's captured bytes are not kept, so no check copy was made.";
+					return out;
+				}
+				total += (*bytes)->size();
+				if (total > limit || !CheckCopies->put(copy, change.Path, **bytes, (change.Right->Mode & 0111U) != 0U)) {
+					out.Failure = total > limit ? tooLarge : "A file of the candidate could not be written to its check copy.";
+					return out;
+				}
+			}
+			if (!CheckCopies->seal(copy)) {
+				out.Failure = "The check copy could not be finished.";
+				return out;
+			}
+			out.Copy = copy;
+			return out;
+		}
+
+		/// Decision lane: the scratch folder limit as set now.
+		[[nodiscard]] auto check_limit() const -> std::uint64_t { return CheckLimit ? CheckLimit() : core::maximum_agent_scratch_bytes; }
+
+		void begin_check(const local_check_mode aMode, std::string aAsked)
+		{
+			Projection.Asking       = true;
+			Projection.Checking     = aMode;
+			Projection.AskingThread = std::string{ core::local_change_thread };
+			Projection.AskingText   = std::move(aAsked);
+			Projection.AskFailure.clear();
+			AskStop = std::stop_source{ };
+			publish();
+		}
+
+		void end_check(std::string aFailure = { })
+		{
+			Projection.Asking   = false;
+			Projection.Checking = local_check_mode::none;
+			Projection.AskingThread.clear();
+			Projection.AskingText.clear();
+			Projection.AskFailure = std::move(aFailure);
+			Port.publish_check_activity(std::nullopt);
+		}
+
+		/// Sends one plan or run on the agent lane; `aThen` hears its answer
+		/// on the decision lane while this draft is still the one open.
+		template <typename TThen>
+		void launch_check(local_draft_agent_run aRun, TThen aThen)
+		{
+			auto owner = shared_from_this();
+			++AgentPending;
+			aRun.Progress = [owner](const core::agent_turn_activity& aActivity) {
+				owner->Decisions.post([host = owner, activity = aActivity] {
+					if (!host->Stopped && host->Projection.Checking != local_check_mode::none) {
+						host->Port.publish_check_activity(activity);
+					}
+				});
+			};
+			AgentLane->post([owner, asked = Generation, launch = std::move(aRun), runner = AgentRunner, stop = AskStop.get_token(), next = std::move(aThen)]() mutable {
+				auto reply = runner(launch, stop);
+				owner->Decisions.post([host = owner, asked, answer = std::move(reply), finish = std::move(next)]() mutable {
+					--host->AgentPending;
+					if (host->Stopped) {
+						return;
+					}
+					if (asked != host->Generation || !host->Projection.Draft) {
+						host->end_check();
+						host->publish();
+						return;
+					}
+					finish(*host, std::move(answer));
+				});
+			});
+		}
+
+		void plan_check(local_check_question aQuestion)
+		{
+			const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
+			if (latest == nullptr || Projection.Asking || !AgentRunner || AgentLane == nullptr || CheckCopies == nullptr || aQuestion.Agent.empty()) {
+				return;
+			}
+			begin_check(local_check_mode::plan, core::check_plan_question(aQuestion.Words));
+			run([draft = *Projection.Draft, candidate = *latest, limit = check_limit()](implementation& aSelf, const std::stop_token aStop) { return aSelf.make_check_copy(draft, candidate, limit, aStop); },
+				[question = std::move(aQuestion), ordinal = latest->Ordinal](implementation& aSelf, check_copy_made aMade) mutable {
+					if (!aMade.Copy) {
+						aSelf.end_check(std::move(aMade.Failure));
+						aSelf.publish();
+						return;
+					}
+					const auto title   = aSelf.Projection.Draft ? aSelf.Projection.Draft->Title : std::string{ };
+					auto       request = core::compose_check_plan_request(title, ordinal, aMade.Paths, question.Words, question.Instructions, question.Version);
+					auto       launch  = local_draft_agent_run{ .Agent        = question.Agent,
+																.AgentName    = question.AgentName,
+																.Profile      = question.Profile,
+																.Prompt       = std::move(request.Text),
+																.Instructions = std::move(request.Instructions),
+																.Path         = core::agent_run_path::assistance_first_answer,
+																.Draft        = aSelf.Projection.Draft ? aSelf.Projection.Draft->Id.Value : std::string{ },
+																.Delivery     = question.Delivery,
+																.Check        = local_check_mode::plan,
+																.Folder       = aMade.Copy->Copy.string() };
+					aSelf.launch_check(std::move(launch), [posed = std::move(question), ordinal](implementation& aHost, local_draft_agent_answer aAnswer) { aHost.planned(posed, ordinal, std::move(aAnswer)); });
+				});
+		}
+
+		void planned(const local_check_question& aQuestion, const std::uint64_t aOrdinal, local_draft_agent_answer aAnswer)
+		{
+			if (!aAnswer.Answered) {
+				end_check(aAnswer.Stopped ? std::string{ "Stopped. No plan was made." } : aAnswer.Failure.empty() ? std::string{ "The agent did not answer." }
+																												  : aAnswer.Failure);
+				publish();
+				return;
+			}
+			end_check();
+			auto       read  = core::read_check_plan(aAnswer.Text, aOrdinal);
+			const auto now   = Now();
+			auto       asked = core::append_turn(*Projection.Draft, Projection.Draft->Version, core::local_change_thread, aQuestion.Agent, aQuestion.AgentName,
+												 core::local_turn{ .Author = true, .Text = core::check_plan_question(aQuestion.Words) }, now);
+			if (!asked) {
+				prepare(std::unexpected{ asked.error() });
+				return;
+			}
+			auto prose = read.Prose.empty() ? std::string{ "Here is the plan." } : std::move(read.Prose);
+			if (prose.size() > core::maximum_local_turn_bytes) {
+				prose.resize(core::maximum_local_turn_bytes);
+			}
+			auto reply = core::append_turn(asked->first, asked->first.Version, core::local_change_thread, aQuestion.Agent, aQuestion.AgentName,
+										   core::local_turn{ .Author     = false,
+															 .Text       = std::move(prose),
+															 .CostMicros = aAnswer.CostMicros,
+															 .Check      = read.Plan ? std::optional{ core::local_check{ .Plan = std::move(read.Plan) } } : std::nullopt },
+										   now);
+			if (!reply) {
+				prepare(std::unexpected{ reply.error() });
+				return;
+			}
+			// The plan was a fresh run: the next question replays it.
+			if (const auto* kept = core::current_conversation(reply->first, core::local_change_thread, aQuestion.Agent); kept != nullptr && !kept->Handle.empty()) {
+				if (auto cleared = core::record_handle(reply->first, reply->first.Version, kept->Id, { }, now)) {
+					prepare(std::move(*cleared));
+					return;
+				}
+			}
+			prepare(std::move(reply->first));
+		}
+
+		/// The plan a card at `aTurn` of `aConversation` holds: a plan card's,
+		/// or, for Run again, the plan a report ran.
+		[[nodiscard]] auto check_plan_at(const std::uint64_t aConversation, const std::size_t aTurn, const bool aAgain) const -> std::optional<core::local_check_plan>
+		{
+			if (!Projection.Draft) {
+				return std::nullopt;
+			}
+			const auto& conversations = Projection.Draft->Preparation.Conversations;
+			const auto  found         = std::ranges::find(conversations, aConversation, &core::local_conversation::Id);
+			if (found == conversations.end() || aTurn >= found->Turns.size() || !found->Turns[aTurn].Check) {
+				return std::nullopt;
+			}
+			const auto& check = *found->Turns[aTurn].Check;
+			if (aAgain) {
+				if (!check.Report) {
+					return std::nullopt;
+				}
+				auto plan  = check.Report->Plan;
+				plan.State = core::local_check_state::planned;
+				return plan;
+			}
+			return check.Plan;
+		}
+
+		void run_check(const std::uint64_t aConversation, const std::size_t aTurn, local_check_question aQuestion, const bool aAgain)
+		{
+			const auto* latest = Projection.Draft ? core::latest_candidate(*Projection.Draft) : nullptr;
+			auto        found  = check_plan_at(aConversation, aTurn, aAgain);
+			if (!found || !AgentRunner || AgentLane == nullptr || CheckCopies == nullptr || aQuestion.Agent.empty()) {
+				return;
+			}
+			const auto grants = core::grants_for(Projection.Draft->Preparation.CheckGrants, aQuestion.Agent);
+			const auto block  = core::decide_check_run(*found, { .Grants = grants, .Running = Projection.Asking, .Candidate = latest != nullptr });
+			if (block != core::local_check_block::none) {
+				Projection.AskFailure = core::check_block_words(block);
+				publish();
+				return;
+			}
+			if (!aAgain) {
+				prepare(core::settle_check_plan(*Projection.Draft, Projection.Draft->Version, aConversation, aTurn, core::local_check_state::ran, Now()));
+			}
+			const auto ordinal = latest->Ordinal;
+			begin_check(local_check_mode::run, core::check_run_question(ordinal, aAgain));
+			run([draft = *Projection.Draft, candidate = *latest, limit = check_limit()](implementation& aSelf, const std::stop_token aStop) { return aSelf.make_check_copy(draft, candidate, limit, aStop); },
+				[question = std::move(aQuestion), ordinal, plan = std::move(*found), aConversation, aAgain, grants](implementation& aSelf, check_copy_made aMade) mutable {
+					if (!aMade.Copy) {
+						aSelf.end_check(std::move(aMade.Failure));
+						aSelf.publish();
+						return;
+					}
+					const auto title   = aSelf.Projection.Draft ? aSelf.Projection.Draft->Title : std::string{ };
+					auto       request = core::compose_check_run_request(title, ordinal, aMade.Paths, plan, question.Instructions, question.Version);
+					auto       launch  = local_draft_agent_run{ .Agent           = question.Agent,
+																.AgentName       = question.AgentName,
+																.Profile         = question.Profile,
+																.Prompt          = std::move(request.Text),
+																.Instructions    = std::move(request.Instructions),
+																.Path            = core::agent_run_path::assistance_first_answer,
+																.Draft           = aSelf.Projection.Draft ? aSelf.Projection.Draft->Id.Value : std::string{ },
+																.Delivery        = question.Delivery,
+																.Check           = local_check_mode::run,
+																.Folder          = aMade.Copy->Copy.string(),
+																.Scratch         = grants.Scratch ? aMade.Copy->Scratch.string() : std::string{ },
+																.Builds          = grants.Builds,
+																.ScratchLimitMiB = static_cast<std::uint32_t>(aSelf.check_limit() / (1024U * 1024U)) };
+					aSelf.launch_check(std::move(launch), [posed = std::move(question), ordinal, ran = std::move(plan), aConversation, aAgain, copy = *aMade.Copy](implementation& aHost, local_draft_agent_answer aAnswer) mutable {
+						aHost.ran(posed, ordinal, ran, aConversation, aAgain, copy, std::move(aAnswer));
+					});
+				});
+		}
+
+		void ran(const local_check_question& aQuestion, const std::uint64_t aOrdinal, const core::local_check_plan& aPlan, const std::uint64_t aConversation, const bool aAgain,
+				 const local_check_copy& aCopy, local_draft_agent_answer aAnswer)
+		{
+			// What the run changed in its copy is read on the effect lane.
+			run([copy = aCopy](implementation& aSelf, std::stop_token) { return aSelf.CheckCopies->changed(copy); },
+				[question = aQuestion, aOrdinal, plan = aPlan, aConversation, aAgain, answer = std::move(aAnswer)](implementation& aSelf, std::vector<std::string> aChanged) mutable {
+					aSelf.end_check();
+					const auto observed = core::local_check_observation{ .Commands = std::move(answer.Commands), .Changed = std::move(aChanged), .Stopped = answer.Stopped, .Unanswered = !answer.Answered };
+					auto       read     = core::read_check_report(answer.Answered ? answer.Text : std::string{ }, plan, aOrdinal, observed);
+					auto       prose    = !read.Prose.empty() ? std::move(read.Prose)
+						: answer.Stopped                      ? std::string{ "Stopped." }
+						: answer.Answered                     ? std::string{ "The check ended." }
+															  : (answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure);
+					if (prose.size() > core::maximum_local_turn_bytes) {
+						prose.resize(core::maximum_local_turn_bytes);
+					}
+					auto& draft = *aSelf.Projection.Draft;
+					aSelf.prepare(core::append_check_turns(draft, draft.Version, aConversation, { .Text = core::check_run_question(aOrdinal, aAgain) },
+														   { .Text = std::move(prose), .CostMicros = answer.CostMicros, .Check = core::local_check{ .Report = std::move(read.Report) } },
+														   aSelf.Now()));
+					// A copy no check uses on an older candidate goes.
+					if (const auto* latest = core::latest_candidate(draft); latest != nullptr && latest->Ordinal != aOrdinal) {
+						aSelf.run([id = draft.Id.Value, keep = latest->Ordinal](implementation& aHost, std::stop_token) {
+							aHost.CheckCopies->prune(id, keep);
+							return true; },
+								  [](implementation&, bool) { });
+					}
+				});
 		}
 
 		// --- RFC-BPR-0111: Create draft PR… ------------------------------------
@@ -1571,6 +1897,10 @@ namespace bpr::application {
 		/// The agent action whose question is with the agent (decision lane).
 		std::string PendingAgentAction;
 
+		/// RFC-BPR-0120. The check copies; effect lane only.
+		local_check_copy_port*         CheckCopies = nullptr;
+		std::function<std::uint64_t()> CheckLimit;
+
 		/// Decision lane.
 		local_draft_workbench_projection     Projection;
 		local_draft_home_projection          Home;
@@ -1795,6 +2125,39 @@ namespace bpr::application {
 		auto& self = *Implementation;
 		if (self.Projection.Draft) {
 			self.prepare(core::end_conversation(*self.Projection.Draft, self.Projection.Draft->Version, aConversation, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::set_check_copies(local_check_copy_port* const aCopies, std::function<std::uint64_t()> aLimitBytes)
+	{
+		Implementation->CheckCopies = aCopies;
+		Implementation->CheckLimit  = std::move(aLimitBytes);
+		Implementation->publish();
+	}
+
+	void local_draft_workbench::plan_check(local_check_question aQuestion)
+	{
+		Implementation->plan_check(std::move(aQuestion));
+	}
+
+	void local_draft_workbench::run_check(const std::uint64_t aConversation, const std::size_t aTurn, local_check_question aQuestion, const bool aAgain)
+	{
+		Implementation->run_check(aConversation, aTurn, std::move(aQuestion), aAgain);
+	}
+
+	void local_draft_workbench::discard_check(const std::uint64_t aConversation, const std::size_t aTurn)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::settle_check_plan(*self.Projection.Draft, self.Projection.Draft->Version, aConversation, aTurn, core::local_check_state::discarded, self.Now()));
+		}
+	}
+
+	void local_draft_workbench::set_check_grants(core::local_check_grants aGrants)
+	{
+		auto& self = *Implementation;
+		if (self.Projection.Draft) {
+			self.prepare(core::remember_check_grants(*self.Projection.Draft, self.Projection.Draft->Version, std::move(aGrants), self.Now()));
 		}
 	}
 

@@ -71,6 +71,15 @@ namespace bpr::core::preparation_wire {
 		std::vector<std::uint64_t>   Proposals;
 		std::optional<std::uint64_t> Cost;
 		std::int64_t                 At = 0;
+		/// RFC-BPR-0120. A plan card or a report, as `encode_local_check` writes it.
+		std::optional<std::string> Check;
+	};
+	struct check_grants
+	{
+		std::string Agent;
+		bool        Scratch = false;
+		bool        Builds  = false;
+		bool        Asked   = false;
 	};
 	struct conversation
 	{
@@ -85,19 +94,20 @@ namespace bpr::core::preparation_wire {
 	};
 	struct preparation
 	{
-		std::string               Body;
-		std::uint64_t             BodyRevision  = 1;
-		std::uint64_t             TitleRevision = 1;
-		std::string               Problem;
-		std::string               Solution;
-		std::uint64_t             ProblemRevision  = 1;
-		std::uint64_t             SolutionRevision = 1;
-		std::vector<stop>         Stops;
-		std::uint64_t             NextStop = 1;
-		std::vector<proposal>     Proposals;
-		std::uint64_t             NextProposal = 1;
-		std::vector<conversation> Conversations;
-		std::uint64_t             NextConversation = 1;
+		std::string                              Body;
+		std::uint64_t                            BodyRevision  = 1;
+		std::uint64_t                            TitleRevision = 1;
+		std::string                              Problem;
+		std::string                              Solution;
+		std::uint64_t                            ProblemRevision  = 1;
+		std::uint64_t                            SolutionRevision = 1;
+		std::vector<stop>                        Stops;
+		std::uint64_t                            NextStop = 1;
+		std::vector<proposal>                    Proposals;
+		std::uint64_t                            NextProposal = 1;
+		std::vector<conversation>                Conversations;
+		std::uint64_t                            NextConversation = 1;
+		std::optional<std::vector<check_grants>> CheckGrants;
 	};
 	struct answer_item
 	{
@@ -151,7 +161,14 @@ template <>
 struct glz::meta<pw::turn>
 {
 	using value_type            = pw::turn;
-	static constexpr auto value = object("author", &value_type::Author, "subject", &value_type::Subject, "text", &value_type::Text, "proposals", &value_type::Proposals, "cost", &value_type::Cost, "at", &value_type::At);
+	static constexpr auto value = object("author", &value_type::Author, "subject", &value_type::Subject, "text", &value_type::Text, "proposals", &value_type::Proposals, "cost", &value_type::Cost, "at", &value_type::At, "check",
+										 &value_type::Check);
+};
+template <>
+struct glz::meta<pw::check_grants>
+{
+	using value_type            = pw::check_grants;
+	static constexpr auto value = object("agent", &value_type::Agent, "scratch", &value_type::Scratch, "builds", &value_type::Builds, "asked", &value_type::Asked);
 };
 template <>
 struct glz::meta<pw::conversation>
@@ -166,7 +183,8 @@ struct glz::meta<pw::preparation>
 	using value_type            = pw::preparation;
 	static constexpr auto value = object("body", &value_type::Body, "body_revision", &value_type::BodyRevision, "title_revision", &value_type::TitleRevision, "problem", &value_type::Problem, "solution", &value_type::Solution,
 										 "problem_revision", &value_type::ProblemRevision, "solution_revision", &value_type::SolutionRevision, "stops", &value_type::Stops, "next_stop", &value_type::NextStop, "proposals",
-										 &value_type::Proposals, "next_proposal", &value_type::NextProposal, "conversations", &value_type::Conversations, "next_conversation", &value_type::NextConversation);
+										 &value_type::Proposals, "next_proposal", &value_type::NextProposal, "conversations", &value_type::Conversations, "next_conversation", &value_type::NextConversation,
+										 "check_grants", &value_type::CheckGrants);
 };
 
 namespace bpr::core {
@@ -585,11 +603,12 @@ namespace bpr::core {
 			if (conversation.Id == 0U || conversation.Id >= aPreparation.NextConversation || !conversations.insert(conversation.Id).second || !thread_ok(conversation.Thread)
 				|| conversation.Turns.size() > maximum_local_turns || !line_ok(conversation.Agent, 256U) || !line_ok(conversation.AgentName, 256U)
 				|| !line_ok(conversation.Handle, 1024U)
-				|| !std::ranges::all_of(conversation.Turns, [](const local_turn& aTurn) { return text_ok(aTurn.Text, maximum_local_turn_bytes); })) {
+				|| !std::ranges::all_of(conversation.Turns, [](const local_turn& aTurn) { return text_ok(aTurn.Text, maximum_local_turn_bytes) && (!aTurn.Check || valid(*aTurn.Check)); })) {
 				return false;
 			}
 		}
-		return true;
+		auto agents = std::set<std::string>{ };
+		return std::ranges::all_of(aPreparation.CheckGrants, [&agents](const local_check_grants& aGrants) { return !aGrants.Agent.empty() && line_ok(aGrants.Agent, 256U) && agents.insert(aGrants.Agent).second; });
 	}
 
 	auto encode_draft_preparation(const local_draft_preparation& aPreparation) -> std::string
@@ -654,9 +673,21 @@ namespace bpr::core {
 										   .Ended     = conversation.Ended };
 			for (const auto& turn : conversation.Turns) {
 				entry.Turns.push_back(
-					{ .Author = turn.Author, .Subject = std::string{ name(turn.Subject) }, .Text = turn.Text, .Proposals = turn.Proposals, .Cost = turn.CostMicros, .At = turn.At });
+					{ .Author    = turn.Author,
+					  .Subject   = std::string{ name(turn.Subject) },
+					  .Text      = turn.Text,
+					  .Proposals = turn.Proposals,
+					  .Cost      = turn.CostMicros,
+					  .At        = turn.At,
+					  .Check     = turn.Check ? std::optional{ encode_local_check(*turn.Check) } : std::nullopt });
 			}
 			wire.Conversations.push_back(std::move(entry));
+		}
+		if (!aPreparation.CheckGrants.empty()) {
+			auto& grants = wire.CheckGrants.emplace();
+			for (const auto& entry : aPreparation.CheckGrants) {
+				grants.push_back({ .Agent = entry.Agent, .Scratch = entry.Scratch, .Builds = entry.Builds, .Asked = entry.Asked });
+			}
 		}
 		auto text = std::string{ };
 		if (glz::write_json(wire, text)) {
@@ -767,10 +798,20 @@ namespace bpr::core {
 				}
 				auto proposals = turn.Proposals;
 				std::erase_if(proposals, [&dropped](const std::uint64_t aId) { return dropped.contains(aId); });
+				auto check = std::optional<local_check>{ };
+				if (turn.Check) {
+					check = decode_local_check(*turn.Check);
+					if (!check) {
+						return std::nullopt;
+					}
+				}
 				conversation.Turns.push_back(
-					{ .Author = turn.Author, .Subject = *subject, .Text = turn.Text, .Proposals = std::move(proposals), .CostMicros = turn.Cost, .At = turn.At });
+					{ .Author = turn.Author, .Subject = *subject, .Text = turn.Text, .Proposals = std::move(proposals), .CostMicros = turn.Cost, .At = turn.At, .Check = std::move(check) });
 			}
 			preparation.Conversations.push_back(std::move(conversation));
+		}
+		for (const auto& entry : wire.CheckGrants.value_or(std::vector<pw::check_grants>{ })) {
+			preparation.CheckGrants.push_back({ .Agent = entry.Agent, .Scratch = entry.Scratch, .Builds = entry.Builds, .Asked = entry.Asked });
 		}
 		if (failed || !valid(preparation)) {
 			return std::nullopt;
@@ -1290,6 +1331,73 @@ namespace bpr::core {
 		return std::pair{ std::move(next), id };
 	}
 
+	auto append_check_turns(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aConversation, local_turn aQuestion, local_turn aAnswer, const std::int64_t aNow)
+		-> preparation_result<local_draft>
+	{
+		if (aDraft.Version != aExpectedVersion) {
+			return std::unexpected{ preparation_refusal::stale };
+		}
+		auto  next  = advanced(aDraft, aNow);
+		auto& prep  = next.Preparation;
+		auto  found = std::ranges::find(prep.Conversations, aConversation, &local_conversation::Id);
+		if (found == prep.Conversations.end()) {
+			return std::unexpected{ preparation_refusal::unknown };
+		}
+		if (found->Turns.size() + 2U > maximum_local_turns) {
+			return std::unexpected{ preparation_refusal::full };
+		}
+		aQuestion.Author = true;
+		aAnswer.Author   = false;
+		// The check ran apart from the conversation's own session: the next
+		// question starts one that replays its turns, the report among them.
+		found->Handle.clear();
+		aQuestion.At = aNow;
+		aAnswer.At   = aNow;
+		found->Turns.push_back(std::move(aQuestion));
+		found->Turns.push_back(std::move(aAnswer));
+		if (!valid(prep)) {
+			return std::unexpected{ preparation_refusal::invalid };
+		}
+		return next;
+	}
+
+	auto settle_check_plan(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aConversation, const std::size_t aTurn, const local_check_state aState,
+						   const std::int64_t aNow) -> preparation_result<local_draft>
+	{
+		if (aDraft.Version != aExpectedVersion) {
+			return std::unexpected{ preparation_refusal::stale };
+		}
+		auto next  = advanced(aDraft, aNow);
+		auto found = std::ranges::find(next.Preparation.Conversations, aConversation, &local_conversation::Id);
+		if (found == next.Preparation.Conversations.end() || aTurn >= found->Turns.size() || !found->Turns[aTurn].Check || !found->Turns[aTurn].Check->Plan) {
+			return std::unexpected{ preparation_refusal::unknown };
+		}
+		auto& plan = *found->Turns[aTurn].Check->Plan;
+		if (plan.State != local_check_state::planned || aState == local_check_state::planned) {
+			return std::unexpected{ preparation_refusal::decided };
+		}
+		plan.State = aState;
+		return next;
+	}
+
+	auto remember_check_grants(const local_draft& aDraft, const std::uint64_t aExpectedVersion, local_check_grants aGrants, const std::int64_t aNow) -> preparation_result<local_draft>
+	{
+		if (aDraft.Version != aExpectedVersion) {
+			return std::unexpected{ preparation_refusal::stale };
+		}
+		if (aGrants.Agent.empty() || !line_ok(aGrants.Agent, 256U)) {
+			return std::unexpected{ preparation_refusal::invalid };
+		}
+		auto  next   = advanced(aDraft, aNow);
+		auto& grants = next.Preparation.CheckGrants;
+		if (auto found = std::ranges::find(grants, aGrants.Agent, &local_check_grants::Agent); found != grants.end()) {
+			*found = std::move(aGrants);
+		} else {
+			grants.push_back(std::move(aGrants));
+		}
+		return next;
+	}
+
 	auto record_handle(const local_draft& aDraft, const std::uint64_t aExpectedVersion, const std::uint64_t aConversation, std::string aHandle, const std::int64_t aNow)
 		-> preparation_result<local_draft>
 	{
@@ -1407,6 +1515,10 @@ namespace bpr::core {
 			}
 			for (const auto& turn : replay.Turns) {
 				out += std::string{ turn.Author ? "\nAuthor: " : "\nAgent: " } + turn.Text + "\n";
+				// RFC-BPR-0120. A check's report is a turn a later question reads.
+				if (turn.Check && turn.Check->Report) {
+					out += "\n" + render_check_report(*turn.Check->Report, latest_ordinal(aDraft)) + "\n";
+				}
 			}
 		}
 		auto question = std::string{ "\n## The question\n\nIt is about " };

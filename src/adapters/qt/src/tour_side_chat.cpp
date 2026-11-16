@@ -3,6 +3,7 @@
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/local_check_card.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
@@ -492,6 +493,14 @@ namespace bpr::qt {
 		SessionCostLine->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
 		sessionRow->addWidget(Sessions, 0, Qt::AlignVCenter);
+		// RFC-BPR-0120. A local draft's whole-change conversation plans a
+		// check: the composer's words, or none for the agent to choose.
+		PlanCheck = new quiet_push_button{ tr("Plan a check…"), this };
+		PlanCheck->setObjectName(QStringLiteral("tourChatPlanCheck"));
+		PlanCheck->setFlat(true);
+		PlanCheck->setFocusPolicy(Qt::TabFocus);
+		PlanCheck->hide();
+		sessionRow->addWidget(PlanCheck, 0, Qt::AlignVCenter);
 		sessionRow->addStretch(1);
 		sessionRow->addWidget(SessionCostLine, 0, Qt::AlignVCenter);
 		column->addLayout(sessionRow);
@@ -517,6 +526,13 @@ namespace bpr::qt {
 				return;
 			}
 			send(Composer->toPlainText().trimmed(), false);
+		});
+		connect(PlanCheck, &QPushButton::clicked, this, [this] {
+			if (Checks.Plan && CheckAvailable && !Running) {
+				const auto words = Composer->toPlainText().trimmed();
+				Composer->clear();
+				Checks.Plan(words);
+			}
 		});
 		connect(ClearPassage, &QToolButton::clicked, this, [this] {
 			if (const auto thread = current()) {
@@ -1188,6 +1204,25 @@ namespace bpr::qt {
 		PassageLine->setAccessibleName(tr("Asking about %1").arg(said));
 	}
 
+	void tour_side_chat::set_check_dispatch(check_dispatch aDispatch)
+	{
+		Checks = std::move(aDispatch);
+		refresh_actions();
+	}
+
+	void tour_side_chat::set_check_state(const bool aScratch, const bool aBuilds, const bool aAvailable, const QString& aWhy, const bool aRebuild)
+	{
+		const auto changed = aRebuild || aScratch != CheckScratch || aBuilds != CheckBuilds;
+		CheckScratch       = aScratch;
+		CheckBuilds        = aBuilds;
+		CheckAvailable     = aAvailable;
+		CheckWhy           = aWhy;
+		if (changed) {
+			rebuild();
+		}
+		refresh_actions();
+	}
+
 	void tour_side_chat::refresh_actions()
 	{
 		const auto thread = current();
@@ -1214,6 +1249,15 @@ namespace bpr::qt {
 			}
 		}
 		NewSession->setEnabled(active && HostIdle && !Running && !HistoryLoading);
+		const auto checks = Checks.Plan && thread && thread->Kind == core::tour_thread_kind::tour;
+		PlanCheck->setVisible(checks);
+		PlanCheck->setEnabled(checks && CheckAvailable && !Running && HostIdle);
+		PlanCheck->setToolTip(!CheckAvailable ? CheckWhy
+								  : blank     ? tr("The agent proposes the checks that matter most for this change. Nothing runs until you press Run.")
+											  : tr("The agent plans a check of what you wrote. Nothing runs until you press Run."));
+		if (checks) {
+			wear_agent_accent(*PlanCheck, palette());
+		}
 		Notice->setVisible(!ContinuationMode->isHidden() || !RevisionStatus->isHidden());
 		refresh_unchanged_line();
 		// [[BPR-1930]]. The tour's chat is for feedback on its shape too.
@@ -1689,6 +1733,19 @@ namespace bpr::qt {
 					said->setObjectName(QStringLiteral("tourSideChatReply"));
 					said->set_link_dispatch([this](const std::string& aLink) { static_cast<void>(follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate, ReferenceChoose)); });
 					column->addWidget(said);
+					// RFC-BPR-0120. A check's plan card or report card.
+					if (run->Check) {
+						const auto turn = run->Id;
+						auto       call = [turn](const std::function<void(core::tour_agent_run_id)>& aDispatch) {
+							return [aDispatch, turn] {
+								if (aDispatch) {
+									aDispatch(turn);
+								}
+							};
+						};
+						auto* const card = new local_check_card{ *run->Check, QString::fromStdString(run->CheckBlocked), run->CheckLatest, { .Scratch = CheckScratch, .Builds = CheckBuilds }, { .Run = call(Checks.Run), .Discard = call(Checks.Discard), .Open = call(Checks.Open), .Again = call(Checks.Again), .Grants = Checks.Grants }, answer };
+						column->addWidget(card);
+					}
 				} else {
 					const auto ended = std::ranges::find(run->Entries, core::tour_transcript_kind::ended, &core::tour_transcript_entry::Kind);
 					failure          = ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).trimmed();

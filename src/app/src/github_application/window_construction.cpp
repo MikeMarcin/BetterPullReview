@@ -1673,7 +1673,7 @@ namespace bpr::app {
 			},
 			[this] {
 				if (local_tour_shown()) {
-					DraftDesktop->tour_stop();
+					DraftDesktop->writing_stop();
 					return;
 				}
 				cancel_writing();

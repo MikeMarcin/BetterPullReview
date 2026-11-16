@@ -2,14 +2,18 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_LOCAL_DRAFT_WORKBENCH_HPP
 
 #include "bpr/application/diff_line_matcher.hpp"
+#include "bpr/application/local_check_copies.hpp"
 #include "bpr/application/local_draft_discovery.hpp"
 #include "bpr/application/local_draft_publishing.hpp"
 #include "bpr/application/local_draft_store.hpp"
 #include "bpr/application/local_presentation.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_material_bridge.hpp"
+#include "bpr/core/agent_activity.hpp"
+#include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_run_policy.hpp"
 #include "bpr/core/local_draft.hpp"
+#include "bpr/core/local_draft_check.hpp"
 #include "bpr/core/local_draft_tour.hpp"
 #include "bpr/core/local_tour_view.hpp"
 #include "bpr/core/review_cycle_views.hpp"
@@ -164,9 +168,20 @@ namespace bpr::application {
 		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 	};
 
+	/// \brief RFC-BPR-0120. What a run of the draft's agent is for: a
+	/// question, a check's plan, or a check's run.
+	enum class local_check_mode : std::uint8_t {
+		none,
+		/// Read-only tools in the check copy; nothing runs.
+		plan,
+		/// The check copy, with the draft's grants for this agent.
+		run,
+	};
+
 	/// \brief One run of an agent for a local draft: tool-free, with only the
 	/// request's text as its input (the candidate's captured bytes, never the
-	/// worktree).
+	/// worktree); or, for a check (RFC-BPR-0120), in the candidate's check
+	/// copy, never the worktree either.
 	struct local_draft_agent_run
 	{
 		std::string   Agent;
@@ -188,6 +203,17 @@ namespace bpr::application {
 		std::string Draft;
 		/// [[BPR-2140]]. Where `Instructions` go (the agent's switch).
 		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
+		/// RFC-BPR-0120. A check's plan or run, and the copy it runs in.
+		local_check_mode Check = local_check_mode::none;
+		std::string      Folder;
+		/// The scratch folder granted, when Use scratch folder is on; empty: none.
+		std::string Scratch;
+		/// Allow build and run tests is on: the copy is the build workspace.
+		bool Builds = false;
+		/// The scratch folder limit as set, for the agent's instruction.
+		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
+		/// What the run does as it does it, on the agent lane.
+		std::function<void(const core::agent_turn_activity&)> Progress;
 	};
 	struct local_draft_agent_answer
 	{
@@ -198,6 +224,24 @@ namespace bpr::application {
 		std::optional<std::uint64_t> CostMicros;
 		/// Why it did not answer, in the person's words.
 		std::string Failure;
+		/// RFC-BPR-0120. The commands the agent's activity listed, in order.
+		std::vector<std::string> Commands;
+		/// Stop ended it.
+		bool Stopped = false;
+	};
+
+	/// \brief RFC-BPR-0120. Plan a check… or Run, as the page asks it: the
+	/// author's words (none: the agent chooses), the agent, and
+	/// `local-draft.run-check`'s effective text and version.
+	struct local_check_question
+	{
+		std::string                      Words;
+		std::string                      Agent;
+		std::string                      AgentName;
+		std::uint64_t                    Profile = 0;
+		std::string                      Instructions;
+		std::string                      Version;
+		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 	};
 	/// \brief Runs one question; blocking, on the agent lane, stoppable.
 	using local_draft_agent_runner = std::function<local_draft_agent_answer(const local_draft_agent_run&, std::stop_token)>;
@@ -356,7 +400,11 @@ namespace bpr::application {
 		std::string AskingThread;
 		std::string AskingText;
 		/// Why the last question was not answered.
-		std::string                                 AskFailure;
+		std::string AskFailure;
+		/// RFC-BPR-0120. What is with the agent is a check's plan or run.
+		local_check_mode Checking = local_check_mode::none;
+		/// Check copies can be made: a scratch root is composed.
+		bool                                        ChecksAvailable = false;
 		std::optional<local_draft_request_coverage> Coverage;
 		/// RFC-BPR-0111. Create draft PR….
 		local_draft_publishing_view Publishing;
@@ -375,6 +423,9 @@ namespace bpr::application {
 
 		virtual void publish(const local_draft_workbench_projection& aProjection) = 0;
 		virtual void publish(const local_draft_home_projection& aHome)            = 0;
+		/// \brief RFC-BPR-0120, RFC-BPR-0103. A running check's activity, as
+		/// it happens; none once it ends.
+		virtual void publish_check_activity(const std::optional<core::agent_turn_activity>& aActivity) { static_cast<void>(aActivity); }
 	};
 
 	/// \brief Makes the isolated Git reader on the effect lane, at first use.
@@ -438,6 +489,21 @@ namespace bpr::application {
 		void stop_asking();
 		/// \brief New session: the open conversation ends and stays readable.
 		void new_session(std::uint64_t aConversation);
+		// RFC-BPR-0120: a check. Nothing runs on open, refresh or a new candidate.
+		/// \brief Composes check copies, and the most bytes one may hold (the
+		/// scratch folder limit); null leaves Plan a check… unavailable.
+		void set_check_copies(local_check_copy_port* aCopies, std::function<std::uint64_t()> aLimitBytes);
+		/// \brief Plan a check…: the agent reads the latest candidate's check
+		/// copy with read-only tools and answers with a plan card.
+		void plan_check(local_check_question aQuestion);
+		/// \brief Run on the plan card at turn `aTurn` of `aConversation`, or,
+		/// with `aAgain`, Run again on that report's plan: in the check copy
+		/// of the latest candidate.
+		void run_check(std::uint64_t aConversation, std::size_t aTurn, local_check_question aQuestion, bool aAgain);
+		/// \brief Discard on a plan card.
+		void discard_check(std::uint64_t aConversation, std::size_t aTurn);
+		/// \brief Remembers an agent's two grants for this draft.
+		void set_check_grants(core::local_check_grants aGrants);
 		// RFC-BPR-0111: Create draft PR…. BPR pushes nothing.
 		/// \brief The account creation acts as, asked each time, and the lane
 		/// its GitHub calls run on, apart from every review submission.
