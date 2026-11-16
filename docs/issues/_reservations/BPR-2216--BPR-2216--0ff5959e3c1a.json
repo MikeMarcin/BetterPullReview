@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2216"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Opening a pull request from Home is responsive: page at once, Return and Active review while loading",
+  "created": "2026-11-16T22:25:35.857603+00:00",
+  "base": "74c1d95e4488fe782a993b42df8dd67be8c0fb82"
+}
