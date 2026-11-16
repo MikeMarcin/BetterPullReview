@@ -55,6 +55,16 @@ themes, rendering mechanics, and event translation.
   `qt_button_faces_cocoa` measure every such button against its painted face.
 - Preserve local expansion and selection across incremental accepted
   refreshes whenever the semantic identity still exists.
+- No drawer ever pans sideways (owner, look workflow-v002: "This should be a
+  rule by now"). Every drawer tab fits the drawer's narrowest width: labels
+  wrap, a row of controls that may not fit is a `detail::wrapping_row`
+  (`src/wrapping_row.hpp`), and a button naming something user-supplied
+  shortens the name and keeps it whole in its tooltip. Turning a scroll
+  area's horizontal bar off is not a fix: a trackpad still pans it.
+  `qt_drawer_surfaces_fit_scale_100/125/200` checks every drawer tab of
+  every surface at the narrowest and a wide width for a horizontal bar,
+  sideways range and content wider than its viewport; a new drawer tab or
+  drawer state joins that course in the same change.
 - Custom delegates must retain native selection and focus painting, wrap
   remote literal text without elision, and derive colors and fonts from the
   current style option.

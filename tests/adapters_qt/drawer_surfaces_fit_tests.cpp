@@ -19,22 +19,40 @@
 /// words off; and every tab of a visible tab bar fits the bar. The surfaces
 /// that keep RFC-BPR-0085's principles are audited for them as well.
 ///
+/// No drawer ever pans sideways (owner, look workflow-v002: "It's panning
+/// horizontally again. I don't like my drawers doing that. This should be a
+/// rule by now."). Every drawer tab of every surface is held to it at the
+/// drawer's narrowest width and a wide one: no scroll area in the drawer
+/// shows a horizontal scroll bar, has sideways range (a trackpad pans a
+/// scroll area whose bar is turned off), or holds content wider than its
+/// viewport. The surfaces: Overview's Status, Commits, Comments, Tour and
+/// Agent; Review's Comments, Tour and Agent; Author's Workflow, Tour and
+/// Agent on the owner's pull request and on a local draft; and the local
+/// draft's Review and Overview tabs.
+///
 /// `BPR_DRAWER_FIT_RENDER_ROOT`, when set, receives a render of each state.
 
 #include "../support/review_tour_fixture.hpp"
 
+#include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/author_mode.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/local_draft.hpp"
 #include "bpr/core/review_preflight.hpp"
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/workflow_action.hpp"
+#include "bpr/core/workflow_configuration.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/local_draft_workflow_area.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -47,6 +65,7 @@
 #include <QApplication>
 #include <QLabel>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
@@ -181,6 +200,54 @@ namespace {
 		return found;
 	}
 
+	/// \brief Every way \p aSurface (a drawer, or a tab's page in one) pans
+	/// sideways: a horizontal scroll bar shown, sideways range a trackpad can
+	/// pan even with the bar turned off, or scrolled content wider than its
+	/// viewport.
+	[[nodiscard]] auto pans_sideways(const QWidget& aSurface) -> QStringList
+	{
+		auto found = QStringList{ };
+		auto areas = aSurface.findChildren<QAbstractScrollArea*>();
+		if (auto* const self = qobject_cast<QAbstractScrollArea*>(const_cast<QWidget*>(&aSurface)); self != nullptr) {
+			areas.push_front(self);
+		}
+		for (const auto* const area : areas) {
+			if (!area->isVisible() || area->viewport()->width() <= 0) {
+				continue;
+			}
+			const auto* const bar = area->horizontalScrollBar();
+			if (bar->isVisible()) {
+				found.push_back(QStringLiteral("%1 shows a horizontal scroll bar").arg(describe(*area)));
+			}
+			if (bar->maximum() > bar->minimum()) {
+				found.push_back(QStringLiteral("%1 pans %2 px sideways").arg(describe(*area)).arg(bar->maximum() - bar->minimum()));
+			}
+			if (const auto* const scroll = qobject_cast<const QScrollArea*>(area); scroll != nullptr && scroll->widget() != nullptr && scroll->widget()->isVisible()
+				&& scroll->widget()->width() > scroll->viewport()->width()) {
+				// Name what forces the width, innermost first, so the failure
+				// says what to wrap or elide: a visible part whose own minimum,
+				// where it stands, reaches past the viewport.
+				const auto* const content = scroll->widget();
+				const auto        reach   = [content](const QWidget& aPart) {
+					return aPart.mapTo(content, QPoint{ 0, 0 }).x() + std::max(aPart.minimumWidth(), aPart.minimumSizeHint().width());
+				};
+				const auto limit = scroll->viewport()->width();
+				auto       past  = QStringList{ };
+				for (const auto* const child : content->findChildren<QWidget*>()) {
+					if (!child->isVisible() || reach(*child) <= limit || past.size() >= 6) {
+						continue;
+					}
+					const auto inner = std::ranges::any_of(child->findChildren<QWidget*>(), [&](const QWidget* aInner) { return aInner->isVisible() && reach(*aInner) > limit; });
+					if (!inner) {
+						past.push_back(QStringLiteral("%1 reaches %2").arg(describe(*child)).arg(reach(*child)));
+					}
+				}
+				found.push_back(QStringLiteral("%1's content is %2 wide in a %3 px viewport (%4)").arg(describe(*area)).arg(scroll->widget()->width()).arg(scroll->viewport()->width()).arg(past.join(QStringLiteral(", "))));
+			}
+		}
+		return found;
+	}
+
 	/// Every surface state that failed, so one run names them all.
 	std::vector<std::string> failures;
 
@@ -194,6 +261,21 @@ namespace {
 				failures.push_back(aWhere + ": RFC-BPR-0085's principles broken: " + violations.join(QStringLiteral("; ")).toStdString());
 			}
 		}
+	}
+
+	/// \brief A drawer never pans sideways.
+	void require_still(const QWidget& aSurface, const std::string& aWhere)
+	{
+		if (const auto panning = pans_sideways(aSurface); !panning.isEmpty()) {
+			failures.push_back(aWhere + ": pans sideways: " + panning.join(QStringLiteral("; ")).toStdString());
+		}
+	}
+
+	/// \brief A drawer, or a tab's page in one: whole, and it never pans sideways.
+	void require_drawer(const QWidget& aSurface, const std::string& aWhere, const qt::drawer_principles* aPrinciples = nullptr)
+	{
+		require_whole(aSurface, aWhere, aPrinciples);
+		require_still(aSurface, aWhere);
 	}
 
 	void save(const QWidget& aWidget, const QString& aName)
@@ -237,6 +319,24 @@ namespace {
 		bar->setGeometry(0, 0, 480, 30);
 		settle();
 		expect(clipped(surface).isEmpty(), "and the same parts with room are whole");
+
+		// A drawer that pans: its bar turned off still pans by trackpad.
+		QScrollArea scroll;
+		scroll.resize(200, 120);
+		scroll.setWidgetResizable(true);
+		scroll.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		auto* const content = new QWidget{ };
+		content->setMinimumWidth(320);
+		scroll.setWidget(content);
+		scroll.show();
+		settle();
+		expect(!pans_sideways(scroll).isEmpty(), "negative control: content wider than the viewport pans though the bar is off");
+		scroll.setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		settle();
+		expect(pans_sideways(scroll).size() >= 2, "negative control: a horizontal scroll bar is caught");
+		content->setMinimumWidth(0);
+		settle();
+		expect(pans_sideways(scroll).isEmpty(), "and content that fits does not pan");
 	}
 
 	// ---- The Overview's Status drawer ---------------------------------------
@@ -313,7 +413,7 @@ namespace {
 					const auto  where  = std::string{ "Status " } + name + " at " + std::to_string(width) + (open ? ", every section open" : ", sections closed");
 					expect(drawer->isVisible() && drawer->width() >= static_cast<int>(width), where + ": the drawer is shown at its width (" + std::to_string(drawer->width()) + ")");
 					const auto principles = qt::drawer_principles{ };
-					require_whole(*drawer, where, &principles);
+					require_drawer(*drawer, where, &principles);
 					save(*drawer, QStringLiteral("status-%1-%2-%3").arg(QString::fromLatin1(name)).arg(width).arg(open ? QStringLiteral("open") : QStringLiteral("closed")));
 				}
 			}
@@ -450,7 +550,7 @@ namespace {
 				auto* const chip  = cards->pull_request_comments_chip();
 				expect(chip != nullptr && chip->isVisible() && chip->text() == QStringLiteral("Pull request conversation"), "the link to the pull request's conversation waits at the edge" + at);
 				expect(chip->geometry().right() < cards->viewport()->width(), "the link fits the drawer" + at);
-				require_whole(*drawer, "Comments with the edge link" + at);
+				require_drawer(*drawer, "Comments with the edge link" + at);
 				save(window, QStringLiteral("comments-chip-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 				expect(!cards->pull_request_comments_shown(), "Review's Comments has no pull request mode" + at);
 
@@ -459,7 +559,7 @@ namespace {
 				window.present_local_comments(local_comments());
 				settle();
 				expect(cards->local_file_chip()->isVisible() && cards->local_elsewhere_chip()->isVisible(), "the Local comment chips show" + at);
-				require_whole(*drawer, "Comments with the Local comment chips" + at);
+				require_drawer(*drawer, "Comments with the Local comment chips" + at);
 				save(window, QStringLiteral("local-chips-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 				const auto principles = qt::drawer_principles{ };
 
@@ -469,7 +569,7 @@ namespace {
 				window.tour_editor()->show_stops();
 				settle();
 				expect(window.tray_tabs()->currentIndex() == 1 && window.tour_editor()->mode() == qt::tour_editor_mode::route, "the Tour tab shows the route" + at);
-				require_whole(*drawer, "the Tour route" + at);
+				require_drawer(*drawer, "the Tour route" + at);
 				require_whole(*window.tour_editor(), "the Tour route's editor" + at, &principles);
 				save(window, QStringLiteral("tour-route-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 
@@ -477,7 +577,7 @@ namespace {
 				window.tray_tabs()->setCurrentIndex(2);
 				settle();
 				expect(window.agent_tab() != nullptr && window.agent_tab()->isVisible(), "the Agent tab shows" + at);
-				require_whole(*drawer, "the Agent tab" + at);
+				require_drawer(*drawer, "the Agent tab" + at);
 				save(window, QStringLiteral("agent-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 				// Look prompts-v002 (owner: "the drawer is back to having a
 				// horizontal panning/scrolling"): the pending list, with long
@@ -515,7 +615,7 @@ namespace {
 					}
 					settle();
 					expect(window.agent_tab()->queue_list()->isVisible(), "the pending list shows" + at);
-					require_whole(*drawer, "the Agent tab with its pending list" + at);
+					require_drawer(*drawer, "the Agent tab with its pending list" + at);
 					// Look prompts-v004: the card's controls are icons alone,
 					// each with a tooltip, so the message keeps the width.
 					for (const auto* const controlName : { "agentQueueEdit", "agentQueueSteer", "agentQueueRemove" }) {
@@ -546,16 +646,16 @@ namespace {
 		}
 	}
 
-	/// \brief [[BPR-1781]]. Overview's drawer with each conversation tab:
-	/// the pull request's conversation in Comments, the pull request's
-	/// notes, the tour as an author with a draft, as an author with none and
-	/// as a reader of a published tour, and the Agent tab; whole in every
-	/// theme at the default and widest widths.
+	/// \brief [[BPR-1781]]. Overview's drawer with each tab: Status,
+	/// Commits, the pull request's conversation in Comments, the tour as an
+	/// author with a draft, as an author with none and as a reader of a
+	/// published tour, and the Agent tab; whole and still in every theme at
+	/// the narrowest, default and widest widths.
 	void test_the_overview_conversation_tabs_fit()
 	{
 		for (const auto& [mode, name] : themes) {
 			auto profile = profile_for(mode);
-			for (const auto width : { application::default_status_drawer_width, application::maximum_status_drawer_width }) {
+			for (const auto width : { application::minimum_status_drawer_width, application::default_status_drawer_width, application::maximum_status_drawer_width }) {
 				for (const auto* const tour : { "draft", "none", "reader" }) {
 					qt::workbench_window window;
 					open_review(window, profile, 1'480, 400U);
@@ -603,24 +703,220 @@ namespace {
 					expect(drawer->tour_tab_shown(), "the Tour tab shows for an author and for a published tour" + at);
 					const auto principles = qt::drawer_principles{ .NestedTabs = false };
 					const auto tabs       = std::string_view{ tour } == "draft"
-						? std::vector{ qt::overview_drawer_tab::comments, qt::overview_drawer_tab::tour, qt::overview_drawer_tab::agent }
+						? std::vector{ qt::overview_drawer_tab::status, qt::overview_drawer_tab::commits, qt::overview_drawer_tab::comments, qt::overview_drawer_tab::tour, qt::overview_drawer_tab::agent }
 						: std::vector{ qt::overview_drawer_tab::tour };
 					for (const auto tab : tabs) {
 						drawer->show_tab(tab);
 						settle();
-						const auto which = tab == qt::overview_drawer_tab::comments ? QStringLiteral("comments")
-							: tab == qt::overview_drawer_tab::tour                  ? QStringLiteral("tour-%1").arg(QString::fromLatin1(tour))
-																					: QStringLiteral("agent");
+						const auto which = tab == qt::overview_drawer_tab::status ? QStringLiteral("status")
+							: tab == qt::overview_drawer_tab::commits             ? QStringLiteral("commits")
+							: tab == qt::overview_drawer_tab::comments            ? QStringLiteral("comments")
+							: tab == qt::overview_drawer_tab::tour                ? QStringLiteral("tour-%1").arg(QString::fromLatin1(tour))
+																				  : QStringLiteral("agent");
 						const auto where = "Overview's " + which.toStdString() + at;
 						require_whole(*drawer->header(), where + " header", &principles);
 						if (tab != qt::overview_drawer_tab::agent) {
-							require_whole(*drawer, where);
+							require_drawer(*drawer, where);
+						} else {
+							require_still(*drawer, where);
 						}
 						if (tab == qt::overview_drawer_tab::tour) {
 							require_whole(*drawer->tour_summary(), where + " summary", &principles);
 						}
 						save(window, QStringLiteral("overview-%1-%2-%3").arg(which, QString::fromLatin1(name)).arg(width));
 					}
+				}
+			}
+		}
+	}
+
+	// ---- Author's drawer, and a local draft's tabs ---------------------------
+
+	template <typename T>
+	[[nodiscard]] auto made(T aResult, const std::string& aWhat)
+	{
+		expect(aResult.has_value(), aWhat);
+		return std::move(*aResult);
+	}
+
+	[[nodiscard]] auto oid(const char aDigit) -> core::git_commit_oid { return core::parse_git_commit_oid(std::string(40U, aDigit)).value(); }
+
+	/// \brief An organization's workflow with long names everywhere a name
+	/// can be long: the workflow, its origin, its tasks and a program path.
+	[[nodiscard]] auto long_workflow() -> core::workflow_configuration
+	{
+		const auto command = [](std::string aId, const core::workflow_slot aSlot, std::string aTask, const bool aRequired = false) {
+			auto action        = core::workflow_action{ };
+			action.Id          = std::move(aId);
+			action.Slot        = aSlot;
+			action.Task        = std::move(aTask);
+			action.Binding     = core::workflow_binding::command;
+			action.ProgramName = "synthetic-organization-pull-request-companion";
+			action.Arguments   = { "--request", "{request}", "--response", "{response}" };
+			action.Effects     = { core::workflow_effect::read_context, core::workflow_effect::run_check };
+			action.Required    = aRequired;
+			return action;
+		};
+		auto describe    = core::workflow_action{ };
+		describe.Id      = "describe";
+		describe.Slot    = core::workflow_slot::propose_description;
+		describe.Task    = "Draft the description from the ticket, the design notes and the tour";
+		describe.Binding = core::workflow_binding::agent;
+		describe.Agent   = "writer";
+		describe.Prompt  = "Draft a description.";
+		describe.Effects = { core::workflow_effect::write_proposal };
+		auto made        = core::workflow_configuration{ };
+		made.PortableId  = "synthetic-organization-platform";
+		made.Name        = "Synthetic Organization platform team pull request preparation";
+		made.Origin      = "Synthetic Organization Platform Engineering Productivity";
+		made.Actions     = { command("context", core::workflow_slot::gather_context, "Gather the ticket's context, linked designs and previous review threads"), describe,
+							 command("template", core::workflow_slot::check_preparation, "Check the description against the organization's pull request template", true),
+							 command("publish", core::workflow_slot::publish_draft, "Create the pull request with the organization's publisher"),
+							 command("follow", core::workflow_slot::finish_publication, "Link the ticket and upload the screenshots to the review system") };
+		return made;
+	}
+
+	/// \brief A local draft whose workflow holds a handed-off command, an
+	/// agent row, a required check reported not met with a long finding, the
+	/// organization's publisher chosen and a follow-up that waits.
+	[[nodiscard]] auto workflow_draft() -> application::local_draft_workbench_projection
+	{
+		auto change     = core::draft_path_change{ };
+		change.Path     = "src/engine/renderer/a-directory-name-long-enough-to-matter/frame_resize_budget.cpp";
+		change.Change   = core::draft_change::modified;
+		change.Left     = core::draft_side{ .Mode = 0100644, .Object = core::parse_git_entry_oid(std::string(40U, '2')).value() };
+		change.Right    = core::draft_side{ .Mode = 0100644, .Object = core::parse_git_entry_oid(std::string(40U, '3')).value() };
+		auto first      = core::local_draft_candidate{ };
+		first.Head      = oid('a');
+		first.TargetTip = oid('b');
+		first.Base      = oid('c');
+		first.Changes.push_back(std::move(change));
+		auto worktree                  = core::local_draft_worktree{ };
+		worktree.Location              = "/work/engine";
+		worktree.Repository            = { .Volume = 1, .ObjectLow = 10 };
+		worktree.Worktree              = { .Volume = 1, .ObjectLow = 11 };
+		auto target                    = core::chosen_target{ };
+		target.Target.Remote           = "origin";
+		target.Target.Repository.Host  = "github.com";
+		target.Target.Repository.Owner = "synthetic-owner";
+		target.Target.Repository.Name  = "synthetic-repository";
+		target.Target.Branch           = "main";
+		auto draft                     = made(core::create_local_draft({ }, { std::string(32U, '1') }, worktree, "feature/renderer-resize-budget-with-a-long-branch-name", target, { }, first, 100),
+											  "the draft is created");
+		draft                          = made(core::select_workflow(draft, draft.Version, long_workflow(), 101), "the workflow is selected");
+		draft                          = made(core::begin_action(draft, draft.Version, "template", { }, 102), "the check is handed off");
+		auto unmet                     = core::workflow_response{ };
+		unmet.Invocation               = core::find_record(*draft.Workflow, "template")->Invocation;
+		unmet.Draft                    = draft.Id.Value;
+		unmet.Action                   = "template";
+		unmet.Outcome                  = core::workflow_outcome::findings;
+		auto finding                   = core::workflow_finding{ };
+		finding.Check                  = "template";
+		finding.State                  = core::workflow_finding_state::unmet;
+		finding.Detail                 = "The Testing section is missing; see docs/contributing/pull-request-template-for-the-platform-team.md";
+		unmet.Findings.push_back(std::move(finding));
+		draft                     = made(core::admit_workflow_response(draft, draft.Version, unmet, 103), "the check reports not met");
+		draft                     = made(core::begin_action(draft, draft.Version, "context", { }, 104), "the context is handed off");
+		draft.Workflow->Publisher = core::workflow_publisher::external;
+
+		auto projected           = application::local_draft_workbench_projection{ };
+		projected.Stage          = application::local_draft_stage::open;
+		projected.Outcome        = application::local_draft_open_outcome::resumed;
+		projected.Location       = draft.Worktree.Location;
+		projected.Shown          = 1U;
+		projected.Branch         = draft.Branch;
+		projected.Source         = core::source_state::branch;
+		projected.Draft          = draft;
+		projected.AgentAvailable = true;
+		auto& workflow           = projected.Workflow;
+		auto  option             = application::local_draft_workflow_option{ };
+		option.Id                = "synthetic-organization-platform";
+		option.Name              = long_workflow().Name;
+		option.Origin            = long_workflow().Origin;
+		workflow.Available.push_back(std::move(option));
+		workflow.UpdateAvailable = true;
+		for (const auto& action : draft.Workflow->Workflow.Actions) {
+			auto view   = application::local_draft_workflow_action_view{ };
+			view.Action = action;
+			if (const auto* const record = core::find_record(*draft.Workflow, action.Id); record != nullptr) {
+				view.Record = *record;
+			}
+			if (action.Binding == core::workflow_binding::agent) {
+				view.AgentName = "Writer agent with a long name";
+			} else {
+				view.Command      = { action.ProgramName, "--request", "/Users/someone/Library/Application Support/BetterPullReview/workflow/requests/0001/request.json" };
+				view.CommandLine  = action.ProgramName + " --request '/Users/someone/Library/Application Support/BetterPullReview/workflow/requests/0001/request.json' --response "
+														 "'/Users/someone/Library/Application Support/BetterPullReview/workflow/requests/0001/response.json'";
+				view.RequestPath  = "/Users/someone/Library/Application Support/BetterPullReview/workflow/requests/0001/request.json";
+				view.ResponsePath = "/Users/someone/Library/Application Support/BetterPullReview/workflow/requests/0001/response.json";
+			}
+			workflow.Actions.push_back(std::move(view));
+		}
+		return projected;
+	}
+
+	/// \brief Each of Author's drawer tabs, then (on a local draft) the
+	/// draft's Review and Overview tabs, at the narrowest and a wide width.
+	void test_the_author_drawer_fits()
+	{
+		for (const auto& [mode, name] : themes) {
+			auto profile = profile_for(mode);
+			for (const auto width : { 280U, 760U }) {
+				for (const auto local : { false, true }) {
+					qt::workbench_window window;
+					open_review(window, profile, width == 280U ? 1'280 : 1'920, width);
+					const auto at = std::string{ " " } + name + " at " + std::to_string(width) + (local ? " (local draft)" : " (my pull request)");
+					if (local) {
+						window.show_local_draft(QStringLiteral("Renderer resize budget"));
+						window.present_local_draft(workflow_draft());
+					} else {
+						window.set_pull_request_author_case(core::author_case::open_pull_request);
+					}
+					settle();
+					present_tour(window);
+					window.choose_modality(qt::review_modality::author);
+					settle();
+					auto* const drawer = window.conversations_drawer();
+					expect(window.current_modality() == qt::review_modality::author && drawer->isVisible(), "Author shows its drawer" + at);
+					auto* const tabs = window.author_tabs();
+					expect(tabs != nullptr && tabs->isVisible() && tabs->count() == 3, "Author's tabs show" + at);
+					if (local) {
+						expect(window.local_draft()->workflow()->external_publisher()->isVisible(), "the publisher choice shows on the local draft" + at);
+					}
+					for (int index = 0; index < tabs->count(); ++index) {
+						tabs->setCurrentIndex(index);
+						settle();
+						const auto where = "Author's " + tabs->tabText(index).toStdString() + at;
+						require_drawer(*drawer, where);
+						save(window, QStringLiteral("author-%1-%2-%3-%4").arg(tabs->tabText(index).toLower(), QString::fromLatin1(name), local ? QStringLiteral("draft") : QStringLiteral("pull")).arg(width));
+					}
+					if (local) {
+						// The local draft in Review: Comments (its notes), Tour and Agent.
+						window.choose_modality(qt::review_modality::review);
+						settle();
+						for (int index = 0; index < window.tray_tabs()->count(); ++index) {
+							if (!window.tray_tabs()->isTabVisible(index)) {
+								continue;
+							}
+							window.tray_tabs()->setCurrentIndex(index);
+							settle();
+							require_drawer(*drawer, "the local draft's Review " + window.tray_tabs()->tabText(index).toStdString() + at);
+						}
+						// And on Overview: no Status until its pull request exists.
+						window.choose_modality(qt::review_modality::overview);
+						settle();
+						auto* const overview = window.overview_page()->status_drawer();
+						overview->adopt({ .Width = std::min(width, application::maximum_status_drawer_width), .State = core::workbench_drawer_state::expanded });
+						settle();
+						for (const auto tab : { qt::overview_drawer_tab::comments, qt::overview_drawer_tab::tour, qt::overview_drawer_tab::agent }) {
+							overview->show_tab(tab);
+							settle();
+							if (overview->isVisible() && overview->current_tab() == tab) {
+								require_still(*overview, "the local draft's Overview tab " + std::to_string(static_cast<int>(tab)) + at);
+							}
+						}
+					}
+					window.hide();
 				}
 			}
 		}
@@ -692,6 +988,7 @@ auto main(int argc, char** argv) -> int
 	test_the_status_drawer_fits();
 	test_the_drawer_tabs_fit();
 	test_the_overview_conversation_tabs_fit();
+	test_the_author_drawer_fits();
 	test_the_sheet_and_pages_fit();
 	for (const auto& failure : failures) {
 		std::cerr << "CLIPPED: " << failure << '\n';

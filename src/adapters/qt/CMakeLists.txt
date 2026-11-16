@@ -15,6 +15,7 @@ add_library(
         src/review_cycle_view.cpp
         src/local_draft_publication_area.cpp
         src/local_draft_workflow_area.cpp
+        src/wrapping_row.cpp
         src/workbench_window_author_mode.cpp
         src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp

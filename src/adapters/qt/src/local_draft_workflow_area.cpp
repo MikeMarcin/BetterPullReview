@@ -1,6 +1,7 @@
 #include "bpr/qt/local_draft_workflow_area.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
+#include "wrapping_row.hpp"
 
 #include <QButtonGroup>
 #include <QComboBox>
@@ -21,6 +22,16 @@ namespace bpr::qt {
 		/// The indent that puts a row's second line under its name, past the mark.
 		constexpr int row_indent = 24;
 		constexpr int mark_size  = 16;
+		/// The longest publisher and agent names a button shows whole: a
+		/// button does not elide, and no drawer pans sideways (owner, look
+		/// workflow-v002). The whole name is in the button's tooltip.
+		constexpr qsizetype publisher_name_length = 28;
+		constexpr qsizetype agent_name_length     = 20;
+
+		[[nodiscard]] auto shortened(const QString& aName, const qsizetype aLength) -> QString
+		{
+			return aName.size() > aLength ? aName.left(aLength - 1).trimmed() + QStringLiteral("…") : aName;
+		}
 
 		[[nodiscard]] auto text_of(const std::string_view aText) -> QString { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); }
 
@@ -318,13 +329,12 @@ namespace bpr::qt {
 		HeadlineMark = new QLabel{ this };
 		HeadlineMark->setFixedWidth(mark_size);
 		top->addWidget(HeadlineMark);
+		// Both wrap: no drawer pans sideways (owner, look workflow-v002).
 		Headline = weighted(label({ }, this, QStringLiteral("localDraftWorkflowHeadline")), QFont::DemiBold);
-		Headline->setWordWrap(false);
-		top->addWidget(Headline);
-		top->addStretch(1);
+		top->addWidget(Headline, 1);
 		HeadlineAside = secondary(label({ }, this, QStringLiteral("localDraftWorkflowHeadlineAside")));
-		HeadlineAside->setWordWrap(false);
-		top->addWidget(HeadlineAside);
+		HeadlineAside->setAlignment(Qt::AlignRight | Qt::AlignTop);
+		top->addWidget(HeadlineAside, 0, Qt::AlignTop);
 		column->addLayout(top);
 
 		Summary = label({ }, this, QStringLiteral("localDraftWorkflowSummary"));
@@ -332,9 +342,7 @@ namespace bpr::qt {
 		column->addWidget(Summary);
 
 		PublisherRow             = new QWidget{ this };
-		auto* const publisherRow = new QHBoxLayout{ PublisherRow };
-		publisherRow->setContentsMargins(0, 0, 0, 0);
-		publisherRow->setSpacing(10);
+		auto* const publisherRow = new detail::wrapping_row{ PublisherRow, 10, 4 };
 		publisherRow->addWidget(secondary(new QLabel{ QObject::tr("Created by"), PublisherRow }));
 		BuiltIn = new QRadioButton{ QObject::tr("BetterPullReview"), PublisherRow };
 		BuiltIn->setObjectName(QStringLiteral("localDraftWorkflowPublisherBuiltIn"));
@@ -346,7 +354,6 @@ namespace bpr::qt {
 		PublisherGroup->addButton(External, 1);
 		publisherRow->addWidget(BuiltIn);
 		publisherRow->addWidget(External);
-		publisherRow->addStretch(1);
 		PublisherRow->hide();
 
 		Actions = new QWidget{ this };
@@ -358,18 +365,18 @@ namespace bpr::qt {
 
 		// The workflow itself, quiet at the foot: which one, and its revision.
 		Footer                = new QWidget{ this };
-		auto* const footerRow = new QHBoxLayout{ Footer };
+		auto* const footerRow = new detail::wrapping_row{ Footer, 8, 4 };
 		footerRow->setContentsMargins(0, 6, 0, 0);
-		footerRow->setSpacing(8);
 		Chooser = new QComboBox{ Footer };
 		Chooser->setObjectName(QStringLiteral("localDraftWorkflowChooser"));
 		Chooser->setAccessibleName(QObject::tr("Workflow for this draft"));
 		Chooser->setToolTip(QObject::tr("Optional, and selecting one runs nothing."));
+		// The full name when there is room; elided, never wider, when not.
 		Chooser->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+		Chooser->setMinimumWidth(96);
 		footerRow->addWidget(Chooser);
-		footerRow->addStretch(1);
 		Revision = secondary(label({ }, Footer, QStringLiteral("localDraftWorkflowRevision")));
-		Revision->setWordWrap(false);
+		Revision->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 		footerRow->addWidget(Revision);
 		Update = new QPushButton{ QObject::tr("Use the Newer Revision"), Footer };
 		Update->setObjectName(QStringLiteral("localDraftWorkflowUpdate"));
@@ -452,8 +459,11 @@ namespace bpr::qt {
 			&& std::ranges::any_of(selected->Workflow.Actions, [](const core::workflow_action& aAction) { return aAction.Slot == core::workflow_slot::publish_draft; });
 		if (hasPublisher) {
 			const auto publish = std::ranges::find(selected->Workflow.Actions, core::workflow_slot::publish_draft, &core::workflow_action::Slot);
-			External->setText(text_of(selected->Workflow.Origin.empty() ? publish->Task : selected->Workflow.Origin));
-			External->setToolTip(QObject::tr("Handed to your terminal once its checks are met."));
+			// A radio button does not elide: a long name is shortened here, whole in its tooltip.
+			const auto publisher = text_of(selected->Workflow.Origin.empty() ? publish->Task : selected->Workflow.Origin);
+			External->setText(shortened(publisher, publisher_name_length));
+			External->setToolTip(publisher.size() > publisher_name_length ? QObject::tr("%1. Handed to your terminal once its checks are met.").arg(publisher)
+																		  : QObject::tr("Handed to your terminal once its checks are met."));
 			(selected->Publisher == core::workflow_publisher::external ? External : BuiltIn)->setChecked(true);
 		}
 		PublisherShown = hasPublisher && Case == core::author_case::local_draft;
@@ -566,9 +576,16 @@ namespace bpr::qt {
 			rows->addLayout(first);
 
 			// The second line: who runs it, where it stands, one button.
-			auto* const second = new QHBoxLayout{ };
+			// It wraps inside the drawer: the state first, the buttons after
+			// it, or below it when the row is narrow.
+			auto* const second = new detail::wrapping_row{ nullptr, 6, 4 };
 			second->setContentsMargins(row_indent, 0, 0, 0);
-			second->setSpacing(6);
+			auto* const where   = new QWidget{ group };
+			auto* const whereAt = new QHBoxLayout{ where };
+			whereAt->setContentsMargins(0, 0, 0, 0);
+			whereAt->setSpacing(6);
+			where->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+			second->addWidget(where);
 			if (const auto glyph = runner_glyph(entry.Runner); !glyph.isEmpty()) {
 				auto* const who = new QLabel{ glyph, group };
 				who->setObjectName(QStringLiteral("localDraftWorkflowRunner"));
@@ -577,7 +594,7 @@ namespace bpr::qt {
 				auto whoPalette = who->palette();
 				whoPalette.setColor(QPalette::WindowText, entry.Runner == core::checklist_runner::agent ? agent_accent(palette()) : palette().color(QPalette::PlaceholderText));
 				who->setPalette(whoPalette);
-				second->addWidget(who);
+				whereAt->addWidget(who, 0, Qt::AlignTop);
 			}
 			auto* const state = label(short_state(entry, action), group, QStringLiteral("localDraftWorkflowState"));
 			if (entry.Mark == core::checklist_mark::reported_unmet) {
@@ -603,13 +620,13 @@ namespace bpr::qt {
 				}
 			}
 			state->setToolTip(tip.join(QLatin1Char('\n')));
-			second->addWidget(state, 1);
+			whereAt->addWidget(state, 1);
 
 			const auto button = [this, group, second](const QString& aText, const QString& aName, auto aDo) {
 				auto* const control = new QPushButton{ aText, group };
 				control->setObjectName(aName);
 				connect(control, &QPushButton::clicked, this, aDo);
-				second->addWidget(control, 0, Qt::AlignTop);
+				second->addWidget(control);
 				return control;
 			};
 			if (entry.Id == "worktree" && ChooseWorktree) {
@@ -624,12 +641,16 @@ namespace bpr::qt {
 				case core::workflow_slot::propose_description:
 				case core::workflow_slot::check_preparation:
 					if (action->Action.Binding == core::workflow_binding::agent) {
-						auto* const ask = button(QObject::tr("Ask %1").arg(action->AgentName.empty() ? QObject::tr("the Agent") : text_of(action->AgentName)), QStringLiteral("localDraftWorkflowAsk"), [this, id] {
+						const auto  agent = action->AgentName.empty() ? QObject::tr("the Agent") : text_of(action->AgentName);
+						auto* const ask   = button(QObject::tr("Ask %1").arg(shortened(agent, agent_name_length)), QStringLiteral("localDraftWorkflowAsk"), [this, id] {
 							if (Dispatch.Ask) {
 								Dispatch.Ask(id);
 							}
 						});
 						ask->setEnabled(ready && !Projection.Asking && Projection.AgentAvailable);
+						if (agent.size() > agent_name_length) {
+							ask->setToolTip(QObject::tr("Ask %1").arg(agent));
+						}
 						wear_agent_accent(*ask, palette());
 					} else if (recordState != core::workflow_action_state::handed_off && recordState != core::workflow_action_state::awaiting_input) {
 						button(action->Record && action->Record->Invocation != 0U ? QObject::tr("Hand Off Again") : QObject::tr("Hand Off"), QStringLiteral("localDraftWorkflowHandOff"), [this, id] {
@@ -691,14 +712,15 @@ namespace bpr::qt {
 			}
 			// A handed-off command: the exact line to paste, and Copy.
 			if (action != nullptr && !action->CommandLine.empty() && (recordState == core::workflow_action_state::handed_off || recordState == core::workflow_action_state::uncertain)) {
-				auto* const commandRow = new QHBoxLayout{ };
+				auto* const commandRow = new detail::wrapping_row{ nullptr, 6, 4 };
 				commandRow->setContentsMargins(row_indent, 0, 0, 0);
 				auto* const command = new QLineEdit{ text_of(action->CommandLine), group };
 				command->setObjectName(QStringLiteral("localDraftWorkflowCommand"));
 				command->setAccessibleName(QObject::tr("Command to run in your terminal"));
 				command->setReadOnly(true);
 				command->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-				commandRow->addWidget(command, 1);
+				command->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+				commandRow->addWidget(command);
 				auto* const copy = new QPushButton{ QObject::tr("Copy"), group };
 				copy->setObjectName(QStringLiteral("localDraftWorkflowCopy"));
 				commandRow->addWidget(copy);
@@ -720,13 +742,14 @@ namespace bpr::qt {
 				rows->addLayout(commandRow);
 			}
 			if (recordState == core::workflow_action_state::awaiting_input) {
-				auto* const answerRow = new QHBoxLayout{ };
+				auto* const answerRow = new detail::wrapping_row{ nullptr, 6, 4 };
 				answerRow->setContentsMargins(row_indent, 0, 0, 0);
 				auto* const answer = new QLineEdit{ group };
 				answer->setObjectName(QStringLiteral("localDraftWorkflowAnswer"));
 				answer->setAccessibleName(QObject::tr("Your answer"));
 				answer->setPlaceholderText(QObject::tr("Your answer"));
-				answerRow->addWidget(answer, 1);
+				answer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+				answerRow->addWidget(answer);
 				auto* const proceed = new QPushButton{ QObject::tr("Continue"), group };
 				proceed->setObjectName(QStringLiteral("localDraftWorkflowContinue"));
 				answerRow->addWidget(proceed);

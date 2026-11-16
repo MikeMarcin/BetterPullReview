@@ -2695,7 +2695,10 @@ foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
 endforeach()
 
 # [[BPR-1595]]. RFC-BPR-0085 AC08: every rebuilt drawer surface in the four
-# themes at its narrowest and widest width, at each scale.
+# themes at its narrowest and widest width, at each scale. Since look
+# workflow-v002 it is also the rule that no drawer pans sideways: every tab of
+# every drawer (Overview, Review, Author, a local draft) is checked for a
+# horizontal bar, sideways range and content wider than its viewport.
 bpr_add_executable(test_better_pull_review_qt_drawer_surfaces_fit_tests drawer_surfaces_fit_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_drawer_surfaces_fit_tests PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_better_pull_review_qt_drawer_surfaces_fit_tests)

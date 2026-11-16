@@ -2,6 +2,7 @@
 
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/tour_publication_surfaces.hpp"
+#include "wrapping_row.hpp"
 
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/local_draft_tour.hpp"
@@ -191,6 +192,7 @@ namespace bpr::qt {
 		headlineFont.setWeight(QFont::DemiBold);
 		headlineFont.setPointSizeF(headlineFont.pointSizeF() + 1.0);
 		Headline->setFont(headlineFont);
+		Headline->setWordWrap(true);
 		column->addWidget(Headline);
 
 		State = new QLabel{ this };
@@ -224,9 +226,9 @@ namespace bpr::qt {
 		Push->setToolTip(tr("Run this in a terminal to push the candidate."));
 		column->addWidget(Push);
 
-		auto* const actions = new QHBoxLayout{ };
-		actions->setSpacing(6);
-		Copy = new quiet_push_button{ tr("Copy"), this };
+		// The buttons wrap inside the drawer rather than widen it.
+		auto* const actions = new detail::wrapping_row{ nullptr, 6, 4 };
+		Copy                = new quiet_push_button{ tr("Copy"), this };
 		Copy->setObjectName(QStringLiteral("localDraftPublicationCopy"));
 		Copy->setToolTip(tr("Copy the push."));
 		Check = new quiet_push_button{ tr("Check GitHub"), this };
@@ -238,7 +240,6 @@ namespace bpr::qt {
 		actions->addWidget(Copy);
 		actions->addWidget(Check);
 		actions->addWidget(Create);
-		actions->addStretch(1);
 		column->addLayout(actions);
 
 		Existing           = new QWidget{ this };
@@ -247,6 +248,7 @@ namespace bpr::qt {
 		exists->setSpacing(6);
 		ExistingText = new QLabel{ Existing };
 		ExistingText->setTextFormat(Qt::PlainText);
+		ExistingText->setWordWrap(true);
 		exists->addWidget(ExistingText, 1);
 		Associate = new quiet_push_button{ tr("Link to this draft"), Existing };
 		Associate->setObjectName(QStringLiteral("localDraftPublicationAssociate"));
