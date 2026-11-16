@@ -75,3 +75,38 @@ have gone, each platform's key hint, the tooltip of a glyph-only mode and
 the accessible names. The drawer tab courses pass unchanged on the shared
 helper. Native renders on each platform against the design's sheets
 (`docs/design/windows-title-fit-v2/png/`).
+
+## Built (2026-11-15)
+
+Built ahead of its dependency at the coordinator's direction; the card stays
+in Backlog until BPR-2196 is Done (its owner look `workflow-v002` is open).
+
+Design merged into the lane with `git merge --no-ff`. The
+`frontend-design:frontend-design` skill was loaded before the Qt work.
+
+- **One fold.** `bpr/qt/fold_faces.hpp`: `fold_face` (names and keys,
+  names, open mode named, glyphs), `fold_text`, `fold_tooltip` and
+  `choose_fold_face`, the first face widest first for which the row fits.
+  `drawer_tab_bar::fold` applies it to a tab row, and Review's tray
+  (`fit_tray_tabs`) and Overview's drawer (`fit_tabs`) both call it in place
+  of their two copies; the switcher calls `choose_fold_face` with its own
+  measure.
+- **The switcher.** `modality_control::set_face` replaces `set_compact` and
+  `set_abbreviated`. Glyphs are the five the design names; the open mode's
+  is drawn in the highlighted-text ink and follows the open mode; a
+  glyph-only segment's tooltip says its name first and keeps its key;
+  accessible names keep the whole word. Keys are `QKeySequence::NativeText`
+  (⌘1 to ⌘5 on macOS, Ctrl+1 to Ctrl+5 elsewhere).
+- **The rule.** `apply_strip_width` asks each face widest first: the whole
+  name fits beside it, or, for the open mode named, the name with a title of
+  `identity_title_minimum`; the glyphs alone otherwise. Gone: the
+  three-letter prefixes, the Windows 1300 threshold (BPR-1324) and the
+  BPR-1251 title budget (`IdentityTitleBudget`).
+- **The floor.** Five segments fit the 900-pixel floor: the window course
+  offers Author and checks all five at the floor again.
+
+Measured offscreen on macOS (Debug, `--title-row`), Author open: the
+switcher is 471 pixels with keys, 343 with names, 212 with the open mode
+named and 162 with glyphs (the design's 162). Long title: names at 1600,
+open mode named from 1366 to 960. Short title: keys to 1280, names at 1100,
+open mode named at 960. A long repository name reaches the glyphs at 1100.

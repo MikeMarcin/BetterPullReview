@@ -1074,12 +1074,11 @@ namespace bpr::qt {
 	{
 		// The title row never folds a control into an overflow menu: a control
 		// that disappears at one width and returns at another is exactly the
-		// chrome the accepted design rejects. What yields is text: the name's
-		// title and owner, then the modality's shortcuts, then the name.
+		// chrome the accepted design rejects. What yields is the switcher's
+		// text, folding to its glyphs ([[BPR-2197]]), and the name's.
 		if (IdentityAction == nullptr) {
 			return;
 		}
-		const auto available = width();
 		// [[BPR-0722]], [[BPR-1129]]. With a pull request open the name stays
 		// as far down as its number fits, taking whatever the title row's other
 		// items leave (see update_strip_identity). With nothing open there is
@@ -1113,57 +1112,31 @@ namespace bpr::qt {
 			}
 		};
 		if (Modality != nullptr) {
-			// The segments keep their names and lose the shortcut beside them.
-			// [[BPR-0824]]. Decided from the width first, then compact only if
-			// the number is still short, with the toolbar remeasured after each,
-			// so a resize never alternates between the two forms.
-			// [[BPR-1129]]. The title row holds no navigation now, so the
-			// shortcuts stay down to the width the old strip needed for them.
-			Modality->set_abbreviated(false);
-			// [[BPR-1251]], [[BPR-1324]]. The title and then the owner yield
-			// before the shortcuts, so whether each shows is decided from the
-			// room it has beside the whole modality. That room only shrinks as
-			// the window narrows, so the room a compact modality frees can
-			// never bring either back.
-			Modality->set_compact(false);
-			remeasure();
-			IdentityTitleBudget = strip_identity_budget();
-#if defined(_WIN32)
-			// [[BPR-1324]]. Windows' title row also holds the menu control and
-			// the caption buttons, so with four modalities the shortcuts go
-			// below 1300 there, which keeps the whole name at 1280 as on every
-			// platform. Each segment's tooltip names its key.
-			constexpr auto compactBelow = 1'300;
-#else
-			constexpr auto compactBelow = 1'100;
-#endif
-			Modality->set_compact(available < compactBelow);
-			remeasure();
-			if (identityShort()) {
-				Modality->set_compact(true);
+			// [[BPR-2197]]. The switcher folds as the drawer tabs do, through
+			// the shared fold: the widest face beside which the whole name
+			// fits. When none does, the open mode keeps its name while a title
+			// of the row's minimum still fits beside it; the last face is the
+			// glyphs alone. So the other modes' names yield before the title
+			// is cut, and the open mode's name before the title is lost. Each
+			// face is measured with the toolbar remeasured, from the widest,
+			// and the room only shrinks as the window narrows, so no face
+			// returns at a narrower width and a resize never alternates.
+			const auto whole  = strip_identity_whole_width();
+			const auto titled = strip_identity_titled_width();
+			const auto fits   = [this, whole, titled, &remeasure](const fold_face aFace) {
+				Modality->set_face(aFace);
 				remeasure();
-			}
+				const auto room = strip_identity_budget();
+				return room >= whole || (aFace == fold_face::open_named && room >= titled);
+			};
+			Modality->set_face(choose_fold_face({ fold_face::names_keyed, fold_face::names, fold_face::open_named, fold_face::glyphs }, fits));
+			remeasure();
 		}
 		if (identityShort()) {
 			IdentityAction->setVisible(false);
 			showPage();
 		}
 		update_strip_identity();
-		// [[BPR-0653]]. The last yield, the owner's: when the row still asks
-		// for more than the window after every step above, the modality
-		// segments show three-character prefixes. It is taken only then, so a
-		// row that already fits never shortens. Measured after the identity has
-		// been elided to its budget, or the text it is about to give up would
-		// be counted as overflow.
-		if (Modality != nullptr && PrimaryToolbar != nullptr) {
-			remeasure();
-			if (PrimaryToolbar->sizeHint().width() > available) {
-				Modality->set_abbreviated(true);
-				remeasure();
-				// The room the prefixes free is the identity's to use.
-				update_strip_identity();
-			}
-		}
 		apply_review_bar_width();
 	}
 

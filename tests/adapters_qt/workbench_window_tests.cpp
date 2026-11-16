@@ -2173,7 +2173,9 @@ namespace {
 			   "settings closes the strip's right region");
 
 		// The identity and the positions yield width before the floor; the
-		// controls never do.
+		// controls never do. [[BPR-2197]]: with Author offered, five segments
+		// fit the floor, folded to their glyphs where the room asks for it.
+		window.set_pull_request_author_case(core::author_case::open_pull_request);
 		window.resize(window.minimumWidth(), 720);
 		QApplication::processEvents();
 		expect(window.primary_toolbar()->findChild<QToolButton*>(
@@ -2184,11 +2186,12 @@ namespace {
 							   QStringLiteral("qt_toolbar_ext_button"))
 						   ->isVisible(),
 			   "no strip control folds into an overflow menu at the width floor");
-		for (std::size_t index = 0U; index + 1U < qt::review_modality_count; ++index) {
+		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
 			expect(modality->button(static_cast<qt::review_modality>(index))
 					   ->isVisible(),
-				   "every modality segment stays visible at the width floor");
+				   "every modality segment, Author's too, stays visible at the width floor");
 		}
+		window.set_pull_request_author_case(std::nullopt);
 		// [[BPR-1129]], [[BPR-1255]]. The positions stay on the review bar;
 		// the documented last yield keeps just their group names. No pull
 		// request is open here, so the name has nothing to say and takes no
@@ -2225,7 +2228,10 @@ namespace {
 	/// and command-glyph shortcuts, the Windows menu control and caption
 	/// buttons, fontconfig's metrics on Linux). What is pinned is the order,
 	/// at every width.
-	void test_strip_identity_stays_at_every_width()
+	///
+	/// [[BPR-2197]]. With four modes and with five: the switcher folds
+	/// through its faces, widest first, and none returns at a narrower width.
+	void strip_identity_stays_at_every_width(const bool aAuthor)
 	{
 		intent_log           log;
 		qt::workbench_window window{
@@ -2259,7 +2265,9 @@ namespace {
 																	.NextAvailable     = true,
 																} };
 		window.publish(positioned);
+		window.set_pull_request_author_case(aAuthor ? std::optional{ core::author_case::open_pull_request } : std::nullopt);
 		QApplication::processEvents();
+		expect(window.modality()->author_offered() == aAuthor, "the switcher has four modes, or five with Author");
 
 		const auto overflowShown = [&window]() {
 			for (auto* const row : { window.primary_toolbar(), window.review_bar() }) {
@@ -2287,16 +2295,18 @@ namespace {
 		}
 		// Every width down to the floor: 20 pixels at a time to 1300, then
 		// pixel by pixel.
-		auto titleGone    = false;
-		auto ownerGone    = false;
-		auto wordsGone    = false;
-		auto compactFirst = 0; // the widest width with the modality's shortcuts gone
+		auto titleGone = false;
+		auto ownerGone = false;
+		auto wordsGone = false;
+		auto keysLast  = 0; // the narrowest width with the modes' keys showing
+		auto narrowest = qt::fold_face::names_keyed;
 		for (auto width = 1'920; width >= window.minimumWidth(); width -= width > 1'300 ? 20 : 1) {
 			window.resize(width, 820);
 			QApplication::processEvents();
 			expect(!overflowShown(), "no control folds into an overflow menu at any width");
-			expect(!window.modality()->abbreviated(),
-				   "the title row fits at every width down to its floor, so the modality never shortens to prefixes");
+			const auto face = window.modality()->face();
+			expect(face >= narrowest, "the switcher's faces fold once and none returns at a narrower width");
+			narrowest        = face;
 			const auto text  = window.identity_label()->text();
 			const auto title = text.contains(QStringLiteral("Fix the"));
 			const auto owner = text.contains(QStringLiteral("microsoft/"));
@@ -2311,10 +2321,12 @@ namespace {
 			expect(!(titleGone && title), "the title yields once and does not return at a narrower width");
 			expect(!(ownerGone && owner), "the owner yields once and does not return at a narrower width");
 			expect(owner || !title, "the title yields before the owner");
+			expect(!(face == qt::fold_face::names_keyed || face == qt::fold_face::names) || window.identity_label()->text() == window.identity_label()->toolTip(),
+				   "while the other modes keep their names, the whole name shows: the title is cut only after they have gone");
 			titleGone = titleGone || !title;
 			ownerGone = ownerGone || !owner;
-			if (window.modality()->compact() && compactFirst == 0) {
-				compactFirst = width;
+			if (face == qt::fold_face::names_keyed) {
+				keysLast = width;
 			}
 			const auto words = window.file_position_label()->text().startsWith(QStringLiteral("File"));
 			expect(window.file_position_label()->isVisible() && window.change_position_label()->isVisible(),
@@ -2322,38 +2334,196 @@ namespace {
 			expect(!(wordsGone && words), "the positions' words yield once and do not return at a narrower width");
 			wordsGone = wordsGone || !words;
 		}
-		expect(compactFirst > 0, "the modality's shortcuts yield on the way down to the floor");
+		expect(keysLast > window.minimumWidth(), "the modes' keys yield on the way down to the floor");
 		// [[BPR-1255]], [[BPR-1815]]. The floor follows the bar with everything
 		// yielded, or the platform's, whichever is wider. Since the review bar
 		// gained its view controls the yielded bar is the wider at the default
 		// font, so nothing on it folds.
 		const auto yieldedBar = window.review_bar()->sizeHint().width() + std::max(0, window.width() - window.review_bar()->width());
 #if defined(_WIN32)
-		// [[BPR-0653]], [[BPR-1129]]. The owner's floor on Windows is 902. With the
-		// navigation on the review bar, the title row there holds the name and
-		// the whole modality words, with the menu control and caption buttons.
+		// [[BPR-0653]], [[BPR-1129]]. The owner's floor on Windows is 902.
 		expect(window.minimumWidth() == std::max(902, yieldedBar), "the Windows floor is 902 or the yielded review bar");
-		expect(!window.modality()->abbreviated() && window.identity_label()->isVisible()
-				   && !window.caption_buttons()->isHidden() && !window.strip_menu_button()->isHidden(),
-			   "at the Windows floor the name, the whole modality words and every title-row control show");
-		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
-			const auto modality = static_cast<qt::review_modality>(index);
-			expect(window.modality()->button(modality)->text() == qt::review_modality_title(modality),
-				   "at the Windows floor each segment shows its whole word");
-		}
+		expect(!window.caption_buttons()->isHidden() && !window.strip_menu_button()->isHidden(), "at the Windows floor every title-row control shows");
 #else
 		expect(window.minimumWidth() == std::max(900, yieldedBar), "off Windows the floor is 900 or the yielded review bar");
 #endif
+		// [[BPR-2197]]. Five segments fit the floor: every mode stays, named
+		// whole to assistive technology, with the name and its number.
+		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+			const auto modality = static_cast<qt::review_modality>(index);
+			expect(window.modality()->button(modality)->isVisible() == (aAuthor || modality != qt::review_modality::author)
+					   && window.modality()->button(modality)->accessibleName() == QStringLiteral("%1 modality").arg(qt::review_modality_title(modality)),
+				   "at the floor every mode the switcher has stays, and keeps its whole name for assistive technology");
+		}
+		expect(window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("#20607")), "at the floor the name keeps its number");
 		// Straight from the default width to the narrowest that keeps the
-		// shortcuts: the rows measure their items in the form this resize
-		// gives them, not the form the last one left.
+		// keys: the rows measure their items in the form this resize gives
+		// them, not the form the last one left.
 		window.resize(1'920, 820);
 		QApplication::processEvents();
-		window.resize(compactFirst + 1, 820);
+		window.resize(keysLast, 820);
 		QApplication::processEvents();
-		expect(!window.modality()->compact() && window.identity_label()->text().contains(QStringLiteral("#20607")),
+		expect(window.modality()->face() == qt::fold_face::names_keyed && window.identity_label()->text().contains(QStringLiteral("#20607")),
 			   "one large resize lays out the title row as a gradual one does");
 		window.hide();
+	}
+
+	/// [[BPR-2197]]. The switcher folds to its glyphs as the drawer tabs do,
+	/// at the widths the accepted design measured (windows-title-fit-v2), on a
+	/// pull request the viewer owns, in Author, with a long title and a short.
+	void test_the_switcher_folds_to_glyphs()
+	{
+		const auto widths   = std::array{ 1'600, 1'366, 1'280, 1'100, 960 };
+		const auto faceName = [](const qt::fold_face aFace) {
+			switch (aFace) {
+			case qt::fold_face::names_keyed: return "names and keys";
+			case qt::fold_face::names:       return "names";
+			case qt::fold_face::open_named:  return "icons, the open mode named";
+			case qt::fold_face::glyphs:      return "icons";
+			}
+			return "";
+		};
+		struct name
+		{
+			const char* Repository;
+			QString     Title;
+		};
+		// The design's long and short titles, and a repository long enough
+		// that a title of the row's minimum no longer fits beside the open
+		// mode's name at its narrowest widths.
+		const auto names = std::array{
+			name{ "engine", QStringLiteral("Cancel searches promptly when the query changes and keep the results that already arrived") },
+			name{ "engine", QStringLiteral("Search results") },
+			name{ "engine-search-and-indexing-service-for-the-fold", QStringLiteral("Cancel searches promptly when the query changes") },
+		};
+		auto seen = std::array<bool, 4>{ };
+		for (const auto& [repository, title] : names) {
+			const auto           longTitle = title.size() > 20;
+			intent_log           log;
+			qt::workbench_window window{
+				[&log](core::workbench_interaction_intent aIntent) {
+					log.Workbench.push_back(aIntent);
+				},
+				[&log](core::navigate_diff_change_intent aIntent) {
+					log.Change.push_back(aIntent);
+				},
+			};
+			window.resize(1'920, 820);
+			window.show();
+			QApplication::processEvents();
+			window.set_pull_request_page_dispatch([](const application::pull_request_page_intent&) { return core::markdown_link_result::opened; });
+			window.publish(application::github_presentation_update{
+				.PullRequest = application::github_pull_request_projection{
+					.Owner           = "bpr-fixtures",
+					.RepositoryName  = repository,
+					.Number          = core::pull_request_number{ 214U },
+					.Title           = title.toStdString(),
+					.MarkdownContext = page_context(1U),
+				},
+			});
+			window.publish(every_primary_command_offered());
+			window.set_pull_request_author_case(core::author_case::open_pull_request);
+			process_events();
+			window.choose_modality(qt::review_modality::author);
+			process_events();
+			auto* const modality = window.modality();
+			expect(modality->author_offered() && window.current_modality() == qt::review_modality::author, "the viewer's own pull request, in Author");
+			auto previous = qt::fold_face::names_keyed;
+			for (const auto width : widths) {
+				window.resize(width, 820);
+				process_events();
+				const auto face = modality->face();
+				const auto text = window.identity_label()->text();
+				std::cout << "SWITCHER_FOLD:" << repository << ':' << (longTitle ? "long" : "short") << ':' << width << ':' << faceName(face) << ':' << modality->width() << ':' << text.toStdString() << '\n';
+				seen[static_cast<std::size_t>(face)] = true;
+				expect(face >= previous, "no face returns at a narrower width");
+				previous = face;
+				expect(face == qt::fold_face::open_named || face == qt::fold_face::glyphs || text == window.identity_label()->toolTip(),
+					   "the other modes' names show only beside the whole name");
+				for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+					const auto  which  = static_cast<qt::review_modality>(index);
+					auto* const button = modality->button(which);
+					const auto  name   = qt::review_modality_title(which);
+					const auto  open   = which == qt::review_modality::author;
+					expect(button->isVisible() && button->accessibleName() == QStringLiteral("%1 modality").arg(name), "every mode shows, with its whole name for assistive technology");
+#if defined(Q_OS_MACOS)
+					const auto key = QStringLiteral("\u2318%1").arg(index + 1U);
+#else
+					const auto key = QStringLiteral("Ctrl+%1").arg(index + 1U);
+#endif
+					switch (face) {
+					case qt::fold_face::names_keyed:
+						expect(button->text() == QStringLiteral("%1  %2").arg(name, key) && button->icon().isNull(), "the widest face names each mode with its platform's key and no glyph");
+						break;
+					case qt::fold_face::names:
+						expect(button->text() == name && button->icon().isNull(), "then each name alone, still with no glyph");
+						break;
+					case qt::fold_face::open_named:
+						expect(button->text() == (open ? name : QString{ }) && !button->icon().isNull(), "then the open mode's glyph and name with the others' glyphs");
+						break;
+					case qt::fold_face::glyphs:
+						expect(button->text().isEmpty() && !button->icon().isNull() && button->toolButtonStyle() == Qt::ToolButtonIconOnly, "then the glyphs alone");
+						break;
+					}
+					if (button->text().isEmpty()) {
+						expect(button->toolTip().startsWith(name + QLatin1Char{ '\n' }) && button->toolTip().contains(QStringLiteral("(%1").arg(QKeySequence{ QStringLiteral("Ctrl+%1").arg(index + 1U) }.toString(QKeySequence::NativeText))),
+							   "a mode showing only its glyph says its name first in its tooltip, which keeps its key");
+					}
+				}
+			}
+			if (longTitle) {
+				window.resize(1'600, 820);
+				process_events();
+				expect(window.identity_label()->text() == window.identity_label()->toolTip(), "at 1600 the long title shows whole");
+				window.resize(960, 820);
+				process_events();
+				expect(modality->face() >= qt::fold_face::open_named, "at 960 a long name has the open mode named or the glyphs alone");
+			} else {
+				window.resize(1'600, 820);
+				process_events();
+				expect(modality->face() == qt::fold_face::names_keyed && window.identity_label()->text() == window.identity_label()->toolTip(),
+					   "at 1600 the short title shows whole beside every name and key");
+			}
+			// The glyphs' ink: the open mode's on the accent in the highlighted
+			// text's, the others' in the buttons' text.
+			window.resize(window.minimumWidth(), 820);
+			process_events();
+			expect(modality->face() == qt::fold_face::glyphs || modality->face() == qt::fold_face::open_named, "at the floor the switcher shows its glyphs");
+			const auto inks = [modality](const qt::review_modality aWhich) {
+				auto* const button = modality->button(aWhich);
+				const auto  image  = button->icon().pixmap(QSize{ 16, 16 }, button->devicePixelRatioF(), QIcon::Normal, QIcon::On).toImage();
+				auto        found  = std::vector<QColor>{ };
+				for (auto y = 0; y < image.height(); ++y) {
+					for (auto x = 0; x < image.width(); ++x) {
+						if (const auto pixel = image.pixelColor(x, y); pixel.alpha() == 255) {
+							found.push_back(pixel);
+						}
+					}
+				}
+				return found;
+			};
+			const auto near = [](const std::vector<QColor>& aFound, const QColor& aInk) {
+				return !aFound.empty() && std::ranges::all_of(aFound, [&aInk](const QColor& aPixel) { return std::abs(aPixel.red() - aInk.red()) <= 2 && std::abs(aPixel.green() - aInk.green()) <= 2 && std::abs(aPixel.blue() - aInk.blue()) <= 2; });
+			};
+			expect(near(inks(qt::review_modality::author), modality->palette().color(QPalette::Active, QPalette::HighlightedText))
+					   && near(inks(qt::review_modality::review), modality->palette().color(QPalette::Active, QPalette::ButtonText)),
+				   "the open mode's glyph is in the highlighted-text ink; the others' in the buttons' text");
+			// The face that names the open mode follows it.
+			if (modality->face() == qt::fold_face::open_named) {
+				window.choose_modality(qt::review_modality::overview);
+				process_events();
+				expect(modality->button(qt::review_modality::overview)->text() == QStringLiteral("Overview") && modality->button(qt::review_modality::author)->text().isEmpty(),
+					   "choosing another mode moves the name to it");
+			}
+			window.hide();
+		}
+		expect(std::ranges::all_of(seen, [](const bool aSeen) { return aSeen; }), "the design's widths reach every face");
+	}
+
+	void test_strip_identity_stays_at_every_width()
+	{
+		strip_identity_stays_at_every_width(false);
+		strip_identity_stays_at_every_width(true);
 	}
 
 	void test_rails_reopen_their_drawers()
@@ -25608,6 +25778,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
 		runCase("test_open_on_github_beside_the_title", &test_open_on_github_beside_the_title);
 		runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
+		runCase("test_the_switcher_folds_to_glyphs", &test_the_switcher_folds_to_glyphs);
 		runCase("test_review_bar_geometry_is_stable_while_working", &test_review_bar_geometry_is_stable_while_working);
 		runCase("test_the_review_bar_yields_dates_then_words", &test_the_review_bar_yields_dates_then_words);
 		runCase("test_the_floor_follows_the_review_bar", &test_the_floor_follows_the_review_bar);
@@ -25754,6 +25925,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_the_window_title_names_the_open_pull_request", &test_the_window_title_names_the_open_pull_request);
 	runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
 	runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
+	runCase("test_the_switcher_folds_to_glyphs", &test_the_switcher_folds_to_glyphs);
 	runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
 	runCase("test_review_bar_geometry_is_stable_while_working", &test_review_bar_geometry_is_stable_while_working);
 	runCase("test_the_review_bar_yields_dates_then_words", &test_the_review_bar_yields_dates_then_words);

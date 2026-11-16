@@ -1369,16 +1369,13 @@ namespace bpr::qt {
 			const auto owned  = QStringLiteral("%1/%2").arg(shownOwner, shownRepo) + number;
 			const auto titled = metrics.horizontalAdvance(owned) + identity_title_minimum;
 			const auto bare   = shownRepo + number;
-			// [[BPR-1251]]. The title also needs the room it would have beside
-			// the whole modality (apply_strip_width), or it could yield and
-			// then return when the shortcuts go. [[BPR-1324]]. So does the
-			// owner: with four modalities it yielded on Windows above the width
-			// where the shortcuts go, and came back below it.
-			const auto wholeRoom  = IdentityTitleBudget - margins.left() - margins.right();
-			const auto ownedWidth = metrics.horizontalAdvance(owned);
-			if (room >= titled && wholeRoom >= titled) {
+			// [[BPR-2197]]. The switcher's fold already gave the name its room
+			// from the widest face down (apply_strip_width), and that room only
+			// shrinks as the window narrows, so a form that yields here never
+			// returns at a narrower width.
+			if (room >= titled) {
 				text = metrics.elidedText(shownText, Qt::ElideRight, room);
-			} else if (room >= ownedWidth && wholeRoom >= ownedWidth) {
+			} else if (room >= metrics.horizontalAdvance(owned)) {
 				text = owned;
 			} else if (room >= metrics.horizontalAdvance(bare)) {
 				text = bare;
@@ -1404,6 +1401,41 @@ namespace bpr::qt {
 		constexpr int slack    = 12;
 		const auto    identity = IdentityAction->isVisible() ? IdentityLabel->sizeHint().width() : 0;
 		return width() - (PrimaryToolbar->sizeHint().width() - identity) - slack;
+	}
+
+	auto workbench_window::strip_identity_whole_width() const -> int
+	{
+		if (IdentityLabel == nullptr || IdentityAction == nullptr || !IdentityAction->isVisible()) {
+			return 0;
+		}
+		const auto  margins = IdentityLabel->contentsMargins();
+		const auto& metrics = IdentityLabel->fontMetrics();
+		if ((LocalCycleShown || LocalDraftShown) && !showing_home()) {
+			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");
+			return metrics.horizontalAdvance(LocalCycleTitle + badge) + margins.left() + margins.right();
+		}
+		const auto loading = IdentityText.isEmpty() && LoadingIdentity.has_value();
+		return metrics.horizontalAdvance(loading ? LoadingIdentity->Text : IdentityText) + margins.left() + margins.right();
+	}
+
+	auto workbench_window::strip_identity_titled_width() const -> int
+	{
+		if (IdentityLabel == nullptr || IdentityAction == nullptr || !IdentityAction->isVisible()) {
+			return 0;
+		}
+		const auto  margins = IdentityLabel->contentsMargins();
+		const auto& metrics = IdentityLabel->fontMetrics();
+		if ((LocalCycleShown || LocalDraftShown) && !showing_home()) {
+			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");
+			const auto title = std::min(metrics.horizontalAdvance(LocalCycleTitle), identity_title_minimum);
+			return metrics.horizontalAdvance(badge) + title + margins.left() + margins.right();
+		}
+		const auto  loading = IdentityText.isEmpty() && LoadingIdentity.has_value();
+		const auto& owner   = loading ? LoadingIdentity->Owner : IdentityOwner;
+		const auto& repo    = loading ? LoadingIdentity->Repository : IdentityRepository;
+		const auto& number  = loading ? LoadingIdentity->Number : IdentityNumber;
+		const auto  owned   = QStringLiteral("%1/%2  #%3").arg(owner, repo, number);
+		return metrics.horizontalAdvance(owned) + identity_title_minimum + margins.left() + margins.right();
 	}
 
 	auto workbench_window::strip_identity_minimum() const -> int

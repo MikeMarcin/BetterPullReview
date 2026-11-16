@@ -25,6 +25,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <utility>
 
 namespace bpr::qt {
@@ -309,37 +311,17 @@ namespace bpr::qt {
 
 	void overview_status_drawer::fit_tabs(const bool aRepaint)
 	{
-		// [[BPR-1781]]. Six tabs, fitted as Review's tray fits its four
-		// ([[BPR-1684]]): every name; the open tab's glyph and name with the
-		// others' glyphs; glyphs only. The row takes the first that fits.
-		auto* const tabs = static_cast<detail::drawer_tab_bar*>(Tabs);
-		enum class face : std::uint8_t { names,
-										 open_named,
-										 glyphs };
-		const auto current = tabs->currentIndex();
-		const auto textOf  = [current](const face aFace, const int aIndex) {
-			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? tab_name(aIndex) : QString{ };
-		};
-		auto room = Header->width();
-		if (const auto* const grid = qobject_cast<const QGridLayout*>(Header->layout()); grid != nullptr && room > 0) {
-			room -= grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing());
+		// [[BPR-1781]]. Fitted as Review's tray fits its tabs, through the
+		// shared fold ([[BPR-1684]], [[BPR-2197]]): every name; the open
+		// tab's glyph and name with the others' glyphs; glyphs only. The row
+		// takes the first that fits.
+		auto names = std::array<QString, overview_drawer_tab_count>{ };
+		auto about = std::array<QString, overview_drawer_tab_count>{ };
+		for (auto index = 0; index < overview_drawer_tab_count; ++index) {
+			names[static_cast<std::size_t>(index)] = tab_name(index);
+			about[static_cast<std::size_t>(index)] = tab_about(index);
 		}
-		auto chosen = face::names;
-		if (room > 0) {
-			for (const auto candidate : { face::names, face::open_named, face::glyphs }) {
-				chosen     = candidate;
-				auto width = 0;
-				for (auto index = 0; index < overview_drawer_tab_count; ++index) {
-					if (tabs->isTabVisible(index)) {
-						width += tabs->face_width(index, textOf(candidate, index), candidate != face::names);
-					}
-				}
-				if (width <= room) {
-					break;
-				}
-			}
-		}
-		const auto glyph = [this](const int aIndex) {
+		static_cast<detail::drawer_tab_bar*>(Tabs)->fold(detail::tab_row_room(*Header), names, about, [this](const int aIndex) {
 			switch (static_cast<overview_drawer_tab>(aIndex)) {
 			case overview_drawer_tab::status:   return strip_icon(strip_glyph::review_details, palette());
 			case overview_drawer_tab::commits:  return drawer_icon(drawer_glyph::pull_request, palette());
@@ -347,29 +329,7 @@ namespace bpr::qt {
 			case overview_drawer_tab::tour:     return drawer_icon(drawer_glyph::tour, palette());
 			case overview_drawer_tab::agent:    return drawer_icon(drawer_glyph::agent, palette());
 			}
-			return QIcon{ };
-		};
-		auto reshaped = false;
-		for (auto index = 0; index < overview_drawer_tab_count; ++index) {
-			const auto text  = textOf(chosen, index);
-			const auto shown = chosen != face::names;
-			if (aRepaint || tabs->tabIcon(index).isNull() == shown) {
-				reshaped = reshaped || tabs->tabIcon(index).isNull() == shown;
-				tabs->setTabIcon(index, shown ? glyph(index) : QIcon{ });
-			}
-			if (tabs->tabText(index) != text) {
-				reshaped = true;
-				tabs->setTabText(index, text);
-			}
-			// A tab showing only its glyph says its name first.
-			const auto tip = text.isEmpty() ? QStringLiteral("%1\n%2").arg(tab_name(index), tab_about(index)) : tab_about(index);
-			if (tabs->tabToolTip(index) != tip) {
-				tabs->setTabToolTip(index, tip);
-			}
-		}
-		if (reshaped) {
-			tabs->updateGeometry();
-		}
+			return QIcon{ }; }, aRepaint);
 	}
 
 	void overview_status_drawer::adopt(const application::workbench_status_drawer& aDrawer)

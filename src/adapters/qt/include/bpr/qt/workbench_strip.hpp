@@ -10,6 +10,7 @@
 #include <QToolBar>
 #include <QWidget>
 
+#include "bpr/qt/fold_faces.hpp"
 #include "bpr/qt/progress_mark.hpp"
 
 #include <QPoint>
@@ -480,15 +481,21 @@ namespace bpr::qt {
 		void set_dispatch(review_modality_dispatch aDispatch);
 		/// \brief Shows a modality as current without reporting it.
 		void adopt(review_modality aModality);
-		/// \brief Drops the shortcut beside each name when width is short.
-		void               set_compact(bool aCompact);
-		[[nodiscard]] auto compact() const noexcept -> bool;
-		/// \brief Shows each name as its three-character prefix, the strip's last yield.
+		/// \brief [[BPR-2197]]. Shows every segment in `aFace`, the shared
+		/// fold of the drawer tabs with one wider face before it.
 		///
-		/// \details [[BPR-0653]]. Only the visible text shortens: Ove, Rev,
-		/// Dis and Con. The accessible names and tooltips keep the full words.
-		void               set_abbreviated(bool aAbbreviated);
-		[[nodiscard]] auto abbreviated() const noexcept -> bool;
+		/// \details Widest first: each name with its key as the platform
+		/// writes it (Command-1 on macOS, Ctrl+1 elsewhere); each name; the
+		/// open mode's glyph and name with the others' glyphs; glyphs alone.
+		/// The open mode's glyph is drawn in the highlighted-text ink, since
+		/// it sits on the accent. A segment showing only its glyph says its
+		/// name first in its tooltip; the accessible names keep the whole
+		/// word in every face.
+		void               set_face(fold_face aFace);
+		[[nodiscard]] auto face() const noexcept -> fold_face;
+		/// \brief Called when the open mode changes while the face names it,
+		/// so the row can be fitted again for the open mode's name.
+		void set_reshape_observer(std::function<void()> aObserver);
 		/// \brief [[BPR-2196]]. Shows or removes Author, the last segment. Absent,
 		/// its key does nothing and the other four keep theirs.
 		void               set_author_offered(bool aOffered);
@@ -500,6 +507,7 @@ namespace bpr::qt {
 			-> QToolButton*;
 
 	protected:
+		void changeEvent(QEvent* aEvent) override;
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
@@ -507,9 +515,9 @@ namespace bpr::qt {
 		void relabel();
 
 		review_modality_dispatch                        Dispatch;
-		review_modality                                 Current     = review_modality::review;
-		bool                                            Compact     = false;
-		bool                                            Abbreviated = false;
+		std::function<void()>                           ReshapeObserver;
+		review_modality                                 Current = review_modality::review;
+		fold_face                                       Face    = fold_face::names_keyed;
 		std::array<QAction*, review_modality_count>     Actions{ };
 		std::array<QToolButton*, review_modality_count> Buttons{ };
 	};

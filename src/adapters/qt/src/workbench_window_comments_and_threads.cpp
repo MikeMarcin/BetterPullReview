@@ -466,40 +466,11 @@ namespace bpr::qt {
 			tr("Your review tour, stop by stop. Nothing in it is published until you publish the tour."),
 			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."),
 		};
-		// [[BPR-1684]]. The faces, widest first: every name; the open
+		// [[BPR-1684]], [[BPR-2197]]. The shared fold: every name; the open
 		// tab's glyph and name with the others' glyphs; glyphs only. The row
 		// takes the first that fits the header, whose tools move to their own
 		// row before any name goes.
-		enum class face : std::uint8_t { names,
-										 open_named,
-										 glyphs };
-		const auto current = tabs->currentIndex();
-		const auto textOf  = [&tabNames, current](const face aFace, const int aIndex) {
-			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? tabNames[aIndex] : QString{ };
-		};
-		const auto glyphOf = [](const face aFace, const int /*aIndex*/) { return aFace != face::names; };
-		// The room is what the header's grid gives the tabs alone on their
-		// row: its width less its left margin and the spacing of its columns.
-		auto room = TrayHeader->width();
-		if (const auto* const grid = qobject_cast<const QGridLayout*>(TrayHeader->layout()); grid != nullptr && room > 0) {
-			room -= grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing());
-		}
-		auto chosen = face::names;
-		if (room > 0) {
-			for (const auto candidate : { face::names, face::open_named, face::glyphs }) {
-				chosen     = candidate;
-				auto width = 0;
-				for (auto index = 0; index < tabCount; ++index) {
-					if (tabs->isTabVisible(index)) {
-						width += tabs->face_width(index, textOf(candidate, index), glyphOf(candidate, index));
-					}
-				}
-				if (width <= room) {
-					break;
-				}
-			}
-		}
-		const auto glyph = [this](const int aIndex) {
+		tabs->fold(detail::tab_row_room(*TrayHeader), tabNames, about, [this](const int aIndex) {
 			switch (aIndex) {
 			case tray_comments_tab:
 				return conversation_icon(conversation_glyph::comment, palette());
@@ -507,35 +478,7 @@ namespace bpr::qt {
 				return drawer_icon(drawer_glyph::tour, palette());
 			default:
 				return drawer_icon(drawer_glyph::agent, palette());
-			}
-		};
-		auto reshaped = false;
-		for (auto index = 0; index < tabCount; ++index) {
-			const auto text  = textOf(chosen, index);
-			const auto shown = glyphOf(chosen, index);
-			if (aRepaint || tabs->tabIcon(index).isNull() == shown) {
-				reshaped = reshaped || tabs->tabIcon(index).isNull() == shown;
-				tabs->setTabIcon(index, shown ? glyph(index) : QIcon{ });
-			}
-			if (tabs->tabText(index) != text) {
-				reshaped = true;
-				tabs->setTabText(index, text);
-			}
-			// A tab showing only its glyph says its name first.
-			const auto tip = text.isEmpty() ? QStringLiteral("%1\n%2").arg(tabs->accessibleTabName(index), about[index]) : about[index];
-			if (tabs->tabToolTip(index) != tip) {
-				tabs->setTabToolTip(index, tip);
-			}
-		}
-		// [[BPR-1757]]. A hidden QTabBar only marks its tabs dirty when a
-		// face changes; the header's own sizeHint() query then lays them out,
-		// so the bar's showEvent has nothing left to announce and the header's
-		// grid keeps the old width (the window opens on Overview with the tray
-		// hidden, so a restored width left Tour and Agent behind scroll
-		// arrows). The bar says it changed size itself.
-		if (reshaped) {
-			tabs->updateGeometry();
-		}
+			} }, aRepaint);
 	}
 
 	auto workbench_window::open_file_in_review(const QString& aPath) -> bool

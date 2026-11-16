@@ -939,6 +939,31 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# [[BPR-2197]]. The shared fold of the tray tabs, Overview's drawer tabs and
+# the mode switcher: the tray tabs' faces are unchanged by the sharing.
+bpr_add_executable(
+    test_better_pull_review_qt_fold_faces_tests
+    fold_faces_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_fold_faces_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_fold_faces_tests)
+bpr_enable_warnings(test_better_pull_review_qt_fold_faces_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_fold_faces
+    COMMAND test_better_pull_review_qt_fold_faces_tests
+)
+set_tests_properties(
+    qt_fold_faces
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "fold-faces-tests:pass"
+        TIMEOUT 60
+)
+
 bpr_add_executable(
     test_better_pull_review_qt_settings_window_tests
     settings_window_tests.cpp

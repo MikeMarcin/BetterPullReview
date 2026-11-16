@@ -2471,6 +2471,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto strip_identity_budget() const -> int;
 		/// [[BPR-0722]]. Least width the identity's number-and-fragment form needs.
 		[[nodiscard]] auto strip_identity_minimum() const -> int;
+		/// [[BPR-2197]]. Width the identity needs for the whole name, title
+		/// included; none while it is hidden.
+		[[nodiscard]] auto strip_identity_whole_width() const -> int;
+		/// [[BPR-2197]]. Width the identity needs for the name with a title
+		/// of the row's minimum; none while it is hidden.
+		[[nodiscard]] auto strip_identity_titled_width() const -> int;
 		/// \brief Shows the overview or the comparison for the current modality.
 		void apply_modality_surface();
 		/// \brief [[BPR-1599]]. Enters the modality an opening pull request
@@ -3329,7 +3335,6 @@ namespace bpr::qt {
 		/// review's Files drawer lists it.
 		QString                                  PendingReviewPath;
 		void                                     open_pending_review_path();
-		int                                      IdentityTitleBudget  = std::numeric_limits<int>::max();
 		QMenuBar*                                PrimaryMenuBar       = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
 		QMenu*                                   ProfilesMenu         = nullptr;
