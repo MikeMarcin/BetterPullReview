@@ -1869,7 +1869,11 @@ namespace {
 		auto run = application::agent_run_result{ .Outcome = application::agent_run_outcome::protocol_failure, .ProtocolFailure = application::agent_protocol_failure::usage_limit };
 		expect(application::queued_finish_of(run) == core::queued_finish::usage_limit, "its run ends the queued message as usage limit");
 		run.ProtocolFailure = application::agent_protocol_failure::remote_failed;
-		expect(application::queued_finish_of(run) == core::queued_finish::failed, "another protocol failure ends it as failed");
+		// [[BPR-2152]] (AC06). With no sign the agent took the message, its
+		// delivery is unknown; once the agent answered, the failure is the run's.
+		expect(application::queued_finish_of(run) == core::queued_finish::unknown, "another protocol failure with no sign of delivery leaves it delivery unknown");
+		run.AssistantItems = { "partial answer" };
+		expect(application::queued_finish_of(run) == core::queued_finish::failed, "another protocol failure after the agent answered ends it as failed");
 		// Codex exec's JSONL says it only in the failed turn's message.
 		auto       codex = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec, false };
 		const auto c     = codex.push(std::string{ R"({"type":"thread.started","thread_id":"t"})" } + "\n" + R"({"type":"turn.started"})" + "\n" + R"({"type":"turn.failed","error":{"message":"You've hit your usage limit. Try again later."}})" + "\n");

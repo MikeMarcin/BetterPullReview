@@ -124,3 +124,15 @@ steering.
   `application_agent_queue_tour_feedback_crash_public_path`,
   `application_agent_queue_finish_pauses_public_path`,
   `application_review_agent_runtime`, `qt_drawer_surfaces_fit_scale_100`.
+
+## Follow-up (2026-11-16): stale `application_agent_launch` expectation
+
+- `application_agent_launch` failed at "another protocol failure ends it as
+  failed": it predated AC06's rule in `queued_finish_of`, which leaves a
+  `remote_failed` run with no sign the agent took the message (no events,
+  assistant items, tool activity or steered inputs) as delivery unknown. The
+  product is right; the test was stale. It now expects `unknown` for that
+  case and keeps a case proving that the same failure after the agent
+  answered (an assistant item) still ends as `failed`
+  (`test_claude_decoder_reads_sign_in_and_benign_frames`). Passing:
+  `application_agent_launch`, `application_agent_queue_handoff`.
