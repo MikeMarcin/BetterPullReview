@@ -1919,11 +1919,11 @@ bpr_enable_hardening(test_better_pull_review_workflow_core_tests)
 bpr_enable_warnings(test_better_pull_review_workflow_core_tests)
 bpr_add_network_isolated_test(NAME core_workflow COMMAND test_better_pull_review_workflow_core_tests)
 set_tests_properties(core_workflow PROPERTIES PASS_REGULAR_EXPRESSION "workflow-tests:pass")
-# [[BPR-2196]]. Revise, the author's mode: availability, opening mode,
+# [[BPR-2196]]. Author, the author's mode: availability, opening mode,
 # handoff and the author's checklist.
-bpr_add_executable(test_better_pull_review_author_revise_core_tests author_revise_tests.cpp)
-target_link_libraries(test_better_pull_review_author_revise_core_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_author_revise_core_tests)
-bpr_enable_warnings(test_better_pull_review_author_revise_core_tests)
-bpr_add_network_isolated_test(NAME core_author_revise COMMAND test_better_pull_review_author_revise_core_tests)
-set_tests_properties(core_author_revise PROPERTIES PASS_REGULAR_EXPRESSION "author-revise-tests:pass")
+bpr_add_executable(test_better_pull_review_author_mode_core_tests author_mode_tests.cpp)
+target_link_libraries(test_better_pull_review_author_mode_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_author_mode_core_tests)
+bpr_enable_warnings(test_better_pull_review_author_mode_core_tests)
+bpr_add_network_isolated_test(NAME core_author_mode COMMAND test_better_pull_review_author_mode_core_tests)
+set_tests_properties(core_author_mode PROPERTIES PASS_REGULAR_EXPRESSION "author-mode-tests:pass")

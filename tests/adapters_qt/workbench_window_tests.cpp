@@ -36,6 +36,8 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/local_draft_workflow_area.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
@@ -1839,6 +1841,145 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-2196]]. Author is the owner's mode: offered for their own pull
+	/// request alone, on Ctrl+5, and a draft of theirs opens in it.
+	void test_author_is_the_owners_mode()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			},
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		// A pull request is open, so the window is past Home.
+		window.publish(application::github_presentation_update{ .PullRequest = application::github_pull_request_projection{ } });
+		auto overview           = application::pull_request_overview_projection{ };
+		overview.Owner          = "acme";
+		overview.RepositoryName = "engine";
+		overview.Number         = core::pull_request_number{ 7U };
+		overview.Title          = "Cancel searches promptly";
+		window.publish(overview);
+		process_events();
+		auto* const modality     = window.modality();
+		auto* const authorAction = modality->action(qt::review_modality::author);
+
+		// Anyone else's pull request: four modes, and Ctrl+5 does nothing.
+		window.set_pull_request_author_case(std::nullopt);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		// Ctrl+5 is the action's own key: a disabled action takes no key.
+		authorAction->trigger();
+		process_events();
+		expect(authorAction->shortcut() == QKeySequence{ QStringLiteral("Ctrl+5") } && !modality->button(qt::review_modality::author)->isVisibleTo(modality) && !authorAction->isEnabled() && window.current_modality() == qt::review_modality::review,
+			   "not owned: Author is absent and Ctrl+5 leaves the window where it was");
+		window.choose_modality(qt::review_modality::author);
+		expect(window.current_modality() == qt::review_modality::review, "not owned: Author cannot be chosen");
+		for (const auto which : { qt::review_modality::overview, qt::review_modality::review, qt::review_modality::discuss, qt::review_modality::threads }) {
+			expect(modality->button(which)->isVisibleTo(modality), "the other four stay");
+		}
+
+		// My open pull request: Author is offered, the window stays where it opened.
+		window.set_pull_request_author_case(core::author_case::open_pull_request);
+		process_events();
+		expect(modality->button(qt::review_modality::author)->isVisibleTo(modality) && authorAction->isEnabled() && window.current_modality() == qt::review_modality::review,
+			   "owned and open: Author is there, and the pull request stays where it opened");
+		authorAction->trigger();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::author && authorAction->isChecked(), "Ctrl+5 chooses Author");
+		const auto expanded = [&log](const core::workbench_drawer aDrawer) {
+			return std::ranges::any_of(log.Workbench, [aDrawer](const core::workbench_interaction_intent& aIntent) {
+				const auto* const set = std::get_if<core::set_workbench_drawer_intent>(&aIntent);
+				return set != nullptr && set->Drawer == aDrawer && set->State == core::workbench_drawer_state::expanded;
+			});
+		};
+		expect(expanded(core::workbench_drawer::files) && expanded(core::workbench_drawer::conversations), "entering Author asks the core for both drawers");
+		auto* const drawer = window.conversations_drawer();
+		expect(window.author_tabs() != nullptr && window.author_tabs()->isVisibleTo(drawer) && window.author_tabs()->currentIndex() == 0 && window.author_tabs()->tabText(0) == QStringLiteral("Workflow")
+				   && !window.tray_tabs()->isVisibleTo(drawer) && window.local_draft()->workflow_page()->isVisibleTo(drawer),
+			   "Author's drawer opens on Workflow, its first tab");
+		expect(window.author_tabs()->count() == 3 && window.author_tabs()->tabText(1) == QStringLiteral("Tour") && window.author_tabs()->tabText(2) == QStringLiteral("Agent"),
+			   "Workflow, Tour and Agent: there is no Notes tab");
+		auto* const handoff = window.local_draft()->create_button();
+		expect(handoff->isVisibleTo(&window) && handoff->text() == QStringLiteral("Publish update…") && !handoff->isEnabled(), "the handoff is Publish update…, waiting for a worktree");
+		auto* const ask = window.findChild<QWidget*>(QStringLiteral("workbenchAuthorAsk"));
+		expect(ask != nullptr && window.file_search_tabs()->currentWidget() == ask && window.file_search_tabs()->isTabVisible(window.file_search_tabs()->indexOf(ask)) && !window.file_search_tabs()->isTabVisible(0),
+			   "without a worktree, This update asks for one in place of Files");
+		expect(window.local_draft()->workflow()->checklist().Rows.size() == 1U && window.local_draft()->workflow()->checklist().Rows.front().Wait == core::checklist_wait::worktree,
+			   "the rows that need a worktree wait for it");
+		window.author_tabs()->setCurrentIndex(1);
+		process_events();
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(window.tray_tabs()->isVisibleTo(drawer) && !window.author_tabs()->isVisibleTo(drawer) && !window.file_search_tabs()->isTabVisible(window.file_search_tabs()->indexOf(ask))
+				   && window.file_search_tabs()->isTabVisible(0),
+			   "Review has its own tabs back");
+		window.choose_modality(qt::review_modality::author);
+		process_events();
+		expect(window.author_tabs()->currentIndex() == 1, "Author remembers its drawer tab for the pull request");
+
+		// Not owned any more: Author goes, and the window leaves it.
+		window.set_pull_request_author_case(std::nullopt);
+		process_events();
+		expect(window.current_modality() != qt::review_modality::author && !modality->button(qt::review_modality::author)->isVisibleTo(modality), "Author leaves with ownership");
+		window.hide();
+	}
+
+	/// [[BPR-2196]]. My draft pull request opens in Author, with Ready for review as its handoff.
+	void test_my_draft_pull_request_opens_in_author()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			},
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		// A pull request is open, so the window is past Home.
+		window.publish(application::github_presentation_update{ .PullRequest = application::github_pull_request_projection{ } });
+		auto overview           = application::pull_request_overview_projection{ };
+		overview.Owner          = "acme";
+		overview.RepositoryName = "engine";
+		overview.Number         = core::pull_request_number{ 8U };
+		overview.Draft          = true;
+		window.publish(overview);
+		process_events();
+		auto readied = std::optional<core::draft_state_change>{ };
+		window.set_draft_state_dispatch([&readied](const core::draft_state_change aChange) { readied = aChange; });
+		window.set_draft_state_offer(core::draft_state_change::ready_for_review);
+		window.set_pull_request_author_case(core::author_case::draft_pull_request);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::author, "my draft pull request opens in Author");
+		auto* const handoff = window.local_draft()->create_button();
+		expect(handoff->text() == QStringLiteral("Ready for review") && handoff->isEnabled() && handoff->isVisibleTo(&window), "Ready for review at the right end of Author's bar");
+		handoff->click();
+		expect(readied == std::optional{ core::draft_state_change::ready_for_review }, "it asks for the draft-state change, as Overview's does");
+		window.choose_modality(qt::review_modality::overview, core::workbench_modality_entry::choose);
+		process_events();
+		// Another pull request of mine, and back: each reopens where it was left.
+		auto other   = overview;
+		other.Number = core::pull_request_number{ 9U };
+		window.publish(other);
+		window.set_pull_request_author_case(core::author_case::draft_pull_request);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::author, "the other draft opens in Author");
+		window.publish(overview);
+		window.set_pull_request_author_case(core::author_case::draft_pull_request);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::overview, "after that, a pull request reopens in the mode it was left in");
+		window.hide();
+	}
+
 	void test_strip_modalities_positions_and_account()
 	{
 		intent_log           log;
@@ -1858,7 +1999,12 @@ namespace {
 		expect(modality != nullptr
 				   && window.current_modality() == qt::review_modality::review,
 			   "the strip opens on Review, the modality with both drawers open");
-		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+		// [[BPR-2196]]. Author, fifth, is absent until the window shows
+		// something the viewer owns; the four keep Ctrl+1 to Ctrl+4.
+		expect(!modality->button(qt::review_modality::author)->isVisibleTo(window.modality()) && !modality->action(qt::review_modality::author)->isEnabled()
+				   && modality->action(qt::review_modality::author)->shortcut() == QKeySequence{ QStringLiteral("Ctrl+5") },
+			   "Author is absent on a pull request the viewer does not own, and its key is Ctrl+5");
+		for (std::size_t index = 0U; index + 1U < qt::review_modality_count; ++index) {
 			const auto  which  = static_cast<qt::review_modality>(index);
 			auto* const action = modality->action(which);
 			auto* const button = modality->button(which);
@@ -1875,7 +2021,7 @@ namespace {
 					   && window.focus_order().contains(button),
 				   "each modality is a checkable, shortcut-bearing, focusable stop");
 		}
-		expect(qt::review_modality_count == 4U && modality->action(qt::review_modality::review)->isChecked()
+		expect(qt::review_modality_count == 5U && modality->action(qt::review_modality::review)->isChecked()
 				   && !modality->action(qt::review_modality::overview)->isChecked()
 				   && modality->button(qt::review_modality::review)->isChecked()
 				   && !modality->button(qt::review_modality::discuss)->isChecked(),
@@ -2038,7 +2184,7 @@ namespace {
 							   QStringLiteral("qt_toolbar_ext_button"))
 						   ->isVisible(),
 			   "no strip control folds into an overflow menu at the width floor");
-		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+		for (std::size_t index = 0U; index + 1U < qt::review_modality_count; ++index) {
 			expect(modality->button(static_cast<qt::review_modality>(index))
 					   ->isVisible(),
 				   "every modality segment stays visible at the width floor");
@@ -25603,6 +25749,8 @@ auto main(int argc, char** argv) -> int
 	runCase("test_one_pane_places_threads_on_their_own_changed_rows", &test_one_pane_places_threads_on_their_own_changed_rows);
 	runCase("test_collapsing_a_drawer_returns_space_to_the_centre", &test_collapsing_a_drawer_returns_space_to_the_centre);
 	runCase("test_strip_modalities_positions_and_account", &test_strip_modalities_positions_and_account);
+	runCase("test_author_is_the_owners_mode", &test_author_is_the_owners_mode);
+	runCase("test_my_draft_pull_request_opens_in_author", &test_my_draft_pull_request_opens_in_author);
 	runCase("test_the_window_title_names_the_open_pull_request", &test_the_window_title_names_the_open_pull_request);
 	runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
 	runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);

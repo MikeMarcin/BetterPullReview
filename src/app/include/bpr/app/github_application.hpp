@@ -700,9 +700,12 @@ namespace bpr::app {
 		/// `aConfiguration` into this profile as Settings would (its agents
 		/// added with builds off, each command action bound to the program of
 		/// its name beside the file), then selects it on the shown local
-		/// draft and shows Overview's Status tab. Runs nothing. False when the
-		/// file cannot be imported.
+		/// draft and shows Author's Workflow tab ([[BPR-2196]]). Runs nothing.
+		/// False when the file cannot be imported.
 		[[nodiscard]] auto import_workflow_for_look(const std::string& aConfiguration) -> bool;
+		/// \brief Whether the profile holds the Fixture agent yet, so the
+		/// look's agent actions are bound to it and can be asked.
+		[[nodiscard]] auto fixture_agent_ready_for_look() const -> bool;
 		/// \brief Selects the profile's first workflow on the shown draft and
 		/// shows the Workflow area; true once it is selected and shown.
 		[[nodiscard]] auto select_workflow_for_look() -> bool;

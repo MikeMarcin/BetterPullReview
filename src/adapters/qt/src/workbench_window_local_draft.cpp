@@ -121,7 +121,8 @@ namespace bpr::qt {
 			OverviewBehindDraft            = PresentedOverview;
 			DescriptionEditableBehindDraft = OverviewPage != nullptr && OverviewPage->description_editable();
 			FilesBehindDraft               = PublishedFiles;
-			// Another draft opens on Review, in two panes (X23 as amended).
+			// [[BPR-2196]]. A draft opens in Author, or in the mode it was left
+			// in, as the core decides; its comparison in two panes (X23 as amended).
 			if (Modality != nullptr) {
 				Modality->adopt(review_modality::review);
 			}
@@ -148,6 +149,7 @@ namespace bpr::qt {
 		if (entering && LocalDraftObserver) {
 			LocalDraftObserver(true);
 		}
+		open_local_draft_mode();
 	}
 
 	void workbench_window::show_local_publication()
@@ -155,9 +157,13 @@ namespace bpr::qt {
 		if (!LocalDraftShown) {
 			return;
 		}
-		choose_modality(review_modality::overview);
-		if (OverviewPage != nullptr && OverviewPage->status_drawer() != nullptr) {
-			OverviewPage->status_drawer()->show_tab(overview_drawer_tab::status);
+		// [[BPR-2196]]. The publish steps are in Author's Workflow tab.
+		apply_author_offer();
+		if (current_modality() != review_modality::author) {
+			choose_modality(review_modality::author);
+		}
+		if (AuthorTabs != nullptr && AuthorTabs->currentIndex() != 0) {
+			AuthorTabs->setCurrentIndex(0);
 		}
 	}
 
@@ -173,6 +179,7 @@ namespace bpr::qt {
 		}
 		LocalDraftShown   = false;
 		LocalChangesShown = false;
+		LocalOpenedFor.clear();
 		if (LocalDraftObserver) {
 			LocalDraftObserver(false);
 		}
@@ -191,6 +198,7 @@ namespace bpr::qt {
 			}
 		}
 		apply_local_draft_surface();
+		apply_author_offer();
 		if (OverviewPage != nullptr) {
 			OverviewPage->close_description_editor();
 			OverviewPage->set_description_editable(DescriptionEditableBehindDraft);
@@ -268,6 +276,7 @@ namespace bpr::qt {
 		}
 		apply_local_comparison();
 		apply_local_draft_surface();
+		open_local_draft_mode();
 	}
 
 	void workbench_window::present_local_changes(const application::local_changes_projection& aProjection)
@@ -282,6 +291,9 @@ namespace bpr::qt {
 		}
 		apply_local_comparison();
 		apply_local_draft_surface();
+		if (AuthorShown) {
+			pick_author_file();
+		}
 		// The Edit view's text is coloured by the same definitions as the panes.
 		if (const auto document = LocalDraft->edit_document(); LocalSyntaxDispatch && !document.empty() && document != previousEdit) {
 			LocalSyntaxDispatch(LocalDraft->edit_path(), document);
@@ -437,9 +449,7 @@ namespace bpr::qt {
 		if (LocalBarLeadingAction != nullptr) {
 			LocalBarLeadingAction->setVisible(local);
 		}
-		if (LocalBarTrailingAction != nullptr) {
-			LocalBarTrailingAction->setVisible(local);
-		}
+		// The trailing slot is Author's handoff: apply_author_surface shows it.
 		if (ReviewBar != nullptr) {
 			for (auto* const action : ReviewBar->actions()) {
 				const auto name    = action->objectName();
@@ -454,11 +464,13 @@ namespace bpr::qt {
 				ReviewChipAction->setVisible(false);
 			}
 		}
-		// Author state's third view, and why it may be refused.
+		// Author state's third view, and why it may be refused. [[BPR-2196]]:
+		// the Edit view is Author's; Review is for reading again.
+		const auto revising = author && current_modality() == review_modality::author;
 		if (ReviewViewPicker != nullptr) {
-			ReviewViewPicker->set_author(author);
-			ReviewViewPicker->set_edit_refusal(author ? LocalDraft->edit_refusal() : QString{ });
-			if (!author && ReviewViewPicker->view() == review_view::edit) {
+			ReviewViewPicker->set_author(revising);
+			ReviewViewPicker->set_edit_refusal(revising ? LocalDraft->edit_refusal() : QString{ });
+			if (!revising && ReviewViewPicker->view() == review_view::edit) {
 				ReviewViewPicker->set_view(review_view::two_panes);
 			}
 			if (local) {
@@ -469,16 +481,7 @@ namespace bpr::qt {
 				ReviewViewPicker->segment(review_view::one_pane)->setToolTip(QStringLiteral("One pane"));
 			}
 		}
-		// Local Changes is a tab, always, in author state.
-		if (FileSearchTabs != nullptr) {
-			const auto tab = local_changes_tab();
-			if (tab >= 0) {
-				FileSearchTabs->setTabVisible(tab, author);
-				if (!author && FileSearchTabs->currentIndex() == tab) {
-					FileSearchTabs->setCurrentIndex(0);
-				}
-			}
-		}
+		// [[BPR-2196]]. The Changes tab is Author's This update: apply_author_surface places it.
 		if (auto* const footer = LocalDraft->files_footer(); footer != nullptr) {
 			footer->setVisible(local && LocalDraft->projection().Draft.has_value());
 		}
@@ -503,11 +506,11 @@ namespace bpr::qt {
 				CommentsTools->setVisible(!local && TrayTabs->currentIndex() == tray_comments_tab);
 			}
 		}
-		// Overview: the Status tab carries the publish steps; the description
-		// is Overview's own, editable as a pull request's author's is.
+		// Overview: the description is Overview's own, editable as a pull
+		// request's author's is. [[BPR-2196]]: the publish steps moved to
+		// Author's Workflow tab, and Status keeps its one meaning.
 		if (OverviewPage != nullptr) {
 			if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
-				drawer->set_status_page(local && LocalDraft->projection().Draft ? LocalDraft->status_page() : nullptr);
 				drawer->set_conversation_tabs_shown(!local);
 			}
 			if (local) {
@@ -516,7 +519,7 @@ namespace bpr::qt {
 		}
 		// The centre: the Edit view's page covers the comparison in Review.
 		if (CentreStack != nullptr && LocalEditHolder != nullptr) {
-			const auto editing = author && ReviewViewPicker != nullptr && ReviewViewPicker->view() == review_view::edit && current_modality() == review_modality::review;
+			const auto editing = revising && ReviewViewPicker != nullptr && ReviewViewPicker->view() == review_view::edit;
 			if (editing) {
 				CentreStack->setCurrentWidget(LocalEditHolder);
 			} else if (CentreStack->currentWidget() == LocalEditHolder || local) {
@@ -532,6 +535,8 @@ namespace bpr::qt {
 		update_action_state();
 		update_status_text();
 		apply_drawer_layout();
+		apply_author_offer();
+		apply_author_surface();
 	}
 }
 

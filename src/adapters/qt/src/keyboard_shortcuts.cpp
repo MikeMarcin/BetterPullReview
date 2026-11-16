@@ -147,6 +147,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::review, .Group = views, .Binding = bound, .Title = "Review", .Keys = "Ctrl+2", .Objects = "reviewModalityReviewAction" },
 			shortcut_entry{ .Command = command::discuss, .Group = views, .Binding = bound, .Title = "Discuss", .Keys = "Ctrl+3", .Objects = "reviewModalityDiscussAction" },
 			shortcut_entry{ .Command = command::threads, .Group = views, .Binding = bound, .Title = "Threads", .Keys = "Ctrl+4", .Objects = "reviewModalityThreadsAction" },
+			shortcut_entry{ .Command = command::author, .Group = views, .Binding = bound, .Title = "Author", .Place = "On your own pull request or local draft", .Keys = "Ctrl+5", .Objects = "reviewModalityAuthorAction" },
 			shortcut_entry{ .Command = command::find_thread, .Group = views, .Binding = bound, .Title = "Find a thread, or go back", .Keys = "Ctrl+J", .Objects = "showWorkbenchThreadsAction;desktopShowThreadsAction" },
 			// [[BPR-1581]]. The selected thread in the other view, beside ⌘3 and
 			// ⌘2. Ctrl+Alt is AltGr on Windows, so both step aside while typing.

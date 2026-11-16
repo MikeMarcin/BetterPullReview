@@ -194,12 +194,20 @@ try {
 	auto* const changes = page->local_changes();
 	auto* const tabs    = window.file_search_tabs();
 	auto* const viewer  = window.comparison_surface();
-	expect(window.showing_local_draft() && page->projection().Draft && window.current_modality() == qt::review_modality::review,
-		   "the local draft opens in the pull request window's own review surface, on Review");
-	expect(tabs->tabText(0) == QStringLiteral("Files") && tabs->tabText(1) == QStringLiteral("Search") && window.local_changes_tab() > 1 && tabs->isTabVisible(window.local_changes_tab())
-			   && tabs->tabText(window.local_changes_tab()) == QStringLiteral("Changes"),
-		   "the pull request's Files and Search tabs, and Changes always present in author state");
+	// [[BPR-2196]]. A local draft opens in Author, the author's mode: This
+	// update (the Changes tab) in place of Files and Search, and the picker's Edit.
+	expect(window.showing_local_draft() && page->projection().Draft && window.current_modality() == qt::review_modality::author,
+		   "the local draft opens in the pull request window's own review surface, in Author");
+	expect(window.local_changes_tab() > 1 && tabs->isTabVisible(window.local_changes_tab()) && tabs->currentIndex() == window.local_changes_tab()
+			   && tabs->tabText(window.local_changes_tab()) == QStringLiteral("This update") && !tabs->isTabVisible(0) && !tabs->isTabVisible(1),
+		   "Author's left drawer is This update");
 	expect(window.review_view_picker()->author() && page->branch_button()->isVisible(), "author state: the branch and the picker's Edit");
+	// Review is for reading again: the pull request's Files and Search, no Changes and no Edit.
+	window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+	settle(s.Lanes);
+	expect(tabs->tabText(0) == QStringLiteral("Files") && tabs->tabText(1) == QStringLiteral("Search") && tabs->isTabVisible(0) && !tabs->isTabVisible(window.local_changes_tab())
+			   && !window.review_view_picker()->author(),
+		   "Review has the pull request's Files and Search tabs; Changes and Edit are Author's");
 	expect(!page->working_disclosure()->isChecked() && !page->working()->isVisible(), "working files wait behind a disclosure");
 	settle_until(s.Lanes, [&] { return page->projection().File && window.local_comparison() && viewer->current_result(); });
 	expect(window.local_comparison() && viewer->current_result() && viewer->current_context() == window.local_comparison()->Context,
@@ -243,15 +251,14 @@ try {
 	capture(window, QStringLiteral("a-review"));
 	window.choose_modality(qt::review_modality::overview);
 	settle(s.Lanes);
-	expect(window.overview_page()->isVisible() && window.overview_page()->status_drawer()->status_page() == page->status_page() && window.overview_page()->description_editable(),
-		   "Overview is the pull request's: its description editable, its Status tab the publish steps");
+	expect(window.overview_page()->isVisible() && window.overview_page()->status_drawer()->status_page() == nullptr && window.overview_page()->description_editable(),
+		   "Overview is the pull request's: its description editable; the publish steps are Author's ([[BPR-2196]])");
 	capture(window, QStringLiteral("a-overview"));
-	window.choose_modality(qt::review_modality::review);
+	window.choose_modality(qt::review_modality::author, core::workbench_modality_entry::choose);
 	settle(s.Lanes);
 
-	// Local Changes: Unstaged over Staged.
-	tabs->setCurrentIndex(window.local_changes_tab());
-	settle(s.Lanes);
+	// This update: Unstaged over Staged.
+	expect(tabs->currentIndex() == window.local_changes_tab(), "Author comes back to This update");
 	expect(tree_paths(*changes->unstaged()) == QStringList{ QStringLiteral("NOTES.txt"), QStringLiteral("docs/addresses.md"), QStringLiteral("tests/net/endpoint_test.cpp") },
 		   "Unstaged: the two edits and the untracked note");
 	expect(tree_paths(*changes->staged()) == QStringList{ QStringLiteral("docs/ports.md") }, "Staged: the ports page");
@@ -359,10 +366,8 @@ try {
 	settle_until(s.Lanes, [&] { return page->editor()->syntax_lines() > 0U; });
 	expect(page->editor()->syntax_lines() > 0U, "the Edit view has the panes' syntax colours");
 	capture(window, QStringLiteral("edit-syntax"));
-	// Choosing another file in Files updates the Edit pane.
-	tabs->setCurrentIndex(0);
-	settle(s.Lanes);
-	expect(window.open_local_file(QStringLiteral("src/endpoint.cpp")), "Files has the candidate's file");
+	// A file of the candidate opened another way updates the Edit pane.
+	expect(window.open_local_file(QStringLiteral("src/endpoint.cpp")), "the candidate's file opens");
 	settle(s.Lanes);
 	expect(page->editor()->isVisible() && page->edit_path() == "src/endpoint.cpp" && QString::fromStdString(page->editor()->text()).contains(QStringLiteral("parse_port")),
 		   "a file chosen in Files opens in the Edit pane");

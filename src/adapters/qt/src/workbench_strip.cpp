@@ -1185,6 +1185,8 @@ namespace bpr::qt {
 			return QStringLiteral("Discuss");
 		case review_modality::threads:
 			return QStringLiteral("Threads");
+		case review_modality::author:
+			return QStringLiteral("Author");
 		}
 		return QStringLiteral("Review");
 	}
@@ -1200,6 +1202,8 @@ namespace bpr::qt {
 			return shortcut_key(shortcut_command::discuss);
 		case review_modality::threads:
 			return shortcut_key(shortcut_command::threads);
+		case review_modality::author:
+			return shortcut_key(shortcut_command::author);
 		}
 		return QKeySequence{ };
 	}
@@ -1237,6 +1241,10 @@ namespace bpr::qt {
 				return QStringLiteral("Find a thread in the pull request (%1, %2)")
 					.arg(modality_key(review_modality::threads),
 						 QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText));
+			case review_modality::author:
+				// [[BPR-2196]]. The author's own mode, there only for them.
+				return QStringLiteral("Work on your own pull request: this update, the file, and your workflow's checklist (%1).")
+					.arg(modality_key(review_modality::author));
 			}
 			return QString{ };
 		}
@@ -1298,6 +1306,8 @@ namespace bpr::qt {
 		}
 		set_compact(false);
 		adopt(Current);
+		// [[BPR-2196]]. Author waits until the window shows something the viewer owns.
+		set_author_offered(false);
 	}
 
 	void modality_control::set_compact(const bool aCompact)
@@ -1328,8 +1338,9 @@ namespace bpr::qt {
 			const auto title = review_modality_title(static_cast<review_modality>(index));
 			// [[BPR-0653]]. The three-character prefixes are distinct, and the
 			// button's accessible name and tooltip still carry the whole word.
+			const auto prefix = title.left(3);
 			Buttons[index]->setText(
-				Abbreviated   ? title.left(3)
+				Abbreviated   ? prefix
 					: Compact ? title
 							  : QStringLiteral("%1  %2").arg(
 									title,
@@ -1353,6 +1364,21 @@ namespace bpr::qt {
 			Buttons[index]->setChecked(current);
 		}
 		update();
+	}
+
+	void modality_control::set_author_offered(const bool aOffered)
+	{
+		const auto index = static_cast<std::size_t>(review_modality::author);
+		Actions[index]->setEnabled(aOffered);
+		Actions[index]->setVisible(aOffered);
+		Buttons[index]->setVisible(aOffered);
+		updateGeometry();
+		update();
+	}
+
+	auto modality_control::author_offered() const noexcept -> bool
+	{
+		return Actions[static_cast<std::size_t>(review_modality::author)]->isEnabled();
 	}
 
 	auto modality_control::current() const noexcept -> review_modality

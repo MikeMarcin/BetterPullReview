@@ -4128,3 +4128,38 @@ Next action: when the session hands back, reconcile the three verdicts. On
 acceptance finish BPR-2035 and set RFC-BPR-0112 Auto-Verified; on a note,
 engineer it, freeze `workflow-v002` and ask again. Then remove the frozen
 root with `freeze_attended_build.py remove` and stop the host.
+
+## BPR-2196: Author, the author's mode (2026-11-15, in progress)
+
+The owner renamed the mode before it landed: "I changed my mind, make it Author".
+
+The owner accepted design `local-draft-workflow-v2` (session
+`273f0aafcc76fd284605b51649bbdbdf`, note: no Notes tab); its host (65438,
+65447) stopped. Design merged (`6b0214726`). BPR-2035 records the v001
+choice (B) and the v002 Accept; BPR-2196 allocated (scratch clone on `main`,
+since the allocator refuses any other branch) and mirrored on
+`claude/revise-mode-main-mirror` at `9d3ff6bad` for the coordinator to
+fast-forward. RFC-BPR-0112 carries an owner amendment for Author.
+
+| Commit | What |
+|---|---|
+| `f1d6b8f5a`, `fdeae4801` | BPR-2035 design rounds; BPR-2196 card, counter and receipt |
+| `c2b7e7da5` | Core `author_mode` (first `author_revise`) (availability, opening mode, handoff, checklist) and `core_author_mode` |
+
+Uncommitted at this checkpoint (the Qt and app slice): Author as
+`review_modality::author` on Ctrl+5 (`workbench_strip`, `keyboard_shortcuts`),
+`workbench_window_author_mode.cpp` (offer, surface, drawer header with Workflow,
+Tour and Agent, worktree ask, per-pull-request memory and left-in mode),
+the Workflow tab as the core's checklist (`local_draft_workflow_area`), the
+handoff on the parts' Create button, Overview's Status and Commits hidden
+for an unlinked draft, the host's `set_pull_request_author_case`, the look waiting
+for the Fixture agent, and the updated courses.
+
+Next action: green `application_local_draft_{,author_,tour_,publication_,workflow_}desktop_public_path`,
+`qt_local_draft_window`, `qt_workbench_window_scale_100`; format; reseal
+the production app manifest pin (`application_review_round_trip_composition_contract`);
+commit; freeze `workflow-v002` (`--generate "sh tests/fixtures/workflow_companion/make_look.sh look"`,
+`--attended-local-draft` on `look/engine`, `--attended-local-draft-workflow`
+on `look/companion/synthetic-org.bpr-config.json`) and file one question each
+for the Author mode and switcher, the Workflow tab checklist, the import
+preview and the agent accent.

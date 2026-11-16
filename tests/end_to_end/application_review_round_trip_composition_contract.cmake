@@ -2813,8 +2813,12 @@ function(bpr_verify_full_application_digest source_variable)
 	# [[BPR-1858]] main-merge reseal (2026-11-05): main a2e2ca244's
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
+	# [[BPR-2196]] reseal: present_draft_state_offer also tells the window
+	# the viewer's own case for Author (core::author_case_of over the same
+	# draft-state reading). No provider, admission, mutation branch,
+	# publication or source-inventory change.
 	set(bpr_expected_full_application_digest
-        "3ba90d7ea9ee80cb0da8c555c9c5c5830f6a6781c6ae308e7f5c403c5c6cd614"
+        "0fc72aa0f2a4dc1397c1f77738b6e3e126fc42e1b8896d3a0d3254fdf520c9eb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3784,8 +3788,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (the companion's request and answer files; it starts nothing), the
 	# draft desktop's Workflow area, Settings' workflow import and export, and
 	# the attended workflow look. No review mutation or submission path changed.
+	# [[BPR-2196]] reseal: Author, the author's mode. The host tells the
+	# window the viewer's own case from the draft-state reading, a fixture
+	# course maps Author's drawers to Review's, and the attended workflow
+	# look waits for the Fixture agent. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "5391825b8c5ddebe7f1af9c6f408849a552bf16c226b74cc3eb5efab95f5e030"
+        "2f2a70595a7268c279d730fc9a3fde38ae2b0e67132ae03119cbb238544d6b96"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

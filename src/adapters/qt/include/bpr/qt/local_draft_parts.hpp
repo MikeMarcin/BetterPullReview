@@ -4,6 +4,7 @@
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/local_changes_host.hpp"
 #include "bpr/application/local_draft_workbench.hpp"
+#include "bpr/core/author_mode.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
@@ -58,6 +59,16 @@ namespace bpr::qt {
 		std::function<void()> CreatePullRequest;
 	};
 
+	/// \brief [[BPR-2196]]. What the window decided for Author, through the core.
+	struct local_draft_author_mode
+	{
+		core::author_case    Case    = core::author_case::local_draft;
+		core::author_handoff Handoff = core::author_handoff::create_draft_pull_request;
+		/// Ready for review and Publish update…: whether they can be pressed now.
+		bool                   HandoffEnabled = false;
+		core::author_checklist Checklist;
+	};
+
 	/// \brief Lines chosen in the window's comparison: a file of the latest
 	/// candidate and its new-side lines.
 	struct local_draft_lines
@@ -95,7 +106,9 @@ namespace bpr::qt {
 	/// - the Local Changes tab (author state only, always present then);
 	/// - the Edit view's page (the view picker's third view);
 	/// - the Notes tab's page;
-	/// - Overview's Status tab page: the publish steps.
+	/// - Author's Workflow tab page: the author's checklist and the publish
+	///   steps ([[BPR-2196]]; a local draft has no Status tab until its pull
+	///   request exists).
 	///
 	/// The Tour tab is the window's own Tour panel, and the description is
 	/// Overview's own (RFC-BPR-0110 as amended, owner 2026-11-13: "stick with
@@ -136,7 +149,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto local_changes() const noexcept -> local_changes_panel*;
 		[[nodiscard]] auto edit_page() const noexcept -> QWidget*;
 		[[nodiscard]] auto notes_page() const noexcept -> QWidget*;
-		[[nodiscard]] auto status_page() const noexcept -> QWidget*;
+		[[nodiscard]] auto workflow_page() const noexcept -> QWidget*;
+		/// \brief [[BPR-2196]]. Author's case, handoff and checklist, as the core decided them.
+		void               present_author_mode(const local_draft_author_mode& aAuthorMode);
+		[[nodiscard]] auto author_mode() const noexcept -> const local_draft_author_mode& { return AuthorMode; }
 
 		// What the window reads.
 		[[nodiscard]] auto projection() const noexcept -> const application::local_draft_workbench_projection&;
@@ -198,6 +214,8 @@ namespace bpr::qt {
 
 		/// \brief Called after any presentation, so the window lays its slots out again.
 		std::function<void()> Changed;
+		/// \brief [[BPR-2196]]. Ready for review or Publish update… pressed: the window's to perform.
+		std::function<void(core::author_handoff)> HandedOff;
 
 	private:
 		void build();
@@ -207,6 +225,7 @@ namespace bpr::qt {
 		void present_notes();
 		void present_bar();
 		void present_edit();
+		void present_handoff();
 		void ask_discard();
 		void changed();
 
@@ -253,6 +272,7 @@ namespace bpr::qt {
 		local_draft_publication_area*                                         PublicationArea   = nullptr;
 		local_draft_workflow_area*                                            WorkflowArea      = nullptr;
 		local_draft_page_links                                                Links;
+		local_draft_author_mode                                               AuthorMode;
 		std::function<void(const std::string&, std::uint32_t, std::uint32_t)> RevealInComparison;
 
 		/// The Edit view's file, the bytes it read or last wrote, and its edits.

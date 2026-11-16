@@ -3,9 +3,9 @@
 
 /// \file
 /// \brief [[BPR-2196]], RFC-BPR-0112 as the owner reshaped it on 2026-11-15
-/// (design `local-draft-workflow-v2`). Revise is the author's mode: whether a
+/// (design `local-draft-workflow-v2`). Author is the author's mode: whether a
 /// window offers it, which mode a window opens in, the one handoff at the end
-/// of Revise's bar, and the author's checklist in its Workflow tab.
+/// of Author's bar, and the author's checklist in its Workflow tab.
 
 #include "bpr/core/local_draft.hpp"
 #include "bpr/core/local_draft_publication.hpp"
@@ -25,7 +25,7 @@ namespace bpr::core {
 	/// existing Draft PR that we own, and a live PR we need to make revisions
 	/// to". The third is named for the author's work, never for why: "Sent
 	/// back is too strong".
-	enum class revise_case : std::uint8_t {
+	enum class author_case : std::uint8_t {
 		/// A local draft whose pull request does not exist yet.
 		local_draft,
 		/// A draft pull request the viewer opened.
@@ -33,10 +33,10 @@ namespace bpr::core {
 		/// An open pull request the viewer opened, being revised.
 		open_pull_request,
 	};
-	[[nodiscard]] auto stable_name(revise_case aCase) noexcept -> std::string_view;
+	[[nodiscard]] auto stable_name(author_case aCase) noexcept -> std::string_view;
 
-	/// \brief What a window knows when it decides whether Revise is offered.
-	struct revise_facts
+	/// \brief What a window knows when it decides whether Author is offered.
+	struct author_facts
 	{
 		/// A local draft shows: always the author's own worktree.
 		bool LocalDraft = false;
@@ -54,13 +54,13 @@ namespace bpr::core {
 		bool Draft = true;
 	};
 
-	/// \brief The author's case, or none: Revise is absent.
+	/// \brief The author's case, or none: Author is absent.
 	///
 	/// \details A local draft is always its author's. A pull request is the
 	/// viewer's when its author is the signed-in login (`same_login`) and it
 	/// is open; anyone else's pull request, an anonymous read and a closed
-	/// one offer no Revise.
-	[[nodiscard]] auto revise_case_of(const revise_facts& aFacts) noexcept -> std::optional<revise_case>;
+	/// one offer no Author.
+	[[nodiscard]] auto author_case_of(const author_facts& aFacts) noexcept -> std::optional<author_case>;
 
 	/// \brief The window's five modes, in the switcher's order (their keys'
 	/// order: Command-1 to Command-5).
@@ -69,23 +69,23 @@ namespace bpr::core {
 		review,
 		discuss,
 		threads,
-		revise,
+		author,
 	};
 	[[nodiscard]] auto stable_name(author_mode aMode) noexcept -> std::string_view;
 
 	/// \brief The mode a window opens a pull request or local draft in.
 	///
 	/// \details The owner's accepted default: a local draft and a draft pull
-	/// request the viewer owns open in Revise; an open pull request the viewer
+	/// request the viewer owns open in Author; an open pull request the viewer
 	/// owns, and anyone else's, open as the window's own setting says
 	/// (`aOtherwise`, Overview by default). After that the window reopens in
-	/// the mode it was left in (`aLeftIn`), unless that mode is Revise and
-	/// Revise is no longer offered. A local draft has no Discuss or Threads
-	/// until its pull request exists, so a draft left there opens in Revise.
-	[[nodiscard]] auto opening_mode(std::optional<revise_case> aCase, std::optional<author_mode> aLeftIn, author_mode aOtherwise) noexcept -> author_mode;
+	/// the mode it was left in (`aLeftIn`), unless that mode is Author and
+	/// Author is no longer offered. A local draft has no Discuss or Threads
+	/// until its pull request exists, so a draft left there opens in Author.
+	[[nodiscard]] auto opening_mode(std::optional<author_case> aCase, std::optional<author_mode> aLeftIn, author_mode aOtherwise) noexcept -> author_mode;
 
-	/// \brief The one handoff at the right end of Revise's bar.
-	enum class revise_handoff : std::uint8_t {
+	/// \brief The one handoff at the right end of Author's bar.
+	enum class author_handoff : std::uint8_t {
 		/// Create Draft PR…: BetterPullReview creates the pull request.
 		create_draft_pull_request,
 		/// Hand Off Plan…: the workflow's own publisher creates it.
@@ -95,8 +95,8 @@ namespace bpr::core {
 		/// Publish update…: the push (RFC-BPR-0124's replies are not built).
 		publish_update,
 	};
-	[[nodiscard]] auto stable_name(revise_handoff aHandoff) noexcept -> std::string_view;
-	[[nodiscard]] auto revise_handoff_of(revise_case aCase, workflow_publisher aPublisher) noexcept -> revise_handoff;
+	[[nodiscard]] auto stable_name(author_handoff aHandoff) noexcept -> std::string_view;
+	[[nodiscard]] auto author_handoff_of(author_case aCase, workflow_publisher aPublisher) noexcept -> author_handoff;
 
 	/// \brief Where a checklist row stands.
 	enum class checklist_section : std::uint8_t {
@@ -182,7 +182,7 @@ namespace bpr::core {
 	/// \brief What the checklist is decided from.
 	struct checklist_facts
 	{
-		revise_case Case = revise_case::local_draft;
+		author_case Case = author_case::local_draft;
 		/// The local draft, when the window has one (none: no worktree yet).
 		const local_draft* Draft = nullptr;
 		/// The hosted branch as BetterPullReview last read it.

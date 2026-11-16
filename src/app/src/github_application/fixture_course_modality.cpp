@@ -90,6 +90,9 @@ namespace bpr::app {
 				return core::workbench_modality::discuss;
 			case qt::review_modality::threads:
 				return core::workbench_modality::threads;
+			case qt::review_modality::author:
+				// [[BPR-2196]]. Author's drawers follow Review's rules.
+				return core::workbench_modality::review;
 			}
 			return core::workbench_modality::review;
 		}

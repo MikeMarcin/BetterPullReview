@@ -115,5 +115,6 @@ two design rounds (merged into this lane from
   are accepted. Its host (PIDs 65438, 65447) was stopped with the
   attended-review `stop` command.
 
-The accepted design is engineered as its own card (the author's mode,
-Revise) before `workflow-v002` asks this card's questions again.
+The accepted design is engineered as its own card, BPR-2196, before
+`workflow-v002` asks this card's questions again. The owner then renamed
+the mode Revise to Author: "I changed my mind, make it Author".

@@ -446,9 +446,12 @@ namespace bpr::qt {
 		review,
 		discuss,
 		threads,
+		/// [[BPR-2196]]. The author's mode, last on Ctrl+5, present only
+		/// when the viewer owns the pull request or the local draft.
+		author,
 	};
 
-	inline constexpr std::size_t review_modality_count = 4U;
+	inline constexpr std::size_t review_modality_count = 5U;
 
 	[[nodiscard]] auto review_modality_title(review_modality aModality) -> QString;
 
@@ -486,6 +489,10 @@ namespace bpr::qt {
 		/// Dis and Con. The accessible names and tooltips keep the full words.
 		void               set_abbreviated(bool aAbbreviated);
 		[[nodiscard]] auto abbreviated() const noexcept -> bool;
+		/// \brief [[BPR-2196]]. Shows or removes Author, the last segment. Absent,
+		/// its key does nothing and the other four keep theirs.
+		void               set_author_offered(bool aOffered);
+		[[nodiscard]] auto author_offered() const noexcept -> bool;
 		[[nodiscard]] auto current() const noexcept -> review_modality;
 		[[nodiscard]] auto action(review_modality aModality) const noexcept
 			-> QAction*;

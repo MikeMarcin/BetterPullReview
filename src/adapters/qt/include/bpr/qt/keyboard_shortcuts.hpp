@@ -127,6 +127,8 @@ namespace bpr::qt {
 		review,
 		discuss,
 		threads,
+		/// [[BPR-2196]]. Author, the author's mode; present only for the owner.
+		author,
 		find_thread,
 		show_in_discuss,
 		show_in_review,

@@ -6401,6 +6401,11 @@ namespace {
 					// RFC-BPR-0112: imported once, then selected on the draft; nothing runs.
 					static auto imported = false;
 					if (!imported) {
+						// [[BPR-2196]]. The look's agent action asks the Fixture
+						// agent, which a tests-on session adds by itself: wait for it.
+						if (*ticks < 600 && !aApplication.fixture_agent_ready_for_look()) {
+							return;
+						}
 						imported = true;
 						if (!aApplication.import_workflow_for_look(AttendedLocalDraftWorkflow)) {
 							finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_FAILED:workflow-import"));

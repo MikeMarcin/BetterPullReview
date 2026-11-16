@@ -1,4 +1,4 @@
-#include "bpr/core/author_revise.hpp"
+#include "bpr/core/author_mode.hpp"
 
 #include "bpr/core/review_role.hpp"
 
@@ -140,31 +140,31 @@ namespace bpr::core {
 		}
 	} // namespace
 
-	auto stable_name(const revise_case aCase) noexcept -> std::string_view
+	auto stable_name(const author_case aCase) noexcept -> std::string_view
 	{
 		switch (aCase) {
-		case revise_case::local_draft:        return "local_draft";
-		case revise_case::draft_pull_request: return "draft_pull_request";
-		case revise_case::open_pull_request:  return "open_pull_request";
+		case author_case::local_draft:        return "local_draft";
+		case author_case::draft_pull_request: return "draft_pull_request";
+		case author_case::open_pull_request:  return "open_pull_request";
 		}
 		return "local_draft";
 	}
 
-	auto revise_case_of(const revise_facts& aFacts) noexcept -> std::optional<revise_case>
+	auto author_case_of(const author_facts& aFacts) noexcept -> std::optional<author_case>
 	{
 		if (aFacts.LocalDraft) {
 			if (!aFacts.Linked) {
-				return revise_case::local_draft;
+				return author_case::local_draft;
 			}
 			if (aFacts.PullRequest && !aFacts.Open) {
 				return std::nullopt;
 			}
-			return aFacts.Draft ? revise_case::draft_pull_request : revise_case::open_pull_request;
+			return aFacts.Draft ? author_case::draft_pull_request : author_case::open_pull_request;
 		}
 		if (!aFacts.PullRequest || !aFacts.Open || aFacts.Author.empty() || !same_login(aFacts.Author, aFacts.Viewer)) {
 			return std::nullopt;
 		}
-		return aFacts.Draft ? revise_case::draft_pull_request : revise_case::open_pull_request;
+		return aFacts.Draft ? author_case::draft_pull_request : author_case::open_pull_request;
 	}
 
 	auto stable_name(const author_mode aMode) noexcept -> std::string_view
@@ -174,48 +174,48 @@ namespace bpr::core {
 		case author_mode::review:   return "review";
 		case author_mode::discuss:  return "discuss";
 		case author_mode::threads:  return "threads";
-		case author_mode::revise:   return "revise";
+		case author_mode::author:   return "author";
 		}
 		return "overview";
 	}
 
-	auto opening_mode(const std::optional<revise_case> aCase, const std::optional<author_mode> aLeftIn, const author_mode aOtherwise) noexcept -> author_mode
+	auto opening_mode(const std::optional<author_case> aCase, const std::optional<author_mode> aLeftIn, const author_mode aOtherwise) noexcept -> author_mode
 	{
-		const auto local = aCase == std::optional{ revise_case::local_draft };
+		const auto local = aCase == std::optional{ author_case::local_draft };
 		if (aLeftIn) {
-			const auto absent = (*aLeftIn == author_mode::revise && !aCase) || (local && (*aLeftIn == author_mode::discuss || *aLeftIn == author_mode::threads));
+			const auto absent = (*aLeftIn == author_mode::author && !aCase) || (local && (*aLeftIn == author_mode::discuss || *aLeftIn == author_mode::threads));
 			if (!absent) {
 				return *aLeftIn;
 			}
 		}
-		if (local || aCase == std::optional{ revise_case::draft_pull_request }) {
-			return author_mode::revise;
+		if (local || aCase == std::optional{ author_case::draft_pull_request }) {
+			return author_mode::author;
 		}
-		return aOtherwise == author_mode::revise && !aCase ? author_mode::overview : aOtherwise;
+		return aOtherwise == author_mode::author && !aCase ? author_mode::overview : aOtherwise;
 	}
 
-	auto stable_name(const revise_handoff aHandoff) noexcept -> std::string_view
+	auto stable_name(const author_handoff aHandoff) noexcept -> std::string_view
 	{
 		switch (aHandoff) {
-		case revise_handoff::create_draft_pull_request: return "create_draft_pull_request";
-		case revise_handoff::hand_off_plan:             return "hand_off_plan";
-		case revise_handoff::ready_for_review:          return "ready_for_review";
-		case revise_handoff::publish_update:            return "publish_update";
+		case author_handoff::create_draft_pull_request: return "create_draft_pull_request";
+		case author_handoff::hand_off_plan:             return "hand_off_plan";
+		case author_handoff::ready_for_review:          return "ready_for_review";
+		case author_handoff::publish_update:            return "publish_update";
 		}
 		return "create_draft_pull_request";
 	}
 
-	auto revise_handoff_of(const revise_case aCase, const workflow_publisher aPublisher) noexcept -> revise_handoff
+	auto author_handoff_of(const author_case aCase, const workflow_publisher aPublisher) noexcept -> author_handoff
 	{
 		switch (aCase) {
-		case revise_case::local_draft:
-			return aPublisher == workflow_publisher::external ? revise_handoff::hand_off_plan : revise_handoff::create_draft_pull_request;
-		case revise_case::draft_pull_request:
-			return revise_handoff::ready_for_review;
-		case revise_case::open_pull_request:
-			return revise_handoff::publish_update;
+		case author_case::local_draft:
+			return aPublisher == workflow_publisher::external ? author_handoff::hand_off_plan : author_handoff::create_draft_pull_request;
+		case author_case::draft_pull_request:
+			return author_handoff::ready_for_review;
+		case author_case::open_pull_request:
+			return author_handoff::publish_update;
 		}
-		return revise_handoff::create_draft_pull_request;
+		return author_handoff::create_draft_pull_request;
 	}
 
 	auto stable_name(const checklist_mark aMark) noexcept -> std::string_view
@@ -252,12 +252,12 @@ namespace bpr::core {
 		if (draft.Workflow) {
 			add_preparation(draft, checks, checklist.Rows);
 		}
-		if (aFacts.Case == revise_case::local_draft) {
+		if (aFacts.Case == author_case::local_draft) {
 			add_publication(draft, aFacts.Branch, checklist.RequiredUnmet, checklist.Rows);
 		} else {
 			checklist.Rows.push_back({
 				.Id      = "pull-request",
-				.Task    = aFacts.Case == revise_case::draft_pull_request ? "The draft pull request is on GitHub" : "The pull request is on GitHub",
+				.Task    = aFacts.Case == author_case::draft_pull_request ? "The draft pull request is on GitHub" : "The pull request is on GitHub",
 				.Section = checklist_section::publish,
 				.Runner  = checklist_runner::betterpullreview,
 				.Mark    = linked(draft) ? checklist_mark::observed : checklist_mark::not_yet,

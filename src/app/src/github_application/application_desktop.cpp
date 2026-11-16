@@ -440,6 +440,13 @@ namespace bpr::app {
 		return store->apply(*before, after) == application::agent_configuration_outcome::applied;
 	}
 
+	auto github_application::fixture_agent_ready_for_look() const -> bool
+	{
+		auto       store    = adapters::sqlite::make_agent_configuration_store(Profile->ApplicationDataRoot);
+		const auto snapshot = store ? store->load() : std::nullopt;
+		return snapshot && std::ranges::any_of(snapshot->Agents.Agents, [](const core::agent_entry& aEntry) { return aEntry.Name == "Fixture agent"; });
+	}
+
 	auto github_application::select_workflow_for_look() -> bool
 	{
 		for (const auto& [context, session] : Sessions) {

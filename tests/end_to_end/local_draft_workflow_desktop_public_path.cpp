@@ -9,6 +9,8 @@
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/local_draft_workflow_area.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
 #include "review_cycle_desktop.hpp"
@@ -20,6 +22,8 @@
 #include <QLineEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QTabBar>
 
 #include <atomic>
 #include <chrono>
@@ -297,7 +301,11 @@ try {
 	auto* const page = window->local_draft();
 	expect(page != nullptr && page->projection().Draft && !page->projection().Draft->Workflow, "a draft opens with no workflow");
 	auto* const area = page->workflow();
-	expect(area->summary()->text().contains(QStringLiteral("No workflow is set up")) && area->chooser()->count() == 1, "AC01: nothing to select, and nothing needed");
+	expect(area->text().contains(QStringLiteral("None is set up. Changes, Description and Tour need none.")) && area->chooser()->count() == 1, "AC01: nothing to select, and nothing needed");
+	// [[BPR-2196]]. A local draft opens in Author; without a workflow its
+	// checklist is the built-in steps alone.
+	expect(window->current_modality() == qt::review_modality::author && window->author_tabs()->currentIndex() == 0, "the draft opens in Author, on its Workflow tab");
+	expect(area->checklist().Rows.size() == 2U && area->checklist().Rows[0].Id == "branch" && area->checklist().Rows[1].Id == "create", "no workflow: the built-in steps alone");
 	drafts->host().save_description("Other change", "Searches return two.\n");
 	drafts->host().add_stop("src/search.cpp", 1U, 1U, "Search returns two", "The answer is two now.");
 	settle(lanes);
@@ -352,8 +360,15 @@ try {
 	emit area->chooser()->activated(1);
 	settle(lanes);
 	expect(page->projection().Draft->Workflow && page->projection().Draft->Workflow->Workflow.PortableId == "synthetic-org" && !ran(), "AC02: selected explicitly; nothing ran");
-	expect(area->summary()->text().contains(QStringLiteral("From Synthetic Org.")) && area->summary()->text().contains(QStringLiteral("Required check “Check the pull request template”: Not run")),
+	expect(area->text().contains(QStringLiteral("From Synthetic Org")) && area->headline()->text() == QStringLiteral("Not on GitHub") && area->checklist().RequiredUnmet == 1U
+			   && area->text().contains(QStringLiteral("1 check not met")),
 		   "AC07: origin and the unmet required check are shown");
+	{
+		// [[BPR-2196]]. One row per step: a ring before it runs, and the required check marked.
+		auto* const template_row = area->actions()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_template"));
+		expect(template_row != nullptr && template_row->property("bprMark").toString() == QStringLiteral("not_yet") && template_row->findChild<QLabel*>(QStringLiteral("localDraftWorkflowRequired")) != nullptr,
+			   "the required check is a row, not run yet");
+	}
 
 	// AC09: an agent action wears the agent accent; a program's does not.
 	auto* const ask     = button(*area, "describe", "localDraftWorkflowAsk");
@@ -364,7 +379,9 @@ try {
 		   "AC05, AC07: who acts and the effect scope, never a declaration called isolation");
 	window->show_local_publication();
 	settle(lanes);
-	expect(area->isVisible(), "the Workflow area is in Overview's Status tab, above the publish steps");
+	expect(area->isVisible() && window->current_modality() == qt::review_modality::author && window->author_tabs()->currentIndex() == 0,
+		   "[[BPR-2196]]: the checklist is Author's Workflow tab, above the publish steps");
+	expect(window->overview_page()->status_drawer()->status_page() == nullptr, "Status keeps its one meaning: the workflow is not in it");
 	capture(*window, QStringLiteral("workflow-selected"));
 
 	// AC03: context asks the author something; the check runs meanwhile.
@@ -422,6 +439,16 @@ try {
 	button(*area, "template", "localDraftWorkflowRead")->click();
 	settle(lanes);
 	expect(!page->projection().Workflow.Checks[0].Gap, "the repeated check is met, as reported");
+	{
+		// AC09, [[BPR-2196]]: what a companion returns is outlined Reported, never filled.
+		auto* const template_row = area->actions()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_template"));
+		expect(template_row != nullptr && template_row->property("bprMark").toString() == QStringLiteral("reported")
+				   && template_row->findChild<QLabel*>(QStringLiteral("localDraftWorkflowState"))->text() == QStringLiteral("Reported"),
+			   "a companion's met check reads Reported, outlined");
+		for (const auto& row : area->checklist().Rows) {
+			expect(row.Runner != core::checklist_runner::companion || row.Mark != core::checklist_mark::observed, "no companion row is drawn as seen by BetterPullReview");
+		}
+	}
 	// A changed upstream rule, seen by a later answer, needs the check again.
 	touch(upstream / "RULES.json", R"({"name":"synthetic-org-create-pr","required_sections":["## Why","## Testing"],"self_review_marker":"required","creation_dry_run":false,"ticket_prefix":"ENG"})");
 	handOff->click();
@@ -443,10 +470,10 @@ try {
 		const auto lock = std::scoped_lock{ github->Mutex };
 		github->Branches.emplace("feature/cancel", page->projection().Draft->Candidates.back().Head);
 	}
-	auto* const publisher = area->findChild<QComboBox*>(QStringLiteral("localDraftWorkflowPublisher"));
-	publisher->setCurrentIndex(1);
-	emit publisher->activated(1);
+	expect(area->external_publisher()->isVisibleTo(area) && area->built_in_publisher()->isChecked(), "the publisher is chosen where publishing is");
+	area->external_publisher()->click();
 	settle(lanes);
+	expect(page->create_button()->text() == QStringLiteral("Hand Off Plan…"), "[[BPR-2196]]: with the org's publisher the handoff is Hand Off Plan…");
 	drafts->host().check_publication(false);
 	await(lanes, [&] { return page->projection().Publishing.Checked && !page->projection().Publishing.Checking && !page->projection().Publishing.Digest.empty(); }, "the plan");
 	const auto digest = page->projection().Publishing.Digest;

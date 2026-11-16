@@ -236,7 +236,7 @@ try {
 		emit window.home_drafts_list()->itemDoubleClicked(window.home_drafts_list()->item(0));
 		settle(s.Lanes);
 		expect(window.showing_local_draft() && page->projection().Draft->Id == draftId, "AC08: In preparation resumes the same draft");
-		expect(window.current_modality() == qt::review_modality::review && !shown_text(window).isEmpty(), "X23 as amended: a resumed draft opens on Review, no chat");
+		expect(window.current_modality() == qt::review_modality::author && !shown_text(window).isEmpty(), "[[BPR-2196]]: a resumed draft opens in Author, no chat");
 		expect(list_texts(*page->working()) == QStringList{ QStringLiteral("notes/plan.md"), QStringLiteral("src/search.cpp") } && !page->refresh_button()->isEnabled(),
 			   "AC02: dirty and untracked files are listed and nothing is captured unasked");
 		page->working()->item(1)->setCheckState(Qt::Checked);
@@ -245,6 +245,9 @@ try {
 		page->refresh_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Candidates.size() == 2U && page->candidate_actions().size() == 2 && page->candidates()->isEnabled(), "AC04: a successor candidate; the first stays");
+		// The candidate is read in Review, its Files tree; Author shows This update.
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		settle(s.Lanes);
 		expect(window.open_local_file(QStringLiteral("src/search.cpp")), "the included file is in Files");
 		settle(s.Lanes);
 		expect(shown_text(window).contains(QStringLiteral("\treturn 4;")), "AC02: the included working bytes");

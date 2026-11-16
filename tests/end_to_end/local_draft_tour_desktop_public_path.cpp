@@ -230,12 +230,17 @@ try {
 		auto* const page = window.local_draft();
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		draftId = page->projection().Draft->Id;
-		// RFC-BPR-0127: Notes is gone; the draft's notes are its Comments.
+		// [[BPR-2196]]. The draft opens in Author; Review keeps the pull
+		// request window's tray. RFC-BPR-0127: Notes is gone; the draft's
+		// notes are its Comments.
+		expect(window.current_modality() == qt::review_modality::author, "the draft opens in Author");
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		settle(s.Lanes);
 		window.tray_tabs()->setCurrentIndex(0);
 		expect(window.tray_tabs()->count() == 3 && window.tray_tabs()->isTabVisible(0) && window.tray_tabs()->accessibleTabName(0) == QStringLiteral("Comments")
 				   && window.tray_tabs()->accessibleTabName(1) == QStringLiteral("Tour") && window.findChild<QWidget*>(QStringLiteral("localDraftNotesPage"))->isVisible()
 				   && window.current_modality() == qt::review_modality::review,
-			   "the pull request window's tray holds Comments, the draft's notes, and Tour; the draft opens on Review");
+			   "Review's tray holds Comments, the draft's notes, and Tour");
 		auto* const tour = window.tour_editor();
 		expect(tour->local_words(), "the Tour tab is the window's own Tour panel, showing the draft's tour");
 
@@ -265,7 +270,8 @@ try {
 		overview->description_save_button()->click();
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Description.Body.starts_with("<!-- team-template v3 -->"), "AC01: the description is saved");
-		expect(overview->status_drawer()->status_page() == page->status_page(), "Overview's Status tab carries the publish steps");
+		expect(overview->status_drawer()->status_page() == nullptr && !overview->status_drawer()->tabs()->isTabVisible(static_cast<int>(qt::overview_drawer_tab::status)),
+			   "[[BPR-2196]]: a local draft has no Status tab until its pull request exists");
 		capture(window, QStringLiteral("local-draft-overview-description"));
 
 		// AC01, AC05: the Problem and Solution typed in the Tour panel.
@@ -386,7 +392,8 @@ try {
 			auto* const drawer = window.overview_page()->status_drawer();
 			expect(window.current_modality() == qt::review_modality::overview && window.overview_page()->isVisible(), "Overview shows");
 			expect(!files->isVisible() && !conversations->isVisible() && !tour->side_chat()->isVisible(), "Overview closes Review's drawers and the tour's chat");
-			expect(!drawer->conversation_tabs_shown() && drawer->current_tab() == qt::overview_drawer_tab::status, "Overview's own drawer has no Comments or Agent for a draft");
+			expect(!drawer->conversation_tabs_shown() && !drawer->tabs()->isTabVisible(static_cast<int>(qt::overview_drawer_tab::status)),
+				   "Overview's own drawer has no Comments or Agent for a draft, and no Status until its pull request exists ([[BPR-2196]])");
 			capture(window, QStringLiteral("local-draft-overview-drawers-closed"));
 			window.choose_modality(qt::review_modality::review);
 			settle(s.Lanes);
@@ -447,7 +454,7 @@ try {
 		emit  window.home_drafts_list()->itemDoubleClicked(window.home_drafts_list()->item(0));
 		settle(s.Lanes);
 		auto* const page = window.local_draft();
-		expect(page->projection().Draft && page->projection().Draft->Id == draftId && window.current_modality() == qt::review_modality::review, "X23 as amended: a resumed draft opens on Review");
+		expect(page->projection().Draft && page->projection().Draft->Id == draftId && window.current_modality() == qt::review_modality::author, "[[BPR-2196]]: a resumed draft opens in Author");
 		const auto& prep = page->projection().Draft->Preparation;
 		expect(prep.Description.Body.starts_with("<!-- team-template v3 -->") && prep.Tour.Stops.size() == 1U && prep.Conversations.size() == 2U && prep.Proposals.size() == 4U,
 			   "AC04: description, tour, conversations and proposals resume");

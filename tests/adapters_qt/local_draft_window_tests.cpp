@@ -70,7 +70,11 @@ namespace {
 		auto fine = true;
 		for (auto* const widget : aRoot.findChildren<QWidget*>()) {
 			const auto tip = widget->toolTip();
-			if (tip.isEmpty()) {
+			// [[BPR-2196]]. A Workflow row's name and state keep their
+			// explanation in the tooltip (the accepted rework: one line per
+			// action, the explanations in a tooltip); every control's is short.
+			const auto name = widget->objectName();
+			if (tip.isEmpty() || name == QStringLiteral("localDraftWorkflowState") || name == QStringLiteral("localDraftWorkflowTask")) {
 				continue;
 			}
 			if (tip.size() > 60 || tip.contains(QLatin1Char{ ';' }) || tip.contains(QLatin1Char{ '\n' })) {
@@ -129,7 +133,7 @@ namespace {
 				   && save->icon().pixmap(16).toImage() == documentSave.pixmap(16).toImage() && save->sizeHint().width() <= save->width(),
 			   "Edit's Save is the DocumentSave icon alone, named and tipped Save, and fits it");
 		std::cout << "SAVE_ICON_FROM_THEME:" << !QIcon::fromTheme(QIcon::ThemeIcon::DocumentSave).isNull() << '\n';
-		for (auto* const root : { parts->bar_leading(), parts->bar_trailing(), parts->notice_row(), parts->files_footer(), parts->edit_page(), parts->notes_page(), parts->status_page() }) {
+		for (auto* const root : { parts->bar_leading(), parts->bar_trailing(), parts->notice_row(), parts->files_footer(), parts->edit_page(), parts->notes_page(), parts->workflow_page() }) {
 			short_tooltips(*root, "the draft's additions");
 		}
 		std::cout << "draft-parts-in-window:pass\n";

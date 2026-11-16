@@ -253,6 +253,26 @@ namespace bpr::qt {
 		fit_tabs();
 	}
 
+	void overview_status_drawer::set_status_tabs_shown(const bool aShown)
+	{
+		const auto status  = index_of(overview_drawer_tab::status);
+		const auto commits = index_of(overview_drawer_tab::commits);
+		if (Tabs->isTabVisible(status) == aShown) {
+			return;
+		}
+		Tabs->setTabVisible(status, aShown);
+		Tabs->setTabVisible(commits, aShown && StatusPage == nullptr);
+		if (!aShown && (Tabs->currentIndex() == status || Tabs->currentIndex() == commits)) {
+			for (auto index = 0; index < Tabs->count(); ++index) {
+				if (Tabs->isTabVisible(index)) {
+					Tabs->setCurrentIndex(index);
+					break;
+				}
+			}
+		}
+		fit_tabs();
+	}
+
 	void overview_status_drawer::set_conversation_tabs_shown(const bool aShown)
 	{
 		auto changed = false;
