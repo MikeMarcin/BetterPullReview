@@ -75,3 +75,19 @@ the launcher's check reached `ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN` with the
 earlier revision's 4 actions and started no real agent). One question,
 `BPR-2032-import-preview-b`: Accept or Reject the preview as built. The
 Profiles page and Import/Export Profile Settings (BPR-2198) are not in it.
+
+## Owner look workflow-import-v002 handed back (2026-11-15)
+
+Session `2f70e59306fd964ae16460be86253392` handed back at sequence 15.
+`BPR-2032-import-preview-b`: **Rejected** (decision `0b0b84c7`), note
+verbatim: "Super ugly. Something went way wrong with the colors." Three
+screenshots came with it (kept at the session's attachments). Cause: the
+dialog is a window of its own, and Qt does not pass a window's palette to a
+child window, so it drew with the system palette instead of the appearance
+profile's that Settings carries; its detail pane and cards filled with the
+system's Alternate Base and Base, a light grey and black in Dark. Rework:
+the dialog takes and follows its opener's palette, its cards are the Prompts
+page's own bordered groups, and a test pins the detail pane's colour to the
+Prompts page's in each theme. Host 48558 (Tailscale child 48566) stopped;
+root `/Users/jaeger/workflow-import-v002.mqedk3ig` removed with
+`freeze_attended_build.py remove`.
