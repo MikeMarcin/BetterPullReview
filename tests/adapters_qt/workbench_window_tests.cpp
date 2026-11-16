@@ -2524,12 +2524,17 @@ namespace {
 	/// names (default 1600, 1280 and 1000), written to
 	/// `BPR_TITLE_FOLD_RENDER_DIR` for the owner's look, on the
 	/// nested-folders-v1 fixture's pull request, the viewer's own. Nothing
-	/// is written without the directory.
+	/// is written without the directory. `BPR_TITLE_FOLD_RENDER_FONT`
+	/// ("Segoe UI,9") names the system font where a remote session misreads
+	/// it, as Windows over SSH does.
 	void test_render_the_switcher_fold()
 	{
 		const auto root = qEnvironmentVariable("BPR_TITLE_FOLD_RENDER_DIR");
 		if (root.isEmpty()) {
 			return;
+		}
+		if (const auto font = qEnvironmentVariable("BPR_TITLE_FOLD_RENDER_FONT").split(QLatin1Char{ ',' }); font.size() == 2) {
+			QApplication::setFont(QFont{ font[0], font[1].toInt() });
 		}
 		auto widths = std::vector<int>{ 1'600, 1'280, 1'000 };
 		if (const auto named = qEnvironmentVariable("BPR_TITLE_FOLD_RENDER_WIDTHS"); !named.isEmpty()) {
@@ -16318,7 +16323,7 @@ namespace {
 				expect(!items.isEmpty() && items.back()->objectName() == QStringLiteral("agentRunSettingsOpenSettings") && items.back()->text() == QStringLiteral("Agent settings…"),
 					   "the agent menu ends with Agent settings…");
 				items.back()->trigger();
-				expect(settingsOpened == 1, "which opens Settings › Agents & context");
+				expect(settingsOpened == 1, "which opens Settings › Agents");
 				const auto* const models = [&items]() -> QMenu* {
 					for (auto* const item : items) {
 						if (item->menu() != nullptr && item->menu()->objectName() == QStringLiteral("agentRunSettingsModels")) {
