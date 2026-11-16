@@ -175,8 +175,15 @@ with `-DBPR_ROOT=` an export of the lane.
 
 ## Status
 
-Filed for the owner on 2026-11-15 as attended review `windows-title-fit-v002`:
-one Accept or Reject question on this design. External state directory
-`~/.attended-review-state/windows-title-fit-v002-2026-11-15/` (`state/` is the
-session and holds its ID). Lifecycle: awaiting the owner's answer. Nothing is
-built until it is given.
+Accepted on 2026-11-15 with no note, in attended review
+`windows-title-fit-v002` (session `20c49e523db3f8c071bda18a1ee8d2bd`,
+external state directory
+`~/.attended-review-state/windows-title-fit-v002-2026-11-15/`). Lifecycle:
+closed, host stopped. The build is carded as BPR-2197, "The mode switcher
+folds to icons on every platform", in Backlog behind BPR-2196.
+
+After the accept the owner renamed the fifth mode from Revise to **Author**.
+Every strip here draws it as Revise and every figure was measured with that
+word; the build uses Author. Its icon stays the Edit view's caret frame. With
+the new name the three-letter prefixes would tell the modes apart again
+(`Rev` and `Aut`); the accepted fold replaces them all the same.
