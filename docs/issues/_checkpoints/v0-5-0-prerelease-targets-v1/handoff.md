@@ -4341,3 +4341,13 @@ draft discussion (Q2); none exists (card audit). Look `queue-sent-v001`
 (Sent to agent) is being frozen from `cf2c6d800`. A failed freeze root,
 `/Users/jaeger/queue-sent-v001.3k92km1p` (export only, the freeze tool
 refuses to remove it), is left for the coordinator.
+
+### Checkpoint (2026-11-16): queue-sent-v001 accepted; next is BPR-2154's tour and local draft queues
+
+`BPR-2154-sent-to-agent` Accepted (decision `e795a561…`). Host 79132/79214
+stopped; root `queue-sent-v001.o2z5din9` removed. Owner: the tour side chat,
+whole-tour conversation and local draft discussion queues stay on BPR-2154.
+Lane `569c45af6`, main `ae70e1f41`. Nothing of that slice is started; the
+plan is on the card ("Plan for that slice"). This implementer stopped here
+with its context nearly spent; a fresh implementer takes the slice from the
+card's plan. No command or host of this round is running.
