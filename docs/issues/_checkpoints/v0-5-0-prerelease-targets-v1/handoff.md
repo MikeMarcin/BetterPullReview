@@ -4251,3 +4251,28 @@ courses keep. Without fonts, the Windows window course over SSH stops
 earlier, at a Compose review wording check, at `8eb302151` and at HEAD.
 
 Next action: BPR-2035 (RFC-BPR-0112 closeout) no longer waits on BPR-2197.
+
+## BPR-2199 and BPR-2200 Done (2026-11-15)
+
+| Commit | What |
+|---|---|
+| `4bfbbd063` | BPR-2199: `route_delegate::sizeHint` measures at the view's viewport width when its option has none. `fit_route` summed rows measured at a guessed 300, so a narrow font's excerpt wrapped one line short and the route scrolled. The tour case gains the invariant `sizeHintForRow == visualItemRect.height` |
+| `18a70bb96` | BPR-2200: `tests/adapters_qt/windows_fonts_startup.cpp`, linked on Windows into every Qt test of the directory: `QT_QPA_FONTDIR` from `%WINDIR%` unless set, Segoe UI 9 pt on offscreen. The `--title-row` special case is folded in. Rule added to `src/adapters/qt/AGENTS.md` |
+| `2c17d36f6` | Stale 1280 check in `test_the_title_row_and_review_bar_render`: Segoe UI fits the whole "Approve or comment…" at 1280 |
+| main `ba6b79d67` | Mirror: both cards Done; BPR-2201, BPR-2202 and BPR-2203 in Ready |
+
+Evidence: the tour case fails on macOS with Helvetica, Arial and Times at 9
+pt before the fix and passes after. On macOS, the 20 tour, window and
+drawer-fit courses pass. On the Windows station (Release, fonts loaded) the
+window course passes at 100%, 125% and 200%, and so does `--title-row`.
+The whole Windows Qt set (242 entries, run directly with ctest's
+environment) had 16 failures with the fonts and 76 without. Each one is
+recorded on BPR-2200. Three are carded: BPR-2201 (Overview status tabs clip
+in tour-reader), BPR-2202 (line-draft right-click) and BPR-2203 (marked line
+number contrast at 125%). Eight more fail on the same line with and without
+fonts and are left as found. Station scratch folder removed. Not run: Linux.
+
+Note: ctest already sets `QT_QPA_FONTDIR` on Windows (`BprTestIsolation.cmake`);
+only direct SSH runs lacked fonts.
+
+Next action: BPR-2201, BPR-2202 and BPR-2203, Windows station work.
