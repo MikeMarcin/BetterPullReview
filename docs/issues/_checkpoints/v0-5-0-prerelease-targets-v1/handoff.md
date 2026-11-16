@@ -4227,3 +4227,27 @@ design worker's rewrite of that dialog.
 Next action: AC07 (Workflow tab) and AC02's preview are asked again in one
 look once the import preview redesign lands; BPR-2035 closes RFC-BPR-0112
 after that and BPR-2197.
+
+## BPR-2197 Done (2026-11-15)
+
+The owner accepted `title-fold-v001` with no note (decision
+`a467d680…`, cursor 6). Host 97593/97603 stopped; root removed with
+`freeze_attended_build.py remove`.
+
+The two Windows width courses were failing because Qt's offscreen platform
+has no fonts on Windows unless `QT_QPA_FONTDIR` names them. The fold was not
+the cause, and the review bar was not short of width because of it. The
+`--title-row` courses now point Qt at the Windows fonts and set Segoe UI 9 pt
+(`7038aecdb`, `c2020a55c`). They pass on the Windows station at 100%, 125%
+and 200%, with both courses also passing alone.
+
+Card Done on the lane (`b94147c51`) and main (`6f59996f2`). Station scratch
+folders removed.
+
+Left for its own card: with Segoe UI 9 pt on Windows,
+`test_the_tour_is_a_route_expanding_to_its_page` fails ("every stop in
+view"). It passes with the offscreen fallback, which the window's other
+courses keep. Without fonts, the Windows window course over SSH stops
+earlier, at a Compose review wording check, at `8eb302151` and at HEAD.
+
+Next action: BPR-2035 (RFC-BPR-0112 closeout) no longer waits on BPR-2197.
