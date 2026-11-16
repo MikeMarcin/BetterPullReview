@@ -918,6 +918,29 @@ auto main(int argc, char** argv) -> int
 			auto* const bar      = strip->findChild<QTabBar*>(QStringLiteral("documentTabBar"));
 			bar->setCurrentIndex(static_cast<int>(std::distance(strip->tabs().begin(), reportAt)));
 			wait([&] { return window.report_shown() && window.report_view()->isVisible(); }, "the report's tab returns to the report");
+			// [[BPR-2218]], owner 2026-11-16: "Opening that attachment should
+			// bring it to the front, like how opening a file on overview
+			// switches to it." With the file's tab in front, the row opened
+			// from a mode without the files' strip enters Review on the
+			// report; from Review it only comes to the front.
+			const auto fileInFront = [&] {
+				const auto fileAt = std::ranges::find_if(strip->tabs(), [&](const qt::document_tab_presentation& aTab) { return !aTab.Report && aTab.Path == path; });
+				expect(fileAt != strip->tabs().end(), "the file's tab is still open");
+				bar->setCurrentIndex(static_cast<int>(std::distance(strip->tabs().begin(), fileAt)));
+				wait([&] { return !window.report_shown() && window.active_document_path() == path; }, "the file's tab is in front");
+			};
+			for (const auto from : { qt::review_modality::overview, qt::review_modality::discuss, qt::review_modality::threads, qt::review_modality::review }) {
+				fileInFront();
+				window.choose_modality(from, core::workbench_modality_entry::choose);
+				QApplication::processEvents();
+				const auto name = qt::review_modality_title(from).toStdString();
+				expect(window.current_modality() == from, "the window is in " + name);
+				rowButton->click();
+				wait([&] { return window.current_modality() == qt::review_modality::review && window.report_shown() && window.report_view()->isVisible() && !window.comparison_surface()->isVisible(); },
+					 "opening the report from " + name + " shows it in Review");
+				expect(active() != strip->tabs().end() && active()->Report && strip->tabs().size() == files + 1U && rowButton->property("bprReportSelected").toBool(),
+					   "from " + name + " the report's own tab is in front, not a second one");
+			}
 			std::cout << "ask-menu-report: link=" << link << '\n';
 			if (!attended) {
 				shutdown(*application);
