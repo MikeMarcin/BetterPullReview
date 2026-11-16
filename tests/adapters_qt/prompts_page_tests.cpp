@@ -7,6 +7,10 @@
 /// prompts in the library, never placed or duplicated; every change saves;
 /// the page scrolls in a short window and the library keeps its height.
 ///
+/// [[BPR-2220]] (owner, 2026-11-16): a prompt is always selected while the
+/// library shows one, and its editor is hidden only while it shows none;
+/// New prompt and Restore built-ins sit on the filter's row.
+///
 /// With `BPR_PROMPT_RENDER_ROOT` set, the page is saved there as PNGs.
 
 #include "bpr/core/prompt_surfaces.hpp"
@@ -36,6 +40,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -130,6 +135,152 @@ namespace {
 		QDir{ }.mkpath(root);
 		settle();
 		static_cast<void>(aHarness.Page->grab().save(QDir{ root }.filePath(aName + QStringLiteral(".png"))));
+	}
+
+	/// The library's rows that are prompts, in order, by identity.
+	[[nodiscard]] auto shown_prompts(const qt::prompts_page& aPage) -> std::vector<std::string>
+	{
+		auto ids = std::vector<std::string>{ };
+		for (int row = 0; row < aPage.library_list()->count(); ++row) {
+			if (const auto id = aPage.library_list()->item(row)->data(Qt::UserRole + 1); id.isValid()) {
+				ids.push_back(id.toString().toStdString());
+			}
+		}
+		return ids;
+	}
+
+	[[nodiscard]] auto current_prompt(const qt::prompts_page& aPage) -> std::optional<std::string>
+	{
+		const auto* const item = aPage.library_list()->currentItem();
+		if (item == nullptr || !item->data(Qt::UserRole + 1).isValid()) {
+			return std::nullopt;
+		}
+		return item->data(Qt::UserRole + 1).toString().toStdString();
+	}
+
+	/// [[BPR-2220]]: the owner, 2026-11-16, "the bottom of prompt library
+	/// looks like a broken menu when no prompt is selected... either always
+	/// have one selected or hide that bottom area until one is."
+	void test_always_selected(harness& aHarness)
+	{
+		auto&       page   = *aHarness.Page;
+		auto* const editor = page.findChild<QWidget*>(QStringLiteral("promptsEditor"));
+		auto* const filter = page.findChild<QLineEdit*>(QStringLiteral("promptsFilter"));
+		expect(editor != nullptr && filter != nullptr, "the page has its editor and filter");
+		if (editor == nullptr || filter == nullptr) {
+			return;
+		}
+		// Narrow, the editor is the area under the library the owner saw.
+		aHarness.Scroll.resize(620, 900);
+		settle();
+		render(aHarness, QStringLiteral("10-opened-narrow"));
+		aHarness.Scroll.resize(1180, 840);
+		settle();
+		render(aHarness, QStringLiteral("11-opened-wide"));
+		const auto first = shown_prompts(page);
+		expect(!first.empty() && page.selected() == first.front() && current_prompt(page) == first.front(), "opened, the library's first prompt is selected");
+		const auto        found = first.empty() ? page.library().end() : std::ranges::find(page.library(), first.front(), &core::prompt_macro::Id);
+		const auto* const macro = found != page.library().end() ? &*found : nullptr;
+		expect(macro != nullptr && page.name_field()->isEnabled() && page.name_field()->text() == QString::fromStdString(macro->Body.Name) && !page.text_field()->toPlainText().isEmpty(),
+			   "and the editor shows it: " + page.name_field()->text().toStdString());
+		expect(editor->isVisible(), "the editor is shown");
+
+		// Deleting the selected prompt selects its neighbour.
+		const auto a = page.new_prompt();
+		const auto b = page.new_prompt();
+		settle();
+		page.select(a);
+		settle();
+		auto       shown     = shown_prompts(page);
+		const auto at        = std::ranges::find(shown, a);
+		const auto neighbour = at != shown.end() && std::next(at) != shown.end() ? *std::next(at) : (at != shown.begin() && at != shown.end() ? *std::prev(at) : std::string{ });
+		expect(!neighbour.empty() && page.delete_prompt(a), "the selected prompt is deleted");
+		settle();
+		expect(page.selected() == neighbour && current_prompt(page) == neighbour && page.name_field()->isEnabled(), "deleting the selected prompt selects its neighbour");
+		// The last one gone, the one before it.
+		page.select(b);
+		settle();
+		shown            = shown_prompts(page);
+		const auto other = shown.back() == b && shown.size() > 1U ? shown.at(shown.size() - 2U) : std::string{ };
+		expect(page.delete_prompt(b) && !other.empty() && page.selected() == other, "deleting the last row selects the one before");
+		settle();
+
+		// A filter that still shows the selection keeps it.
+		page.select("agent-tab.what-could-break");
+		settle();
+		filter->setText(QStringLiteral("break"));
+		settle();
+		expect(page.selected() == "agent-tab.what-could-break" && current_prompt(page) == "agent-tab.what-could-break", "a filter that still shows the selection keeps it");
+		// One that hides it selects the first shown.
+		filter->setText(QStringLiteral("summarize"));
+		settle();
+		shown = shown_prompts(page);
+		expect(!shown.empty() && page.selected() == shown.front() && current_prompt(page) == shown.front(), "a filter that hides the selection selects the first prompt shown");
+		const auto kept = page.selected();
+		// One that shows nothing hides the editor; the list says so.
+		filter->setText(QStringLiteral("no prompt is named this"));
+		settle();
+		expect(!editor->isVisible() && shown_prompts(page).empty() && page.library_list()->count() == 1 && page.library_list()->item(0)->text() == QStringLiteral("No prompts match."),
+			   "a filter that shows nothing hides the editor, and the list says so");
+		aHarness.Scroll.resize(620, 900);
+		settle();
+		render(aHarness, QStringLiteral("12-filtered-to-nothing-narrow"));
+		aHarness.Scroll.resize(1180, 840);
+		settle();
+		// Cleared, the editor is back with the selection it had.
+		filter->clear();
+		settle();
+		expect(editor->isVisible() && page.selected() == kept && current_prompt(page) == kept, "cleared, the editor is back with the selection it had");
+		// Yours with none of your own says what to do.
+		page.set_filter(qt::prompt_library_filter::yours);
+		settle();
+		expect(!editor->isVisible() && page.library_list()->count() == 1 && page.library_list()->item(0)->text().contains(QStringLiteral("New prompt")), "Yours with none says how to write one");
+		page.set_filter(qt::prompt_library_filter::all);
+		settle();
+		expect(editor->isVisible() && page.selected() == kept, "All again, the same selection");
+	}
+
+	/// [[BPR-2220]]: the owner, 2026-11-16, "we can probably move the restore
+	/// built-ins and new prompt to the same row as the filter for the prompt
+	/// library." The filter takes the room left; the row fits the page's
+	/// narrowest width.
+	void test_tools_row(harness& aHarness)
+	{
+		auto&       page     = *aHarness.Page;
+		auto* const filter   = page.findChild<QLineEdit*>(QStringLiteral("promptsFilter"));
+		auto* const restore  = page.findChild<QPushButton*>(QStringLiteral("promptsRestore"));
+		auto* const create   = page.findChild<QPushButton*>(QStringLiteral("promptsNew"));
+		auto* const segment  = page.findChild<QWidget*>(QStringLiteral("promptsFilter-3"));
+		auto* const segment0 = page.findChild<QWidget*>(QStringLiteral("promptsFilter-0"));
+		expect(filter != nullptr && restore != nullptr && create != nullptr && segment != nullptr && segment0 != nullptr, "the library's tools are there");
+		if (filter == nullptr || restore == nullptr || create == nullptr || segment == nullptr || segment0 == nullptr) {
+			return;
+		}
+		const auto box      = [&page](const QWidget* aWidget) { return QRect{ aWidget->mapTo(&page, QPoint{ 0, 0 }), aWidget->size() }; };
+		const auto same_row = [&box](const QWidget* aOne, const QWidget* aOther) {
+			return box(aOne).center().y() >= box(aOther).top() && box(aOne).center().y() <= box(aOther).bottom();
+		};
+		for (const auto width : { 1180, 900, 700, 500 }) {
+			aHarness.Scroll.resize(width, 840);
+			settle();
+			const auto here  = "at " + std::to_string(width) + ": ";
+			const auto right = page.width();
+			expect(aHarness.Scroll.horizontalScrollBar()->maximum() == 0, here + "the page does not scroll sideways");
+			for (const auto* const widget : { static_cast<const QWidget*>(filter), static_cast<const QWidget*>(restore), static_cast<const QWidget*>(create), segment, segment0 }) {
+				expect(box(widget).left() >= 0 && box(widget).right() < right && widget->width() >= widget->minimumSizeHint().width(), here + widget->objectName().toStdString() + " fits unclipped");
+			}
+			expect(same_row(restore, filter) && same_row(create, filter), here + "New prompt and Restore built-ins are on the filter's row");
+			expect(box(restore).left() > box(filter).right() && box(create).left() > box(restore).right(), here + "at its right, Restore then New prompt");
+			expect(box(create).right() >= right - 24, here + "New prompt ends the row");
+			expect(filter->width() >= 120, here + "the filter keeps a usable width: " + std::to_string(filter->width()));
+		}
+		aHarness.Scroll.resize(500, 840);
+		settle();
+		render(aHarness, QStringLiteral("13-tools-narrowest"));
+		aHarness.Scroll.resize(1180, 840);
+		settle();
+		expect(same_row(segment0, filter), "as drawn the filter choices share its row");
+		render(aHarness, QStringLiteral("14-tools-wide"));
 	}
 
 	void test_layout(harness& aHarness)
@@ -517,6 +668,8 @@ auto main(int aArgc, char** aArgv) -> int
 {
 	auto application = QApplication{ aArgc, aArgv };
 	auto harnessed   = harness{ };
+	test_always_selected(harnessed);
+	test_tools_row(harnessed);
 	test_layout(harnessed);
 	test_selection_outlines(harnessed);
 	test_placing(harnessed);
