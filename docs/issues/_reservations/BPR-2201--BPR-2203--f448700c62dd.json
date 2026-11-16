@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2201",
+    "BPR-2202",
+    "BPR-2203"
+  ],
+  "reserve_for": "bpr-2200-windows-fonts",
+  "purpose": "Windows Qt courses newly failing with Segoe UI 9 pt (BPR-2200)",
+  "created": "2026-11-16T03:35:02.740623+00:00",
+  "base": "bbfab22a5abea6bbe8ecd64518ebf1200e92e2ff"
+}
