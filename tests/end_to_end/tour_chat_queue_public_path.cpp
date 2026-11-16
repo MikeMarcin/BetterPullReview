@@ -176,6 +176,15 @@ namespace {
 		return std::ranges::any_of(aPanel.session().Runs, [](const core::tour_agent_run& aRun) { return aRun.State == core::tour_agent_run_state::running; });
 	}
 
+	/// With `BPR_TOUR_QUEUE_CAPTURE` set, the chat as rendered, for a look's
+	/// Now image.
+	void capture(QWidget& aWidget, const QString& aName)
+	{
+		if (const auto folder = qEnvironmentVariable("BPR_TOUR_QUEUE_CAPTURE"); !folder.isEmpty()) {
+			static_cast<void>(aWidget.grab().save(folder + QLatin1Char('/') + aName + QStringLiteral(".png")));
+		}
+	}
+
 	[[nodiscard]] auto joined(const std::vector<std::string>& aTexts) -> std::string
 	{
 		auto text = std::string{ };
@@ -210,8 +219,8 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
-	// A slow turn of the fixture agent takes about five seconds here.
-	qputenv("BPR_FIXTURE_AGENT_SLOW_STEP_MS", "250");
+	// A slow turn of the fixture agent takes about twelve seconds here.
+	qputenv("BPR_FIXTURE_AGENT_SLOW_STEP_MS", "600");
 	QApplication qtApplication{ argc, argv };
 	if (argc < 2) {
 		std::cerr << "usage: tour_chat_queue_public_path FIXTURE_AGENT [--stop-chat|--whole-tour|--local-draft WORKTREE_SCRIPT]\n";
@@ -284,6 +293,10 @@ auto main(int argc, char** argv) -> int
 			chat->pending_list()->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"))->setText(QStringLiteral("Second, edited: is resize covered?"));
 			expect(press_in(*chat, QStringLiteral("agentQueueSave")), "Save keeps the edit");
 			wait([&] { return rows_of(*chat).contains(QStringLiteral("Second, edited: is resize covered?")); }, "the edit shows in the pending list");
+			chat->composer()->setPlainText(QStringLiteral("Fourth, typed while it runs"));
+			QApplication::processEvents();
+			capture(*chat, QStringLiteral("stop-chat-queue"));
+			chat->composer()->clear();
 			// Tour parts never share inputs: the whole tour's chat waits on nothing.
 			editor->open_side_chat(core::tour_thread{ });
 			QApplication::processEvents();
@@ -314,6 +327,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return running(*panel) && asked_in(*panel, whole).size() == 1U; }, "the whole tour's first question runs");
 			type_and_return(*chat, QStringLiteral("Queued for the tour"));
 			wait([&] { return rows_of(*chat).size() == 1; }, "the follow-up waits in the whole tour's pending list");
+			capture(*chat, QStringLiteral("whole-tour-queue"));
 			// Cmd+Return: the other follow-up, Steer, for this one message.
 			chat->composer()->setPlainText(QStringLiteral("Steered into the tour"));
 			QApplication::processEvents();
@@ -363,6 +377,7 @@ auto main(int argc, char** argv) -> int
 			expect(window->local_draft()->projection().Asking && chat->composer()->toPlainText().isEmpty(), "the follow-up left the composer while the first question runs");
 			const auto queued = rows_of(*chat);
 			expect(queued == QStringList{ QStringLiteral("Next: and the tests?") }, "the follow-up waits in the discussion's pending list: " + queued.join(QLatin1Char('|')).toStdString());
+			capture(*chat, QStringLiteral("local-draft-queue"));
 			const auto said = [&] {
 				auto texts = std::vector<std::string>{ };
 				for (const auto& conversation : window->local_draft()->projection().Draft->Preparation.Conversations) {
