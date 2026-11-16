@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The import preview, three options (RFC-BPR-0112, BPR-2032)</title>
+<style>
+html{background:#e3e4e8}
+html[data-page=dark]{background:#131416}
+body.doc{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:#1b1c20;-webkit-font-smoothing:antialiased}
+html[data-page=dark] body.doc{color:#e6e7ea}
+.wrap{max-width:1272px;margin:0 auto;padding:44px 40px 120px}
+.doc a{color:#0b4fd6;text-underline-offset:3px}
+html[data-page=dark] .doc a{color:#7fb2ff}
+.doc a:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
+.themer{float:right;font-size:13.5px}
+header.top h1{font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.022em;margin:0 0 12px}
+header.top p,.doc p.body{max-width:72ch;margin:0 0 8px;font-size:16px;line-height:1.5;opacity:.82}
+.doc blockquote{max-width:70ch;margin:14px 0 14px;padding:2px 0 2px 16px;border-left:3px solid currentColor;font-size:16px;line-height:1.5;opacity:.9}
+.doc h2.band{font-size:21px;font-weight:680;letter-spacing:-.014em;margin:72px 0 6px}
+.doc h2.band + p{max-width:74ch;margin:0;opacity:.82}
+.doc ul.rules{max-width:76ch;margin:12px 0 0;padding:0 0 0 20px;font-size:15px;line-height:1.5}
+.doc ul.rules li{margin:0 0 6px;opacity:.86}
+.doc ul.rules b{font-weight:650}
+.trade{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 32px;max-width:1160px;margin:18px 0 0;padding:0}
+.trade div{font-size:14px;line-height:1.5}
+.trade dt{font-weight:650;margin:0 0 2px}
+.trade dd{margin:0;opacity:.82}
+figure.shot{margin:28px 0 0}
+figure.shot .scroll{overflow-x:auto;padding:6px 6px 46px;margin:0 -6px -26px}
+figure.shot figcaption{max-width:78ch;margin:0;font-size:14px;line-height:1.5;opacity:.82}
+figure.shot figcaption b{font-weight:650}
+@media (max-width:860px){.wrap{padding:26px 16px 80px}.trade{grid-template-columns:1fr}}
+body.shotpage{margin:0;padding:28px;display:inline-block;background:transparent}
+
+.mac{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;font:13px/16px var(--font);color:var(--text);-webkit-font-smoothing:antialiased;cursor:default;text-align:left}
+.mac *{box-sizing:border-box}
+.mac[data-theme=light]{--win:#fff;--side:#f6f6f6;--base:#fff;--sel:#dcdcdc;--ctl:rgba(0,0,0,.078);--segon:#fff;--text:rgba(0,0,0,.88);--text2:rgba(0,0,0,.58);--text3:rgba(0,0,0,.34);--hair:rgba(0,0,0,.10);--edge:rgba(0,0,0,.17);--listedge:rgba(0,0,0,.15);--group:rgba(0,0,0,.035);--groupedge:rgba(0,0,0,.06);--field:#fff;--accent:#007aff;--agent:#5a4fe0;--tokbg:rgba(0,122,255,.13);--toktx:#0a4aa8;--over:#0b7672;--overbg:rgba(11,118,114,.10);--ok:#1a7f37;--bad:#cf222e;--needs:#8a5700;--needsbg:rgba(154,97,0,.13);--scrim:rgba(0,0,0,.20);--sheet:#f7f7f7;--winedge:rgba(0,0,0,.24);--shadow:0 26px 64px rgba(0,0,0,.20),0 3px 10px rgba(0,0,0,.10);--chip:rgba(0,0,0,.055)}
+.mac[data-theme=dark]{--win:#1e1e1e;--side:#191919;--base:#171717;--sel:#3a3a3a;--ctl:rgba(255,255,255,.092);--segon:rgba(255,255,255,.20);--text:rgba(255,255,255,.90);--text2:rgba(255,255,255,.60);--text3:rgba(255,255,255,.34);--hair:rgba(255,255,255,.10);--edge:rgba(255,255,255,.16);--listedge:rgba(255,255,255,.075);--group:rgba(255,255,255,.05);--groupedge:rgba(255,255,255,.07);--field:#171717;--accent:#0a84ff;--agent:#a9a5ff;--tokbg:rgba(10,132,255,.24);--toktx:#cfe3ff;--over:#4fd0c9;--overbg:rgba(79,208,201,.13);--ok:#3fb950;--bad:#f85149;--needs:#e0a23c;--needsbg:rgba(224,162,60,.16);--scrim:rgba(0,0,0,.46);--sheet:#272727;--winedge:rgba(255,255,255,.17);--shadow:0 26px 64px rgba(0,0,0,.6),0 3px 10px rgba(0,0,0,.4);--chip:rgba(255,255,255,.08)}
+.mac.win{position:relative;width:1180px;border-radius:12px;background:var(--win);overflow:hidden;box-shadow:0 0 0 .5px var(--winedge),var(--shadow)}
+.mac.panel{position:relative;width:716px;border-radius:12px;background:var(--sheet);padding:6px 18px 18px;box-shadow:0 0 0 .5px var(--winedge),var(--shadow)}
+.mac svg.i{flex:none;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block}
+.mac svg.i.f{fill:currentColor;stroke:none}
+.titlebar{position:relative;height:30px;display:flex;align-items:center;justify-content:center;font-weight:600;box-shadow:0 .5px 0 var(--hair)}
+.lights{position:absolute;left:11px;top:9px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.lights i:nth-child(2){background:#febc2e}
+.lights i:nth-child(3){background:#28c840}
+.lights.off i{background:var(--text3);box-shadow:none;opacity:.6}
+.wbody{position:relative;display:flex}
+.side{flex:none;width:196px;background:var(--side);padding:9px 7px 0;box-shadow:.5px 0 0 var(--hair)}
+.search{display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;border-radius:5.5px;background:var(--field);box-shadow:inset 0 0 0 1px var(--edge);color:var(--text3)}
+.search svg.i{width:13px;height:13px}
+.nav{list-style:none;margin:8px 0 0;padding:0}
+.nav li{height:22px;line-height:22px;padding:0 7px;border-radius:5px}
+.nav li.on{background:var(--sel)}
+.page{position:relative;flex:1;min-width:0;padding:13px 28px 0;overflow:hidden}
+.ptitle{display:flex;align-items:center;gap:8px;height:26px;margin:0 0 8px}
+.ptitle h1{font-size:16px;line-height:22px;font-weight:700;margin:0;letter-spacing:-.012em}
+.page h2{font-size:13px;line-height:18px;font-weight:700;margin:18px 0 7px}
+.sp{flex:1}
+.cap{color:var(--text2)}
+.t3{color:var(--text3)}
+.nw{white-space:nowrap}
+.mac code{font-family:var(--mono);font-size:11.5px;letter-spacing:-.01em;color:var(--text)}
+.thumb{position:absolute;right:3px;top:8px;width:6px;height:310px;border-radius:3px;background:var(--text3);opacity:.7}
+
+/* controls, as QMacStyle draws them */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;flex:none;height:24px;padding:0 11px;border-radius:7px;background:var(--ctl);color:var(--text);white-space:nowrap}
+.btn.pri{background:var(--accent);color:#fff}
+.btn.wide{min-width:74px}
+.btn.dis{color:var(--text3)}
+.pop{display:inline-flex;align-items:center;gap:8px;flex:none;height:24px;padding:0 6px 0 10px;border-radius:7px;background:var(--ctl);white-space:nowrap}
+.pop svg.i{width:8px;height:12px;margin-left:auto;color:var(--text2)}
+.chk{flex:none;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4.5px;background:var(--ctl);box-shadow:inset 0 0 0 .5px var(--edge)}
+.chk.on{background:var(--accent);box-shadow:none;color:#fff}
+.chk svg.i{width:10px;height:10px;stroke-width:2.3}
+.chk.no{visibility:hidden}
+.rad{flex:none;display:inline-block;width:15px;height:15px;border-radius:50%;background:var(--ctl);box-shadow:inset 0 0 0 .5px var(--edge)}
+.rad.on{background:var(--accent);box-shadow:inset 0 0 0 4.5px var(--accent),inset 0 0 0 8px #fff}
+.seg{display:inline-flex;flex:none;height:24px;padding:2px;border-radius:7px;background:var(--ctl)}
+.seg > span{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 10px;border-radius:5px;white-space:nowrap}
+.seg > span.on{background:var(--segon);box-shadow:0 .5px 1.5px rgba(0,0,0,.22),0 0 0 .5px rgba(0,0,0,.06);font-weight:500}
+.seg > span svg.i{width:7px;height:11px;color:var(--text2)}
+.tag{flex:none;display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:4.5px;background:var(--chip);color:var(--text2);font-size:11px;white-space:nowrap}
+.tag.new{background:var(--tokbg);color:var(--toktx)}
+.tag.upd{background:var(--overbg);color:var(--over)}
+.tag.more{background:var(--needsbg);color:var(--needs)}
+.m{color:var(--agent)}
+svg.i.spk{width:13px;height:13px}
+.ring{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor;color:var(--text3)}
+.ring svg.i{width:9px;height:9px;stroke-width:2}
+.ring.ok{color:var(--ok)}
+.ring.bad{color:var(--bad)}
+.grp{position:relative;border-radius:9px;background:var(--group);box-shadow:inset 0 0 0 1px var(--groupedge)}
+.grp > * + *::before,.incoming > * + *::before{content:"";position:absolute;left:13px;right:0;top:0;height:1px;background:var(--hair);transform:scaleY(.5);transform-origin:top}
+.sec{margin:14px 0 5px 2px;font-size:11.5px;line-height:15px;font-weight:600;color:var(--text2)}
+
+/* an item of the file: its name, what it is here, the choice; then what it does */
+.it{position:relative;padding:9px 10px 10px 13px}
+.it .h{display:flex;align-items:center;gap:7px;min-height:24px}
+.it .h b{font-weight:600}
+.it .say{margin:2px 0 0;color:var(--text2);font-size:12px;line-height:16.5px;max-width:74ch}
+.it .say b{color:var(--text);font-weight:500}
+.it.out .h b,.it.out .say{color:var(--text3)}
+.it.out .tag{opacity:.55}
+.opt{position:relative;display:flex;align-items:flex-start;gap:10px;padding:8px 10px 9px 13px}
+.opt .tx{flex:1;min-width:0}
+.opt .tx span{display:block;margin-top:1px;color:var(--text2);font-size:12px;line-height:16.5px}
+.opt .chk,.opt .rad{margin-top:1px}
+.opt .btn{margin-top:-1px}
+.acth{position:relative;padding:7px 10px 6px 13px;color:var(--text2);font-size:11.5px;font-weight:600}
+.act{position:relative;display:grid;grid-template-columns:1fr auto;gap:1px 14px;padding:7px 10px 8px 13px}
+.act .t{display:flex;align-items:center;gap:6px;min-width:0;font-weight:500}
+.act .who{color:var(--text2);white-space:nowrap;display:flex;align-items:center;gap:5px}
+.act .who .m{font-weight:500}
+.act .eff{grid-column:1/-1;color:var(--text2);font-size:12px;line-height:16.5px}
+.act .eff b{color:var(--needs);font-weight:500}
+.fine{position:relative;padding:8px 10px 9px 13px;color:var(--text2);font-size:12px;line-height:16.5px}
+.refd{position:relative;display:flex;gap:10px;padding:9px 10px 10px 13px}
+.refd .tx b{font-weight:600}
+.refd .tx span{display:block;margin-top:2px;color:var(--text2);font-size:12px;line-height:16.5px;max-width:74ch}
+.foot{display:flex;align-items:center;gap:8px;margin-top:16px}
+.foot .sum{color:var(--text2);font-size:12px;line-height:16.5px;max-width:52ch}
+
+/* the sheet, as an agent's sheet is drawn in Settings */
+.scrim{position:absolute;left:0;right:0;top:0;bottom:0;background:var(--scrim)}
+.sheet{position:absolute;left:50%;transform:translateX(-50%);top:28px;border-radius:12px;background:var(--sheet);padding:18px 18px 16px;box-shadow:0 0 0 .5px var(--winedge),0 30px 80px rgba(0,0,0,.36),0 4px 14px rgba(0,0,0,.16)}
+.sheet h3,.panel h3,.banner h3{font-size:15px;line-height:20px;font-weight:700;margin:0;letter-spacing:-.01em}
+.sheet .sub,.panel .sub{margin:2px 0 0;color:var(--text2);font-size:12px;line-height:16.5px;max-width:78ch}
+
+/* the Agents page behind it */
+.arow{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px}
+.arow .who{flex:1;min-width:0}
+.arow .who b{display:block;font-weight:600;line-height:17px}
+.arow .who > span{display:block;color:var(--text2);font-size:11.5px;line-height:15px}
+.arow .state{color:var(--text2);white-space:nowrap}
+.arow .state.bad{color:var(--bad)}
+.arow svg.go{width:11px;height:11px;color:var(--text3);stroke-width:1.8}
+.tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:9px 0 0}
+.grow{position:relative;display:flex;align-items:center;gap:8px;min-height:36px;padding:0 10px 0 13px}
+
+/* B: list and detail */
+.split{display:flex;gap:14px;margin-top:14px}
+.blist{flex:none;width:284px;background:var(--base);box-shadow:inset 0 0 0 1px var(--listedge);border-radius:7px;overflow:hidden;padding-bottom:6px}
+.blist .gh{padding:10px 10px 3px;font-size:11.5px;font-weight:600;color:var(--text2)}
+.brow{display:flex;align-items:flex-start;gap:8px;padding:6px 9px 7px 10px}
+.brow.on{background:var(--sel)}
+.brow .chk,.brow .ring{margin-top:1px}
+.brow .ring{width:15px;height:15px}
+.brow .tx{flex:1;min-width:0}
+.brow .tx .n{display:flex;align-items:center;gap:6px}
+.brow .tx .n b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.brow .tx > span{display:block;margin-top:1px;color:var(--text2);font-size:11.5px;line-height:15px}
+.bdet{flex:1;min-width:0}
+.bdet .h{display:flex;align-items:center;gap:7px;min-height:22px}
+.bdet .h b{font-size:14px;font-weight:650;letter-spacing:-.008em}
+.bdet .say{margin:3px 0 10px;color:var(--text2);font-size:12px;line-height:16.5px}
+.bdet .say b{color:var(--text);font-weight:500}
+.cmp{display:grid;grid-template-columns:1fr 1fr;background:var(--base);box-shadow:inset 0 0 0 1px var(--listedge);border-radius:7px;overflow:hidden}
+.cmp > div{position:relative;padding:6px 10px 7px;box-shadow:inset 0 .5px 0 var(--hair)}
+.cmp > div:nth-child(odd){box-shadow:inset 0 .5px 0 var(--hair),inset -.5px 0 0 var(--hair)}
+.cmp > .ch{padding:6px 10px;font-size:11.5px;font-weight:600;color:var(--text2);box-shadow:none}
+.cmp > .ch:nth-child(odd){box-shadow:inset -.5px 0 0 var(--hair)}
+.cmp .t{display:flex;align-items:center;gap:6px;font-weight:500}
+.cmp .w,.cmp .e{color:var(--text2);font-size:11.5px;line-height:15.5px}
+.cmp .w{display:flex;align-items:center;gap:4px}
+.cmp .added{background:var(--overbg)}
+.cmp .none{color:var(--text3);font-size:11.5px;display:flex;align-items:center}
+.cmp mark{background:var(--needsbg);color:var(--needs);border-radius:3px;padding:0 2px}
+.kv{position:relative;display:flex;gap:10px;min-height:28px;padding:5px 10px 5px 13px;align-items:baseline}
+.kv .k{flex:none;width:150px}
+.kv .v{color:var(--text2)}
+
+/* C: in the page */
+.banner{display:flex;gap:12px;padding:12px 12px 13px 13px;border-radius:9px;background:var(--tokbg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent)}
+.banner .tx{flex:1;min-width:0}
+.banner p{margin:3px 0 0;font-size:12px;line-height:16.5px;color:var(--text);opacity:.86;max-width:84ch}
+.banner p.ref{display:flex;gap:6px;align-items:flex-start;margin-top:6px}
+.banner p.ref .ring{width:14px;height:14px;margin-top:1px}
+.banner .do{display:flex;gap:8px;align-items:flex-start}
+.incoming{position:relative;box-shadow:inset 2.5px 0 0 var(--accent)}
+.dim{opacity:.5}
+</style></head>
+<body class="doc"><svg aria-hidden="true" style="position:absolute;width:0;height:0"><defs>
+<symbol id="i-spark" viewBox="0 0 14 14"><path d="M6 1.2l1.25 3.55L10.8 6 7.25 7.25 6 10.8 4.75 7.25 1.2 6l3.55-1.25z"/><path d="M11 8.6l.6 1.8 1.8.6-1.8.6-.6 1.8-.6-1.8-1.8-.6 1.8-.6z"/></symbol>
+<symbol id="i-check" viewBox="0 0 10 10"><path d="M2 5.3l2.1 2.1L8.1 2.8"/></symbol>
+<symbol id="i-x" viewBox="0 0 10 10"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5"/></symbol>
+<symbol id="i-slash" viewBox="0 0 10 10"><path d="M2.6 7.4l4.8-4.8"/></symbol>
+<symbol id="i-ud" viewBox="0 0 8 12"><path d="M1.5 4.5L4 2l2.5 2.5M1.5 7.5L4 10l2.5-2.5"/></symbol>
+<symbol id="i-right" viewBox="0 0 11 11"><path d="M4 2l3.5 3.5L4 9"/></symbol>
+<symbol id="i-search" viewBox="0 0 13 13"><circle cx="5.5" cy="5.5" r="3.6"/><path d="M8.3 8.3l3 3"/></symbol>
+<symbol id="i-in" viewBox="0 0 18 18"><path d="M9 2.5v8.2M5.6 7.6L9 11l3.4-3.4M3 12.2v2.3h12v-2.3"/></symbol>
+</defs></svg>
+<div class="wrap">
+<header class="top"><a class="themer" id="themer" href="?theme=dark">Dark</a>
+<h1>The import preview, three options</h1>
+<p>Settings, Agents, Import… opens a configuration file and shows what it would bring before anything is saved. The owner rejected the window that ships today (look workflow-v002, 2026-11-15):</p>
+<blockquote>Why does this window look so different than everything else in the app? Why would leave out be the default? We’re trying to improt it? Why does it take so many actions to choose between those 3 options? Why is it so hard to read what it does? We need to send this window back for a front end design pass.</blockquote>
+<p>Three options follow, A, B and C. Nothing here is built. The file is the repository’s own fixture, “Synthetic Org pull request workflow”, with three things added so every state shows: an earlier revision of the workflow already on this computer, a prompt that is the same as yours, and a second workflow that names an action this version does not know.</p>
+</header>
+
+<h2 class="band">What all three do</h2>
+<p>The four questions get the same answers in every option. The options differ in where the answers are put.</p>
+<ul class="rules">
+<li><b>It looks like Settings.</b> Grouped rows, a name at the left and its control at the right, the tags and segmented controls the Prompts page uses, the sheet an agent’s settings open in. No tree with column headers, no splitter, no table that cuts its words off.</li>
+<li><b>Importing is the default.</b> Everything the file can bring starts chosen: a new item is added, an updated one is updated. Import is enabled the moment the window opens.</li>
+<li><b>One action per choice.</b> The choices sit on the item, all visible, and one click picks one. Nothing is selected first and no pop-up is opened, with one exception drawn below: when several of your agents could stand for the file’s agent, the middle choice opens a menu of them.</li>
+<li><b>Each item says what it does here.</b> New, Updated or Unchanged; the revision that replaces yours; who runs each action and with what; and what each action says it does, in whole sentences that wrap.</li>
+<li><b>RFC-BPR-0112’s rules hold.</b> No program path travels: a program is named by the file and chosen here. An unknown action is named and its workflow refused. An update is compared with yours, with what it adds and what now does more marked, before Import is pressed, and drafts keep the earlier revision until the update is accepted there. Importing runs nothing. Build and run tests is the one thing a file can ask for that stays off until it is ticked.</li>
+</ul>
+
+<h2 class="band">A. One sheet</h2>
+<p>A sheet over Settings, as an agent’s settings are. Every item in the file is a group in one column, with its choice on its own row and what it does written under it. There is no selection and no second pane: what you read is all there is.</p>
+<dl class="trade"><div><dt>For</dt><dd>Nothing is hidden behind a selection. The default file, one workflow and its agent, reads top to bottom in one pass, and Import needs no click before it.</dd></div><div><dt>Against</dt><dd>It is tall. A file with many agents or prompts scrolls, and a prompt’s text has no room to be compared side by side here; a changed prompt would open its comparison under its row.</dd></div><div><dt>To build</dt><dd>Least. The preview’s decisions do not change; the tree, the splitter and the stacked detail pages become one scrolling column of the groups Settings already draws.</dd></div></dl>
+<figure class="shot"><div class="scroll"><div class="mac win" data-frame="a" style="height:1050px"><div class="titlebar"><span class="lights off"><i></i><i></i><i></i></span>Settings — Default profile</div><div class="wbody" style="height:1020px"><div class="side"><div class="search"><svg class="i"><use href="#i-search"/></svg>Search settings</div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class="on">Agents</li><li>Prompts</li><li>Storage &amp; privacy</li></ul></div><div class="page"><div class="ptitle"><h1>Agents</h1></div><div class="grp"><div class="arow"><span class="ring ok"><svg class="i"><use href="#i-check"/></svg></span><span class="who"><b>Claude Code</b><span>Found at <code>/opt/homebrew/bin/claude</code></span></span><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div><div class="arow"><span class="ring bad"><svg class="i"><use href="#i-x"/></svg></span><span class="who"><b>Codex</b><span>Found at <code>/opt/homebrew/bin/codex</code></span></span><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div></div><div class="tools"><span class="btn">Check all</span><span class="pop">Add agent…<svg class="i"><use href="#i-ud"/></svg></span></div><div class="grp" style="margin-top:12px"><div class="grow"><span>Stop an agent after</span><span class="sp"></span><span class="pop" style="width:120px">No limit<svg class="i"><use href="#i-ud"/></svg></span></div><div class="grow"><span>Share agents, prompts and workflows</span><span class="sp"></span><span class="btn">Import…</span><span class="btn">Export…</span></div><div class="grow"><span>Start over</span><span class="sp"></span><span class="btn">Reset agents…</span></div></div><h2>Workflows</h2><div class="grp"><div class="arow"><span class="who"><b>Synthetic Org pull request</b><span>Synthetic Org, revision 9b1e44. Four actions</span></span><svg class="i go"><use href="#i-right"/></svg></div></div></div><div class="scrim"></div><div class="sheet" style="width:700px"><h3>Import “Synthetic Org pull request workflow”</h3><p class="sub">Exported by Synthetic Org. Importing saves what is listed here on this computer and runs nothing. No program paths, accounts or history came with the file.</p><div class="sec">Agent</div><div class="grp"><div class="it "><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span class="on">Add</span><span>Use Claude Code</span><span>Leave out</span></span></div><p class="say">Added to your agents as <b>Writer</b>. It runs Claude Code, which is on this computer. Not yet checked here.</p></div><div class="opt"><span class="tx">Let Writer build and run tests<span>The file asks for this. It stays off unless you tick it; you can turn it on later in the agent’s settings.</span></span><span class="chk"></span></div></div><div class="sec">Workflow</div><div class="grp "><div class="it"><div class="h"><b>Synthetic Org pull request</b><span class="tag upd">Updated</span><span class="sp"></span><span class="seg"><span class="on">Update</span><span>Leave out</span></span></div><p class="say">Revision <b>363f80</b> from Synthetic Org replaces yours, <b>9b1e44</b>. Compared with yours: one action is new, and one now says it does more.</p></div><div class="acth">Its five actions. None runs on import; each is yours to start, in a draft.</div><div class="act"><span class="t">Gather the ticket’s context</span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it reads the context it is sent and proposes text you accept or reject.</span></div><div class="act"><span class="t"><svg class="i f m spk"><use href="#i-spark"/></svg>Draft the description in the house style</span><span class="who"><svg class="i f m spk"><use href="#i-spark"/></svg><span><span class="m">Writer</span> does this, read-only</span></span><span class="eff">Reads the context it is sent and proposes text you accept or reject.</span></div><div class="act"><span class="t">Check the pull request template<span class="tag">Required</span></span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it reads the context it is sent and runs checks in your workspace.</span></div><div class="act"><span class="t">Create the pull request with the org tool<span class="tag more">Does more</span></span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it publishes a pull request and, new in this revision, <b>changes a ticket</b>.</span></div><div class="act"><span class="t">Link the ticket and upload the screenshot<span class="tag upd">New action</span></span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it changes a ticket.</span></div><div class="opt"><span class="tx"><code>synthetic_org_companion.py</code> is not chosen yet<span>Four actions ask for it. The file names the program and carries no path, so you say where it is on this computer. Until then those actions cannot be handed off.</span></span><span class="btn">Choose program…</span></div><div class="fine">Drafts that selected revision 9b1e44 keep it until you accept the update there.</div></div><div class="sec">Prompt</div><div class="grp"><div class="it"><div class="h"><b>Description writing</b><span class="tag">Unchanged</span><span class="sp"></span><span class="cap">Same as yours. Nothing to import.</span></div></div></div><div class="sec">Cannot be imported</div><div class="grp"><div class="refd"><span class="ring bad"><svg class="i"><use href="#i-slash"/></svg></span><span class="tx"><b>Synthetic Org release train</b>, a workflow<span>It uses an action this version does not support, named “deploy_preview”, so it is not imported. The rest of the file can still be imported.</span></span></div></div><div class="foot"><span class="sum">Adds 1 agent and updates 1 workflow. Nothing runs until you start an action in a draft.</span><span class="sp"></span><span class="btn wide">Cancel</span><span class="btn pri wide">Import</span></div></div></div></div></div><figcaption><b>A, as it opens.</b> Everything starts chosen. Writer is new and is added; the workflow is an update and says which revision replaces which. The two differences from yours are marked on the actions they belong to: “Does more” and “New action”. The agent’s action wears the agent accent; the program’s actions do not.</figcaption></figure>
+<figure class="shot"><div class="scroll"><div class="mac panel" data-frame="a2"><div class="sec">Add, the default</div><div class="grp"><div class="it "><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span class="on">Add</span><span>Use Claude Code</span><span>Leave out</span></span></div><p class="say">Added to your agents as <b>Writer</b>. It runs Claude Code, which is on this computer. Not yet checked here.</p></div></div><div class="sec">Use an agent you already have</div><div class="grp"><div class="it "><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span>Add</span><span class="on">Use Claude Code</span><span>Leave out</span></span></div><p class="say">Not added. Your agent <b>Claude Code</b> does Writer’s work in the workflow, and is not changed.</p></div></div><div class="sec">Leave out</div><div class="grp"><div class="it out "><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span>Add</span><span>Use Claude Code</span><span class="on">Leave out</span></span></div><p class="say">Not imported. The workflow’s action “Draft the description in the house style” asks for Writer, and waits until an agent stands for it.</p></div></div><div class="sec">Two or more of your agents could stand for it: the middle choice names one and opens a menu of them</div><div class="grp"><div class="it"><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span>Add</span><span class="on">Use Claude Code (work) <svg class="i"><use href="#i-ud"/></svg></span><span>Leave out</span></span></div><p class="say">Not added. Your agent <b>Claude Code (work)</b> does Writer’s work in the workflow, and is not changed.</p></div></div><div class="sec">The file’s agent is one you already have: Add becomes Update, and says what changes</div><div class="grp"><div class="it"><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag upd">Updated</span><span class="sp"></span><span class="seg"><span class="on">Update</span><span>Use Claude Code</span><span>Leave out</span></span></div><p class="say">Changes your agent <b>Writer</b>. Effort: agent’s default → high. Scratch folder starts: off → on. Its conversations stay and can be continued.</p></div></div><div class="sec">A custom agent: the program is chosen here, because no path travels</div><div class="grp"><div class="it"><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Org linter</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span class="on">Add</span><span>Leave out</span></span></div><p class="say">A custom agent that speaks Codex. It waits for its program, and is left out until it has one.</p></div><div class="opt"><span class="tx"><code>org-agent</code> is not chosen yet<span>The file names the program and carries no path. Choose this computer’s copy of it.</span></span><span class="btn">Choose program…</span></div></div><div class="sec">A workflow you leave out</div><div class="grp"><div class="it out"><div class="h"><b>Synthetic Org pull request</b><span class="tag upd">Updated</span><span class="sp"></span><span class="seg"><span>Update</span><span class="on">Leave out</span></span></div><p class="say">Not imported. Yours stays at revision <b>9b1e44</b>.</p></div></div></div></div><figcaption><b>A, the other choices.</b> Each choice is one click and rewrites the sentence under it. The same rows are used in C.</figcaption></figure>
+
+<h2 class="band">B. List and detail</h2>
+<p>The Prompt library’s shape in a sheet: a ticked list of the file’s items at the left, the selected one in full at the right. A tick is the choice to import. An update is shown as yours beside the file’s, row against row.</p>
+<dl class="trade"><div><dt>For</dt><dd>It holds a large file: twenty prompts are twenty short rows. The comparison has room, so an update shows yours and the file’s side by side.</dd></div><div><dt>Against</dt><dd>Only one item’s detail shows at a time, so reading everything means clicking through the list. An agent’s choice is in two places: the tick, then Add or Use in the detail.</dd></div><div><dt>To build</dt><dd>Middling. The same two panes as today, redrawn with the Prompt library’s list and Settings’ groups, plus the side-by-side action comparison.</dd></div></dl>
+<figure class="shot"><div class="scroll"><div class="mac win" data-frame="b" style="height:800px"><div class="titlebar"><span class="lights off"><i></i><i></i><i></i></span>Settings — Default profile</div><div class="wbody" style="height:770px"><div class="side"><div class="search"><svg class="i"><use href="#i-search"/></svg>Search settings</div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class="on">Agents</li><li>Prompts</li><li>Storage &amp; privacy</li></ul></div><div class="page"><div class="ptitle"><h1>Agents</h1></div><div class="grp"><div class="arow"><span class="ring ok"><svg class="i"><use href="#i-check"/></svg></span><span class="who"><b>Claude Code</b><span>Found at <code>/opt/homebrew/bin/claude</code></span></span><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div><div class="arow"><span class="ring bad"><svg class="i"><use href="#i-x"/></svg></span><span class="who"><b>Codex</b><span>Found at <code>/opt/homebrew/bin/codex</code></span></span><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div></div><div class="tools"><span class="btn">Check all</span><span class="pop">Add agent…<svg class="i"><use href="#i-ud"/></svg></span></div><div class="grp" style="margin-top:12px"><div class="grow"><span>Stop an agent after</span><span class="sp"></span><span class="pop" style="width:120px">No limit<svg class="i"><use href="#i-ud"/></svg></span></div><div class="grow"><span>Share agents, prompts and workflows</span><span class="sp"></span><span class="btn">Import…</span><span class="btn">Export…</span></div><div class="grow"><span>Start over</span><span class="sp"></span><span class="btn">Reset agents…</span></div></div><h2>Workflows</h2><div class="grp"><div class="arow"><span class="who"><b>Synthetic Org pull request</b><span>Synthetic Org, revision 9b1e44. Four actions</span></span><svg class="i go"><use href="#i-right"/></svg></div></div></div><div class="scrim"></div><div class="sheet" style="width:960px"><h3>Import “Synthetic Org pull request workflow”</h3><p class="sub">Exported by Synthetic Org. Importing saves what is listed here on this computer and runs nothing. No program paths, accounts or history came with the file.</p><div class="split"><div class="blist"><div class="gh">Agents</div><div class="brow"><span class="chk on"><svg class="i"><use href="#i-check"/></svg></span><span class="tx"><span class="n"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span></span><span>Added as a new agent</span></span></div><div class="gh">Workflows</div><div class="brow on"><span class="chk on"><svg class="i"><use href="#i-check"/></svg></span><span class="tx"><span class="n"><b>Synthetic Org pull request</b><span class="tag upd">Updated</span></span><span>363f80 replaces yours, 9b1e44</span></span></div><div class="gh">Prompts</div><div class="brow"><span class="chk no"></span><span class="tx"><span class="n"><b>Description writing</b><span class="tag">Unchanged</span></span><span>Same as yours</span></span></div><div class="gh">Cannot be imported</div><div class="brow"><span class="ring bad"><svg class="i"><use href="#i-slash"/></svg></span><span class="tx"><span class="n"><b>Synthetic Org release train</b></span><span>Names “deploy_preview”</span></span></div></div><div class="bdet"><div class="h"><b>Synthetic Org pull request</b><span class="tag upd">Updated</span></div><p class="say">Says it comes from Synthetic Org. Ticked, revision <b>363f80</b> replaces yours, <b>9b1e44</b>. No action runs on import; each is yours to start, in a draft.</p><div class="cmp"><div class="ch">Yours, revision 9b1e44</div><div class="ch">In the file, revision 363f80</div><div class=""><div class="t">Gather the ticket’s context</div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">reads the context it is sent, proposes text you accept or reject</div></div><div class=""><div class="t">Gather the ticket’s context</div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">reads the context it is sent, proposes text you accept or reject</div></div><div class=""><div class="t">Draft the description in the house style</div><div class="w"><svg class="i f m spk"><use href="#i-spark"/></svg><span><span class="m">Writer</span>, read-only</span></div><div class="e">reads the context it is sent, proposes text you accept or reject</div></div><div class=""><div class="t">Draft the description in the house style</div><div class="w"><svg class="i f m spk"><use href="#i-spark"/></svg><span><span class="m">Writer</span>, read-only</span></div><div class="e">reads the context it is sent, proposes text you accept or reject</div></div><div class=""><div class="t">Check the pull request template<span class="tag">Required</span></div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">reads the context it is sent, runs checks in your workspace</div></div><div class=""><div class="t">Check the pull request template<span class="tag">Required</span></div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">reads the context it is sent, runs checks in your workspace</div></div><div class=""><div class="t">Create the pull request with the org tool</div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">publishes a pull request</div></div><div class=""><div class="t">Create the pull request with the org tool</div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">publishes a pull request, <mark>changes a ticket</mark></div></div><div class="none">No such action</div><div class="added"><div class="t">Link the ticket and upload the screenshot<span class="tag upd">New action</span></div><div class="w">You run <code>synthetic_org_companion.py</code></div><div class="e">changes a ticket</div></div></div><div class="grp" style="margin-top:10px"><div class="opt" style="padding-top:8px"><span class="tx"><code>synthetic_org_companion.py</code> is not chosen yet<span>Four actions ask for it. The file names the program and carries no path, so you say where it is on this computer. Until then those actions cannot be handed off.</span></span><span class="btn">Choose program…</span></div></div><p class="say" style="margin:8px 2px 0">Drafts that selected revision 9b1e44 keep it until you accept the update there.</p></div></div><div class="foot"><span class="sum">Adds 1 agent and updates 1 workflow. Nothing runs until you start an action in a draft.</span><span class="sp"></span><span class="btn wide">Cancel</span><span class="btn pri wide">Import</span></div></div></div></div></div><figcaption><b>B, as it opens,</b> on the first item that needs a look: the update. Left, yours; right, the file’s. The added action is tinted and the effect that widened is marked.</figcaption></figure>
+<figure class="shot"><div class="scroll"><div class="mac panel" data-frame="b2" style="width:960px;padding:18px 18px 16px"><h3>Import “Synthetic Org pull request workflow”</h3><p class="sub">Exported by Synthetic Org. Importing saves what is listed here on this computer and runs nothing. No program paths, accounts or history came with the file.</p><div class="split"><div class="blist"><div class="gh">Agents</div><div class="brow on"><span class="chk on"><svg class="i"><use href="#i-check"/></svg></span><span class="tx"><span class="n"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span></span><span>Added as a new agent</span></span></div><div class="gh">Workflows</div><div class="brow"><span class="chk on"><svg class="i"><use href="#i-check"/></svg></span><span class="tx"><span class="n"><b>Synthetic Org pull request</b><span class="tag upd">Updated</span></span><span>363f80 replaces yours, 9b1e44</span></span></div><div class="gh">Prompts</div><div class="brow"><span class="chk no"></span><span class="tx"><span class="n"><b>Description writing</b><span class="tag">Unchanged</span></span><span>Same as yours</span></span></div><div class="gh">Cannot be imported</div><div class="brow"><span class="ring bad"><svg class="i"><use href="#i-slash"/></svg></span><span class="tx"><span class="n"><b>Synthetic Org release train</b></span><span>Names “deploy_preview”</span></span></div></div><div class="bdet"><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span></div><p class="say">The workflow’s action “Draft the description in the house style” asks for this agent, read-only.</p><div class="grp"><div class="opt"><span class="rad on"></span><span class="tx">Add as a new agent<span>Added at the end of your agents, not yet checked on this computer.</span></span></div><div class="opt"><span class="rad"></span><span class="tx">Use Claude Code as it is<span>Your agent stands for Writer in the workflow, and is not changed.</span></span></div></div><div class="sec">What it is set to</div><div class="grp"><div class="kv"><span class="k">Kind of agent</span><span class="v">Claude Code</span></div><div class="kv"><span class="k">Program</span><span class="v">Claude Code, found on this computer; looked for each time it runs</span></div><div class="kv"><span class="k">Model</span><span class="v">agent’s default</span></div><div class="kv"><span class="k">Effort</span><span class="v">agent’s default</span></div><div class="kv"><span class="k">Strict run checks</span><span class="v">on</span></div><div class="kv"><span class="k">Scratch folder starts</span><span class="v">on</span></div><div class="kv"><span class="k">MCP servers</span><span class="v">off</span></div><div class="kv"><span class="k">Instructions</span><span class="v">system prompt</span></div></div><div class="grp" style="margin-top:10px"><div class="opt"><span class="tx">Let Writer build and run tests<span>The file asks for this. It stays off unless you tick it; you can turn it on later in the agent’s settings.</span></span><span class="chk"></span></div></div></div></div><div class="foot"><span class="sum">Adds 1 agent and updates 1 workflow. Nothing runs until you start an action in a draft.</span><span class="sp"></span><span class="btn wide">Cancel</span><span class="btn pri wide">Import</span></div></div></div><figcaption><b>B, the agent selected.</b> Unticking Writer leaves it out. Add or Use is a pair of radio buttons, then what the agent is set to.</figcaption></figure>
+
+<h2 class="band">C. In the page</h2>
+<p>No window at all. The file opens into the Agents page: a banner says what is being imported and holds Cancel and Import, and the file’s agent and workflow appear in the page’s own lists, where they will live, with a blue edge until they are saved.</p>
+<dl class="trade"><div><dt>For</dt><dd>It cannot look unlike Settings, because it is Settings. “Replaces yours” is seen on the row it replaces, beside the agents you already have.</dd></div><div><dt>Against</dt><dd>The page gains a mode: leaving it, searching settings or opening an agent mid-import all need an answer. Prompts live on another page, so the banner can only mention them. The workflow falls below the fold in a short window.</dd></div><div><dt>To build</dt><dd>Most. The Agents page must draw unsaved rows among saved ones and hold them until Import or Cancel.</dd></div></dl>
+<figure class="shot"><div class="scroll"><div class="mac win" data-frame="c" style="height:900px"><div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Settings — Default profile</div><div class="wbody" style="height:870px"><div class="side"><div class="search"><svg class="i"><use href="#i-search"/></svg>Search settings</div><ul class="nav"><li>General</li><li>Accounts &amp; hosts</li><li>Repositories</li><li>Home &amp; queue</li><li>Review</li><li>Comments</li><li>Appearance</li><li>Notifications</li><li class="on">Agents</li><li>Prompts</li><li>Storage &amp; privacy</li></ul></div><div class="page"><div class="ptitle"><h1>Agents</h1></div><div class="banner"><svg class="i" style="width:18px;height:18px;color:var(--accent);margin-top:1px"><use href="#i-in"/></svg><div class="tx"><h3>Importing “Synthetic Org pull request workflow”</h3><p>Exported by Synthetic Org. Nothing is saved yet, and importing runs nothing. Rows with a blue edge come from the file; the rest are yours and stay as they are.</p><p><b style="font-weight:600">Adds 1 agent and updates 1 workflow.</b> One prompt, Description writing, is the same as yours.</p><p class="ref"><span class="ring bad"><svg class="i"><use href="#i-slash"/></svg></span><span>Cannot import the workflow “Synthetic Org release train”: it uses an action this version does not support, named “deploy_preview”.</span></p></div><div class="do"><span class="btn wide">Cancel</span><span class="btn pri wide">Import</span></div></div><div class="grp" style="margin-top:14px"><div class="arow"><span class="ring ok"><svg class="i"><use href="#i-check"/></svg></span><span class="who"><b>Claude Code</b><span>Found at <code>/opt/homebrew/bin/claude</code></span></span><span class="state">Signed in, version 2.1.321</span><svg class="i go"><use href="#i-right"/></svg></div><div class="arow"><span class="ring bad"><svg class="i"><use href="#i-x"/></svg></span><span class="who"><b>Codex</b><span>Found at <code>/opt/homebrew/bin/codex</code></span></span><span class="state bad">Not signed in</span><svg class="i go"><use href="#i-right"/></svg></div><div class="incoming"><div class="it "><div class="h"><svg class="i f m spk"><use href="#i-spark"/></svg><b>Writer</b><span class="tag new">New</span><span class="sp"></span><span class="seg"><span class="on">Add</span><span>Use Claude Code</span><span>Leave out</span></span></div><p class="say">Added to your agents as <b>Writer</b>. It runs Claude Code, which is on this computer. Not yet checked here.</p></div><div class="opt"><span class="tx">Let Writer build and run tests<span>The file asks for this. It stays off unless you tick it; you can turn it on later in the agent’s settings.</span></span><span class="chk"></span></div></div></div><div class="tools dim"><span class="btn">Check all</span><span class="pop">Add agent…<svg class="i"><use href="#i-ud"/></svg></span></div><h2 style="margin-top:8px">Workflows</h2><div class="grp incoming"><div class="it"><div class="h"><b>Synthetic Org pull request</b><span class="tag upd">Updated</span><span class="sp"></span><span class="seg"><span class="on">Update</span><span>Leave out</span></span></div><p class="say">Revision <b>363f80</b> from Synthetic Org replaces yours, <b>9b1e44</b>. Compared with yours: one action is new, and one now says it does more.</p></div><div class="acth">Its five actions. None runs on import; each is yours to start, in a draft.</div><div class="act"><span class="t">Gather the ticket’s context</span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it reads the context it is sent and proposes text you accept or reject.</span></div><div class="act"><span class="t"><svg class="i f m spk"><use href="#i-spark"/></svg>Draft the description in the house style</span><span class="who"><svg class="i f m spk"><use href="#i-spark"/></svg><span><span class="m">Writer</span> does this, read-only</span></span><span class="eff">Reads the context it is sent and proposes text you accept or reject.</span></div><div class="act"><span class="t">Check the pull request template<span class="tag">Required</span></span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it reads the context it is sent and runs checks in your workspace.</span></div><div class="act"><span class="t">Create the pull request with the org tool<span class="tag more">Does more</span></span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it publishes a pull request and, new in this revision, <b>changes a ticket</b>.</span></div><div class="act"><span class="t">Link the ticket and upload the screenshot<span class="tag upd">New action</span></span><span class="who">You run <code>synthetic_org_companion.py</code></span><span class="eff">Says it changes a ticket.</span></div><div class="opt"><span class="tx"><code>synthetic_org_companion.py</code> is not chosen yet<span>Four actions ask for it. The file names the program and carries no path, so you say where it is on this computer. Until then those actions cannot be handed off.</span></span><span class="btn">Choose program…</span></div><div class="fine">Drafts that selected revision 9b1e44 keep it until you accept the update there.</div></div><div class="thumb"></div></div></div></div></div><figcaption><b>C, as it opens.</b> Your agents stay where they are. Writer and the updated workflow are drawn in place with a blue edge. The item that cannot be imported and the prompt that is the same as yours have no row on this page, so the banner says them.</figcaption></figure>
+
+<h2 class="band">Recommendation</h2>
+<p>A. It answers each of the four questions in the plainest way, it is the shape the app already uses for an agent’s settings, and it asks nothing of the reader but to read down and press Import. Take B’s yours-beside-the-file’s comparison later if large files turn out to be common. C is the most at home in Settings and the most to build.</p>
+</div>
+<script>
+(function(){
+  var q=new URLSearchParams(location.search), theme=q.get("theme")==="dark"?"dark":"light", frame=q.get("frame");
+  document.documentElement.setAttribute("data-page",theme);
+  document.querySelectorAll(".mac").forEach(function(w){w.setAttribute("data-theme",theme)});
+  var t=document.getElementById("themer");
+  if(t){t.textContent=theme==="dark"?"Light":"Dark";t.href=theme==="dark"?"?theme=light":"?theme=dark"}
+  if(frame){
+    var w=document.querySelector('.mac[data-frame="'+frame+'"]');
+    if(w){var s=document.querySelector("svg[aria-hidden]");document.body.className="shotpage";document.body.textContent="";document.body.appendChild(s);document.body.appendChild(w);
+      var r=document.body.getBoundingClientRect();document.documentElement.setAttribute("data-size",Math.ceil(r.width)+"x"+Math.ceil(r.height))}
+  }
+})();
+</script>
+</body></html>
