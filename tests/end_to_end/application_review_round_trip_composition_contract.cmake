@@ -2062,7 +2062,7 @@ endfunction()
 # agent host's process port is application::wrapped_claude_process in front of
 # the existing launcher (in front of the tests-on probe), which replaces the
 # executable of a Claude stream-JSON request alone and re-inspects the path
-# before launch. Settings > Agents & context's Process wrapper row dispatches
+# before launch. The Process wrapper row on Settings > Agents dispatches
 # to application::claude_wrapper_editor, which has the agent adapter inspect
 # the file on the effect lane and then writes the profile preference; the
 # editor joins window shutdown and quiescence. review_cycle_desktop.{hpp,cpp}
@@ -3792,8 +3792,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# window the viewer's own case from the draft-state reading, a fixture
 	# course maps Author's drawers to Review's, and the attended workflow
 	# look waits for the Fixture agent. No review mutation or submission path changed.
+	# Owner, 2026-11-15 reseal: main installs the application menu wording
+	# (Settings… for Qt's MAC_APPLICATION_MENU "Preferences..."), and the
+	# Settings section "Agents & context" is named "Agents" in the app's
+	# notices and comments. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "2f2a70595a7268c279d730fc9a3fde38ae2b0e67132ae03119cbb238544d6b96"
+        "976bbc5ec207f158ca89fab50447ce3e4efe8c25c7eb116d57477a75dae3d117"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

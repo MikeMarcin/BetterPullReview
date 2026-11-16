@@ -862,7 +862,7 @@ namespace bpr::app {
 			// [[BPR-1878]]. Says which it is, naming only what the tab shows:
 			// the agent picker at its bottom.
 			const auto agent = writing_agent();
-			Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or keep writing yourself.")
+			Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents, or keep writing yourself.")
 														   : !agent                                ? QStringLiteral("Choose an agent with the agent picker in the window's footer, or keep writing yourself.")
 														   : !target                               ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
 																								   : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
@@ -897,7 +897,7 @@ namespace bpr::app {
 		}
 		if (!writes_tool_free(target->Agent)) {
 			WritingState.cancel();
-			Window->tour_editor()->show_writing_notice(QStringLiteral("This agent has no qualified tool-free writing mode: writing needs one that speaks Claude Code's stream JSON. Add one in Settings › Agents & context, or keep writing manually."));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("This agent has no qualified tool-free writing mode: writing needs one that speaks Claude Code's stream JSON. Add one in Settings › Agents, or keep writing manually."));
 			return;
 		}
 		if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
@@ -2676,7 +2676,7 @@ namespace bpr::app {
 			return;
 		}
 		if (Window->agent_panel()->offered_count() == 0 || !agent) {
-			refuse(QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or choose one with the agent picker in the window's footer. Your text is unchanged."));
+			refuse(QStringLiteral("No agent is set up. Add one in Settings, Agents, or choose one with the agent picker in the window's footer. Your text is unchanged."));
 			return;
 		}
 		if (!writes_tool_free(*agent)) {
@@ -2764,7 +2764,7 @@ namespace bpr::app {
 		const auto& prefs    = Profile->WorkbenchPreferences->accepted();
 		const auto  selected = writing_agent();
 		if (!prefs || !selected || !writes_tool_free(*selected) || !tour_session_idle()) {
-			Window->writing_hooks()->show_notice("Add an agent that speaks Claude Code's stream JSON in Settings › Agents & context for tool-free writing tests; wait for any running request.");
+			Window->writing_hooks()->show_notice("Add an agent that speaks Claude Code's stream JSON in Settings › Agents for tool-free writing tests; wait for any running request.");
 			return;
 		}
 		core::writing_request request;

@@ -26,12 +26,12 @@ namespace bpr::application {
 	/// \brief The line a Codex launch with no saved program ends with when no
 	/// `codex` was found.
 	inline constexpr std::string_view codex_not_found_message
-		= "codex was not found on PATH or in the usual install folders; set a Codex program in Settings > Agents & context.";
+		= "codex was not found on PATH or in the usual install folders; set a Codex program in Settings > Agents.";
 
 	/// \brief The line a plain-text harness launch ends with when the reviewer
 	/// has chosen no program for it. It is never searched for.
 	inline constexpr std::string_view plain_text_harness_unset_message
-		= "the plain-text harness has no program; choose one in Settings > Agents & context.";
+		= "the plain-text harness has no program; choose one in Settings > Agents.";
 
 	/// \brief The one line a refused saved program is reported in: "Codex
 	/// program <path>: <reason>" or "Plain-text harness program <path>: ...".

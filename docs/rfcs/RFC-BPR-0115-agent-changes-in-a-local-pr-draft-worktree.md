@@ -85,7 +85,7 @@ The owner asked that "self-review gets its own prompt in agent settings"
 ([note 6](assets/local-draft-authoring-v1/SOURCE_NOTES.md)). So the run is briefed by a built-in prompt of
 its own, **Self-review**:
 
-- It is listed in Settings › Agents & context › Built-in prompts with the
+- It is listed in Settings › Agents › Built-in prompts with the
   other built-in prompts, with the same editor, built-in default, version and
   Reset they have.
 - It is separate from the review skill, which is the method for reviewing

@@ -99,7 +99,7 @@ func course() throws {
     let digest = SHA256.hash(data: try Data(contentsOf: executable)).map { String(format: "%02x", $0) }.joined()
     let app = AXUIElementCreateApplication(pid)
     let categories = ["General", "Accounts & hosts", "Reviews & queue", "Appearance",
-                      "Notifications", "Agents & context", "Storage & privacy"]
+                      "Notifications", "Agents", "Storage & privacy"]
     func windows() -> [AXUIElement] { attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? [] }
     func settings() -> [AXUIElement] { windows().filter { text($0).hasPrefix("Settings — ") } }
     func workbenches() -> [AXUIElement] { windows().filter { text($0) == "BetterPullReview — Default profile" } }
@@ -140,7 +140,7 @@ func course() throws {
     try waitFor("one initial signed-out workbench required") { workbenches().count == 1 && settings().isEmpty }
     let first = workbenches()[0]
     try focus(first)
-    let preferences = try menuItem("Preferences...")
+    let preferences = try menuItem("Settings…")
     try require(text(preferences, kAXMenuItemCmdCharAttribute) == ",", "Preferences lacks the native comma equivalent")
     try require((attribute(preferences, kAXMenuItemCmdModifiersAttribute) as? NSNumber)?.intValue == 0,
                 "Preferences equivalent is not Command-comma")
@@ -174,7 +174,7 @@ func course() throws {
     try waitFor("native New Window did not open a same-profile sibling") { workbenches().count == 2 }
     guard let second = workbenches().first(where: { !CFEqual($0, first) }) else { throw CourseFailure(description: "sibling identity missing") }
     try focus(second)
-    try press(menuItem("Preferences..."))
+    try press(menuItem("Settings…"))
     try waitFor("sibling Preferences did not reuse and focus the profile's Settings") { sameSettings() && settingsFocused() }
     try close(shared)
     try waitFor("native close did not hide Settings") { settings().isEmpty }
@@ -208,7 +208,7 @@ func course() throws {
     try close(shared)
     try waitFor("Settings close did not return to the surviving workbench") { settings().isEmpty && workbenches().count == 1 }
     try focus(second)
-    try press(menuItem("Preferences..."))
+    try press(menuItem("Settings…"))
     try waitFor("Preferences did not reopen Settings after all page captures") { oneSettings() && settingsFocused() }
     try focus(second)
     let quitTitle = "Quit " + (running.localizedName ?? "BetterPullReview")

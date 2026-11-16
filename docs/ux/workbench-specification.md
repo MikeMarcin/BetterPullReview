@@ -680,6 +680,23 @@ button's description carries the state and the age. The note is laid over
 the content right-aligned under its button and the status bar's words keep
 their own width, so nothing moves.
 
+### No drawer pans sideways
+
+A drawer scrolls up and down, never sideways (the owner, look
+`workflow-v002`, 2026-11-15: "It's panning horizontally again. I don't like
+my drawers doing that. This should be a rule by now."). Everything in a
+drawer fits its width, down to the narrowest the drawer can be dragged to:
+text wraps, a row of buttons wraps under what it follows, a command line
+scrolls inside its own field, and a button that names something the
+reviewer or a file supplied (an agent, a workflow's publisher) shortens the
+name and keeps it whole in its tooltip. A drawer's scroll area shows no
+horizontal bar and has no sideways range, since a trackpad pans one whose bar
+is only hidden. This holds for every tab of every drawer: Overview's Status,
+Commits, Comments, Tour and Agent; Review's Comments, Tour and Agent;
+Author's Workflow, Tour and Agent; and a local draft's tabs.
+`qt_drawer_surfaces_fit_scale_100`, `_125` and `_200` hold each of them to it
+at the narrowest and a wide width in all four themes.
+
 ## Overview summary
 
 RFC-BPR-0063 replaces the four-line preview with a resizable description above
@@ -2505,8 +2522,13 @@ for itself, so both answers are drivable on one host:
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS
   applications offer with no document open, and Settings keeping the
-  preferences role is what keeps the merged Preferences item in the application
-  menu. Measured from `[NSApp mainMenu]` by
+  preferences role is what keeps the merged item in the application menu with
+  Command-comma. That item reads **Settings…** there as in every other menu
+  (the owner, 2026-11-15: "Also can we renamed Preferences to settings in the
+  menu too. it's confusing to have it named differently"): the application
+  installs a translator that answers Qt's Cocoa integration, which asks for
+  `MAC_APPLICATION_MENU` "Preferences...", with "Settings…"
+  (`qt_application_menu_wording`). Measured from `[NSApp mainMenu]` by
   `application_profile_empty_desktop_native_menu_bar`, which snapshots the bar
   while a window is open and requires the windowless bar to equal it: both read
   `Apple | ~File | Profiles | View`. AppKit merges Quit into the application
@@ -2714,7 +2736,7 @@ the agent may read on the left; on the right the agent pill (owner decision
 own default by the model it last reported, owner look v004), an icon alone when the field is
 narrower than 300 points; its tooltip names the program that runs and the
 model the last answer reported, and its menu lists every agent added in
-Settings › Agents & context, one press to switch, then the agent's own models
+Settings › Agents, one press to switch, then the agent's own models
 and effort levels or Other…, kept with that agent, and last Agent settings…;
 owner look v006: the models and levels are the harness's own, Codex's from its
 App Server's `model/list` and Claude Code's levels from its `--help`, asked
@@ -2781,7 +2803,7 @@ adds Reset agents… (owner look v006): it asks first, then clears every agent
 setting, the clone folders and links and an edited review skill, forgets
 which agent each pull request was last asked with (its turns stay), and the
 setup starts again at Agent; there is no other way back into the setup.
-[[BPR-1859]]. Settings › Agents & context has Check agent under the agent
+[[BPR-1859]]. Settings › Agents has Check agent under the agent
 list: the setup's own check of the chosen agent, through the same host, with
 the workspace made and removed once while a pull request is open and left
 unchecked otherwise. Beside it one line says what runs, or why it cannot

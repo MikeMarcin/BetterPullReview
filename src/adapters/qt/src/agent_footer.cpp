@@ -189,7 +189,7 @@ namespace bpr::qt {
 		SettingsButton = new quiet_push_button{ tr("Agent settings…"), this };
 		SettingsButton->setObjectName(QStringLiteral("agentFooterSettings"));
 		SettingsButton->setFlat(true);
-		SettingsButton->setToolTip(tr("Open Settings › Agents & context."));
+		SettingsButton->setToolTip(tr("Open Settings › Agents."));
 		connect(SettingsButton, &QPushButton::clicked, this, [this] {
 			if (SettingsDispatch) {
 				SettingsDispatch();

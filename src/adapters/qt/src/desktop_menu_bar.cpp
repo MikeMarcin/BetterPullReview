@@ -253,7 +253,8 @@ namespace bpr::qt {
 		nextTab->setShortcuts(shortcut_keys(shortcut_command::next_tab));
 		previousTab->setShortcuts(shortcut_keys(shortcut_command::previous_tab));
 		// [[BPR-0646]] gives Settings the preferences role, which macOS merges into
-		// the application menu. Offered so that menu keeps every item it had while a
+		// the application menu, where `application_menu_wording` names it Settings…
+		// as here. Offered so that menu keeps every item it had while a
 		// window was open; disabled because Settings is a window's, and no window is
 		// open to carry one.
 		ViewMenu->addSeparator();

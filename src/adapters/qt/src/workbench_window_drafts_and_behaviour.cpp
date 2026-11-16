@@ -1395,12 +1395,12 @@ namespace bpr::qt {
 		WorkshopGuidanceLink = new quiet_tool_button{ BehaviourEditor };
 		WorkshopGuidanceLink->setObjectName(QStringLiteral("workshopGuidanceLink"));
 		// "&&" draws one ampersand: a single "&" would be a mnemonic.
-		WorkshopGuidanceLink->setText(QStringLiteral("Agents && context › Review feedback ›"));
+		WorkshopGuidanceLink->setText(QStringLiteral("Agents › Review feedback ›"));
 		WorkshopGuidanceLink->setAutoRaise(true);
 		WorkshopGuidanceLink->setCursor(Qt::PointingHandCursor);
 		WorkshopGuidanceLink->setFocusPolicy(Qt::StrongFocus);
 		WorkshopGuidanceLink->setToolTip(QStringLiteral("Opens the Review feedback writing instructions, where the guidance text is edited"));
-		WorkshopGuidanceLink->setAccessibleName(QStringLiteral("Guidance text: Agents & context, Review feedback"));
+		WorkshopGuidanceLink->setAccessibleName(QStringLiteral("Guidance text: Agents, Review feedback"));
 		WorkshopGuidanceLink->setAccessibleDescription(WorkshopGuidanceLink->toolTip());
 		anchor_tooltips(*WorkshopGuidanceLink);
 		{

@@ -601,7 +601,7 @@ namespace bpr::app {
 			return std::unexpected(*self.Failure);
 		}
 		if (self.Forward) {
-			return failure("interaction_required", "A running desktop owns these settings. Change the hook in its Agents & context settings, or close it first.", 3);
+			return failure("interaction_required", "A running desktop owns these settings. Change the hook in its Agents settings, or close it first.", 3);
 		}
 		const auto state = self.effect([&] { return store_tour_hook_override(self.Root, aHook, std::move(aInstructions)); });
 		if (!state) {

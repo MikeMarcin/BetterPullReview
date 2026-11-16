@@ -81,7 +81,7 @@ linked clones, and an edited review skill (saved to Downloads first),
 forgets which agent each pull request was last asked with, clears the legacy
 wrapper/model migration fields, and starts the setup again; notes, drafts and agent conversations stay (owner look v006). See the [workbench specification](../ux/workbench-specification.md).
 
-Under **Agents & context**:
+Under **Agents**:
 
 - **Agents** is the list the agent picker in a pull request's footer offers,
   in its order; an agent you

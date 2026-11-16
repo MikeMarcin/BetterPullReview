@@ -51,7 +51,7 @@ namespace bpr::application {
 		not_saved,
 	};
 
-	/// \brief What Settings › Agents & context › Review skill shows.
+	/// \brief What Settings › Agents › Review skill shows.
 	struct review_skill_projection
 	{
 		/// The skill requests carry now.

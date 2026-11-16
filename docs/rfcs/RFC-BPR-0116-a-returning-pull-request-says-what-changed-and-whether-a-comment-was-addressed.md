@@ -87,7 +87,7 @@ entry point serves Check the fix on a local draft
 ### Each has its own prompt
 
 Each of the two operations is briefed by a built-in prompt of its own in
-Settings › Agents & context › Built-in prompts, with the editor, default,
+Settings › Agents › Built-in prompts, with the editor, default,
 version and Reset the other built-in prompts have, and stable purpose IDs
 `review.latest-upload` and `review.proposed-fix`. Editing one changes no
 other prompt. This follows the owner's request for self-review

@@ -491,7 +491,7 @@ namespace bpr::qt {
 		case settings_page::notifications:
 			return QStringLiteral("Notifications");
 		case settings_page::agents_and_context:
-			return QStringLiteral("Agents & context");
+			return QStringLiteral("Agents");
 		case settings_page::prompts:
 			return QStringLiteral("Prompts");
 		case settings_page::storage_and_privacy:

@@ -286,7 +286,7 @@ namespace {
 		for (auto row = 0; row < settings->sidebar()->count(); ++row) {
 			pages.push_back(settings->sidebar()->item(row)->text());
 		}
-		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents & context"), QStringLiteral("Prompts"), QStringLiteral("Storage & privacy") },
+		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents"), QStringLiteral("Prompts"), QStringLiteral("Storage & privacy") },
 			   "the sidebar is General, Accounts & hosts, Repositories, Home & queue, Review, Comments, then the rest as before");
 		for (auto index = std::size_t{ 0U }; index < qt::settings_page_count; ++index) {
 			const auto page = static_cast<qt::settings_page>(index);
@@ -474,7 +474,7 @@ namespace {
 	}
 
 	/// \brief [[BPR-1753]], owner decision 2026-10-23. The Claude
-	/// process wrapper and model rows are gone from Agents & context; the
+	/// process wrapper and model rows are gone from Agents; the
 	/// agent list holds each agent's program, arguments and model, and
 	/// withdrawing the agent surfaces takes the list with them.
 	void test_agents_page_is_the_agent_list()
@@ -514,7 +514,7 @@ namespace {
 		expect(result_names(*settings).contains(QStringLiteral("Stop a run after")), "a setting on a page is found");
 		settings->withdraw_page(qt::settings_page::agents_and_context);
 		expect(!result_names(*settings).contains(QStringLiteral("Stop a run after"))
-				   && !result_names(*settings).contains(QStringLiteral("Agents & context")),
+				   && !result_names(*settings).contains(QStringLiteral("Agents")),
 			   "a withdrawn page never appears");
 		auto* const panel  = new QWidget;
 		auto* const column = new QVBoxLayout{ panel };
@@ -555,7 +555,7 @@ namespace {
 } // namespace
 
 /// \brief [[BPR-2051]], owner decision 2026-11-11 (mockup "A · Roster").
-/// `--agents-roster FOLDER` saves Settings › Agents & context with three
+/// `--agents-roster FOLDER` saves Settings › Agents with three
 /// agents: one passed, one not signed in, one never checked. Run it under
 /// `BPR_NATIVE_LOOK` with each `BPR_NATIVE_LOOK_SCHEME` for the owner's look.
 void render_agents_roster(const QString& aFolder, const bool aLook = false)
@@ -592,7 +592,7 @@ void render_agents_roster(const QString& aFolder, const bool aLook = false)
 	if (aLook) {
 		// The owner's look: the page live. Rows open their sheet, their menu
 		// checks, moves or removes (nothing is saved: no host behind it).
-		settings->setWindowTitle(QStringLiteral("Settings › Agents & context: the scratch folder limit, how long unused folders are kept, what they hold, and Clear scratch folders"));
+		settings->setWindowTitle(QStringLiteral("Settings › Agents: the scratch folder limit, how long unused folders are kept, what they hold, and Clear scratch folders"));
 		QApplication::exec();
 		return;
 	}

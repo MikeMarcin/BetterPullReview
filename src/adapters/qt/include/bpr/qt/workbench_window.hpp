@@ -931,7 +931,7 @@ namespace bpr::qt {
 		/// has nothing to answer them with. The launch panel, side chat and
 		/// finding queue and their buttons, the comment workshop, tour writing
 		/// assistance, the private Ask agent and agent-assisted composition,
-		/// and the Agents & context settings page are withdrawn; private notes,
+		/// and the Agents settings page are withdrawn; private notes,
 		/// private history and every stored record stay. Presentation only:
 		/// the window starts nothing either way.
 		void withdraw_agent_surfaces();
@@ -1087,7 +1087,7 @@ namespace bpr::qt {
 		/// Comment workshop › Feedback guidance.
 		[[nodiscard]] auto label_helper_switch() const noexcept -> QCheckBox*;
 		/// \brief [[BPR-1568]]. Comment workshop › Guidance text, which opens
-		/// Agents & context with Review feedback chosen.
+		/// Agents with Review feedback chosen.
 		[[nodiscard]] auto workshop_guidance_link() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1088]]. Comment labels › Overview chips.
 		[[nodiscard]] auto label_columns_editor() const noexcept -> feedback_label_columns_editor*;
@@ -1637,7 +1637,7 @@ namespace bpr::qt {
 		void present_prompt_macros(const application::prompt_macro_projection& aProjection);
 		/// \brief Edit Quick Asks…: Settings › Prompts, brought into view.
 		void reveal_prompt_macros();
-		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
+		/// [[BPR-1301]]. Settings > Agents: its Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
 		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
 		/// Settings rows; an agent build adopts the setup into the tab.

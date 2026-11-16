@@ -7,6 +7,7 @@
 #include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/application_menu_wording.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -5952,7 +5953,7 @@ namespace {
 	}
 
 	// [[BPR-1916]], [[BPR-1917]]. `--attended-prompt-editor`: once the file
-	// shows, Settings opens on Agents & context with the built-in prompts,
+	// shows, Settings opens on Agents with the built-in prompts,
 	// and Problem statement is changed through its own Save to name the
 	// fixture home's `/fixture-technical-writer`, so the look starts on a
 	// changed prompt whose Reset and Preview the person tries. The skill
@@ -6014,7 +6015,7 @@ namespace {
 	// shows, the profile is given what a person shares, through Settings' own
 	// surfaces: two custom agents added through Add agent… (one asking for
 	// relaxed checks, builds and its scratch folder off) and two prompts
-	// edited and saved. Settings then opens on Agents & context, where Import
+	// edited and saved. Settings then opens on Agents, where Import
 	// configuration… and Export configuration… are. Nothing is run or
 	// checked. A profile that already has them is left as it is.
 	void schedule_attended_share_look(bpr::app::github_application& aApplication)
@@ -6190,9 +6191,11 @@ namespace {
 				step = 4;
 			} else if (step == 4) {
 				if (auto* const importing = dialog(QStringLiteral("agentConfigurationImport"))) {
-					auto* const summary = importing->findChild<QLabel*>(QStringLiteral("agentConfigurationSummary"));
-					if (summary == nullptr || !summary->text().contains(QStringLiteral("0 agents and 1 prompt."))) {
-						finish(QStringLiteral("ATTENDED_SHARE_FAILED:preview:%1").arg(summary != nullptr ? summary->text() : QString{ }));
+					// The agents came back as they went (Unchanged); the one
+					// improved prompt is the update, chosen as the window opens.
+					auto* const preview = static_cast<bpr::qt::agent_configuration_import_dialog*>(importing);
+					if (!preview->agent_choices().empty() || preview->prompt_choices().size() != 1U) {
+						finish(QStringLiteral("ATTENDED_SHARE_FAILED:preview:%1").arg(preview->summary()->text()));
 						return;
 					}
 					importing->findChild<QPushButton*>(QStringLiteral("agentConfigurationApply"))->click();
@@ -11750,6 +11753,10 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	QApplication qtApplication{ argc, argv };
+	// The owner, 2026-11-15: Settings… in the macOS application menu too,
+	// where Qt's Cocoa integration otherwise says Preferences…. Before any
+	// menu bar is built.
+	bpr::qt::install_application_menu_wording(qtApplication);
 	// [[BPR-1437]]. Read once, now that QApplication has taken its own options.
 	const auto launchLine = bpr::app::command_line::parse(QCoreApplication::arguments().mid(1), launch_options());
 	if (!launchLine || !launchLine->words().isEmpty()) {

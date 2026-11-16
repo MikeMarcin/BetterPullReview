@@ -36,7 +36,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	/// \brief [[BPR-1753]], RFC-BPR-0092, owner amendment 2026-10-23
 	/// ("for the actual settings it should be more like add agent"). Settings ›
-	/// Agents & context: the agents the Agent tab offers, in order, with
+	/// Agents: the agents the Agent tab offers, in order, with
 	/// **Add agent…** (Claude Code and Codex when found and not yet added, or a
 	/// custom agent), **Edit…**, **Remove**, **Move up** and **Move down**, and
 	/// **Set up agent…**.
@@ -232,7 +232,7 @@ namespace bpr::qt {
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D1). Settings ›
-	/// Agents & context › Review skill: the skill's text, Save, Restore
+	/// Agents › Review skill: the skill's text, Save, Restore
 	/// default, and a newer default's Compare, Use version N and Keep mine.
 	class review_skill_panel final : public QWidget
 	{

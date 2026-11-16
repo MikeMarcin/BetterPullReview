@@ -1361,7 +1361,7 @@ namespace bpr::app {
 		return AgentSetup ? core::decide_agent_check(application::agent_check_facts_of(AgentSetup->projection(), static_cast<bool>(AgentReview))) : core::agent_check_decision{ };
 	}
 
-	/// [[BPR-1859]]. Settings › Agents & context: Check agent as the
+	/// [[BPR-1859]]. Settings › Agents: Check agent as the
 	/// core offers it, with the setup's rows as the host published them.
 	void github_application::implementation::check_agent_from_settings()
 	{
@@ -2593,7 +2593,7 @@ namespace bpr::app {
 																					: QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
 				return;
 			}
-			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog };
+			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog, .Found = { }, .Profile = Profile->Admission.Label };
 			for (const auto& row : AgentSetup ? AgentSetup->projection().State.Rows : std::vector<core::agent_setup_row>{ }) {
 				if (!row.Path.empty()) {
 					facts.Found.push_back(row.Agent);

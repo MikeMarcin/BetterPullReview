@@ -1928,7 +1928,7 @@ auto main(int argc, char** argv) -> int
 			})) {
 			return fail(*application, "wrapper-setup-exact-entry");
 		}
-		// [[BPR-1859]]. Settings › Agents & context › Check agent runs the
+		// [[BPR-1859]]. Settings › Agents › Check agent runs the
 		// same check through the same host: while it runs it is not offered
 		// again and offers Stop; it passes inline, and once the program is
 		// gone it says so with its remedy.

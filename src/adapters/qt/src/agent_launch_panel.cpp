@@ -602,7 +602,7 @@ namespace bpr::qt {
 		// Owner decision 2026-10-23: a run the time limit ended says so.
 		if (aResult.Outcome == application::agent_run_outcome::timeout) {
 			StopReason = RunLimitMinutes == 0U ? tr("Stopped: the run took longer than the process allows.")
-											   : tr("Stopped at your time limit of %n minute(s). Settings › Agents & context turns it off or raises it.", nullptr, static_cast<int>(RunLimitMinutes));
+											   : tr("Stopped at your time limit of %n minute(s). Settings › Agents turns it off or raises it.", nullptr, static_cast<int>(RunLimitMinutes));
 		}
 		Status->setText(
 			QStringLiteral("Finished: %1")

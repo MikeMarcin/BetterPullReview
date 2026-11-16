@@ -361,7 +361,7 @@ namespace {
 		// window's bar carries, so closing the last window takes no menu off the
 		// macOS menu bar. The window's own presentation commands are offered and
 		// disabled, and Settings keeps the role macOS merges into the application
-		// menu, which is what keeps Preferences… there with no window open.
+		// menu, which is what keeps Settings… there with no window open.
 		auto* const view = menu.view_menu();
 		expect(view != nullptr && view->title() == QStringLiteral("&View"), "the desktop bar offers View");
 		const auto viewActions = view->actions();

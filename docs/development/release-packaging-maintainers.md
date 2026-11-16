@@ -343,7 +343,7 @@ Two CMake switches, both `ON` by default, remove code from the build:
 
 | Switch | `OFF` removes | Still present |
 |---|---|---|
-| `BPR_BUILD_AGENT_INTEGRATIONS` | The agent launch adapter and its protocol loop (`src/adapters/agent`), the application's invocation, chat, finding, comment-workshop and re-alignment hosts, the agent launch builder and provider protocol decoders in `agent_launch.cpp`, the MCP context helper executable and its supervisor, and their composition. The window withdraws the launch panel, side chat, finding queue, comment workshop, tour writing assistance, the private Ask agent and agent-assisted composition, and the Agents & context settings page. No agent profile is offered or resolved. | Review, local cycles, notes and suggestions, Copy, Save and the bundle, capture, comparisons, responses, verification, publication, private notes and private history, and every stored record, including those an agent wrote earlier |
+| `BPR_BUILD_AGENT_INTEGRATIONS` | The agent launch adapter and its protocol loop (`src/adapters/agent`), the application's invocation, chat, finding, comment-workshop and re-alignment hosts, the agent launch builder and provider protocol decoders in `agent_launch.cpp`, the MCP context helper executable and its supervisor, and their composition. The window withdraws the launch panel, side chat, finding queue, comment workshop, tour writing assistance, the private Ask agent and agent-assisted composition, and the Agents settings page. No agent profile is offered or resolved. | Review, local cycles, notes and suggestions, Copy, Save and the bundle, capture, comparisons, responses, verification, publication, private notes and private history, and every stored record, including those an agent wrote earlier |
 | `BPR_BUILD_LOCAL_AUTOMATION` | The desktop's owner command endpoint (no listener is bound) and the forwarded cycle commands it serves. `BPR_BUILD_TOUR_CLI` requires it, so the graph cannot build `bpr`. | Everything above, the single-instance activation endpoint, and the desktop's own in-process tour routing |
 
 The configure presets are `macos-release-agent-free`,
@@ -1019,7 +1019,7 @@ the new package.
 
 | Package name ends in | Removed | Still works |
 |---|---|---|
-| `-agent-free` | Agent launching, side chat, the finding queue, the comment workshop, tour writing assistance, the private **Ask agent**, agent-assisted composition, **Send to Agent**, the MCP context helper and the **Agents & context** settings page. | Review, Review Cycles, notes and suggestions, **Copy**, **Save** and the bundle, capture, comparisons, responses, verification, publication, private notes and history, and every stored record, including ones an agent wrote earlier. |
+| `-agent-free` | Agent launching, side chat, the finding queue, the comment workshop, tour writing assistance, the private **Ask agent**, agent-assisted composition, **Send to Agent**, the MCP context helper and the **Agents** settings page. | Review, Review Cycles, notes and suggestions, **Copy**, **Save** and the bundle, capture, comparisons, responses, verification, publication, private notes and history, and every stored record, including ones an agent wrote earlier. |
 | `-agent-free-automation-off` | All of the above, plus the local command endpoint that `bpr` talks to. | Everything above, single-instance activation, and tour routing inside the app. |
 
 The code is removed from the build, not just hidden. Replacing one variant with

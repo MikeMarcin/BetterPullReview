@@ -2964,6 +2964,16 @@ bpr_add_network_isolated_test(NAME qt_local_draft_window COMMAND test_local_draf
 set_tests_properties(qt_local_draft_window PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "local-draft-window:pass" TIMEOUT 120)
+# Owner, 2026-11-15: the Settings item reads Settings… in every menu, the
+# macOS application menu (Qt's MAC_APPLICATION_MENU "Preferences...") included.
+bpr_add_executable(test_better_pull_review_qt_application_menu_wording_tests application_menu_wording_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_application_menu_wording_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_application_menu_wording_tests)
+bpr_enable_warnings(test_better_pull_review_qt_application_menu_wording_tests)
+bpr_add_network_isolated_test(NAME qt_application_menu_wording COMMAND test_better_pull_review_qt_application_menu_wording_tests)
+set_tests_properties(qt_application_menu_wording PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "application-menu-wording:pass" TIMEOUT 120)
 # RFC-BPR-0128, owner look ask-v001. An Ask row: plain click asks (queued),
 # Shift+click drafts, right click opens the row's own menu.
 bpr_add_executable(test_better_pull_review_qt_ask_menu_tests ask_menu_tests.cpp)
