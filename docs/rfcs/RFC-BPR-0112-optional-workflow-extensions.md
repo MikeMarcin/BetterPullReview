@@ -24,6 +24,27 @@ Evidence, Description and Tour remain usable; selecting/importing an
 enterprise-shaped configuration does not make unrelated drafts or existing
 BPR features depend on it."
 
+## Owner amendment: Author, the author's mode (2026-11-15)
+
+The owner rejected the Workflow area that took over a local draft's Status
+drawer (look `workflow-v001`: "What the heck happend to my status drawer?")
+and accepted, after two design rounds, design `local-draft-workflow-v2`
+(session `273f0aafcc76fd284605b51649bbdbdf`, all six recommended defaults;
+"we got rid of the notes tab"). The native author workbench of AC07 is
+**Author**, a fifth mode on Command-5, present only when the viewer owns the
+pull request or the local draft. Its drawer opens on **Workflow**, the
+author's checklist: a filled mark is something BetterPullReview saw, an
+outlined Reported mark is something a companion reported, who runs each
+row is said once, and the agent accent is on agent rows alone. A local
+draft's publish steps live there, so a local draft has no Status tab until
+its pull request exists; Status keeps its single meaning. The one handoff
+is at the right end of Author's bar: Create Draft PR… (Hand Off Plan… when
+the workflow's publisher is chosen), Ready for review, or Publish update….
+The Edit view and the Changes tab (This update) leave Review for Author.
+[BPR-2196](../issues/30-in-progress/BPR-2196-author-the-authors-mode.md)
+builds it; the acceptance criteria are unchanged. The design named the mode
+Revise; the owner renamed it before it landed: "I changed my mind, make it Author".
+
 ## Problem and grounded current behavior
 
 The user's enterprise create-PR skill combines classification, ticket work,
@@ -213,6 +234,6 @@ These rules come from the [reconciliation record](assets/v0-5-0-prerelease-targe
 after local tour preparation; their acceptance covers preparation and needs
 neither publication nor an effectful action.
 [Effectful handoff and recovery](../issues/60-done/BPR-2034-hand-off-effectful-actions-and-recover-their.md) and
-[closeout](../issues/40-parked/BPR-2035-close-rfc-0112.md) form the final [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json)
+[closeout](../issues/10-backlog/BPR-2035-close-rfc-0112.md) form the final [milestone](plans/v0-5-0-prerelease-targets-v1/milestone-plan.json)
 after built-in publication, including the end-to-end independence check. The
 owner's answer on the effect route is in [Decisions](assets/v0-5-0-prerelease-targets-v1/local-drafts/DECISIONS.md#resolved-product-choices).

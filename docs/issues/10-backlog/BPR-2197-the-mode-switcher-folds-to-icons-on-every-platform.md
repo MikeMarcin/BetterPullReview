@@ -3,7 +3,7 @@ schema: "implement-rfc.card.v1"
 id: "BPR-2197"
 title: "The mode switcher folds to icons on every platform"
 status: "Backlog"
-rfcs: []
+rfcs: ["RFC-BPR-0112"]
 metadata: {"design":"docs/design/windows-title-fit-v2/README.md","design_branch":"claude/windows-title-fit-mockups","design_revision":"615bd65c8","design_session":"20c49e523db3f8c071bda18a1ee8d2bd","earlier_design_session":"1073f45be455a420999e60fd5e502ee3","owner_decision":{"date":"2026-11-15","quote":"I think all 3 platforms should do the same icon on narrow trick."},"reservation":"docs/issues/_reservations/BPR-2197--BPR-2197--36dc5cc18504.json"}
 depends_on: ["BPR-2196"]
 ---
