@@ -74,6 +74,8 @@ namespace bpr::qt::detail {
 		/// Where a row's parts go at `aWidth`.
 		struct row_geometry
 		{
+			/// A section's disclosure triangle; empty where it has none.
+			QRect   Disclosure;
 			QRect   Check;
 			QPointF Mark;
 			QRect   Name;
@@ -88,6 +90,9 @@ namespace bpr::qt::detail {
 		constexpr auto heading_air      = 14;
 		constexpr auto heading_below    = 4;
 		constexpr auto sparkle_side     = 13;
+		/// The disclosure triangle's box, and the room a section row gives it.
+		constexpr auto disclosure_side  = 12;
+		constexpr auto disclosure_width = 16;
 
 		[[nodiscard]] auto name_font(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> QFont
 		{
@@ -112,6 +117,16 @@ namespace bpr::qt::detail {
 			return aIndex.siblingAtColumn(1).isValid() ? aIndex.siblingAtColumn(1).data(Qt::DisplayRole).toString() : QString{ };
 		}
 
+		/// [[BPR-2204]] (owner, look profile-settings-dialogs-v001: "It might be
+		/// nice if the tree branches on the left were collapsable"). A tree whose
+		/// items expand gives each section row a disclosure triangle before its
+		/// tick; every section keeps the triangle's room so their ticks line up.
+		[[nodiscard]] auto disclosure_room(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> bool
+		{
+			const auto* const tree = qobject_cast<const QTreeView*>(aOption.widget);
+			return tree != nullptr && tree->itemsExpandable() && !aIndex.parent().isValid();
+		}
+
 		[[nodiscard]] auto lay_out_row(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex, const QRect& aRect) -> row_geometry
 		{
 			auto        geometry = row_geometry{ };
@@ -121,9 +136,15 @@ namespace bpr::qt::detail {
 			const auto  names    = QFontMetrics{ nameFace };
 			const auto  seconds  = QFontMetrics{ secondary_font(aOption.font) };
 			const auto  lineH    = names.height();
-			const auto  left     = aRect.left() + row_inset_x;
+			auto        left     = aRect.left() + row_inset_x;
 			// A section's own row opens with more room above it.
-			const auto top      = aRect.top() + row_inset_top + (aIndex.data(row_strong_role).toBool() ? 8 : 0);
+			const auto top = aRect.top() + row_inset_top + (aIndex.data(row_strong_role).toBool() ? 8 : 0);
+			if (disclosure_room(aOption, aIndex)) {
+				if (aIndex.model()->hasChildren(aIndex)) {
+					geometry.Disclosure = QRect{ left - 2, top + (lineH - disclosure_side) / 2, disclosure_side, disclosure_side };
+				}
+				left += disclosure_width;
+			}
 			const auto right    = aRect.right() - row_inset_x;
 			const auto tickW    = style->pixelMetric(QStyle::PM_IndicatorWidth, &aOption, widget);
 			const auto tickH    = style->pixelMetric(QStyle::PM_IndicatorHeight, &aOption, widget);
@@ -528,7 +549,29 @@ namespace bpr::qt::detail {
 		}
 		const auto geometry = lay_out_row(option, aIndex, option.rect);
 		const auto flags    = aIndex.flags();
-		const auto mark     = static_cast<row_mark>(aIndex.data(row_mark_role).toInt());
+		if (!geometry.Disclosure.isEmpty()) {
+			// A chevron in the secondary colour: right when collapsed, down when open.
+			const auto* const tree = qobject_cast<const QTreeView*>(widget);
+			const auto        open = tree != nullptr && tree->isExpanded(aIndex);
+			const auto        box  = QRectF{ geometry.Disclosure }.adjusted(3.0, 3.0, -3.0, -3.0);
+			auto              path = QPainterPath{ };
+			if (open) {
+				path.moveTo(box.left(), box.top() + box.height() * 0.3);
+				path.lineTo(box.center().x(), box.top() + box.height() * 0.75);
+				path.lineTo(box.right(), box.top() + box.height() * 0.3);
+			} else {
+				path.moveTo(box.left() + box.width() * 0.3, box.top());
+				path.lineTo(box.left() + box.width() * 0.75, box.center().y());
+				path.lineTo(box.left() + box.width() * 0.3, box.bottom());
+			}
+			aPainter->save();
+			aPainter->setRenderHint(QPainter::Antialiasing, true);
+			aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::PlaceholderText), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter->setBrush(Qt::NoBrush);
+			aPainter->drawPath(path);
+			aPainter->restore();
+		}
+		const auto mark = static_cast<row_mark>(aIndex.data(row_mark_role).toInt());
 		if (flags.testFlag(Qt::ItemIsUserCheckable)) {
 			// The style's own check box, as the design's ticks are, not the
 			// item view's grey check.
@@ -588,6 +631,19 @@ namespace bpr::qt::detail {
 	auto settings_row_delegate::editorEvent(QEvent* const aEvent, QAbstractItemModel* const aModel, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> bool
 	{
 		const auto flags = aIndex.flags();
+		if (aEvent->type() == QEvent::MouseButtonRelease || aEvent->type() == QEvent::MouseButtonDblClick) {
+			// The disclosure triangle opens and closes its section.
+			auto option = aOption;
+			initStyleOption(&option, aIndex);
+			const auto disclosure = lay_out_row(option, aIndex, option.rect).Disclosure.adjusted(-4, -4, 4, 4);
+			auto*      tree       = const_cast<QTreeView*>(qobject_cast<const QTreeView*>(aOption.widget));
+			if (tree != nullptr && !disclosure.isEmpty() && disclosure.contains(static_cast<QMouseEvent*>(aEvent)->position().toPoint())) {
+				if (aEvent->type() == QEvent::MouseButtonRelease && static_cast<QMouseEvent*>(aEvent)->button() == Qt::LeftButton) {
+					tree->setExpanded(aIndex, !tree->isExpanded(aIndex));
+				}
+				return true;
+			}
+		}
 		if (!flags.testFlag(Qt::ItemIsUserCheckable) || !flags.testFlag(Qt::ItemIsEnabled)) {
 			return false;
 		}

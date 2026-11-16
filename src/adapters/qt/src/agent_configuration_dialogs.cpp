@@ -340,12 +340,15 @@ namespace bpr::qt {
 		// row's second line, and a child's tick sits under its section's name.
 		Items->setHeaderHidden(true);
 		Items->setColumnHidden(1, true);
+		// [[BPR-2204]] (owner, look profile-settings-dialogs-v001). Sections
+		// collapse: the row delegate draws each one's triangle, Left and Right
+		// close and open it, and all start open.
 		Items->setRootIsDecorated(false);
-		Items->setItemsExpandable(false);
+		Items->setItemsExpandable(true);
 		Items->setExpandsOnDoubleClick(false);
 		Items->setUniformRowHeights(false);
 		Items->setSelectionMode(QAbstractItemView::SingleSelection);
-		Items->setIndentation(style()->pixelMetric(QStyle::PM_IndicatorWidth) + 7);
+		Items->setIndentation(style()->pixelMetric(QStyle::PM_IndicatorWidth) + 7 + 16);
 		// [[BPR-2198]]. Each section starts as the core says
 		// (`core::exported_by_default`): ticked, but for Identity.
 		const auto  ticked = [](const profile_settings_section aSection) { return core::exported_by_default(aSection) ? Qt::Checked : Qt::Unchecked; };

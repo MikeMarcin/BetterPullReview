@@ -22,6 +22,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -99,6 +100,72 @@ namespace {
 		expect(aWidget.grab().save(QString::fromStdString(aRoot) + QLatin1Char('/') + aName + QLatin1Char('-') + scheme + QStringLiteral(".png")), "render saved");
 	}
 
+	/// [[BPR-2204]] (owner, look profile-settings-dialogs-v001: "It might be
+	/// nice if the tree branches on the left were collapsable"). Every section
+	/// starts open; its triangle, or Left and Right, close and open it; a
+	/// closed section still shows its tick, the partial dash included.
+	void test_export_sections_collapse(qt::agent_configuration_export_dialog& aDialog)
+	{
+		using core::profile_settings_section;
+		auto* const tree = aDialog.items();
+		aDialog.show();
+		settle();
+		for (const auto section : { profile_settings_section::agents, profile_settings_section::prompts, profile_settings_section::identity, profile_settings_section::repositories }) {
+			expect(aDialog.section(section)->isExpanded(), "every section starts open");
+		}
+		auto* const prompts = aDialog.section(profile_settings_section::prompts);
+		const auto  index   = tree->indexFromItem(prompts);
+		// Left closes the section the cursor is on, Right opens it again.
+		tree->setFocus();
+		tree->setCurrentItem(prompts);
+		auto left = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
+		QApplication::sendEvent(tree, &left);
+		settle();
+		expect(!prompts->isExpanded(), "Left closes a section");
+		auto right = QKeyEvent{ QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier };
+		QApplication::sendEvent(tree, &right);
+		settle();
+		expect(prompts->isExpanded(), "Right opens it");
+		// The triangle, at the row's left, closes it with a click.
+		const auto row     = tree->visualRect(index);
+		const auto at      = QPointF{ static_cast<qreal>(row.left() + 14), static_cast<qreal>(row.top() + 14 + 8) };
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, tree->viewport()->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, tree->viewport()->mapToGlobal(at), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(tree->viewport(), &press);
+		QApplication::sendEvent(tree->viewport(), &release);
+		settle();
+		expect(!prompts->isExpanded(), "its triangle closes it");
+		// Closed, its tick still follows its items: all ticked, some (the
+		// partial dash) and none each draw a different tick.
+		const auto tick = [tree, row] {
+			settle();
+			return tree->viewport()->grab(QRect{ row.left() + 20, row.top(), 32, 40 }).toImage();
+		};
+		const auto all       = tick();
+		auto*      checkable = static_cast<QTreeWidgetItem*>(nullptr);
+		for (int child = 0; child < prompts->childCount(); ++child) {
+			if (prompts->child(child)->flags().testFlag(Qt::ItemIsUserCheckable)) {
+				checkable = prompts->child(child);
+			}
+		}
+		checkable->setCheckState(0, Qt::Unchecked);
+		const auto some = tick();
+		for (int child = 0; child < prompts->childCount(); ++child) {
+			if (prompts->child(child)->flags().testFlag(Qt::ItemIsUserCheckable)) {
+				prompts->child(child)->setCheckState(0, Qt::Unchecked);
+			}
+		}
+		const auto none = tick();
+		expect(all != some && some != none && all != none, "a closed section's tick shows all, some (the dash) or none");
+		expect(aDialog.prompts().empty(), "and what is chosen is unchanged by closing");
+		aDialog.all_prompts_button()->click();
+		settle();
+		QApplication::sendEvent(tree->viewport(), &press);
+		QApplication::sendEvent(tree->viewport(), &release);
+		settle();
+		expect(prompts->isExpanded(), "and opens it again");
+	}
+
 	[[nodiscard]] auto test_export(const std::string& aRoot) -> std::string
 	{
 		auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
@@ -156,6 +223,7 @@ namespace {
 		dialog.label_field()->setText(QStringLiteral("Team"));
 		expect(dialog.bytes().find("\"label\": \"Team\"") != std::string::npos, "the label is in the text");
 		render(dialog, aRoot, QStringLiteral("export"));
+		test_export_sections_collapse(dialog);
 		dialog.set_file_chooser([] { return QStringLiteral("/tmp/agents.json"); });
 		dialog.export_button()->click();
 		expect(dialog.result() == QDialog::Accepted && dialog.chosen_path() == QStringLiteral("/tmp/agents.json"), "Export… asks where and closes");

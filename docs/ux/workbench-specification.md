@@ -2618,8 +2618,13 @@ own. An update is a table of yours beside the file's, with a header band,
 hairlines between rows and sides, each action's lines level on both sides, a
 new action's cell washed teal with New action at its top right, and an
 added effect in the caution colour. Each item opens at the top of its
-detail. Export's right side is the file's label, then the file's exact text
-in its own well. Every colour is a palette role or a theme role.
+detail. Export's sections collapse (owner, look
+profile-settings-dialogs-v001): each section row has a disclosure triangle
+before its tick, all start open, Left and Right close and open the one with
+the cursor, and a closed section's tick still shows all, some (a dash) or
+none of its items. Import's sections are headings without ticks and stay
+open. Export's right side is the file's label, then the file's exact text in
+its own well. Every colour is a palette role or a theme role.
 
 RFC-BPR-0033's chooser, shown when no window exists (Manage Profiles… on the
 resident macOS menu bar, or a failure no window can carry), is the desktop's
