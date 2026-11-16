@@ -48,6 +48,13 @@ stores, cites or reintroduces evidence.
   and runs the plan as Bash tool calls in its working folder; "touch" really
   rewrites the copy's first file.
 
+## Commits
+
+`d0c5774bd` (the check), `a4fcaf5ed` (its hunks in `window_quick_ask.cpp`
+and `agent_setup_store.cpp`), `9153284be` (production app manifest pin
+`69855406…`, computed with `BPR_PRINT_PINNED_DIGESTS` over `git archive
+HEAD src/app`).
+
 ## Verification so far
 
 - `core_local_draft_check` (new) and `core_local_draft_tour` pass.
@@ -59,15 +66,15 @@ stores, cites or reintroduces evidence.
 
 ## Pending
 
-- Finish the desktop course; run the affected suites (settings storage
+- Rerun `application_local_draft_check_desktop_public_path` (its last
+  edit, test-only, commits a new candidate before the limit check; the run
+  was queued behind another lane's app build); run the affected suites (settings storage
   schema 33, prompts panel, writing delivery, agent configuration sharing,
   architecture boundaries, the tour desktop course); format; reseal the app
   source pin (`bpr_expected_production_app_manifest_digest` in
   `tests/end_to_end/application_review_round_trip_composition_contract.cmake`)
-  over this commit's tree only, since other implementers' src/app edits are
-  uncommitted in the same worktree.
-- Commit explicit paths and only this card's hunks (`window_quick_ask.cpp`,
-  `agent_setup_store.cpp` and others carry other lanes' changes).
+  over this commit's tree only (done at `9153284be`; reseal again if
+  src/app changes).
 - AC07: freeze with `--attended-local-draft PATH --attended-local-draft-check`
   (scripted through the side chat with the Fixture agent; ready line
   `ATTENDED_LOCAL_DRAFT_CHECK_SHOWN`), generated worktree
