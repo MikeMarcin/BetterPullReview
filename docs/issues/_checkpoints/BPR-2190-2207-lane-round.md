@@ -5,43 +5,28 @@ five cards in order, fixing the real cause of each and repairing the course
 that proves it. Other implementers share this tree (BPR-2152/2154 queue and
 steer, BPR-2189 local-draft check), so each commit names its paths.
 
-## State
+## State (end of round)
 
 | Card | State | Commits |
 |---|---|---|
-| BPR-2207 | Done, mirrored to main | `b59d7c61d`, card `81d6a6108` (main `ad2ec51f0`) |
-| BPR-2206 | Done, mirrored to main | `2185e9ab3`, card `d95a96006` (main `cbab7bcd3`) |
-| BPR-2190 | AC01 and AC02 met; AC03 (owner's look at the shorter footer) pending | `0e5f2e1e1`, pin `984dd4696` |
-| BPR-2194 | Code done, uncommitted until its 10x repeats finish | see below |
-| BPR-2195 | Log keeping written, uncommitted; reproduction under load running | see below |
+| BPR-2207 | Done, mirrored to main | `b59d7c61d`, card `81d6a6108` |
+| BPR-2206 | Done, mirrored to main | `2185e9ab3`, card `d95a96006` |
+| BPR-2190 | Parked on human review (AC03: the shorter footer) | `0e5f2e1e1`, pin `984dd4696`, card `51a2a661a` |
+| BPR-2194 | Built; Backlog, depends on BPR-2195 for its pending-states repeats | `18c55f938` |
+| BPR-2195 | Open: log keeping done, stage found (a cancelled revision_prepare whose abort_preparation fails) | `ade6b9a55`, evidence `ae87166d1` |
 
-## Uncommitted, mine
-
-- BPR-2194: `src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp`,
-  `src/adapters/qt/include/bpr/qt/workbench_window.hpp`,
-  `src/adapters/qt/src/pull_request_overview_files_interaction.cpp`,
-  `src/adapters/qt/src/pull_request_overview_presentation.cpp`,
-  `src/adapters/qt/src/workbench_window_drafts_and_behaviour.cpp`,
-  `src/adapters/qt/src/workbench_window_github_presentation.cpp`,
-  `src/adapters/qt/src/workbench_window_repositories_and_files.cpp`,
-  `tests/end_to_end/progressive_open_public_path_tests.cpp`. Qt's
-  `PendingReviewPath`, `open_pending_review_path` and the Overview page's own
-  `PendingOpen` fallback are removed. In the window the Overview's
-  activation while loading always went to `wait_for_review_at`, which hands
-  the path to the host (BPR-2191's `open_when_listed`), so the Qt path was
-  dead. Checks so far: `application_workbench_host` and `qt_pending_veil`
-  pass.
-- BPR-2195: `tests/end_to_end/private_data_root.hpp`
-  (`e2e::course_logs_on_failure`), `tests/end_to_end/pending_states_public_path_tests.cpp`,
-  `tests/end_to_end/CMakeLists.txt` (`BPR_COURSE_LOG_ROOT` for the course).
+Nothing of this round is left uncommitted. The temporary abort_preparation
+probes were removed.
 
 ## Next action
 
-1. Read `ctest -R 'progressive_open|pending_states' --repeat until-fail:10`
-   (log in the session scratch, `t-2194.log`). Commit BPR-2194 and close its
-   card on the lane and on main.
-2. Read the concurrent copies (scratch `b2195/s1`). For each failure, read
-   `COURSE_LOGS_KEPT` and find the last epoch stage and reason in the kept
-   diagnostic log.
-3. BPR-2190 AC03: the owner judges the footer, now one status line tall, in
-   a frozen build. Park the card on human review.
+1. BPR-2190 AC03: freeze a tests-on build whose pull request window shows
+   the footer, open a new short attended-review session, and ask one Accept
+   or Reject question on the footer's look.
+2. BPR-2195: make `abort_preparation` report through the host's diagnostics
+   which step refused. Reproduce under compile-like I/O load and read the
+   kept log. Fix, and add a deterministic host course whose catalog port
+   refuses the abort append once.
+3. BPR-2194: once BPR-2195 is fixed, run
+   `application_pending_states_public_path --repeat until-fail:10` and close
+   the card.
