@@ -6742,9 +6742,14 @@ namespace {
 		// [[BPR-1815]]. The view controls take the width the dates had at 1280:
 		// there the dates yield first, as they always have, and they return by
 		// 1366, the common laptop width.
-		expect(composeButton->text() == QStringLiteral("Approve…") && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
+		// [[BPR-2200]]. Segoe UI 9 pt, a Windows desktop's font, fits the
+		// whole wording at 1280 (the bar asks 1234); macOS's yields to
+		// "Approve…". Either keeps words beside the pencil.
+		expect(composeButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
+				   && (composeButton->text() == QStringLiteral("Approve…") || composeButton->text() == QStringLiteral("Approve or comment…"))
+				   && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
 				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40") && window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS")),
-			   "at 1280 the review bar fits the view controls, the position and \"Approve…\", and the title row names the pull request whole");
+			   "at 1280 the review bar fits the view controls, the position and the approve command's words, and the title row names the pull request whole");
 		window.resize(1'366, 852);
 		process_events();
 		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
