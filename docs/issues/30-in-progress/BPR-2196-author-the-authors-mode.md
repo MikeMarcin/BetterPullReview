@@ -62,3 +62,18 @@ RFC-BPR-0112 because it replaces that RFC's rejected Workflow area
 case, handoff, checklist marks); a Qt course for the switcher and Command-5;
 the RFC-BPR-0112 courses updated to the new surfaces; owner look
 `workflow-v002` through BPR-2035.
+
+## Owner look workflow-v002 filed (2026-11-15)
+
+Session `1d68e30d0ac7b53a07163a1f10777bdf`, state
+`/Users/jaeger/.attended-review-state/workflow-v002-2026-11-15/state` (URL in
+that directory's `serve.log`), cursor 12, host PID 57962 (Tailscale child
+57974). Frozen root `/Users/jaeger/workflow-v002.1z4xyif5` from `6867e30ef06e`
+(executable SHA-256 `0fb49352ee56…`; the launcher's check reached
+`ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN` with 5 actions and started no real
+agent). Four questions, one each: `BPR-2196-author-mode` (Author and the
+switcher, including the file pane's three views), `BPR-2035-workflow-tab`
+(AC07), `BPR-2032-workflow-import-preview` (AC02's preview) and
+`BPR-2033-agent-accent-on-actions` (AC09). If all four are accepted,
+BPR-2196 is Done, and BPR-2035 closes RFC-BPR-0112 (Auto-Verified) once
+BPR-2197 is Done too.
