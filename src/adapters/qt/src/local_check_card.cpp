@@ -2,6 +2,7 @@
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "wrapping_row.hpp"
 
 #include <QCheckBox>
 #include <QFontDatabase>
@@ -114,11 +115,12 @@ namespace bpr::qt {
 			builds->setEnabled(aToggles.Enabled);
 			builds->setToolTip(tr("Lets the agent build and run this change's tests in the check copy, with your account's rights, for this local draft and agent. "
 								  "The build programs run with any arguments, including commands that install or publish."));
-			auto* const toggles = new QHBoxLayout{ };
+			// The side chat can be narrower than both toggles: they wrap rather
+			// than widen the card past the chat.
+			auto* const toggles = new detail::wrapping_row{ nullptr, 12, 4 };
 			toggles->setContentsMargins(0, 0, 0, 0);
 			toggles->addWidget(scratch);
 			toggles->addWidget(builds);
-			toggles->addStretch(1);
 			column->addLayout(toggles);
 			const auto changed = [this, scratch, builds] {
 				if (Dispatch.Grants) {

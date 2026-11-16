@@ -338,6 +338,8 @@ try {
 		auto* run = card->findChild<QPushButton*>(QStringLiteral("localCheckRun"));
 		expect(!run->isEnabled() && run->toolTip().contains(QStringLiteral("Allow build and run tests")), "AC01: Run is unavailable while a needed grant is off, naming the toggle");
 		capture(window, QStringLiteral("local-check-plan"));
+		capture(*s.chat(), QStringLiteral("local-check-plan-chat"));
+		expect(card->minimumSizeHint().width() <= s.chat()->width() && card->width() <= s.chat()->width(), "the plan card fits the side chat's width: its toggles wrap rather than widen it");
 
 		// The first build asks; No keeps it off.
 		s.BuildAnswer = false;
@@ -370,6 +372,7 @@ try {
 		expect(window.report_view()->isVisible() && shown.startsWith(QStringLiteral("# Passed")) && shown.contains(QStringLiteral("Checked candidate 1")),
 			   "AC03: the report opens as a file tab with its outcome and candidate");
 		capture(window, QStringLiteral("local-check-passed-report"));
+		capture(*s.chat(), QStringLiteral("local-check-passed-report-chat"));
 
 		// AC01, AC02, AC04: a failing plan with a tracked file changed; a
 		// live edit and a new candidate during its run.
@@ -410,6 +413,7 @@ try {
 				   && shown.contains(QStringLiteral("parser_tests: expected 3, got 2")) && shown.contains(QStringLiteral("not tested as written")) && shown.contains(QStringLiteral("## Not covered")),
 			   "AC03: the failing report's commands, output, changed files and gaps");
 		capture(window, QStringLiteral("local-check-failed-report"));
+		capture(*s.chat(), QStringLiteral("local-check-failed-report-chat"));
 		const auto reference = core::check_reference_link(report.Report->References.front());
 		window.report_view()->follow(QString::fromStdString(reference));
 		settle(s.Lanes);
