@@ -67,3 +67,13 @@ Not built, so AC01 ("every in-scope chat") is not met:
 
 AC08's states, AC09 and the Agent tab's part of AC01 have evidence; the card
 stays In Progress for the tour chats and the local draft discussion.
+
+## Looks
+
+- `queue-sent-v001`, filed 2026-11-15, not waited on: session
+  `b9d07626e46d2797ec280c09d469bec4`, state
+  `/Users/jaeger/.attended-review-state/queue-sent-v001-2026-11-15/state`
+  (URL in `serve.log` beside it), cursor 3, served on the tailnet (host PID
+  79132, Tailscale child 79214). Root `/Users/jaeger/queue-sent-v001.o2z5din9`
+  from `cf2c6d800`, `returning-review-v1` with `--next-push`, Fixture agent.
+  One question, `BPR-2154-sent-to-agent`.
