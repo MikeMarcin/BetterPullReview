@@ -163,8 +163,11 @@ try {
 	expect(temporary.isValid(), "private pending-states course root");
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private desktop root under the canonical storage policy");
-	auto delay                     = std::make_shared<app::detail::github_read_delay_fixture>();
-	auto options                   = app::detail::github_public_path_fixture_options{ };
+	// [[BPR-2195]]. A failure keeps the host's diagnostic log, which names the
+	// stage that failed, after the root is removed.
+	const auto keepLogs            = e2e::course_logs_on_failure{ temporary, "pending-states" };
+	auto       delay               = std::make_shared<app::detail::github_read_delay_fixture>();
+	auto       options             = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
 	options.IndependentWindowReads = true;

@@ -5194,8 +5194,10 @@ target_compile_features(test_pending_states_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_pending_states_public_path)
 bpr_enable_warnings(test_pending_states_public_path)
 bpr_add_network_isolated_test(NAME application_pending_states_public_path WINDOWS_UNCONTAINED COMMAND test_pending_states_public_path)
+# [[BPR-2195]]. A failed run keeps the host's diagnostic log here: the
+# network-isolation runner points TMPDIR into a root it removes.
 set_tests_properties(application_pending_states_public_path PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 400
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_COURSE_LOG_ROOT=${CMAKE_CURRENT_BINARY_DIR}/course-logs" TIMEOUT 400
     PASS_REGULAR_EXPRESSION "pending-states-public-path:pass")
 
 # [[BPR-1842]]. Opening a pull request becomes usable as its parts arrive: the

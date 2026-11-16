@@ -30,6 +30,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
 #include <QElapsedTimer>
@@ -40,9 +41,12 @@
 #include <QThread>
 
 #include <chrono>
+#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <string>
+#include <system_error>
 
 namespace bpr::e2e {
 	/// \brief Narrows `aTemporary` to owner-private and creates the course's
@@ -107,6 +111,66 @@ namespace bpr::e2e {
 		}
 		return false;
 	}
+
+	/// \brief [[BPR-2195]]. Keeps a failed course's diagnostic logs once its
+	/// private root is removed.
+	/// \details The host's diagnostic log, which names the stage a failure
+	/// came from, is written under the course's application data root, and a
+	/// failing course unwinds through its `QTemporaryDir`, which removes it.
+	/// Declared after that directory, this is destroyed first: when it is
+	/// destroyed by a failure's unwinding it copies every `logs` folder under
+	/// the directory to `BPR_COURSE_LOG_ROOT`, in a folder named for the
+	/// course, the time and the process. The course's CTest entry names a root
+	/// in the build tree: the network-isolation runner points `TMPDIR` into a
+	/// root it removes. Without one the copy goes to `bpr-course-logs` in the
+	/// system temporary directory. It prints `COURSE_LOGS_KEPT:<folder>`. A course
+	/// that passes, or a failure that exits without unwinding, keeps nothing.
+	class course_logs_on_failure final
+	{
+	public:
+		course_logs_on_failure(const QTemporaryDir& aTemporary, std::string aCourse)
+			: Root{ aTemporary.path() }
+			, Course{ std::move(aCourse) }
+			, Unwinding{ std::uncaught_exceptions() }
+		{ }
+		course_logs_on_failure(const course_logs_on_failure&)                    = delete;
+		auto operator=(const course_logs_on_failure&) -> course_logs_on_failure& = delete;
+		~course_logs_on_failure()
+		{
+			if (std::uncaught_exceptions() > Unwinding) {
+				keep();
+			}
+		}
+
+	private:
+		void keep() const noexcept
+		{
+			try {
+				const auto configured = qEnvironmentVariable("BPR_COURSE_LOG_ROOT");
+				const auto base       = configured.isEmpty() ? QDir{ QDir::tempPath() }.filePath(QStringLiteral("bpr-course-logs")) : configured;
+				const auto stamp      = QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMddTHHmmsszzz"));
+				const auto target     = QDir{ base }.filePath(QStringLiteral("%1-%2-%3").arg(QString::fromStdString(Course), stamp, QString::number(QCoreApplication::applicationPid())));
+				const auto from       = std::filesystem::path{ Root.toStdString() };
+				const auto to         = std::filesystem::path{ target.toStdString() };
+				auto       kept       = 0;
+				auto       folders    = QDirIterator{ Root, { QStringLiteral("logs") }, QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories };
+				while (folders.hasNext()) {
+					const auto folder = std::filesystem::path{ folders.next().toStdString() };
+					auto       error  = std::error_code{ };
+					std::filesystem::create_directories(to / folder.lexically_relative(from), error);
+					std::filesystem::copy(folder, to / folder.lexically_relative(from), std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing, error);
+					kept += error ? 0 : 1;
+				}
+				std::cerr << (kept > 0 ? "COURSE_LOGS_KEPT:" : "COURSE_LOGS_NONE:") << QDir::toNativeSeparators(target).toStdString() << '\n';
+			} catch (...) {
+				std::cerr << "COURSE_LOGS_NOT_KEPT\n";
+			}
+		}
+
+		QString     Root;
+		std::string Course;
+		int         Unwinding = 0;
+	};
 } // namespace bpr::e2e
 
 #endif // BPR_TESTS_END_TO_END_PRIVATE_DATA_ROOT_HPP
