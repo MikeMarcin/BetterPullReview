@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2154"
 title: "The composer queues and steers, and shows every pending, sent and uncertain input"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0126"]
 depends_on: ["BPR-2151", "BPR-2153"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2151--BPR-2155--573d6ab3248e.json","milestone_plan":{"id":"queue-and-steer-v1","path":"docs/rfcs/plans/queue-and-steer-v1/milestone-plan.json"},"criteria":["AC01","AC08","AC09"],"origin":"imported 2026-11-12 from queue-and-steer-v1 (RFC-DRAFT-0001); the draft defined no cards, they were cut at import"}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"4bda08895","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R '^(application_ask_queue_public_path|application_agent_queue_windows_public_path|application_tour_chat_queue_(stop|whole_tour|local_draft)_public_path)$'","detail":"Queue/Steer, Cmd+Return the other once, pending list with Edit, Remove, reorder in the Agent tab, every tour part, the whole tour after its first draft and the local draft discussion; rerun passing at 76f59f17a. Owner Accepts queue-stop-chat fe28ba85, queue-local-draft 98472c89 (queue-tour-v001) and steered-in-transcript a669056b (queue-tour-v003)."}},{"criterion":"AC08","outcome":"pass","revision":"4bda08895","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R '^(application_agent_steer_(sent|unavailable)_public_path|qt_agent_steering_fixture|application_tour_feedback_queue_public_path|application_tour_chat_queue_.*_public_path)$'","detail":"Sent to agent, Delivery unknown with Discard, Paused and Resume queue, Stop beside Queue; a queued tour message revises the proposal and accepts or publishes nothing. Owner Accept BPR-2154-sent-to-agent e795a561 (queue-sent-v001). Rerun passing at 76f59f17a."}},{"criterion":"AC09","outcome":"pass","revision":"4bda08895","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R '^(qt_agent_footer|application_review_agent_runtime)$'","detail":"Stop all in the agent footer's fixed slot, named and focusable, stops every turn and pauses every queue (test_stop_all_is_the_hosts); a local draft question stands in the Tour chat slot. Stop all accepted in look prompts-v004. Rerun passing at 76f59f17a."}}]
 ---
 
 # BPR-2154: The composer queues and steers, and shows every pending, sent and uncertain input
@@ -316,3 +317,40 @@ remove it with the root). One Accept/Reject question,
 and stays on its turn. Its note names the remaining differences (Sent to
 agent stays in the pending list until the turn ends, as in the Agent tab; a
 first tour draft or description draft can't be steered).
+
+### Look queue-tour-v003 handed back (2026-11-16)
+
+Session `0f0bf2f5bd323f318366b52cf0e71dc0`, handed back at sequence 5:
+`steered-in-transcript` **Accepted** by the owner, no note (decision
+`a669056b-163a-43c6-a496-a277de4a1143`, candidate fingerprint
+`7e2edc608c71…`, read from the session's own state). Host 21140/21151
+stopped; root `/Users/jaeger/queue-tour-v003.wtief4r1` removed with
+`freeze_attended_build.py remove`; the draft folder
+`/Users/jaeger/queue-tour-v003-draft` (its own repositories, no linked
+worktree or alternates) removed.
+
+## Closeout (2026-11-16)
+
+- **AC01**: the Agent tab (`application_ask_queue_public_path`,
+  `application_agent_queue_windows_public_path`, looks prompts-v001 to v004),
+  the tour parts, the whole tour after its first draft and the local draft
+  discussion (`application_tour_chat_queue_{stop,whole_tour,local_draft}_public_path`);
+  owner Accepts `queue-stop-chat` (`fe28ba85…`) and `queue-local-draft`
+  (`98472c89…`) in queue-tour-v001, and `steered-in-transcript`
+  (`a669056b…`) in queue-tour-v003 after the whole-tour and local-draft
+  Steer Rejects of v001 and v002 were fixed (`b0bbe187d`, `4bda08895`).
+- **AC08**: Sent to agent, Delivery unknown with Discard, Paused and Resume,
+  Stop beside Queue (`application_agent_steer_sent_public_path`,
+  `application_agent_steer_unavailable_public_path`,
+  `qt_agent_steering_fixture`, the three tour chat courses); owner Accept of
+  `BPR-2154-sent-to-agent` (queue-sent-v001, `e795a561…`). A queued tour
+  message revises the proposal and accepts nothing
+  (`application_tour_feedback_queue_public_path`); nothing queued publishes.
+- **AC09**: `qt_agent_footer`, `application_review_agent_runtime`
+  (`test_stop_all_is_the_hosts`), Stop all accepted in prompts-v004; a local
+  draft question now stands in the footer's Tour chat slot.
+
+Known limits, kept and said: a steered message keeps Sent to agent in the
+pending list until its turn ends (as the Agent tab does); the whole tour's
+feedback during its first draft and a local draft's first description draft
+are fresh runs and cannot be steered (they queue).
