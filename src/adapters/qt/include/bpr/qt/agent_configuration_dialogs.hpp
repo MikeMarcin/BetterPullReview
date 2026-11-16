@@ -227,6 +227,8 @@ namespace bpr::qt {
 		std::vector<bool>                                Repositories;
 		bool                                             IdentityChosen = false;
 		std::optional<std::pair<item_kind, std::size_t>> Shown;
+		/// [[BPR-2204]]. The item the detail was last built for.
+		std::optional<std::pair<item_kind, std::size_t>> Built;
 		std::function<QString(const QString&)>           Chooser;
 		bool                                             Filling       = false;
 		QListWidget*                                     Items         = nullptr;

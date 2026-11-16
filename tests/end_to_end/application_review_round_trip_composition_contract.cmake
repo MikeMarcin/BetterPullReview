@@ -3801,8 +3801,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# alone), Import and Export Profile Settings move there with Identity and
 	# Repositories read from the queue host's names, and a tests-on profiles
 	# look. No review mutation or submission path changed.
+	# [[BPR-2204]] reseal: the attended workflow look, given
+	# --attended-profiles-look, goes on to the profiles look's steps (two
+	# profiles, Settings on Profiles). Tests-on only; no review mutation or
+	# submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "38b6a7627ffff5335587ba465bf0171aac1311c92a808ce9942674b9e141d1d1"
+        "62d96cf0f7796bb15723ba5e6071de54573febffc803b7c53ef53ffa2dee3345"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

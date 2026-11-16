@@ -3,6 +3,7 @@
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "profile_settings_parts.hpp"
 #include "pull_request_overview_support.hpp"
 
 #include <QButtonGroup>
@@ -24,6 +25,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
@@ -59,16 +61,11 @@ namespace bpr::qt {
 			row->setData(0, ItemRole, SectionKind);
 			row->setData(0, IndexRole, static_cast<int>(aSection));
 			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
-			auto font = row->font(0);
-			font.setWeight(QFont::DemiBold);
-			row->setFont(0, font);
+			// Its name is set semibold by the row delegate; its line stays quiet.
+			row->setData(0, detail::row_strong_role, true);
 			return row;
 		}
 
-		/// A dialog is a window, and Qt does not pass a window's palette to
-		/// the windows it opens: it takes its opener's, every role, and its
-		/// font, and follows later changes (owner, look workflow-import-v002:
-		/// "Something went way wrong with the colors").
 		/// A dialog is a window, and Qt does not pass a window's palette to
 		/// the windows it opens unless asked (owner, look workflow-import-v002:
 		/// "Something went way wrong with the colors"). Asked, and attached
@@ -85,14 +82,96 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto text_of(const std::string_view aText) -> QString { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); }
 
+		/// [[BPR-2204]]. Secondary text: the placeholder colour at Settings'
+		/// secondary size, as the design's second lines are.
 		[[nodiscard]] auto note(const QString& aText, QWidget* aParent) -> QLabel*
 		{
 			auto* const label = new QLabel{ aText, aParent };
 			label->setWordWrap(true);
 			label->setTextFormat(Qt::PlainText);
 			label->setForegroundRole(QPalette::PlaceholderText);
+			label->setFont(detail::secondary_font(label->font()));
 			label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 			return label;
+		}
+
+		/// Body text that wraps: what a choice does.
+		[[nodiscard]] auto body(const QString& aText, QWidget* aParent) -> QLabel*
+		{
+			auto* const label = new QLabel{ aText, aParent };
+			label->setWordWrap(true);
+			label->setTextFormat(Qt::PlainText);
+			label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+			return label;
+		}
+
+		/// [[BPR-2204]]. A sentence under a title wraps short of the full
+		/// width, about 78 figures, as the design's do.
+		void wrap_short(QLabel& aLabel, const int aFigures)
+		{
+			aLabel.setMaximumWidth(QFontMetrics{ aLabel.font() }.horizontalAdvance(QLatin1Char('0')) * aFigures);
+		}
+
+		/// [[BPR-2204]]. The dialog's title: semibold, larger, close above its sentence.
+		[[nodiscard]] auto sheet_title(const QString& aText, QWidget* aParent) -> QLabel*
+		{
+			auto* const label = new QLabel{ aText, aParent };
+			auto        font  = label->font();
+			font.setWeight(QFont::Bold);
+			font.setPointSizeF(font.pointSizeF() * 1.15);
+			label->setFont(font);
+			label->setTextFormat(Qt::PlainText);
+			label->setWordWrap(true);
+			return label;
+		}
+
+		/// Lays a view's rows out again when its viewport's width changes.
+		class relayout_on_resize final : public QObject
+		{
+		public:
+			explicit relayout_on_resize(QAbstractItemView* const aView)
+				: QObject{ aView }
+				, View{ aView }
+			{
+			}
+
+		protected:
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::Resize && static_cast<QResizeEvent*>(aEvent)->oldSize().width() != static_cast<QResizeEvent*>(aEvent)->size().width()) {
+					QTimer::singleShot(0, View, [view = View] { view->doItemsLayout(); });
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			QAbstractItemView* View;
+		};
+
+		/// [[BPR-2204]]. A list in the Prompt library's shape: ticked rows on
+		/// the panel colour inside one rounded border, at a fixed width.
+		template <class TView>
+		[[nodiscard]] auto well_list(TView* aView, QWidget* aParent, const int aWidth) -> detail::rounded_well*
+		{
+			auto* const well = new detail::rounded_well{ aParent };
+			auto* const fill = new QVBoxLayout{ well };
+			fill->setContentsMargins(1, 3, 1, 3);
+			aView->setParent(well);
+			aView->setFrameShape(QFrame::NoFrame);
+			aView->setAutoFillBackground(false);
+			aView->viewport()->setAutoFillBackground(false);
+			aView->setItemDelegate(new detail::settings_row_delegate{ aView });
+			aView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			aView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+			aView->setWordWrap(true);
+			aView->setTextElideMode(Qt::ElideNone);
+			aView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+			fill->addWidget(aView);
+			well->setFixedWidth(aWidth);
+			// A row's height follows the width it wraps at: lay the rows out
+			// again once the view has its real width.
+			aView->viewport()->installEventFilter(new relayout_on_resize{ aView });
+			return well;
 		}
 
 		[[nodiscard]] auto heading(const QString& aText, QWidget* aParent) -> QLabel*
@@ -236,23 +315,44 @@ namespace bpr::qt {
 		adopt_opener_look(*this, aParent);
 		setWindowTitle(tr("Export Profile Settings"));
 		setObjectName(QStringLiteral("agentConfigurationExport"));
+		// [[BPR-2204]]. Drawn in the import preview's language (design
+		// workflow-import-v1, B): a title close over its sentence, the ticked
+		// list at the left in one rounded well, the file at the right in
+		// another, and a footer that says what goes in the file.
 		auto* const column = new QVBoxLayout{ this };
-		column->addWidget(note(tr("Tick the parts of this profile to put in the file. It never holds a sign-in, a token, where a program is on this computer, a local folder or your history. "
-								  "Read the text below before you share it: arguments and prompts can hold anything you typed."),
-							   this));
+		column->setContentsMargins(20, 18, 20, 16);
+		column->setSpacing(0);
+		auto* const title = sheet_title(tr("Export profile settings"), this);
+		title->setObjectName(QStringLiteral("agentConfigurationExportTitle"));
+		column->addWidget(title);
+		column->addSpacing(2);
+		auto* const intro = note(tr("Tick the parts of this profile to put in the file. It never holds a sign-in, a token, where a program is on this computer, a local folder or your history."), this);
+		intro->setObjectName(QStringLiteral("agentConfigurationExportIntro"));
+		wrap_short(*intro, 86);
+		column->addWidget(intro);
+		column->addSpacing(14);
 		Items = new QTreeWidget{ this };
 		Items->setObjectName(QStringLiteral("agentConfigurationExportItems"));
 		Items->setAccessibleName(tr("Parts of the profile to export"));
 		Items->setColumnCount(2);
 		Items->setHeaderLabels({ tr("Item"), tr("What is shared") });
-		Items->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-		Items->setRootIsDecorated(true);
+		// One column, drawn by the row delegate: what is shared is each
+		// row's second line, and a child's tick sits under its section's name.
+		Items->setHeaderHidden(true);
+		Items->setColumnHidden(1, true);
+		Items->setRootIsDecorated(false);
+		Items->setItemsExpandable(false);
+		Items->setExpandsOnDoubleClick(false);
+		Items->setUniformRowHeights(false);
+		Items->setSelectionMode(QAbstractItemView::SingleSelection);
+		Items->setIndentation(style()->pixelMetric(QStyle::PM_IndicatorWidth) + 7);
 		// [[BPR-2198]]. Each section starts as the core says
 		// (`core::exported_by_default`): ticked, but for Identity.
 		const auto  ticked = [](const profile_settings_section aSection) { return core::exported_by_default(aSection) ? Qt::Checked : Qt::Unchecked; };
 		auto* const agents = section_row(Items, tr("Agents"), tr("What each agent is set to; no program locations"), profile_settings_section::agents);
 		for (const auto& entry : Snapshot.Agents.Agents) {
 			auto* const row = new QTreeWidgetItem{ agents, { text_of(entry.Name), agent_kind(entry.Protocol, entry.Preset) } };
+			row->setData(0, detail::row_mark_role, static_cast<int>(detail::row_mark::agent));
 			row->setData(0, ItemRole, AgentKind);
 			row->setData(0, IndexRole, entry.Id);
 			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
@@ -276,7 +376,13 @@ namespace bpr::qt {
 				row->setFlags(Qt::ItemIsSelectable);
 				row->setText(1, tr("Has edits not saved: save or discard them first"));
 				row->setToolTip(0, row->text(1));
+				row->setData(0, detail::row_tag_role, tr("Not saved"));
+				row->setData(0, detail::row_tone_role, static_cast<int>(detail::tag_tone::caution));
 			} else {
+				if (edited) {
+					row->setData(0, detail::row_tag_role, tr("Edited"));
+					row->setData(0, detail::row_tone_role, static_cast<int>(detail::tag_tone::updated));
+				}
 				row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
 				row->setCheckState(0, edited && ticked(profile_settings_section::prompts) == Qt::Checked ? Qt::Checked : Qt::Unchecked);
 			}
@@ -326,15 +432,26 @@ namespace bpr::qt {
 		}
 		Items->expandAll();
 		identity->setExpanded(true);
-		column->addWidget(Items, 3);
-		auto* const tools = new QHBoxLayout{ };
-		AllPrompts        = new quiet_push_button{ tr("Choose every prompt"), this };
+
+		auto* const body = new QHBoxLayout{ };
+		body->setSpacing(16);
+		auto* const left = new QVBoxLayout{ };
+		left->setSpacing(8);
+		auto* const list = well_list(Items, this, 300);
+		list->setObjectName(QStringLiteral("agentConfigurationExportList"));
+		list->setMinimumHeight(380);
+		left->addWidget(list, 1);
+		AllPrompts = new quiet_push_button{ tr("Choose every prompt"), this };
 		AllPrompts->setObjectName(QStringLiteral("agentConfigurationAllPrompts"));
 		AllPrompts->setToolTip(tr("Every prompt you can export, your edits and the built-in text of the rest, so you can improve them elsewhere and import them back."));
-		tools->addWidget(AllPrompts);
-		tools->addStretch(1);
-		column->addLayout(tools);
-		auto* const form  = new QHBoxLayout{ };
+		left->addWidget(AllPrompts, 0, Qt::AlignLeft);
+		body->addLayout(left, 0);
+
+		// The file: its label, then its exact text, which is what is written.
+		auto* const right = new QVBoxLayout{ };
+		right->setSpacing(0);
+		auto* const form = new QHBoxLayout{ };
+		form->setSpacing(10);
 		auto* const named = new QLabel{ tr("&Label"), this };
 		Label             = new QLineEdit{ this };
 		named->setBuddy(Label);
@@ -343,18 +460,43 @@ namespace bpr::qt {
 		Label->setPlaceholderText(tr("Optional, for example: Team agents"));
 		form->addWidget(named);
 		form->addWidget(Label, 1);
-		column->addLayout(form);
-		column->addWidget(heading(tr("File contents"), this));
-		Exact = mono(this, tr("Exact file contents"));
+		right->addLayout(form);
+		right->addSpacing(14);
+		auto* const fileTitle = heading(tr("The file"), this);
+		fileTitle->setObjectName(QStringLiteral("agentConfigurationExportFileTitle"));
+		right->addWidget(fileTitle);
+		right->addSpacing(3);
+		auto* const readFirst = note(tr("Read it before you share it: arguments and prompts can hold anything you typed."), this);
+		right->addWidget(readFirst);
+		right->addSpacing(10);
+		auto* const fileWell = new detail::rounded_well{ this };
+		fileWell->setObjectName(QStringLiteral("agentConfigurationExportFile"));
+		auto* const fileFill = new QVBoxLayout{ fileWell };
+		fileFill->setContentsMargins(4, 4, 2, 4);
+		Exact = mono(fileWell, tr("Exact file contents"));
 		Exact->setObjectName(QStringLiteral("agentConfigurationExact"));
-		column->addWidget(Exact, 2);
+		Exact->setFrameShape(QFrame::NoFrame);
+		Exact->setAutoFillBackground(false);
+		Exact->viewport()->setAutoFillBackground(false);
+		Exact->setFont(detail::secondary_font(Exact->font()));
+		fileFill->addWidget(Exact);
+		right->addWidget(fileWell, 1);
+		body->addLayout(right, 1);
+		column->addLayout(body, 1);
+
+		column->addSpacing(12);
+		auto* const footer = new QHBoxLayout{ };
+		footer->setSpacing(12);
 		Size = note({ }, this);
-		column->addWidget(Size);
+		Size->setObjectName(QStringLiteral("agentConfigurationExportSummary"));
+		wrap_short(*Size, 58);
+		footer->addWidget(Size, 1, Qt::AlignVCenter);
 		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Cancel, this };
 		ExportButton        = buttons->addButton(tr("Export…"), QDialogButtonBox::AcceptRole);
 		ExportButton->setDefault(true);
 		ExportButton->setObjectName(QStringLiteral("agentConfigurationExportButton"));
-		column->addWidget(buttons);
+		footer->addWidget(buttons, 0, Qt::AlignBottom);
+		column->addLayout(footer);
 		connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 		connect(ExportButton, &QPushButton::clicked, this, [this] {
 			if (Bytes.empty() || !Chooser) {
@@ -374,7 +516,7 @@ namespace bpr::qt {
 				}
 			}
 		});
-		resize(760, 820);
+		resize(980, 720);
 		refresh();
 	}
 
@@ -476,7 +618,7 @@ namespace bpr::qt {
 		}
 		Size->setText(!encoded      ? tr("Too large, or a chosen workflow's agent is no longer here: a Profile Settings file holds at most 1 MiB.")
 						  : nothing ? tr("Tick at least one part of the profile.")
-									: tr("%1, %2.").arg(QLocale{ }.createSeparatedList(parts), QLocale{ }.formattedDataSize(static_cast<qint64>(Bytes.size()))));
+									: tr("Puts %1 in the file, %2.").arg(QLocale{ }.createSeparatedList(parts), QLocale{ }.formattedDataSize(static_cast<qint64>(Bytes.size()))));
 		ExportButton->setEnabled(encoded.has_value() && !nothing);
 	}
 
@@ -484,7 +626,7 @@ namespace bpr::qt {
 
 	namespace {
 		constexpr int KindRole   = Qt::UserRole + 2;
-		constexpr int HeaderRole = Qt::UserRole + 3;
+		constexpr int HeaderRole = detail::row_heading_role;
 		/// A choice's parts: the file's (Add or Update), one of yours, none.
 		constexpr int TakePart  = 0;
 		constexpr int UsePart   = 1;
@@ -501,6 +643,18 @@ namespace bpr::qt {
 			return { };
 		}
 
+		/// [[BPR-2204]]. New in blue, Updated in teal, the rest quiet.
+		[[nodiscard]] auto standing_tone(const core::import_standing aStanding) -> detail::tag_tone
+		{
+			switch (aStanding) {
+			case core::import_standing::added:     return detail::tag_tone::fresh;
+			case core::import_standing::updated:   return detail::tag_tone::updated;
+			case core::import_standing::unchanged:
+			case core::import_standing::refused:   break;
+			}
+			return detail::tag_tone::quiet;
+		}
+
 		/// A path or file name wraps at its separators rather than widen the pane.
 		[[nodiscard]] auto breakable(const QString& aText) -> QString
 		{
@@ -511,16 +665,26 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto escaped(const std::string_view aText) -> QString { return text_of(aText).toHtmlEscaped(); }
 
-		/// A section of a detail: a quiet heading over grouped rows, as Settings draws.
+		/// A section of a detail: grouped rows, as Settings draws them.
+		/// [[BPR-2204]]. One filled, rounded card with tight padding, not a
+		/// second border inside the detail.
 		[[nodiscard]] auto group_box(QWidget* aParent) -> std::pair<QFrame*, QVBoxLayout*>
 		{
-			// The Prompts page's bordered group: the panel shows through.
-			auto* const frame = new QFrame{ aParent };
-			frame->setFrameShape(QFrame::StyledPanel);
+			auto* const frame  = new detail::filled_group{ aParent };
 			auto* const layout = new QVBoxLayout{ frame };
-			layout->setContentsMargins(10, 8, 10, 8);
-			layout->setSpacing(6);
+			layout->setContentsMargins(12, 8, 10, 9);
+			layout->setSpacing(3);
 			return { frame, layout };
+		}
+
+		/// [[BPR-2204]]. A count said in words up to twelve, as the design says
+		/// "Four actions ask for it".
+		[[nodiscard]] auto counted_words(const std::size_t aCount) -> QString
+		{
+			static const auto words = std::array{ QT_TR_NOOP("One"), QT_TR_NOOP("Two"), QT_TR_NOOP("Three"), QT_TR_NOOP("Four"), QT_TR_NOOP("Five"),
+												  QT_TR_NOOP("Six"), QT_TR_NOOP("Seven"), QT_TR_NOOP("Eight"), QT_TR_NOOP("Nine"), QT_TR_NOOP("Ten"),
+												  QT_TR_NOOP("Eleven"), QT_TR_NOOP("Twelve") };
+			return aCount >= 1U && aCount <= words.size() ? QObject::tr(words[aCount - 1U]) : QString::number(aCount);
 		}
 
 		/// A part of one choice, drawn as the Prompts page draws its own (the
@@ -542,7 +706,11 @@ namespace bpr::qt {
 			label->setTextFormat(Qt::RichText);
 			label->setWordWrap(true);
 			label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			// [[BPR-2204]]. Preferred, top-aligned: an ignored width left its
+			// height asked at no width, and the line floated in a tall box.
+			label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+			label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+			detail::follow_wrapped_height(*label);
 			return label;
 		}
 	} // namespace
@@ -583,38 +751,37 @@ namespace bpr::qt {
 
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(20, 18, 20, 16);
-		column->setSpacing(10);
+		column->setSpacing(0);
 		const auto  label = Preview.File.Label.empty() ? tr("Import profile settings") : tr("Import “%1”").arg(text_of(Preview.File.Label));
-		auto* const title = heading(label, this);
-		auto        big   = title->font();
-		big.setPointSizeF(big.pointSizeF() * 1.25);
-		title->setFont(big);
+		auto* const title = sheet_title(label, this);
+		title->setObjectName(QStringLiteral("agentConfigurationSheetTitle"));
 		column->addWidget(title);
+		column->addSpacing(2);
 		const auto  by    = Preview.File.ExportedBy.empty() ? tr("Exported by an unnamed application.") : tr("Exported by %1.").arg(text_of(Preview.File.ExportedBy));
 		const auto  where = Facts.Profile.empty() ? tr("Importing saves what is ticked here into this profile and runs nothing.")
 												  : tr("Importing saves what is ticked here into the profile “%1” and runs nothing.").arg(text_of(Facts.Profile));
 		auto* const intro = note(by + QLatin1Char(' ') + where + QLatin1Char(' ') + tr("No sign-in, token, program path, local folder or history came with the file."), this);
 		intro->setObjectName(QStringLiteral("agentConfigurationIntro"));
+		wrap_short(*intro, 86);
 		column->addWidget(intro);
+		column->addSpacing(14);
 
 		// The Prompt library's shape: the list at a fixed width, the detail beside it.
+		// [[BPR-2204]]. The list is the one bordered thing beside the detail,
+		// on the panel colour; the detail sits on the sheet's own ground.
 		auto* const body = new QHBoxLayout{ };
-		body->setSpacing(12);
+		body->setSpacing(16);
 		Items = new QListWidget{ this };
 		Items->setObjectName(QStringLiteral("agentConfigurationImportItems"));
 		Items->setAccessibleName(tr("Items in the file"));
-		Items->setFixedWidth(272);
-		Items->setMinimumHeight(360);
 		Items->setSelectionMode(QAbstractItemView::SingleSelection);
-		Items->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		Items->setWordWrap(true);
-		Items->setTextElideMode(Qt::ElideNone);
-		body->addWidget(Items, 0);
+		auto* const list = well_list(Items, this, 290);
+		list->setObjectName(QStringLiteral("agentConfigurationImportList"));
+		list->setMinimumHeight(360);
+		body->addWidget(list, 0);
 		auto* const pane = new QFrame{ this };
 		pane->setObjectName(QStringLiteral("agentConfigurationDetail"));
-		pane->setFrameShape(QFrame::StyledPanel);
-		pane->setAutoFillBackground(true);
-		pane->setBackgroundRole(QPalette::AlternateBase);
+		pane->setFrameShape(QFrame::NoFrame);
 		// The narrowest the detail goes: its widest unbreakable part, a
 		// choice of three or a permission's tick, fits inside it.
 		pane->setMinimumWidth(460);
@@ -636,11 +803,13 @@ namespace bpr::qt {
 		Problem->setForegroundRole(QPalette::Highlight);
 		Problem->hide();
 		column->addWidget(Problem);
+		column->addSpacing(12);
 		auto* const footer = new QHBoxLayout{ };
 		footer->setSpacing(12);
 		Summary = note({ }, this);
 		Summary->setObjectName(QStringLiteral("agentConfigurationSummary"));
-		footer->addWidget(Summary, 1);
+		wrap_short(*Summary, 58);
+		footer->addWidget(Summary, 1, Qt::AlignVCenter);
 		auto* const buttons = new QDialogButtonBox{ QDialogButtonBox::Cancel, this };
 		ApplyButton         = buttons->addButton(tr("Import"), QDialogButtonBox::AcceptRole);
 		ApplyButton->setObjectName(QStringLiteral("agentConfigurationApply"));
@@ -847,16 +1016,11 @@ namespace bpr::qt {
 		Filling = true;
 		Items->clear();
 		const auto header = [this](const QString& aText) {
+			// Body text, semibold, with the same room above every section
+			// (the row delegate draws it).
 			auto* const item = new QListWidgetItem{ aText, Items };
 			item->setData(HeaderRole, true);
 			item->setFlags(Qt::NoItemFlags);
-			auto font = item->font();
-			font.setWeight(QFont::DemiBold);
-			font.setPointSizeF(font.pointSizeF() * 0.92);
-			item->setFont(font);
-			// Every section opens with the same room above its name.
-			item->setTextAlignment(Qt::AlignLeft | Qt::AlignBottom);
-			item->setSizeHint(QSize{ 0, QFontMetrics{ font }.height() + 12 });
 		};
 		const auto add = [this](const item_kind aKind, const std::size_t aIndex, const QString& aName) {
 			auto* const item = new QListWidgetItem{ aName, Items };
@@ -925,6 +1089,15 @@ namespace bpr::qt {
 			// happens; under Cannot be imported the section says the tag.
 			const auto name = item->data(ItemRole).toString();
 			item->setText((stood == core::import_standing::refused ? name : name + QStringLiteral("   ") + standing_tag(stood)) + QLatin1Char('\n') + row_line(kind, index));
+			// [[BPR-2204]]. Drawn as the design draws it: the name, its tag as
+			// a tinted pill, the line in the secondary colour, the agent's
+			// sparkle and a refused row's mark where its tick would be.
+			item->setData(detail::row_name_role, name);
+			item->setData(detail::row_second_role, row_line(kind, index));
+			item->setData(detail::row_tag_role, stood == core::import_standing::refused ? QString{ } : standing_tag(stood));
+			item->setData(detail::row_tone_role, static_cast<int>(standing_tone(stood)));
+			item->setData(detail::row_mark_role, static_cast<int>(stood == core::import_standing::refused ? detail::row_mark::refused : kind == item_kind::agent ? detail::row_mark::agent
+																																								 : detail::row_mark::none));
 			auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 			// Something to choose is ticked; an agent of another kind under
 			// its name, with none of yours to stand for it, has nothing.
@@ -1000,7 +1173,17 @@ namespace bpr::qt {
 		if (agentsUsed > 0U) {
 			parts << counted(agentsUsed, tr("lets 1 of your agents stand in"), tr("lets %1 of your agents stand in"));
 		}
-		auto words = parts.isEmpty() ? tr("Nothing is ticked to import.") : tr("Import %1.").arg(parts.join(tr(", ")));
+		// [[BPR-2204]]. As the design says it: "Adds 1 agent and updates 1 workflow."
+		auto words = QString{ };
+		if (parts.isEmpty()) {
+			words = tr("Nothing is ticked to import.");
+		} else {
+			auto       first = parts;
+			const auto last  = first.takeLast();
+			words            = first.isEmpty() ? last : tr("%1 and %2").arg(first.join(tr(", ")), last);
+			words[0]         = words[0].toUpper();
+			words += QLatin1Char('.');
+		}
 		if (waiting > 0U) {
 			words += QLatin1Char(' ') + counted(waiting, tr("1 agent waits for its program."), tr("%1 agents wait for their programs."));
 		}
@@ -1098,17 +1281,21 @@ namespace bpr::qt {
 
 	void agent_configuration_import_dialog::show_selected()
 	{
-		Choice              = nullptr;
-		ProgramButton       = nullptr;
-		ProgramLine         = nullptr;
-		Relaxed             = nullptr;
-		Builds              = nullptr;
-		Outcome             = nullptr;
-		Settings            = nullptr;
-		Comparison          = nullptr;
-		Yours               = nullptr;
-		Theirs              = nullptr;
-		const auto scrolled = Scroll->verticalScrollBar()->value();
+		Choice        = nullptr;
+		ProgramButton = nullptr;
+		ProgramLine   = nullptr;
+		Relaxed       = nullptr;
+		Builds        = nullptr;
+		Outcome       = nullptr;
+		Settings      = nullptr;
+		Comparison    = nullptr;
+		Yours         = nullptr;
+		Theirs        = nullptr;
+		// [[BPR-2204]]. Built again for the same item (a choice, a program),
+		// it keeps its place; another item opens at its top.
+		const auto same     = Built == Shown;
+		const auto scrolled = same ? Scroll->verticalScrollBar()->value() : 0;
+		Built               = Shown;
 		if (auto* const old = Scroll->takeWidget(); old != nullptr) {
 			old->hide();
 			old->deleteLater();
@@ -1118,7 +1305,8 @@ namespace bpr::qt {
 		Detail->setObjectName(QStringLiteral("agentConfigurationDetailPage"));
 		Detail->setAutoFillBackground(false);
 		auto* const column = new QVBoxLayout{ Detail };
-		column->setContentsMargins(16, 14, 16, 14);
+		// [[BPR-2204]]. On the sheet's own ground, no frame: its edge is the list's gap.
+		column->setContentsMargins(0, 0, 6, 4);
 		column->setSpacing(10);
 		if (!Shown) {
 			column->addWidget(note(tr("Choose an item to see what importing it changes."), Detail));
@@ -1136,33 +1324,56 @@ namespace bpr::qt {
 		column->addStretch(1);
 		Scroll->setWidget(Detail);
 		Scroll->verticalScrollBar()->setValue(scrolled);
+		if (same && scrolled > 0) {
+			// The new page's height is known once it is laid out.
+			QTimer::singleShot(0, this, [this, scrolled, shown = Shown] {
+				if (Built == shown) {
+					Scroll->verticalScrollBar()->setValue(scrolled);
+				}
+			});
+		}
 	}
 
 	namespace {
-		/// The detail's title row: the name, larger, and its tag.
-		void title_row(QVBoxLayout& aColumn, const QString& aName, const QString& aTag, QWidget& aPage)
+		/// The detail's title: the agent's sparkle, the name, larger and
+		/// semibold, and its tag as a tinted pill ([[BPR-2204]]); its sentence
+		/// goes close under it in the returned column.
+		auto title_row(QVBoxLayout& aColumn, const QString& aName, const QString& aTag, const detail::tag_tone aTone, QWidget& aPage, const bool aAgent = false) -> QVBoxLayout*
 		{
-			// One label, so a long name wraps with its tag after it, in the
-			// panel's secondary text colour.
-			auto* const title = rich(QStringLiteral("<b>%1</b>&nbsp;&nbsp;<span style=\"font-weight:normal;color:%2\">%3</span>")
-										 .arg(aName.toHtmlEscaped(), aPage.palette().color(QPalette::PlaceholderText).name(), aTag.toHtmlEscaped()),
-									 &aPage);
+			auto* const block = new QVBoxLayout{ };
+			block->setSpacing(3);
+			auto* const row = new QHBoxLayout{ };
+			row->setSpacing(7);
+			if (aAgent) {
+				row->addWidget(new detail::sparkle_mark{ &aPage }, 0, Qt::AlignVCenter);
+			}
+			auto* const title = new detail::line_label{ aName, &aPage };
 			title->setObjectName(QStringLiteral("agentConfigurationTitle"));
+			title->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			auto font = title->font();
-			font.setPointSizeF(font.pointSizeF() * 1.1);
+			font.setWeight(QFont::DemiBold);
+			font.setPointSizeF(font.pointSizeF() * 1.08);
 			title->setFont(font);
-			aColumn.addWidget(title);
+			row->addWidget(title, 0, Qt::AlignVCenter);
+			if (!aTag.isEmpty()) {
+				auto* const tag = new detail::tag_label{ aTag, aTone, &aPage };
+				tag->setObjectName(QStringLiteral("agentConfigurationTitleTag"));
+				row->addWidget(tag, 0, Qt::AlignVCenter);
+			}
+			row->addStretch(1);
+			block->addLayout(row);
+			aColumn.addLayout(block);
+			return block;
 		}
 	} // namespace
 
 	void agent_configuration_import_dialog::show_refused(const QString& aName, const QString& aWhy, QWidget& aPage)
 	{
-		auto& column = *static_cast<QVBoxLayout*>(aPage.layout());
-		title_row(column, aName, standing_tag(core::import_standing::refused), aPage);
-		Outcome = note(aWhy + QLatin1Char(' ') + tr("It is not saved. The rest of the file can still be imported."), &aPage);
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		auto* const block  = title_row(column, aName, standing_tag(core::import_standing::refused), detail::tag_tone::quiet, aPage);
+		Outcome            = note(aWhy + QLatin1Char(' ') + tr("It is not saved. The rest of the file can still be imported."), &aPage);
 		Outcome->setObjectName(QStringLiteral("agentConfigurationItemProblem"));
-		Outcome->setForegroundRole(QPalette::WindowText);
-		column.addWidget(Outcome);
+		block->addWidget(Outcome);
 	}
 
 	void agent_configuration_import_dialog::show_agent(const std::size_t aItem, QWidget& aPage)
@@ -1184,17 +1395,17 @@ namespace bpr::qt {
 		}
 		auto&       state = Agents[aItem];
 		const auto& local = Preview.Snapshot.Agents.Agents;
-		title_row(column, text_of(agent.Name), standing_tag(plan.Standing), aPage);
-		const auto asks = asking_actions(aItem);
-		auto       says = agent_kind(agent.Protocol, agent.Preset) + QStringLiteral(".");
+		auto* const block = title_row(column, text_of(agent.Name), standing_tag(plan.Standing), standing_tone(plan.Standing), aPage, true);
+		const auto  asks  = asking_actions(aItem);
+		auto        says  = agent_kind(agent.Protocol, agent.Preset) + QStringLiteral(".");
 		if (!asks.isEmpty()) {
 			says += QLatin1Char(' ') + counted(static_cast<std::size_t>(asks.size()), tr("The workflow's action %1 asks for this agent, read-only.").arg(asks.join(tr(", "))), tr("The workflow's actions %1 ask for this agent, read-only.").arg(asks.join(tr(", "))));
 		}
-		column.addWidget(note(says, &aPage));
+		block->addWidget(note(says, &aPage));
 		const auto* const meets = plan.Meets ? &*std::ranges::find(local, *plan.Meets, &core::agent_entry::Id) : nullptr;
 		if (plan.Standing == core::import_standing::unchanged) {
 			Outcome = note(tr("“%1” already has these settings. Nothing to import.").arg(local_name(*plan.Meets)), &aPage);
-			column.addWidget(Outcome);
+			block->addWidget(Outcome);
 			return;
 		}
 
@@ -1259,9 +1470,8 @@ namespace bpr::qt {
 		} else {
 			outcome = asks.isEmpty() ? tr("Not imported.") : tr("Not imported. The actions that ask for it wait until an agent stands for it.");
 		}
-		Outcome = note(outcome, &aPage);
+		Outcome = body(outcome, &aPage);
 		Outcome->setObjectName(QStringLiteral("agentConfigurationChanges"));
-		Outcome->setForegroundRole(QPalette::WindowText);
 		column.addWidget(Outcome);
 		if (!adding && !replacing) {
 			return;
@@ -1270,7 +1480,10 @@ namespace bpr::qt {
 		// What it is set to; an update shows yours beside the file's.
 		const auto after = core::imported_entry(agent, choice, replacing ? meets : nullptr);
 		column.addSpacing(4);
-		column.addWidget(heading(replacing ? tr("What changes") : tr("What it is set to"), &aPage));
+		auto* const fieldsHeading = heading(replacing ? tr("What changes") : tr("What it is set to"), &aPage);
+		fieldsHeading->setForegroundRole(QPalette::PlaceholderText);
+		fieldsHeading->setFont(detail::secondary_font(fieldsHeading->font()));
+		column.addWidget(fieldsHeading);
 		auto [box, rows] = group_box(&aPage);
 		box->setObjectName(QStringLiteral("agentConfigurationSettings"));
 		Settings         = box;
@@ -1300,7 +1513,9 @@ namespace bpr::qt {
 			for (const auto field : { core::agent_field::protocol, core::agent_field::model, core::agent_field::effort, core::agent_field::strict_run_checks, core::agent_field::scratch_starts,
 									  core::agent_field::mcp_servers, core::agent_field::instructions }) {
 				grid->addWidget(new QLabel{ field_words(field), box }, line, 0, Qt::AlignTop);
-				grid->addWidget(rich(field_value(after, field).toHtmlEscaped(), box), line, 1);
+				auto* const value = rich(field_value(after, field).toHtmlEscaped(), box);
+				value->setForegroundRole(QPalette::PlaceholderText);
+				grid->addWidget(value, line, 1);
 				++line;
 			}
 		}
@@ -1310,9 +1525,8 @@ namespace bpr::qt {
 		// The program this computer runs it with: never a path from the file.
 		auto [programBox, programRows] = group_box(&aPage);
 		auto* const programRow         = new QHBoxLayout{ };
-		ProgramLine                    = note({ }, programBox);
+		ProgramLine                    = body({ }, programBox);
 		ProgramLine->setObjectName(QStringLiteral("agentConfigurationProgram"));
-		ProgramLine->setForegroundRole(QPalette::WindowText);
 		programRow->addWidget(ProgramLine, 1);
 		if (plan.NeedsProgram || (replacing && program_required(agent))) {
 			ProgramButton = new quiet_push_button{ tr("Choose program…"), programBox };
@@ -1398,110 +1612,145 @@ namespace bpr::qt {
 		const auto* yours   = plan.Local ? &Preview.Snapshot.Workflows[*plan.Local] : nullptr;
 		const auto  theirs  = text_of(core::workflow_revision(workflow).substr(0U, 6U));
 		const auto  mineRev = yours != nullptr ? text_of(core::workflow_revision(yours->Workflow).substr(0U, 6U)) : QString{ };
-		title_row(column, text_of(workflow.Name), standing_tag(plan.Standing), aPage);
-		auto says = tr("Says it comes from %1.").arg(workflow.Origin.empty() ? tr("no one in particular") : text_of(workflow.Origin));
+		// [[BPR-2204]]. The tick in the list is the workflow's choice, as the
+		// design draws it: the detail has no Update / Leave out of its own.
+		auto* const block = title_row(column, text_of(workflow.Name), standing_tag(plan.Standing), standing_tone(plan.Standing), aPage);
+		const auto  bold  = [this](const QString& aText) { return QStringLiteral("<span style=\"color:%1;font-weight:600\">%2</span>").arg(palette().color(QPalette::WindowText).name(), aText.toHtmlEscaped()); };
+		auto        says  = tr("Says it comes from %1.").arg(workflow.Origin.empty() ? tr("no one in particular") : text_of(workflow.Origin)).toHtmlEscaped();
 		if (plan.Standing == core::import_standing::updated) {
-			says += QLatin1Char(' ') + tr("Ticked, revision %1 replaces yours, %2.").arg(theirs, mineRev);
+			says += QLatin1Char(' ') + (state.Action == core::workflow_import_action::leave ? tr("Left out: yours stays revision %1.").arg(bold(mineRev)) : tr("Ticked, revision %1 replaces yours, %2.").arg(bold(theirs), bold(mineRev)));
 		} else if (plan.Standing == core::import_standing::unchanged) {
-			says += QLatin1Char(' ') + tr("Yours is the same revision, %1. Nothing to import.").arg(theirs);
+			says += QLatin1Char(' ') + tr("Yours is the same revision, %1. Nothing to import.").arg(bold(theirs));
+		} else if (state.Action == core::workflow_import_action::leave) {
+			says += QLatin1Char(' ') + tr("Left out: tick it in the list to add it.");
 		}
-		says += QLatin1Char(' ') + tr("No action runs on import; each is yours to start, in a draft.");
-		column.addWidget(note(says, &aPage));
-		if (plan.Standing != core::import_standing::unchanged) {
-			auto* const parts = new QHBoxLayout{ };
-			parts->setSpacing(0);
-			Choice            = new QButtonGroup{ &aPage };
-			auto* const take  = segmented(plan.Local ? tr("Update") : tr("Add"), &aPage);
-			auto* const leave = segmented(tr("Leave out"), &aPage);
-			Choice->addButton(take, TakePart);
-			Choice->addButton(leave, LeavePart);
-			parts->addWidget(take);
-			parts->addWidget(leave);
-			parts->addStretch(1);
-			(state.Action == core::workflow_import_action::leave ? leave : take)->setChecked(true);
-			connect(Choice, &QButtonGroup::idClicked, this, [this, aItem](const int aPart) { QTimer::singleShot(0, this, [this, aItem, aPart] { choose(item_kind::workflow, aItem, aPart); }); });
-			column.addLayout(parts);
-		}
+		says += QLatin1Char(' ') + tr("No action runs on import; each is yours to start, in a draft.").toHtmlEscaped();
+		auto* const sentence = rich(says, &aPage);
+		sentence->setObjectName(QStringLiteral("agentConfigurationWorkflowSays"));
+		sentence->setForegroundRole(QPalette::PlaceholderText);
+		sentence->setFont(detail::secondary_font(sentence->font()));
+		block->addWidget(sentence);
+		column.addSpacing(4);
 
 		// Who runs each action, and with what; what it says it does.
-		const auto accent    = agent_accent(palette()).name();
-		const auto mark      = palette().color(QPalette::Highlight);
-		const auto tint      = QColor{ mark.red(), mark.green(), mark.blue(), 60 }.name(QColor::HexArgb);
 		const auto agentName = [this](const std::string& aPortable) {
 			const auto found = std::ranges::find(Preview.File.Agents, aPortable, [](const core::decoded_agent& aAgent) { return aAgent.Agent.PortableId; });
 			return found == Preview.File.Agents.end() ? text_of(aPortable) : text_of(found->Agent.Name);
 		};
-		const auto cell = [&](const core::workflow_action& aAction, const core::workflow_action* const aBefore) {
-			auto html = QStringLiteral("<b>%1</b>").arg(escaped(aAction.Task));
+		auto* const table = new detail::comparison_table{ &aPage };
+		table->setObjectName(QStringLiteral("agentConfigurationWorkflowActions"));
+		Comparison       = table;
+		auto* const grid = table->grid();
+		// One action's cell: its task and tag on the first line, who runs it,
+		// and what it says it does, each line the same on both sides so the
+		// two sides of a row stay in line.
+		const auto cell = [&](const core::workflow_action& aAction, const core::workflow_action* const aBefore, const QString& aTag) {
+			auto* const box = new QWidget{ table };
+			box->setObjectName(QStringLiteral("agentConfigurationAction-%1").arg(text_of(aAction.Id)));
+			auto* const lines = new QVBoxLayout{ box };
+			lines->setContentsMargins(10, 6, 10, 7);
+			lines->setSpacing(1);
+			auto* const head = new QHBoxLayout{ };
+			head->setSpacing(6);
+			// Required follows the task; New action keeps the cell's top right.
+			auto* const task = new detail::line_label{ text_of(aAction.Task), box };
+			task->setObjectName(QStringLiteral("agentConfigurationActionTask"));
+			head->addWidget(task, 0, Qt::AlignTop);
 			if (aAction.Required) {
-				html += QStringLiteral(" &nbsp;<span style=\"color:%1\">%2</span>").arg(palette().color(QPalette::PlaceholderText).name(), tr("Required"));
+				head->addWidget(new detail::tag_label{ tr("Required"), detail::tag_tone::quiet, box }, 0, Qt::AlignTop);
 			}
+			head->addStretch(1);
+			if (!aTag.isEmpty()) {
+				head->addWidget(new detail::tag_label{ aTag, detail::tag_tone::updated, box }, 0, Qt::AlignTop);
+			}
+			lines->addLayout(head);
+			auto* const who = new QHBoxLayout{ };
+			who->setSpacing(4);
+			auto* const runner = rich(QString{ }, box);
+			runner->setObjectName(QStringLiteral("agentConfigurationActionWho"));
+			runner->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+			runner->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+			runner->setForegroundRole(QPalette::PlaceholderText);
+			runner->setFont(detail::secondary_font(runner->font()));
 			if (aAction.Binding == core::workflow_binding::agent) {
-				html += QStringLiteral("<br><span style=\"color:%1\">✦ %2</span>, %3").arg(accent, agentName(aAction.Agent).toHtmlEscaped(), tr("read-only"));
+				who->addWidget(new detail::sparkle_mark{ box }, 0, Qt::AlignTop);
+				runner->setText(QStringLiteral("<span style=\"color:%1\">%2</span>, %3").arg(agent_accent(palette()).name(), agentName(aAction.Agent).toHtmlEscaped(), tr("read-only")));
 			} else {
-				html += QStringLiteral("<br>") + tr("You run %1").arg(QStringLiteral("<code>%1</code>").arg(breakable(text_of(aAction.ProgramName)).toHtmlEscaped()));
+				runner->setText(tr("You run %1").arg(QStringLiteral("<code style=\"color:%1\">%2</code>").arg(palette().color(QPalette::WindowText).name(), breakable(text_of(aAction.ProgramName)).toHtmlEscaped())));
 			}
-			auto effects = QStringList{ };
+			who->addWidget(runner, 1);
+			lines->addLayout(who);
+			// An effect the earlier revision did not have is drawn in the
+			// caution colour; its words say it to a screen reader too.
+			const auto ground  = palette().color(QPalette::AlternateBase);
+			const auto caution = detail::tag_ink(palette(), detail::tag_tone::caution, ground);
+			const auto wash    = detail::tag_wash(palette(), detail::tag_tone::caution);
+			auto       effects = QStringList{ };
+			auto       added   = QStringList{ };
 			for (const auto effect : aAction.Effects) {
 				const auto words = escaped(core::describe(effect));
-				const auto added = aBefore != nullptr && !std::ranges::contains(aBefore->Effects, effect);
-				effects << (added ? QStringLiteral("<span style=\"background-color:%1\">%2</span>").arg(tint, words) : words);
+				if (aBefore != nullptr && !std::ranges::contains(aBefore->Effects, effect)) {
+					added << text_of(core::describe(effect));
+					effects << QStringLiteral("<span style=\"color:%1;background-color:%2\">&nbsp;%3&nbsp;</span>").arg(caution.name(), wash.name(QColor::HexArgb), words);
+				} else {
+					effects << words;
+				}
 			}
-			html += QStringLiteral("<br>") + effects.join(QStringLiteral(", "));
-			return html;
+			auto* const said = rich(effects.join(QStringLiteral(", ")), box);
+			said->setObjectName(QStringLiteral("agentConfigurationActionEffects"));
+			said->setForegroundRole(QPalette::PlaceholderText);
+			said->setFont(detail::secondary_font(said->font()));
+			if (!added.isEmpty()) {
+				said->setAccessibleDescription(tr("Does more than yours: %1").arg(added.join(tr(", "))));
+			}
+			lines->addWidget(said);
+			lines->addStretch(1);
+			return box;
 		};
-		auto [box, rows] = group_box(&aPage);
-		box->setObjectName(QStringLiteral("agentConfigurationWorkflowActions"));
-		Comparison       = box;
-		auto* const grid = new QGridLayout{ };
-		grid->setHorizontalSpacing(16);
-		grid->setVerticalSpacing(10);
+		const auto absent = [table](const QString& aText) {
+			auto* const label = note(aText, table);
+			label->setContentsMargins(10, 6, 10, 7);
+			label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+			return label;
+		};
+		const auto header = [table](const QString& aText) {
+			auto* const label = note(aText, table);
+			auto        font  = label->font();
+			font.setWeight(QFont::DemiBold);
+			label->setFont(font);
+			label->setContentsMargins(10, 6, 10, 6);
+			return label;
+		};
 		auto line = 0;
 		if (yours != nullptr && plan.Standing == core::import_standing::updated) {
-			grid->setColumnStretch(0, 1);
-			grid->setColumnStretch(1, 1);
-			grid->addWidget(heading(tr("Yours, revision %1").arg(mineRev), box), line, 0);
-			grid->addWidget(heading(tr("In the file, revision %1").arg(theirs), box), line, 1);
+			grid->addWidget(header(tr("Yours, revision %1").arg(mineRev)), line, 0);
+			grid->addWidget(header(tr("In the file, revision %1").arg(theirs)), line, 1);
 			++line;
 			for (const auto& action : workflow.Actions) {
 				const auto before = std::ranges::find(yours->Workflow.Actions, action.Id, &core::workflow_action::Id);
 				const auto had    = before != yours->Workflow.Actions.end();
-				grid->addWidget(had ? rich(cell(*before, nullptr), box) : note(tr("No such action"), box), line, 0, Qt::AlignTop);
-				auto html = cell(action, had ? &*before : nullptr);
-				// The tag sits on the action's own first line, after its task.
-				const auto tagged = [&html](const QString& aTag) {
-					const auto end = html.indexOf(QStringLiteral("</b>")) + 4;
-					html.insert(end, aTag);
-				};
+				grid->addWidget(had ? cell(*before, nullptr, { }) : absent(tr("No such action")), line, 0);
+				auto* const now = cell(action, had ? &*before : nullptr, had ? QString{ } : tr("New action"));
 				if (!had) {
-					tagged(QStringLiteral(" &nbsp;<span style=\"background-color:%1\">&nbsp;%2&nbsp;</span>").arg(tint, tr("New action")));
-				} else if (std::ranges::any_of(action.Effects, [&](const core::workflow_effect aEffect) { return !std::ranges::contains(before->Effects, aEffect); })) {
-					tagged(QStringLiteral(" &nbsp;<span style=\"background-color:%1\">&nbsp;%2&nbsp;</span>").arg(tint, tr("Does more")));
-				} else if (*before != action) {
-					tagged(QStringLiteral(" &nbsp;<i>%1</i>").arg(tr("Changed")));
+					detail::comparison_table::set_tinted(*now);
 				}
-				auto* const label = rich(html, box);
-				label->setObjectName(QStringLiteral("agentConfigurationAction-%1").arg(text_of(action.Id)));
-				grid->addWidget(label, line, 1, Qt::AlignTop);
+				grid->addWidget(now, line, 1);
 				++line;
 			}
 			for (const auto& action : yours->Workflow.Actions) {
 				if (std::ranges::find(workflow.Actions, action.Id, &core::workflow_action::Id) == workflow.Actions.end()) {
-					grid->addWidget(rich(cell(action, nullptr), box), line, 0, Qt::AlignTop);
-					grid->addWidget(note(tr("Removed"), box), line, 1, Qt::AlignTop);
+					grid->addWidget(cell(action, nullptr, { }), line, 0);
+					grid->addWidget(absent(tr("Removed")), line, 1);
 					++line;
 				}
 			}
 		} else {
-			grid->setColumnStretch(0, 1);
+			grid->addWidget(header(tr("Its actions")), line++, 0, 1, 2);
 			for (const auto& action : workflow.Actions) {
-				auto* const label = rich(cell(action, nullptr), box);
-				label->setObjectName(QStringLiteral("agentConfigurationAction-%1").arg(text_of(action.Id)));
-				grid->addWidget(label, line++, 0);
+				grid->addWidget(cell(action, nullptr, { }), line++, 0, 1, 2);
 			}
 		}
-		rows->addLayout(grid);
-		column.addWidget(box);
+		column.addWidget(table);
 
 		// One program for every action that names it: chosen here, never from the file.
 		if (plan.Standing != core::import_standing::unchanged) {
@@ -1522,23 +1771,26 @@ namespace bpr::qt {
 						}
 					}
 				}
+				// [[BPR-2204]]. One filled card: the program on one line,
+				// Choose program… at its top right, the count in words.
 				auto [programBox, programRows] = group_box(&aPage);
-				auto* const row                = new QHBoxLayout{ };
-				auto* const words              = new QVBoxLayout{ };
-				auto* const line1              = rich(bound.isEmpty() ? tr("%1 is not chosen yet").arg(QStringLiteral("<code>%1</code>").arg(breakable(name).toHtmlEscaped()))
-																	  : tr("%1 is %2").arg(QStringLiteral("<code>%1</code>").arg(breakable(name).toHtmlEscaped()), breakable(bound).toHtmlEscaped()),
-													  programBox);
-				words->addWidget(line1);
-				words->addWidget(note(counted(asking, tr("1 action asks for it."), tr("%1 actions ask for it.")) + QLatin1Char(' ')
-										  + (bound.isEmpty() ? tr("The file names the program and carries no path, so you say where it is on this computer. Until then those actions cannot be handed off.")
-															 : tr("Chosen on this computer for every action that names it.")),
-									  programBox));
-				row->addLayout(words, 1);
+				programBox->setObjectName(QStringLiteral("agentConfigurationWorkflowProgramCard"));
+				auto* const row = new QHBoxLayout{ };
+				row->setSpacing(12);
+				const auto  code  = QStringLiteral("<code>%1</code>").arg(breakable(name).toHtmlEscaped());
+				auto* const line1 = rich(bound.isEmpty() ? tr("%1 is not chosen yet").arg(code) : tr("%1 is %2").arg(code, breakable(bound).toHtmlEscaped()), programBox);
+				line1->setObjectName(QStringLiteral("agentConfigurationWorkflowProgramName"));
+				row->addWidget(line1, 1, Qt::AlignVCenter);
 				auto* const choose = new quiet_push_button{ tr("Choose program…"), programBox };
 				choose->setObjectName(QStringLiteral("agentConfigurationWorkflowProgram"));
 				choose->setAccessibleName(tr("Choose program for %1").arg(name));
 				row->addWidget(choose, 0, Qt::AlignTop);
 				programRows->addLayout(row);
+				const auto count = asking == 1U ? tr("One action asks for it.") : tr("%1 actions ask for it.").arg(counted_words(asking));
+				programRows->addWidget(note(count + QLatin1Char(' ')
+												+ (bound.isEmpty() ? tr("The file names the program and carries no path, so you say where it is on this computer. Until then those actions cannot be handed off.")
+																   : tr("Chosen on this computer for every action that names it.")),
+											programBox));
 				column.addWidget(programBox);
 				connect(choose, &QPushButton::clicked, this, [this, aItem, name] {
 					if (!Chooser) {
@@ -1577,7 +1829,7 @@ namespace bpr::qt {
 		}
 		const auto& local = Preview.Prompts[*item.Local];
 		const auto  mine  = local.Override.empty() ? local.BuiltIn : local.Override;
-		title_row(column, prompt_title(local.Purpose), standing_tag(plan.Standing), aPage);
+		title_row(column, prompt_title(local.Purpose), standing_tag(plan.Standing), standing_tone(plan.Standing), aPage);
 		if (plan.Standing == core::import_standing::updated) {
 			auto* const parts = new QHBoxLayout{ };
 			parts->setSpacing(0);
@@ -1664,7 +1916,7 @@ namespace bpr::qt {
 		auto&       column   = *static_cast<QVBoxLayout*>(aPage.layout());
 		const auto& identity = *Preview.File.Identity;
 		const auto& plan     = *Plan.Identity;
-		title_row(column, tr("Identity"), standing_tag(plan.Standing), aPage);
+		title_row(column, tr("Identity"), standing_tag(plan.Standing), standing_tone(plan.Standing), aPage);
 		if (plan.Standing == core::import_standing::updated) {
 			choice_row(item_kind::identity, 0U, tr("Import"), aPage);
 		}
@@ -1710,7 +1962,8 @@ namespace bpr::qt {
 		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
 		const auto& item   = Preview.File.Repositories[aItem];
 		const auto& plan   = Plan.Repositories[aItem];
-		title_row(column, text_of(item.Repository), plan.SignInToUse && !item.Followed ? tr("Sign in to use") : standing_tag(plan.Standing), aPage);
+		const auto  waits  = plan.SignInToUse && !item.Followed;
+		title_row(column, text_of(item.Repository), waits ? tr("Sign in to use") : standing_tag(plan.Standing), waits ? detail::tag_tone::caution : standing_tone(plan.Standing), aPage);
 		if (plan.Standing == core::import_standing::added && (!plan.SignInToUse || item.Followed)) {
 			choice_row(item_kind::repository, aItem, tr("Add"), aPage);
 		}

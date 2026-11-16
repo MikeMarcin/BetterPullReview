@@ -32,6 +32,7 @@
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -174,6 +175,24 @@ namespace {
 			}
 		}
 		return nullptr;
+	}
+
+	/// [[BPR-2204]]. Every word an action's cell shows: its task, its tags,
+	/// who runs it and what it says it does.
+	[[nodiscard]] auto cell_text(const QWidget* aCell) -> QString
+	{
+		auto words = QString{ };
+		for (const auto* const label : aCell->findChildren<QLabel*>()) {
+			words += label->text() + QLatin1Char('|');
+		}
+		return words.remove(QChar{ 0x200B });
+	}
+
+	/// [[BPR-2204]]. A cell's line, by its object name, as placed in `aTable`.
+	[[nodiscard]] auto line_top(const QWidget* aCell, const QString& aLine, const QWidget* aTable) -> int
+	{
+		const auto* const label = aCell->findChild<QLabel*>(aLine);
+		return label == nullptr ? -1 : label->mapTo(aTable, QPoint{ 0, 0 }).y();
 	}
 
 	/// The shown item's choice part with these words.
@@ -377,12 +396,16 @@ namespace {
 			return aHint == QStringLiteral("org-companion") ? QStringLiteral("/usr/local/bin/org-companion") : QString{ };
 		});
 		importer.select_workflow(0U);
-		expect(part(importer, QStringLiteral("Add")) != nullptr && part(importer, QStringLiteral("Add"))->isChecked() && importer.choice_buttons().size() == 2, "a new workflow: Add or Leave out, added");
-		auto* const template_ = importer.workflow_comparison()->findChild<QLabel*>(QStringLiteral("agentConfigurationAction-template"));
-		auto* const describe  = importer.workflow_comparison()->findChild<QLabel*>(QStringLiteral("agentConfigurationAction-describe"));
-		expect(template_ != nullptr && template_->text().contains(QStringLiteral("Required")) && plain(template_).contains(QStringLiteral("You run")) && template_->text().contains(QStringLiteral("runs checks in your workspace")),
+		// [[BPR-2204]]. As the design draws it, the tick is a workflow's choice:
+		// the detail has no Add / Leave out of its own.
+		expect(importer.choice_buttons().isEmpty() && row_named(importer, QStringLiteral("Synthetic Org pull request"))->checkState() == Qt::Checked && importer.workflow_choices().size() == 1U
+				   && importer.workflow_choices()[0].Action == core::workflow_import_action::add,
+			   "a new workflow: its tick is its choice, ticked, and the detail has no control of its own");
+		const auto templateCell = cell_text(importer.workflow_comparison()->findChild<QWidget*>(QStringLiteral("agentConfigurationAction-template")));
+		const auto describe     = cell_text(importer.workflow_comparison()->findChild<QWidget*>(QStringLiteral("agentConfigurationAction-describe")));
+		expect(templateCell.contains(QStringLiteral("Required")) && templateCell.contains(QStringLiteral("You run")) && templateCell.contains(QStringLiteral("runs checks in your workspace")),
 			   "each action, who runs it and with what, and what it says it does");
-		expect(describe != nullptr && describe->text().contains(QStringLiteral("Work Claude")) && describe->text().contains(QStringLiteral("read-only")), "an agent action names its agent");
+		expect(describe.contains(QStringLiteral("Work Claude")) && describe.contains(QStringLiteral("read-only")), "an agent action names its agent");
 		expect(importer.workflow_program_buttons().size() == 1, "one program to choose, named by the file and carrying no path");
 		importer.workflow_program_buttons().front()->click();
 		settle();
@@ -398,19 +421,63 @@ namespace {
 		auto updatedPreview = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
 		auto widened        = preview.File;
 		widened.Workflows[0].Workflow.Actions[1].Effects.push_back(core::workflow_effect::change_ticket);
+		// And a new action, so the table shows one.
+		widened.Workflows[0].Workflow.Actions.push_back({ .Id = "link", .Slot = core::workflow_slot::finish_publication, .Task = "Link the ticket and upload the screenshot", .Binding = core::workflow_binding::command, .ProgramName = "org-companion", .Arguments = { "{request}", "{response}" }, .Effects = { core::workflow_effect::change_ticket } });
 		updatedPreview.File = widened;
 		auto updater        = qt::agent_configuration_import_dialog{ updatedPreview, { .Skills = { }, .Found = { } } };
 		updater.select_workflow(0U);
-		expect(part(updater, QStringLiteral("Update")) != nullptr && part(updater, QStringLiteral("Update"))->isChecked() && updater.workflow_choices().size() == 1U
-				   && updater.workflow_choices()[0].Action == core::workflow_import_action::replace,
-			   "an update starts chosen");
-		auto* const widenedCell = updater.workflow_comparison()->findChild<QLabel*>(QStringLiteral("agentConfigurationAction-template"));
-		expect(widenedCell != nullptr && widenedCell->text().contains(QStringLiteral("Does more")) && widenedCell->text().contains(QStringLiteral("changes a ticket")), "a widened effect is marked before Import");
+		expect(updater.choice_buttons().isEmpty() && updater.workflow_choices().size() == 1U && updater.workflow_choices()[0].Action == core::workflow_import_action::replace, "an update starts chosen, by its tick");
+		const auto widenedCells = updater.workflow_comparison()->findChildren<QWidget*>(QStringLiteral("agentConfigurationAction-template"));
+		expect(widenedCells.size() == 2, "the action on both sides");
+		const auto* const widenedCell = widenedCells[1];
+		const auto* const effects     = widenedCell->findChild<QLabel*>(QStringLiteral("agentConfigurationActionEffects"));
+		// [[BPR-2204]]. The added effect alone, in the caution colour; no
+		// "Does more" tag, and its words reach a screen reader.
+		expect(effects != nullptr && effects->text().contains(QStringLiteral("changes a ticket")) && effects->text().contains(QStringLiteral("color:")) && !cell_text(widenedCell).contains(QStringLiteral("Does more"))
+				   && effects->accessibleDescription().contains(QStringLiteral("changes a ticket")),
+			   "a widened effect is marked before Import, in the caution colour");
 		expect(updater.workflow_comparison()->findChildren<QLabel*>().size() >= 6, "yours beside the file's, row against row");
-		render(updater, aRoot, QStringLiteral("import-workflow-update"));
-		part(updater, QStringLiteral("Leave out"))->click();
+		const auto says = updater.detail()->findChild<QLabel*>(QStringLiteral("agentConfigurationWorkflowSays"));
+		expect(says != nullptr && says->text().contains(QStringLiteral("font-weight:600")), "the revisions are set in bold");
+		// [[BPR-2204]] (13). Each action's two sides share one row: their task,
+		// who runs it and what it does start on the same lines.
+		updater.show();
 		settle();
-		expect(updater.workflow_choices().empty() && row_named(updater, QStringLiteral("Synthetic Org pull request"))->checkState() == Qt::Unchecked, "Leave out is one click, and unticks");
+		// Shown, the detail may have been drawn again: find its cells anew.
+		const auto* const table = updater.workflow_comparison();
+		const auto        sides = table->findChildren<QWidget*>(QStringLiteral("agentConfigurationAction-template"));
+		expect(sides.size() == 2, "both sides, shown");
+		for (const auto* const line : { "agentConfigurationActionTask", "agentConfigurationActionWho", "agentConfigurationActionEffects" }) {
+			const auto left  = line_top(sides[0], QString::fromLatin1(line), table);
+			const auto right = line_top(sides[1], QString::fromLatin1(line), table);
+			if (left != right) {
+				std::cerr << line << ": " << left << " beside " << right << '\n';
+			}
+			expect(left >= 0 && left == right, "the two sides of a row stay in line");
+		}
+		const auto* const added = table->findChild<QWidget*>(QStringLiteral("agentConfigurationAction-link"));
+		expect(added != nullptr && added->property("bprComparisonTint").toBool() && cell_text(added).contains(QStringLiteral("New action")), "a new action's whole cell is tinted, with its tag");
+		for (const auto* const label : added->findChildren<QLabel*>()) {
+			if (label->text() == QStringLiteral("New action")) {
+				expect(label->mapTo(table, QPoint{ 0, 0 }).y() == line_top(added, QStringLiteral("agentConfigurationActionTask"), table), "New action sits on the task's first line");
+			}
+		}
+		render(updater, aRoot, QStringLiteral("import-workflow-update"));
+		// [[BPR-2204]] (9). Another item opens at its top, not at the
+		// previous item's scroll offset.
+		updater.resize(980, 420);
+		settle();
+		auto* const scroll = updater.findChild<QScrollArea*>();
+		scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum());
+		settle();
+		expect(scroll->verticalScrollBar()->value() > 0, "the workflow's detail scrolls in a short window");
+		updater.items()->setCurrentItem(row_named(updater, QStringLiteral("Work Claude")));
+		settle();
+		expect(scroll->verticalScrollBar()->value() == 0, "the next item opens at its top");
+		updater.resize(980, 680);
+		row_named(updater, QStringLiteral("Synthetic Org pull request"))->setCheckState(Qt::Unchecked);
+		settle();
+		expect(updater.workflow_choices().empty(), "unticking leaves it out");
 
 		// An unknown action is named and its workflow refused; the rest still imports.
 		auto unknown                     = preview.File;
@@ -431,6 +498,10 @@ namespace {
 			   "an unknown action is named and its workflow cannot be ticked");
 		refuser.select_workflow(0U);
 		expect(refuser.choice_buttons().isEmpty() && refuser.workflow_choices().empty(), "it is refused");
+		// [[BPR-2204]]. Drawn with the refused mark where its tick would be.
+		// The row delegate's mark role (Qt::UserRole + 25), refused = 2.
+		expect(refusedRow->data(Qt::UserRole + 25).toInt() == 2, "a refused row wears the refused mark");
+		render(refuser, aRoot, QStringLiteral("import-refused"));
 		return updatedPreview;
 	}
 	/// Owner, look workflow-import-v002: "Super ugly. Something went way
@@ -454,31 +525,64 @@ namespace {
 			dialog->select_workflow(0U);
 			dialog->show();
 			settle();
+			// [[BPR-2204]]. The design's ground: the list sits on the Prompts
+			// page's panel colour, the detail on the sheet's own window colour
+			// with no frame of its own.
+			auto* const list   = dialog->findChild<QWidget*>(QStringLiteral("agentConfigurationImportList"));
 			auto* const pane   = dialog->findChild<QFrame*>(QStringLiteral("agentConfigurationDetail"));
 			auto* const editor = prompts->findChild<QFrame*>(QStringLiteral("promptsEditor"));
-			expect(pane != nullptr && editor != nullptr, "the two detail panels");
+			expect(list != nullptr && pane != nullptr && editor != nullptr, "the list, the detail and the Prompts page's panel");
 			const auto panel = editor->palette().color(QPalette::Active, editor->backgroundRole());
 			expect(dialog->palette().color(QPalette::Active, QPalette::Window) == owner.palette().color(QPalette::Active, QPalette::Window), "the dialog takes its opener's theme");
-			expect(pane->palette().color(QPalette::Active, pane->backgroundRole()) == panel, "the detail pane is the Prompts page's panel, by role");
-			const auto image = pane->grab().toImage();
+			expect(list->palette().color(QPalette::Active, QPalette::AlternateBase) == panel && pane->frameShape() == QFrame::NoFrame, "the list is on the Prompts page's panel, by role; the detail has no frame");
+			const auto image = dialog->grab().toImage();
 			const auto ratio = image.devicePixelRatio();
-			// The pane's left margin: nothing but the panel is drawn there.
-			const auto drawn = image.pixelColor(static_cast<int>(6 * ratio), image.height() / 2);
-			if (drawn.rgb() != panel.rgb()) {
-				std::cerr << name.toStdString() << ": drawn " << drawn.name().toStdString() << " panel " << panel.name().toStdString() << '\n';
+			const auto pixel = [&image, ratio, dialog](const QWidget* aWidget, const QPoint aAt) {
+				const auto at = aWidget->mapTo(dialog, aAt);
+				return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+			};
+			// The list's empty foot and the detail's left margin: nothing but the ground is drawn there.
+			const auto foot   = pixel(list, QPoint{ list->width() / 2, list->height() - 8 });
+			const auto margin = pixel(pane, QPoint{ 0, pane->height() - 4 });
+			const auto window = dialog->palette().color(QPalette::Active, QPalette::Window);
+			if (foot.rgb() != panel.rgb() || margin.rgb() != window.rgb()) {
+				std::cerr << name.toStdString() << ": list " << foot.name().toStdString() << " panel " << panel.name().toStdString() << ", detail " << margin.name().toStdString() << " window " << window.name().toStdString()
+						  << '\n';
 			}
-			expect(drawn.rgb() == panel.rgb(), "and by the pixels it paints");
+			expect(foot.rgb() == panel.rgb() && margin.rgb() == window.rgb(), "and by the pixels they paint");
 			// A theme change while it is open follows.
 			auto other = qt::appearance_profile{ };
 			static_cast<void>(other.select_mode(mode == core::appearance_mode::dark ? core::appearance_mode::light : core::appearance_mode::dark));
 			other.apply_to(owner);
 			settle();
-			expect(pane->palette().color(QPalette::Active, pane->backgroundRole()) == editor->palette().color(QPalette::Active, editor->backgroundRole()), "and follows a theme change");
+			expect(list->palette().color(QPalette::Active, QPalette::AlternateBase) == editor->palette().color(QPalette::Active, editor->backgroundRole()), "and follows a theme change");
 			profile.apply_to(owner);
 			settle();
 			render(*dialog, aRoot, QStringLiteral("import-theme-") + name);
+			dialog->select_agent(0U);
+			render(*dialog, aRoot, QStringLiteral("import-agent-theme-") + name);
 			dialog->hide();
 			delete dialog;
+			// [[BPR-2204]]. Export in the same language: its list and its
+			// file each sit on the Prompts page's panel, in this theme.
+			auto unsaved         = std::array<bool, core::writing_hook_count + 1U>{ };
+			unsaved[1]           = true;
+			auto facts           = core::profile_facts{ .ProfileName = "Work" };
+			facts.SignedIn       = { { .Host = "github.com", .Login = "octo" } };
+			facts.Repositories   = { { .Host = "github.com", .Repository = "octo/app", .Saved = true }, { .Repository = "octo/lib", .Followed = true } };
+			auto snapshot        = sender();
+			snapshot.Workflows   = { };
+			auto* const exporter = new qt::agent_configuration_export_dialog{ snapshot, unsaved, "BetterPullReview test", facts, &owner };
+			exporter->show();
+			settle();
+			auto* const exportList = exporter->findChild<QWidget*>(QStringLiteral("agentConfigurationExportList"));
+			auto* const exportFile = exporter->findChild<QWidget*>(QStringLiteral("agentConfigurationExportFile"));
+			expect(exportList != nullptr && exportFile != nullptr && exportList->palette().color(QPalette::Active, QPalette::AlternateBase) == panel
+					   && exportFile->palette().color(QPalette::Active, QPalette::AlternateBase) == panel,
+				   "export's list and file are on the Prompts page's panel");
+			render(*exporter, aRoot, QStringLiteral("export-theme-") + name);
+			exporter->hide();
+			delete exporter;
 		}
 	}
 } // namespace

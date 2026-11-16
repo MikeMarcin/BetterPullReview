@@ -2602,6 +2602,25 @@ Under the list, **Share profile settings** has **Import Profile Settings…**
 and **Export Profile Settings…** with one line: "A file with this profile's
 agents, prompts and workflows, to move to another computer or share."
 
+Both dialogs are drawn as the accepted import design B
+([workflow-import-v1](../design/workflow-import-v1/README.md), [[BPR-2204]]):
+a semibold title close over a secondary sentence that wraps short of the
+sheet, then the Prompt library's ticked list at the left in one rounded
+well on the panel colour, the detail at the right on the sheet's own ground
+with no frame, and a footer sentence beside Cancel and the default button.
+A list row is a tick (or the refused mark, or the tick's room left empty so
+every name lines up), the agent sparkle for an agent, the name with its tag
+as a small tinted pill (New blue, Updated and Edited teal, Not saved amber,
+the rest grey), and a secondary line; section headings are semibold body
+text with even room above; a selected row is a quiet grey. In Import a
+workflow's tick is its choice: its detail has no Update or Leave out of its
+own. An update is a table of yours beside the file's, with a header band,
+hairlines between rows and sides, each action's lines level on both sides, a
+new action's cell washed teal with New action at its top right, and an
+added effect in the caution colour. Each item opens at the top of its
+detail. Export's right side is the file's label, then the file's exact text
+in its own well. Every colour is a palette role or a theme role.
+
 RFC-BPR-0033's chooser, shown when no window exists (Manage Profiles… on the
 resident macOS menu bar, or a failure no window can carry), is the desktop's
 own Settings window with Profiles alone: the sidebar is not shown, and Share

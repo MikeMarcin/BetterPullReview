@@ -6502,6 +6502,13 @@ namespace {
 					finish(QStringLiteral("ATTENDED_LOCAL_DRAFT_WORKFLOW_SHOWN:%1:actions=%2")
 							   .arg(QString::fromStdString(AttendedLocalDraftPath))
 							   .arg(page->projection().Workflow.Actions.size()));
+					// [[BPR-2204]]. With `--attended-profiles-look` the same
+					// look goes on to the Profiles look's steps: a saved and
+					// a followed repository, a second profile, Work, and
+					// Settings open on Profiles, where Import and Export are.
+					if (QCoreApplication::arguments().contains(QStringLiteral("--attended-profiles-look"))) {
+						schedule_attended_profiles_look(aApplication);
+					}
 					return;
 				}
 				if (AttendedLocalDraftAuthor) {
