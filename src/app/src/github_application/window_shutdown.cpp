@@ -84,6 +84,9 @@ namespace bpr::app {
 		if (AgentRuntime) {
 			AgentRunner.withdraw(*AgentRuntime);
 		}
+		if (ChatQueueRuntime) {
+			AgentRunner.withdraw(*ChatQueueRuntime);
+		}
 #endif
 		if (SharedDrafts) {
 			SharedDrafts->detach(DraftConsumer);

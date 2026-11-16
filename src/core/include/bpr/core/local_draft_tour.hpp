@@ -3,6 +3,7 @@
 
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/core/local_draft_check.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 
@@ -230,7 +231,13 @@ namespace bpr::core {
 		std::vector<std::uint64_t> Proposals;
 		/// Its cost in millionths of a dollar, when the agent reported one.
 		std::optional<std::uint64_t> CostMicros;
-		std::int64_t                 At                                   = 0;
+		std::int64_t                 At = 0;
+		/// RFC-BPR-0120. An answer that is a check's plan card or its report.
+		std::optional<local_check> Check;
+		/// [[BPR-2154]]. An author's message steered into the question
+		/// before it while that ran, after this many of the agent's steps:
+		/// shown on that question's turn, never a question of its own.
+		std::optional<std::uint32_t> SteeredAfter;
 		auto                         operator<=>(const local_turn&) const = default;
 	};
 
@@ -268,7 +275,9 @@ namespace bpr::core {
 		std::vector<local_proposal>     Proposals;
 		std::uint64_t                   NextProposal = 1;
 		std::vector<local_conversation> Conversations;
-		std::uint64_t                   NextConversation                                  = 1;
+		std::uint64_t                   NextConversation = 1;
+		/// RFC-BPR-0120. Each agent's two grants for this draft's checks.
+		std::vector<local_check_grants> CheckGrants;
 		auto                            operator<=>(const local_draft_preparation&) const = default;
 	};
 	/// \brief Every bound of RFC-BPR-0110 and of the tour (256 stops, 64 KiB a
@@ -419,6 +428,17 @@ namespace bpr::core {
 	/// \brief Records the agent's resume handle for a conversation.
 	[[nodiscard]] auto record_handle(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aConversation, std::string aHandle, std::int64_t aNow)
 		-> preparation_result<local_draft>;
+	/// \brief RFC-BPR-0120. A check's question and its answer (a plan card
+	/// or a report), appended to conversation `aConversation` whichever
+	/// candidate it is on: a report on an older candidate is kept there.
+	[[nodiscard]] auto append_check_turns(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aConversation, local_turn aQuestion, local_turn aAnswer,
+										  std::int64_t aNow) -> preparation_result<local_draft>;
+	/// \brief Discard, or Run: the plan card of turn `aTurn` of `aConversation`
+	/// moves from planned to `aState`. A plan decided already is refused.
+	[[nodiscard]] auto settle_check_plan(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aConversation, std::size_t aTurn, local_check_state aState,
+										 std::int64_t aNow) -> preparation_result<local_draft>;
+	/// \brief Remembers one agent's two grants for this draft.
+	[[nodiscard]] auto remember_check_grants(const local_draft& aDraft, std::uint64_t aExpectedVersion, local_check_grants aGrants, std::int64_t aNow) -> preparation_result<local_draft>;
 	/// \brief New session: ends the open conversation; it stays in history.
 	[[nodiscard]] auto end_conversation(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::uint64_t aConversation, std::int64_t aNow) -> preparation_result<local_draft>;
 	/// \brief The turns a replay sends: the latest within 12 turns and 48 KiB,

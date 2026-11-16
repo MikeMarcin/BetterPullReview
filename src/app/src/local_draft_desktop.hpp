@@ -81,6 +81,8 @@ namespace bpr::app {
 		void publish(const application::local_draft_home_projection& aHome) override;
 		/// \brief Author state (RFC-BPR-0113, 0114 as amended 2026-11-12).
 		void publish(const application::local_changes_projection& aProjection) override;
+		/// \brief RFC-BPR-0120, RFC-BPR-0103. A running check's activity.
+		void publish_check_activity(const std::optional<core::agent_turn_activity>& aActivity) override;
 
 		/// \brief Opens a worktree as Prepare pull request does, with a
 		/// harness's context when one handed it over.
@@ -104,10 +106,21 @@ namespace bpr::app {
 			std::string CommitMessage;
 			/// [[BPR-2140]]. Where the agent's instructions go (its switch).
 			core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
+			/// RFC-BPR-0120: `local-draft.run-check`'s effective text and version.
+			std::string Check;
+			std::string CheckVersion;
 		};
 		using agent_chooser = std::function<std::optional<agent_choice>()>;
 		/// \brief Composes the agent runs; a null runner leaves authoring by hand only.
 		void set_agent(application::local_draft_agent_runner aRunner, application::effect_executor* aLane, agent_chooser aChooser);
+		/// \brief RFC-BPR-0120. The check copies (under the agents' scratch
+		/// root) and the most bytes one may hold; without them no check is planned.
+		void set_check_copies(std::unique_ptr<application::local_check_copy_port> aCopies, std::function<std::uint64_t()> aLimitBytes);
+		/// \brief Replaces the first build question, for a course.
+		void set_build_question(std::function<bool()> aQuestion);
+		/// \brief A report's code reference (`bpr-check:PATH:LINE`): the
+		/// checked candidate at that line. False when it is not one.
+		auto follow_check_reference(const std::string& aLink) -> bool;
 		/// \brief RFC-BPR-0111. The account Create draft PR acts as, asked each
 		/// time; its GitHub calls run on this desktop's own lane, apart from
 		/// every review submission (X22).
@@ -153,9 +166,35 @@ namespace bpr::app {
 		/// `tour_shown`); a pull request's publication actions do nothing.
 		void tour_action(qt::tour_editor_action aAction);
 		void tour_ask(const qt::tour_ask& aAsk);
+		/// \brief RFC-BPR-0126 Q2 ([[BPR-2154]]). The draft whose tour the
+		/// window shows; empty when none shows.
+		[[nodiscard]] auto shown_draft() const -> std::string;
+		/// \brief Whether a question of the draft is with its agent now.
+		[[nodiscard]] auto asking() const -> bool;
+		/// \brief [[BPR-2154]]. The discussion question with the agent: its
+		/// part and number (`local_draft_workbench_projection::AskingRun`);
+		/// none while nothing, a check or a first description runs.
+		[[nodiscard]] auto asking_question() const -> std::optional<std::pair<core::tour_thread, std::uint64_t>>;
+		/// \brief [[BPR-2154]]. The last question that ended, by its number,
+		/// and what was steered into it, settled.
+		[[nodiscard]] auto answered_steers() const -> std::pair<std::uint64_t, std::vector<application::local_draft_steered>>;
+		/// \brief [[BPR-2154]]. The chosen agent's name; empty for none.
+		[[nodiscard]] auto agent_name() const -> std::string;
+		/// \brief Whether an agent is chosen for the draft's questions.
+		[[nodiscard]] auto agent_ready() const -> bool;
+		/// \brief Told when a question goes to the agent (`aAsking`) and when
+		/// it has ended: failed, or stopped by Stop.
+		using asking_observer = std::function<void(bool aAsking, bool aFailed, bool aStopped)>;
+		void set_asking_observer(asking_observer aObserver) { AskingObserver = std::move(aObserver); }
+		/// \brief Told each time the draft's tour is presented.
+		void set_tour_observer(std::function<void()> aObserver) { TourObserver = std::move(aObserver); }
 		/// \brief A one-shot writing request (a field's draft) asks the part's chat.
 		void tour_writing(core::writing_hook aHook);
 		void tour_stop();
+		/// \brief A one-shot writing request was let go (the window lost
+		/// focus): it stops a question, never a check (RFC-BPR-0120: the
+		/// author keeps working while a check runs).
+		void writing_stop();
 		void tour_decide(std::size_t aIndex, core::tour_proposal_decision aDecision, const QString& aText);
 		/// \brief Overview's description Save, for this draft: the body, with the draft's title.
 		void save_description(const std::string& aBody);
@@ -178,8 +217,16 @@ namespace bpr::app {
 			std::function<void()> Apply;
 		};
 		std::deque<tour_edit> TourEdits;
-		bool                  TourEditInFlight = false;
-		pull_request_opener   OpenPullRequest;
+		asking_observer       AskingObserver;
+		std::function<void()> TourObserver;
+		bool                  AskingSeen = false;
+		bool                  StopAsked  = false;
+		/// The question with the agent is a one-shot writing request's
+		/// (`tour_writing`), which `writing_stop` lets go.
+		bool                WritingAsk       = false;
+		bool                AskingForWriting = false;
+		bool                TourEditInFlight = false;
+		pull_request_opener OpenPullRequest;
 		/// Whether each draft seen was linked when last published.
 		std::map<std::string, bool> LinkedSeen;
 		std::optional<std::string>  TypedProblem;
@@ -200,7 +247,22 @@ namespace bpr::app {
 		std::unique_ptr<application::workspace_source_port> Source;
 		/// RFC-BPR-0112. Workflow request and answer files; outlives the host's use of it.
 		std::unique_ptr<application::workflow_exchange_port> Exchange;
-		std::unique_ptr<application::local_draft_workbench>  Host;
+		/// RFC-BPR-0120. Outlives the host, whose effect lane writes the copies.
+		std::unique_ptr<application::local_check_copy_port> CheckCopies;
+		std::unique_ptr<application::local_draft_workbench> Host;
+		/// The agent the draft's checks run as: the one last asked, or the
+		/// whole-change conversation's.
+		std::string           CheckAgent;
+		std::string           CheckAgentName;
+		std::function<bool()> BuildQuestion;
+		std::uint64_t         ReportCandidate = 0U;
+		qint64                CheckStartedMs  = 0;
+		void                  present_checks(core::local_tour_view& aView);
+		void                  check_grants(bool aScratch, bool aBuilds);
+		void                  open_check_report(core::tour_agent_run_id aRun);
+		void                  run_check(core::tour_agent_run_id aRun, bool aAgain);
+		void                  plan_check(const QString& aWords);
+		[[nodiscard]] auto    check_question(const std::string& aWords) -> std::optional<application::local_check_question>;
 		/// Author state: the author's own Git, the one file Save writes, and
 		/// the one-time question's answers (`author-git-consent.txt`).
 		std::unique_ptr<application::author_git_port>    AuthorGit;

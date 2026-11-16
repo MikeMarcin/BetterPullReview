@@ -4426,10 +4426,30 @@ namespace bpr::application {
 		// helper's report). Otherwise the correction cannot be reconciled and
 		// is unknown, and the connection is not reused.
 		if (QueuedTurns) {
-			Phase = 3U;
+			Phase            = 3U;
+			SuccessorAwaited = true;
 			return;
 		}
 		settle_steers();
+	}
+
+	auto agent_protocol_decoder::awaiting_successor() const noexcept -> bool
+	{
+		return SuccessorAwaited && !Failed && Phase == 3U && Protocol == core::agent_protocol::claude_stream_json;
+	}
+
+	void agent_protocol_decoder::abandon_successor() noexcept
+	{
+		if (!awaiting_successor()) {
+			return;
+		}
+		SuccessorAwaited = false;
+		QueuedTurns      = false;
+		settle_steers();
+		// The answer it gave stands; reported helpers keep their own rule.
+		if (Helpers.Running.empty()) {
+			Phase = 2U;
+		}
 	}
 
 	auto agent_protocol_decoder::native_connection_reusable() const noexcept -> bool
@@ -4437,7 +4457,10 @@ namespace bpr::application {
 		// [[BPR-2153]]. A correction that could not be reconciled may still
 		// start a native turn: the process is retired, never reused.
 		const auto reconciled = std::ranges::none_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Disposition == core::agent_steer_disposition::unknown; });
-		return turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
+		// [[BPR-2154]]. A tool-free turn (a local draft's discussion) is kept
+		// only while it runs, so it can be steered: its next turn resumes in a
+		// process of its own (`prepare_native_agent_turn` connects none).
+		return !WritingOnly && turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
 	}
 
 	auto agent_protocol_decoder::native_handle() const noexcept -> const std::string&
@@ -4515,6 +4538,8 @@ namespace bpr::application {
 			}
 			auto frame = Pending.substr(0U, newline);
 			Pending.erase(0U, newline + 1U);
+			// [[BPR-2152]]. Any frame after the answer is the successor's.
+			SuccessorAwaited = false;
 			// [[BPR-2153]]. A steered run's receipts are read first.
 			const auto receipt = read_steer_receipt(frame);
 			if (!receipt) {

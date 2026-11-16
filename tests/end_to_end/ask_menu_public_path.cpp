@@ -413,6 +413,8 @@ auto main(int argc, char** argv) -> int
 			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
 			// [[BPR-2153]]: no turn runs, so there is nothing to steer; the
 			// message is kept, goes next, and the panel says why (Q17).
+			// [[BPR-2152]]: said once its claim is stored.
+			wait([&] { return window.agent_panel()->status_text().contains(QStringLiteral("goes next")); }, "the panel says what became of the steered message");
 			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("goes next")),
 				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
 			render_showing(window, *list(), QStringLiteral("queue-pending-list"));

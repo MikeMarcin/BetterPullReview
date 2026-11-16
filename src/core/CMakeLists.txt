@@ -135,6 +135,7 @@ add_library(
         src/local_presentation.cpp
         src/local_draft_publication.cpp
         src/local_draft_tour.cpp
+        src/local_draft_check.cpp
         src/workflow_configuration.cpp
         src/workflow_action.cpp
         src/author_mode.cpp

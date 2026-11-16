@@ -127,6 +127,18 @@ namespace bpr::adapters::sqlite {
 				|| detail::execute(aDatabase, "ALTER TABLE agent_queue_entries ADD COLUMN prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960)").has_value();
 		}
 
+		/// [[BPR-2152]] (AC06). A claimed entry keeps what it was bound to
+		/// (`core::encode_queued_claim`); a file made before has no column.
+		[[nodiscard]] auto add_queue_claim_column(sqlite3* const aDatabase) -> bool
+		{
+			const auto present = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%claim TEXT%'");
+			if (!present) {
+				return false;
+			}
+			return *present != 0
+				|| detail::execute(aDatabase, "ALTER TABLE agent_queue_entries ADD COLUMN claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256)").has_value();
+		}
+
 		[[nodiscard]] auto open(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
 		{
 			if (!detail::sqlite_runtime_ready()) {
@@ -291,7 +303,7 @@ namespace bpr::adapters::sqlite {
 				// SHA-256 is `text_digest`: a row for other text says nothing.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_provenance("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),"
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),"
 									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2016]]. An import's hooks before it, kept while the
@@ -299,7 +311,7 @@ namespace bpr::adapters::sqlite {
 				// crash between them is undone at the next start.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),"
+									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// [[BPR-2032]], RFC-BPR-0112. The profile's optional workflows,
@@ -437,8 +449,10 @@ namespace bpr::adapters::sqlite {
 									"label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384),"
 									"state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1),"
 									"prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960),"
+									"claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256),"
 									"PRIMARY KEY(session, position)) STRICT")
 				|| !add_queue_prompt_column(db)
+				|| !add_queue_claim_column(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
@@ -469,17 +483,18 @@ namespace bpr::adapters::sqlite {
 			// in one transaction.
 			// RFC-BPR-0116: two more, to 0 to 12.
 			// RFC-BPR-0117: one more, to 0 to 13. RFC-BPR-0118: one more, to 0 to 14.
-			static_assert(core::writing_hook_count == 15U, "the hook tables' check names the last hook");
+			// RFC-BPR-0120: one more, to 0 to 15.
+			static_assert(core::writing_hook_count == 16U, "the hook tables' check names the last hook");
 			for (const auto& [table, definition] : std::array{
 					 std::pair{ std::string_view{ "prompt_provenance" },
-								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 												  "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" } },
 					 std::pair{ std::string_view{ "configuration_import_journal" },
-								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 14),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 												  "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" } } }) {
 				auto query = std::string{ "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" };
 				query += table;
-				query += "' AND (sql LIKE '%hook BETWEEN 0 AND 7)%' OR sql LIKE '%hook BETWEEN 0 AND 9)%' OR sql LIKE '%hook BETWEEN 0 AND 10)%' OR sql LIKE '%hook BETWEEN 0 AND 12)%' OR sql LIKE '%hook BETWEEN 0 AND 13)%')";
+				query += "' AND (sql LIKE '%hook BETWEEN 0 AND 7)%' OR sql LIKE '%hook BETWEEN 0 AND 9)%' OR sql LIKE '%hook BETWEEN 0 AND 10)%' OR sql LIKE '%hook BETWEEN 0 AND 12)%' OR sql LIKE '%hook BETWEEN 0 AND 13)%' OR sql LIKE '%hook BETWEEN 0 AND 14)%')";
 				const auto narrow = detail::scalar_integer(db, query);
 				if (!narrow) {
 					return { };
@@ -3220,7 +3235,7 @@ namespace bpr::adapters::sqlite {
 						const auto paused = column_text(meta->Value, 3).value_or(std::string{ });
 						queue.Paused      = named_value<core::queue_pause>(paused, 9U).value_or(core::queue_pause::restarted);
 					}
-					auto entries = detail::prepare(db, "SELECT session,id,quick_ask,scope,file,thread,label,text,state,held,prompt FROM agent_queue_entries ORDER BY session,position");
+					auto entries = detail::prepare(db, "SELECT session,id,quick_ask,scope,file,thread,label,text,state,held,prompt,claim FROM agent_queue_entries ORDER BY session,position");
 					if (!entries) {
 						return std::nullopt;
 					}
@@ -3238,6 +3253,9 @@ namespace bpr::adapters::sqlite {
 						entry.Held  = sqlite3_column_int64(entries->Value, 9) != 0;
 						if (const auto prompt = column_text(entries->Value, 10).value_or(std::string{ }); !prompt.empty()) {
 							entry.Input.Prompt = core::decode_queued_prompt(prompt);
+						}
+						if (const auto claim = column_text(entries->Value, 11).value_or(std::string{ }); !claim.empty()) {
+							entry.Claim = core::decode_queued_claim(claim);
 						}
 						queues[column_text(entries->Value, 0).value_or(std::string{ })].Entries.push_back(std::move(entry));
 					}
@@ -3283,7 +3301,7 @@ namespace bpr::adapters::sqlite {
 							if (!ok) {
 								break;
 							}
-							auto row = detail::prepare(db, "INSERT INTO agent_queue_entries(session,position,id,quick_ask,scope,file,thread,label,text,state,held,prompt) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)");
+							auto row = detail::prepare(db, "INSERT INTO agent_queue_entries(session,position,id,quick_ask,scope,file,thread,label,text,state,held,prompt,claim) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)");
 							if (!row) {
 								ok = false;
 								break;
@@ -3300,6 +3318,7 @@ namespace bpr::adapters::sqlite {
 							bind_text(row->Value, 10, std::string{ core::stable_name(entry.State) });
 							sqlite3_bind_int64(row->Value, 11, entry.Held ? 1 : 0);
 							bind_text(row->Value, 12, entry.Input.Prompt ? core::encode_queued_prompt(*entry.Input.Prompt) : std::string{ });
+							bind_text(row->Value, 13, entry.Claim ? core::encode_queued_claim(*entry.Claim) : std::string{ });
 							ok = sqlite3_step(row->Value) == SQLITE_DONE;
 						}
 					}

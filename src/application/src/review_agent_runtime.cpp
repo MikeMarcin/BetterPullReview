@@ -40,16 +40,25 @@ namespace bpr::application {
 		if (aResult.Outcome == agent_run_outcome::protocol_failure && aResult.ProtocolFailure == agent_protocol_failure::usage_limit) {
 			return core::queued_finish::usage_limit;
 		}
+		// [[BPR-2152]] (AC06). A failure proven before the message was
+		// written leaves it unsent; a failure after it was possibly written,
+		// with no sign at all that the agent took it, leaves its delivery
+		// unknown; any other failure is the run's, and the message went.
+		const auto noSign = aResult.Events.empty() && aResult.AssistantItems.empty() && aResult.ToolActivity.empty() && aResult.SteeredInputs.empty();
 		switch (aResult.Outcome) {
 		case agent_run_outcome::success:
-		case agent_run_outcome::stale_result:            return core::queued_finish::went;
-		case agent_run_outcome::cancelled:               return core::queued_finish::stopped;
-		case agent_run_outcome::private_storage_failure:
+		case agent_run_outcome::stale_result:          return core::queued_finish::went;
+		case agent_run_outcome::cancelled:             return core::queued_finish::stopped;
 		case agent_run_outcome::failed_to_start:
-		case agent_run_outcome::workspace_unavailable:
-		case agent_run_outcome::nonzero_exit:
+		case agent_run_outcome::workspace_unavailable: return core::queued_finish::refused;
 		case agent_run_outcome::protocol_failure:
-		case agent_run_outcome::timeout:                 return core::queued_finish::failed;
+			if (aResult.ProtocolFailure == agent_protocol_failure::input_too_large) {
+				return core::queued_finish::refused;
+			}
+			return noSign ? core::queued_finish::unknown : core::queued_finish::failed;
+		case agent_run_outcome::nonzero_exit:
+		case agent_run_outcome::timeout:                 return noSign ? core::queued_finish::unknown : core::queued_finish::failed;
+		case agent_run_outcome::private_storage_failure: return core::queued_finish::failed;
 		}
 		return core::queued_finish::failed;
 	}
@@ -194,6 +203,7 @@ namespace bpr::application {
 		Awaiting.reset();
 		AwaitingPresenter.reset();
 		Running   = true;
+		Streamed  = false;
 		TurnShown = presented();
 		Finished.reset();
 		// [[BPR-2181]]. A native session's turn is kept in its native history,
@@ -322,6 +332,7 @@ namespace bpr::application {
 
 	auto review_agent_runtime::steer(const core::queued_entry& aEntry, agent_queue_host* const aQueue) -> std::optional<std::string>
 	{
+		SteerQueue = aQueue;
 		auto alive = std::weak_ptr<bool>{ Alive };
 		auto steer = agent_runtime_steer({
 			.Support  = [this](const agent_invocation_projection_identity& aRun) { return Turns ? Turns->steer_support(aRun) : core::agent_steer_support::not_running; },
@@ -341,9 +352,15 @@ namespace bpr::application {
 		return steer(Session, aEntry);
 	}
 
+	auto review_agent_runtime::bound() const -> core::queued_claim
+	{
+		return { .Run = Running ? Run : 0U, .Conversation = Conversation };
+	}
+
 	void review_agent_runtime::admit(const agent_invocation_projection_identity& aIdentity)
 	{
-		Active = aIdentity;
+		Active       = aIdentity;
+		Conversation = aIdentity.Session.Id.value();
 		present([&aIdentity](agent_invocation_projection_port& aPort) { aPort.admit(aIdentity); });
 	}
 
@@ -354,6 +371,7 @@ namespace bpr::application {
 
 	void review_agent_runtime::stream(const agent_invocation_projection_identity& aIdentity, const agent_stream_event& aEvent)
 	{
+		Streamed = true;
 		if (Turn && aEvent.Kind == agent_stream_kind::text) {
 			Turn->Answered += aEvent.Text;
 		}
@@ -369,15 +387,34 @@ namespace bpr::application {
 	{
 		if (Running) {
 			Finished = queued_finish_of(aResult);
+			// A turn that streamed anything took its message: its failure is
+			// the run's, not an unknown delivery.
+			if (Finished == core::queued_finish::unknown && Streamed) {
+				Finished = core::queued_finish::failed;
+			}
+			// [[BPR-2152]] (AC06). The corrections claimed for this run settle
+			// by their receipts before its retirement releases anything.
+			if (SteerQueue != nullptr) {
+				auto endings = std::vector<core::steered_settlement>{ };
+				for (const auto& steered : aResult.SteeredInputs) {
+					const auto ending = steered.Disposition == core::agent_steer_disposition::consumed                                                  ? core::steered_ending::consumed
+						: steered.Disposition == core::agent_steer_disposition::refused || steered.Disposition == core::agent_steer_disposition::unsent ? core::steered_ending::not_taken
+																																						: core::steered_ending::unknown;
+					endings.push_back({ .Receipt = steered.Identity, .Ending = ending });
+				}
+				SteerQueue->settle_steers(Session, Run, endings);
+			}
 		}
 		if (Active == std::optional{ aIdentity }) {
 			Active.reset();
 		}
 		if (Turn) {
 			// [[BPR-2153]]. Each steered message as it ended.
-			for (std::size_t index = 0U; index < Turn->Steered.size() && index < aResult.SteeredInputs.size(); ++index) {
-				Turn->Steered[index].Disposition = aResult.SteeredInputs[index].Disposition;
+			auto endings = std::vector<core::agent_steer_disposition>{ };
+			for (const auto& input : aResult.SteeredInputs) {
+				endings.push_back(input.Disposition);
 			}
+			core::settle_steered_messages(Turn->Steered, endings);
 			Turn->Ending  = std::string{ name(aResult.Outcome) };
 			Turn->Outcome = turn_outcome(aResult.Outcome);
 			if (Turn->Answered.empty()) {
@@ -448,6 +485,9 @@ namespace bpr::application {
 				.Steer = [this](const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> {
 					auto* const runtime = find(aSession);
 					return runtime == nullptr ? agent_steer_goes_next_words(core::agent_steer_support::not_running) : runtime->steer(aEntry, Dependencies.Queue); },
+				.Bound = [this](const std::string& aSession) {
+					const auto* const runtime = find(aSession);
+					return runtime == nullptr ? core::queued_claim{ } : runtime->bound(); },
 			});
 		}
 		if (Dependencies.Queue != nullptr) {

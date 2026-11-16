@@ -2926,6 +2926,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_chat_queues.cpp"
         "src/github_application/window_commit_filter.cpp"
         "src/github_application/window_composition.cpp"
         "src/github_application/window_composition.hpp"
@@ -3115,6 +3116,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_account_setup.cpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_chat_queues.cpp"
         "src/github_application/window_commit_filter.cpp"
         "src/github_application/window_composition.cpp"
         "src/github_application/window_composition.hpp"
@@ -3805,8 +3807,38 @@ function(bpr_verify_app_source_tree app_source_root)
 	# --attended-profiles-look, goes on to the profiles look's steps (two
 	# profiles, Settings on Profiles). Tests-on only; no review mutation or
 	# submission path changed.
+	# [[BPR-2152]] reseal: a Steer's outcome reaches the Agent tab once the
+	# queue host stored the message's claim (steer_shown), and the pending
+	# list shows a correction the agent took as Sent to agent. No review
+	# mutation or submission path changed.
+	# [[BPR-2189]] reseal (RFC-BPR-0120): a local draft's check runs in a
+	# check copy under the agents' scratch root with the draft's grants, its
+	# report opens in a file tab and its links open the checked candidate;
+	# the tests-on look stage --attended-local-draft-check. No review
+	# mutation or submission path changed.
+	# [[BPR-2190]] reseal: the tests-on UIforETW capture expects the review
+	# bar as it now stands (the local draft's hidden controls, Ask, the view
+	# picker; no Comment). Tests-on only; no review mutation or submission
+	# path changed.
+	# [[BPR-2189]] reseal: the tests-on check look asks the draft host to
+	# observe the worktree again (refresh_local_draft_for_look) so its edit
+	# becomes candidate 2. Tests-on only; no review mutation or submission
+	# path changed.
+	# [[BPR-2154]] reseal: window_chat_queues.cpp queues the tour chats' and
+	# a local draft's discussion's follow-ups on the profile's queue host and
+	# runs them on the window's tour host or the draft's lane; the local draft
+	# lets go only a writing request's question on writing_stop. No review
+	# mutation or submission path changed.
+	# [[BPR-2154]] reseal (look queue-tour-v001's Reject): a local draft's
+	# discussion question runs on a kept connection named by its draft and
+	# number, so Steer reaches it; the window settles what was steered when
+	# the question ends. No review mutation or submission path changed.
+	# [[BPR-2154]] reseal (look queue-tour-v002's Reject): a steered message
+	# joins its tour turn as it is written (pull request tour parts and a local
+	# draft's question), a local draft's question stands in the footer's Tour
+	# chat slot for Stop all. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "62d96cf0f7796bb15723ba5e6071de54573febffc803b7c53ef53ffa2dee3345"
+        "d90a3eb2eb7f2497d2a72899d94f86d5e33601ba5b9ea774daad7549fa6db05b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

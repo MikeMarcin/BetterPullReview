@@ -25,6 +25,9 @@ namespace bpr::application {
 		/// How the release was admitted, keyed by the run it was admitted as.
 		std::function<queued_admission(const std::string& aSession, const core::queued_entry& aEntry)> Start;
 		std::function<std::optional<std::string>(const std::string&, const core::queued_entry&)>       Steer;
+		/// [[BPR-2152]]. The running turn's run and native conversation.
+		/// Optional.
+		std::function<core::queued_claim(const std::string& aSession)> Bound;
 	};
 
 	class agent_session_runner final : public agent_turn_runner_port
@@ -50,6 +53,7 @@ namespace bpr::application {
 		[[nodiscard]] auto state(const std::string& aSession) -> core::queue_agent override;
 		[[nodiscard]] auto start(const std::string& aSession, const core::queued_entry& aEntry) -> queued_admission override;
 		[[nodiscard]] auto steer(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> override;
+		[[nodiscard]] auto bound(const std::string& aSession) -> core::queued_claim override;
 
 	private:
 		agent_queue_host*                              Host = nullptr;

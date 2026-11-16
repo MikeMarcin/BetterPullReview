@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -55,6 +56,37 @@ namespace bpr::core {
 		}
 
 		constexpr auto queued_prompt_version = std::string_view{ "p1;" };
+		constexpr auto queued_claim_version  = std::string_view{ "c1;" };
+
+		/// One unsigned 64-bit decimal field and its `;`.
+		[[nodiscard]] auto take_wide(std::string_view& aFrom) -> std::optional<std::uint64_t>
+		{
+			const auto end = aFrom.find(';');
+			if (end == std::string_view::npos || end == 0U || end > 20U) {
+				return std::nullopt;
+			}
+			constexpr auto most  = std::numeric_limits<std::uint64_t>::max();
+			auto           value = std::uint64_t{ 0U };
+			for (const auto digit : aFrom.substr(0U, end)) {
+				if (digit < '0' || digit > '9') {
+					return std::nullopt;
+				}
+				const auto next = static_cast<std::uint64_t>(digit - '0');
+				if (value > (most - next) / 10U) {
+					return std::nullopt;
+				}
+				value = value * 10U + next;
+			}
+			aFrom.remove_prefix(end + 1U);
+			return value;
+		}
+
+		/// Written but not settled: a correction or release the agent may
+		/// hold.
+		[[nodiscard]] auto in_flight(const queued_entry& aEntry) noexcept -> bool
+		{
+			return aEntry.State == queued_state::sending || aEntry.State == queued_state::sent;
+		}
 
 		[[nodiscard]] auto unsent(const queued_entry& aEntry) noexcept -> bool { return aEntry.State == queued_state::queued; }
 
@@ -71,6 +103,15 @@ namespace bpr::core {
 		case queued_state::sending:          return "sending";
 		case queued_state::sent:             return "sent";
 		case queued_state::delivery_unknown: return "delivery-unknown";
+		}
+		return "unknown";
+	}
+
+	auto stable_name(const queued_route aRoute) noexcept -> std::string_view
+	{
+		switch (aRoute) {
+		case queued_route::release: return "release";
+		case queued_route::steer:   return "steer";
 		}
 		return "unknown";
 	}
@@ -263,7 +304,7 @@ namespace bpr::core {
 		if (aQueue.Paused != queue_pause::none || aAgent != queue_agent::idle) {
 			return std::nullopt;
 		}
-		if (std::ranges::any_of(aQueue.Entries, [](const queued_entry& aEntry) { return aEntry.State == queued_state::sending || aEntry.State == queued_state::delivery_unknown; })) {
+		if (std::ranges::any_of(aQueue.Entries, [](const queued_entry& aEntry) { return in_flight(aEntry) || aEntry.State == queued_state::delivery_unknown; })) {
 			return std::nullopt;
 		}
 		const auto first = std::ranges::find_if(aQueue.Entries, unsent);
@@ -283,8 +324,98 @@ namespace bpr::core {
 			return queue_refusal::not_editable;
 		}
 		found->State = queued_state::sending;
+		found->Claim = queued_claim{ };
 		++aQueue.Revision;
 		return queue_refusal::none;
+	}
+
+	auto claim(agent_queue& aQueue, const std::uint64_t aId, queued_claim aClaim, const std::uint64_t aFrom) -> queue_refusal
+	{
+		if (aFrom != aQueue.Revision) {
+			return queue_refusal::stale;
+		}
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (!unsent(*found) || (found->Held && aClaim.Route == queued_route::release)) {
+			return queue_refusal::not_editable;
+		}
+		aClaim.Receipt.clear();
+		found->State = queued_state::sending;
+		found->Held  = false;
+		found->Claim = std::move(aClaim);
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto bind_run(agent_queue& aQueue, const std::uint64_t aId, const std::uint64_t aRun) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (found->State != queued_state::sending || !found->Claim || found->Claim->Route != queued_route::release) {
+			return queue_refusal::not_editable;
+		}
+		found->Claim->Run = aRun;
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto acknowledge(agent_queue& aQueue, const std::uint64_t aId, std::string aReceipt) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		// A late or second acknowledgment changes nothing: one write, one
+		// receipt, on the record it came from.
+		if (found->State != queued_state::sending || !found->Claim || found->Claim->Route != queued_route::steer || aReceipt.empty()) {
+			return queue_refusal::not_editable;
+		}
+		// An identity too long to keep is not kept: the run's end then cannot
+		// name it, and it settles as unknown rather than as taken.
+		if (aReceipt.size() > maximum_claim_receipt_bytes || !utf8::valid(aReceipt)) {
+			aReceipt.clear();
+		}
+		found->State          = queued_state::sent;
+		found->Claim->Receipt = std::move(aReceipt);
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	void settle_steers(agent_queue& aQueue, const std::uint64_t aRun, const std::vector<steered_settlement>& aEndings)
+	{
+		auto taken   = std::vector<std::uint64_t>{ };
+		auto back    = std::vector<std::uint64_t>{ };
+		auto unknown = false;
+		for (auto& entry : aQueue.Entries) {
+			if (entry.State != queued_state::sent || !entry.Claim || entry.Claim->Route != queued_route::steer || entry.Claim->Run != aRun) {
+				continue;
+			}
+			const auto ending = std::ranges::find(aEndings, entry.Claim->Receipt, &steered_settlement::Receipt);
+			if (ending != aEndings.end() && ending->Ending == steered_ending::consumed) {
+				taken.push_back(entry.Id);
+			} else if (ending != aEndings.end() && ending->Ending == steered_ending::not_taken) {
+				back.push_back(entry.Id);
+			} else {
+				// Written and never named by the run's end: kept, never resent.
+				entry.State = queued_state::delivery_unknown;
+				unknown     = true;
+			}
+		}
+		std::erase_if(aQueue.Entries, [&taken](const queued_entry& aEntry) { return std::ranges::find(taken, aEntry.Id) != taken.end(); });
+		for (const auto id : back) {
+			find(aQueue, id)->State = queued_state::sending;
+			static_cast<void>(return_unsent(aQueue, id));
+		}
+		if (unknown) {
+			aQueue.Paused = queue_pause::delivery_unknown;
+		}
+		if (unknown || !taken.empty() || !back.empty()) {
+			++aQueue.Revision;
+		}
 	}
 
 	auto return_unsent(agent_queue& aQueue, const std::uint64_t aId) -> queue_refusal
@@ -298,6 +429,7 @@ namespace bpr::core {
 		}
 		auto entry  = *found;
 		entry.State = queued_state::queued;
+		entry.Claim.reset();
 		aQueue.Entries.erase(found);
 		const auto first = std::ranges::find_if(aQueue.Entries, [](const queued_entry& aEntry) { return aEntry.State == queued_state::queued; });
 		aQueue.Entries.insert(first, std::move(entry));
@@ -331,6 +463,7 @@ namespace bpr::core {
 		case queued_finish::stopped:     return "stopped";
 		case queued_finish::not_taken:   return "not-taken";
 		case queued_finish::refused:     return "refused";
+		case queued_finish::unknown:     return "unknown";
 		}
 		return "unknown";
 	}
@@ -344,6 +477,7 @@ namespace bpr::core {
 		case queued_finish::refused:     return queue_pause::failed;
 		case queued_finish::usage_limit: return queue_pause::usage_limit;
 		case queued_finish::stopped:     return queue_pause::stopped;
+		case queued_finish::unknown:     return queue_pause::delivery_unknown;
 		}
 		return queue_pause::failed;
 	}
@@ -369,6 +503,14 @@ namespace bpr::core {
 				++aQueue.Revision;
 			}
 			return returned;
+		}
+		if (aFinish == queued_finish::unknown) {
+			// [[BPR-2152]]. Kept, with its claim, and never resent: only the
+			// reviewer discards it. Unknown delivery outranks a pause in force.
+			found->State  = queued_state::delivery_unknown;
+			aQueue.Paused = queue_pause::delivery_unknown;
+			++aQueue.Revision;
+			return queue_refusal::none;
 		}
 		aQueue.Entries.erase(found);
 		if (aQueue.Paused == queue_pause::none) {
@@ -398,7 +540,7 @@ namespace bpr::core {
 	void restore(agent_queue& aQueue)
 	{
 		for (auto& entry : aQueue.Entries) {
-			if (entry.State == queued_state::sending) {
+			if (in_flight(entry)) {
 				entry.State = queued_state::delivery_unknown;
 			}
 			entry.Held = false;
@@ -432,51 +574,104 @@ namespace bpr::core {
 		[[nodiscard]] auto kind_prefix(const queued_session_kind aKind) noexcept -> std::string_view
 		{
 			switch (aKind) {
-			case queued_session_kind::agent_tab:     return "agent-tab:";
-			case queued_session_kind::tour_feedback: return "tour-feedback:";
+			case queued_session_kind::agent_tab:              return "agent-tab:";
+			case queued_session_kind::tour_feedback:          return "tour-feedback:";
+			case queued_session_kind::tour_part:              return "tour-part:";
+			case queued_session_kind::local_draft_discussion: return "local-draft:";
 			}
 			return "agent-tab:";
+		}
+
+		[[nodiscard]] auto all_digits(const std::string_view aText) noexcept -> bool
+		{
+			return !aText.empty() && aText.size() <= 18U && std::ranges::all_of(aText, [](const char aDigit) { return aDigit >= '0' && aDigit <= '9'; });
+		}
+
+		[[nodiscard]] auto number_of(const std::string_view aDigits) noexcept -> std::uint64_t
+		{
+			auto number = std::uint64_t{ 0U };
+			for (const auto digit : aDigits) {
+				number = number * 10U + static_cast<std::uint64_t>(digit - '0');
+			}
+			return number;
+		}
+
+		/// A part name or a draft identity: printable ASCII with no `/`, `#` or space.
+		[[nodiscard]] auto plain_name(const std::string_view aText) noexcept -> bool
+		{
+			return !aText.empty() && aText.size() <= 128U && std::ranges::all_of(aText, [](const char aChar) { return aChar > ' ' && aChar < 127 && aChar != '/' && aChar != '#'; });
 		}
 	} // namespace
 
 	auto session_key(const queued_session& aSession) -> std::string
 	{
+		if (aSession.Kind == queued_session_kind::local_draft_discussion) {
+			if (!plain_name(aSession.Draft) || !tour_part_thread(aSession.Part)) {
+				return { };
+			}
+			return std::string{ kind_prefix(aSession.Kind) } + aSession.Draft + "/" + aSession.Part;
+		}
 		if (aSession.Host.empty() || aSession.Owner.empty() || aSession.Repository.empty() || aSession.Number == 0U) {
 			return { };
 		}
-		return std::string{ kind_prefix(aSession.Kind) } + aSession.Host + "/" + aSession.Owner + "/" + aSession.Repository + "#" + std::to_string(aSession.Number);
+		auto key = std::string{ kind_prefix(aSession.Kind) } + aSession.Host + "/" + aSession.Owner + "/" + aSession.Repository + "#" + std::to_string(aSession.Number);
+		if (aSession.Kind == queued_session_kind::tour_part) {
+			if (!tour_part_thread(aSession.Part)) {
+				return { };
+			}
+			key += "/" + aSession.Part;
+		}
+		return key;
 	}
 
 	auto parse_session_key(const std::string_view aKey) -> std::optional<queued_session>
 	{
 		auto session = queued_session{ };
 		auto rest    = aKey;
-		if (rest.starts_with(kind_prefix(queued_session_kind::agent_tab))) {
-			rest.remove_prefix(kind_prefix(queued_session_kind::agent_tab).size());
-		} else if (rest.starts_with(kind_prefix(queued_session_kind::tour_feedback))) {
-			session.Kind = queued_session_kind::tour_feedback;
-			rest.remove_prefix(kind_prefix(queued_session_kind::tour_feedback).size());
-		} else {
+		auto matched = false;
+		for (const auto kind : { queued_session_kind::agent_tab, queued_session_kind::tour_feedback, queued_session_kind::tour_part, queued_session_kind::local_draft_discussion }) {
+			if (rest.starts_with(kind_prefix(kind))) {
+				session.Kind = kind;
+				rest.remove_prefix(kind_prefix(kind).size());
+				matched = true;
+				break;
+			}
+		}
+		if (!matched) {
 			return std::nullopt;
+		}
+		if (session.Kind == queued_session_kind::local_draft_discussion) {
+			const auto slash = rest.find('/');
+			if (slash == std::string_view::npos) {
+				return std::nullopt;
+			}
+			session.Draft = std::string{ rest.substr(0U, slash) };
+			session.Part  = std::string{ rest.substr(slash + 1U) };
+			return session_key(session) == aKey ? std::optional{ session } : std::nullopt;
 		}
 		const auto hash = rest.rfind('#');
 		if (hash == std::string_view::npos) {
 			return std::nullopt;
 		}
 		const auto path   = rest.substr(0U, hash);
-		const auto digits = rest.substr(hash + 1U);
+		auto       digits = rest.substr(hash + 1U);
+		if (session.Kind == queued_session_kind::tour_part) {
+			const auto slash = digits.find('/');
+			if (slash == std::string_view::npos) {
+				return std::nullopt;
+			}
+			session.Part = std::string{ digits.substr(slash + 1U) };
+			digits       = digits.substr(0U, slash);
+		}
 		const auto first  = path.find('/');
 		const auto second = first == std::string_view::npos ? std::string_view::npos : path.find('/', first + 1U);
-		if (second == std::string_view::npos || path.find('/', second + 1U) != std::string_view::npos || digits.empty()
-			|| !std::ranges::all_of(digits, [](const char aDigit) { return aDigit >= '0' && aDigit <= '9'; }) || digits.size() > 18U) {
+		if (second == std::string_view::npos || path.find('/', second + 1U) != std::string_view::npos || !all_digits(digits)) {
 			return std::nullopt;
 		}
 		session.Host       = std::string{ path.substr(0U, first) };
 		session.Owner      = std::string{ path.substr(first + 1U, second - first - 1U) };
 		session.Repository = std::string{ path.substr(second + 1U) };
-		for (const auto digit : digits) {
-			session.Number = session.Number * 10U + static_cast<std::uint64_t>(digit - '0');
-		}
+		session.Number     = number_of(digits);
 		if (session_key(session) != aKey) {
 			return std::nullopt;
 		}
@@ -486,7 +681,54 @@ namespace bpr::core {
 	auto with_kind(queued_session aSession, const queued_session_kind aKind) -> queued_session
 	{
 		aSession.Kind = aKind;
+		if (aKind != queued_session_kind::tour_part && aKind != queued_session_kind::local_draft_discussion) {
+			aSession.Part.clear();
+		}
+		if (aKind != queued_session_kind::local_draft_discussion) {
+			aSession.Draft.clear();
+		}
 		return aSession;
+	}
+
+	auto tour_part_name(const tour_thread& aThread) -> std::string
+	{
+		switch (aThread.Kind) {
+		case tour_thread_kind::tour:     return "tour";
+		case tour_thread_kind::problem:  return "problem";
+		case tour_thread_kind::solution: return "solution";
+		case tour_thread_kind::stop:     return "stop-" + std::to_string(aThread.Stop.value());
+		}
+		return "tour";
+	}
+
+	auto tour_part_thread(const std::string_view aPart) -> std::optional<tour_thread>
+	{
+		if (aPart == "tour") {
+			return tour_thread{ };
+		}
+		if (aPart == "problem") {
+			return tour_thread{ .Kind = tour_thread_kind::problem };
+		}
+		if (aPart == "solution") {
+			return tour_thread{ .Kind = tour_thread_kind::solution };
+		}
+		constexpr auto stop = std::string_view{ "stop-" };
+		if (aPart.starts_with(stop) && all_digits(aPart.substr(stop.size())) && (aPart.size() == stop.size() + 1U || aPart[stop.size()] != '0')) {
+			return tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ number_of(aPart.substr(stop.size())) } };
+		}
+		return std::nullopt;
+	}
+
+	auto tour_part_session(queued_session aPullRequest, const tour_thread& aThread) -> queued_session
+	{
+		aPullRequest      = with_kind(std::move(aPullRequest), queued_session_kind::tour_part);
+		aPullRequest.Part = tour_part_name(aThread);
+		return aPullRequest;
+	}
+
+	auto local_draft_session(std::string aDraft, const tour_thread& aThread) -> queued_session
+	{
+		return queued_session{ .Kind = queued_session_kind::local_draft_discussion, .Part = tour_part_name(aThread), .Draft = std::move(aDraft) };
 	}
 
 	auto encode_queued_prompt(const prompt_offer& aOffer) -> std::string
@@ -552,5 +794,35 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		return offer;
+	}
+
+	auto encode_queued_claim(const queued_claim& aClaim) -> std::string
+	{
+		auto text = std::string{ queued_claim_version };
+		text += std::to_string(static_cast<unsigned>(aClaim.Route));
+		text += ';';
+		text += std::to_string(aClaim.Run);
+		text += ';';
+		text += std::to_string(aClaim.Conversation);
+		text += ';';
+		put_number(text, aClaim.Receipt.size());
+		text += aClaim.Receipt;
+		return text;
+	}
+
+	auto decode_queued_claim(std::string_view aText) -> std::optional<queued_claim>
+	{
+		if (!aText.starts_with(queued_claim_version)) {
+			return std::nullopt;
+		}
+		aText.remove_prefix(queued_claim_version.size());
+		const auto route        = take_number(aText);
+		const auto run          = take_wide(aText);
+		const auto conversation = take_wide(aText);
+		auto       receipt      = take_text(aText);
+		if (!route || *route > static_cast<std::size_t>(queued_route::steer) || !run || !conversation || !receipt || !aText.empty() || receipt->size() > maximum_claim_receipt_bytes || !utf8::valid(*receipt)) {
+			return std::nullopt;
+		}
+		return queued_claim{ .Route = static_cast<queued_route>(*route), .Run = *run, .Conversation = *conversation, .Receipt = std::move(*receipt) };
 	}
 } // namespace bpr::core

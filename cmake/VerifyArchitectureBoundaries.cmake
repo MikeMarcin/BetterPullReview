@@ -1,12 +1,15 @@
 # Review of 2026-11-14: every rule runs. A rule that fails records its
 # message and the gate goes on to the next, so one failure can no longer leave
 # every later rule unenforced; the gate fails at the end, naming every
-# violation it found.
+# violation it found. [[BPR-2207]]: each violation is said when it is found, so
+# a later rule that cannot read a file the violation names missing (CMake's
+# file(READ) stops the script) cannot take the violation with it.
 set_property(GLOBAL PROPERTY BPR_BOUNDARY_VIOLATIONS "")
 function(message mode)
     if(mode STREQUAL "FATAL_ERROR")
         string(JOIN "" said ${ARGN})
         set_property(GLOBAL APPEND PROPERTY BPR_BOUNDARY_VIOLATIONS "${said}")
+        _message(SEND_ERROR "${said}")
     else()
         _message(${mode} ${ARGN})
     endif()
@@ -6364,8 +6367,12 @@ foreach(source_file IN LISTS qt_effect_files)
 endforeach()
 
 # Review of 2026-11-14. The fixture agent, which answers in place of a real
-# agent in a tests-on build, is built only when testing is on.
-file(READ "${BPR_ROOT}/src/app/CMakeLists.txt" app_cmake)
+# agent in a tests-on build, is built only when testing is on. A tree without
+# src/app/CMakeLists.txt records the violation rather than stopping the gate.
+set(app_cmake "")
+if(EXISTS "${BPR_ROOT}/src/app/CMakeLists.txt")
+    file(READ "${BPR_ROOT}/src/app/CMakeLists.txt" app_cmake)
+endif()
 string(FIND "${app_cmake}" "add_executable(bpr_fixture_agent" fixture_agent_at)
 if(fixture_agent_at EQUAL -1)
     message(FATAL_ERROR "src/app/CMakeLists.txt must define the fixture agent (bpr_fixture_agent)")
@@ -6390,9 +6397,6 @@ endif()
 get_property(boundary_violations GLOBAL PROPERTY BPR_BOUNDARY_VIOLATIONS)
 list(LENGTH boundary_violations boundary_violation_count)
 if(boundary_violation_count GREATER 0)
-    foreach(violation IN LISTS boundary_violations)
-        _message(SEND_ERROR "${violation}")
-    endforeach()
     _message(FATAL_ERROR "architecture boundaries: ${boundary_violation_count} violation(s)")
 endif()
 

@@ -9,9 +9,12 @@
 #include "bpr/application/syntax_classification_application_host.hpp"
 #include "bpr/core/diff_line_matcher.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/qt/agent_report_view.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/local_draft_workflow_area.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_search.hpp"
 #include "local_draft_workflow_exchange.hpp"
@@ -23,8 +26,10 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QGuiApplication>
+#include <QMessageBox>
 #include <QRandomGenerator>
 
+#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -246,6 +251,16 @@ namespace bpr::app {
 		Window.present_local_draft(aProjection);
 		follow_author_state(aProjection);
 		present_tour();
+		// RFC-BPR-0126 Q2 ([[BPR-2154]]). A question's start and end, for the
+		// discussion's queue: its next message goes only once this one ended.
+		if (aProjection.Asking != AskingSeen) {
+			AskingSeen       = aProjection.Asking;
+			const auto stop  = !AskingSeen && std::exchange(StopAsked, false);
+			const auto fails = !AskingSeen && !aProjection.AskFailure.empty();
+			if (AskingObserver) {
+				AskingObserver(AskingSeen, fails, stop);
+			}
+		}
 		// Created here: the window becomes the pull request.
 		if (aProjection.Draft) {
 			const auto& draft          = *aProjection.Draft;
@@ -279,9 +294,10 @@ namespace bpr::app {
 		const auto& projection = View->projection();
 		auto        asking     = std::optional<core::local_tour_asking>{ };
 		if (projection.Asking) {
-			asking = core::local_tour_asking{ .Thread = projection.AskingThread, .Text = projection.AskingText };
+			asking = core::local_tour_asking{ .Thread = projection.AskingThread, .Text = projection.AskingText, .Steered = projection.AskingSteered };
 		}
-		auto view           = core::view_local_tour(*projection.Draft, asking);
+		auto view = core::view_local_tour(*projection.Draft, asking);
+		present_checks(view);
 		auto shown          = application::tour_presentation{ };
 		shown.Draft         = std::make_shared<const core::review_tour>(view.Tour);
 		shown.SavedRevision = view.Tour.Revision;
@@ -319,6 +335,211 @@ namespace bpr::app {
 			editor->show_writing_notice(QString::fromStdString(projection.AskFailure));
 		}
 		TourView = std::move(view);
+		if (TourObserver) {
+			TourObserver();
+		}
+	}
+
+	auto local_draft_desktop::shown_draft() const -> std::string { return tour_shown() ? View->projection().Draft->Id.Value : std::string{ }; }
+
+	auto local_draft_desktop::asking() const -> bool { return Host && Host->projection().Asking; }
+
+	auto local_draft_desktop::asking_question() const -> std::optional<std::pair<core::tour_thread, std::uint64_t>>
+	{
+		if (!Host || !tour_shown()) {
+			return std::nullopt;
+		}
+		const auto& projection = Host->projection();
+		if (!projection.Asking || projection.AskingRun == 0U || projection.Checking != application::local_check_mode::none) {
+			return std::nullopt;
+		}
+		return std::pair{ core::local_tour_thread(projection.AskingThread), projection.AskingRun };
+	}
+
+	auto local_draft_desktop::answered_steers() const -> std::pair<std::uint64_t, std::vector<application::local_draft_steered>>
+	{
+		if (!Host) {
+			return { };
+		}
+		return { Host->projection().AnsweredRun, Host->projection().AnsweredSteers };
+	}
+
+	auto local_draft_desktop::agent_ready() const -> bool { return AgentChooser && AgentChooser().has_value(); }
+
+	auto local_draft_desktop::agent_name() const -> std::string
+	{
+		const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
+		return choice ? choice->Name : std::string{ };
+	}
+
+	// --- RFC-BPR-0120: a check ------------------------------------------------------
+
+	void local_draft_desktop::present_checks(core::local_tour_view& aView)
+	{
+		auto* const editor = Window.tour_editor();
+		if (editor == nullptr || editor->side_chat() == nullptr) {
+			return;
+		}
+		const auto& projection = View->projection();
+		const auto& draft      = *projection.Draft;
+		if (CheckAgent.empty()) {
+			for (const auto& conversation : draft.Preparation.Conversations) {
+				if (conversation.Thread == core::local_change_thread) {
+					CheckAgent     = conversation.Agent;
+					CheckAgentName = conversation.AgentName;
+				}
+			}
+		}
+		const auto grants = core::grants_for(draft.Preparation.CheckGrants, CheckAgent);
+		// The core decides whether each plan card's Run is available, and why not.
+		for (auto& run : aView.Session.Runs) {
+			if (run.Check && run.Check->Plan) {
+				const auto block = core::decide_check_run(*run.Check->Plan, { .Grants = grants, .Running = projection.Asking, .Candidate = core::latest_candidate(draft) != nullptr });
+				run.CheckBlocked = block == core::local_check_block::discarded || block == core::local_check_block::ran ? std::string{ } : core::check_block_words(block);
+			}
+		}
+		auto* const chat = editor->side_chat();
+		if (projection.ChecksAvailable) {
+			chat->set_check_dispatch({ .Plan    = [this](const QString& aWords) { plan_check(aWords); },
+									   .Run     = [this](const core::tour_agent_run_id aRun) { run_check(aRun, false); },
+									   .Discard = [this](const core::tour_agent_run_id aRun) {
+										   if (tour_shown()) {
+											   Host->discard_check(aRun.value() / 1024U, static_cast<std::size_t>(aRun.value() % 1024U));
+										   } },
+									   .Open    = [this](const core::tour_agent_run_id aRun) { open_check_report(aRun); },
+									   .Again   = [this](const core::tour_agent_run_id aRun) { run_check(aRun, true); },
+									   .Grants  = [this](const bool aScratch, const bool aBuilds) { check_grants(aScratch, aBuilds); } });
+		} else {
+			chat->set_check_dispatch({ });
+		}
+		chat->set_check_state(grants.Scratch, grants.Builds, projection.ChecksAvailable && !projection.Asking,
+							  projection.Asking ? QStringLiteral("A question or a check is with the agent. Plan the next check when it ends.") : QString{ });
+	}
+
+	auto local_draft_desktop::check_question(const std::string& aWords) -> std::optional<application::local_check_question>
+	{
+		const auto choice = AgentChooser ? AgentChooser() : std::nullopt;
+		if (!choice) {
+			return std::nullopt;
+		}
+		CheckAgent     = choice->Identity;
+		CheckAgentName = choice->Name;
+		return application::local_check_question{ .Words        = aWords,
+												  .Agent        = choice->Identity,
+												  .AgentName    = choice->Name,
+												  .Profile      = choice->Profile,
+												  .Instructions = choice->Check,
+												  .Version      = choice->CheckVersion,
+												  .Delivery     = choice->Delivery };
+	}
+
+	void local_draft_desktop::plan_check(const QString& aWords)
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		if (auto question = check_question(aWords.toStdString())) {
+			CheckStartedMs = 0;
+			Host->plan_check(std::move(*question));
+		}
+	}
+
+	void local_draft_desktop::run_check(const core::tour_agent_run_id aRun, const bool aAgain)
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		if (auto question = check_question({ })) {
+			CheckStartedMs = 0;
+			Host->run_check(aRun.value() / 1024U, static_cast<std::size_t>(aRun.value() % 1024U), std::move(*question), aAgain);
+		}
+	}
+
+	void local_draft_desktop::check_grants(const bool aScratch, bool aBuilds)
+	{
+		if (!tour_shown() || CheckAgent.empty()) {
+			return;
+		}
+		auto grants = core::grants_for(View->projection().Draft->Preparation.CheckGrants, CheckAgent);
+		// RFC-BPR-0104: the first build in a draft asks.
+		if (aBuilds && !grants.Builds && !grants.Asked) {
+			const auto allowed = BuildQuestion ? BuildQuestion()
+											   : QMessageBox::question(Window.tour_editor(), QStringLiteral("Allow build and run tests"), QString::fromUtf8(core::local_check_build_question.data(), static_cast<qsizetype>(core::local_check_build_question.size())))
+					== QMessageBox::Yes;
+			if (!allowed) {
+				aBuilds = false;
+				if (auto* const editor = Window.tour_editor(); editor != nullptr && editor->side_chat() != nullptr) {
+					editor->side_chat()->set_check_state(grants.Scratch, grants.Builds, true, { }, true);
+				}
+			} else {
+				grants.Asked = true;
+			}
+		}
+		grants.Scratch = aScratch;
+		grants.Builds  = aBuilds;
+		Host->set_check_grants(std::move(grants));
+	}
+
+	void local_draft_desktop::open_check_report(const core::tour_agent_run_id aRun)
+	{
+		if (!tour_shown()) {
+			return;
+		}
+		const auto& draft         = *View->projection().Draft;
+		const auto& conversations = draft.Preparation.Conversations;
+		const auto  found         = std::ranges::find(conversations, aRun.value() / 1024U, &core::local_conversation::Id);
+		const auto  turn          = static_cast<std::size_t>(aRun.value() % 1024U);
+		if (found == conversations.end() || turn >= found->Turns.size() || turn == 0U || !found->Turns[turn].Check || !found->Turns[turn].Check->Report) {
+			return;
+		}
+		const auto& report = *found->Turns[turn].Check->Report;
+		const auto* latest = core::latest_candidate(draft);
+		ReportCandidate    = report.Candidate;
+		auto document      = qt::agent_report_document{ };
+		document.Turn      = aRun.value();
+		document.Title     = QStringLiteral("Check: %1").arg(QString::fromUtf8(core::outcome_words(report.Outcome).data(), static_cast<qsizetype>(core::outcome_words(report.Outcome).size())));
+		document.Markdown  = QString::fromStdString(core::render_check_report(report, latest == nullptr ? report.Candidate : latest->Ordinal));
+		document.Question  = QString::fromStdString(found->Turns[turn - 1U].Text);
+		Window.open_report("check:" + draft.Id.Value + ":" + std::to_string(aRun.value()), document);
+	}
+
+	auto local_draft_desktop::follow_check_reference(const std::string& aLink) -> bool
+	{
+		const auto reference = core::read_check_reference_link(aLink);
+		if (!reference || !tour_shown()) {
+			return false;
+		}
+		const auto* latest = core::latest_candidate(*View->projection().Draft);
+		const auto  line   = std::max<std::uint32_t>(reference->Line, 1U);
+		View->reveal(reference->Path, line, line, latest != nullptr && latest->Ordinal == ReportCandidate ? 0U : ReportCandidate);
+		return true;
+	}
+
+	void local_draft_desktop::publish_check_activity(const std::optional<core::agent_turn_activity>& aActivity)
+	{
+		auto* const editor = Window.tour_editor();
+		if (Closing || editor == nullptr || !tour_shown()) {
+			return;
+		}
+		if (!aActivity) {
+			editor->present_run_status(std::nullopt);
+			return;
+		}
+		if (CheckStartedMs == 0) {
+			CheckStartedMs = qt::agent_activity_clock_ms();
+		}
+		editor->present_run_status(qt::agent_run_status{ .Agent = QString::fromStdString(CheckAgentName), .Stage = qt::agent_run_stage::thinking, .Activity = aActivity, .ActivityStartedMs = CheckStartedMs });
+	}
+
+	void local_draft_desktop::set_check_copies(std::unique_ptr<application::local_check_copy_port> aCopies, std::function<std::uint64_t()> aLimitBytes)
+	{
+		CheckCopies = std::move(aCopies);
+		Host->set_check_copies(CheckCopies.get(), std::move(aLimitBytes));
+	}
+
+	void local_draft_desktop::set_build_question(std::function<bool()> aQuestion)
+	{
+		BuildQuestion = std::move(aQuestion);
 	}
 
 	void local_draft_desktop::queue_tour_edit(std::string aKey, std::function<void()> aApply)
@@ -492,8 +713,10 @@ namespace bpr::app {
 		if (text.empty()) {
 			return;
 		}
-		question.Text = std::move(text);
+		question.Text   = std::move(text);
+		const auto self = std::exchange(WritingAsk, false);
 		ask_local(std::move(question));
+		AskingForWriting = self && Host->projection().Asking;
 	}
 
 	void local_draft_desktop::tour_writing(const core::writing_hook aHook)
@@ -508,12 +731,27 @@ namespace bpr::app {
 		if (auto* const editor = Window.tour_editor(); editor != nullptr && aHook != core::writing_hook::problem && aHook != core::writing_hook::solution && editor->selected_stop() != nullptr) {
 			ask.Thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = editor->selected_stop()->Id };
 		}
+		WritingAsk = true;
 		tour_ask(ask);
+		WritingAsk = false;
+	}
+
+	void local_draft_desktop::writing_stop()
+	{
+		// [[BPR-2154]]. Only the one-shot writing request's question: a
+		// question of the discussion goes on, as the pull request's tour
+		// chat's does (the tour editor lets writing go on every hide,
+		// refresh and focus change).
+		if (tour_shown() && Host->projection().Checking == application::local_check_mode::none && AskingForWriting && Host->projection().Asking) {
+			StopAsked = true;
+			Host->stop_asking();
+		}
 	}
 
 	void local_draft_desktop::tour_stop()
 	{
 		if (tour_shown()) {
+			StopAsked = Host->projection().Asking;
 			Host->stop_asking();
 		}
 	}

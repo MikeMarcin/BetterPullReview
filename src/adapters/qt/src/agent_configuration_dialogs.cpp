@@ -296,6 +296,7 @@ namespace bpr::qt {
 		case core::writing_hook::review_proposed_fix:   return QObject::tr("Was this addressed");
 		case core::writing_hook::review_explain_file:   return QObject::tr("Explain this file");
 		case core::writing_hook::review_suggest_change: return QObject::tr("Suggest the change");
+		case core::writing_hook::local_run_check:       return QObject::tr("Plan and run a check");
 		}
 		return text_of(aPurpose);
 	}

@@ -4312,3 +4312,121 @@ passes in 10 fonts at 100%, 125% and 200%. None of BPR-2205's seven was
 SSH-only. `qt_profile_management_window` left the lane with BPR-2198.
 ctest was not run from a non-SSH session (no desktop may be driven).
 Station scratch removed.
+
+## RFC-BPR-0126: BPR-2152 Done, BPR-2153 Done, BPR-2154 audited (2026-11-15)
+
+Coordinator: BPR-2152, then BPR-2154; close BPR-2153 and, if every card is
+Done, RFC-BPR-0126.
+
+| Commit | What |
+|---|---|
+| `64365d031` | BPR-2152: durable claim before any write, receipts, settlement by receipt, Delivery unknown on silent failure, bounded successor wait, asynchronous Steer, Sent to agent; course `application_agent_queue_handoff` |
+| `69b19dfed` | Two hunks of `64365d031` put back in place (window_quick_ask's `.Sent`, the store's claim read and bind): the partial staging helper applied `-U0` hunks with shifted line numbers. The dev tree was right; the commit was not, and a clean export did not build. Found by the freeze |
+| `eb600a0ea`, `cf2c6d800` | App manifest pin resealed (clean `git archive` export) |
+| `d6d7cbb79`, `a26c8d72d`; main `a3c24e6cb` | BPR-2152 and BPR-2153 Done |
+| `064e57b85`, `0c914e2a5`; main `ed3190aa3` | BPR-2154 In Progress; audit on the card |
+
+Verification (dev, Debug, macOS, the tree with other writers' work):
+`core_agent_queue`, `application_agent_queue_host`,
+`application_agent_queue_handoff`, `application_agent_protocol_loop`,
+`application_agent_invocation_host`, `application_review_agent_runtime`,
+`sqlite_agent_setup_storage`, `core_agent_steering`, steer sent/unavailable,
+ask queue, tour feedback queue, the six `application_agent_queue_*` public
+paths, `qt_drawer_surfaces_fit_scale_100`: pass. Documentation gate passes
+on lane and main.
+
+BPR-2154 is not Done: AC01 needs Queue/Steer and the pending list in the tour
+side chat, the whole-tour conversation after its first draft, and the local
+draft discussion (Q2); none exists (card audit). Look `queue-sent-v001`
+(Sent to agent) is being frozen from `cf2c6d800`. A failed freeze root,
+`/Users/jaeger/queue-sent-v001.3k92km1p` (export only, the freeze tool
+refuses to remove it), is left for the coordinator.
+
+### Checkpoint (2026-11-16): queue-sent-v001 accepted; next is BPR-2154's tour and local draft queues
+
+`BPR-2154-sent-to-agent` Accepted (decision `e795a561…`). Host 79132/79214
+stopped; root `queue-sent-v001.o2z5din9` removed. Owner: the tour side chat,
+whole-tour conversation and local draft discussion queues stay on BPR-2154.
+Lane `569c45af6`, main `ae70e1f41`. Nothing of that slice is started; the
+plan is on the card ("Plan for that slice"). This implementer stopped here
+with its context nearly spent; a fresh implementer takes the slice from the
+card's plan. No command or host of this round is running.
+
+### Checkpoint (2026-11-16): BPR-2154 tour and local draft queues, in progress (uncommitted)
+
+frontend-design loaded. Written, not yet built whole or committed: core
+`queued_session_kind::tour_part` / `local_draft_discussion` with
+`tour_part_name`/`tour_part_thread`/`tour_part_session`/`local_draft_session`
+(`src/core/{include/bpr/core,src}/agent_queue.*`, test in
+`tests/core/agent_queue_tests.cpp`, passing); the Agent tab's pending list
+factored into `qt::agent_pending_list` (`src/adapters/qt/{include/bpr/qt,src}/agent_pending_list.*`);
+the tour side chat's Queue/Steer, Stop beside it and per-part pending list
+(`tour_side_chat.*`, `tour_ask::Steer`); the window's runtime for tour parts
+and the local draft discussion (`src/app/src/github_application/window_chat_queues.cpp`,
+hooks in `window_tours.cpp`, `window_quick_ask.cpp`, `window_construction.cpp`,
+`window_shutdown.cpp`, `window_agent_setup.cpp`, `local_draft_desktop.*`);
+the fixture agent answers tour-ask/revise and drafts two stops; course
+`tests/end_to_end/tour_chat_queue_public_path.cpp` (three rows). Next: build
+`better_pull_review_composition` and the course, run the three rows, commit
+with explicit paths, freeze the look.
+
+### Checkpoint (2026-11-16): BPR-2154 tour and local draft queues built; look queue-tour-v001 filed
+
+Commits `f82523784` (the slice) and `0ed8dbaf0` (course captures). Courses
+`application_tour_chat_queue_{stop,whole_tour,local_draft}_public_path` pass,
+with `core_agent_queue`, `architecture_boundaries`, `qt_tour_side_chat`,
+`qt_tour_chat_in_tab`, `qt_button_faces`, `qt_drawer_surfaces_fit_scale_100`,
+the local draft tour and check courses, `application_ask_queue_public_path`,
+`application_agent_queue_windows_public_path`,
+`application_agent_queue_tour_feedback_crash_public_path`,
+`application_agent_steer_sent_public_path`, `fixture_agent_answers`,
+`application_fixture_agent_every_ask` and the resealed
+`application_review_round_trip_composition_contract`. Look `queue-tour-v001`
+(session `1b7406ad…`, host 28483/28491, root `queue-tour-v001.ity27747`,
+worktree `/Users/jaeger/queue-tour-v001-draft`) waits on the owner, not
+waited on. Next: read its decisions; then BPR-2155 (closeout). The format
+gate's one finding, `src/application/src/github_window_read_host.cpp`, is
+another lane's.
+
+### Checkpoint (2026-11-16): BPR-2154 queue-tour-v001 read; local draft Steer fixed; look queue-tour-v002 filed
+
+queue-tour-v001 handed back: stop chat and local draft queue Accepted, whole
+tour Rejected (a local draft's whole-tour Steer said "isn't running on a kept
+agent session"). Host 28483/28491 stopped, root and draft folder removed.
+Commit `b0bbe187d`: a local draft's discussion question runs on a kept
+connection of its number, Steer goes there, its end settles what was steered.
+Passing: `application_tour_chat_queue_{stop,whole_tour,local_draft}_public_path`
+(the local draft row now asserts a steer lands),
+`application_agent_protocol_loop`, `application_agent_queue_handoff`,
+`local_draft`, `application_local_draft_{,author_,tour_}desktop_public_path`,
+resealed `application_review_round_trip_composition_contract`, documentation
+gate. `application_agent_launch` fails on "another protocol failure ends it
+as failed" (`queued_finish_of` with no sign maps to delivery unknown since
+BPR-2152); not touched by this commit. Look `queue-tour-v002` (session
+`35583791…`, host 58701/58709, root `queue-tour-v002.u3mku38k`, worktree
+`/Users/jaeger/queue-tour-v002-draft`) waits on the owner, not waited on.
+Next: read its decision; then BPR-2155.
+
+### Checkpoint (2026-11-16): BPR-2154 queue-tour-v002 Rejected; steered message in every tour chat's transcript; look queue-tour-v003 filed
+
+queue-tour-v002 handed back: `local-draft-steer` Rejected ("it says it sent
+it but the message doesnt show up in the transcript until the turn ended").
+Host 58701/58709 stopped, root removed, draft folder removed. Owner: parity
+with the Agent tab by sharing. Commit `4bda08895`: `core::agent_steered_message`
+moved to core and kept on a tour turn as it is written (pull request parts
+through `note_tour_steered`, a local draft's question through the workbench's
+`AskingSteered`), settled by `core::settle_steered_messages` (the Agent tab's
+runtime uses it too), drawn in the Agent tab's words
+(`qt::agent_steered_state_words`); a local draft keeps it as an author turn
+marked `SteeredAfter` on its question's turn; native history restores it; a
+local draft question stands in the footer's Tour chat slot for Stop all.
+Parity table on the card. The whole-tour course had passed on "went next"
+(built-in profile, no kept session); it now runs as a Fixture agent session
+and asserts the steer. Passing: the three tour chat queue courses, steer
+sent/unavailable, `qt_agent_steering_fixture`, protocol loop, queue handoff,
+core steering/queue/local draft tour/tour session, `local_draft`, four local
+draft desktop courses, `architecture_boundaries`, resealed composition
+contract, documentation gate, full dev build. Look `queue-tour-v003`
+(session `0f0bf2f5…`, host 21140/21151, root `queue-tour-v003.wtief4r1`,
+worktree `/Users/jaeger/queue-tour-v003-draft`) waits on the owner, not
+waited on. Next: read its decision; then BPR-2155.

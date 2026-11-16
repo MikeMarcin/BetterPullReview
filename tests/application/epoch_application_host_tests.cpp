@@ -424,12 +424,14 @@ namespace {
 		/// told when that happens. Nothing could answer it while the only
 		/// injectable failures were prune and delete.
 		std::deque<std::pair<std::string, application::git_cache_failure>>
-													PrepareCacheFailures;
-		bool                                        PromoteAppliesThenFails           = false;
-		bool                                        AssociationAppliesThenFails       = false;
-		bool                                        CacheDeleteFinalizesWithoutChange = false;
-		bool                                        ThrowRecoveryAbort                = false;
-		bool                                        BlobMaterializationIgnoresStop    = false;
+			 PrepareCacheFailures;
+		bool PromoteAppliesThenFails           = false;
+		bool AssociationAppliesThenFails       = false;
+		bool CacheDeleteFinalizesWithoutChange = false;
+		bool ThrowRecoveryAbort                = false;
+		/// [[BPR-2195]]. Refusals for the cache's exact abort, one per call.
+		std::deque<application::git_cache_failure>  RecoveryAbortFailures;
+		bool                                        BlobMaterializationIgnoresStop = false;
 		std::function<void()>                       AfterCommitAuthorized;
 		std::function<void()>                       AfterRefCommitInProgress;
 		std::function<void(std::stop_token)>        DuringBlobMaterialization;
@@ -2002,6 +2004,11 @@ namespace {
 			++State.CacheMutationCalls;
 			if (State.ThrowRecoveryAbort) {
 				throw std::runtime_error{ "injected exact-abort failure" };
+			}
+			if (!State.RecoveryAbortFailures.empty()) {
+				const auto failure = State.RecoveryAbortFailures.front();
+				State.RecoveryAbortFailures.pop_front();
+				return std::unexpected{ failure };
 			}
 			return { };
 		}
@@ -3581,6 +3588,39 @@ namespace {
 					   value.State.Calls, "catalog.source-probe")
 					== 2,
 			"one collision consumes one fresh replacement observation");
+	}
+
+	/// \brief [[BPR-2195]]. A preparation that fails is undone, and when
+	/// the undo is refused the preparation is left for repair. The refusing
+	/// step is recorded as the `preparation_abort` stage with its own failure,
+	/// which is how a repair_required under load is traced to its cause.
+	void refused_preparation_abort_names_its_step()
+	{
+		using stage = application::diagnostic_epoch_stage;
+		for (unsigned mode = 0U; mode < 3U; ++mode) {
+			auto    log = std::make_shared<recording_epoch_log>();
+			fixture value{ { }, log };
+			value.State.PrepareCacheFailures.emplace_back("cache.prepare-revision", application::git_cache_failure::object_mismatch);
+			auto expectedFailure = application::diagnostic_epoch_failure{ };
+			if (mode == 1U) {
+				// Both of the abort's attempts at the cache are refused.
+				value.State.RecoveryAbortFailures = { application::git_cache_failure::repair_required, application::git_cache_failure::repair_required };
+				expectedFailure                   = application::git_cache_failure::repair_required;
+			} else if (mode == 2U) {
+				value.State.MaintenanceCatalogFailures.emplace_back("catalog.transition:abort-requested", application::epoch_catalog_failure::busy);
+				expectedFailure = application::epoch_catalog_failure::busy;
+			}
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			const auto aborts = std::ranges::count_if(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::preparation_abort; });
+			if (mode == 0U) {
+				expect(aborts == 0, "an undo that succeeds records no preparation_abort failure");
+				continue;
+			}
+			expect(aborts == 1 && std::ranges::any_of(log->Events, [&](const auto& aEvent) { return aEvent.Operation == application::diagnostic_operation::epoch && aEvent.Outcome == application::diagnostic_outcome::failed && aEvent.EpochStage == stage::preparation_abort && aEvent.EpochFailure == expectedFailure; }),
+				   "a refused undo names its step and failure once");
+			expect(diagnostic_count(value.State, core::epoch_reason_code::repair_required) != 0U, "a refused undo leaves the preparation for repair");
+		}
 	}
 
 	void epoch_preparation_diagnostics_preserve_results()
@@ -10304,6 +10344,7 @@ int main(int argc, char** argv)
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
 	profile_owned_host_holds_its_review_after_the_window_closes();
 	epoch_preparation_diagnostics_preserve_results();
+	refused_preparation_abort_names_its_step();
 	git_tool_refusals_preserve_actionable_reasons_and_retry();
 	gh_tool_refusals_preserve_actionable_reasons_and_retry();
 	invalid_handoff_has_no_effects();

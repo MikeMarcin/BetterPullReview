@@ -411,6 +411,32 @@ namespace {
 }
 
 namespace {
+	/// [[BPR-2154]] (look queue-tour-v002). A message steered into a running
+	/// question shows on that question's turn at once, and once it ended it
+	/// stays there, after the question and before the answer that read it;
+	/// it is never a question of its own, and survives restart.
+	void test_steered_turns()
+	{
+		auto draft     = make_draft();
+		auto [d1, one] = ok(core::append_turn(draft, draft.Version, core::local_change_thread, "agent-1", "Claude", { .Author = true, .Text = "What could break?" }, 101), "a question");
+		auto running   = core::view_local_tour(d1, core::local_tour_asking{ .Thread = "change", .Text = "What could break?", .Steered = { { .Text = "Look at cancel.", .AfterSteps = 3U } } });
+		expect(running.Session.Runs.size() == 2U && running.Session.Runs[1].State == core::tour_agent_run_state::running && running.Session.Runs[1].Steered.size() == 1U
+				   && running.Session.Runs[1].Steered[0].Text == "Look at cancel." && running.Session.Runs[1].Steered[0].AfterSteps == 3U
+				   && running.Session.Runs[1].Steered[0].Disposition == core::agent_steer_disposition::sent,
+			   "the running question shows what was steered into it at once");
+		auto [d2, two]   = ok(core::append_turn(d1, d1.Version, core::local_change_thread, "agent-1", "Claude", { .Author = true, .Text = "Look at cancel.", .SteeredAfter = 3U }, 102), "the steered message");
+		auto [d3, three] = ok(core::append_turn(d2, d2.Version, core::local_change_thread, "agent-1", "Claude", { .Author = false, .Text = "Cancel races." }, 103), "the answer");
+		expect(one == two && two == three, "one conversation");
+		const auto view = core::view_local_tour(d3);
+		expect(view.Session.Runs.size() == 1U && view.Session.Runs[0].Question == "What could break?" && view.Session.Runs[0].State == core::tour_agent_run_state::answered
+				   && view.Session.Runs[0].Reply == "Cancel races." && view.Session.Runs[0].Steered.size() == 1U && view.Session.Runs[0].Steered[0].Text == "Look at cancel."
+				   && view.Session.Runs[0].Steered[0].AfterSteps == 3U && view.Session.Runs[0].Steered[0].Disposition == core::agent_steer_disposition::consumed,
+			   "ended, it stays on its turn, before the answer, and is no question of its own");
+		expect(core::decode_local_draft(core::encode_local_draft(d3)) == d3, "a steered message survives restart");
+		auto plain = core::local_draft_preparation{ };
+		expect(core::encode_draft_preparation(plain).find("steered") == std::string::npos, "a draft with none writes as before");
+	}
+
 	/// The window applies a carry as a restore of the pull request's empty
 	/// tour draft; a refusal is said, never dropped (2026-11-13 follow-up of
 	/// the carry that opened #182 with an empty tour).
@@ -440,6 +466,7 @@ auto main() -> int
 	test_request_and_answer();
 	test_transfer();
 	test_panel_view();
+	test_steered_turns();
 	std::cout << "local draft tour tests passed\n";
 	return EXIT_SUCCESS;
 }

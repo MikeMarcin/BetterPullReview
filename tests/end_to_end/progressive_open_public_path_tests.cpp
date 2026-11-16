@@ -478,7 +478,9 @@ try {
 	expect(window->current_modality() == qt::review_modality::review && !window->showing_overview(), "Review is current at once");
 	expect(surface->comparison_veil()->busy() && surface->comparison_veil()->shape() == qt::pending_shape::code && surface->waiting_path() == path,
 		   "the comparison waits for the file in the shape of code");
-	expect(overview->pending_open().isEmpty(), "the Overview keeps no open of its own");
+	// [[BPR-2194]]. The workbench host holds the file until the review is
+	// accepted; the window counts the opens the host reports.
+	const auto openedBefore      = window->statistics().PendingOpensOpened;
 	const auto repositoriesShown = window->repositories_drawer()->isVisibleTo(window);
 	expect(shows_file_without_gap(*surface, "the code veil shows until the file arrives"), "the double-clicked file arrives");
 	expect(overview->projection().has_value(), "the review is accepted");
@@ -491,7 +493,7 @@ try {
 	expect(window->repositories_drawer()->isVisibleTo(window) == repositoriesShown, "no drawer opens by itself when the load ends");
 	delay->EveryReadMilliseconds = 0U;
 	wait_for([&] { return !window->showing_overview() && surface->current_result() != nullptr && surface->current_context().has_value(); }, "the waiting file opens once the review is accepted");
-	expect(overview->pending_open().isEmpty(), "nothing waits once it has opened");
+	expect(window->statistics().PendingOpensOpened == openedBefore + 1U, "the host opened it, once");
 	wait_for([&] { return overview->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "reopened progress finishes loading");
 	expect(overview->projection()->Progress.FilesRead == 1U, "the first PR retains its own durable progress across replacement");
 

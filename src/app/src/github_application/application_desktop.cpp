@@ -447,6 +447,27 @@ namespace bpr::app {
 		return snapshot && std::ranges::any_of(snapshot->Agents.Agents, [](const core::agent_entry& aEntry) { return aEntry.Name == "Fixture agent"; });
 	}
 
+	void github_application::answer_build_question_for_look(const std::optional<bool> aAnswer)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->set_build_question(aAnswer ? std::function<bool()>{ [answer = *aAnswer] { return answer; } } : std::function<bool()>{ });
+			}
+		}
+	}
+
+	void github_application::refresh_local_draft_for_look()
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->DraftDesktop) {
+				session->DraftDesktop->host().refresh();
+				return;
+			}
+		}
+	}
+
 	auto github_application::select_workflow_for_look() -> bool
 	{
 		for (const auto& [context, session] : Sessions) {

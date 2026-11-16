@@ -142,6 +142,9 @@ try {
 	expect(initial != nullptr, "initial runtime admitted");
 	initial->show();
 	wait_for([&] { return initial->status().ProfileMode == core::appearance_mode::dark; }, "Default preserves tuned preferences");
+	// [[BPR-2206]]. Signed out, the account setup stands in the sign-in card's
+	// place, and Dif rests in the window's corner.
+	wait_for([&] { return initial->window().dif() != nullptr && initial->window().dif()->parentWidget() == &initial->window(); }, "Dif rests in the corner beside the account setup");
 	expect(initial->window().dif() != nullptr
 			   && initial->status().DifCatalogLoadAttempts == 1U
 			   && initial->status().DifCatalogDecodedClips == 10U,
@@ -160,6 +163,7 @@ try {
 	expect(workId != core::default_bpr_profile_id, "new profile has distinct durable identity");
 	auto* work = open(*desktop, *managed, workId);
 	wait_for([&] { return work->status().AppearancePersistenceAvailable; }, "Work profile settings composed");
+	wait_for([&] { return work->window().dif() != nullptr; }, "the Work window shows the Dif");
 	expect(work->window().dif() != nullptr
 			   && work->window().dif()->cache_identity() == initial->window().dif()->cache_identity()
 			   && work->status().DifCatalogLoadAttempts == 1U
@@ -208,6 +212,7 @@ try {
 	const auto personalId = create(*managed, QStringLiteral("Personal"));
 	auto*      personal   = open(*desktop, *managed, personalId);
 	expect(personal != work, "desktop owner remains usable after initial profile closes");
+	wait_for([&] { return personal->window().dif() != nullptr; }, "the Personal window shows the Dif");
 	expect(personal->window().dif() != nullptr
 			   && personal->window().dif()->cache_identity() == work->window().dif()->cache_identity()
 			   && personal->status().DifCatalogLoadAttempts == 1U

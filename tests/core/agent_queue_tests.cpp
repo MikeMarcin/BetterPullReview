@@ -171,6 +171,30 @@ namespace {
 			   "an ask carries its threads typed");
 	}
 
+	/// [[BPR-2154]]: each tour part of a pull request, and each part of a
+	/// local draft's discussion, is a session of its own; tour parts never
+	/// share inputs.
+	void test_tour_part_and_local_draft_sessions()
+	{
+		using namespace bpr::core;
+		const auto tab  = queued_session{ .Kind = queued_session_kind::agent_tab, .Host = "github.com", .Owner = "o", .Repository = "r", .Number = 7U };
+		const auto stop = tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ 12U } };
+		const auto part = tour_part_session(tab, stop);
+		expect(session_key(part) == "tour-part:github.com/o/r#7/stop-12" && parse_session_key(session_key(part)) == std::optional{ part }, "a stop's chat round-trips");
+		const auto whole = tour_part_session(tab, tour_thread{ });
+		expect(session_key(whole) == "tour-part:github.com/o/r#7/tour" && session_key(whole) != session_key(part) && session_key(whole) != session_key(with_kind(tab, queued_session_kind::tour_feedback)),
+			   "the whole tour, a stop and the first draft's feedback are separate queues");
+		expect(tour_part_thread(part.Part) == std::optional{ stop } && tour_part_thread("problem") == std::optional{ tour_thread{ .Kind = tour_thread_kind::problem } }
+				   && tour_part_thread("solution") == std::optional{ tour_thread{ .Kind = tour_thread_kind::solution } } && !tour_part_thread("stop-") && !tour_part_thread("stop-07") && !tour_part_thread("tours"),
+			   "a part names its thread");
+		const auto draft = local_draft_session("d0a1", tour_thread{ });
+		expect(session_key(draft) == "local-draft:d0a1/tour" && parse_session_key(session_key(draft)) == std::optional{ draft }, "a local draft's discussion round-trips");
+		expect(session_key(local_draft_session("", stop)).empty() && session_key(local_draft_session("a/b", stop)).empty() && !parse_session_key("local-draft:d0a1/other")
+				   && !parse_session_key("tour-part:github.com/o/r#7") && !parse_session_key("tour-part:github.com/o/r#7/stop-x"),
+			   "a part kind with no part, or a bad draft, names no session");
+		expect(with_kind(part, queued_session_kind::agent_tab) == tab, "the pull request's Agent tab session of a part");
+	}
+
 	/// RFC-BPR-0126 AC10 ([[BPR-2181]]): queue-versus-send is the core's,
 	/// over the queue and the run; a Return in the gap after a release and
 	/// before its turn shows is queued.
@@ -231,11 +255,68 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// RFC-BPR-0126 AC06 ([[BPR-2152]]): the claim of the exact entry and
+	/// revision, its receipt, and how a run's corrections settle.
+	void test_claims_and_settled_corrections()
+	{
+		using namespace bpr::core;
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, { .Label = "a", .Text = "a" }, 0U));
+		static_cast<void>(enqueue(queue, { .Label = "b", .Text = "b" }, queue.Revision));
+		static_cast<void>(enqueue(queue, { .Label = "c", .Text = "c" }, queue.Revision));
+		const auto a    = queue.Entries[0].Id;
+		const auto b    = queue.Entries[1].Id;
+		const auto c    = queue.Entries[2].Id;
+		const auto seen = queue.Revision;
+		expect(claim(queue, a, { .Route = queued_route::steer, .Run = 3U }, seen - 1U) == queue_refusal::stale, "a claim from an older revision is refused");
+		static_cast<void>(hold(queue, b, queue.Revision));
+		expect(claim(queue, b, { .Run = 3U }, queue.Revision) == queue_refusal::not_editable, "a held entry is never released");
+		expect(claim(queue, b, { .Route = queued_route::steer, .Run = 3U, .Receipt = "forged" }, queue.Revision) == queue_refusal::none && queue.Entries[1].State == queued_state::sending
+				   && !queue.Entries[1].Held && queue.Entries[1].Claim->Receipt.empty(),
+			   "a Steer takes it from its editor; a claim carries no receipt until the runtime gives one");
+		expect(claim(queue, b, { .Route = queued_route::steer, .Run = 3U }, queue.Revision) == queue_refusal::not_editable && withdraw(queue, b, queue.Revision) == queue_refusal::not_editable,
+			   "a claimed entry is neither claimed again nor removed");
+		expect(claim(queue, c, { .Route = queued_route::steer, .Run = 3U }, queue.Revision) == queue_refusal::none && claim(queue, a, { .Route = queued_route::steer, .Run = 3U }, queue.Revision) == queue_refusal::none,
+			   "two more claimed for the same run");
+		expect(next_release(queue, queue_agent::idle) == std::nullopt, "nothing is released while any is in flight");
+		expect(acknowledge(queue, b, "rb") == queue_refusal::none && acknowledge(queue, b, "again") == queue_refusal::not_editable && queue.Entries[1].Claim->Receipt == "rb",
+			   "one acknowledgment, kept on its own record");
+		expect(acknowledge(queue, c, std::string(maximum_claim_receipt_bytes + 1U, 'x')) == queue_refusal::none && queue.Entries[2].Claim->Receipt.empty(), "an identity too long to keep is not kept");
+		static_cast<void>(acknowledge(queue, a, "ra"));
+		settle_steers(queue, 3U, { { .Receipt = "rb", .Ending = steered_ending::consumed }, { .Receipt = "ra", .Ending = steered_ending::not_taken } });
+		expect(queue.Entries.size() == 2U && queue.Entries.back().Id == a && queue.Entries.back().State == queued_state::queued && !queue.Entries.back().Claim,
+			   "consumed leaves; not taken is unsent again, first among the unsent, unbound");
+		expect(queue.Entries.front().Id == c && queue.Entries.front().State == queued_state::delivery_unknown && queue.Paused == queue_pause::delivery_unknown,
+			   "one its run never named stays uncertain and pauses the queue");
+
+		auto released = agent_queue{ };
+		static_cast<void>(enqueue(released, { .Label = "r", .Text = "r" }, 0U));
+		const auto r = released.Entries.front().Id;
+		expect(claim(released, r, { .Conversation = 9U }, released.Revision) == queue_refusal::none && bind_run(released, r, 4U) == queue_refusal::none && released.Entries.front().Claim->Run == 4U,
+			   "a release's claim names the run it was admitted as");
+		expect(acknowledge(released, r, "x") == queue_refusal::not_editable, "a release has no correction receipt");
+		expect(finish(released, r, queued_finish::unknown) == queue_refusal::none && released.Entries.front().State == queued_state::delivery_unknown && released.Entries.front().Claim
+				   && released.Paused == queue_pause::delivery_unknown,
+			   "a release with no sign of delivery is kept uncertain, with its claim");
+
+		auto crashed = agent_queue{ };
+		static_cast<void>(enqueue(crashed, { .Label = "s", .Text = "s" }, 0U));
+		const auto sId = crashed.Entries.front().Id;
+		static_cast<void>(claim(crashed, sId, { .Route = queued_route::steer, .Run = 1U }, crashed.Revision));
+		static_cast<void>(acknowledge(crashed, sId, "rs"));
+		restore(crashed);
+		expect(crashed.Entries.front().State == queued_state::delivery_unknown && crashed.Entries.front().Claim->Receipt == "rs", "a sent correction restores as uncertain, identifiable");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_claims_and_settled_corrections();
 	test_finish_maps_to_pause();
 	test_follow_up_decision();
 	test_typed_session();
+	test_tour_part_and_local_draft_sessions();
 	test_discard_uncertain();
 	test_return_unsent();
 	test_order_and_release();

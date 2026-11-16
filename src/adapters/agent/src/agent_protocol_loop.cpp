@@ -60,6 +60,7 @@ namespace bpr::adapters::agent::detail {
 					report_tool_version();
 					hand_off_steers();
 					expire_overdue_steer_replies();
+					abandon_overdue_successor();
 					if (IsAppServer && !native() && !has_cause() && Decoder.turn_complete() && !InputClosed) {
 						// Modern App Server treats EOF as cancellation. Retain stdin
 						// until this explicit one-shot turn has actually completed.
@@ -226,6 +227,26 @@ namespace bpr::adapters::agent::detail {
 							pending->Answer(receipt);
 						}
 					} catch (...) { }
+				}
+			}
+
+			/// \brief [[BPR-2152]] (AC06). A run held for the successor turn of
+			/// an open correction waits a bounded time for its first frame;
+			/// then the correction is unknown and the turn ends, so the run is
+			/// retired with its connection rather than holding its lease.
+			void abandon_overdue_successor()
+			{
+				if (!Decoder.awaiting_successor()) {
+					SuccessorDue.reset();
+					return;
+				}
+				const auto now = std::chrono::steady_clock::now();
+				if (!SuccessorDue) {
+					SuccessorDue = now + std::chrono::milliseconds{ std::max(Request.SteerSuccessorMilliseconds, 0) };
+				}
+				if (now >= *SuccessorDue) {
+					Decoder.abandon_successor();
+					SuccessorDue.reset();
 				}
 			}
 
@@ -748,6 +769,7 @@ namespace bpr::adapters::agent::detail {
 			std::string                                          SavedNativeHandle;
 			core::agent_run_cost_reading                         CostReading;
 			std::optional<std::chrono::steady_clock::time_point> SteerReplyDue;
+			std::optional<std::chrono::steady_clock::time_point> SuccessorDue;
 			std::uint32_t                                        Steps = 0U;
 			std::string                                          ReportedToolVersion;
 			std::array<char, protocol_buffer_bytes>              Buffer{ };

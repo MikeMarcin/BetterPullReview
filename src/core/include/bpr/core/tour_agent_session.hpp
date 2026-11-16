@@ -2,6 +2,8 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_TOUR_AGENT_SESSION_HPP
 
 #include "bpr/core/agent_cost.hpp"
+#include "bpr/core/agent_steering.hpp"
+#include "bpr/core/local_draft_check.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_tour.hpp"
 
@@ -344,8 +346,20 @@ namespace bpr::core {
 		/// [[BPR-2138]], RFC-BPR-0101 (owner, 2026-11-12). An Enhance on a
 		/// stop or a part: a fresh run, never a turn of its side chat, so no
 		/// conversation replays it.
-		bool Fresh                                           = false;
-		auto operator==(const tour_agent_run&) const -> bool = default;
+		bool Fresh = false;
+		/// RFC-BPR-0120. A local draft's check: the answer is its plan card
+		/// or its report. Presented only; a pull request's tour has none.
+		std::optional<local_check> Check;
+		/// Why the plan card's Run is unavailable, in the author's words;
+		/// empty when it is available.
+		std::string CheckBlocked;
+		/// The draft's latest candidate, for a report on an older one.
+		std::uint64_t CheckLatest = 0U;
+		/// [[BPR-2154]], RFC-BPR-0126 AC05. What the author steered into this
+		/// turn, in order, shown as their own after the question from the
+		/// moment it went in, as the Agent tab shows it.
+		std::vector<agent_steered_message> Steered;
+		auto                               operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;
@@ -654,6 +668,14 @@ namespace bpr::core {
 	/// \brief [[BPR-1999]]. Records what an ended run cost and its
 	/// conversation's total; false for a running or unknown run.
 	auto cost_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::optional<agent_cost> aCost, std::optional<agent_cost> aSessionCost) -> bool;
+	/// \brief [[BPR-2154]]. A message steered into the running run `aRun`:
+	/// kept on it, at most `maximum_steers_per_run`; false for an ended or
+	/// unknown run, an empty message, or one more than that.
+	auto note_tour_steered(tour_agent_session& aSession, tour_agent_run_id aRun, agent_steered_message aMessage) -> bool;
+	/// \brief [[BPR-2154]]. How the run's steered messages ended, in the
+	/// order they were written (`settle_steered_messages`); false for an
+	/// unknown run.
+	auto settle_tour_steered(tour_agent_session& aSession, tour_agent_run_id aRun, const std::vector<agent_steer_disposition>& aEndings) -> bool;
 	/// \brief [[BPR-1999]]. What a thread's chat has cost: its newest run's
 	/// conversation total when known, else its runs' costs added up; none
 	/// when no run reported one.

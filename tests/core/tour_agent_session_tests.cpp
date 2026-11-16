@@ -668,8 +668,38 @@ namespace {
 
 }
 
+namespace {
+	/// [[BPR-2154]] (look queue-tour-v002). A message steered into a tour
+	/// part's running turn is on that turn at once; the run's end settles
+	/// each, in the order written; an ended turn takes no more.
+	void steered()
+	{
+		auto       session = tour_agent_session{ };
+		const auto run     = begin_tour_ask(session, tour_thread{ }, std::nullopt, "Is the order good?");
+		expect(run.has_value(), "a turn runs");
+		expect(!note_tour_steered(session, *run, { }), "an empty message is not kept");
+		expect(note_tour_steered(session, *run, { .Text = "Start at main().", .AfterSteps = 2U }) && note_tour_steered(session, *run, { .Text = "And fewer stops." }),
+			   "both are kept on the running turn");
+		expect(session.Runs.back().Steered.size() == 2U && session.Runs.back().Steered[0].Text == "Start at main()." && session.Runs.back().Steered[0].Disposition == agent_steer_disposition::sent,
+			   "in order, sent while it runs");
+		expect(answer_tour_ask(session, *run, "Yes.", tour_proposal_tally{ }), "the turn ends");
+		expect(!note_tour_steered(session, *run, { .Text = "Late." }), "an ended turn takes none");
+		expect(settle_tour_steered(session, *run, { agent_steer_disposition::consumed }), "the end settles them");
+		expect(session.Runs.back().Steered[0].Disposition == agent_steer_disposition::consumed && session.Runs.back().Steered[1].Disposition == agent_steer_disposition::sent,
+			   "each by its own ending; one not reported keeps what it had");
+		expect(!settle_tour_steered(session, tour_agent_run_id{ 99U }, { }), "an unknown run is refused");
+		auto       full = tour_agent_session{ };
+		const auto busy = begin_tour_ask(full, tour_thread{ }, std::nullopt, "Busy?");
+		for (auto index = 0U; index < maximum_steers_per_run; ++index) {
+			expect(note_tour_steered(full, *busy, { .Text = "more" }), "up to the bound");
+		}
+		expect(!note_tour_steered(full, *busy, { .Text = "one too many" }), "no more than one run may take");
+	}
+}
+
 int main()
 {
+	steered();
 	captured_targets_and_decisions();
 	revision();
 	focus_and_feedback();

@@ -40,6 +40,16 @@ namespace bpr::app {
 		}
 	} // namespace
 
+	auto github_application::implementation::steer_shown() -> application::agent_queue_steer_done
+	{
+		return [this, weak = std::weak_ptr<const int>{ WindowLifetime }](const application::agent_queue_steer_result& aResult) {
+			if (weak.expired() || Closing || Window == nullptr) {
+				return;
+			}
+			Window->agent_panel()->refuse(aResult.Sent ? std::string{ application::agent_steered_words } : aResult.Why);
+		};
+	}
+
 	void github_application::implementation::bind_quick_ask()
 	{
 		if (Window == nullptr || Window->agent_tab() == nullptr) {
@@ -90,11 +100,9 @@ namespace bpr::app {
 				if (Closing || Window == nullptr || !AgentQueue || ask_session_key().empty()) {
 					return;
 				}
-				const auto steered = AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen);
-				if (steered.Refused != core::queue_refusal::none) {
+				// [[BPR-2152]]. The outcome comes once the claim is stored.
+				if (AgentQueue->steer(ask_session_key(), aId, AgentQueueSeen, steer_shown()) != core::queue_refusal::none) {
 					Window->agent_panel()->refuse("Another window changed this queue first, so nothing changed here.");
-				} else {
-					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
 				}
 			},
 			.Pause  = onQueue([](application::agent_queue_host& aQueue, const std::string& aSession, seen) {
@@ -131,9 +139,7 @@ namespace bpr::app {
 				return false;
 			}
 			if (const auto* const queue = AgentQueue->queue(session); aSteer && queue != nullptr && !queue->Entries.empty()) {
-				if (const auto steered = AgentQueue->steer(session, queue->Entries.back().Id); steered.Refused == core::queue_refusal::none) {
-					Window->agent_panel()->refuse(steered.Sent ? std::string{ application::agent_steered_words } : steered.Why);
-				}
+				static_cast<void>(AgentQueue->steer(session, queue->Entries.back().Id, std::nullopt, steer_shown()));
 			}
 			observe_ask_queue(false);
 			return true;
@@ -146,7 +152,13 @@ namespace bpr::app {
 			}
 		});
 		if (auto* const report = Window->report_view(); report != nullptr) {
-			report->set_link_dispatch([tab](const QString& aLink) { tab->open_reference(aLink); });
+			report->set_link_dispatch([this, tab](const QString& aLink) {
+				// RFC-BPR-0120. A local draft's check report opens its candidate at the line.
+				if (DraftDesktop && DraftDesktop->follow_check_reference(aLink.toStdString())) {
+					return;
+				}
+				tab->open_reference(aLink);
+			});
 			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
 			// docs/design/report-templates-v2: a suggestion's Add as draft
 			// comment drafts it at its lines as a finding card's does. Nothing
@@ -327,6 +339,10 @@ namespace bpr::app {
 					recover_tour_feedback();
 				} else if (aSession == ask_session_key()) {
 					present_ask_queue(aQueue);
+				} else if (const auto chat = core::parse_session_key(aSession);
+						   chat && (chat->Kind == core::queued_session_kind::tour_part || chat->Kind == core::queued_session_kind::local_draft_discussion)) {
+					// [[BPR-2154]]. A tour part's or local draft part's queue.
+					present_chat_queues();
 				} },
 			// RFC-BPR-0126 AC09: Stop all shows while any session's queue holds
 			// a message.
@@ -360,6 +376,9 @@ namespace bpr::app {
 			.Start = [this](const std::string&, const core::queued_entry& aEntry) { return release_tour_feedback(aEntry); },
 			.Steer = { },
 		});
+		// [[BPR-2154]]. The tour chats' and the local draft discussion's
+		// queues, on a runtime of their own.
+		bind_chat_queues();
 		// The runs' own retirement events: nothing watches for them on a
 		// timer.
 		if (AgentHost) {
@@ -610,6 +629,7 @@ namespace bpr::app {
 				.Held      = entry.Held,
 				.Sending   = entry.State != core::queued_state::queued,
 				.Uncertain = entry.State == core::queued_state::delivery_unknown,
+				.Sent      = entry.State == core::queued_state::sent,
 			});
 		}
 		const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")

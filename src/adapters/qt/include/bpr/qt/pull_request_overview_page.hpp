@@ -605,9 +605,6 @@ namespace bpr::qt {
 		void               present_observed_people(const application::overview_people_projection& aPeople);
 		void               present_observed_merge(const application::overview_merge_projection& aMerge);
 		[[nodiscard]] auto has_observed_status() const noexcept -> bool;
-		/// \brief [[BPR-1842]]. The file a reviewer chose before the review was
-		/// accepted; empty when none waits.
-		[[nodiscard]] auto pending_open() const -> const QString&;
 		/// \brief Shows bounded historical metadata with explicit unavailable review content.
 		void               present_cached(const application::github_cached_overview_projection& aOverview);
 		void               present_cached_source(const application::cached_review_source_projection& aSource);
@@ -657,7 +654,9 @@ namespace bpr::qt {
 		void set_file_dispatch(overview_path_dispatch aDispatch);
 		/// \brief [[BPR-2180]]. A file row activated while the review it belongs
 		/// to still loads: the window goes to Review at once and waits for the
-		/// file there. Without one, the Overview remembers it itself.
+		/// file there; the workbench host holds it until the review is accepted
+		/// ([[BPR-2194]]). Without one, a file activated while it loads opens
+		/// nothing.
 		void set_waiting_open_dispatch(overview_path_dispatch aDispatch);
 		/// \brief [[BPR-1589]]. How many threads have posts I have not read,
 		/// as Threads' Only new counts them; My review says so with Go to them.
@@ -1066,10 +1065,8 @@ namespace bpr::qt {
 		std::optional<application::overview_checks_projection> ObservedChecks;
 		std::optional<application::overview_people_projection> ObservedPeople;
 		std::optional<application::overview_merge_projection>  ObservedMerge;
-		/// [[BPR-1842]]. The file to open once the review is accepted.
-		QString                PendingOpen;
-		QString                ReadWaiting;
-		overview_pending_veils Veils;
+		QString                                                ReadWaiting;
+		overview_pending_veils                                 Veils;
 
 		/// RFC-BPR-0089. The chip above the files, and the gestures it shares
 		/// with the Commits tab.

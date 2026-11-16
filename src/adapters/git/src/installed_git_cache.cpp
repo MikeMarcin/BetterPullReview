@@ -3129,6 +3129,88 @@ namespace bpr::adapters::git {
 			return names;
 		}
 
+		/// \brief [[BPR-2195]]. Settles an `index-pack` stopped while it
+		/// finalized the expected pack, so the failed-index cleanup and the
+		/// rollback can act on what it left.
+		/// \details Git finalizes `tmp_pack_*` and then `tmp_idx_*` into
+		/// `pack-<hash>.pack` and `.idx` by linking the final name and then
+		/// unlinking the temporary one. Killed on a stop (a newer read), it can
+		/// leave either temporary name as a second link to its final file, or
+		/// the final `.pack` with no `.idx` (measured: 1,500 kills of the system
+		/// Git's `index-pack` left exactly these, besides the temporary files the
+		/// cleanup already removes and a complete pair the rollback removes).
+		/// Both made the cleanup refuse and left the cache for repair. Only the
+		/// expected pack's own names, absent before the import, are touched: a
+		/// new temporary name that is a second link to one of them is unlinked,
+		/// and then a new `.pack` whose `.idx` never arrived is removed, each a
+		/// private regular file this user owns. Anything else stays for the
+		/// inventory to refuse.
+		auto settle_interrupted_index(
+			const std::filesystem::path&                           aRepository,
+			const application::git_pack_oid&                       aPack,
+			const std::vector<std::filesystem::path::string_type>& aBefore) -> void
+		{
+			const auto directory = aRepository / "objects" / "pack";
+			if (!application::valid(aPack) || !private_directory(directory)) {
+				return;
+			}
+			const auto digestBytes = aPack.Algorithm == core::git_hash_algorithm::sha1 ? 20U : 32U;
+			const auto stem        = "pack-" + lower_hex(std::span{ aPack.Digest }.first(digestBytes));
+			const auto packPath    = directory / (stem + ".pack");
+			const auto indexPath   = directory / (stem + ".idx");
+			const auto isNew       = [&](const std::filesystem::path& aPath) {
+				return !std::ranges::binary_search(aBefore, aPath.filename().native());
+			};
+			if (!isNew(packPath) || !isNew(indexPath)) {
+				return;
+			}
+			auto changed = false;
+#if defined(Q_OS_UNIX)
+			const auto      finals  = std::array{ packPath, indexPath };
+			auto            links   = std::vector<std::filesystem::path>{ };
+			std::size_t     visited = 0U;
+			std::error_code error;
+			for (auto entry = std::filesystem::directory_iterator{ directory, error };
+				 !error && entry != std::filesystem::directory_iterator{ };
+				 entry.increment(error)) {
+				if (++visited > maximum_pack_directory_walk) {
+					return;
+				}
+				const auto name = entry->path().filename().native();
+				if (!index_pack_temporary_name(name) || std::ranges::binary_search(aBefore, name)) {
+					continue;
+				}
+				struct stat temporary{ };
+				if (::lstat(entry->path().c_str(), &temporary) != 0 || !S_ISREG(temporary.st_mode) || temporary.st_uid != ::geteuid()
+					|| temporary.st_nlink != 2 || (temporary.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0) {
+					continue;
+				}
+				for (const auto& final : finals) {
+					struct stat finished{ };
+					if (::lstat(final.c_str(), &finished) == 0 && S_ISREG(finished.st_mode) && finished.st_dev == temporary.st_dev
+						&& finished.st_ino == temporary.st_ino) {
+						links.push_back(entry->path());
+						break;
+					}
+				}
+			}
+			if (error) {
+				return;
+			}
+			for (const auto& link : links) {
+				changed = ::unlink(link.c_str()) == 0 || changed;
+			}
+#endif
+			if (!missing(packPath) && missing(indexPath) && private_regular_file(packPath)) {
+				if (const auto identity = exact_identity(packPath, exact_artifact_kind::regular_file); identity.has_value()) {
+					changed = remove_exact_private_file(packPath, *identity) || changed;
+				}
+			}
+			if (changed) {
+				static_cast<void>(synchronize_directory(directory));
+			}
+		}
+
 		/// \brief Removes the temporary files a failed `index-pack` left behind.
 		/// \details An `index-pack` that dies, on a missing object or a truncated
 		/// pack, leaves `objects/pack/tmp_pack_XXXXXX` (BPR-0851); a killed one
@@ -3863,11 +3945,39 @@ namespace bpr::adapters::git {
 						}
 	#endif
 					}
+					// [[BPR-2195]]. Shapes the complete pair into what an
+					// `index-pack` killed while finalizing leaves: its `.pack`
+					// still also named `tmp_pack_*`, or its `.idx` still also
+					// named `tmp_idx_*`, or its `.pack` with no `.idx` yet.
+					if (importedArtifacts.has_value()) {
+						const auto& expected   = aRequest.Receipt.ExpectedPack;
+						const auto  stem       = "pack-" + lower_hex(std::span{ expected.Digest }.first(expected.Algorithm == core::git_hash_algorithm::sha1 ? 20U : 32U));
+						const auto  finalPack  = packDirectory / (stem + ".pack");
+						const auto  finalIndex = packDirectory / (stem + ".idx");
+						if (std::filesystem::exists(State->StorageRoot / "inject-cache-interrupted-pack-link", residueInjectionError)) {
+							std::filesystem::create_hard_link(finalPack, packDirectory / "tmp_pack_BPRfin", residueInjectionError);
+							std::filesystem::remove(finalIndex, residueInjectionError);
+						}
+						if (std::filesystem::exists(State->StorageRoot / "inject-cache-interrupted-index-link", residueInjectionError)) {
+							std::filesystem::create_hard_link(finalIndex, packDirectory / "tmp_idx_BPRfin", residueInjectionError);
+						}
+						if (std::filesystem::exists(State->StorageRoot / "inject-cache-interrupted-index-missing", residueInjectionError)) {
+							std::filesystem::remove(finalIndex, residueInjectionError);
+						}
+					}
 #endif
 					if (packNamesBeforeIndex.has_value()) {
+						if (!aRequest.Inventory.ExpectedPackPreexisting) {
+							settle_interrupted_index(State->Repository, aRequest.Receipt.ExpectedPack, *packNamesBeforeIndex);
+						}
 						remove_failed_index_residue(State->Repository, *packNamesBeforeIndex);
 					}
-					const auto afterFailure = State->validated_inventory({ }, false);
+					// [[BPR-2195]]. The pack as it stands once settled: a second
+					// link no longer hides a complete pair from the rollback.
+					const auto settledArtifacts = aRequest.Inventory.ExpectedPackPreexisting
+						? std::optional<installed_pack_artifacts>{ }
+						: inspect_installed_pack_artifacts(State->Repository, aRequest.Receipt.ExpectedPack);
+					const auto afterFailure     = State->validated_inventory({ }, false);
 					if (!afterFailure.has_value()) {
 						return std::unexpected{
 							application::git_cache_failure::
@@ -3892,7 +4002,7 @@ namespace bpr::adapters::git {
 								== aRequest.Receipt.ExpectedPack;
 						});
 					const auto onlyExpectedPackAdded = !aRequest.Inventory.ExpectedPackPreexisting
-						&& importedArtifacts.has_value()
+						&& settledArtifacts.has_value()
 						&& expectedPresent && priorPacksUnchanged
 						&& afterFailure->Packs.size()
 							== current->Packs.size() + 1U
@@ -3904,7 +4014,7 @@ namespace bpr::adapters::git {
 							State->Repository,
 							aRequest.Receipt.ExpectedPack,
 							current->Packs,
-							*importedArtifacts)) {
+							*settledArtifacts)) {
 						return std::unexpected{
 							application::git_cache_failure::
 								repair_required

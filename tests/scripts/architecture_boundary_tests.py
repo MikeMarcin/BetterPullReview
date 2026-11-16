@@ -94,6 +94,14 @@ DESIGNATED_LIVE_TEST_ISOLATION = (
     REPOSITORY_ROOT / "cmake" / "BprTestIsolation.cmake"
 ).read_text(encoding="utf-8")
 
+# The real src/app/CMakeLists.txt builds the fixture agent only when testing is
+# on, and the gate requires that of every tree it checks.
+APP_FIXTURE_AGENT_TARGET = """\
+if(BUILD_TESTING)
+    add_executable(bpr_fixture_agent "${PROJECT_SOURCE_DIR}/tests/support/fixture_agent_main.cpp")
+endif()
+"""
+
 DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET = """\
 target_sources(
     tool_better_pull_review_designated_live_supervisor
@@ -1363,6 +1371,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "add_library(better_pull_review_core "
                     "src/agent_profile.cpp)\n",
                 "src/application/CMakeLists.txt": "",
+                "src/app/CMakeLists.txt": APP_FIXTURE_AGENT_TARGET,
                 "src/adapters/CMakeLists.txt": adapter_root,
                 "src/adapters/github/CMakeLists.txt": github_target,
                 "src/adapters/git/CMakeLists.txt": git_target,
@@ -1478,11 +1487,31 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_fixture_agent_is_built_only_when_testing(self) -> None:
+        self.assert_failure(
+            "src/app/CMakeLists.txt must define the fixture agent (bpr_fixture_agent)",
+            omit_paths=("src/app/CMakeLists.txt",),
+        )
+        self.assert_failure(
+            "src/app/CMakeLists.txt must define the fixture agent (bpr_fixture_agent)",
+            {"src/app/CMakeLists.txt": "add_executable(bpr_app src/main.cpp)\n"},
+        )
+        for unguarded in (
+            'add_executable(bpr_fixture_agent "main.cpp")\n',
+            'if(BUILD_TESTING)\nendif()\nadd_executable(bpr_fixture_agent "main.cpp")\n',
+        ):
+            with self.subTest(unguarded=unguarded):
+                self.assert_failure(
+                    "the fixture agent must be built only inside if(BUILD_TESTING)",
+                    {"src/app/CMakeLists.txt": unguarded},
+                )
+
     def test_tour_editor_has_one_owner_and_explicit_trusted_argv(self) -> None:
         path = "src/app/src/tour_editor.cpp"
         source = (REPOSITORY_ROOT / path).read_text(encoding="utf-8")
         sources = {path: source, "src/app/CMakeLists.txt":
-                   "target_sources(better_pull_review_tour_runtime PRIVATE src/tour_editor.cpp)\n"}
+                   "target_sources(better_pull_review_tour_runtime PRIVATE src/tour_editor.cpp)\n"
+                   + APP_FIXTURE_AGENT_TARGET}
         result = self.run_check(sources)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assert_failure("QProcess ownership violation", {
@@ -1764,7 +1793,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         sources["src/adapters/mcp/CMakeLists.txt"] = (
             "target_sources(tool_better_pull_review_mcp_context_helper PRIVATE src/mcp_terminal_diagnostic.hpp)\n"
         )
-        sources["src/app/CMakeLists.txt"] = "target_sources(better_pull_review_composition PRIVATE src/terminal_diagnostics.cpp)\n"
+        sources["src/app/CMakeLists.txt"] = (
+            "target_sources(better_pull_review_composition PRIVATE src/terminal_diagnostics.cpp)\n"
+            + APP_FIXTURE_AGENT_TARGET
+        )
         result = self.run_check(sources)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         for path in owners:
@@ -4771,7 +4803,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "src/adapters/github/src/designated_live_public_observer.hpp":
                 DESIGNATED_LIVE_PUBLIC_OBSERVER_INTERFACE,
             "src/app/CMakeLists.txt":
-                DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET,
+                DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET
+                + APP_FIXTURE_AGENT_TARGET,
             "src/app/src/designated_live_macos_supervisor.cpp":
                 DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE,
             "src/app/src/designated_live_macos_supervisor_identity.cpp":

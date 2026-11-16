@@ -433,9 +433,6 @@ namespace bpr::qt {
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
-		if (!PendingReviewPath.isEmpty()) {
-			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
-		}
 	}
 
 	void workbench_window::apply_file_rows(
@@ -472,9 +469,6 @@ namespace bpr::qt {
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
-		if (!PendingReviewPath.isEmpty()) {
-			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
-		}
 	}
 
 	void workbench_window::wait_for_review_at(const QString& aPath)
@@ -482,7 +476,6 @@ namespace bpr::qt {
 		// The reviewer's gesture moves the window now; the host decides when
 		// the file opens ([[BPR-2191]]).
 		choose_modality(review_modality::review);
-		PendingReviewPath.clear();
 		if (PendingOpenDispatch) {
 			PendingOpenDispatch(aPath);
 		}

@@ -237,7 +237,6 @@ namespace bpr::qt {
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, false);
 		}
-		PendingOpen.clear();
 		Files->setAccessibleDescription(QStringLiteral("Current file catalogue; activate a file to read it; %1.").arg(files_ends_help()));
 		Summary->setToolTip({ });
 		Summary->setAccessibleDescription({ });
@@ -617,7 +616,6 @@ namespace bpr::qt {
 		Model->apply_feedback(std::nullopt);
 		Model->apply({ });
 		ObservedFiles = false;
-		PendingOpen.clear();
 		update_folder_controls();
 		present_feedback_controls();
 		rebuild_participants({ });
@@ -741,9 +739,7 @@ namespace bpr::qt {
 		if (Loading && ObservedFiles) {
 			// [[BPR-1842]]. The rows are there to read; what is still coming is
 			// said on the plate, not dimmed over them.
-			const auto coming = PendingOpen.isEmpty()
-				? QStringLiteral("Loading comments, reviews and checks…")
-				: QStringLiteral("Opening %1 when the review has loaded…").arg(PendingOpen.section(QLatin1Char('/'), -1));
+			const auto coming = QStringLiteral("Loading comments, reviews and checks…");
 			Veils.Files->present(core::pending_activity::loading, true, true,
 								 { .Waiting = waiting, .Coming = coming, .Done = QStringLiteral("Overview ready: files, reviewers and checks are shown.") });
 			return;
@@ -878,11 +874,6 @@ namespace bpr::qt {
 		FileColumns->apply();
 		Files->setAccessibleDescription(QStringLiteral("Changed files as GitHub reported them while the review loads; a file activated now opens once it has loaded; %1.").arg(files_ends_help()));
 		apply_pending();
-	}
-
-	auto pull_request_overview_page::pending_open() const -> const QString&
-	{
-		return PendingOpen;
 	}
 
 	void pull_request_overview_page::present_cached(const application::github_cached_overview_projection& aOverview)

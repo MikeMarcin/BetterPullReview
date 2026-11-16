@@ -70,6 +70,9 @@ namespace bpr::core {
 	{
 		std::string Thread;
 		std::string Text;
+		/// [[BPR-2154]]. What the author steered into it so far, shown on
+		/// its turn at once.
+		std::vector<agent_steered_message> Steered;
 	};
 
 	/// \brief Projects `aDraft`'s preparation for the panel.

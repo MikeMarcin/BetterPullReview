@@ -666,11 +666,6 @@ namespace bpr::qt {
 			// on overview I expect an immediate transition to review with that
 			// loading view". The window goes to Review now and waits there.
 			WaitingOpenDispatch(path);
-		} else if (ObservedFiles && Loading && !path.isEmpty()) {
-			// [[BPR-1842]]. The file opens as soon as the review it belongs
-			// to is accepted; the plate says so meanwhile.
-			PendingOpen = path;
-			apply_pending();
 		}
 	}
 

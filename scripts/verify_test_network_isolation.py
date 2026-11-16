@@ -142,6 +142,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_queue_restart_public_path": "unmeasured (registered on macOS)",
     "application_agent_queue_tour_feedback_crash_public_path": "unmeasured (registered on macOS)",
     "application_agent_queue_finish_pauses_public_path": "unmeasured (registered on macOS)",
+    "application_tour_chat_queue_stop_public_path": "unmeasured (registered on macOS)",
+    "application_tour_chat_queue_whole_tour_public_path": "unmeasured (registered on macOS)",
+    "application_tour_chat_queue_local_draft_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1933]]. Native Limited interactive Windows Release, source
     # a30ed6f5b, 2026-11-08 UTC: the unchanged course passes normally. The
     # byte-identical image, argv, cwd and configured environment/modifications

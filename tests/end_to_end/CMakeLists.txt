@@ -5194,8 +5194,10 @@ target_compile_features(test_pending_states_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_pending_states_public_path)
 bpr_enable_warnings(test_pending_states_public_path)
 bpr_add_network_isolated_test(NAME application_pending_states_public_path WINDOWS_UNCONTAINED COMMAND test_pending_states_public_path)
+# [[BPR-2195]]. A failed run keeps the host's diagnostic log here: the
+# network-isolation runner points TMPDIR into a root it removes.
 set_tests_properties(application_pending_states_public_path PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 400
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_COURSE_LOG_ROOT=${CMAKE_CURRENT_BINARY_DIR}/course-logs" TIMEOUT 400
     PASS_REGULAR_EXPRESSION "pending-states-public-path:pass")
 
 # [[BPR-1842]]. Opening a pull request becomes usable as its parts arrive: the
@@ -5469,6 +5471,25 @@ if(TARGET Git::Git)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-tour-desktop"
         PASS_REGULAR_EXPRESSION "local-draft-tour-desktop-public-path:pass"
         TIMEOUT 180)
+    # RFC-BPR-0120 ([[BPR-2189]]). Plan and run a check on a local draft, and
+    # read its report, with the fixture agent, through the same window and
+    # composition.
+    bpr_add_executable(test_local_draft_check_desktop_public_path local_draft_check_desktop_public_path.cpp "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+    target_link_libraries(test_local_draft_check_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+    target_include_directories(test_local_draft_check_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+    target_compile_features(test_local_draft_check_desktop_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_local_draft_check_desktop_public_path)
+    if(WIN32)
+        target_link_libraries(test_local_draft_check_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_local_draft_check_desktop_public_path)
+    add_dependencies(test_local_draft_check_desktop_public_path bpr_fixture_agent)
+    bpr_add_network_isolated_test(NAME application_local_draft_check_desktop_public_path WINDOWS_UNCONTAINED
+        COMMAND test_local_draft_check_desktop_public_path --git "$<TARGET_FILE:Git::Git>" --agent "$<TARGET_FILE:bpr_fixture_agent>")
+    set_tests_properties(application_local_draft_check_desktop_public_path PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-check-desktop"
+        PASS_REGULAR_EXPRESSION "local-draft-check-desktop-public-path:pass"
+        TIMEOUT 240)
     # RFC-BPR-0111 ([[BPR-2029]], [[BPR-2030]]).
     bpr_add_executable(test_local_draft_publication_desktop_public_path local_draft_publication_desktop_public_path.cpp)
     target_link_libraries(test_local_draft_publication_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
@@ -5643,3 +5664,27 @@ bpr_add_network_isolated_test(NAME application_agent_queue_finish_pauses_public_
     COMMAND test_agent_queue_windows_public_path "$<TARGET_FILE:bpr_fixture_agent>" --finish-pauses)
 set_tests_properties(application_agent_queue_finish_pauses_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-queue-finish-pauses:pass")
+# RFC-BPR-0126 AC01 ([[BPR-2154]]). The tour chats and a local draft's
+# discussion queue and steer: a stop's chat, the whole-tour conversation
+# after its first draft, and a local draft's discussion on a real worktree.
+bpr_add_executable(test_tour_chat_queue_public_path tour_chat_queue_public_path.cpp)
+target_link_libraries(test_tour_chat_queue_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_tour_chat_queue_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_tour_chat_queue_public_path)
+bpr_enable_warnings(test_tour_chat_queue_public_path)
+add_dependencies(test_tour_chat_queue_public_path bpr_fixture_agent)
+bpr_add_network_isolated_test(NAME application_tour_chat_queue_stop_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --stop-chat)
+set_tests_properties(application_tour_chat_queue_stop_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-stop:pass")
+bpr_add_network_isolated_test(NAME application_tour_chat_queue_whole_tour_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --whole-tour)
+set_tests_properties(application_tour_chat_queue_whole_tour_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-whole:[a-z-]+:pass")
+bpr_add_network_isolated_test(NAME application_tour_chat_queue_local_draft_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --local-draft "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_worktree.sh")
+set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-local-draft:pass")

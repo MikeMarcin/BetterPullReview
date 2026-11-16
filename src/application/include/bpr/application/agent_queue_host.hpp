@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 /// \file
 /// \brief RFC-BPR-0126 ([[BPR-2151]], [[BPR-2181]]). The session queue host:
@@ -80,6 +81,14 @@ namespace bpr::application {
 		/// session's running turn. None when it was sent; otherwise why not,
 		/// in the words the Agent tab shows.
 		[[nodiscard]] virtual auto steer(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string> = 0;
+		/// \brief [[BPR-2152]] (AC06). What a correction pressed now would be
+		/// bound to: the run of the session's running turn and its native
+		/// conversation (BPR's agent session), zero when not known.
+		[[nodiscard]] virtual auto bound(const std::string& aSession) -> core::queued_claim
+		{
+			static_cast<void>(aSession);
+			return { };
+		}
 	};
 
 	/// \brief What a window is shown: semantic deltas only.
@@ -125,6 +134,11 @@ namespace bpr::application {
 		std::string Why;
 	};
 
+	/// \brief [[BPR-2152]] (AC06). Told once what a Steer did, after its
+	/// claim was stored: on the decision lane, possibly after `steer`
+	/// returned.
+	using agent_queue_steer_done = std::function<void(const agent_queue_steer_result& aResult)>;
+
 	class agent_queue_host final
 	{
 	public:
@@ -153,10 +167,24 @@ namespace bpr::application {
 		[[nodiscard]] auto resume(const std::string& aSession, std::optional<std::uint64_t> aSeen = std::nullopt) -> core::queue_refusal;
 		/// \brief RFC-BPR-0126 AC09, Stop all: every session's queue pauses.
 		void pause_all(core::queue_pause aWhy);
-		/// \brief Steer on a queued message: held while it is offered to the
-		/// running turn; sent, it leaves the queue; otherwise it goes next and
-		/// the result says why.
-		[[nodiscard]] auto steer(const std::string& aSession, std::uint64_t aId, std::optional<std::uint64_t> aSeen = std::nullopt) -> agent_queue_steer_result;
+		/// \brief Steer on a queued message. [[BPR-2152]] (AC06): the entry
+		/// is claimed (Sending, bound to the running turn's run and
+		/// conversation) and stored before it is offered to the turn. Handed
+		/// to the turn, it stays Sending, then Sent on the runtime's
+		/// acknowledgment, until the run's end settles it
+		/// (`settle_steers`); not handed, it goes next. Returns only the
+		/// press's refusal; `aDone` is told the outcome once.
+		[[nodiscard]] auto steer(const std::string& aSession, std::uint64_t aId, std::optional<std::uint64_t> aSeen = std::nullopt, agent_queue_steer_done aDone = { }) -> core::queue_refusal;
+		/// \brief [[BPR-2152]] (AC06). The runtime's answer for the
+		/// correction claimed as `aId`: written (`aReceipt` names its input
+		/// identity) makes it Sent, kept; proven unwritten or refused, it goes
+		/// back first with its identity. A late or second answer changes
+		/// nothing. Never resends.
+		void steer_answered(const std::string& aSession, std::uint64_t aId, bool aWritten, std::string aReceipt);
+		/// \brief [[BPR-2152]] (AC06). The run `aRun` ended: its corrections
+		/// settle by receipt (core `settle_steers`), stored before anything
+		/// else is released.
+		void settle_steers(const std::string& aSession, std::uint64_t aRun, const std::vector<core::steered_settlement>& aEndings);
 		/// \brief RFC-BPR-0126 AC04. Discard on a message whose delivery is not
 		/// known: it leaves the queue (core `discard_uncertain`).
 		[[nodiscard]] auto discard(const std::string& aSession, std::uint64_t aId, std::optional<std::uint64_t> aSeen = std::nullopt) -> core::queue_refusal;
@@ -192,6 +220,14 @@ namespace bpr::application {
 		/// change queued, which leaves again if the store refuses it. Whether
 		/// a write that ran here was kept.
 		auto commit(const std::string& aSession, std::optional<std::uint64_t> aAdded = std::nullopt) -> bool;
+		/// [[BPR-2152]] (AC06). Writes and shows the session's queue, then
+		/// tells `aThen` on the decision lane whether the write was kept;
+		/// only then may a claimed entry be written to an agent.
+		void commit_then(const std::string& aSession, std::function<void(bool aKept)> aThen);
+		/// The release claimed as `aId` was stored (or not): start its turn.
+		void start_claimed(const std::string& aSession, std::uint64_t aId, bool aKept);
+		/// The correction claimed as `aId` was stored (or not): offer it.
+		void offer_claimed(const std::string& aSession, std::uint64_t aId, bool aKept, const agent_queue_steer_done& aDone);
 		void unsaved(const std::string& aSession, std::uint64_t aAdded);
 		void notify_waiting();
 		void drain(const std::string& aSession);

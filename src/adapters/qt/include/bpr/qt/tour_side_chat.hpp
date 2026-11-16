@@ -8,6 +8,7 @@
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/qt/agent_pending_list.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
@@ -26,6 +27,7 @@
 #include <optional>
 #include <set>
 #include <span>
+#include <string>
 #include <vector>
 
 class QLabel;
@@ -60,6 +62,11 @@ namespace bpr::qt {
 		/// only text its skill references are read from; none reads
 		/// `Question`.
 		std::optional<std::string> SkillText;
+		/// RFC-BPR-0126 ([[BPR-2154]]). Set for a follow-up typed while the
+		/// tour agent runs or this part's queue holds messages: queued on
+		/// the part's own queue (false) or steered into its running turn
+		/// (true). None: sent now.
+		std::optional<bool> Steer;
 	};
 
 	/// \brief The side chat's glyph: a small speech bubble, in the colour of
@@ -178,6 +185,22 @@ namespace bpr::qt {
 		/// Enhance's suggestion: this thread's next turn starts from it.
 		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
 		void set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
+		/// \brief RFC-BPR-0120. A local draft's checks: Plan a check… in the
+		/// whole-change conversation (the composer's words, or none), and its
+		/// plan and report cards' controls by turn. Unset, there is no check.
+		struct check_dispatch
+		{
+			std::function<void(const QString&)>          Plan;
+			std::function<void(core::tour_agent_run_id)> Run;
+			std::function<void(core::tour_agent_run_id)> Discard;
+			std::function<void(core::tour_agent_run_id)> Open;
+			std::function<void(core::tour_agent_run_id)> Again;
+			std::function<void(bool, bool)>              Grants;
+		};
+		void set_check_dispatch(check_dispatch aDispatch);
+		/// \brief The draft's two grants for the chosen agent, and whether a
+		/// check can be planned now (and why not).
+		void set_check_state(bool aScratch, bool aBuilds, bool aAvailable, const QString& aWhy, bool aRebuild = false);
 		/// \brief Show: brings the tour to the chat's part, and a stop's code
 		/// into the diff.
 		void set_reveal_dispatch(std::function<void(const core::tour_thread&)> aReveal) { RevealDispatch = std::move(aReveal); }
@@ -302,6 +325,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto chat_parts() const -> std::size_t;
 		[[nodiscard]] auto composer() const noexcept -> QPlainTextEdit* { return Composer; }
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton* { return Send; }
+		/// \brief RFC-BPR-0126 ([[BPR-2154]]). Stop, beside Queue while this
+		/// chat's run goes and the composer holds words.
+		[[nodiscard]] auto stop_button() const noexcept -> QPushButton* { return StopRun; }
+		/// \brief The follow-up setting: Queue (false, the default) or Steer;
+		/// Cmd+Return (Ctrl+Return off macOS) is the other for one message.
+		void set_follow_up_steer(bool aSteer);
+		/// \brief A part's queue, as its session's host shows it. The chat
+		/// shows the current part's pending list above its composer.
+		void present_queue(const core::tour_thread& aThread, std::vector<agent_pending_row> aRows, const QString& aState, bool aPaused);
+		/// \brief What a part's pending list's controls ask of its queue.
+		void               set_queue_dispatch(std::function<agent_pending_dispatch(const core::tour_thread&)> aDispatch);
+		[[nodiscard]] auto pending_list() const noexcept -> agent_pending_list* { return PendingList; }
 		/// \brief [[BPR-1995]], RFC-BPR-0100 AC02. Whether the open chat's
 		/// update could be asked for now, and asks for it: what the link under
 		/// an answer that changed nothing does.
@@ -413,6 +448,12 @@ namespace bpr::qt {
 		std::function<void(const core::tour_thread&)>                               RevealDispatch;
 		std::function<void(bool)>                                                   VisibilityDispatch;
 		std::function<void()>                                                       ChangeObserver;
+		check_dispatch                                                              Checks;
+		bool                                                                        CheckScratch   = false;
+		bool                                                                        CheckBuilds    = false;
+		bool                                                                        CheckAvailable = false;
+		QString                                                                     CheckWhy;
+		QPushButton*                                                                PlanCheck  = nullptr;
 		bool                                                                        ColumnOpen = false;
 		core::tour_agent_session                                                    Session;
 		std::optional<core::tour_proposal>                                          Proposal;
@@ -463,15 +504,33 @@ namespace bpr::qt {
 		[[nodiscard]] auto update_question() const -> QString;
 		[[nodiscard]] auto part_words() const -> QString;
 		/// A revision's parts in plain words, one per line.
-		[[nodiscard]] auto                                                    revision_words(core::tour_agent_run_id aRun) const -> QStringList;
-		void                                                                  refresh_unchanged_line();
-		QWidget*                                                              PassageRow      = nullptr;
-		QLabel*                                                               PassageLine     = nullptr;
-		QToolButton*                                                          ClearPassage    = nullptr;
-		QPlainTextEdit*                                                       Composer        = nullptr;
-		QPushButton*                                                          Send            = nullptr;
-		skill_completer*                                                      SkillCompletion = nullptr;
-		std::vector<QWidget*>                                                 Bubbles;
+		[[nodiscard]] auto  revision_words(core::tour_agent_run_id aRun) const -> QStringList;
+		void                refresh_unchanged_line();
+		QWidget*            PassageRow   = nullptr;
+		QLabel*             PassageLine  = nullptr;
+		QToolButton*        ClearPassage = nullptr;
+		QPlainTextEdit*     Composer     = nullptr;
+		QPushButton*        Send         = nullptr;
+		QPushButton*        StopRun      = nullptr;
+		agent_pending_list* PendingList  = nullptr;
+		struct part_queue
+		{
+			std::vector<agent_pending_row> Rows;
+			QString                        State;
+			bool                           Paused = false;
+		};
+		std::map<std::string, part_queue>                               Queues;
+		std::optional<std::string>                                      QueueShown;
+		std::function<agent_pending_dispatch(const core::tour_thread&)> QueueDispatch;
+		bool                                                            FollowUpSteer = false;
+		bool                                                            Opposite      = false;
+		/// Whether a message typed now is a follow-up, and which.
+		[[nodiscard]] auto    follow_up() const -> std::optional<bool>;
+		void                  show_queue();
+		skill_completer*      SkillCompletion = nullptr;
+		std::vector<QWidget*> Bubbles;
+		/// [[BPR-2154]]. The author's steered messages, after their turn's question.
+		std::vector<QWidget*>                                                 SteeredBubbles;
 		std::vector<markdown_body_view*>                                      Replies;
 		std::vector<agent_run_status_line*>                                   Endings;
 		std::vector<agent_activity_view*>                                     ActivityViews;

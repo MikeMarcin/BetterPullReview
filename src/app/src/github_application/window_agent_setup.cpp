@@ -2188,6 +2188,7 @@ namespace bpr::app {
 		}
 		Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
 		Window->agent_tab()->set_follow_up_steer(aProjection.Preferences.FollowUpSteer);
+		Window->tour_editor()->side_chat()->set_follow_up_steer(aProjection.Preferences.FollowUpSteer);
 		Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
 		// [[BPR-1823]], owner ruling 2026-10-29. The saved agent is the
 		// first pick only; a setup update never moves the reviewer's

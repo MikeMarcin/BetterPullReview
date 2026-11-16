@@ -3341,22 +3341,17 @@ namespace bpr::qt {
 		QAction*                                      DraftStateAction     = nullptr;
 		std::optional<core::draft_state_change>       DraftStateOffer;
 		std::function<void(core::draft_state_change)> DraftStateDispatch;
-		/// \brief [[BPR-1842]]. A file chosen from the Overview's provisional
-		/// list while the review loaded: opened in Review once the accepted
-		/// review's Files drawer lists it.
-		QString                                  PendingReviewPath;
-		void                                     open_pending_review_path();
-		QMenuBar*                                PrimaryMenuBar       = nullptr;
-		QMenu*                                   ViewMenu             = nullptr;
-		QMenu*                                   ProfilesMenu         = nullptr;
-		QAction*                                 NewBprWindowAction   = nullptr;
-		QAction*                                 ManageProfilesAction = nullptr;
-		QAction*                                 QuitProfilesAction   = nullptr;
-		std::map<core::bpr_profile_id, QAction*> ProfileActions;
-		core::bpr_profile_id                     CurrentBprProfile;
-		application::profile_management_dispatch ProfileManagementDispatch;
-		std::function<void()>                    ManageProfiles;
-		std::function<void()>                    QuitProfiles;
+		QMenuBar*                                     PrimaryMenuBar       = nullptr;
+		QMenu*                                        ViewMenu             = nullptr;
+		QMenu*                                        ProfilesMenu         = nullptr;
+		QAction*                                      NewBprWindowAction   = nullptr;
+		QAction*                                      ManageProfilesAction = nullptr;
+		QAction*                                      QuitProfilesAction   = nullptr;
+		std::map<core::bpr_profile_id, QAction*>      ProfileActions;
+		core::bpr_profile_id                          CurrentBprProfile;
+		application::profile_management_dispatch      ProfileManagementDispatch;
+		std::function<void()>                         ManageProfiles;
+		std::function<void()>                         QuitProfiles;
 		/// [[BPR-0777]]. RFC-BPR-0033 B3 reports a profile refusal in the window that
 		/// has one, so these carry it in the Profiles menu beside the status line.
 		QAction*                                               ProfileStatusAction    = nullptr;

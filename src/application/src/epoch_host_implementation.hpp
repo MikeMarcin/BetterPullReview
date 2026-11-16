@@ -784,9 +784,16 @@ namespace bpr::application {
 				std::optional<append_operation_record>,
 				core::epoch_failure>;
 
+		/// \brief Undoes a prepared operation: the catalog records the abort
+		/// request, the cache abandons the operation's residue and the catalog
+		/// records it aborted.
+		/// \returns false when any step refuses; the operation is then marked
+		/// for repair. [[BPR-2195]]: with `aDiagnostics`, the refusing step's
+		/// failure is recorded as the `preparation_abort` stage.
 		[[nodiscard]] static auto abort_preparation(
 			authority_context&  aContext,
-			prepared_operation& aOperation, git_cache_port& aCaches) -> bool;
+			prepared_operation& aOperation, git_cache_port& aCaches,
+			const epoch_diagnostics* aDiagnostics = nullptr) -> bool;
 
 		[[nodiscard]] auto discard_context_preparation(
 			std::shared_ptr<authority_context>            aContext,

@@ -34,6 +34,7 @@
 #include <vector>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/application/agent_scratch_folder.hpp"
 	#include "bpr/application/tour_agent_conversation.hpp"
 	#include "bpr/application/tour_agent_drafting.hpp"
 	#include "bpr/core/agent_entry.hpp"
@@ -621,7 +622,11 @@ namespace bpr::app {
 		if (idle) {
 			// Feedback left from a draft no window has any more comes back
 			// to the chat as not sent (deferred out of the presentation).
-			QTimer::singleShot(0, editor.data(), [this] { drain_tour_queue(); });
+			QTimer::singleShot(0, editor.data(), [this] {
+				drain_tour_queue();
+				// [[BPR-2154]]. And each tour part's queue.
+				drain_chat_queues();
+			});
 		}
 
 		// A presentation callback can replace either identity or an observer.
@@ -1044,7 +1049,34 @@ namespace bpr::app {
 			auto supplement    = core::agent_context_supplement{ };
 			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
 			supplement.Message = aRun.Prompt;
-			const auto launch  = application::build_agent_launch(
+			auto options       = application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery };
+			// RFC-BPR-0120. A check runs in the candidate's check copy, never
+			// the worktree: its plan with read-only tools, its run with the
+			// draft's grants for this agent (RFC-BPR-0104). The copy's own
+			// agent settings are the change's, so they are never loaded.
+			const auto checking = aRun.Check != application::local_check_mode::none;
+			if (checking) {
+				auto spellings = application::agent_checkout_spellings(aRun.Folder);
+				if (!spellings) {
+					return { .Failure = "The check copy could not be resolved, so its own agent settings could not be shut out. Nothing ran." };
+				}
+				options.WritingOnly         = false;
+				options.PullRequestCheckout = std::move(*spellings);
+				options.ReadOnlyTools       = aRun.Check == application::local_check_mode::plan;
+				if (aRun.Check == application::local_check_mode::run) {
+					auto grant = application::agent_launch_grant{ .ScratchLimitMiB = aRun.ScratchLimitMiB };
+					if (!aRun.Scratch.empty() && application::valid_agent_grant_path(aRun.Scratch)) {
+						grant.ScratchFolder = aRun.Scratch;
+					}
+					if (aRun.Builds && application::valid_agent_build_path(aRun.Folder)) {
+						grant.BuildWorkspace = aRun.Folder;
+					}
+					if (!grant.ScratchFolder.empty() || !grant.BuildWorkspace.empty()) {
+						options.Grant = std::move(grant);
+					}
+				}
+			}
+			const auto launch = application::build_agent_launch(
 				*profile, supplement,
 				[](const std::string& aName) -> std::optional<std::string> {
 					if (!qEnvironmentVariableIsSet(aName.c_str())) {
@@ -1052,7 +1084,7 @@ namespace bpr::app {
 					}
 					return qEnvironmentVariable(aName.c_str()).toStdString();
 				},
-				application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery });
+				options);
 			if (!launch) {
 				return { .Failure = launch.error() == application::agent_launch_failure::input_too_large
 							 ? "The question is longer than one request can carry."
@@ -1067,22 +1099,60 @@ namespace bpr::app {
 				if (!core::valid(core::local_draft_id{ aRun.Draft }) || !adapters::sqlite::create_storage_root_owner_private(folder)) {
 					return { .Failure = "The folder this draft's conversation runs in could not be made." };
 				}
-				request.NativeHandle = aRun.Handle;
-				auto resumed         = application::prepare_native_agent_turn(std::move(request), false);
+				request.NativeHandle     = aRun.Handle;
+				request.WorkingDirectory = folder.string();
+				auto resumed             = application::prepare_native_agent_turn(request, false);
 				if (!resumed) {
 					return { .Failure = "This agent cannot resume the conversation's session." };
 				}
-				request                  = std::move(*resumed);
-				request.WorkingDirectory = folder.string();
+				if (aRun.Run != 0U) {
+					// [[BPR-2154]]. A discussion question runs on a kept
+					// connection of its own number, which resumes the session
+					// as it starts: a message steered while it works reaches
+					// it, as the pull request's tour chat's does. The
+					// connection ends with the turn.
+					request.NativeConversation = application::local_draft_native_conversation(aRun.Draft, aRun.Run);
+					request.Run                = core::agent_run_id{ aRun.Run };
+				} else {
+					request = std::move(*resumed);
+				}
 			}
-			const auto result = process->run(request, 10 * 60 * 1000, { }, aStop);
+			// RFC-BPR-0103. A check's activity is heard as it happens: the
+			// commands it runs are what its report lists.
+			auto activity = core::agent_turn_activity{ };
+			auto sink     = application::agent_output_sink{ };
+			if (checking) {
+				request.WorkingDirectory = aRun.Folder;
+				sink                     = [&activity, &aRun, started = std::chrono::steady_clock::now()](const application::agent_stream_event& aEvent) {
+					const auto at = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count());
+					activity      = aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity ? core::apply_agent_activity(std::move(activity), *aEvent.Activity, at)
+																											   : core::note_agent_frame(std::move(activity), at);
+					if (aRun.Progress) {
+						aRun.Progress(activity);
+					}
+				};
+			} else if (aRun.Steered) {
+				// [[BPR-2154]] (look queue-tour-v002). A message steered into
+				// the question is told as it is written, so its turn shows it.
+				sink = [&aRun](const application::agent_stream_event& aEvent) {
+					if (aEvent.Kind == application::agent_stream_kind::steered && aEvent.Steered) {
+						aRun.Steered({ .Text = aEvent.Steered->Text, .AfterSteps = aEvent.Steered->AfterSteps });
+					}
+				};
+			}
+			const auto result = process->run(request, (aRun.Check == application::local_check_mode::run ? 60 : 10) * 60 * 1000, sink, aStop);
+			// [[BPR-2154]]. What was steered into the run, settled by its end.
+			auto steered = std::vector<application::local_draft_steered>{ };
+			for (const auto& input : result.SteeredInputs) {
+				steered.push_back({ .Identity = input.Identity, .Text = input.Text, .AfterSteps = input.AfterSteps, .Disposition = input.Disposition });
+			}
 			if (aStop.stop_requested()) {
-				return { .Failure = "Stopped." };
+				return { .Failure = "Stopped.", .Commands = activity.CommandsRun, .Stopped = true, .Steered = std::move(steered) };
 			}
 			if (result.Outcome != application::agent_run_outcome::success) {
-				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ")." };
+				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ").", .Commands = activity.CommandsRun, .Steered = std::move(steered) };
 			}
-			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle };
+			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle, .Commands = activity.CommandsRun, .Steered = std::move(steered) };
 			for (const auto& item : result.AssistantItems) {
 				answer.Text += answer.Text.empty() ? item : "\n\n" + item;
 			}
@@ -1123,8 +1193,17 @@ namespace bpr::app {
 				.DiscussionVersion  = std::string{ application::writing_hook_version_of(core::writing_hook::local_discussion) },
 				.CommitMessage      = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_commit_message) },
 				.Delivery           = delivery,
+				.Check              = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_run_check) },
+				.CheckVersion       = std::string{ application::writing_hook_version_of(core::writing_hook::local_run_check) },
 			};
 		});
+		// RFC-BPR-0120. A check's copies are scratch folders: counted,
+		// cleared and aged out with them (RFC-BPR-0104). No root, no check.
+		if (!AgentScratchRoot.empty()) {
+			DraftDesktop->set_check_copies(std::make_unique<application::local_check_copies>(AgentScratchRoot), [this] {
+				return core::agent_scratch_limit_bytes(AgentSetup ? AgentSetup->projection().Preferences.ScratchLimitMiB : 0U);
+			});
+		}
 	}
 
 	/// [[BPR-1900]]. What a drafting run says while it reads, and that a
@@ -1286,6 +1365,13 @@ namespace bpr::app {
 			live.Stage = qt::agent_run_stage::writing;
 		}
 		present_tour_live(std::move(live));
+		// [[BPR-2154]] (look queue-tour-v002). A message steered into the
+		// part's running turn is the author's in its chat at once, where it
+		// went in, as the Agent tab shows it.
+		if (aEvent.Kind == application::agent_stream_kind::steered && aEvent.Steered && TourRun
+			&& core::note_tour_steered(TourAgent, *TourRun, { .Text = aEvent.Steered->Text, .AfterSteps = aEvent.Steered->AfterSteps })) {
+			present_tour_session();
+		}
 	}
 
 	void github_application::implementation::present_tour_live(std::optional<qt::agent_run_status> aStatus)
@@ -1370,6 +1456,11 @@ namespace bpr::app {
 			Window->tour_editor()->set_tour_running(std::nullopt, false);
 		}
 		TourAskPending = false;
+		// [[BPR-2154]]. A part's released message no run took goes back
+		// first, and its queue pauses.
+		if (const auto sending = core::parse_session_key(ChatQueueSending); sending && sending->Kind == core::queued_session_kind::tour_part) {
+			chat_queue_retired(core::queued_finish::refused);
+		}
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(aReason == "agent_context_too_large"
@@ -1418,6 +1509,12 @@ namespace bpr::app {
 				}
 			}
 			static_cast<void>(core::record_tour_activity(TourAgent, *TourRun, application::tour_transcript_of(aResult.ToolActivity, TourWorkspacePath)));
+			// [[BPR-2154]]. Each steered message as the run ended.
+			auto endings = std::vector<core::agent_steer_disposition>{ };
+			for (const auto& input : aResult.SteeredInputs) {
+				endings.push_back(input.Disposition);
+			}
+			static_cast<void>(core::settle_tour_steered(TourAgent, *TourRun, endings));
 			const auto state = aResult.Outcome == application::agent_run_outcome::success ? core::tour_agent_run_state::answered
 				: aResult.Outcome == application::agent_run_outcome::cancelled            ? core::tour_agent_run_state::cancelled
 																						  : core::tour_agent_run_state::failed;
@@ -1445,6 +1542,9 @@ namespace bpr::app {
 				Window->tour_editor()->side_chat()->record_run_activity(*run, core::end_agent_activity(*TourLive->Activity, at), static_cast<qint64>(at / 1000U));
 			}
 		}
+		// [[BPR-2154]]. A tour part's corrections and released message
+		// settle by this run, before its retirement releases the next.
+		settle_tour_part_steers(aIdentity, aResult);
 		TourRun.reset();
 		TourInvocation.reset();
 		finish_tour_footer(aResult);
@@ -1561,6 +1661,7 @@ namespace bpr::app {
 				turn.Tools             = core::tour_agent_tools::read_only;
 				turn.Thread            = *thread;
 				turn.Question          = saved.Asked;
+				turn.Steered           = saved.Steered;
 				turn.ConversationScope = key;
 				turn.Conversation      = aView.Selected;
 				if (const auto answer = application::decode_tour_ask_answer(saved.Answered); answer) {
@@ -1908,6 +2009,24 @@ namespace bpr::app {
 	/// is told the tour conversation may take its turn.
 	void github_application::implementation::tour_runtime_retired()
 	{
+		// [[BPR-2154]]. A tour part's released message settles on its run's
+		// real end; otherwise every part's queue may go on. Deferred out of
+		// the host's own retirement, so the next run starts on a host that
+		// has finished retiring this one.
+		if (Window != nullptr) {
+			QTimer::singleShot(0, Window.get(), [this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (weak.expired() || Closing) {
+					return;
+				}
+				if (const auto sending = core::parse_session_key(ChatQueueSending); sending && sending->Kind == core::queued_session_kind::tour_part) {
+					if (ChatQueueFinish) {
+						chat_queue_retired(ChatQueueFinish);
+					}
+				} else {
+					drain_chat_queues();
+				}
+			});
+		}
 		const auto key = tour_queue_key();
 		if (Closing || !AgentQueue || !AgentRuntime || key.empty()) {
 			return;
@@ -2485,6 +2604,8 @@ namespace bpr::app {
 			refresh_tour_host_idle();
 			present_tour_continuation();
 			present_tour_reset();
+			// [[BPR-2154]]. Each open part's pending list.
+			present_chat_queues();
 		}
 	}
 
@@ -3213,6 +3334,8 @@ namespace bpr::app {
 			return;
 		}
 		Window->tour_editor()->set_local_words(std::nullopt);
+		// RFC-BPR-0120. A pull request's tour plans no check.
+		Window->tour_editor()->side_chat()->set_check_dispatch({ });
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		if (TourHost) {
 			auto shown         = TourHost->presentation();
