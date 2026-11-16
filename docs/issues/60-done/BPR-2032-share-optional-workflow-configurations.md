@@ -115,7 +115,7 @@ Session `5052733e41fd0662f09a0e04af730e4c` handed back at sequence 13.
 verbatim: "Still not quite as nice as what had settled on but its pretty
 close." Two screenshots came with it (kept at the session's attachments):
 the mockup B in Dark and the build. The gaps between them are carded as
-[BPR-2204](../40-parked/BPR-2204-the-import-preview-matches-the-accepted-mockup-b.md).
+[BPR-2204](../60-done/BPR-2204-the-import-preview-matches-the-accepted-mockup-b.md).
 AC02's preview is accepted. Host 33920 (Tailscale child 33928) stopped; root
 `/Users/jaeger/workflow-import-v003.05jn6zyw` removed with
 `freeze_attended_build.py remove`.
