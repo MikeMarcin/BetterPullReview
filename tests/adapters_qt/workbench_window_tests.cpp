@@ -71,6 +71,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFont>
 #include <QFontInfo>
 #include <QGridLayout>
 #include <QGroupBox>
