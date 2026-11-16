@@ -68,6 +68,7 @@
 #include <QContextMenuEvent>
 #include <QCursor>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
@@ -25531,13 +25532,21 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
-	QApplication application{ argc, argv };
 #if defined(_WIN32)
 	// [[BPR-2197]]. The width courses measure the title row and the review
 	// bar against fixed window widths, so they need the font a Windows
-	// desktop gives: Segoe UI 9 pt. A session without one (over SSH, or the
-	// offscreen platform) reports another, larger font, and the rows yield
-	// at widths no desktop sees.
+	// desktop gives: Segoe UI 9 pt. Qt's offscreen platform, which the
+	// courses run on, has no fonts on Windows unless it is told where they
+	// are: every font resolves to an unnamed fallback about twice as wide,
+	// and the rows yield at widths no desktop sees (the title at 1600, the
+	// review bar's words at 1280).
+	if (qEnvironmentVariableIsEmpty("QT_QPA_FONTDIR")) {
+		const auto windows = qEnvironmentVariable("WINDIR", QStringLiteral("C:/Windows"));
+		qputenv("QT_QPA_FONTDIR", QDir{ windows }.filePath(QStringLiteral("Fonts")).toLocal8Bit());
+	}
+#endif
+	QApplication application{ argc, argv };
+#if defined(_WIN32)
 	QApplication::setFont(QFont{ QStringLiteral("Segoe UI"), 9 });
 #endif
 	const auto arguments  = QCoreApplication::arguments().mid(1);
