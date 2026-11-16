@@ -512,7 +512,7 @@ namespace {
 			expect(binding.has_value(), "the holder owns the profile");
 			owner_thread serving{ *binding };
 			auto         hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 15, "the owner answers every hook from its own settings");
+			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 16, "the owner answers every hook from its own settings");
 			// [[BPR-1090]] The owner channel carries the fifth hook and the label helper with it.
 			const auto owned = call({ "tour", "hooks", "show", "feedback", "--profile", "1", "--json" }).json()["data"].toObject();
 			expect(owned["label_helper"] == "off" && owned["hooks"].toArray()[4].toObject()["name"] == "feedback" && owned["hooks"].toArray()[4].toObject()["active"] == false, "the owner lists the feedback hook and that it is off");
