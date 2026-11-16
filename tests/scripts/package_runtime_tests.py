@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Closed-data tests for package selection and fail-closed evidence generation."""
+import base64
 import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
 import sys
+import subprocess
 import tarfile
 import unittest
 from unittest.mock import patch
@@ -42,34 +45,163 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertIn('target_link_options(app_better_pull_review PRIVATE "/ENTRY:mainCRTStartup")', cmake)
         self.assertNotIn("set_target_properties(app_bpr PROPERTIES WIN32_EXECUTABLE", cmake)
 
-    def test_windows_installs_per_machine_and_remembers_its_directory(self):
-        # [[BPR-1788]]. Program Files, per machine, like a normal Windows application.
+    def test_windows_dual_scope_uses_the_actual_cpack_template(self):
+        # Exercise the template used by package generation, not a copied fixture.
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "WIX.template.in"
+            script = root / "configure.cmake"
+            helper = (ROOT / "packaging/windows/Installer.cmake").as_posix()
+            script.write_text(f'include("{helper}")\nbpr_configure_windows_installer_template("{output.as_posix()}")\n')
+            subprocess.run(["cmake", "-P", str(script)], check=True, capture_output=True, text=True)
+            template = output.read_text()
+            self.assertIn('Scope="perUserOrMachine"', template)
+            self.assertNotIn('Scope="$(var.CPACK_WIX_INSTALL_SCOPE)"', template)
+            self.assertIn('InstallerVersion="500"', template)
+            self.assertIn('<MajorUpgrade', template)
+            # An upstream template shape change must refuse, not silently ship
+            # an everyone-only package. This is a negative control of the seam.
+            fake_modules = root / "changed-cmake/Modules/Internal/CPack"
+            fake_modules.mkdir(parents=True)
+            (fake_modules / "WIX.template.in").write_text('<Package Scope="perMachine"/>')
+            script.write_text(f'include("{helper}")\nset(CMAKE_ROOT "{(root / "changed-cmake").as_posix()}")\nbpr_configure_windows_installer_template("{output.as_posix()}")\n')
+            refused = subprocess.run(["cmake", "-P", str(script)], capture_output=True, text=True)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("review dual-context package scope", refused.stderr)
+
+    @unittest.skipUnless(sys.platform == "win32", "native Windows CPack/WiX authoring check")
+    def test_windows_dual_scope_compiles_and_passes_ice105(self):
+        # Compile the production settings and patch with an inert payload. This
+        # catches WiX symbol/schema failures without building or installing BPR.
+        for tool in ("cmake", "cpack", "wix"):
+            if not shutil.which(tool):
+                self.skipTest(f"native installer authoring requires {tool}")
+        version = subprocess.run(["wix", "--version"], check=True, capture_output=True, text=True)
+        self.assertRegex(version.stdout, r"^5\.0\.2[+\s]")
         config = (ROOT / "packaging/Install.cmake").read_text()
-        self.assertIn('set(CPACK_WIX_INSTALL_SCOPE perMachine)', config)
+        start = config.index("set(CPACK_PACKAGE_NAME BetterPullReview)")
+        end = config.index("\nelse()", start)
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / "payload"
+            payload.mkdir()
+            (payload / "better_pull_review.exe").write_text("Inert installer authoring fixture; not an application.\n")
+            script = root / "configure.cmake"
+            script.write_text(
+                f'set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")\n'
+                'set(PROJECT_VERSION 0.5.0)\nset(BPR_VENDOR_NAME GameCoreTech)\n'
+                'set(PROJECT_HOMEPAGE_URL https://github.com/MikeMarcin/BetterPullReview)\n'
+                'set(BPR_RELEASE_MSI_VERSION 0.5.0)\nset(BPR_RELEASE_ASSET_VERSION 0.5.0)\n'
+                'set(CPACK_INSTALL_CMAKE_PROJECTS "")\n'
+                f'set(CPACK_INSTALLED_DIRECTORIES "{payload.as_posix()};.")\n'
+                + config[start:end] + '\nendif()\ninclude(CPack)\n')
+
+            def run(*args):
+                result = subprocess.run(args, cwd=root, capture_output=True, text=True, timeout=60)
+                logs = "" if result.returncode == 0 else "\n".join(
+                    log.read_text() for log in root.rglob("wix.log"))
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr + logs)
+                return result.stdout
+
+            run("cmake", "-P", str(script))
+            run("cpack", "--config", str(root / "CPackConfig.cmake"), "-B", str(root / "output"))
+            msi = root / "output/BetterPullReview-0.5.0-windows-x64.msi"
+            run("wix", "msi", "validate", "-ice", "ICE105", str(msi))
+            path = base64.b64encode(str(msi).encode()).decode()
+            query = """$ErrorActionPreference='Stop'
+$path=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('PATH'))
+$installer=New-Object -ComObject WindowsInstaller.Installer
+$db=$installer.OpenDatabase($path,0)
+$tables=@{}
+$counts=@{Property=2;Registry=6;InstallUISequence=3;InstallExecuteSequence=3;CustomAction=4}
+foreach($table in $counts.Keys){
+  $view=$db.OpenView('SELECT * FROM `'+$table+'`');$view.Execute();$rows=@()
+  while($row=$view.Fetch()){
+    $values=@();for($i=1;$i -le $counts[$table];$i++){$values+=@($row.StringData($i))}
+    $rows+=,@($values)
+    [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($row)
+  }
+  $tables[$table]=$rows;$view.Close()
+  [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($view)
+}
+$summary=$db.SummaryInformation(0)
+$tables['summary']=@{installer_version=$summary.Property(14);word_count=$summary.Property(15)}
+foreach($object in @($summary,$db,$installer)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($object)}
+$tables | ConvertTo-Json -Depth 10 -Compress
+""".replace("PATH", path)
+            encoded = base64.b64encode(query.encode("utf-16le")).decode()
+            tables = json.loads(run("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded))
+            properties = dict(tables["Property"])
+            self.assertEqual((properties["ALLUSERS"], properties["MSIINSTALLPERUSER"]), ("2", "1"))
+            self.assertIn("INSTALL_ROOT", properties["SecureCustomProperties"].split(";"))
+            self.assertEqual(tables["summary"]["installer_version"], 500)
+            self.assertFalse(tables["summary"]["word_count"] & 8)  # Everyone may elevate.
+            self.assertEqual({row[1] for row in tables["Registry"]}, {"-1"})  # HKMU
+            for name in ("InstallUISequence", "InstallExecuteSequence"):
+                sequence = {row[0]: int(row[2]) for row in tables[name]}
+                self.assertLess(sequence["AppSearch"], sequence["BprRestoreUserRoot"])
+                self.assertLess(sequence["BprRestoreUserRoot"], sequence["FindRelatedProducts"])
+                self.assertLess(sequence["FindRelatedProducts"], sequence["CostInitialize"])
+            ui_sequence = {row[0]: int(row[2]) for row in tables["InstallUISequence"]}
+            self.assertLess(ui_sequence["BprInstallScopeDlg"], ui_sequence["CostInitialize"])
+            actions = {row[0]: int(row[1]) for row in tables["CustomAction"]}
+            self.assertTrue(actions["BprRestoreUserRoot"] & 256)  # First sequence only.
+
+    def test_windows_scope_is_chosen_before_costing_and_both_choices_are_visible(self):
+        product = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot().find("./CPackWiXFragment[@Id='#PRODUCT']")
+        scope = product.find("./Property[@Id='BPR_INSTALL_SCOPE']")
+        self.assertEqual(scope.get("Value"), "user")
+        show = product.find("./InstallUISequence/Show")
+        self.assertEqual(show.get("Before"), "CostInitialize")
+        self.assertEqual(show.get("Condition"), "NOT Installed AND NOT BPR_MACHINE_INSTALL_ROOT AND NOT BPR_USER_INSTALL_ROOT")
+        dialog = product.find("./UI/Dialog[@Id='BprInstallScopeDlg']")
+        choices = dialog.findall("./Control/RadioButtonGroup/RadioButton")
+        self.assertEqual({item.get("Value") for item in choices}, {"user", "machine"})
+        # No Privileged visibility rule may hide Everyone from a standard user.
+        radio = dialog.find("./Control[@Id='Scope']")
+        self.assertIsNone(radio.get("ShowCondition"))
+        self.assertIsNone(radio.get("Hidden"))
+        events = dialog.findall("./Control[@Id='Next']/Publish")
+        self.assertEqual([(e.get("Property"), e.get("Value")) for e in events[:3]],
+                         [("ALLUSERS", "2"), ("MSIINSTALLPERUSER", "1"), ("MSIINSTALLPERUSER", "{}")])
+        self.assertEqual(events[1].get("Condition"), 'BPR_INSTALL_SCOPE="user"')
+        self.assertEqual(events[2].get("Condition"), 'BPR_INSTALL_SCOPE="machine"')
+        self.assertEqual((events[-1].get("Event"), events[-1].get("Value")), ("EndDialog", "Return"))
+
+    def test_windows_existing_context_precedes_upgrade_search_and_registry_follows_it(self):
+        config = (ROOT / "packaging/Install.cmake").read_text()
         self.assertIn('set(CPACK_WIX_ROOT_FOLDER_ID ProgramFiles64Folder)', config)
         self.assertIn('set(CPACK_PACKAGE_INSTALL_DIRECTORY "BetterPullReview")', config)
-        self.assertNotIn("LocalAppDataFolder", config)
-        self.assertIn('packaging/windows/InstallRoot.xml', config)
+        self.assertNotIn('set(CPACK_PACKAGE_EXECUTABLES', config)
         tree = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot()
         product = tree.find("./CPackWiXFragment[@Id='#PRODUCT']")
-        search = product.find("./Property[@Id='BPR_PREVIOUS_INSTALL_ROOT']/RegistrySearch")
-        stored = tree.find("./CPackWiXFragment[@Id='CM_CP_better_pull_review.exe']/RegistryValue")
-        for key in ("Root", "Key", "Name"):
-            self.assertEqual(search.get(key), stored.get(key))
-        self.assertEqual(search.get("Root"), "HKLM")
-        self.assertEqual(stored.get("Value"), "[INSTALL_ROOT]")
-        restore = product.find("./SetProperty[@Id='INSTALL_ROOT']")
-        self.assertEqual(restore.get("Before"), "CostInitialize")
-        self.assertEqual(restore.get("Sequence"), "both")
-        self.assertEqual(restore.get("Condition"), "BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT")
-        self.assertEqual(restore.get("Value"), "[BPR_PREVIOUS_INSTALL_ROOT]")
-        # An earlier per-user copy cannot be upgraded across scopes: say so.
-        per_user = product.find("./Property[@Id='BPR_PER_USER_INSTALL_ROOT']/RegistrySearch")
-        self.assertEqual(per_user.get("Root"), "HKCU")
-        self.assertEqual((per_user.get("Key"), per_user.get("Name")), (stored.get("Key"), stored.get("Name")))
-        launch = product.find("./Launch")
-        self.assertEqual(launch.get("Condition"), "Installed OR NOT BPR_PER_USER_INSTALL_ROOT")
-        self.assertIn("Uninstall it", launch.get("Message"))
+        for scope, hive in (("MACHINE", "HKLM"), ("USER", "HKCU")):
+            prop = product.find(f"./Property[@Id='BPR_{scope}_INSTALL_ROOT']")
+            self.assertEqual(prop.get("Secure"), "yes")
+            search = prop.find("RegistrySearch")
+            self.assertEqual((search.get("Root"), search.get("Bitness")), (hive, "always64"))
+        actions = {a.get("Action"): a for a in product.findall("SetProperty") if a.get("Action")}
+        chain = ["BprPreserveMachineScope", "BprPreserveUserScope", "BprPreserveMachineContext",
+                 "BprPreserveUserContext", "BprRestoreMachineRoot", "BprRestoreUserRoot"]
+        previous = "AppSearch"
+        for name in chain:
+            self.assertEqual(actions[name].get("After"), previous)
+            self.assertEqual(actions[name].get("Sequence"), "first")
+            previous = name
+        for name, expected in (("BprPreserveMachineScope", "1"), ("BprPreserveUserScope", "2"),
+                               ("BprPreserveMachineContext", ""), ("BprPreserveUserContext", "1"),
+                               ("BprRestoreMachineRoot", "[BPR_MACHINE_INSTALL_ROOT]"),
+                               ("BprRestoreUserRoot", "[BPR_USER_INSTALL_ROOT]")):
+            self.assertEqual(actions[name].get("Value"), expected)
+        for sequence in ("InstallUISequence", "InstallExecuteSequence"):
+            self.assertEqual(product.find(f"./{sequence}/FindRelatedProducts").get("After"), previous)
+        self.assertIn("BPR_MACHINE_INSTALL_ROOT AND BPR_USER_INSTALL_ROOT", product.find("Launch").get("Condition"))
+        self.assertIn("uninstall and reinstall", product.find("Launch").get("Message"))
+        for stored in tree.findall(".//RegistryValue"):
+            self.assertEqual(stored.get("Root"), "HKMU")
+        shortcut = product.find(".//Shortcut")
+        self.assertEqual(shortcut.get("Target"), "[INSTALL_ROOT]better_pull_review.exe")
+        self.assertIsNotNone(tree.find("./CPackWiXFragment[@Id='#PRODUCTFEATURE']/ComponentRef[@Id='BprStartMenu']"))
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})

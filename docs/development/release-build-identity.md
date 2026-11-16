@@ -101,8 +101,10 @@ The numbered MSI ProductCode is a deterministic UUID v5 of the product RC tag:
 unchanged cohort retries preserve it, and another cohort has another ProductCode,
 even when the marketing version is unchanged. The producer reads actual prior
 and new ProductCodes and refuses a collision; manifests retain both.
-Preserve the existing UpgradeCode and BPR-1788 per-machine scope; this change
-does not add a cross-scope migration.
+Preserve the existing UpgradeCode and each installation's existing scope.
+BPR-1788's 2026-11-15 amendment adds a fresh-install choice of current user or
+everyone; this does not add a cross-scope migration or change the authoritative
+prior per-machine MSI floor.
 
 Apple documents a one-to-three-integer build version; its archived reference
 limits the first component to four digits. Microsoft limits MSI major/minor to

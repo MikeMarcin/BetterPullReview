@@ -8,7 +8,7 @@ Detail is in the [packaging reference](release-packaging-maintainers.md#recipien
 | Platform | Package |
 |---|---|
 | macOS 14.4+, Apple Silicon and Intel | `*-macos-universal.dmg` (or `.zip`) |
-| Windows x64 | `*-windows-x64.msi`, per-machine |
+| Windows x64 | `*-windows-x64.msi`, Just me or Everyone |
 | Ubuntu 26.04 x86_64 | `*-linux-ubuntu-26.04-x64.deb`, or the per-user `*-user.tar.gz` |
 
 Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
@@ -16,18 +16,15 @@ may work but are untested; the packages do not refuse them. Qualification on
 the tested environments is itself incomplete; see
 [Known limitations](#known-limitations).
 
-Linux runs on X11 or XWayland, not native Wayland. Install Git 2.39+ yourself.
-Optional GitHub CLI support, on all three platforms, needs `gh` 2.96+; full
-diffs through it also need Git 2.49+.
+Linux runs on X11 or XWayland, not native Wayland. Install Git 2.39+ yourself;
+optional GitHub CLI support is macOS-only and needs `gh` 2.96+ and Git 2.49+.
 
 Numbered candidates show `VERSION (build N)` in Help > About and copied version
 information. Their download and corresponding-source names include
-`VERSION-build.N`; numbered prereleases use `vVERSION-build.N`. A stable
-release copies a numbered candidate to a bare `VERSION` tag (`0.4.0`, `0.4.1`,
-`0.4.2`) and keeps the candidate's `VERSION-build.N` asset names. The older
-`v0.4.0` tag is a preview, distinct from the `0.4.0` stable release. Keep the
-exact names and checksums supplied by that release. Older unnumbered releases
-remain unchanged.
+`VERSION-build.N`; numbered prereleases use `vVERSION-build.N`. The 0.4.0
+build 1 stable release uses the distinct bare `0.4.0` tag, preserving the older
+`v0.4.0` preview and the numbered RC. Keep the exact names and
+checksums supplied by that release. Older unnumbered releases remain unchanged.
 
 ## Verify a download
 
@@ -74,10 +71,11 @@ The full check list is in [signature checks](release-packaging-maintainers.md#si
 ## Install and update
 
 - **macOS:** open the DMG and copy the app to `/Applications` (or another chosen location).
-- **Windows:** run the MSI; it installs for all users into
-  `%ProgramFiles%\BetterPullReview` by default. A copy installed for one user
-  by an earlier per-user package must be uninstalled first (Settings > Apps);
-  the installer stops and says so otherwise.
+- **Windows:** run the MSI and choose **Just me** (the fresh-install default,
+  `%LOCALAPPDATA%\Programs\BetterPullReview`, no administrator approval) or
+  **Everyone** (`%ProgramFiles%\BetterPullReview`, administrator approval).
+  Upgrades keep the existing scope and directory. To change scope, uninstall
+  and reinstall; your profile data is retained.
 - **Ubuntu:** install the DEB with your package manager, or unpack the
   per-user archive into its own folder (install the DEB's declared system
   libraries first) and run `better_pull_review`.

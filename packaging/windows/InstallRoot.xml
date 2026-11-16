@@ -1,27 +1,100 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Remember the selected per-machine directory for repair and uninstall.
-     CPack's components otherwise resolve the default directory again.
-     [[BPR-1788]]: an MSI cannot upgrade across install scopes, so a copy
-     installed per user by an earlier package must be removed first; the
-     launch condition says so instead of leaving two installations. -->
+<!-- Choose context before costing redirects ProgramFiles64Folder, Start menu
+     and HKMU. Existing markers preserve scope and directory across same-context
+     upgrades; MSI does not upgrade between contexts. [[BPR-1788]] -->
 <CPackWiXPatch>
     <CPackWiXFragment Id="#PRODUCT">
-        <Property Id="BPR_PREVIOUS_INSTALL_ROOT">
-            <RegistrySearch Id="BprPreviousInstallRoot" Root="HKLM"
+        <!-- CPack already defines secure INSTALL_ROOT; WiX's dual package
+             scope defines the standard MSIINSTALLPERUSER property. -->
+        <Property Id="BPR_MACHINE_INSTALL_ROOT" Secure="yes">
+            <RegistrySearch Id="BprMachineInstallRoot" Root="HKLM" Bitness="always64"
                 Key="Software\GameCoreTech\BetterPullReview" Name="InstallRoot" Type="raw"/>
         </Property>
-        <SetProperty Id="INSTALL_ROOT" Value="[BPR_PREVIOUS_INSTALL_ROOT]"
-            Before="CostInitialize" Sequence="both"
-            Condition="BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT"/>
-        <Property Id="BPR_PER_USER_INSTALL_ROOT">
-            <RegistrySearch Id="BprPerUserInstallRoot" Root="HKCU"
+        <Property Id="BPR_USER_INSTALL_ROOT" Secure="yes">
+            <RegistrySearch Id="BprUserInstallRoot" Root="HKCU" Bitness="always64"
                 Key="Software\GameCoreTech\BetterPullReview" Name="InstallRoot" Type="raw"/>
         </Property>
-        <Launch Condition="Installed OR NOT BPR_PER_USER_INSTALL_ROOT"
-            Message="An earlier BetterPullReview is installed for this user only. Uninstall it from Settings, Apps, then run this installer again."/>
+        <SetProperty Id="ALLUSERS" Value="1" Action="BprPreserveMachineScope"
+            After="AppSearch" Sequence="first"
+            Condition="BPR_MACHINE_INSTALL_ROOT AND NOT BPR_USER_INSTALL_ROOT"/>
+        <SetProperty Id="ALLUSERS" Value="2" Action="BprPreserveUserScope"
+            After="BprPreserveMachineScope" Sequence="first"
+            Condition="BPR_USER_INSTALL_ROOT AND NOT BPR_MACHINE_INSTALL_ROOT"/>
+        <SetProperty Id="MSIINSTALLPERUSER" Value="" Action="BprPreserveMachineContext"
+            After="BprPreserveUserScope" Sequence="first"
+            Condition="BPR_MACHINE_INSTALL_ROOT AND NOT BPR_USER_INSTALL_ROOT"/>
+        <SetProperty Id="MSIINSTALLPERUSER" Value="1" Action="BprPreserveUserContext"
+            After="BprPreserveMachineContext" Sequence="first"
+            Condition="BPR_USER_INSTALL_ROOT AND NOT BPR_MACHINE_INSTALL_ROOT"/>
+        <SetProperty Id="INSTALL_ROOT" Value="[BPR_MACHINE_INSTALL_ROOT]" Action="BprRestoreMachineRoot"
+            After="BprPreserveUserContext" Sequence="first"
+            Condition="BPR_MACHINE_INSTALL_ROOT AND NOT BPR_USER_INSTALL_ROOT"/>
+        <SetProperty Id="INSTALL_ROOT" Value="[BPR_USER_INSTALL_ROOT]" Action="BprRestoreUserRoot"
+            After="BprRestoreMachineRoot" Sequence="first"
+            Condition="BPR_USER_INSTALL_ROOT AND NOT BPR_MACHINE_INSTALL_ROOT"/>
+        <Launch Condition="Installed OR NOT (BPR_MACHINE_INSTALL_ROOT AND BPR_USER_INSTALL_ROOT)"
+            Message="BetterPullReview has both an Everyone and a Just me installation. Uninstall the older copy from Settings, Apps, then run this installer again. To change installation scope, uninstall and reinstall."/>
+
+        <Property Id="BPR_INSTALL_SCOPE" Value="user"/>
+        <SetProperty Id="BPR_INSTALL_SCOPE" Value="machine" After="BprRestoreUserRoot" Sequence="ui"
+            Condition="ALLUSERS=1 OR (ALLUSERS=2 AND NOT MSIINSTALLPERUSER)"/>
+        <UI>
+            <Dialog Id="BprInstallScopeDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="20"
+                    Text="{\WixUI_Font_Title}Who should BetterPullReview be installed for?"/>
+                <Control Id="Scope" Type="RadioButtonGroup" X="25" Y="60" Width="320" Height="110"
+                    Property="BPR_INSTALL_SCOPE">
+                    <RadioButtonGroup Property="BPR_INSTALL_SCOPE">
+                        <RadioButton Value="user" X="0" Y="0" Width="315" Height="18" Text="&amp;Just me (recommended)"/>
+                        <RadioButton Value="machine" X="0" Y="65" Width="315" Height="18" Text="&amp;Everyone who uses this computer"/>
+                    </RadioButtonGroup>
+                </Control>
+                <Control Id="UserDescription" Type="Text" X="43" Y="80" Width="300" Height="32"
+                    Text="Installs in your local Programs folder. Administrator approval is not required."/>
+                <Control Id="MachineDescription" Type="Text" X="43" Y="145" Width="300" Height="40"
+                    Text="Installs in Program Files for all users. Windows will ask for administrator approval."/>
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
+                    Default="yes" Text="&amp;Next &gt;">
+                    <Publish Property="ALLUSERS" Value="2" Order="1"/>
+                    <Publish Property="MSIINSTALLPERUSER" Value="1" Order="2" Condition="BPR_INSTALL_SCOPE=&quot;user&quot;"/>
+                    <Publish Property="MSIINSTALLPERUSER" Value="{}" Order="3" Condition="BPR_INSTALL_SCOPE=&quot;machine&quot;"/>
+                    <Publish Event="EndDialog" Value="Return" Order="4"/>
+                </Control>
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
+                    Cancel="yes" Text="Cancel">
+                    <Publish Event="EndDialog" Value="Exit"/>
+                </Control>
+            </Dialog>
+        </UI>
+        <InstallUISequence>
+            <!-- Find related products in the restored context, not the fresh
+                 per-user default (the standard action normally precedes AppSearch). -->
+            <FindRelatedProducts After="BprRestoreUserRoot"/>
+            <Show Dialog="BprInstallScopeDlg" Before="CostInitialize"
+                Condition="NOT Installed AND NOT BPR_MACHINE_INSTALL_ROOT AND NOT BPR_USER_INSTALL_ROOT"/>
+        </InstallUISequence>
+        <InstallExecuteSequence>
+            <FindRelatedProducts After="BprRestoreUserRoot"/>
+        </InstallExecuteSequence>
+
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Directory Id="BprProgramMenuFolder" Name="BetterPullReview">
+                <Component Id="BprStartMenu" Guid="AC5AF099-C4B7-4CB5-BB82-E5A2908F3A44">
+                    <Shortcut Id="BprStartMenuShortcut" Name="BetterPullReview"
+                        Target="[INSTALL_ROOT]better_pull_review.exe" WorkingDirectory="INSTALL_ROOT"/>
+                    <RemoveFolder Id="BprRemoveProgramMenuFolder" On="uninstall"/>
+                    <RegistryValue Root="HKMU" Key="Software\GameCoreTech\BetterPullReview"
+                        Name="StartMenu" Type="integer" Value="1" KeyPath="yes"/>
+                </Component>
+            </Directory>
+        </StandardDirectory>
+    </CPackWiXFragment>
+    <CPackWiXFragment Id="#PRODUCTFEATURE">
+        <ComponentRef Id="BprStartMenu"/>
     </CPackWiXFragment>
     <CPackWiXFragment Id="CM_CP_better_pull_review.exe">
-        <RegistryValue Root="HKLM" Key="Software\GameCoreTech\BetterPullReview"
+        <RegistryValue Root="HKMU" Key="Software\GameCoreTech\BetterPullReview"
             Name="InstallRoot" Type="string" Value="[INSTALL_ROOT]"/>
     </CPackWiXFragment>
 </CPackWiXPatch>

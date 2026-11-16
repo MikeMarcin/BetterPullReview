@@ -42,13 +42,14 @@ def main() -> None:
         previous = signing.windows_identity(args.previous_msi, msi=True)
         floor = release["windowsUpgradeFloor"]
         declared = runtime.release_build.floor_identity(floor)
-        if (previous.get("ProductName") != "BetterPullReview" or previous.get("ALLUSERS") != "1"
+        previous_scope_valid = previous.get("ALLUSERS") == "1" or (previous.get("ALLUSERS") == "2" and previous.get("MSIINSTALLPERUSER") == "1")
+        if (previous.get("ProductName") != "BetterPullReview" or not previous_scope_valid
                 or previous.get("UpgradeCode") != "{18DF84A8-5883-4979-B1C6-6F226934AA68}"
                 or previous.get("ProductVersion") != declared["msiProductVersion"]
                 or not previous.get("ProductCode") or previous["ProductCode"] == release["native"]["msiProductCode"]
                 or previous.get("BPR_MARKETING_VERSION", previous.get("ProductVersion")) != declared["marketingVersion"]
                 or runtime.digest(args.previous_msi) != floor["installerSHA256"]):
-            raise ValueError("actual previous per-machine MSI differs from the frozen upgrade identity")
+            raise ValueError("actual previous MSI differs from the frozen upgrade identity")
         runtime.release_build.native(info["version"], release["number"], declared)
         native_identity["previousMsiSHA256"] = runtime.digest(args.previous_msi)
         native_identity["previousProductCode"] = previous["ProductCode"]
@@ -57,7 +58,7 @@ def main() -> None:
     if info["platform"] == "Darwin":
         raise ValueError("use tools/release.sh for macOS")
     if info["platform"] == "Windows" and args.generator != "WIX":
-        raise ValueError("Windows packages use the per-machine x64 WiX definition")
+        raise ValueError("Windows packages use the dual-context x64 WiX definition")
     if release and info["platform"] == "Linux" and args.generator != "DEB":
         raise ValueError("numbered Linux release cohorts use the selected Debian package route")
     if info["platform"] == "Linux":
@@ -109,7 +110,7 @@ def main() -> None:
     if release:
         if info["platform"] == "Windows":
             observed = signing.windows_identity(artifact, msi=True)
-            expected = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1",
+            expected = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "2", "MSIINSTALLPERUSER": "1",
                         "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": info["version"],
                         "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": info["releaseCohort"]["cohortDigest"],
                         "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}

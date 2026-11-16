@@ -48,7 +48,7 @@ class NativeReleaseTests(unittest.TestCase):
         self.key = "B" * 40
 
     def package(self, generator, signed=True, use_vault=False, vault_failure=False, tamper_library=False, release_cohort=None,
-                previous_msi_bytes=b"prior actual MSI fixture"):
+                previous_msi_bytes=b"prior actual MSI fixture", msi_scope=("2", "1"), previous_msi_scope=("1", None)):
         build = self.root / ("build-" + generator)
         build.mkdir()
         system = "Windows" if generator == "WIX" else "Linux"
@@ -119,9 +119,9 @@ class NativeReleaseTests(unittest.TestCase):
         def identity(path, *, msi=False):
             release = release_cohort["allocation"]
             if msi and path.name == "previous.msi":
-                return {"ProductName": "BetterPullReview", "ProductVersion": "0.4.0", "ProductCode": "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}", "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}"}
+                return {"ProductName": "BetterPullReview", "ProductVersion": "0.4.0", "ProductCode": "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}", "ALLUSERS": previous_msi_scope[0], **({"MSIINSTALLPERUSER": previous_msi_scope[1]} if previous_msi_scope[1] is not None else {}), "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}"}
             if msi:
-                return {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}",
+                return {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": msi_scope[0], **({"MSIINSTALLPERUSER": msi_scope[1]} if msi_scope[1] is not None else {}), "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}",
                         "BPR_MARKETING_VERSION": "1.2.3", "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": release_cohort["cohortDigest"], "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
             return {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
         def runtime_command(*args):
@@ -187,6 +187,58 @@ class NativeReleaseTests(unittest.TestCase):
         record["firstPartyImages"].pop("bpr_xdiff.dll")
         self.rehash(manifest, record)
         with self.assertRaisesRegex(ValueError, "incomplete Authenticode"):
+            release.verify(manifest, "1.2.3", self.revision)
+
+    def test_numbered_windows_accepts_a_previous_dual_context_msi(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        manifest = self.package("WIX", release_cohort=frozen, previous_msi_scope=("2", "1"))
+        self.assertIn(manifest, release.verify(manifest, "1.2.3", self.revision))
+        record = json.loads(manifest.read_text())
+        self.assertEqual(record["nativeIdentity"]["previousMsiSHA256"], frozen["allocation"]["windowsUpgradeFloor"]["installerSHA256"])
+
+    def test_numbered_windows_refuses_previous_msi_with_invalid_scope(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        with self.assertRaisesRegex(ValueError, "actual previous MSI differs"):
+            self.package("WIX", release_cohort=frozen, previous_msi_scope=("2", None))
+        self.assertEqual(self.events, [])
+
+    def test_numbered_windows_refuses_previous_msi_with_unset_scope(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        with self.assertRaisesRegex(ValueError, "actual previous MSI differs"):
+            self.package("WIX", release_cohort=frozen, previous_msi_scope=("", None))
+        self.assertEqual(self.events, [])
+
+    def test_numbered_windows_producer_refuses_everyone_only_msi(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        with self.assertRaisesRegex(ValueError, "actual MSI product/cohort metadata"):
+            self.package("WIX", release_cohort=frozen, msi_scope=("1", None))
+
+    def test_numbered_windows_producer_refuses_missing_per_user_default(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        with self.assertRaisesRegex(ValueError, "actual MSI product/cohort metadata"):
+            self.package("WIX", release_cohort=frozen, msi_scope=("2", None))
+
+    def test_windows_offline_verifier_preserves_legacy_scope_and_rejects_mixed_scope(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        manifest = self.package("WIX", release_cohort=frozen)
+        self.assertIn(manifest, release.verify(manifest, "1.2.3", self.revision))
+        record = json.loads(manifest.read_text())
+        props = record["nativeIdentity"]["msiProperties"]
+        # Existing signed per-machine receipts still verify; neither the floor
+        # digest nor ProductCode/version/UpgradeCode is weakened.
+        props["ALLUSERS"] = "1"
+        del props["MSIINSTALLPERUSER"]
+        provenance_path = manifest.parent / record["provenance"]
+        def save_identity():
+            provenance = json.loads(provenance_path.read_text())
+            provenance["nativeIdentity"] = record["nativeIdentity"]
+            runtime.write_json(provenance_path, provenance)
+            self.rehash(manifest, record)
+        save_identity()
+        self.assertIn(manifest, release.verify(manifest, "1.2.3", self.revision))
+        props["ALLUSERS"] = "2"
+        save_identity()
+        with self.assertRaisesRegex(ValueError, "native MSI/PE version or prior upgrade binding mismatch"):
             release.verify(manifest, "1.2.3", self.revision)
 
     def test_vault_unlock_precedes_build_and_scopes_every_detached_signature(self):
