@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2153"
 title: "Claude and Codex App Server accept a native correction on the running turn, counted once"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0126"]
 depends_on: ["BPR-2152"]
 priority: "P2"
 platforms: ["mac","linux","win"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-2151--BPR-2155--573d6ab3248e.json","milestone_plan":{"id":"queue-and-steer-v1","path":"docs/rfcs/plans/queue-and-steer-v1/milestone-plan.json"},"criteria":["AC05","AC07"],"origin":"imported 2026-11-12 from queue-and-steer-v1 (RFC-DRAFT-0001); the draft defined no cards, they were cut at import"}
+acceptance: [{"criterion":"AC05","outcome":"pass","revision":"98c2e9f30","evidence":{"kind":"observation","detail":"Installed-agent probes 2026-11-14 (Claude Code 2.1.319 took a mid-turn priority next correction and named it in user_message_uuids; Codex 0.167.0 App Server applied turn/steer within the running turn). Owner look steer-v002 (session 2f71ab85765e5e310eedcafc88ad275a, frozen from c7b853ba3 before its rebase; merged into the lane as 98c2e9f30) handed back 2026-11-15 at cursor 11: BPR-2153-steer and BPR-2153-transcript Accepted. Unsupported configurations keep Queue and say why: application_agent_steer_unavailable_public_path (passes at 64365d031)."}},{"criterion":"AC07","outcome":"pass","revision":"64365d031","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R '^(core_agent_steering|application_agent_protocol_loop)$'","detail":"core_agent_steering and application_agent_protocol_loop (a successor turn stays in the run and counts once; a figure that goes down leaves the cost unknown); the paid Claude probe's single cumulative figure. Pending-input management adds no request (only an explicit Steer writes)."}}]
 ---
 
 # BPR-2153: Claude and Codex App Server accept a native correction on the running turn, counted once
