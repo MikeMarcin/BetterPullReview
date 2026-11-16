@@ -140,3 +140,31 @@ switcher, including the file pane's three views), `BPR-2035-workflow-tab`
 `BPR-2033-agent-accent-on-actions` (AC09). If all four are accepted,
 BPR-2196 is Done, and BPR-2035 closes RFC-BPR-0112 (Auto-Verified) once
 BPR-2197 is Done too.
+
+## Owner look workflow-v002 handed back (2026-11-15)
+
+Session `1d68e30d0ac7b53a07163a1f10777bdf` handed back at sequence 45. The
+owner's verdicts, verbatim:
+
+- `BPR-2196-author-mode`: **Accepted**, no note. BPR-2196 is Done.
+- `BPR-2033-agent-accent-on-actions` (AC09): **Accepted**, no note.
+- `BPR-2035-workflow-tab` (AC07): **Rejected**: "It's panning horizontally
+  again. I don't like my drawers doing that. This should be a rule by now."
+- `BPR-2032-workflow-import-preview` (AC02's preview): **Rejected**: "Can we
+  make Agents & context just say Agents in the settings. Why does this window
+  look so different than everything else in the app? Why would leave out be
+  the default? We're trying to improt it? Why does it take so many actions to
+  choose between those 3 options? Why is it so hard to read what it does? We
+  need to send this window back for a front end design pass." Two
+  screenshots came with it (kept at the session's attachments).
+
+Rework (coordinator): the Workflow tab's rows, commands and long names wrap
+or elide inside the drawer, and "no drawer ever pans horizontally" becomes a
+rule a drawer fit guard enforces on every drawer tab of every surface at the
+narrow drawer width and 100, 125 and 200 percent. The Settings section
+"Agents & context" is renamed "Agents". The import preview window goes to a
+separate frontend-design worker for a redesign. AC07 and AC02's preview stay
+pending until the rework is looked at again; AC09 is accepted. Host 57962
+(Tailscale child 57974) stopped; root `/Users/jaeger/workflow-v002.1z4xyif5`
+removed with `freeze_attended_build.py remove`.
+

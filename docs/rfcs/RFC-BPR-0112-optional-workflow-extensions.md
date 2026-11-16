@@ -41,7 +41,7 @@ its pull request exists; Status keeps its single meaning. The one handoff
 is at the right end of Author's bar: Create Draft PR… (Hand Off Plan… when
 the workflow's publisher is chosen), Ready for review, or Publish update….
 The Edit view and the Changes tab (This update) leave Review for Author.
-[BPR-2196](../issues/30-in-progress/BPR-2196-author-the-authors-mode.md)
+[BPR-2196](../issues/60-done/BPR-2196-author-the-authors-mode.md)
 builds it; the acceptance criteria are unchanged. The design named the mode
 Revise; the owner renamed it before it landed: "I changed my mind, make it Author".
 
