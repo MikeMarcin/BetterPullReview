@@ -2520,6 +2520,54 @@ namespace {
 		expect(std::ranges::all_of(seen, [](const bool aSeen) { return aSeen; }), "the design's widths reach every face");
 	}
 
+	/// [[BPR-2197]]. The title row at the widths `BPR_TITLE_FOLD_RENDER_WIDTHS`
+	/// names (default 1600, 1280 and 1000), written to
+	/// `BPR_TITLE_FOLD_RENDER_DIR` for the owner's look, on the
+	/// nested-folders-v1 fixture's pull request, the viewer's own. Nothing
+	/// is written without the directory.
+	void test_render_the_switcher_fold()
+	{
+		const auto root = qEnvironmentVariable("BPR_TITLE_FOLD_RENDER_DIR");
+		if (root.isEmpty()) {
+			return;
+		}
+		auto widths = std::vector<int>{ 1'600, 1'280, 1'000 };
+		if (const auto named = qEnvironmentVariable("BPR_TITLE_FOLD_RENDER_WIDTHS"); !named.isEmpty()) {
+			widths.clear();
+			for (const auto& width : named.split(QLatin1Char{ ',' }, Qt::SkipEmptyParts)) {
+				widths.push_back(width.toInt());
+			}
+		}
+		qt::workbench_window window;
+		window.resize(1'920, 820);
+		window.show();
+		process_events();
+		window.set_pull_request_page_dispatch([](const application::pull_request_page_intent&) { return core::markdown_link_result::opened; });
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner           = "bpr-fixtures",
+				.RepositoryName  = "nested-folders",
+				.Number          = core::pull_request_number{ 21U },
+				.Title           = "Move renderer, shaders and widgets into nested folders",
+				.MarkdownContext = page_context(1U),
+			},
+		});
+		window.publish(every_primary_command_offered());
+		window.set_pull_request_author_case(core::author_case::open_pull_request);
+		process_events();
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		for (const auto width : widths) {
+			window.resize(width, 820);
+			process_events();
+			const auto bottom = window.primary_toolbar()->mapTo(&window, QPoint{ 0, window.primary_toolbar()->height() }).y();
+			const auto name   = QStringLiteral("%1/title-fold-%2.png").arg(root).arg(width);
+			expect(window.grab(QRect{ 0, 0, window.width(), bottom }).save(name), "the title row's render is written");
+			std::cout << "TITLE_FOLD_RENDER:" << width << ':' << static_cast<int>(window.modality()->face()) << ':' << window.identity_label()->text().toStdString() << '\n';
+		}
+		window.hide();
+	}
+
 	void test_strip_identity_stays_at_every_width()
 	{
 		strip_identity_stays_at_every_width(false);
@@ -25926,6 +25974,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
 	runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
 	runCase("test_the_switcher_folds_to_glyphs", &test_the_switcher_folds_to_glyphs);
+	runCase("test_render_the_switcher_fold", &test_render_the_switcher_fold);
 	runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
 	runCase("test_review_bar_geometry_is_stable_while_working", &test_review_bar_geometry_is_stable_while_working);
 	runCase("test_the_review_bar_yields_dates_then_words", &test_the_review_bar_yields_dates_then_words);
