@@ -146,7 +146,13 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "usage: agent_steering_fixture_tests FIXTURE_AGENT_FOLDER\n";
 		return EXIT_FAILURE;
 	}
+	// [[BPR-2205]]. The build copies the fixture in as `claude.exe` on
+	// Windows (src/app/CMakeLists.txt).
+#if defined(_WIN32)
+	const auto claude = std::filesystem::path{ argv[1] } / "claude.exe";
+#else
 	const auto claude = std::filesystem::path{ argv[1] } / "claude";
+#endif
 	expect(std::filesystem::is_regular_file(claude), "the fixture agent is built as claude");
 	test_the_fixture_takes_a_correction_after_its_tool_call(claude);
 	test_an_unqualified_agent_keeps_queue(claude);

@@ -26,6 +26,7 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include "../support/qt_prompt_sources.hpp"
+#include "../support/scratch_directory.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -38,7 +39,6 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabWidget>
-#include <QTemporaryDir>
 #include <QToolButton>
 #include <QToolTip>
 #include <QVBoxLayout>
@@ -369,10 +369,11 @@ namespace {
 		// then read back by a new store and host as a restart reads it.
 		const auto kept = tab.thread_turns();
 		expect(!kept.empty() && kept.back().Name == QStringLiteral("Long pass on renderer.cpp"), "AC07 the kept turn keeps its name");
-		auto root = QTemporaryDir{ };
-		expect(root.isValid(), "a scratch root");
-		// The store follows no link: /var is one on macOS.
-		const auto rootPath = QFileInfo{ root.path() }.canonicalFilePath().toStdString();
+		// [[BPR-2205]]. An owner-private root, resolved (the store follows no
+		// link: /var is one on macOS). On Windows a QTemporaryDir inherits the
+		// temporary directory's shared access, and the store rightly refused it.
+		const auto                      rootPath = bpr::tests::make_scratch_directory("bpr-prompt-turn-names");
+		const bpr::tests::scratch_guard ownedRoot{ rootPath };
 		{
 			auto store        = adapters::sqlite::make_prompt_turn_name_store(rootPath);
 			auto lane         = application::manual_executor{ };

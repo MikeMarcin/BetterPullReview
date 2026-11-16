@@ -132,6 +132,13 @@ namespace {
 			break;
 		case entry::writing:
 			built = application::build_agent_launch(aProfile, supplement(), parent, true);
+			// [[BPR-2205]]. A tool-free writing request names its fresh path,
+			// as every shipped one does. Left on the default Agent tab path, a
+			// resumed one, it is a conversation that keeps its host's folder
+			// ([[BPR-2138]]), not a request that gets an empty one.
+			if (built) {
+				built->Path = core::agent_run_path::enhance_writing;
+			}
 			break;
 		case entry::round_send:
 			built = application::build_round_launch(aProfile, "# Round 1\n\nPlease look at retry().\n", std::nullopt, aWorkingDirectory.string(), parent);
