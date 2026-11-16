@@ -4164,3 +4164,29 @@ elsewhere), remove the Windows 1300 threshold and the BPR-1251 title rule,
 the open mode's glyph in the highlighted-text ink; then a short look of its
 own. On the workflow-v002 hand-back: reconcile the four verdicts, then
 remove the root with `freeze_attended_build.py remove` and stop the host.
+
+## BPR-2197: the mode switcher folds to icons (2026-11-15)
+
+Design `windows-title-fit-v2` merged (`efb750f29`); `frontend-design` loaded
+before the Qt work.
+
+| Commit | What |
+|---|---|
+| `1bc1a79ca` | One shared fold, `bpr/qt/fold_faces.hpp`; `drawer_tab_bar::fold` for the tray and Overview's drawer; `modality_control::set_face` (names and keys, names, open mode named, glyphs); `apply_strip_width` takes the widest face beside which the whole name fits; prefixes, the Windows 1300 threshold and `IdentityTitleBudget` (BPR-1251) gone; `qt_fold_faces`; title-row courses with four and five modes; Author at the floor again |
+| `0f7716a53`, `c58080042`, `2d045a544` | `test_render_the_switcher_fold`, an env-gated title-row render (`BPR_TITLE_FOLD_RENDER_DIR`, `_WIDTHS`, `_FONT`) |
+| `29a0fada8` | Card parked on human review (main `7358c74cd`) |
+
+Runs: see the card. Windows over SSH: two width courses stop with the
+session's misread system font; not confirmed at the real font. src/app not
+touched; the app pin contract passes unchanged.
+
+Owner look `title-fold-v001`: session `84fbe840afbd99aaf6ce0a68bebe6cbc`,
+state `/Users/jaeger/.attended-review-state/title-fold-v001-2026-11-15/state`,
+cursor 3, host PID 97593 (Tailscale child 97603), root
+`/Users/jaeger/title-fold-v001.tfds9x8z` (frozen `0f7716a53878`), one
+question `BPR-2197-title-fold`. Station scratch folders removed.
+
+Next action: on hand-back, reconcile the verdict (Accept: BPR-2197 Done and
+mirrored; Reject: the note's change, then a new look), remove the root with
+`freeze_attended_build.py remove` and stop the host. If Windows matters before
+then, run the two width courses on the Windows desktop font.
