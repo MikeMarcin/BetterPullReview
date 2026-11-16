@@ -12,6 +12,7 @@
 #include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_run_policy.hpp"
+#include "bpr/core/agent_steering.hpp"
 #include "bpr/core/local_draft.hpp"
 #include "bpr/core/local_draft_check.hpp"
 #include "bpr/core/local_draft_tour.hpp"
@@ -201,6 +202,11 @@ namespace bpr::application {
 		/// The draft's identity: the runner keeps one empty folder per draft
 		/// for its resumed sessions.
 		std::string Draft;
+		/// [[BPR-2154]]. The discussion question's number in this workbench
+		/// (`local_draft_workbench_projection::AskingRun`); zero for any other
+		/// run. A numbered question runs on a kept connection named
+		/// `local_draft_native_conversation(Draft, Run)`, so it can be steered.
+		std::uint64_t Run = 0;
 		/// [[BPR-2140]]. Where `Instructions` go (the agent's switch).
 		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 		/// RFC-BPR-0120. A check's plan or run, and the copy it runs in.
@@ -215,6 +221,25 @@ namespace bpr::application {
 		/// What the run does as it does it, on the agent lane.
 		std::function<void(const core::agent_turn_activity&)> Progress;
 	};
+	/// \brief [[BPR-2154]], RFC-BPR-0126 AC05. A message steered into a
+	/// discussion question while it ran: its input identity, the author's
+	/// words, and how the run's end settled it.
+	struct local_draft_steered
+	{
+		std::string                   Identity;
+		std::string                   Text;
+		core::agent_steer_disposition Disposition                                   = core::agent_steer_disposition::unknown;
+		auto                          operator<=>(const local_draft_steered&) const = default;
+	};
+
+	/// \brief [[BPR-2154]]. The kept connection a discussion question runs
+	/// on, by the draft and the question's number: the runner names it, and
+	/// a Steer for that question goes to it.
+	[[nodiscard]] inline auto local_draft_native_conversation(const std::string_view aDraft, const std::uint64_t aRun) -> std::string
+	{
+		return "local-draft/" + std::string{ aDraft } + "/" + std::to_string(aRun);
+	}
+
 	struct local_draft_agent_answer
 	{
 		bool        Answered = false;
@@ -228,6 +253,8 @@ namespace bpr::application {
 		std::vector<std::string> Commands;
 		/// Stop ended it.
 		bool Stopped = false;
+		/// [[BPR-2154]]. The messages steered into it, in order.
+		std::vector<local_draft_steered> Steered;
 	};
 
 	/// \brief RFC-BPR-0120. Plan a check… or Run, as the page asks it: the
@@ -399,6 +426,14 @@ namespace bpr::application {
 		bool        Asking = false;
 		std::string AskingThread;
 		std::string AskingText;
+		/// [[BPR-2154]]. The discussion question with the agent, by its
+		/// number (`local_draft_agent_run::Run`); zero for none, a check or
+		/// an action.
+		std::uint64_t AskingRun = 0;
+		/// [[BPR-2154]]. The last discussion question that ended, by its
+		/// number, and the messages steered into it, settled.
+		std::uint64_t                    AnsweredRun = 0;
+		std::vector<local_draft_steered> AnsweredSteers;
 		/// Why the last question was not answered.
 		std::string AskFailure;
 		/// RFC-BPR-0120. What is with the agent is a check's plan or run.

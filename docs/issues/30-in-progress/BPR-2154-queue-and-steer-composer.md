@@ -171,3 +171,51 @@ with the root). Three Accept/Reject questions: `queue-stop-chat`,
 `queue-whole-tour`, `queue-local-draft`. A failed first freeze on
 conventional-comments-v1 (the launcher's fixture-agent check needs a
 returning review) was removed with `freeze_attended_build.py remove`.
+
+### Look queue-tour-v001 handed back (2026-11-16)
+
+Session `1b7406ad1e4e00a25aee2d23cd0f6dab`, handed back at sequence 15:
+
+- `queue-stop-chat` **Accepted**, no note (decision
+  `fe28ba85-73c1-4f10-9c10-2fbc5cae2268`).
+- `queue-local-draft` **Accepted**, no note (decision
+  `98472c89-953e-4b91-8188-49d8a5aa2592`).
+- `queue-whole-tour` **Rejected** (decision
+  `bce25c90-458e-4d83-9e4d-2639d8fd1e96`): "Doesnt steet, see bottom." The
+  attached image is a local draft's whole-tour chat (Author mode) while the
+  tour agent thinks: Steer said "This turn can't be steered: it isn't running
+  on a kept agent session. The message goes next, right after this answer."
+
+Host (28483/28491) stopped; root `/Users/jaeger/queue-tour-v001.ity27747`
+removed with `freeze_attended_build.py remove`, and the draft's worktree
+folder `/Users/jaeger/queue-tour-v001-draft` removed.
+
+### Steer in a local draft's chats (2026-11-16, after the Reject)
+
+Cause: a local draft's question ran as a one-shot process (`claude -p
+--resume`, stdin closed after the question), never on a kept connection, so
+nothing could write into the running turn; and the window's Steer refused
+every local-draft session outright. Fixed at the layer that launches it:
+
+- **Application.** The workbench numbers each discussion question
+  (`local_draft_agent_run::Run`, `AskingRun` in the projection) and keeps
+  what was steered into it (`local_draft_agent_answer::Steered`,
+  `AnsweredRun`/`AnsweredSteers`): the steered messages become the author's
+  turns, in order, before the answer that read them. A tool-free native
+  connection serves one turn (`native_connection_reusable` is false for a
+  writing-only decoder): its next turn resumes in a process of its own, as
+  `prepare_native_agent_turn` already required.
+- **Composition.** The local draft runner runs a numbered question on a kept
+  connection `local_draft_native_conversation(draft, run)`, which resumes the
+  draft's session as it starts. The window's Steer for a
+  `local_draft_discussion` session goes to that connection through the local
+  draft's process chain (support read first, answered back on the window's
+  lane), Bound names the question's run, and the question's end settles the
+  steered messages by receipt before the next goes. Every part of a local
+  draft (the whole tour, Problem, Solution, a stop) runs this way; a first
+  description draft is a fresh run and still can't be steered, and says so.
+- **Course.** `application_tour_chat_queue_local_draft_public_path` now also
+  steers a message with Cmd+Return into a running whole-tour question: the
+  status says it was steered, the message becomes the author's turn in that
+  conversation, the fixture agent's answer says it took the correction, and
+  nothing goes after it as a question of its own.

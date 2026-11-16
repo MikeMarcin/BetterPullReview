@@ -171,6 +171,13 @@ namespace bpr::app {
 		[[nodiscard]] auto shown_draft() const -> std::string;
 		/// \brief Whether a question of the draft is with its agent now.
 		[[nodiscard]] auto asking() const -> bool;
+		/// \brief [[BPR-2154]]. The discussion question with the agent: its
+		/// part and number (`local_draft_workbench_projection::AskingRun`);
+		/// none while nothing, a check or a first description runs.
+		[[nodiscard]] auto asking_question() const -> std::optional<std::pair<core::tour_thread, std::uint64_t>>;
+		/// \brief [[BPR-2154]]. The last question that ended, by its number,
+		/// and what was steered into it, settled.
+		[[nodiscard]] auto answered_steers() const -> std::pair<std::uint64_t, std::vector<application::local_draft_steered>>;
 		/// \brief Whether an agent is chosen for the draft's questions.
 		[[nodiscard]] auto agent_ready() const -> bool;
 		/// \brief Told when a question goes to the agent (`aAsking`) and when

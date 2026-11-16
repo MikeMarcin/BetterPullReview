@@ -1099,13 +1099,23 @@ namespace bpr::app {
 				if (!core::valid(core::local_draft_id{ aRun.Draft }) || !adapters::sqlite::create_storage_root_owner_private(folder)) {
 					return { .Failure = "The folder this draft's conversation runs in could not be made." };
 				}
-				request.NativeHandle = aRun.Handle;
-				auto resumed         = application::prepare_native_agent_turn(std::move(request), false);
+				request.NativeHandle     = aRun.Handle;
+				request.WorkingDirectory = folder.string();
+				auto resumed             = application::prepare_native_agent_turn(request, false);
 				if (!resumed) {
 					return { .Failure = "This agent cannot resume the conversation's session." };
 				}
-				request                  = std::move(*resumed);
-				request.WorkingDirectory = folder.string();
+				if (aRun.Run != 0U) {
+					// [[BPR-2154]]. A discussion question runs on a kept
+					// connection of its own number, which resumes the session
+					// as it starts: a message steered while it works reaches
+					// it, as the pull request's tour chat's does. The
+					// connection ends with the turn.
+					request.NativeConversation = application::local_draft_native_conversation(aRun.Draft, aRun.Run);
+					request.Run                = core::agent_run_id{ aRun.Run };
+				} else {
+					request = std::move(*resumed);
+				}
 			}
 			// RFC-BPR-0103. A check's activity is heard as it happens: the
 			// commands it runs are what its report lists.
@@ -1123,13 +1133,18 @@ namespace bpr::app {
 				};
 			}
 			const auto result = process->run(request, (aRun.Check == application::local_check_mode::run ? 60 : 10) * 60 * 1000, sink, aStop);
+			// [[BPR-2154]]. What was steered into the run, settled by its end.
+			auto steered = std::vector<application::local_draft_steered>{ };
+			for (const auto& input : result.SteeredInputs) {
+				steered.push_back({ .Identity = input.Identity, .Text = input.Text, .Disposition = input.Disposition });
+			}
 			if (aStop.stop_requested()) {
-				return { .Failure = "Stopped.", .Commands = activity.CommandsRun, .Stopped = true };
+				return { .Failure = "Stopped.", .Commands = activity.CommandsRun, .Stopped = true, .Steered = std::move(steered) };
 			}
 			if (result.Outcome != application::agent_run_outcome::success) {
-				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ").", .Commands = activity.CommandsRun };
+				return { .Failure = "The agent did not answer (" + std::string{ application::name(result.Outcome) } + ").", .Commands = activity.CommandsRun, .Steered = std::move(steered) };
 			}
-			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle, .Commands = activity.CommandsRun };
+			auto answer = application::local_draft_agent_answer{ .Answered = true, .Handle = result.NativeHandle, .Commands = activity.CommandsRun, .Steered = std::move(steered) };
 			for (const auto& item : result.AssistantItems) {
 				answer.Text += answer.Text.empty() ? item : "\n\n" + item;
 			}

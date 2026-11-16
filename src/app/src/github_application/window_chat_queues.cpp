@@ -14,6 +14,8 @@
 #include "bpr/application/agent_runtime_steer.hpp"
 #include "bpr/qt/agent_footer.hpp"
 
+#include <QMetaObject>
+#include <QPointer>
 #include <QTimer>
 
 #include <algorithm>
@@ -82,9 +84,18 @@ namespace bpr::app {
 			// A local draft's question started or ended: its own lane's, so
 			// its end is the turn's real completion.
 			DraftDesktop->set_asking_observer([this](const bool aAsking, const bool aFailed, const bool aStopped) {
-				if (Closing || aAsking) {
+				if (Closing) {
 					return;
 				}
+				if (aAsking) {
+					// [[BPR-2154]]. The question's session and number, so
+					// what is steered into it settles when it ends.
+					const auto asking = DraftDesktop->asking_question();
+					LocalSteerSession = asking ? chat_queue_key(asking->first) : std::string{ };
+					LocalSteerRun     = asking ? asking->second : 0U;
+					return;
+				}
+				settle_local_draft_steers();
 				const auto sending = core::parse_session_key(ChatQueueSending);
 				if (sending && sending->Kind == core::queued_session_kind::local_draft_discussion) {
 					chat_queue_retired(aStopped ? core::queued_finish::stopped : aFailed ? core::queued_finish::failed
@@ -312,6 +323,48 @@ namespace bpr::app {
 	auto github_application::implementation::steer_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string>
 	{
 		const auto session = core::parse_session_key(aSession);
+		if (session && session->Kind == core::queued_session_kind::local_draft_discussion && LocalDraftEntryProcess) {
+			// [[BPR-2154]]. A local draft's question runs on a kept
+			// connection named by its draft and number: the correction
+			// goes there, answered back on this lane.
+			const auto target = [draft = session->Draft](const application::agent_invocation_projection_identity& aRun) {
+				return application::agent_steer_request{ .Conversation = application::local_draft_native_conversation(draft, aRun.InvocationGeneration),
+														 .Run          = core::agent_run_id{ aRun.InvocationGeneration },
+														 .NativeTurn   = 2U };
+			};
+			auto steer = application::agent_runtime_steer({
+				.Support  = [this, target](const application::agent_invocation_projection_identity& aRun) { return LocalDraftEntryProcess ? LocalDraftEntryProcess->steer_support(target(aRun)) : core::agent_steer_support::not_running; },
+				.Steer    = [this, target](const application::agent_invocation_projection_identity& aRun, std::string aText, application::agent_invocation_host::steer_answer aAnswer) {
+					auto request = target(aRun);
+					request.Text = std::move(aText);
+					if (!LocalDraftEntryProcess) {
+						if (aAnswer) {
+							aAnswer({ .Support = core::agent_steer_support::not_running });
+						}
+						return;
+					}
+					LocalDraftEntryProcess->steer(std::move(request), [window = QPointer<QObject>{ Window.get() }, weak = std::weak_ptr<const int>{ WindowLifetime },
+																		answer = std::move(aAnswer)](const application::agent_steer_receipt& aReceipt) {
+						if (window.isNull()) {
+							return;
+						}
+						QMetaObject::invokeMethod(
+							window.data(), [weak, answer, aReceipt] {
+								if (!weak.expired() && answer) {
+									answer(aReceipt);
+								}
+							},
+							Qt::QueuedConnection);
+					}); },
+				.Queue    = AgentQueue.get(),
+				.Shown    = [this, aSession] { return local_steer_shown(aSession); },
+				.Returned = [this, weak = std::weak_ptr<const int>{ WindowLifetime }](const std::string&, const std::string& aWhy) {
+					if (!weak.expired() && !Closing && Window != nullptr) {
+						Window->tour_editor()->show_writing_notice(QString::fromStdString(aWhy));
+					} },
+			});
+			return steer(aSession, aEntry);
+		}
 		if (!session || session->Kind != core::queued_session_kind::tour_part || !TourSession) {
 			return application::agent_steer_goes_next_words(core::agent_steer_support::no_connection);
 		}
@@ -335,8 +388,42 @@ namespace bpr::app {
 		return steer(aSession, aEntry);
 	}
 
+	auto github_application::implementation::local_steer_shown(const std::string& aSession) const -> std::optional<application::agent_invocation_projection_identity>
+	{
+		const auto asking = DraftDesktop ? DraftDesktop->asking_question() : std::nullopt;
+		if (Closing || !asking || chat_queue_key(asking->first) != aSession) {
+			return std::nullopt;
+		}
+		return application::agent_invocation_projection_identity{ .InvocationGeneration = asking->second };
+	}
+
+	/// [[BPR-2154]]. A local draft question ended: what was steered into
+	/// it settles by its receipts before anything else is released.
+	void github_application::implementation::settle_local_draft_steers()
+	{
+		const auto session = std::exchange(LocalSteerSession, std::string{ });
+		const auto run     = std::exchange(LocalSteerRun, 0U);
+		if (!AgentQueue || !DraftDesktop || session.empty() || run == 0U || AgentQueue->queue(session) == nullptr) {
+			return;
+		}
+		const auto [answered, steered] = DraftDesktop->answered_steers();
+		auto endings                   = std::vector<core::steered_settlement>{ };
+		if (answered == run) {
+			for (const auto& input : steered) {
+				const auto ending = input.Disposition == core::agent_steer_disposition::consumed                                                ? core::steered_ending::consumed
+					: input.Disposition == core::agent_steer_disposition::refused || input.Disposition == core::agent_steer_disposition::unsent ? core::steered_ending::not_taken
+																																				: core::steered_ending::unknown;
+				endings.push_back({ .Receipt = input.Identity, .Ending = ending });
+			}
+		}
+		AgentQueue->settle_steers(session, run, endings);
+	}
+
 	auto github_application::implementation::chat_queue_bound(const std::string& aSession) const -> core::queued_claim
 	{
+		if (const auto local = local_steer_shown(aSession)) {
+			return { .Run = local->InvocationGeneration };
+		}
 		const auto thread = running_tour_thread();
 		if (!thread || !TourInvocation || tour_part_key(*thread) != aSession) {
 			return { };

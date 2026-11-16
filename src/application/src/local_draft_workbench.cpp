@@ -1166,7 +1166,6 @@ namespace bpr::application {
 			Projection.AskingThread = aQuestion.Thread;
 			Projection.AskingText   = aQuestion.Text;
 			Projection.AskFailure.clear();
-			publish();
 			AskStop = std::stop_source{ };
 			struct prepared
 			{
@@ -1183,6 +1182,14 @@ namespace bpr::application {
 			const auto  fresh      = describing && Projection.Draft->Preparation.Description.Body.empty() && (open == nullptr || open->Handle.empty());
 			const auto  path       = fresh ? core::agent_run_path::local_description_first_draft : core::agent_run_path::local_draft_discussion;
 			const auto  handle     = fresh || open == nullptr ? std::string{ } : open->Handle;
+			// [[BPR-2154]]. A discussion question is numbered: it runs on a
+			// kept connection of that number, so a message can be steered
+			// into it while it works. A fresh run is never kept.
+			const auto number      = fresh ? std::uint64_t{ 0U } : ++AskRuns;
+			Projection.AskingRun   = number;
+			Projection.AnsweredRun = 0U;
+			Projection.AnsweredSteers.clear();
+			publish();
 			run(
 				[draft = *Projection.Draft, candidate = *latest, question = aQuestion, first, fresh](implementation& aSelf, std::stop_token) -> prepared {
 					auto  out    = prepared{ };
@@ -1220,11 +1227,13 @@ namespace bpr::application {
 					return out;
 				},
 				// Both lanes read their own copy: argument order is unspecified.
-				[question = aQuestion, ordinal = latest->Ordinal, path, handle](implementation& aSelf, prepared aPrepared) mutable {
+				[question = aQuestion, ordinal = latest->Ordinal, path, handle, number](implementation& aSelf, prepared aPrepared) mutable {
 					auto& view = aSelf.Projection;
 					if (!aPrepared.Request) {
-						view.Asking     = false;
-						view.AskFailure = "This question and its instructions are longer than one request can carry.";
+						view.Asking      = false;
+						view.AskingRun   = 0U;
+						view.AnsweredRun = number;
+						view.AskFailure  = "This question and its instructions are longer than one request can carry.";
 						aSelf.publish();
 						return;
 					}
@@ -1242,31 +1251,37 @@ namespace bpr::application {
 														.Path         = path,
 														.Handle       = aPrepared.Request->Resumed ? handle : std::string{ },
 														.Draft        = view.Draft ? view.Draft->Id.Value : std::string{ },
+														.Run          = number,
 														.Delivery     = question.Delivery };
 					++aSelf.AgentPending;
 					aSelf.AgentLane->post([owner, asked = aSelf.Generation, ordinal, launch = std::move(made), sent = std::move(question), read = std::move(aPrepared.Files),
 										   runner = aSelf.AgentRunner, stop = aSelf.AskStop.get_token()]() mutable {
 						auto reply = runner(launch, stop);
 						owner->Decisions.post([host = owner, asked, ordinal, answer = std::move(reply), posed = std::move(sent), files = std::move(read), ran = launch.Path,
-											   resumed = launch.Handle]() mutable {
+											   resumed = launch.Handle, numbered = launch.Run]() mutable {
 							--host->AgentPending;
 							if (host->Stopped) {
 								return;
 							}
-							host->answered(asked, ordinal, std::move(posed), std::move(files), std::move(answer), ran, resumed);
+							host->answered(asked, ordinal, std::move(posed), std::move(files), std::move(answer), ran, resumed, numbered);
 						});
 					});
 				});
 		}
 
 		void answered(const std::uint64_t aGeneration, const std::uint64_t aOrdinal, local_draft_question aQuestion, std::vector<core::local_file_reading> aFiles,
-					  local_draft_agent_answer aAnswer, const core::agent_run_path aPath, const std::string& aResumed)
+					  local_draft_agent_answer aAnswer, const core::agent_run_path aPath, const std::string& aResumed, const std::uint64_t aRun)
 		{
 			auto& view  = Projection;
 			view.Asking = false;
 			view.AskingThread.clear();
 			view.AskingText.clear();
-			const auto action = std::exchange(PendingAgentAction, std::string{ });
+			// [[BPR-2154]]. Whatever became of the answer, the messages
+			// steered into its run are settled by how the run ended.
+			view.AskingRun      = 0U;
+			view.AnsweredRun    = aRun;
+			view.AnsweredSteers = aAnswer.Steered;
+			const auto action   = std::exchange(PendingAgentAction, std::string{ });
 			if (aGeneration != Generation || !view.Draft) {
 				publish();
 				return;
@@ -1304,8 +1319,21 @@ namespace bpr::application {
 				return;
 			}
 			auto [draft, conversation] = std::move(*asked);
-			const auto parsed          = core::parse_local_answer(aAnswer.Text);
-			auto       proposals       = std::vector<std::uint64_t>{ };
+			// [[BPR-2154]]. What was steered in is the author's too, in the
+			// order it went, before the answer that read it.
+			for (const auto& steered : aAnswer.Steered) {
+				if (steered.Disposition == core::agent_steer_disposition::unsent || steered.Disposition == core::agent_steer_disposition::refused) {
+					continue;
+				}
+				auto added = core::append_turn(draft, draft.Version, aQuestion.Thread, aQuestion.Agent, aQuestion.AgentName,
+											   core::local_turn{ .Author = true, .Subject = aQuestion.Subject, .Text = steered.Text }, now);
+				if (!added) {
+					break;
+				}
+				draft = std::move(added->first);
+			}
+			const auto parsed    = core::parse_local_answer(aAnswer.Text);
+			auto       proposals = std::vector<std::uint64_t>{ };
 			if (!parsed.Proposals.empty()) {
 				auto recorded = core::record_proposals(draft, draft.Version, conversation, aOrdinal, parsed.Proposals, aFiles, aQuestion.AgentName, aQuestion.Version, now);
 				if (recorded) {
@@ -1878,9 +1906,11 @@ namespace bpr::application {
 		std::mt19937_64                       Random;
 		std::stop_source                      Stop;
 		/// RFC-BPR-0110. The agent runs: composed by the application, off both lanes.
-		local_draft_agent_runner   AgentRunner;
-		effect_executor*           AgentLane = nullptr;
-		std::stop_source           AskStop;
+		local_draft_agent_runner AgentRunner;
+		effect_executor*         AgentLane = nullptr;
+		std::stop_source         AskStop;
+		/// [[BPR-2154]]. The discussion questions asked, for their numbers.
+		std::uint64_t              AskRuns = 0U;
 		std::atomic<std::uint64_t> AgentPending{ 0U };
 		/// RFC-BPR-0111. Create draft PR…: the account, asked on the decision
 		/// lane, and the lane GitHub is called on.

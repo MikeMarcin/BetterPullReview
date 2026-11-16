@@ -924,19 +924,23 @@ namespace bpr::app {
 		/// This window runs them on its tour host or its local draft's lane,
 		/// through a runtime it offers the profile's runner; the queue host is
 		/// the profile's, unchanged.
-		[[nodiscard]] auto           tour_part_key(const core::tour_thread& aThread) const -> std::string;
-		[[nodiscard]] auto           chat_queue_key(const core::tour_thread& aThread) const -> std::string;
-		void                         bind_chat_queues();
-		void                         present_chat_queues();
-		void                         queue_chat_follow_up(const qt::tour_ask& aAsk);
-		[[nodiscard]] auto           chat_queue_dispatch(const core::tour_thread& aThread) -> qt::agent_pending_dispatch;
-		[[nodiscard]] auto           chat_queue_runs(const std::string& aSession) const -> bool;
-		[[nodiscard]] auto           chat_queue_agent(const std::string& aSession) const -> core::queue_agent;
-		[[nodiscard]] auto           release_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> application::queued_admission;
-		[[nodiscard]] auto           steer_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string>;
-		[[nodiscard]] auto           chat_queue_bound(const std::string& aSession) const -> core::queued_claim;
-		[[nodiscard]] auto           running_tour_thread() const -> std::optional<core::tour_thread>;
-		void                         settle_tour_part_steers(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
+		[[nodiscard]] auto tour_part_key(const core::tour_thread& aThread) const -> std::string;
+		[[nodiscard]] auto chat_queue_key(const core::tour_thread& aThread) const -> std::string;
+		void               bind_chat_queues();
+		void               present_chat_queues();
+		void               queue_chat_follow_up(const qt::tour_ask& aAsk);
+		[[nodiscard]] auto chat_queue_dispatch(const core::tour_thread& aThread) -> qt::agent_pending_dispatch;
+		[[nodiscard]] auto chat_queue_runs(const std::string& aSession) const -> bool;
+		[[nodiscard]] auto chat_queue_agent(const std::string& aSession) const -> core::queue_agent;
+		[[nodiscard]] auto release_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> application::queued_admission;
+		[[nodiscard]] auto steer_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string>;
+		[[nodiscard]] auto chat_queue_bound(const std::string& aSession) const -> core::queued_claim;
+		[[nodiscard]] auto running_tour_thread() const -> std::optional<core::tour_thread>;
+		void               settle_tour_part_steers(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
+		/// [[BPR-2154]]. The local draft's numbered question on the session
+		/// `aSession`, while it runs, as the identity Steer names it by.
+		[[nodiscard]] auto           local_steer_shown(const std::string& aSession) const -> std::optional<application::agent_invocation_projection_identity>;
+		void                         settle_local_draft_steers();
 		void                         chat_queue_retired(std::optional<core::queued_finish> aFinish);
 		void                         drain_chat_queues();
 		std::optional<std::uint64_t> ChatQueueRuntime;
@@ -945,6 +949,10 @@ namespace bpr::app {
 		std::string                        ChatQueueSending;
 		std::uint64_t                      ChatQueueRun = 0U;
 		std::optional<core::queued_finish> ChatQueueFinish;
+		/// [[BPR-2154]]. The local draft question running, by its session and
+		/// number, for its steered messages' settlement when it ends.
+		std::string   LocalSteerSession;
+		std::uint64_t LocalSteerRun = 0U;
 		/// The tour part or local draft whose queues the tour chat shows.
 		std::string                             ChatQueueOwner;
 		std::map<std::string, std::uint64_t>    ChatQueueSeen;

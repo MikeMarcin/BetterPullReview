@@ -3829,8 +3829,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# runs them on the window's tour host or the draft's lane; the local draft
 	# lets go only a writing request's question on writing_stop. No review
 	# mutation or submission path changed.
+	# [[BPR-2154]] reseal (look queue-tour-v001's Reject): a local draft's
+	# discussion question runs on a kept connection named by its draft and
+	# number, so Steer reaches it; the window settles what was steered when
+	# the question ends. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "f332ada487a71adba147cf5a4482210dcc49eddce6bd12d7b4f98a62ea0e64be"
+        "2704e2359a31389908b9d996798ed077282e1bbe3ee266576328d472dad46f68"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

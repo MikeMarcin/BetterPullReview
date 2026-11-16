@@ -14,7 +14,9 @@
 ///   sending them, in order, once.
 /// - `--local-draft`: a local draft's discussion (Q2) on a real worktree: a
 ///   follow-up typed while its question runs waits in the pending list and
-///   goes as the draft's next question once that one ended.
+///   goes as the draft's next question once that one ended; then one steered
+///   with Cmd+Return into a running whole-tour question lands in that turn
+///   ([[BPR-2154]], look queue-tour-v001's Reject).
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -33,6 +35,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QLabel>
@@ -394,6 +397,45 @@ auto main(int argc, char** argv) -> int
 										  + std::to_string(window->local_draft()->projection().Asking) + " failure " + window->local_draft()->projection().AskFailure };
 			}
 			expect(said()[1] == "Next: and the tests?", "after the first, once: " + joined(said()));
+			// Steer (Cmd+Return, Ctrl+Return off macOS) while a question
+			// runs: the message goes into that turn, on the kept connection
+			// the question runs on, and never as a question of its own.
+			wait_sends(*chat, QStringLiteral("Take your time: anything else?"));
+			type_and_return(*chat, QStringLiteral("Take your time: anything else?"));
+			expect(window->local_draft()->projection().Asking, "the draft's third question runs: " + window->local_draft()->projection().AskFailure);
+			// The fixture agent has started and said its version.
+			auto started = QElapsedTimer{ };
+			started.start();
+			wait([&] { return started.elapsed() > 3000; }, "the third question has run a while");
+			expect(window->local_draft()->projection().Asking, "the third question still runs");
+			type_and_return(*chat, QStringLiteral("Steered into the draft"), true);
+			expect(chat->composer()->toPlainText().isEmpty(), "the steered message left the composer");
+			// The window's status line says it once; the tour editor's label
+			// keeps it for assistive technology.
+			const auto notice = [&] {
+				auto* const label = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
+				return label != nullptr ? label->text() : QString{ };
+			};
+			wait([&] { return notice().contains(QStringLiteral("Steered into the running turn")) || !window->local_draft()->projection().Asking; }, "the steer is answered while the question runs");
+			expect(notice().contains(QStringLiteral("Steered into the running turn")),
+				   "the message was steered: " + notice().toStdString() + " failure " + window->local_draft()->projection().AskFailure);
+			capture(*chat, QStringLiteral("local-draft-steered"));
+			if (!e2e::wait_until_plain([&] { return !window->local_draft()->projection().Asking && rows_of(*chat).isEmpty(); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "the steered turn ends and the steered message settles: rows " + rows_of(*chat).join(QLatin1Char('|')).toStdString() };
+			}
+			for (auto settle = 0; settle < 40; ++settle) {
+				QApplication::processEvents();
+			}
+			const auto all = said();
+			expect(all.size() == 4U && all[2] == "Take your time: anything else?" && all[3] == "Steered into the draft", "the steered message is the author's, in the turn it went into: " + joined(all));
+			auto reply = std::string{ };
+			for (const auto& conversation : window->local_draft()->projection().Draft->Preparation.Conversations) {
+				if (!conversation.Turns.empty() && !conversation.Turns.back().Author) {
+					reply = conversation.Turns.back().Text;
+				}
+			}
+			expect(reply.find("Took your correction") != std::string::npos, "the agent read it in the running turn: " + reply);
+			expect(!window->local_draft()->projection().Asking, "nothing went after it as a question of its own");
 			std::cout << "tour-chat-queue-local-draft:pass\n";
 		} else {
 			throw std::runtime_error{ "unknown mode " + mode };

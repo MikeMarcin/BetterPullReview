@@ -344,6 +344,26 @@ namespace bpr::app {
 
 	auto local_draft_desktop::asking() const -> bool { return Host && Host->projection().Asking; }
 
+	auto local_draft_desktop::asking_question() const -> std::optional<std::pair<core::tour_thread, std::uint64_t>>
+	{
+		if (!Host || !tour_shown()) {
+			return std::nullopt;
+		}
+		const auto& projection = Host->projection();
+		if (!projection.Asking || projection.AskingRun == 0U || projection.Checking != application::local_check_mode::none) {
+			return std::nullopt;
+		}
+		return std::pair{ core::local_tour_thread(projection.AskingThread), projection.AskingRun };
+	}
+
+	auto local_draft_desktop::answered_steers() const -> std::pair<std::uint64_t, std::vector<application::local_draft_steered>>
+	{
+		if (!Host) {
+			return { };
+		}
+		return { Host->projection().AnsweredRun, Host->projection().AnsweredSteers };
+	}
+
 	auto local_draft_desktop::agent_ready() const -> bool { return AgentChooser && AgentChooser().has_value(); }
 
 	// --- RFC-BPR-0120: a check ------------------------------------------------------

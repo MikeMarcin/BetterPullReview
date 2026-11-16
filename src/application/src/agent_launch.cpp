@@ -4457,7 +4457,10 @@ namespace bpr::application {
 		// [[BPR-2153]]. A correction that could not be reconciled may still
 		// start a native turn: the process is retired, never reused.
 		const auto reconciled = std::ranges::none_of(Steers, [](const agent_steer_record& aSteer) { return aSteer.Disposition == core::agent_steer_disposition::unknown; });
-		return turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
+		// [[BPR-2154]]. A tool-free turn (a local draft's discussion) is kept
+		// only while it runs, so it can be steered: its next turn resumes in a
+		// process of its own (`prepare_native_agent_turn` connects none).
+		return !WritingOnly && turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
 	}
 
 	auto agent_protocol_decoder::native_handle() const noexcept -> const std::string&
