@@ -3810,7 +3810,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# list shows a correction the agent took as Sent to agent. No review
 	# mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "fadd9097632f2f511f3e43177df95111687bfe7939452964edf386ada4042896"
+        "71e1e543b8343b41f289f8b668f220a7a6028233161c66ca811da653823106b2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
