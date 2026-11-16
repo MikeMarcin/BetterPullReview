@@ -6,8 +6,9 @@ status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
+parked_on: "human-review"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"regression found closing BPR-2180, 2026-11-15","governing_rfc":"RFC-BPR-0101","related_cards":["BPR-2051","BPR-2180"],"regressed_by":"f51063b5b","reservation":"docs/issues/_reservations/BPR-2190--BPR-2190--1e723b85df6d.json","parked_on":"human-review","lane":"claude/v0-5-0-prerelease-targets-52265d","commits":["0e5f2e1e1","984dd4696"]}
+metadata: {"origin":"regression found closing BPR-2180, 2026-11-15","governing_rfc":"RFC-BPR-0101","related_cards":["BPR-2051","BPR-2180"],"regressed_by":"f51063b5b","reservation":"docs/issues/_reservations/BPR-2190--BPR-2190--1e723b85df6d.json","lane":"claude/v0-5-0-prerelease-targets-52265d","commits":["0e5f2e1e1","984dd4696"]}
 ---
 
 # BPR-2190: The comparison keeps its height floor under the agent footer
