@@ -28,7 +28,7 @@ is **0.4.2**. Downloads and corresponding source are publicly available.
 
 | Platform | Installer |
 |---|---|
-| macOS 14.4+ · Universal | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-macos-universal.dmg) |
+| macOS 14.4+ · Apple Silicon and Intel | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-macos-universal.dmg) |
 | Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-windows-x64.msi) |
 | Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-linux-ubuntu-26.04-x64.deb) |
 
