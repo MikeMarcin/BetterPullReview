@@ -77,3 +77,39 @@ stays In Progress for the tour chats and the local draft discussion.
   79132, Tailscale child 79214). Root `/Users/jaeger/queue-sent-v001.o2z5din9`
   from `cf2c6d800`, `returning-review-v1` with `--next-push`, Fixture agent.
   One question, `BPR-2154-sent-to-agent`.
+- `queue-sent-v001` handed back 2026-11-16: `BPR-2154-sent-to-agent`
+  **Accepted** by the owner, no note (decision
+  `e795a561-da44-4b43-81b8-7de3434ac29e`, session sequence 6). Host
+  (79132/79214) stopped; root `/Users/jaeger/queue-sent-v001.o2z5din9`
+  removed with `freeze_attended_build.py remove`. Two roots from failed
+  freezes, `/Users/jaeger/queue-sent-v001.3k92km1p` and
+  `/Users/jaeger/queue-sent-v001.yi4i4_2v`, hold only an export (and a
+  failed build) and are refused by `remove`; left for the coordinator.
+
+## Owner decision (2026-11-16, through the coordinator)
+
+The tour side chat, the whole-tour conversation and the local draft
+discussion queues stay on this card; no new card. Next: a queue per tour part
+and one for the local draft discussion, their turn runner, Steer wiring and
+pending list, reusing [[BPR-2181]]'s runtimes; frontend-design for the Qt
+surfaces; then one look (Fixture agent, fresh session, one Accept/Reject per
+surface), then BPR-2155.
+
+### Plan for that slice (not started)
+
+1. Core: `queued_session_kind::tour_part` keyed by pull request plus tour
+   thread (kind and stop), and `local_draft_discussion` keyed by the local
+   draft's identity; `session_key`/`parse_session_key` round-trip them;
+   `core::decide_follow_up` already serves every composer.
+2. Host: the window offers an `agent_session_runtime` for its tour sessions to
+   `agent_session_runner` (Runs, State, Start through `request_tour_ask`,
+   Steer through the tour run's invocation host, Bound); the local draft
+   workbench offers one for its discussion. The queue host itself is
+   unchanged (claims, receipts and settlement from BPR-2152 apply as is).
+3. Qt: `tour_side_chat` keeps Send enabled while its thread's turn runs,
+   labelled Queue, with Cmd+Return for the other; the pending list widget of
+   `agent_tab_view` is factored out and reused by the tour chat and the local
+   draft discussion.
+4. Courses: one public path per surface (tour stop chat, whole-tour
+   conversation after the first draft, local draft discussion) for AC01;
+   AC08 states reuse the Agent tab's; then the look.
