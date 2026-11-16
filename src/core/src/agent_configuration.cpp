@@ -277,6 +277,17 @@ namespace bpr::core {
 		return "unusable_item";
 	}
 
+	auto stable_name(const import_standing aStanding) noexcept -> std::string_view
+	{
+		switch (aStanding) {
+		case import_standing::added:     return "added";
+		case import_standing::updated:   return "updated";
+		case import_standing::unchanged: return "unchanged";
+		case import_standing::refused:   return "refused";
+		}
+		return "refused";
+	}
+
 	auto portable_ids(const std::span<const std::string> aNames) -> std::vector<std::string>
 	{
 		auto ids  = std::vector<std::string>{ };
@@ -696,5 +707,73 @@ namespace bpr::core {
 			++result.PromptsApplied;
 		}
 		return result;
+	}
+
+	auto plan_configuration_import(const decoded_configuration& aFile, const std::span<const agent_entry> aAgents, const std::span<const local_prompt> aPrompts,
+								   const std::span<const local_workflow> aWorkflows) -> configuration_import_plan
+	{
+		auto plan = configuration_import_plan{ };
+		for (std::size_t index = 0U; index < aFile.Agents.size(); ++index) {
+			const auto& item  = aFile.Agents[index];
+			auto&       agent = plan.Agents.emplace_back();
+			if (item.Problem) {
+				continue;
+			}
+			for (const auto& entry : aAgents) {
+				if (compatible_agent(entry, item.Agent)) {
+					agent.StandIns.push_back(entry.Id);
+				}
+			}
+			const auto named = std::ranges::find(aAgents, item.Agent.Name, &agent_entry::Name);
+			if (named == aAgents.end()) {
+				// A popular agent is run as found; any other needs its program.
+				agent.Standing     = import_standing::added;
+				agent.NeedsProgram = !item.Agent.Preset || *item.Agent.Preset == setup_agent::plain_text_harness || item.Agent.Protocol == agent_protocol::external_terminal;
+				agent.Default      = { .Item = index, .Action = agent_import_action::add };
+				continue;
+			}
+			agent.Meets = named->Id;
+			// Unchanged: replacing it, with its own relaxed checks and builds,
+			// would change nothing.
+			const auto same  = agent_import_choice{ .Item = index, .Action = agent_import_action::replace, .Target = named->Id, .AcceptRelaxedChecks = !named->StrictRunChecks, .AcceptBuilds = named->BuildsAndTests };
+			const auto after = imported_entry(item.Agent, same, &*named);
+			if (compatible_agent(*named, item.Agent) && agent_differences(*named, after).empty()) {
+				agent.Standing = import_standing::unchanged;
+				agent.Default  = { .Item = index, .Action = agent_import_action::leave };
+			} else {
+				// An entry of the same name but another kind cannot take the
+				// file's settings: it starts left out and Update is not offered.
+				agent.Standing = import_standing::updated;
+				agent.Default  = compatible_agent(*named, item.Agent) ? agent_import_choice{ .Item = index, .Action = agent_import_action::replace, .Target = named->Id }
+																	  : agent_import_choice{ .Item = index, .Action = agent_import_action::leave };
+			}
+		}
+		for (const auto& item : aFile.Prompts) {
+			auto& prompt = plan.Prompts.emplace_back();
+			if (item.Problem || !item.Local || *item.Local >= aPrompts.size()) {
+				continue;
+			}
+			const auto& local = aPrompts[*item.Local];
+			const auto& mine  = local.Override.empty() ? local.BuiltIn : local.Override;
+			prompt.Standing   = item.Prompt.Text == mine ? import_standing::unchanged : import_standing::updated;
+			prompt.Default    = prompt.Standing == import_standing::updated;
+		}
+		for (const auto& item : aFile.Workflows) {
+			auto& workflow = plan.Workflows.emplace_back();
+			if (item.Problem) {
+				continue;
+			}
+			const auto local = std::ranges::find_if(aWorkflows, [&item](const local_workflow& aLocal) { return aLocal.Workflow.PortableId == item.Workflow.PortableId; });
+			if (local == aWorkflows.end()) {
+				workflow.Standing = import_standing::added;
+				workflow.Default  = workflow_import_action::add;
+				continue;
+			}
+			workflow.Local       = static_cast<std::size_t>(local - aWorkflows.begin());
+			workflow.Differences = workflow_differences(local->Workflow, item.Workflow);
+			workflow.Standing    = workflow.Differences.empty() ? import_standing::unchanged : import_standing::updated;
+			workflow.Default     = workflow.Differences.empty() ? workflow_import_action::leave : workflow_import_action::replace;
+		}
+		return plan;
 	}
 } // namespace bpr::core

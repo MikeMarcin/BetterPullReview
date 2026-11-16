@@ -334,6 +334,76 @@ namespace bpr::core {
 	[[nodiscard]] auto apply_agent_configuration(std::span<const agent_entry> aAgents, std::span<const local_prompt> aLocal, const decoded_configuration& aFile,
 												 std::span<const agent_import_choice> aAgentChoices, std::span<const std::size_t> aPrompts)
 		-> std::expected<agent_configuration_result, configuration_apply_error>;
+
+	/// \brief [[BPR-2032]] (design workflow-import-v1, B, the owner's choice
+	/// of 2026-11-15). What one item of the file is on this computer.
+	enum class import_standing : std::uint8_t {
+		/// Nothing here has it: an agent of no name here, a workflow of no ID here.
+		added,
+		/// Something here has it and the file's differs.
+		updated,
+		/// Something here already is what the file says; there is nothing to choose.
+		unchanged,
+		/// This version cannot import it; the rest of the file still can.
+		refused,
+	};
+	[[nodiscard]] auto stable_name(import_standing aStanding) noexcept -> std::string_view;
+
+	/// \brief One agent of the file: what it is here and its starting choice.
+	struct agent_import_plan
+	{
+		import_standing Standing = import_standing::refused;
+		/// The starting choice: everything the file can bring starts chosen,
+		/// added when new and replacing yours when updated. Relaxed run checks
+		/// and builds start unaccepted (RFC-BPR-0107, RFC-BPR-0112 AC09).
+		agent_import_choice Default;
+		/// The entry of the same name here, which an update replaces when it
+		/// is of the same kind (`compatible_agent`); one of another kind
+		/// starts left out.
+		std::optional<std::uint32_t> Meets;
+		/// The entries that may stand for it as they are (Use …), in profile order.
+		std::vector<std::uint32_t> StandIns;
+		/// Added, it needs a program chosen on this computer before it applies:
+		/// no program path travels in the file.
+		bool NeedsProgram = false;
+
+		auto operator<=>(const agent_import_plan&) const = default;
+	};
+	/// \brief One prompt of the file. Updated starts chosen; unchanged and
+	/// refused have no choice.
+	struct prompt_import_plan
+	{
+		import_standing Standing = import_standing::refused;
+		bool            Default  = false;
+
+		auto operator<=>(const prompt_import_plan&) const = default;
+	};
+	/// \brief One workflow of the file. An update is compared before Import:
+	/// `Differences` are what it changes, in `workflow_differences` order.
+	struct workflow_import_plan
+	{
+		import_standing                  Standing = import_standing::refused;
+		workflow_import_action           Default  = workflow_import_action::leave;
+		std::optional<std::size_t>       Local;
+		std::vector<workflow_difference> Differences;
+
+		auto operator<=>(const workflow_import_plan&) const = default;
+	};
+	struct configuration_import_plan
+	{
+		std::vector<agent_import_plan>    Agents;
+		std::vector<prompt_import_plan>   Prompts;
+		std::vector<workflow_import_plan> Workflows;
+
+		auto operator<=>(const configuration_import_plan&) const = default;
+	};
+	/// \brief Each item's standing and starting choice, against the profile's
+	/// agents, recognized prompts and workflows. An agent is updated or
+	/// unchanged only against an entry of its own name; unchanged when
+	/// replacing that entry, its relaxed checks and builds as the entry has
+	/// them, would change no field.
+	[[nodiscard]] auto plan_configuration_import(const decoded_configuration& aFile, std::span<const agent_entry> aAgents, std::span<const local_prompt> aPrompts,
+												 std::span<const local_workflow> aWorkflows) -> configuration_import_plan;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONFIGURATION_HPP

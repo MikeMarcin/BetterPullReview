@@ -17,9 +17,13 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QStyleHints>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
 
@@ -148,6 +152,51 @@ namespace {
 		return dialog.bytes();
 	}
 
+	/// A label's words without the break opportunities a path is given.
+	[[nodiscard]] auto plain(const QLabel* aLabel) -> QString { return aLabel->text().remove(QChar{ 0x200B }); }
+
+	/// The list row of an item, by the name it starts with.
+	[[nodiscard]] auto row_named(qt::agent_configuration_import_dialog& aDialog, const QString& aName) -> QListWidgetItem*
+	{
+		for (int row = 0; row < aDialog.items()->count(); ++row) {
+			if (aDialog.items()->item(row)->text().startsWith(aName + QStringLiteral("   "))) {
+				return aDialog.items()->item(row);
+			}
+		}
+		return nullptr;
+	}
+
+	/// The shown item's choice part with these words.
+	[[nodiscard]] auto part(qt::agent_configuration_import_dialog& aDialog, const QString& aText) -> QToolButton*
+	{
+		for (auto* const button : aDialog.choice_buttons()) {
+			if (button->text() == aText) {
+				return button;
+			}
+		}
+		return nullptr;
+	}
+
+	/// Nothing in the detail pane pans sideways at the dialog's narrowest.
+	void expect_no_sideways_pan(qt::agent_configuration_import_dialog& aDialog, const std::string_view aWhat)
+	{
+		aDialog.show();
+		aDialog.resize(aDialog.minimumSizeHint().width(), 680);
+		settle();
+		auto* const scroll = aDialog.findChild<QScrollArea*>();
+		const auto  fits   = scroll != nullptr && scroll->horizontalScrollBar()->maximum() == 0 && scroll->widget()->width() <= scroll->viewport()->width()
+			&& scroll->widget()->minimumSizeHint().width() <= scroll->viewport()->width();
+		if (!fits && scroll != nullptr) {
+			std::cerr << "content " << scroll->widget()->minimumSizeHint().width() << " viewport " << scroll->viewport()->width() << '\n';
+		}
+		expect(fits, aWhat);
+		aDialog.resize(980, 680);
+		settle();
+	}
+
+	/// [[BPR-2032]] (design workflow-import-v1, B, the owner's choice). The
+	/// Prompt library's shape: a ticked list and the selected item in full;
+	/// everything the file can bring starts chosen; each choice is one click.
 	void test_import(const std::string& aBytes, const std::string& aRoot)
 	{
 		// The recipient has its own Work Claude and an edited Problem statement.
@@ -161,51 +210,84 @@ namespace {
 		auto decoded            = core::decode_agent_configuration(aBytes, preview.Prompts, application::prompt_aliases());
 		expect(decoded.has_value(), "the export reads back");
 		preview.File = std::move(*decoded);
-		auto dialog  = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { } } };
+		auto dialog  = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { }, .Profile = "Work" } };
 		dialog.set_program_chooser([](const QString& aHint) { return aHint == QStringLiteral("lint-bot") ? QStringLiteral("/usr/local/bin/lint-bot") : QString{ }; });
-		// Defaults: the colliding Work Claude and the edited prompt are kept;
-		// the new Lint bot waits for its program.
-		expect(dialog.agent_choices().empty(), "nothing applies before a binding: Work Claude left, Lint bot unbound");
-		expect(dialog.summary()->text().contains(QStringLiteral("1 agent waits for a program")), "the waiting agent is said");
-		auto prompts = dialog.prompt_choices();
-		expect(std::ranges::find_if(prompts, [&](const std::size_t aIndex) { return preview.File.Prompts[aIndex].Prompt.Purpose == "tour.problem"; }) == prompts.end(), "an edited prompt here is kept by default");
-		// Lint bot: choose its program.
-		dialog.select_agent(1U);
-		expect(!dialog.program_button()->isHidden() && dialog.program_line()->text().contains(QStringLiteral("lint-bot")), "the program to choose is named by its file name");
-		dialog.program_button()->click();
-		expect(dialog.program_line()->text().contains(QStringLiteral("/usr/local/bin/lint-bot")), "bound");
+		auto* const intro = dialog.findChild<QLabel*>(QStringLiteral("agentConfigurationIntro"));
+		expect(intro != nullptr && intro->text().contains(QStringLiteral("into the profile “Work”")), "the preview says which profile it lands in");
+		// Defaults: Work Claude's update starts chosen, the new Lint bot waits
+		// for its program, the edited prompt's update starts chosen.
+		expect(dialog.apply_button()->isEnabled() && dialog.apply_button()->text() == QStringLiteral("Import"), "Import is enabled as the window opens");
+		auto* const workRow = row_named(dialog, QStringLiteral("Work Claude"));
+		auto* const lintRow = row_named(dialog, QStringLiteral("Lint bot"));
+		expect(workRow != nullptr && workRow->text().contains(QStringLiteral("Updated")) && workRow->checkState() == Qt::Checked && workRow->text().contains(QStringLiteral("Updates yours")),
+			   "an update is ticked, with its tag and one line of what happens");
+		expect(lintRow != nullptr && lintRow->text().contains(QStringLiteral("New")) && lintRow->checkState() == Qt::Checked && lintRow->text().contains(QStringLiteral("once you choose its program")),
+			   "a new agent is ticked and says it waits for its program");
 		auto choices = dialog.agent_choices();
-		expect(choices.size() == 1U && choices[0].Item == 1U && choices[0].Program == "/usr/local/bin/lint-bot", "a bound agent is applied");
-		// Work Claude: Replace shows the differences and the consequence.
-		dialog.select_agent(0U);
-		expect(dialog.action()->currentText() == QStringLiteral("Leave out"), "a colliding agent starts left out");
-		expect(dialog.relaxed_checks()->isHidden(), "no relaxation offered while left out");
-		dialog.action()->setFocus();
-		dialog.action()->setCurrentIndex(0);
-		expect(dialog.action()->currentText() == QStringLiteral("Replace “Work Claude”"), "Replace the one it meets");
-		expect(dialog.changes()->text().contains(QStringLiteral("Model: agent's default → opus")), "every changed field is shown");
-		expect(dialog.changes()->text().contains(QStringLiteral("can be continued")), "keeping its program, its conversations continue");
-		expect(!dialog.relaxed_checks()->isHidden() && !dialog.relaxed_checks()->isChecked() && !dialog.builds()->isHidden() && !dialog.builds()->isChecked(),
-			   "relaxed checks and builds are offered, unticked");
-		dialog.relaxed_checks()->click();
-		expect(dialog.changes()->text().contains(QStringLiteral("no longer be continued")), "relaxing checks changes what it runs: the consequence is stated first");
-		choices = dialog.agent_choices();
-		expect(choices.size() == 2U && choices[0].AcceptRelaxedChecks && !choices[0].AcceptBuilds, "accepted for this entry only");
-		render(dialog, aRoot, QStringLiteral("import-agent"));
-		// The edited prompt: compare and choose.
+		expect(choices.size() == 1U && choices[0].Item == 0U && choices[0].Action == core::agent_import_action::replace && choices[0].Target == 3U, "the update applies; the unbound agent waits");
+		expect(!choices[0].AcceptRelaxedChecks && !choices[0].AcceptBuilds, "relaxed checks and builds start unaccepted");
+		expect(dialog.summary()->text().contains(QStringLiteral("1 agent waits for its program")), "the waiting agent is said");
 		auto problem = std::size_t{ 0U };
 		for (std::size_t index = 0U; index < preview.File.Prompts.size(); ++index) {
 			if (preview.File.Prompts[index].Prompt.Purpose == "tour.problem") {
 				problem = index;
 			}
 		}
+		expect(std::ranges::contains(dialog.prompt_choices(), problem), "an edited prompt's update starts chosen");
+		// Lint bot: choose its program.
+		dialog.select_agent(1U);
+		expect(dialog.program_button() != nullptr && plain(dialog.program_line()).contains(QStringLiteral("lint-bot")), "the program to choose is named by its file name");
+		dialog.program_button()->click();
+		settle();
+		expect(plain(dialog.program_line()).contains(QStringLiteral("/usr/local/bin/lint-bot")), "bound");
+		choices = dialog.agent_choices();
+		expect(choices.size() == 2U && choices[1].Item == 1U && choices[1].Program == "/usr/local/bin/lint-bot", "a bound agent is applied");
+		// Work Claude: Update / Use Work Claude / Leave out, one click each.
+		dialog.select_agent(0U);
+		expect(dialog.choice_buttons().size() == 3 && part(dialog, QStringLiteral("Update")) != nullptr && part(dialog, QStringLiteral("Update"))->isChecked()
+				   && part(dialog, QStringLiteral("Use Work Claude")) != nullptr && part(dialog, QStringLiteral("Leave out")) != nullptr,
+			   "an agent you have: Update, Use one of yours, Leave out, the update chosen");
+		expect(dialog.settings_table() != nullptr && dialog.settings_table()->findChildren<QLabel*>().size() > 3, "an update shows yours beside the file's");
+		auto fields = QString{ };
+		for (auto* const label : dialog.settings_table()->findChildren<QLabel*>()) {
+			fields += label->text() + QLatin1Char('|');
+		}
+		expect(fields.contains(QStringLiteral("Model")) && fields.contains(QStringLiteral("opus")), "every changed field is shown");
+		expect(dialog.outcome()->text().contains(QStringLiteral("can be continued")), "keeping its program, its conversations continue");
+		expect(dialog.relaxed_checks() != nullptr && !dialog.relaxed_checks()->isChecked() && dialog.builds() != nullptr && !dialog.builds()->isChecked(), "relaxed checks and builds are offered, unticked");
+		expect(dialog.builds()->text() == QStringLiteral("Let Work Claude build and run tests"), "the permission is said in plain words");
+		dialog.relaxed_checks()->click();
+		settle();
+		expect(dialog.outcome()->text().contains(QStringLiteral("no longer be continued")), "relaxing checks changes what it runs: the consequence is stated");
+		expect(dialog.agent_choices()[0].AcceptRelaxedChecks && !dialog.agent_choices()[0].AcceptBuilds, "accepted for this entry only");
+		render(dialog, aRoot, QStringLiteral("import-agent"));
+		expect_no_sideways_pan(dialog, "an agent's detail fits the pane");
+		// One click: Leave out, then the tick brings the update back.
+		part(dialog, QStringLiteral("Leave out"))->click();
+		settle();
+		expect(workRow->checkState() == Qt::Unchecked && workRow->text().contains(QStringLiteral("Left out")) && dialog.agent_choices().size() == 1U, "Leave out is one click, and unticks");
+		workRow->setCheckState(Qt::Checked);
+		settle();
+		expect(dialog.agent_choices().size() == 2U && dialog.agent_choices()[0].Action == core::agent_import_action::replace, "the tick brings the update back");
+		part(dialog, QStringLiteral("Use Work Claude"))->click();
+		settle();
+		expect(dialog.agent_choices()[0].Action == core::agent_import_action::use_existing && dialog.outcome()->text().contains(QStringLiteral("stands for it")), "Use one of yours is one click");
+		// The edited prompt: compare and choose.
 		dialog.select_prompt(problem);
-		expect(!dialog.use_prompt()->isChecked() && dialog.prompt_note()->text().contains(QStringLiteral("written against review-preparation-v1")), "the version it was written against is named");
-		expect(dialog.prompt_note()->text().contains(QStringLiteral("/team-style")), "a skill it names that is not here is a visible prerequisite");
-		press_space(dialog.use_prompt());
-		expect(std::ranges::contains(dialog.prompt_choices(), problem), "chosen by keyboard");
+		expect(part(dialog, QStringLiteral("Update")) != nullptr && part(dialog, QStringLiteral("Update"))->isChecked(), "a prompt: Update or Leave out, the update chosen");
+		expect(dialog.outcome()->text().contains(QStringLiteral("written against review-preparation-v1")), "the version it was written against is named");
+		expect(dialog.outcome()->text().contains(QStringLiteral("/team-style")), "a skill it names that is not here is a visible prerequisite");
+		expect(dialog.yours()->toPlainText() == QStringLiteral("My own problem prompt.") && dialog.theirs()->toPlainText().contains(QStringLiteral("two sentences")), "yours beside the file's");
+		press_space(part(dialog, QStringLiteral("Leave out")));
+		settle();
+		expect(!std::ranges::contains(dialog.prompt_choices(), problem), "left out by keyboard");
 		render(dialog, aRoot, QStringLiteral("import-prompt"));
-		expect(dialog.apply_button()->isEnabled(), "Import selected is offered");
+		// A prompt the same as yours has nothing to choose.
+		const auto same = std::ranges::find_if(dialog.plan().Prompts, [](const core::prompt_import_plan& aPlan) { return aPlan.Standing == core::import_standing::unchanged; });
+		expect(same != dialog.plan().Prompts.end(), "the shipped prompts are unchanged");
+		dialog.select_prompt(static_cast<std::size_t>(same - dialog.plan().Prompts.begin()));
+		expect(dialog.choice_buttons().isEmpty(), "Unchanged has no choice");
+		expect(dialog.apply_button()->isEnabled(), "Import is offered");
 	}
 	/// [[BPR-2032]], RFC-BPR-0112. A workflow exported with the agent it
 	/// asks, previewed with its origin, actions and declared effects, its
@@ -244,21 +326,29 @@ namespace {
 		auto preview  = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
 		preview.File  = core::decode_agent_configuration(bytes, preview.Prompts, application::prompt_aliases()).value();
 		auto importer = qt::agent_configuration_import_dialog{ preview, { .Skills = { }, .Found = { } } };
-		importer.set_program_chooser([](const QString& aHint) { return aHint == QStringLiteral("org-companion") ? QStringLiteral("/usr/local/bin/org-companion") : QString{ }; });
+		auto asked    = 0;
+		importer.set_program_chooser([&asked](const QString& aHint) {
+			++asked;
+			return aHint == QStringLiteral("org-companion") ? QStringLiteral("/usr/local/bin/org-companion") : QString{ };
+		});
 		importer.select_workflow(0U);
-		expect(importer.workflow_action()->currentText() == QStringLiteral("Add"), "a new workflow starts added");
-		const auto* actions = importer.workflow_actions();
-		expect(actions->topLevelItemCount() == 2 && actions->topLevelItem(1)->text(0).contains(QStringLiteral("(required)"))
-				   && actions->topLevelItem(1)->text(2) == QStringLiteral("runs checks in your workspace"),
-			   "each action, who acts and what it says it does");
-		importer.workflow_actions()->setCurrentItem(importer.workflow_actions()->topLevelItem(1));
-		importer.workflow_program_button()->click();
+		expect(part(importer, QStringLiteral("Add")) != nullptr && part(importer, QStringLiteral("Add"))->isChecked() && importer.choice_buttons().size() == 2, "a new workflow: Add or Leave out, added");
+		auto* const template_ = importer.workflow_comparison()->findChild<QLabel*>(QStringLiteral("agentConfigurationAction-template"));
+		auto* const describe  = importer.workflow_comparison()->findChild<QLabel*>(QStringLiteral("agentConfigurationAction-describe"));
+		expect(template_ != nullptr && template_->text().contains(QStringLiteral("Required")) && plain(template_).contains(QStringLiteral("You run")) && template_->text().contains(QStringLiteral("runs checks in your workspace")),
+			   "each action, who runs it and with what, and what it says it does");
+		expect(describe != nullptr && describe->text().contains(QStringLiteral("Work Claude")) && describe->text().contains(QStringLiteral("read-only")), "an agent action names its agent");
+		expect(importer.workflow_program_buttons().size() == 1, "one program to choose, named by the file and carrying no path");
+		importer.workflow_program_buttons().front()->click();
+		settle();
 		const auto choices = importer.workflow_choices();
-		expect(choices.size() == 1U && choices[0].Programs.size() == 1U && choices[0].Programs[0].Program == "/usr/local/bin/org-companion", "the program is bound on this computer");
-		expect(importer.summary()->text().contains(QStringLiteral("runs nothing until you start its actions")), "importing runs nothing, and says so");
+		expect(asked == 1 && choices.size() == 1U && choices[0].Programs.size() == 1U && choices[0].Programs[0].Program == "/usr/local/bin/org-companion", "the program is bound on this computer");
+		expect(importer.summary()->text().contains(QStringLiteral("Nothing runs until you start an action in a draft")), "importing runs nothing, and says so");
 		render(importer, aRoot, QStringLiteral("import-workflow"));
+		expect_no_sideways_pan(importer, "a workflow's detail fits the pane");
 
-		// The same workflow again, with a widened action: compared, and left until chosen.
+		// The same workflow again, with a widened action: compared, and chosen
+		// (the owner's accepted change, workflow-import-v001).
 		mine.Workflows      = { workflow };
 		auto updatedPreview = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
 		auto widened        = preview.File;
@@ -266,8 +356,30 @@ namespace {
 		updatedPreview.File = widened;
 		auto updater        = qt::agent_configuration_import_dialog{ updatedPreview, { .Skills = { }, .Found = { } } };
 		updater.select_workflow(0U);
-		expect(updater.workflow_action()->currentText() == QStringLiteral("Leave out") && updater.workflow_choices().empty(), "an update is taken only when chosen");
-		expect(updater.workflow_changes()->text().contains(QStringLiteral("The action template now says it does more.")), "a widened effect is named");
+		expect(part(updater, QStringLiteral("Update")) != nullptr && part(updater, QStringLiteral("Update"))->isChecked() && updater.workflow_choices().size() == 1U
+				   && updater.workflow_choices()[0].Action == core::workflow_import_action::replace,
+			   "an update starts chosen");
+		auto* const widenedCell = updater.workflow_comparison()->findChild<QLabel*>(QStringLiteral("agentConfigurationAction-template"));
+		expect(widenedCell != nullptr && widenedCell->text().contains(QStringLiteral("Does more")) && widenedCell->text().contains(QStringLiteral("changes a ticket")), "a widened effect is marked before Import");
+		expect(updater.workflow_comparison()->findChildren<QLabel*>().size() >= 6, "yours beside the file's, row against row");
+		render(updater, aRoot, QStringLiteral("import-workflow-update"));
+		part(updater, QStringLiteral("Leave out"))->click();
+		settle();
+		expect(updater.workflow_choices().empty() && row_named(updater, QStringLiteral("Synthetic Org pull request"))->checkState() == Qt::Unchecked, "Leave out is one click, and unticks");
+
+		// An unknown action is named and its workflow refused; the rest still imports.
+		auto unknown                     = preview.File;
+		unknown.Workflows[0].Problem     = core::workflow_problem::unsupported;
+		unknown.Workflows[0].Unsupported = "deploy_preview";
+		auto refusedPreview              = preview;
+		refusedPreview.File              = unknown;
+		auto        refuser              = qt::agent_configuration_import_dialog{ refusedPreview, { .Skills = { }, .Found = { } } };
+		auto* const refusedRow           = row_named(refuser, QStringLiteral("Synthetic Org pull request"));
+		expect(refusedRow != nullptr && refusedRow->text().contains(QStringLiteral("Cannot be imported")) && refusedRow->text().contains(QStringLiteral("deploy_preview"))
+				   && !refusedRow->flags().testFlag(Qt::ItemIsUserCheckable),
+			   "an unknown action is named and its workflow cannot be ticked");
+		refuser.select_workflow(0U);
+		expect(refuser.choice_buttons().isEmpty() && refuser.workflow_choices().empty(), "it is refused");
 	}
 } // namespace
 

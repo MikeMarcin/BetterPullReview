@@ -293,6 +293,56 @@ namespace {
 		static_cast<void>(reset);
 	}
 
+	/// [[BPR-2032]] (design workflow-import-v1, B). The core decides what
+	/// each item is here and its starting choice: everything the file can
+	/// bring starts chosen, an update included; builds start unaccepted.
+	void test_import_plan()
+	{
+		const auto local     = prompts();
+		auto       same      = custom(2U, "Work Claude");
+		auto       changed   = custom(3U, "Lint");
+		auto       fresh     = custom(4U, "Brand new");
+		fresh.BuildsAndTests = true;
+		auto theirs          = changed;
+		theirs.Model         = "sonnet";
+		auto improved        = local;
+		improved[0].Override = "Write the problem in two sentences.";
+		auto file            = core::agent_configuration{ .Label = "Team" };
+		file.Agents          = { core::portable_agent_of(same, "work-claude"), core::portable_agent_of(theirs, "lint"), core::portable_agent_of(fresh, "brand-new") };
+		file.Prompts         = { core::portable_prompt_of(improved[0], false), core::portable_prompt_of(local[1], false) };
+		auto workflow        = core::workflow_configuration{ .PortableId = "org", .Name = "Org", .Origin = "Org", .Guidance = "Why.", .Actions = { { .Id = "check", .Slot = core::workflow_slot::check_preparation, .Task = "Check", .Binding = core::workflow_binding::command, .ProgramName = "org", .Arguments = { "{request}", "{response}" }, .Effects = { core::workflow_effect::run_check } } } };
+		auto newer           = workflow;
+		newer.Actions[0].Effects.push_back(core::workflow_effect::change_ticket);
+		auto other         = workflow;
+		other.PortableId   = "other";
+		file.Workflows     = { newer, other };
+		const auto decoded = core::decode_agent_configuration(core::encode_agent_configuration(file).value(), local, Aliases);
+		expect(decoded.has_value(), "the planned file reads back");
+		const auto mineWorkflows = std::array{ core::local_workflow{ .Workflow = workflow } };
+		const auto plan          = core::plan_configuration_import(*decoded, std::array{ same, changed }, local, mineWorkflows);
+		expect(plan.Agents.size() == 3U && plan.Prompts.size() == 2U && plan.Workflows.size() == 2U, "one plan per item");
+		expect(plan.Agents[0].Standing == core::import_standing::unchanged && plan.Agents[0].Default.Action == core::agent_import_action::leave, "an agent already here as the file says is unchanged");
+		expect(plan.Agents[1].Standing == core::import_standing::updated && plan.Agents[1].Default.Action == core::agent_import_action::replace && plan.Agents[1].Default.Target == 3U,
+			   "an update starts chosen, replacing the agent of its name");
+		expect(plan.Agents[2].Standing == core::import_standing::added && plan.Agents[2].Default.Action == core::agent_import_action::add && plan.Agents[2].NeedsProgram,
+			   "a new custom agent starts added and waits for its program");
+		expect(!plan.Agents[2].Default.AcceptBuilds && !plan.Agents[2].Default.AcceptRelaxedChecks, "build and run tests starts unaccepted");
+		expect(plan.Agents[2].StandIns == std::vector<std::uint32_t>{ 2U, 3U }, "agents of its kind may stand for it");
+		expect(plan.Prompts[0].Standing == core::import_standing::updated && plan.Prompts[0].Default, "a different prompt starts chosen");
+		expect(plan.Prompts[1].Standing == core::import_standing::unchanged && !plan.Prompts[1].Default, "the same prompt has nothing to choose");
+		expect(plan.Workflows[0].Standing == core::import_standing::updated && plan.Workflows[0].Default == core::workflow_import_action::replace && plan.Workflows[0].Local == 0U,
+			   "a workflow update starts chosen");
+		expect(std::ranges::contains(plan.Workflows[0].Differences, core::workflow_difference{ .Change = core::workflow_change::effects_widened, .Action = "check" }), "its widened effect is marked");
+		expect(plan.Workflows[1].Standing == core::import_standing::added && plan.Workflows[1].Default == core::workflow_import_action::add, "a new workflow starts added");
+		const auto again = core::plan_configuration_import(*decoded, std::array{ same, changed }, local, std::array{ core::local_workflow{ .Workflow = newer } });
+		expect(again.Workflows[0].Standing == core::import_standing::unchanged && again.Workflows[0].Default == core::workflow_import_action::leave, "the same revision is unchanged");
+		// An agent of the same name but another kind cannot be updated.
+		auto harness     = same;
+		harness.Protocol = core::agent_protocol::external_terminal;
+		const auto clash = core::plan_configuration_import(*decoded, std::array{ harness }, local, { });
+		expect(clash.Agents[0].Standing == core::import_standing::updated && clash.Agents[0].Default.Action == core::agent_import_action::leave, "another kind of the same name starts left out");
+	}
+
 	void test_portable_ids()
 	{
 		const auto names = std::vector<std::string>{ "Work Claude", "work  claude!", "", "Ünïcode" };
@@ -311,6 +361,7 @@ auto main() -> int
 	test_final_profile_limits();
 	test_prompts_apply();
 	test_portable_ids();
+	test_import_plan();
 	test_mcp_and_instructions_ride_the_agent();
 	std::cout << "agent-configuration-tests:pass\n";
 	return EXIT_SUCCESS;
