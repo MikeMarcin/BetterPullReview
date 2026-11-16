@@ -70,3 +70,60 @@ the fixture remotes and the system Git.
   already reports correctly. A deterministic course reproduces the condition.
 - AC03: `application_pending_states_public_path` passes `ctest --repeat
   until-fail:10` while other builds load the machine.
+
+## Investigation, 2026-11-16 (lane `claude/v0-5-0-prerelease-targets-52265d`)
+
+AC01's log keeping is done (`ade6b9a55`). When the course fails it copies the
+host's diagnostic log from its data root to `BPR_COURSE_LOG_ROOT`, which its
+CTest entry sets to `build/dev/tests/end_to_end/course-logs`, and prints
+`COURSE_LOGS_KEPT:<folder>`.
+
+**Reproduced once.** In `ctest --repeat until-fail:10`, run 3 of 10 failed
+while other agents' builds and 5 concurrent copies loaded the machine (load
+about 68): "comparison after 90 s: waiting 'review.cpp' held 'review.cpp'
+context 0 result 0 look 3", then "FAILED: the clicked file arrives". The kept
+log (`session-*.jsonl`, 307 records) shows the course's repeated reads, about
+every 17 s. Each read prepares a revision, and each preparation is cancelled
+while running:
+
+| t (s) | record |
+|---|---|
+| 28.5, 45.3 | `revision_prepare` started; `catalog_prepare` runs beside it; `revision_prepare` failed, domain cache, `cancelled`. The abort succeeds and the epoch reports cancelled |
+| 62.1 | the same, then 0.2 s later `revision_prepare` failed, domain epoch, **`repair_required`** |
+| 78.8 | the same again, cancelled, then `repair_required` |
+| 95.5 | the next read: **`catalog_recovery` failed `repair_required`**, and the clicked file never arrives |
+
+**The stage.** `start_revision_preparation`'s `cancelPrepared`
+(`epoch_host_dispatch_and_imports.cpp`) calls `abort_preparation`
+(`epoch_host_requests_and_recovery.cpp`). That returned false, so the
+cancelled preparation became `repair_required`. Its operation record is then
+left in the repair phase, and the next read's catalog recovery stops on it.
+The binding check the card names (`snapshot->Binding != binding()`) is not
+the one that fired: `catalog_prepare` succeeded in each preparation.
+
+**Not yet known: which step of `abort_preparation` fails.** It returns false
+for any of these: the record already past the point of no cancellation; the
+`abort_requested` append; the cache open; the recovery request; the cache's
+`abort_recovered_operation` (tried twice); the `aborted` append. A temporary
+probe on each of these branches, which was not committed, never fired:
+
+| Run | Load | Result |
+|---|---|---|
+| 5 copies x 3 rounds, beside the ctest run | 30 to 68 | 15/15 pass |
+| 6 copies x 3 rounds, probes in | 6 to 21 | 18/18 pass, no abort failure |
+| 6 copies x 2 rounds, 40 CPU burners | about 100 | 12/12 pass, no abort failure |
+
+CPU load alone does not reproduce it. The one failure ran beside compiles, so
+disk and SQLite contention are the likely difference. In each failing
+preparation a `catalog_prepare` ran on the same catalog just before the
+cancel. The leading suspect is therefore one of the two catalog appends in
+`abort_preparation` (`abort_requested` or `aborted`), refused as `busy` or as
+a revision or phase conflict because another write landed in between.
+
+**Next.** Make `abort_preparation` say which step refused, through the
+host's diagnostics (a new `diagnostic_epoch_stage` for the abort, with the
+catalog or cache failure). Then run the course under compile-like I/O load
+and read the kept log. If the refusal is a transient `busy` or conflict, the
+abort should retry or re-read the record rather than mark a cancelled
+preparation for repair. AC02 needs a deterministic host course: a catalog
+port that refuses the `abort_requested` append once.
