@@ -254,6 +254,24 @@ namespace {
 		return primary;
 	}
 
+	/// The checkout as the push command names it: a POSIX shell word, quoted
+	/// unless every byte is one a shell leaves alone. A Windows path's
+	/// backslashes are quoted ([[BPR-2215]]).
+	[[nodiscard]] auto shell_word(const std::string_view aText) -> std::string
+	{
+		const auto plain = !aText.empty() && std::ranges::all_of(aText, [](const char aByte) {
+			return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || std::string_view{ "/._-+:@," }.find(aByte) != std::string_view::npos;
+		});
+		if (plain) {
+			return std::string{ aText };
+		}
+		auto quoted = std::string{ "'" };
+		for (const auto byte : aText) {
+			quoted += byte == '\'' ? std::string{ "'\\''" } : std::string(1U, byte);
+		}
+		return quoted + "'";
+	}
+
 	template <typename T>
 	auto ok(T aResult, const std::string_view aMessage)
 	{
@@ -277,7 +295,7 @@ namespace {
 			std::cout << "LOCAL_PUBLICATION_PUSH " << missing.Push->Command << '\n';
 		}
 		expect(missing.Branch == core::hosted_branch_state::missing && missing.Refusal == core::local_publication_refusal::branch_missing && missing.Push
-				   && missing.Push->Command.starts_with("git -C " + primary.string() + " push https://github.com/acme/engine.git " + aFixture.rev(primary, "HEAD") + ":refs/heads/feature/search"),
+				   && missing.Push->Command.starts_with("git -C " + shell_word(primary.string()) + " push https://github.com/acme/engine.git " + aFixture.rev(primary, "HEAD") + ":refs/heads/feature/search"),
 			   "AC01: an unpushed branch names the exact push to the hosted repository");
 		expect(aFixture.GitHub->Creates == 0 && state_of(aFixture, primary) == before, "AC01: nothing pushed, nothing created, the checkout unchanged");
 

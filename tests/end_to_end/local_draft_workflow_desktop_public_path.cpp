@@ -1,3 +1,4 @@
+#include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
@@ -283,7 +284,7 @@ try {
 	window->resize(1280, 900);
 	window->show();
 	auto cycles  = std::make_unique<app::review_cycle_desktop>(*window, profileRoot.path(), core::bpr_profile_id{ 1 }, lanes, lanes, app::review_cycle_syntax{ }, &lanes);
-	auto drafts  = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, std::nullopt, lanes, lanes, app::local_draft_syntax{ }, &lanes);
+	auto drafts  = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, bpr::tests::git_contract::windows_system_root(), lanes, lanes, app::local_draft_syntax{ }, &lanes);
 	auto github  = std::make_shared<scripted_github>();
 	auto copied  = std::string{ };
 	auto chooser = worktree;

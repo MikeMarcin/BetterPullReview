@@ -1,3 +1,4 @@
+#include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/fixture_shell.hpp"
 #include "../support/test_expectation.hpp"
@@ -138,7 +139,7 @@ namespace {
 			Window->resize(1280, 800);
 			Window->show();
 			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
-			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, app::local_draft_syntax{ .Definitions = &Definitions, .Effects = &Lanes }, &Lanes);
+			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, bpr::tests::git_contract::windows_system_root(), Lanes, Lanes, app::local_draft_syntax{ .Definitions = &Definitions, .Effects = &Lanes }, &Lanes);
 			// The platform's scheme, as the application observes it, on the window and the panes.
 			const auto scheme     = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? core::os_color_scheme::dark : core::os_color_scheme::light;
 			auto       appearance = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = scheme } };

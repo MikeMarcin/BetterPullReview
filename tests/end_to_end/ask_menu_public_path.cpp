@@ -517,7 +517,8 @@ auto main(int argc, char** argv) -> int
 			// message is kept, goes next, and the panel says why (Q17).
 			// [[BPR-2152]]: said once its claim is stored.
 			if (!e2e::wait_until_plain([&] { return window.agent_panel()->status_text().contains(QStringLiteral("goes next")); }, e2e::extended_agent_budget)) {
-				throw std::runtime_error{ "the panel says what became of the steered message: [" + window.agent_panel()->status_text().toStdString() + "] queued: "
+				throw std::runtime_error{ "the panel says what became of the steered message: [" + window.agent_panel()->status_text().toStdString() + "] last refusal: ["
+										  + window.agent_panel()->last_refusal().toStdString() + "] queued: "
 										  + rowsOf().join(QLatin1Char('|')).toStdString() };
 			}
 			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("goes next")),
