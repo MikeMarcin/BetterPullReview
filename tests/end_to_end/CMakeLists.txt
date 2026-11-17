@@ -5307,6 +5307,10 @@ set_tests_properties(application_home_next_move_public_path PROPERTIES
 # for new commits keeps its verdict chip and offers no Seen or Approve again
 # ([[BPR-2217]]); with --approve-again the review's Approve reads Approve again.
 bpr_add_executable(test_home_oversized_public_path home_oversized_public_path_tests.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_home_oversized_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(test_home_oversized_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_home_oversized_public_path PRIVATE BPR_BUILD_TESTING=1)
 target_compile_features(test_home_oversized_public_path PRIVATE cxx_std_23)

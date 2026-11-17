@@ -2079,6 +2079,9 @@ namespace bpr::qt {
 		present_preflight(Shown);
 		present_verdicts();
 		present_followup();
+		if (PresentationObserver) {
+			PresentationObserver();
+		}
 	}
 
 	auto review_submission_editor::followup() const noexcept -> const core::review_followup_words&

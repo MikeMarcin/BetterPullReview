@@ -232,6 +232,7 @@ try {
 			expect(seen->geometry().top() == approve->geometry().top() && seen->geometry().left() > approve->geometry().right()
 					   && seen->geometry().left() - approve->geometry().right() < 24,
 				   "Seen sits beside Approve");
+			wait_for([&] { return approve->isEnabled(); }, "the review's comments are read", 20'000);
 			expect(editor->followup_label()->text().contains(QStringLiteral("still stands")), "the review says my approval stands: " + editor->followup_label()->text().toStdString());
 			if (renderAt >= 0) {
 				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-seen.png"));
