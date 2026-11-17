@@ -1749,7 +1749,7 @@ namespace bpr::qt {
 		// [[BPR-1365]]. The queue row of the open pull request says so, by the
 		// same exact identity Follow names.
 		if (QueueLanding != nullptr) {
-			QueueLanding->set_reviewing(reviewing_queue_ref());
+			QueueLanding->set_reviewing(open_queue_ref());
 		}
 		// [[BPR-2217]]. The review says where my approval stands, in the
 		// core's words, and offers Seen beside Approve when the core does.
