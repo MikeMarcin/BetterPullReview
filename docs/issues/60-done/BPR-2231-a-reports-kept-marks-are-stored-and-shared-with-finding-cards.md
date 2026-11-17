@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2231"
 title: "A report's Drafted and Kept marks are stored and shared with the Agent tab's finding cards"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2231--BPR-2235--072fd709068e.json","origin":"BPR-2219's known gaps, 2026-11-16"}
+acceptance: [{"criterion": "AC-a", "outcome": "pass", "revision": "b18374f7f", "evidence": {"kind": "command", "detail": "core_agent_report (one memory adopted after a restart) and application_review_report_public_path (composed, fixture agent: after a restart on the same profile both cards read Drafted and every finding and the summary still read Drafted or Kept)"}}, {"criterion": "AC-b", "outcome": "pass", "revision": "b18374f7f", "evidence": {"kind": "command", "detail": "application_review_report_public_path: Draft comment from the report makes the card read Drafted; the card's own Draft makes the report's finding read Drafted and not draftable twice; qt_agent_report_view; owner Accept report-marks-shared (session 0be6df2e1b895302d0be6058915b8289, decision b64c4fd5)"}}, {"criterion": "AC-c", "outcome": "pass", "revision": "b18374f7f", "evidence": {"kind": "command", "detail": "core agent_report_keep (report_finding::Card, report_finding_key_of, report_keep_record, report_finding_standing_of) over the one agent_finding_card_memory the host stores; the report view keeps only what is under way; architecture_boundaries and architecture_boundary_contract pass"}}]
 ---
 
 # A report's Drafted and Kept marks are stored and shared with the Agent tab's finding cards
@@ -84,6 +85,25 @@ tailnet. Two Accept/Reject questions on the frozen build `report-keeps-v001`
 agent only, fixture `returning-review-v1`): `report-draft-all` ([[BPR-2232]])
 and `report-marks-shared` ([[BPR-2231]]). Its images are the composed
 course's renders of the same commit; the restart is the course's, since each
-launch of the frozen build starts a fresh profile. Lifecycle: pending. On the
+launch of the frozen build starts a fresh profile. Lifecycle: handed back. On the
 verdicts: stop the host by its pid, remove the root with
 `scripts/freeze_attended_build.py remove`.
+
+### Verdict, look report-keeps-v001 (handed back 2026-11-16), and close
+
+- **Accept** `report-marks-shared` (decision `b64c4fd5`), verbatim: "Minor
+  nit: it would be nice if it remembered you were on the agents tab when
+  swapping between overview and review (eg by opening the report on
+  review)." The owner clarified: "Specifically I mean when you go to review
+  still have the agent tab open." Fixed at `b18374f7f`: if Overview's Agent
+  tab is open when the reviewer moves to Review (including by opening a
+  report), Review's drawer opens on the Agent tab. This holds within one
+  pull request; a different pull request still opens fresh ([[BPR-2185]]).
+  `qt_workbench_window_scale_100` checks it.
+  `application_ask_*` and `application_returning_review_addressed_public_path`,
+  which opened the Agent tab on Overview and then used Comments in Review,
+  now choose Comments. The ask-report course's "as tall as its content"
+  check measured the hidden body. It passed only while the page was laid out
+  at a narrow column. It now measures the reader that is shown.
+
+Closed 2026-11-16. The look's host is stopped and its frozen root removed.
