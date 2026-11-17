@@ -17,7 +17,10 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 if sys.version_info < (3, 10):
     sys.exit(f"Python 3.10 or newer is required; found {sys.version.split()[0]} at {sys.executable}")
@@ -55,7 +58,7 @@ def main() -> int:
     if not options.claude:
         print("CANARY_SKIPPED: no claude program", file=sys.stderr)
         return 2
-    with tempfile.TemporaryDirectory(prefix="bpr-resume-canary-") as folder:
+    with contained_temporary_directory(prefix="bpr-resume-canary-") as folder:
         first_arguments, first_input = launch(options.launch_printer, "Remember the word KUMQUAT. Reply with: ok", None)
         if "--no-session-persistence" in first_arguments or "--resume" in first_arguments or "--disable-slash-commands" not in first_arguments:
             print("CANARY_FAILED: the first turn is not a tool-free launch that keeps its session", file=sys.stderr)

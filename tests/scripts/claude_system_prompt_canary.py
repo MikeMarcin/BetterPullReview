@@ -17,7 +17,10 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 if sys.version_info < (3, 10):
     sys.exit(f"Python 3.10 or newer is required; found {sys.version.split()[0]} at {sys.executable}")
@@ -47,7 +50,7 @@ def main() -> int:
         print("CANARY_FAILED: the rule is in the message, so the canary proves nothing", file=sys.stderr)
         return 1
     arguments += ["--model", options.model]
-    with tempfile.TemporaryDirectory(prefix="bpr-canary-") as folder:
+    with contained_temporary_directory(prefix="bpr-canary-") as folder:
         run = subprocess.run([options.claude, *arguments], input=framed, cwd=folder, capture_output=True, timeout=180)
     result = None
     for line in run.stdout.decode(errors="replace").splitlines():
