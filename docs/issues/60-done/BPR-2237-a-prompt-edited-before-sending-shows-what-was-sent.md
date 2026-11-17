@@ -39,3 +39,13 @@ never hidden behind a name.
 | AC-b | `qt_prompt_macro_chips`: the same prompt Shift-clicked and sent unchanged shows its name alone with Show prompt | Pass |
 
 Shown to the owner in the batched look.
+
+## Owner look (filed, not waited on)
+
+Attended-review session `6e525e076ba6400a9dbc677a2c9bbd88`, state directory
+`~/.attended-review-state/review-followups-v001-2026-11-16/` (URL in its
+`serve.log` only, host pid in `serve.pid`), served on the tailnet. Question
+`edited-prompt-shows-text` (Accept or Reject) on the frozen build `review-followups-v001` (root
+`~/review-followups-v001.pn_cb0u7`, from `0feba206bd70`, Fixture agent
+only, the freeze's launcher check passed). Lifecycle: pending. A Reject
+reopens the work as a new card.

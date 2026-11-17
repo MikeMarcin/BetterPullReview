@@ -43,3 +43,13 @@ layout gave its place.
 
 Shown to the owner in the batched look of BPR-2232, BPR-2231, BPR-2235,
 BPR-2237 and this card.
+
+## Owner look (filed, not waited on)
+
+Attended-review session `6e525e076ba6400a9dbc677a2c9bbd88`, state directory
+`~/.attended-review-state/review-followups-v001-2026-11-16/` (URL in its
+`serve.log` only, host pid in `serve.pid`), served on the tailnet. Question
+`suggestion-in-card` (Accept or Reject) on the frozen build `review-followups-v001` (root
+`~/review-followups-v001.pn_cb0u7`, from `0feba206bd70`, Fixture agent
+only, the freeze's launcher check passed). Lifecycle: pending. A Reject
+reopens the work as a new card.
