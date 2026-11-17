@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2231",
+    "BPR-2232",
+    "BPR-2233",
+    "BPR-2234",
+    "BPR-2235"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2219 follow-ups: report keep marks, Draft all in the report, Go to draft race, Not reviewed voice, tour chat prompt titles",
+  "created": "2026-11-17T03:53:22.336929+00:00",
+  "base": "7a3b6540cb7611d53a9c1ebb7aa6c676c6f5cb81"
+}
