@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2240"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "stale loading and canary expectations after BPR-2216 and BPR-2219",
+  "created": "2026-11-17T05:22:42.499307+00:00",
+  "base": "d3ec02f94b08c6b4011c6c7a798aa432a1edfbcb"
+}
