@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2232"
 title: "Draft all from the report"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2231--BPR-2235--072fd709068e.json","origin":"BPR-2219's known gaps, 2026-11-16"}
+acceptance: [{"criterion": "AC-a", "outcome": "pass", "revision": "b18374f7f", "evidence": {"kind": "command", "detail": "core_agent_report (report_draft_all_candidates, plan_draft_all in the report's order), qt_agent_report_view, application_review_report_public_path (composed, fixture agent: Draft all from the report drafts the two findings not yet drafted through the Agent tab's Draft all path); owner Accept report-draft-all (session 0be6df2e1b895302d0be6058915b8289, decision 1a82eeb3)"}}, {"criterion": "AC-b", "outcome": "pass", "revision": "b18374f7f", "evidence": {"kind": "command", "detail": "qt_agent_report_view and application_review_report_public_path: 'Drafted 2 private drafts. Skipped 2: 2 already drafted.'; a refusal said at its finding; owner Accept report-draft-all (decision 1a82eeb3)"}}, {"criterion": "AC-c", "outcome": "pass", "revision": "b18374f7f", "evidence": {"kind": "command", "detail": "application_review_report_public_path: review mutation evidence unchanged after Draft all (no submission, stored comment or post)"}}]
 ---
 
 # Draft all from the report
@@ -57,6 +58,20 @@ tailnet. Two Accept/Reject questions on the frozen build `report-keeps-v001`
 agent only, fixture `returning-review-v1`): `report-draft-all` ([[BPR-2232]])
 and `report-marks-shared` ([[BPR-2231]]). Its images are the composed
 course's renders of the same commit; the restart is the course's, since each
-launch of the frozen build starts a fresh profile. Lifecycle: pending. On the
+launch of the frozen build starts a fresh profile. Lifecycle: handed back. On the
 verdicts: stop the host by its pid, remove the root with
 `scripts/freeze_attended_build.py remove`.
+
+### Verdict, look report-keeps-v001 (handed back 2026-11-16), and close
+
+- **Accept** `report-draft-all` (decision `1a82eeb3`), verbatim: "Minor nit
+  th report glyph is unreadable on dark theme, i dont need a rereview for
+  that fix, just fix it." Fixed at `0307df05b`: the report tab's page glyph
+  was drawn once in the tab bar's ink, and on macOS the style gives the tab
+  bar its own palette, which a theme change does not reach. It is now drawn
+  in the strip's ink and redrawn on every palette or theme change. It is the
+  only glyph a document tab has (a file's tab has none).
+  `qt_document_tab_glyph` checks light to dark and back, offscreen and
+  native light and dark.
+
+Closed 2026-11-16. The look's host is stopped and its frozen root removed.
