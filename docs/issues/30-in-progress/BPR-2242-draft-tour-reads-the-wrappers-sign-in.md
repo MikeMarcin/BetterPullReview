@@ -87,6 +87,14 @@ The work that shares one agent host between the tour and the Agent tab
   check) and permission rules, which can widen a read-only run's approvals as
   a wrapper's already can.
 
+## Owner decision, 2026-11-17
+
+"Keep it." Read-only and tool-free Claude runs read the user's settings
+(`--setting-sources user`): the person's own permission rules and their user
+`CLAUDE.md` apply to them. This supersedes BPR-1375's `--setting-sources ""`
+for those runs; `project` and `local` stay unread. BPR-2242:owner-retry stays
+open until the owner retries Draft Tour on a build that holds `73a2a7420`.
+
 ## Acceptance
 
 - **BPR-2242:parity** A Claude stand-in that signs in only when the user's
