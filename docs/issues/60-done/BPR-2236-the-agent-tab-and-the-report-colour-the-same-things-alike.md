@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2236"
 title: "The Agent tab and the report colour the same things alike"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2236--BPR-2238--777d083d72cc.json","origin":"BPR-2219's look review-report-v002, 2026-11-16"}
@@ -108,5 +108,21 @@ start on looks review-report-v002 and v003; not reproduced here).
   not manufacture accepted content"), `qt_agent_launch_canary` ("hostile
   partial reads"), `qt_agent_launch_canary_durable_course`. Not compared with
   the base.
-- Next: read the owner's verdict on `tones-alike`; on Accept, Done; on
-  Reject, the note's change.
+
+## Verdict, look tones-v001 (handed back 2026-11-16)
+
+- **Accept** `tones-alike` (decision `565a9c58`): "If we could pick a red
+  like halfway between those 2 it would be better. I don't need a
+  rereview." Then, through the coordinator: "only dark needs to change."
+- **Done from the note.** Dark Needs work is `#EC7F6E`, halfway in OKLCH
+  (lightness, chroma and hue each averaged) between the Agent tab's old dark
+  Major `#F85149` and the look's `#DCA295`: 7.0:1 on `#0D1117`, hue 30
+  against Minor's 85. Light Needs work stays `#A64538`. `qt_agent_tone_colours`
+  pins both; the older-theme contracts expect the new dark built-in.
+  Passing: `qt_agent_tone_colours`, `qt_appearance_profile`,
+  `core_appearance_contrast`,
+  `application_appearance_theme_customization_contract`,
+  `application_appearance_older_theme_contract`. No new look, as the owner
+  asked.
+- AC-a to AC-c are met by the change above; AC-d by look tones-v001 and its
+  accept. Look tones-v001's host is stopped and its root removed.

@@ -199,9 +199,12 @@ namespace {
 		expect_both_surfaces(*agent, page, changed, "a customised theme");
 	}
 
-	/// The owner, 2026-11-16: "tone major down a tiny bit". The built-in
-	/// Needs work is a step quieter than the Agent tab's old red and the
-	/// report's old slate red, and still plainly apart from Half done.
+	/// The owner, 2026-11-16: "tone major down a tiny bit", then, accepting
+	/// look tones-v001: "a red like halfway between those 2" and "only dark
+	/// needs to change". By day Needs work is the look's quieter red; by night
+	/// it is halfway in OKLCH between the Agent tab's old red and the look's.
+	/// Either is quieter than the tab's old red, plainly apart from Half
+	/// done and readable on its ground.
 	void test_major_is_toned_down()
 	{
 		for (const auto variant : { core::appearance_variant::light, core::appearance_variant::dark }) {
@@ -214,10 +217,10 @@ namespace {
 			const auto open    = of(core::appearance_role::report_verdict_open);
 			const auto partial = of(core::appearance_role::report_verdict_partial);
 			const auto tab     = dark ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
-			const auto slate   = dark ? QColor{ 0xE5, 0xA0, 0x93 } : QColor{ 0xB2, 0x39, 0x2A };
+			const auto chosen  = dark ? QColor{ 0xEC, 0x7F, 0x6E } : QColor{ 0xA6, 0x45, 0x38 };
 			const auto which   = std::string{ dark ? "dark" : "light" };
-			expect(open.hslSaturation() < slate.hslSaturation() && open.hslSaturation() < tab.hslSaturation(), which + ": Needs work is less saturated than either old red");
-			expect(std::abs(open.lightness() - slate.lightness()) <= 8, which + ": at the slate's lightness, a tiny step");
+			expect(open == chosen, which + ": Needs work is the red the owner chose");
+			expect(open.hslSaturation() < tab.hslSaturation(), which + ": quieter than the tab's old red");
 			expect(std::abs(open.hslHue() - partial.hslHue()) >= 25, which + ": still plainly apart from Half done");
 			const auto ground = of(core::appearance_role::code_background);
 			const auto ratio  = qt::contrast_ratio(core::appearance_color{ .Red = static_cast<std::uint8_t>(open.red()), .Green = static_cast<std::uint8_t>(open.green()), .Blue = static_cast<std::uint8_t>(open.blue()), .Alpha = 255U },

@@ -247,8 +247,11 @@ namespace bpr::qt {
 			{ role::find_current_match_background, srgb(0x754D00) },
 			{ role::agent_accent, srgb(0xA3A0FF) },
 			// RFC-BPR-0128, [[BPR-2236]]. The three tones, the slate's by
-			// night; Needs work a step quieter than 0xE5A093, as by day.
-			{ role::report_verdict_open, srgb(0xDCA295) },
+			// night. Needs work is halfway in OKLCH between the Agent tab's
+			// old 0xF85149 and look tones-v001's 0xDCA295 (owner, 2026-11-16,
+			// accepting it: "a red like halfway between those 2", then "only
+			// dark needs to change"); 7.0:1 on the canvas.
+			{ role::report_verdict_open, srgb(0xEC7F6E) },
 			{ role::report_verdict_partial, srgb(0xE4C27A) },
 			{ role::report_verdict_done, srgb(0x8FCAA0) },
 		} });
