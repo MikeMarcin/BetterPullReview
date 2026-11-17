@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Review report: findings you can draft from (BPR-2219)</title>
+<link rel="stylesheet" href="report.css">
+<style>
+html{color-scheme:light dark}
+html[data-theme=light]{color-scheme:light}html[data-theme=dark]{color-scheme:dark}
+body{margin:0;background:light-dark(#dcdfe3,#14181b);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:light-dark(#1c2427,#ebe6da)}
+.top{display:flex;gap:16px;align-items:baseline;padding:14px 24px}
+.top h1{font-size:17px;margin:0;font-weight:600}.top a{color:light-dark(#1b5d8c,#9cc3df);margin-left:6px}.top span{margin-left:auto}
+.frames{display:flex;flex-wrap:wrap;gap:24px;padding:0 24px 40px;align-items:flex-start}
+.frame{width:var(--w,660px)}.frame.wide{--w:790px}
+.frame h2{font-size:14px;font-weight:600;margin:0 0 2px}.frame p.why{margin:0 0 10px;color:light-dark(#46534f,#b9b2a4);max-width:68ch}
+.frame .rpt{border-radius:10px;border:1px solid light-dark(#c3ccca,#333c42)}
+body.single .top,body.single .frame>h2,body.single .frame>p.why{display:none}body.single .frames{padding:16px}
+</style></head><body>
+<div class="top"><h1>Review report: findings you can draft from</h1><span>Theme <a href="?theme=light">Light</a><a href="?theme=dark">Dark</a></span></div>
+<div class="frames" id="frames"></div>
+<script>
+const q=new URLSearchParams(location.search);
+if(q.get('theme'))document.documentElement.dataset.theme=q.get('theme');
+const only=q.get('frame');if(only)document.body.classList.add('single');
+const findings={
+ must:[
+  {t:'reject',lb:'issue (blocking)',ref:'feedsync/client.py:53',h:'Requests no longer time out',
+   p:'<code>get</code> calls <code>request_once(url, headers)</code> with no timeout, and <code>Settings.timeout</code> is gone. A source that accepts the connection and never answers now hangs the whole run; the old loop passed ten seconds.',
+   code:[[52,'        try:'],[53,'            response = request_once(url, headers)']],
+   sug:{del:[[53,'            response = request_once(url, headers)']],add:[[53,'            response = request_once(url, headers, settings.timeout)']]},
+   cmt:'<span class="lb">issue (blocking):</span> Requests no longer time out. <code>get</code> calls <code>request_once</code> with no timeout, so a source that never answers hangs the run.',state:'drafted'},
+  {t:'reject',lb:'issue (blocking)',ref:'feedsync/client.py:50',h:'Sources that differ by query or token share a cache entry',
+   p:'The validators are read and stored by <code>source.url</code>. Two sources on one URL with different <code>params</code>, or one with a token and one without, now send each other’s ETag and get a 304 for a feed they never fetched.',
+   cmt:'<span class="lb">issue (blocking):</span> Sources that differ by query or token share a cache entry. Key the cache by the request URL and whether it carried a token, as before.'},
+  {t:'reject',lb:'issue (blocking)',ref:'feedsync/client.py:63-64',h:'Refused credentials are reported as an ordinary failure',
+   p:'401 and 403 now raise <code>FetchError</code>. Nothing raises <code>AuthError</code> any more, so the scheduler’s branch for it and exit code 3 are dead.',
+   cmt:'<span class="lb">issue (blocking):</span> Refused credentials are reported as an ordinary failure. Raise <code>AuthError</code> for 401 and 403 so <code>run_once</code> still reports them apart.'}],
+ look:[
+  {t:'pending',lb:'suggestion (non-blocking)',ref:'feedsync/client.py:65-66',h:'Retry-After is neither capped nor checked',
+   p:'<code>int(retry_after)</code> raises on an HTTP date, and a server asking for 600 seconds is obeyed. The old loop took digits only and capped at 120.',
+   cmt:'<span class="lb">suggestion (non-blocking):</span> Retry-After is neither capped nor checked. Keep the <code>isdigit()</code> test and the 120 second cap.'},
+  {t:'pending',lb:'question',ref:'tests/test_jsonfeed.py:36-40',h:'Is one request fewer than before intended?',
+   p:'The test now expects two requests for <code>retries=2</code> where it expected three. The README still says a failed request is retried three times.',
+   cmt:'<span class="lb">question:</span> Is one request fewer than before intended? <code>range(settings.retries)</code> makes <code>retries</code> requests in all, not one and then <code>retries</code> more.'}],
+ good:[
+  {t:'accept',lb:'praise',ref:'feedsync/sources/rss.py:10-13',h:'Each source is now only its parser',
+   p:'Three copies of the loop are one, and <code>fetch</code> is four lines a format.',
+   cmt:'<span class="lb">praise:</span> Each source is now only its parser.'}]
+};
+const esc=s=>s;
+const code=f=>f.code?`<div class="r-code">${f.code.map(([n,l])=>`<div><span>${n}</span><span>${l.replace(/</g,'&lt;')}</span></div>`).join('')}</div>`:'';
+const sug=(f,foot)=>f.sug?`<div class="r-sug">${f.sug.del.map(([n,l])=>`<div class="del"><span>${n}</span><span>−</span><span>${l}</span></div>`).join('')}${f.sug.add.map(([n,l])=>`<div class="add"><span>${n}</span><span>+</span><span>${l}</span></div>`).join('')}${foot||''}</div>`:'';
+const head=f=>`<div class="r-ih"><span>${f.lb}</span><a class="ref">${f.ref}</a></div><h3>${f.h}</h3><p>${f.p}</p>`;
+const act=(f)=>f.state==='drafted'
+ ?`<div class="r-act"><span class="ok">Drafted</span><span class="r-btn go">Go to draft</span><span>Nothing is published</span></div>`
+ :`<div class="r-act"><span class="r-btn">Draft comment</span><span>at ${f.ref.split('/').pop()}. Nothing is published</span></div>`;
+const A=f=>`<div class="r-item t-${f.t}">${head(f)}${code(f)}${sug(f)}${act(f)}</div>`;
+const B=f=>`<div class="r-find"><div class="r-item t-${f.t}">${head(f)}${code(f)}${sug(f)}</div><div class="r-rail">${f.state==='drafted'?'<span class="r-btn go">Go to draft</span><span>Drafted. Not published</span>':'<span class="r-btn">Draft comment</span>'}</div></div>`;
+const C=f=>`<div class="r-item t-${f.t}">${head(f)}${code(f)}<div class="r-cmt t-${f.t}"><header><b>Your draft would say</b><span>${f.ref}</span></header><div class="body">${f.cmt}</div>${sug(f).replace('class="r-sug"','class="r-sug" style="margin:0 12px 10px"')}<footer>${f.state==='drafted'?'<span style="color:var(--accept);font-weight:600">Drafted</span><span class="r-btn" style="background:none;color:var(--link)">Go to draft</span>':'<span class="r-btn">Draft comment</span>'}<span>Nothing is published</span></footer></div></div>`;
+const page=(k,item)=>`<article class="rpt ${k}"><span class="r-fab"><svg viewBox="0 0 16 16"><path d="M2.8 4.4h10.4M2.8 8h10.4M2.8 11.6h10.4"/></svg></span><div class="r-col">
+<p class="r-id"><a>Review this pull request</a>Claude Code (Sonnet), 4 min ago, at 2b55a43</p><h1>Review of #185</h1>
+<div class="r-verdict t-reject"><span>Verdict</span><b>Needs changes</b></div>
+<div class="r-sum t-reject"><p>The move to one client is the right shape, but it is not the behaviour-preserving change the description promises. Three things must be fixed before it merges: requests lost their timeout, the cache key lost the query string and the credentials, and refused credentials are no longer told apart. Two smaller things are worth a look.</p></div>
+${k==='b'?'':`<div class="r-act r-sumact"><span class="r-btn">Keep summary</span><span>as a local comment on the pull request</span></div>`}
+<div class="r-tally"><div class="r-meter"><i class="t-reject" style="flex:3"></i><i class="t-pending" style="flex:2"></i><i class="t-accept" style="flex:1"></i></div><p><b class="t-reject">3</b> issues, <b class="t-pending">1</b> suggestion, <b class="t-pending">1</b> question, <b class="t-accept">1</b> praise</p></div>
+${k==='b'?`<div class="r-band"><span>5 findings can be drafted, 1 is drafted. Nothing is published.</span><span class="r-btn">Draft the other 4</span></div>`:''}
+<h2>Must fix<span>3</span></h2>${findings.must.map(item).join('')}
+<h2>Worth a look<span>2</span></h2>${findings.look.map(item).join('')}
+<h2>Good<span>1</span></h2>${findings.good.map(item).join('')}
+<h2>Not reviewed</h2><ul class="r-rows"><li><a class="ref">feedsync/store.py</a><span>Unchanged by this pull request.</span></li><li><a class="ref">feedsync/cli.py</a><span>Read, not run: no feed to poll here.</span></li></ul>
+</div></article>`;
+const frames=[
+ ['a','A. At the foot of each finding','You read a finding, then act on it: Draft comment stands under its reasons, where Add as draft comment stood under a suggestion. Every finding has it, not only one with a suggestion. The column keeps its width.',page('a',A),''],
+ ['b','B. A rail of actions','The actions line up in their own column, so the eye runs down them, and a band over the findings drafts the rest at once. Costs the reading column 146 points and needs a second layout when the pane is narrow.',page('b',B),'wide'],
+ ['c','C. The comment, as it would be drafted','Each finding shows the comment the draft starts from, in the comments’ own box, with Draft comment inside it. Nothing is a surprise, at the price of saying each finding twice.',page('c',C),'']
+];
+document.getElementById('frames').innerHTML=frames.filter(f=>!only||f[0]===only).map(f=>`<section class="frame ${f[4]}"><h2>${f[1]}</h2><p class="why">${f[2]}</p>${f[3]}</section>`).join('');
+</script></body></html>
