@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2248"
 title: "Agent actions on selected commits in the Commits tab"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -94,7 +94,7 @@ Rejected options:
 | `BPR-2248:offered` | `application_commit_asks_public_path` (both rows offered, each run names exactly its commits, Explain answers in the Agent tab, Review is a report with Draft comment); `core_prompt_surfaces` (`test_commits_menu`) | Pass |
 | `BPR-2248:base-merges` | `core_returning_review` (`a_selection_of_commits_is_planned_around_base_merges`); course: the merge is named, its change absent, a merge alone is disabled with a note | Pass |
 | `BPR-2248:shallow` | the release reads through `resolve_returning_change`, whose sparse fetch is BPR-2247's `application_epoch_host` evidence | Pass (reused) |
-| `BPR-2248:look` | attended look with the Fixture agent | Pending |
+| `BPR-2248:look` | attended look with the Fixture agent | Accepted by the owner, 2026-11-17 (session f94fda8e…, commit-asks-v001) |
 
 Also passed: `core_agent_context_supplement`, `core_agent_queue`,
 `core_prompt_macro`, `core_quick_ask`, `application_agent_launch_policy`,
