@@ -233,6 +233,32 @@ FIXTURES = {
         # Its threads carry posts with the commits they were written at.
         "response_fields": {"ListPullRequestCommits": "with-parents", "ListReviewThreads": "synthetic-commits"},
     },
+    # [[BPR-2248]]. commit-filter-v1's chain with a merge of the base branch
+    # and messages with bodies, written by build_commit_filter_fixture.py
+    # --merges.
+    "commit-selection-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "commit-selection", 2248),
+        "mirrors": None,
+        "response_fields": {"ListPullRequestCommits": "with-parents"},
+    },
+    # [[BPR-1996]]. A loader moved behind a new flag, written by
+    # scripts/build_flag_move_fixture.py.
+    "flag-move-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "flag-move", 41),
+        "mirrors": None,
+    },
+    # RFC-BPR-0116. conventional-comments-v1 read by a returning reviewer,
+    # written by scripts/build_returning_review_fixture.py.
+    "returning-review-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        # The reviewer's review, and posts that name the commits they were
+        # written at.
+        "response_fields": {"ListReviews": "synthetic", "ListReviewThreads": "synthetic-commits"},
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {
@@ -1337,8 +1363,9 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                         # and the commit it was written at, by `oid`.
                         else EXPECTED_RESPONSE_FIELDS[operation] | {"commit", "originalCommit", "oid"}
                         if shape == "synthetic-commits"
-                        # RFC-BPR-0089. A commit's parents, each named by `sha`.
-                        else RECORDED_RESPONSE_FIELDS[operation] | {"parents"}
+                        # RFC-BPR-0089. A commit's parents, each named by `sha`;
+                        # [[BPR-2244]] its committer's date, and only the date.
+                        else RECORDED_RESPONSE_FIELDS[operation] | {"parents", "committer", "date"}
                         if shape == "with-parents"
                         else RECORDED_RESPONSE_FIELDS[operation]
                     )

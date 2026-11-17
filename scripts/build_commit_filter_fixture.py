@@ -58,6 +58,12 @@ and C3 follows it:
 B1 is both the base branch's tip and the merge base, so Files changed is
 `B1...C3`, the plain variant's 98 files, and the merge's own change (the
 release notes) is in none of them. The commit list serves four commits.
+
+Every variant's commit list serves GitHub's `commit.committer.date` for each
+commit ([[BPR-2244]]), spread from minutes to weeks before 2026-11-17 so the
+Commits tab's ages read as hours, a day, days and weeks. The dates are
+GitHub's metadata only: the pack's objects keep the fixed fixture dates, so
+every commit ID is unchanged.
 """
 
 from __future__ import annotations
@@ -98,6 +104,14 @@ MERGES_MESSAGES = {
     "C1": "Change the generator input\n\nThe generator reads value 2 now, and the app's fifth line names the change.",
     "C2": "Regenerate\n\nRun the generator over gen/. Nothing here is edited by hand.",
     "C3": "Follow-ups\n\nTidy src/app.cpp after the regeneration.",
+}
+# [[BPR-2244]]. When GitHub says each commit was committed, by stage: weeks,
+# days, a day and hours before 2026-11-17, the day the owner asked for ages.
+COMMITTED = {
+    "C1": "2026-11-03T09:12:00Z",
+    "C2": "2026-11-14T10:05:00Z",
+    "X": "2026-11-16T15:20:00Z",
+    "C3": "2026-11-17T07:42:00Z",
 }
 # RFC-BPR-0089 M4. The file a comment is written on with C3 hidden.
 NOTES_PATH = "src/notes.txt"
@@ -269,6 +283,11 @@ def build(repository: str, variant: str = "plain") -> dict[str, str]:
     return commits
 
 
+def listed(author: dict, stage: str, message: str, parents: list[str], commits: dict[str, str]) -> dict:
+    """One commit as the commit list serves it, with GitHub's committer date."""
+    return {"author": author, "committer": {"date": COMMITTED[stage]}, "message": message, "parents": parents, "sha": commits[stage]}
+
+
 def construction(commits: dict[str, str], name: str = "plain") -> dict:
     variant = VARIANTS[name]
     merges = name == "merges"
@@ -289,16 +308,16 @@ def construction(commits: dict[str, str], name: str = "plain") -> dict:
     author = result["commits"][0]["author"]
     if merges:
         result["commits"] = [
-            {"author": author, "message": MERGES_MESSAGES["C1"], "parents": [commits["M"]], "sha": commits["C1"]},
-            {"author": author, "message": MERGES_MESSAGES["C2"], "parents": [commits["C1"]], "sha": commits["C2"]},
-            {"author": author, "message": MERGE_MESSAGE, "parents": [commits["C2"], commits["B1"]], "sha": commits["X"]},
-            {"author": author, "message": MERGES_MESSAGES["C3"], "parents": [commits["X"]], "sha": commits["C3"]},
+            listed(author, "C1", MERGES_MESSAGES["C1"], [commits["M"]], commits),
+            listed(author, "C2", MERGES_MESSAGES["C2"], [commits["C1"]], commits),
+            listed(author, "X", MERGE_MESSAGE, [commits["C2"], commits["B1"]], commits),
+            listed(author, "C3", MERGES_MESSAGES["C3"], [commits["X"]], commits),
         ]
     else:
         result["commits"] = [
-            {"author": author, "message": MESSAGES["C1"], "parents": [commits["M"]], "sha": commits["C1"]},
-            {"author": author, "message": MESSAGES["C2"], "parents": [commits["C1"]], "sha": commits["C2"]},
-            {"author": author, "message": MESSAGES["C3"], "parents": [commits["C2"]], "sha": commits["C3"]},
+            listed(author, "C1", MESSAGES["C1"], [commits["M"]], commits),
+            listed(author, "C2", MESSAGES["C2"], [commits["C1"]], commits),
+            listed(author, "C3", MESSAGES["C3"], [commits["C2"]], commits),
         ]
     result["packed_history"] = True
     result["serve_parents"] = True

@@ -5,6 +5,9 @@
 			"node_id": "U_fixture-author"
 		},
 		"commit": {
+			"committer": {
+				"date": "2026-11-03T09:12:00Z"
+			},
 			"message": "Change the generator input\n\nThe generator reads value 2 now, and the app's fifth line names the change."
 		},
 		"node_id": "C_60ee4c66",
@@ -21,6 +24,9 @@
 			"node_id": "U_fixture-author"
 		},
 		"commit": {
+			"committer": {
+				"date": "2026-11-14T10:05:00Z"
+			},
 			"message": "Regenerate\n\nRun the generator over gen/. Nothing here is edited by hand."
 		},
 		"node_id": "C_14d19077",
@@ -37,6 +43,9 @@
 			"node_id": "U_fixture-author"
 		},
 		"commit": {
+			"committer": {
+				"date": "2026-11-16T15:20:00Z"
+			},
 			"message": "Merge branch 'main' into commit-selection"
 		},
 		"node_id": "C_5cc62132",
@@ -56,6 +65,9 @@
 			"node_id": "U_fixture-author"
 		},
 		"commit": {
+			"committer": {
+				"date": "2026-11-17T07:42:00Z"
+			},
 			"message": "Follow-ups\n\nTidy src/app.cpp after the regeneration."
 		},
 		"node_id": "C_22222222",

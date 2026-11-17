@@ -209,7 +209,9 @@ def main() -> int:
     def commit_record(commit: dict) -> dict:
         record = {
             "author": {"login": login, "node_id": f"U_{login}"},
-            "commit": {"message": commit["message"]},
+            # [[BPR-2244]]. A construction that dates its commits serves
+            # GitHub's `commit.committer.date`, and only the date.
+            "commit": {"message": commit["message"], **({"committer": {"date": commit["committer"]["date"]}} if "committer" in commit else {})},
             "node_id": f"C_{served(commit)[:8]}",
             "sha": served(commit),
         }
