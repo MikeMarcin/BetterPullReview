@@ -9,6 +9,7 @@
 // conversations ride the one batched query Home already makes (AC05).
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "account_setup_course.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
@@ -129,8 +130,14 @@ try {
 	auto* const window = owner->window(owner->windows().front());
 	window->resize(1280, 1000);
 
+	// RFC-BPR-0032 amendment r1 (f0dfd707c), missed here ([[BPR-2215]]):
+	// signed in from Home's account setup, the reviewer leaves its Ready step
+	// with Start reviewing. Left on it, Home's lists never show.
+	auto ready = e2e::account_setup_driver{ *window, e2e::account_setup_driver::plan{ .Way = core::account_setup_way::browser } };
 	window->home_landing()->primary_button()->click();
-	wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "Home sign-in reaches an account session");
+	wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready && !window->account_setup()->isVisible(); },
+			 "Home sign-in reaches an account session");
+	ready.stop();
 	window->open_repository_addition();
 	wait_for([&] { return window->repository_addition_draft()->isVisible() && window->saved_repository_name()->isEnabled(); }, "Settings opens the new-repository card");
 	window->saved_repository_name()->setText(QStringLiteral("octo-org/review-repository"));
