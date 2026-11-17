@@ -106,6 +106,49 @@ streams, including failures. Its accounting snapshot has no pending phase or
 wait and grants no qualification credit. This is setup/rehearsal evidence,
 separate from the next release's request clock or two-hour target.
 
+## Test network-isolation launcher and AppArmor
+
+Ubuntu 26.04 sets `kernel.apparmor_restrict_unprivileged_userns=1`. Under it
+the tests' Linux network-isolation launcher,
+`build/<preset>/better_pull_review_network_sandbox`, cannot map its identity
+into the user namespace it creates, and every contained test fails with
+`BPR_NETWORK_ISOLATION_UNAVAILABLE:identity-map:Permission denied`. On
+2026-11-17 this stopped both risk preflights at their tooling prerequisites
+before any risk row ran.
+
+The owner chose a narrow profile over turning the restriction off. The
+sysctl stays at `1`; only the launcher in this guest's build trees may create
+user namespaces. Install it once in the guest:
+
+```sh
+sudo install -m 0644 -o root -g root bpr-network-sandbox /etc/apparmor.d/bpr-network-sandbox
+sudo apparmor_parser -r /etc/apparmor.d/bpr-network-sandbox
+```
+
+`/etc/apparmor.d/bpr-network-sandbox`:
+
+```text
+# BetterPullReview test network-isolation launcher (qualification guest only).
+# Grants user namespaces to the build trees' launcher; the global
+# kernel.apparmor_restrict_unprivileged_userns=1 restriction stays on.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bpr-network-sandbox /home/bpr/src/BetterPullReview/build/*/better_pull_review_network_sandbox flags=(unconfined) {
+  userns,
+
+  include if exists <local/bpr-network-sandbox>
+}
+```
+
+The profile persists in `/etc/apparmor.d` and loads at boot. Check it with
+`sudo aa-status | grep bpr-network-sandbox`, then confirm both sides:
+`build/dev/better_pull_review_network_sandbox /bin/true` prints
+`TEST_RUNNER_CHILD_EXIT:0`, while a plain `unshare -Urn true` is still refused
+with `write failed /proc/self/uid_map: Operation not permitted`. The pattern
+covers every tree directly under `build/`; a launcher built elsewhere stays
+refused.
+
 ## Rejected source and continuation
 
 The cheap public-composition tripwire **failed** on the exact clean `47ce7910`
