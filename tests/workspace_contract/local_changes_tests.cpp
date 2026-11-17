@@ -564,7 +564,12 @@ auto main(int argc, char** argv) -> int
 		std::cout << "local-changes:skipped (no Git)\n";
 		return EXIT_SUCCESS;
 	}
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	// [[BPR-2215]]. The course is POSIX-only; on Windows it ran nothing and
+	// printed nothing, so the row failed its pass expression without saying why.
+	static_cast<void>(git);
+	std::cout << "local-changes:skipped (the course runs on POSIX only)\n";
+#else
 	auto scratch = tests::sqlite_contract::scratch_root{ "local-changes" };
 	auto root    = std::filesystem::canonical(scratch.path());
 	auto hosted  = root / "hosted.git";
