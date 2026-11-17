@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2241"
 title: "A restored report's byline says how the turn ended, not \"success\""
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
