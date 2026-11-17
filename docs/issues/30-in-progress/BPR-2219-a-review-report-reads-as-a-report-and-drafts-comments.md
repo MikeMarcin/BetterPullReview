@@ -42,6 +42,19 @@ AC03 recorded as superseded by RFC-BPR-0128).
 - **AC-e.** The Fixture agent answers a review with a realistic structured
   review, and a composed course asserts the report's structure and that
   Draft comment creates the anchored draft.
+- **AC-f.** (Owner decision, 2026-11-16: "How is 1 sentence useful to anyone
+  trying to tweak the review request to their particular circumstances?")
+  The shipped Review this pull request prompt carries its real instructions
+  as its visible, editable body in Settings › Prompts: what to review, the
+  report's sections, focus, the severity scheme, tone. Restore built-ins
+  restores it. The format the app parses (the level-one title, the
+  `**Verdict:**` line, the findings block's shape, the places) stays the
+  app's and is always added, so an edited prompt cannot break Draft comment;
+  it shows read-only under the editor ("Always added: the report format
+  BetterPullReview reads"), so nothing is hidden. The reader tolerates a
+  missing optional section: with the verdict guidance removed the report
+  still shows, without a verdict. The same holds for every other
+  `prompt_ask::review` built-in (Review {file}).
 
 Load `frontend-design:frontend-design` before the design and Qt work and say
 so in the report. The owner's look on a frozen build (Fixture agent only, a
