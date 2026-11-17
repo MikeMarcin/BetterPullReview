@@ -155,6 +155,9 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return window.report_shown() && report->isVisible(); }, "the report opens");
 		QApplication::processEvents();
 		expect(report->dressed_shown() && report->title() == QStringLiteral("Review of #21"), "the report keeps to its template and is drawn as a page");
+		expect(tab->turn_name(before) == QStringLiteral("Review this pull request") && tab->turn_question(before).startsWith(QStringLiteral("Review this pull request as a careful colleague would"))
+				   && report->document().Question == QStringLiteral("Review this pull request"),
+			   "the turn was sent under the prompt's name with its body, and the report says the name, not the body: " + report->document().Question.left(80).toStdString());
 		const auto& dressed = report->dressed();
 		expect(dressed.Verdict == "Needs changes" && dressed.VerdictTone == core::report_tone::open && dressed.Summary.starts_with("The move is clean") && dressed.Summary.find(note) == std::string::npos,
 			   "its verdict stands over its summary: " + dressed.Verdict + " / " + dressed.Summary);

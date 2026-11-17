@@ -9,10 +9,12 @@
 #include "bpr/qt/report_page.hpp"
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -20,6 +22,7 @@
 #include <QTextEdit>
 #include <QUrl>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -81,6 +84,33 @@ try {
 	auto       view    = bpr::qt::agent_report_view{ };
 	view.resize(900, 700);
 	view.show();
+	// [[BPR-2219]]. With BPR_REPORT_RENDER_MARKDOWN and BPR_REPORT_RENDER_OUT
+	// set, this only draws that report (a saved answer) as the page shows it
+	// and saves the whole page: the renders an owner's look carries.
+	if (const auto source = qEnvironmentVariable("BPR_REPORT_RENDER_MARKDOWN"); !source.isEmpty()) {
+		QFile file{ source };
+		expect(file.open(QIODevice::ReadOnly), "the report to draw opens");
+		view.resize(820, 900);
+		const auto markdown = QString::fromUtf8(file.readAll());
+		view.present({ .Turn     = 1U,
+					   .Title    = QString::fromStdString(bpr::core::report_card_of(bpr::core::read_report_answer(markdown.toStdString()).Report).Title),
+					   .Markdown = markdown,
+					   .Question = QStringLiteral("Review this pull request"),
+					   .Byline   = { .Ending = qEnvironmentVariable("BPR_REPORT_RENDER_BYLINE"), .When = { }, .Head = { } } });
+		QElapsedTimer settled;
+		settled.start();
+		while (settled.elapsed() < 1500) {
+			QApplication::processEvents(QEventLoop::AllEvents, 20);
+		}
+		auto* const page = view.findChild<QScrollArea*>();
+		expect(page != nullptr && page->widget() != nullptr, "the page to save");
+		// The page without the room kept under a short report.
+		auto       drawn  = page->widget()->grab();
+		const auto bottom = view.dressed_shown() ? view.dressed_view()->geometry().bottom() + 40 : drawn.height();
+		expect(drawn.copy(0, 0, drawn.width(), std::min(drawn.height(), static_cast<int>(bottom * drawn.devicePixelRatio()))).save(qEnvironmentVariable("BPR_REPORT_RENDER_OUT")), "the render is saved");
+		std::cout << "AGENT_REPORT_VIEW_RENDERED\n";
+		return EXIT_SUCCESS;
+	}
 	auto followed = QStringList{ };
 	view.set_link_dispatch([&followed](const QString& aLink) { followed << aLink; });
 	const auto markdown = QStringLiteral("# Was this addressed?\n\nOne thread. ![diagram](%1) <img src=\"%1\"> [file](%1)\n\n## Partly\n\n### The clamp\n\n`src/engine/renderer.cpp:12`\n\n"

@@ -2960,10 +2960,12 @@ namespace bpr::qt {
 		// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
 		// byline handed over as data.
 		ReportDispatch(agent_report_document{
-			.Turn      = turn.Serial,
-			.Title     = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
-			.Markdown  = shown,
-			.Question  = turn.Question,
+			.Turn     = turn.Serial,
+			.Title    = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
+			.Markdown = shown,
+			// [[BPR-2219]]. A turn sent under a name (a review prompt, whose
+			// question is its whole body) is said by that name.
+			.Question  = turn.Name.isEmpty() ? turn.Question : turn.Name,
 			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
 			.Suggested = std::move(suggested),
 		});
