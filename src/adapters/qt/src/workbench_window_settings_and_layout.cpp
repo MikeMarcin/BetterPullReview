@@ -1688,9 +1688,14 @@ namespace bpr::qt {
 				wording = QStringLiteral("File comparisons unavailable. %1 Refresh to try again.").arg(EpochSelectors->status_text());
 			}
 		}
-		EpochSelectors->set_readiness(busy || !EpochSelectors->comparison_available() ? wording : QString{ }, updates_line_open());
+		// [[BPR-2216]]. While the pull request itself is read, the status bar
+		// alone says what loads (the owner, 2026-11-16): the Updates line has
+		// no comparison to prepare yet and does not repeat it.
+		const auto reading = SessionPanel->status() == core::github_status::loading_pull_request;
+		ReadWording        = reading ? wording : QString{ };
+		EpochSelectors->set_readiness(!reading && (busy || !EpochSelectors->comparison_available()) ? wording : QString{ }, updates_line_open());
 		// [[BPR-1576]]. A wait on the Updates line turns before its words.
-		EpochSelectors->set_readiness_busy(busy, pending_full_motion());
+		EpochSelectors->set_readiness_busy(busy && !reading, pending_full_motion());
 		// The line says what it waits for as the wait changes, not only when a
 		// workbench projection lands.
 		present_status_line();
@@ -1745,7 +1750,7 @@ namespace bpr::qt {
 		// while the strip, the drawer and the conversations all named one told
 		// the owner the product was broken and gave them nothing to do.
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
-			status = EpochSelectors->readiness_text();
+			status = ReadWording;
 			waits  = true;
 		} else if (!home && HasCachedOverview) {
 			status = QStringLiteral("Cached review data; freshness unknown. Current review state is unavailable offline.");

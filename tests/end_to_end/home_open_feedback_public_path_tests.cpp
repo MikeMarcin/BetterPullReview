@@ -385,10 +385,10 @@ try {
 	QApplication::processEvents();
 	std::cerr << "after saving: band=" << !window->home_status_line()->isHidden() << " status=" << window->home_status_text()->text().toStdString()
 			  << " notice=" << window->home_open_notice()->text().toStdString() << " bar=" << window->statusBar()->currentMessage().toStdString() << '\n';
-	// Saving said what it did, in the status bar and so in the band, for as
-	// long as the status bar says it.
-	expect(window->statusBar()->currentMessage().isEmpty() || window->home_status_text()->text() == window->statusBar()->currentMessage(),
-		   "what was just done is said in the band while the status bar says it");
+	// [[BPR-2216]]. Saving said what it did in the status bar only: Home has
+	// one status place.
+	expect(window->home_status_line()->isHidden() && !window->home_status_echoes_bar(),
+		   "what was just done is said by the status bar alone");
 	window->statusBar()->clearMessage();
 	QApplication::processEvents();
 	expect(window->showing_home() && window->home_status_line()->isHidden(), "a quiet Home shows no status band");
@@ -721,26 +721,31 @@ try {
 		expect(window->home_status_line()->isHidden(), "a cancelled opening leaves the band quiet");
 		expect(activity->isHidden(), "and the bar quiet");
 
-		// ---- Home's general status, in the band ----------------------------
+		// ---- Home's general status: the status bar's alone ([[BPR-2216]]) ----
+		// The owner, 2026-11-16: "there are still 2 differnet places status
+		// messages appear. They just toggle back and forth now which is
+		// terrible." What was just done, a hovered action's help and a problem
+		// are the status bar's; the band shows none of them and never hides
+		// the status bar.
 		window->statusBar()->showMessage(QStringLiteral("Added octo-org/review-repository."), 0);
 		QApplication::processEvents();
-		expect(!window->home_status_line()->isHidden() && window->home_status_text()->text() == QStringLiteral("Added octo-org/review-repository.")
-				   && window->home_status_line()->tone() == qt::home_status_tone::notice,
-			   "what was just done is said in the band under the bar");
+		expect(window->home_status_line()->isHidden() && window->statusBar()->currentMessage() == QStringLiteral("Added octo-org/review-repository.")
+				   && !window->home_status_echoes_bar() && window->statusBar()->isVisible(),
+			   "what was just done is said by the status bar, which stays shown");
 		expect(listTop() == bandList && barTop() == quietBar, "a notice moves neither the bar nor the list");
-		expect(window->home_status_echoes_bar(), "the status bar beneath leaves the band's sentence to the band");
 		renders(QStringLiteral("status-notice"));
-		window->set_agent_workspaces_unavailable(true);
+		window->statusBar()->showMessage(window->queue_refresh_action()->statusTip(), 0);
 		QApplication::processEvents();
-		expect(window->home_status_line()->tone() == qt::home_status_tone::problem && window->home_status_text()->text().startsWith(QStringLiteral("Disposable agent workspaces are unavailable")),
-			   "a problem the window has is said in the band, with the failure mark");
-		expect(std::ranges::find(announcements, window->home_status_text()->text()) != announcements.end(), "the band's status is announced politely");
-		expect(!window->home_status_echoes_bar(), "a problem in the band is not the status bar's message");
-		renders(QStringLiteral("status-problem"));
-		window->set_agent_workspaces_unavailable(false);
+		expect(window->home_status_line()->isHidden() && window->statusBar()->isVisible(), "a hovered action's help is the status bar's, not a box on Home");
+		window->set_agent_workspaces_unavailable(true);
 		window->statusBar()->clearMessage();
 		QApplication::processEvents();
-		expect(window->home_status_line()->isHidden(), "a quiet Home hides the band again");
+		expect(window->home_status_line()->isHidden() && window->status_label()->text().contains(QStringLiteral("Disposable agent workspaces are unavailable")),
+			   "a problem the window has is said in the status bar");
+		renders(QStringLiteral("status-problem"));
+		window->set_agent_workspaces_unavailable(false);
+		QApplication::processEvents();
+		expect(window->home_status_line()->isHidden(), "a quiet Home shows no band");
 		renders(QStringLiteral("idle"));
 
 		// ---- Return opens in the same turn, and the pull request opens -----

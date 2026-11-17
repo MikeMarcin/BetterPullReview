@@ -3345,6 +3345,9 @@ namespace bpr::qt {
 			bool Draft = false;
 		};
 		std::optional<loading_identity> LoadingIdentity;
+		/// [[BPR-2216]]. What the status bar says the pull request's read is on;
+		/// the Updates line does not repeat it.
+		QString ReadWording;
 		/// [[BPR-2216]]. The Home row the last open was asked from.
 		std::optional<core::home_open_listed> ListedOpen;
 		/// [[BPR-2216]]. The Active review card stood for an opening, not a review.

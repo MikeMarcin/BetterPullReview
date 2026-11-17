@@ -220,7 +220,10 @@ try {
 	auto* const homeVeil = window->pending_veils().HomeList;
 	wait_for([&] { return homeVeil->look() == core::pending_look::loading || homeVeil->look() == core::pending_look::loading_slow; },
 			 "with nothing listed yet, Home's list says it is finding my pull requests");
-	expect(homeVeil->shown_text().startsWith(QStringLiteral("Finding my pull requests in 1 saved repository")), "in words naming what it searches");
+	// [[BPR-2216]]. In the shape of its rows, with no words: the status bar
+	// says Home is refreshing.
+	expect(homeVeil->shown_text().isEmpty() && (window->refresh_freshness_label()->text().startsWith(QStringLiteral("Updating")) || window->refresh_freshness_label()->text().startsWith(QStringLiteral("Refreshing"))),
+		   "and only the status bar says it is finding them");
 	expect(homeVeil->full_motion() == window->pending_full_motion(), "the list turns only if the system allows motion");
 	renders(QStringLiteral("home-first-find"));
 	const auto first  = QStringLiteral("octo-org/review-repository#17");

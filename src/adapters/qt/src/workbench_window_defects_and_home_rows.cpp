@@ -1367,9 +1367,9 @@ namespace bpr::qt {
 
 	auto workbench_window::home_status_echoes_bar() const -> bool
 	{
-		const auto message = statusBar()->currentMessage();
-		return showing_home() && !message.isEmpty() && HomeStatus != nullptr && HomeStatus->isVisible()
-			&& HomeStatusText != nullptr && HomeStatusText->isVisible() && HomeStatusText->text() == message;
+		// [[BPR-2216]]. The status bar is never hidden for the band: the band
+		// no longer says what the status bar says (update_home_status).
+		return false;
 	}
 
 	auto workbench_window::home_status_line() const noexcept -> qt::home_status_line*
@@ -1666,11 +1666,9 @@ namespace bpr::qt {
 			// the refresh replaces them row by row, so they are never washed
 			// over: the refresh is said on the partial plate at the list's foot,
 			// and every row stays as readable and usable as before it began.
-			PendingPanes.HomeList->present(core::pending_activity::loading, rows, rows,
-										   { .Loading = QStringLiteral("Finding my pull requests in %1…").arg(repositories),
-											 .Waiting = QStringLiteral("Still waiting for GitHub to search %1.").arg(repositories),
-											 .Coming  = QStringLiteral("Refreshing my pull requests in %1…").arg(repositories),
-											 .Done    = QStringLiteral("My pull requests found.") });
+			// [[BPR-2216]]. An empty list waits in the shape of its rows; the
+			// status bar says Home is refreshing (the owner, 2026-11-16).
+			PendingPanes.HomeList->present(core::pending_activity::loading, false, false, { .Done = QStringLiteral("My pull requests found.") });
 		} else if (HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::stale && !rows) {
 			PendingPanes.HomeList->present(core::pending_activity::failed, false, false,
 										   { .Failure = QStringLiteral("Couldn't find my pull requests. %1").arg(home_discovery_sentence(discovery)) });

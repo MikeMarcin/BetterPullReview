@@ -22329,20 +22329,20 @@ namespace {
 			window.resize(window.minimumWidth(), 820);
 			fold_updates_line(window);
 			process_events();
+			// [[BPR-2216]]. The status bar alone says what the read is on.
 			expect(window.findChild<QWidget*>(QStringLiteral("reviewReadiness")) == nullptr
-					   && epochs->comparing_button()->text().contains(QStringLiteral("Loading"))
-					   && epochs->comparing_button()->toolTip().contains(epochs->readiness_text())
+					   && epochs->readiness_text().isEmpty() && !epochs->comparing_button()->text().contains(QStringLiteral("Loading"))
+					   && window.status_label()->text().startsWith(QStringLiteral("Loading"))
 					   && panesTop() == barBottom(),
-				   "loading in every folded modality uses the review summary and adds no row");
+				   "loading in every folded modality leaves the read to the status bar and adds no row");
 			save_render(window, QStringLiteral("readiness-folded-floor-%1").arg(static_cast<int>(modality)));
 			open_updates_line(window);
 			process_events();
 			auto* const readiness = window.findChild<QLabel*>(QStringLiteral("epochReadiness"));
-			expect(spans() && readiness != nullptr && readiness->isVisible() && !epochs->line()->isVisible()
-					   && readiness->text() == epochs->readiness_text()
-					   && readiness->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+			expect(spans() && readiness != nullptr && !readiness->isVisible()
+					   && window.status_label()->text().startsWith(QStringLiteral("Loading"))
 					   && epochs->height() == qt::epoch_line::height_pixels,
-				   "loading occupies the existing 34-pixel track with copyable complete words");
+				   "open, the line keeps its 34-pixel track and leaves the read to the status bar");
 			save_render(window, QStringLiteral("readiness-open-%1").arg(static_cast<int>(modality)));
 			auto* const oldRow = new QWidget{ epochs->parentWidget() };
 			oldRow->setObjectName(QStringLiteral("reviewReadiness"));

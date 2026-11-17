@@ -17,9 +17,11 @@
 #include "../support/test_expectation.hpp"
 #include "account_setup_course.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
@@ -379,6 +381,16 @@ try {
 	}
 	render(QStringLiteral("page-filling-in"));
 	expect_said_once(*window, "Overview while loading");
+	{
+		// The Updates line has no comparison to prepare yet: it does not say
+		// the read again; the status bar does.
+		auto* const epochs = window->epoch_selectors();
+		std::cerr << "updates: readiness=" << epochs->readiness_text().toStdString() << " button=" << epochs->comparing_button()->text().toStdString()
+				  << " status=" << window->status_label()->text().toStdString() << '\n';
+		expect(epochs->readiness_text().isEmpty() && !epochs->comparing_button()->text().contains(QStringLiteral("Loading"))
+				   && window->status_label()->text().startsWith(QStringLiteral("Loading")),
+			   "the Updates line leaves the read to the status bar");
+	}
 	// The rest of the read is held long enough to go to Home and back.
 	delay->Milliseconds     = first_hold_ms;
 	delay->PageMilliseconds = 5U * first_hold_ms;
@@ -447,6 +459,15 @@ try {
 		}
 		render(QStringLiteral("home-finding"));
 		expect_said_once(*window, "Home while finding");
+		// The owner, 2026-11-16: "there are still 2 differnet places status
+		// messages appear. They just toggle back and forth now which is
+		// terrible." A hovered action's help is the status bar's too.
+		window->statusBar()->showMessage(window->queue_refresh_action()->statusTip(), 0);
+		turn();
+		expect(window->home_status_line()->isHidden() && window->statusBar()->isVisible() && !window->home_status_echoes_bar(),
+			   "Home has one status place, the status bar, which never gives way to a box");
+		render(QStringLiteral("home-hover-help"));
+		window->statusBar()->clearMessage();
 		const auto status = shown_sentences(*window, true);
 		expect(std::ranges::any_of(status, [](const QString& aLine) { return aLine.startsWith(QStringLiteral("Refreshing")) || aLine.startsWith(QStringLiteral("Updating")); }),
 			   "the status bar says Home is refreshing");
