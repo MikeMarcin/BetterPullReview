@@ -68,9 +68,29 @@ stop short of it, and a part that no longer fits ends in an ellipsis.
   `github_contract_fixture_security` fails on lane HEAD without this change:
   its expected tree omits the tracked `flag-move-v1` and
   `returning-review-v1` fixtures.
-- `BPR-2244:look`: pending. No committed fixture's commits carry a committer
-  date yet, so a frozen build would show no ages. The look first needs
-  `scripts/build_commit_filter_fixture.py` to give commit-filter-v1's
-  commits dates and `github_contract_fixture_security`'s `with-parents`
-  response fields to admit `commit.committer.date`. Then freeze on that
-  fixture and ask Accept or Reject on the row.
+- `BPR-2244:look`: pending, at the owner. Prepared 2026-11-17:
+  - `1619c2c51`: `scripts/build_commit_filter_fixture.py` dates every
+    variant's commits in the served commit list (`commit.committer.date`,
+    from 2026-11-03 to 2026-11-17 07:42Z, so the rows read weeks, days, a
+    day and hours); the packs and commit IDs are unchanged.
+    `build_recorded_pull_request_contract.py` serves the date when a
+    construction gives one. `github_contract_fixture_security` admits it in
+    the `with-parents` shape and now lists `commit-selection-v1`,
+    `flag-move-v1` and `returning-review-v1`; it passes (18 tests), as do
+    `commit_filter_fixture_contract`, `github_recorded_fixture_contract`,
+    `application_commit_filter_public_path`,
+    `application_commit_asks_public_path`, `application_commit_filter_model`,
+    `qt_commit_filter_view_scale_100`, `github_provider` and
+    `application_github_contract`.
+  - Frozen with `scripts/freeze_attended_build.py freeze` on
+    `commit-selection-v1` (four commits, a merge among them) opening
+    `src/app.cpp`, Fixture agent: root `/Users/jaeger/commits-age-v001.ek943_0s`,
+    frozen from `9a94946b5` (HEAD; `--not-head-because` only because the
+    shared worktree held another implementer's uncommitted files), executable
+    SHA-256 `3e9f1a80e486…`. Its own check passed (file shown, nine Fixture
+    agent asks answered, no real agent started).
+  - Attended session `c2dbde022242d5a915700ae619d56553`, state
+    `/Users/jaeger/.mask/attended-review/owner-review-20261117-bpr2244-commits-age-v001`,
+    one Accept/Reject question `commits-age-v001` on the row's age and its
+    tooltip; ready, served. The Now images are the view test's offscreen
+    renders (`qt_commit_filter_view`, `BPR_RFC0089_RENDER_DIR`).
