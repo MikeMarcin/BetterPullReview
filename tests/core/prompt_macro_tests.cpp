@@ -516,6 +516,10 @@ namespace {
 			for (const auto* const part : { "What to review:", "Focus:", "Sections, in this order", "- Must fix:", "- Not reviewed:", "Severity:", "Conventional Comments", "Verdict:", "Tone:" }) {
 				expect(found->Body.Template.find(part) != std::string::npos, std::string{ id } + " says " + part);
 			}
+			// [[BPR-2234]]: what was not reviewed is asked for as the thing,
+			// then why, in no first person, as the report format asks.
+			expect(found->Body.Template.find("you did not") == std::string::npos && found->Body.Template.find("each thing not read or not checked, named, then why") != std::string::npos,
+				   std::string{ id } + " asks for what was not reviewed by the thing, then why");
 			expect(found->Body.Template.find("**Verdict:**") == std::string::npos && found->Body.Template.find("bpr-findings") == std::string::npos && found->Body.Template.find("level-one") == std::string::npos,
 				   std::string{ id } + " leaves the form the application reads to the application");
 			expect(found->Body.Template.size() <= maximum_prompt_template_bytes && prompt_macro_valid(*found), std::string{ id } + " is a valid prompt");

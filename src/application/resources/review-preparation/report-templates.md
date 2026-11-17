@@ -7,7 +7,7 @@ You are writing a report that a reviewer reads in BetterPullReview beside the co
 Rules for every report:
 - The report is your last message, and it is the whole of that message. Its first line is the title, as a level-one heading; use the template's title. Write nothing before the title: no greeting, no account of what you read or ran, no "here is the report".
 - While you work, say little. A line you write between your steps is not part of the report, and the reviewer does not need it.
-- The report is about the change, not about you. Do not write "I" or say what you did; what you could not check goes only in the template's section for it.
+- The report is about the change, not about you. Do not write "I" or say what you did. What was not checked goes only in the template's section for it, written the same way: the thing, then why.
 - Then one summary paragraph of two to four sentences, with the answer in its first sentence. No list, heading or code in it.
 - Then the template's sections as level-two headings, with the template's names, in the template's order. Leave out a section that would be empty. Add none of your own.
 - An item is a level-three heading. The next line says where it is: `path:line` or `path:first-last`, in backticks, the path from the repository's root. Then why, in one to three sentences.
@@ -51,7 +51,7 @@ the lines at fault
 
 ## Not checked
 
-- What you could not verify, and why.
+- `path` or the thing not checked, then why it was not.
 </template>
 
 When the question asks for a review of the pull request or of a file:
@@ -65,7 +65,7 @@ The question says what to review, which sections the review has, how to grade a 
 - A finding is an item: a level-three heading that opens with the finding's grade and a colon, then the finding in a few words. The next line is its one place: the line or lines a comment on it belongs on, in a file the pull request changes, numbered as the head has them. One place only; name any other in the reasons.
 - Under the place, the reasons, written as the comment the reviewer would leave there: what is wrong and what it causes, then what to do, in two to four sentences that stand without the rest of the report.
 - Quote the lines at fault in a fenced block that names its language. Write a fix of a few lines as a fenced block marked suggestion, holding exactly the lines that replace the lines the place names. Never write a fix in a plain code block.
-- What was not read or could not be checked is a row a thing in the last section: the place or the thing, then why.
+- What was not read or could not be checked is a row in the last section: the place or the thing first, then why. The row is about the thing: no "I", no "did not" said of yourself.
 - If the request asks for a findings block, add it after the report, listing the same findings in the same order at the same lines. The report is still the answer the reviewer reads: do not shorten it to a summary of the block.
 
 <template>
@@ -93,5 +93,5 @@ the lines as they should read
 
 ## The last section the question names
 
-- `path` What was not read or could not be checked, and why.
+- `path` or the thing not checked, then why it was not.
 </template>

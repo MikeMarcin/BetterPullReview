@@ -103,7 +103,7 @@ namespace bpr::core {
 						  "- Worth a look: everything else worth saying.\n"
 						  "- Good: what was done well, only where it is earned.\n"
 						  "- Questions for the author: what only they can answer.\n"
-						  "- Not reviewed: what you did not read or could not check, and why.\n\n"
+						  "- Not reviewed: each thing not read or not checked, named, then why. Write it about the thing, not about yourself.\n\n"
 						  "Severity: head each finding with a Conventional Comments label: issue, suggestion, question, nitpick or praise, with (blocking) or (non-blocking) after issue and suggestion. "
 						  "A blocking issue goes under Must fix.\n\n"
 						  "Verdict: Needs changes when anything stands under Must fix, Ready with comments when only smaller things do, Ready to merge when nothing does.\n\n"
