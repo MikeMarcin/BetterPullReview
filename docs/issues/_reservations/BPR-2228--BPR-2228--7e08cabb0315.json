@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2228"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "application_setup_destination_public_path code-font tab width fails intermittently under parallel load",
+  "created": "2026-11-17T02:50:21.399277+00:00",
+  "base": "19e43f33e8c27b29cfe6cbcd8b98f56a139ca6f6"
+}
