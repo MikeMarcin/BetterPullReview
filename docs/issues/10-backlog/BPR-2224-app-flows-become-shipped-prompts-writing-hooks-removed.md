@@ -30,9 +30,10 @@ RFC-BPR-0129 milestone M2 ([RFC](../../rfcs/RFC-BPR-0129-prompts-declare-a-resul
   Then delete them, and show the one-time notice. If saving fails, nothing
   is deleted. Load `frontend-design:frontend-design` for the notice, and
   file an owner look at it.
-- **Exchange.** Flow prompts are exchanged under `flow.*` IDs in file
-  version 1 (owner, O5). Old purpose IDs are dropped on import and named in the
-  summary.
+- **Exchange.** Move `bpr.profile-settings` to version 2, with flow
+  prompts under `flow.*` IDs. Do not support other versions: the new
+  reader refuses version 1 and names it (owner, 2026-11-16, overriding O5's
+  compatibility).
 - **Amendments.** Record the RFC-BPR-0092, 0107, 0118 and 0128 amendments.
 
 ## Acceptance
