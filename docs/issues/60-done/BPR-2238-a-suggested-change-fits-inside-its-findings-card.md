@@ -51,5 +51,13 @@ Attended-review session `6e525e076ba6400a9dbc677a2c9bbd88`, state directory
 `serve.log` only, host pid in `serve.pid`), served on the tailnet. Question
 `suggestion-in-card` (Accept or Reject) on the frozen build `review-followups-v001` (root
 `~/review-followups-v001.pn_cb0u7`, from `0feba206bd70`, Fixture agent
-only, the freeze's launcher check passed). Lifecycle: pending. A Reject
+only, the freeze's launcher check passed). Lifecycle: answered and closed. A Reject
 reopens the work as a new card.
+
+### Verdict, look review-followups-v001 (handed back 2026-11-16)
+
+- **Accept** `suggestion-in-card` (decision `37fb2d60`), no note. Session
+  `6e525e076ba6400a9dbc677a2c9bbd88` handed back all three questions
+  (`edited-prompt-shows-text`, `suggestion-in-card`, `tour-chat-prompt-turn`)
+  accepted at 2026-11-17T06:15:10Z. Its host is stopped and its root
+  `~/review-followups-v001.pn_cb0u7` removed with the freeze tool.
