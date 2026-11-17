@@ -49,3 +49,21 @@ one Accept/Reject for each of AC-a to AC-d and AC-f) is filed, not waited on.
 
 `qt_prompts_page` asserts AC-a to AC-d and AC-f (run at 100, 125 and 200
 percent); native-look renders light and dark, before and after.
+
+## Look prompt-library-v002 (filed 2026-11-16, open)
+
+Session `1df4dc88417b17eabe9b916084c4b6dc`, state
+`/Users/jaeger/.attended-review-state/prompt-library-v002-2026-11-16/state`
+(URL in `serve.log` beside it), served on the tailnet. Root
+`/Users/jaeger/prompt-library-v002.tzl2onjk`, frozen from `e203eadb5`
+(tests-on, Fixture agent; its check opened the pull request and started no
+real agent). Two questions, one Accept/Reject each:
+`BPR-2220-always-selected` (AC-a to AC-d) and `BPR-2220-tools-on-filter-row`
+(AC-f), with native off-screen renders from `qt_prompts_page`, before and
+after. A partial root from an earlier freeze that the machine's memory
+exhaustion cut off, `/Users/jaeger/prompt-library-v001.m59svv_j`, has no
+marker, so `freeze_attended_build.py remove` refuses it.
+
+Verification at `47cd76bc8`: `qt_prompts_page` passes, and passes run directly
+at `QT_SCALE_FACTOR` 1.0, 1.25 and 2.0 and in the native look, light and dark.
+The old page fails ten of its new checks.
