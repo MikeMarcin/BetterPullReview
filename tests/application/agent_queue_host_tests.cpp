@@ -362,11 +362,37 @@ namespace {
 		expect(!host.sending("s") && host.queue("s")->Paused == core::queue_pause::failed && host.queue("s")->Entries.size() == 1U,
 			   "its refusal settles it: back first, paused, never sending");
 	}
+	/// [[BPR-2245]] (owner, 2026-11-17: "stop all is showing up in the status
+	/// bar after that even though no agent stuff is running"). A release the
+	/// agent refused returns its message and pauses the queue; nothing starts
+	/// until Resume, so nothing waits to go and Stop all has nothing to stop.
+	void test_a_paused_queue_leaves_nothing_waiting_to_go()
+	{
+		auto       agents  = runner{ };
+		auto       host    = application::agent_queue_host{ { .Runner = &agents } };
+		const auto session = std::string{ "agent-tab:github.com/o/r#1" };
+		auto       shown   = window{ };
+		static_cast<void>(host.subscribe(shown.subscriber()));
+		agents.States[session] = core::queue_agent::busy;
+		static_cast<void>(host.enqueue(session, typed("Review this pull request")));
+		expect(shown.Waiting == 1U && host.waiting_count() == 1U, "a message queued behind a busy agent waits to go");
+		agents.States[session] = core::queue_agent::idle;
+		agents.Refuses         = true;
+		host.agent_changed(session);
+		expect(host.queue(session)->Paused == core::queue_pause::failed && host.queue(session)->Entries.size() == 1U, "a refused release returns the message and pauses the queue");
+		expect(shown.Waiting == 0U && host.waiting_count() == 0U, "a paused queue's message does not wait to go: " + std::to_string(shown.Waiting));
+		agents.Refuses         = false;
+		agents.States[session] = core::queue_agent::busy;
+		expect(host.resume(session, std::nullopt) == core::queue_refusal::none && shown.Waiting == 1U, "Resume makes it wait to go again");
+		host.pause_all(core::queue_pause::stopped);
+		expect(shown.Waiting == 0U, "Stop all pauses it, and nothing is left waiting to go");
+	}
 } // namespace
 
 auto main() -> int
 {
 	test_admissions_settle_every_release();
+	test_a_paused_queue_leaves_nothing_waiting_to_go();
 	test_a_refused_write_on_the_effect_lane_hands_the_message_back();
 	test_no_window_drains_on_retirement();
 	test_windows_show_and_edit_one_queue();

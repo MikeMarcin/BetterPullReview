@@ -97,8 +97,8 @@ namespace bpr::application {
 		/// A session's queue changed (every session; the window shows the
 		/// ones it presents).
 		std::function<void(const std::string& aSession, const core::agent_queue& aQueue)> Changed;
-		/// Messages waiting across every session (RFC-BPR-0126 AC09: Stop all
-		/// shows while any waits).
+		/// Messages waiting to go across every session, as `waiting_count`
+		/// (RFC-BPR-0126 AC09: Stop all shows while any waits).
 		std::function<void(std::size_t aWaiting)> Waiting;
 		/// [[BPR-2181]] (AC05). The store refused to keep a message just
 		/// queued: it left the queue and is handed back as it was asked, so
@@ -212,8 +212,11 @@ namespace bpr::application {
 		[[nodiscard]] auto queue(const std::string& aSession) const -> const core::agent_queue*;
 		/// \brief The entry the session is sending, if any.
 		[[nodiscard]] auto sending(const std::string& aSession) const -> std::optional<std::uint64_t>;
-		/// \brief Messages waiting to be sent, across every session.
-		[[nodiscard]] auto queued_count() const -> std::size_t;
+		/// \brief Messages that go next on their own, across every session:
+		/// those queued in a queue that is not paused. [[BPR-2245]]: a paused
+		/// queue's message starts only on Resume, so Stop all, which shows
+		/// while this is not zero or a turn runs, has nothing to stop for it.
+		[[nodiscard]] auto waiting_count() const -> std::size_t;
 
 	private:
 		/// Writes and shows the session's queue. `aAdded`: the entry this

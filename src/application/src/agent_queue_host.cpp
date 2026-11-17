@@ -112,7 +112,7 @@ namespace bpr::application {
 
 	void agent_queue_host::notify_waiting()
 	{
-		const auto waiting = queued_count();
+		const auto waiting = waiting_count();
 		// A copy of the tokens: a subscriber may leave while it is told.
 		auto tokens = std::vector<std::uint64_t>{ };
 		for (const auto& [token, subscriber] : Subscribers) {
@@ -451,10 +451,13 @@ namespace bpr::application {
 
 	void agent_queue_host::unsubscribe(const std::uint64_t aSubscriber) { Subscribers.erase(aSubscriber); }
 
-	auto agent_queue_host::queued_count() const -> std::size_t
+	auto agent_queue_host::waiting_count() const -> std::size_t
 	{
 		auto count = std::size_t{ 0 };
 		for (const auto& [session, queue] : Queues) {
+			if (queue.Paused != core::queue_pause::none) {
+				continue;
+			}
 			count += static_cast<std::size_t>(std::ranges::count(queue.Entries, core::queued_state::queued, &core::queued_entry::State));
 		}
 		return count;

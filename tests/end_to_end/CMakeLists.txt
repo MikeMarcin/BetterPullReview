@@ -5643,6 +5643,13 @@ bpr_add_network_isolated_test(NAME application_ask_queue_public_path
     COMMAND test_ask_menu_public_path queue "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_queue_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-queue:pass")
+# [[BPR-2245]]. Review this pull request queued before the agent's setup
+# finished runs once Check passes, ends answered, and leaves no Stop all.
+bpr_add_network_isolated_test(NAME application_ask_setup_review_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_ask_menu_public_path setup-review "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_ask_setup_review_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-setup-review:pass")
 # RFC-BPR-0126 AC03 ([[BPR-2151]]), Q1: whole-tour feedback typed while the
 # draft runs is the tour conversation's first queued message.
 bpr_add_network_isolated_test(NAME application_tour_feedback_queue_public_path

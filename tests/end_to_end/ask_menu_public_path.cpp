@@ -33,12 +33,17 @@
 ///   its outline, the comparison's file controls off and the Agent tab still
 ///   usable; a code reference opens the file's tab at the line, and the
 ///   report's tab returns to the report (AC06).
+/// - `setup-review STUB`: [[BPR-2245]]. Review this pull request pressed
+///   while the agent's setup waits on Check is queued; Check passes, the
+///   review runs once and its turn ends answered, not stopped and not drawn
+///   as an error, and once it retires the footer's Stop all is hidden.
 /// - `menu|addressed|report STUB --attended`: the same, then the window is left on
 ///   Review with a thread open for a person to look; closing it ends the
 ///   course.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -66,6 +71,7 @@
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QElapsedTimer>
 #include <QFrame>
 #include <QKeyEvent>
 #include <QLabel>
@@ -209,8 +215,8 @@ auto main(int argc, char** argv) -> int
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
 	const auto   course = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
-	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue" && course != "macros" && course != "tour-queue")) {
-		std::cerr << "usage: ask_menu_public_path menu|addressed|report|queue|macros|tour-queue STUB [--attended]\n";
+	if (argc < 3 || (course != "menu" && course != "addressed" && course != "report" && course != "queue" && course != "macros" && course != "tour-queue" && course != "setup-review")) {
+		std::cerr << "usage: ask_menu_public_path menu|addressed|report|queue|macros|tour-queue|setup-review STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
 	const auto    stub     = std::filesystem::path{ argv[2] };
@@ -255,6 +261,61 @@ auto main(int argc, char** argv) -> int
 		auto* const cards      = window.conversation_panel()->cards();
 		const auto  path       = QStringLiteral("src/engine/renderer.cpp");
 		wait([&] { return window.what_changed_action()->isEnabled(); }, "the returning pull request's commits are read");
+		if (course == "setup-review") {
+			// [[BPR-2245]] (owner, 2026-11-17): "after I clicked check it did
+			// set up the workspace and the agent and it looks like it did
+			// actually run the review and gave me a report back ... but it
+			// shows up as red and says canceled", and "stop all is showing up
+			// in the status bar after that even though no agent stuff is
+			// running."
+			wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path; }, "the file opens");
+			auto* const ask = window.review_ask_button();
+			wait([&] { return ask->isVisible(); }, "the review bar's Ask shows");
+			window.open_agent_question();
+			auto* const selector = window.agent_panel()->profile_selector();
+			if (const auto index = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())); index >= 0) {
+				selector->setCurrentIndex(index);
+			}
+			expect(tab->setup_readiness() != qt::agent_setup_readiness::ready, "the setup is unfinished");
+			ask->refresh_menu();
+			auto* const review = row(*ask->menu(), QStringLiteral("agent-tab.review-pull-request"), QStringLiteral("pull-request"));
+			expect(review != nullptr, "Review this pull request is listed before setup");
+			review->trigger();
+			QApplication::processEvents();
+			expect(tab->queue_note()->text().contains(QStringLiteral("waiting for the agent's setup")) && launchesAt() == 0U && tab->turn_count() == 0U,
+				   "before setup it is queued and nothing runs: " + tab->queue_note()->text().toStdString());
+			agent_ready(window);
+			auto* const footer = window.agent_footer_widget();
+			const auto  idle   = [&] {
+				return tab->turn_count() >= 1U && tab->turn_outcome(0U).has_value() && tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent
+					&& tab->queue_note()->text().isEmpty();
+			};
+			const auto said = [&] {
+				return "turns=" + std::to_string(tab->turn_count()) + " outcome=" + (tab->turn_count() > 0U && tab->turn_outcome(0U) ? std::to_string(static_cast<int>(*tab->turn_outcome(0U))) : std::string{ "-" })
+					+ " footer=" + (tab->turn_count() > 0U ? tab->turn_footer(0U).toStdString() : std::string{ }) + " queue=" + tab->queue_note()->text().toStdString() + " launches=" + std::to_string(launchesAt())
+					+ " stopAll=" + std::to_string(footer != nullptr && !footer->stop_all_button()->isHidden() ? 1 : 0) + " state=" + std::to_string(static_cast<int>(tab->state()));
+			};
+			if (!e2e::wait_until_plain(idle, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "once set up, the queued review runs: " + said() };
+			}
+			// Settled: nothing more starts, and the footer has caught up.
+			{
+				auto settle = QElapsedTimer{ };
+				settle.start();
+				while (settle.elapsed() < 1500) {
+					QApplication::processEvents(QEventLoop::AllEvents, 50);
+				}
+			}
+			std::cout << "setup-review: " << said() << '\n';
+			expect(tab->turn_count() == 1U, "the review ran once: " + said());
+			expect(tab->turn_outcome(0U) == std::optional{ core::agent_turn_outcome::answered } && !tab->turn_footer(0U).startsWith(QStringLiteral("Stopped")),
+				   "the review that answered says it answered: " + said());
+			expect(tab->turn_name(0U) == QStringLiteral("Review this pull request"), "the turn is the review: " + tab->turn_name(0U).toStdString());
+			expect(footer != nullptr && footer->stop_all_button()->isHidden(), "with nothing running or waiting, Stop all is hidden: " + said());
+			shutdown(*application);
+			std::cout << "ask-menu-setup-review:pass\n";
+			return EXIT_SUCCESS;
+		}
 		if (course == "queue") {
 			wait([&] {
 				const auto& library = window.prompts()->library();
