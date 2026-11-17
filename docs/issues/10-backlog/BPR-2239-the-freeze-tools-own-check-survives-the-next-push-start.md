@@ -56,3 +56,20 @@ the launch evidence ([[BPR-2219]]'s card, "Owner look, round 2" and
 - **AC-c.** `freeze --next-push` on `returning-review-v1` passes its own check
   repeatedly under a concurrent build (a loop of several freezes or of the
   check alone).
+
+## Added 2026-11-16: the check also fails when the look opens on a file
+
+Seen after BPR-2231/BPR-2232 (look report-keeps-v001): the freeze tool's
+`launch.py --check` also fails when the look is frozen with `--open-file`
+(a file, rather than the pull request). It reports "What changed since my
+review" as not offered. The same look opened on the pull request passes.
+This is a second, deterministic-looking failure of the same check, separate
+from the intermittent next-push exit above; whether the check expects the
+control in a state the file view does not show, or the file view hides it, is
+not yet known.
+
+- **AC-d.** `freeze` with `--open-file` passes its own check, or the check
+  states why the control is legitimately absent on a file and does not fail
+  the look; with a test or a recorded run on a fixture that holds the surface
+  (for example `returning-review-v1` with `--open-file src/engine/renderer.cpp`).
+
