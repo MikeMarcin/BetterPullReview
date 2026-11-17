@@ -2,7 +2,7 @@
 id: "RFC-BPR-0129"
 title: "Prompts declare a Result and Features; nothing the agent is told is hidden"
 status: "Proposed"
-metadata: {"origin":"owner grill-rfc interview, 2026-11-16, after BPR-2219 (the review report lost its format and Draft comment)","inspected_revision":"71dbb4fb3","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 671a497ca","mandate":"owner, 2026-11-16: the design confirmed in a grill-rfc interview; Q1, Q3, Q5 and Q6 answered by the owner, Q2 and Q4 defaults accepted by the coordinator; revised the same day for a critical review (B1 to B5, N1 to N10), its product choices O1 to O5 accepted by the owner as proposed; cards BPR-2222 to BPR-2227 in Backlog, none started"}
+metadata: {"origin":"owner grill-rfc interview, 2026-11-16, after BPR-2219 (the review report lost its format and Draft comment)","inspected_revision":"71dbb4fb3","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 671a497ca","mandate":"owner, 2026-11-16: the design confirmed in a grill-rfc interview; Q1, Q3, Q5 and Q6 answered by the owner, Q2 and Q4 defaults accepted by the coordinator; revised the same day for a critical review (B1 to B5, N1 to N10), its product choices O1 to O5 accepted by the owner as proposed; owner decided a self-describing export and import check the same day; cards BPR-2222 to BPR-2227, BPR-2229 and BPR-2230 in Backlog, none started"}
 depends_on: ["RFC-BPR-0092", "RFC-BPR-0101", "RFC-BPR-0107", "RFC-BPR-0125", "RFC-BPR-0126", "RFC-BPR-0128"]
 ---
 
@@ -388,7 +388,62 @@ O5).
   becomes a whole-file override there.
 - **A person's own prompts.** These are shared by RFC-BPR-0125's
   [[BPR-2149]], which carries each prompt's Result and Features once this
-  RFC lands. This RFC adds no exchange of its own for them.
+  RFC lands. RFC-BPR-0125 writes such a file as version 2, which an older
+  build refuses whole; a file without them stays version 1.
+
+#### A self-describing export, and an import check
+
+The owner asked: "when I export the prompts and ask another agent to modify
+them so I can say integrate some local workflows and then import them back.
+How will that agent understand results and features?"
+
+- **The guide travels in the file.** Every export carries one guide that
+  the app writes. Core generates it from the catalog, so it cannot drift
+  from what the build accepts. It lists:
+  - every Result and Feature, each with a one-line description;
+  - where each Result may be placed;
+  - which Features each Result carries;
+  - the rules: guidance goes in a prompt's text; contracts are appended by
+    the app and cannot be edited in the file; `/skill-name`, `/repo:name`
+    and `/personal:name` are real skills, while `/bpr:<name>` is a Feature;
+    a flow prompt's Result is fixed; the guide itself is not imported;
+  - one worked example: a person's prompt with the Answer Result that uses
+    `/bpr:suggested-comment`.
+- **Where the guide sits.** The guide is not a new top-level section. The
+  decoder reads the file strictly (`agent_configuration.cpp`,
+  `error_on_unknown_keys`), so an older build would refuse a file that had
+  one, agents included, and that would break O5. Instead the guide is one
+  Prompts item with purpose `guide.prompts`, origin `built_in`, and the
+  guide as its text, using only the fields an item already has.
+  - A new build recognizes the item and never imports it.
+  - An older build lists it as not importable, as it lists the `flow.*`
+    items, and imports the rest.
+  - The same holds in a version 2 file.
+- **Import checks before it writes.** Before anything is written, import
+  lists every prompt in the file as Add, Change or Refused. A refused
+  prompt names its reason:
+  - an unknown Result;
+  - a Feature its Result does not carry;
+  - a placement its Result cannot open in;
+  - an unknown `/bpr:` name;
+  - a flow prompt's Result changed;
+  - and the reasons RFC-BPR-0107 and RFC-BPR-0125 already give.
+
+  Nothing is written until the person confirms. A confirmed import writes
+  exactly the listed Adds and Changes, and Cancel writes nothing. Core makes
+  every decision, and equal file and profile give equal decisions.
+- **A check an editing agent can run.** `bpr prompts check FILE` prints the
+  same per-prompt decisions and reasons as the import check, and changes
+  nothing. Given `--profile NAME`, it also says Add or Change against that
+  profile; without one it checks against the catalog alone. It exits
+  non-zero when any prompt would be refused.
+
+> Decision (owner, 2026-11-16, relayed by the coordinator): the export is
+> self-describing, with an app-written guide ignored on import and
+> compatible with O5; import shows what will be added or changed, and why
+> any prompt would be refused, and writes nothing until the person
+> confirms, with the decisions deterministic in core; and an optional
+> `bpr prompts check FILE` goes on its own card, after the import check.
 
 ### A newer built-in version (M3)
 
@@ -491,6 +546,7 @@ owner amendment, and the amendment keeps every obligation it does not name.
 |---|---|---|
 | RFC-BPR-0092 | `bpr-pr-review` splits into `flow.agent-tab.question`'s text and the Agent tab contract; an edited copy is dropped with its file saved (Q1). | M2 ([[BPR-2224]]) |
 | RFC-BPR-0107 | The exchange carries flow prompts under `flow.*` IDs in version 1, and drops old purpose IDs on import with the summary naming them. | M2 ([[BPR-2224]]) |
+| RFC-BPR-0107 | Every export carries the `guide.prompts` item; import lists Add, Change or Refused with reasons before writing, and writes only on confirmation. | M2 ([[BPR-2229]]) |
 | RFC-BPR-0118 | Suggest the change's prompt is `flow.review.suggest-change` with the Line suggestion Result. | M2 ([[BPR-2224]]) |
 | RFC-BPR-0125 | *Ask as* becomes the Result field, and stored kinds migrate as above. Under Q6, `/` lists skills and Features. Queued prompts store a Result. [[BPR-2149]] carries Result and Features. | M1 ([[BPR-2222]]). If [[BPR-2150]] closes RFC-BPR-0125 first, it is recorded as a post-closure amendment. |
 | RFC-BPR-0125 | The Outdated flag and Compare extend to flow prompts. | M3 ([[BPR-2225]]) |
@@ -554,6 +610,12 @@ coordinator.
   - the owner accepted O1 to O5 as proposed;
   - this confirms the revised draft at this version, including the
     critical-review fixes it carries.
+- **Fourth round, the same day, relayed by the coordinator:**
+  - the owner decided on a self-describing export, an import check, and an
+    optional `bpr prompts check`;
+  - the guide's placement as a `guide.prompts` item is a correctness
+    detail of that decision, forced by the strict decoder, and not a
+    separate owner answer.
 
 ## Milestones
 
@@ -563,8 +625,12 @@ coordinator.
   - [[BPR-2223]]: the editor and the picker.
   - [[BPR-2227]]: the Feature surfaces and flow controls with several
     prompts.
-- **M2: Every flow is a shipped prompt.** [[BPR-2224]]: the per-ID table,
-  removal, dropped edits with the notice, and the exchange.
+- **M2: Every flow is a shipped prompt.**
+  - [[BPR-2224]]: the per-ID table, removal, dropped edits with the notice,
+    and the exchange.
+  - [[BPR-2229]]: the self-describing export and the import check (after
+    [[BPR-2224]] and RFC-BPR-0125's [[BPR-2149]]).
+  - [[BPR-2230]]: `bpr prompts check` (after [[BPR-2229]]).
 - **M3: A newer built-in version.** [[BPR-2225]].
 - **Closeout:** [[BPR-2226]], after RFC-BPR-0125's closeout [[BPR-2150]].
 
@@ -587,3 +653,7 @@ coordinator.
 - **AC15:** A pull request titled `/bpr:proposed-fix`, or material containing a Feature reference, brings in no Feature; an answer containing a Feature block its request did not declare shows the block as plain code with no action.
 - **AC16:** A typed Agent tab question, a person's Answer prompt and each returning question each carry the Agent tab contract's boundary, legend and conversation rule, whatever their text says; a writing request carries only its Result's writing rule, not another Result's.
 - **AC17:** Core decides the catalog, placements, which Features a Result carries, the request's instruction classes and the actions an output unlocks; the host performs, Qt presents, and no widget composes instruction text.
+- **AC18:** Every export, version 1 or 2, carries one `guide.prompts` item whose text names every Result and Feature of the core catalog with its one-line description, where each Result may be placed, which Features each Result carries, every rule listed under "A self-describing export", and the worked example; a core test fails if any catalog entry or rule is missing; the new build never imports the item, and an older build lists it as not importable and imports the rest of the file.
+- **AC19:** The guide's worked example, added verbatim to an exported file as a new prompt, imports with no refusal, and the imported prompt sends that Feature's contract.
+- **AC20:** Importing a file that holds one prompt for each mistake (an unknown Result, a Feature its Result does not carry, a placement its Result cannot open in, an unknown `/bpr:` name, a flow prompt's Result changed) lists each as Refused with its reason and the valid prompts as Add or Change, writes nothing before confirmation and nothing on Cancel, and on confirmation writes exactly the listed Adds and Changes; core gives equal decisions for equal file and profile.
+- **AC21:** `bpr prompts check FILE`, run on the AC20 file, prints the same decisions and reasons as the import check, exits non-zero, and leaves the profile and the file unchanged; on the file with only valid prompts it exits zero.
