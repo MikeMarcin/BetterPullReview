@@ -345,9 +345,19 @@ namespace {
 		std::vector<core::git_commit_oid> MissingCommits;
 		/// RFC-BPR-0089. What a sparse review's chain acquisition was asked,
 		/// the tree diff its store answers, and the paths read there.
-		std::vector<application::git_smart_chain_request>                  ChainRequests;
-		std::vector<application::git_chain_changed_entry>                  ChainEntries;
-		std::optional<application::git_smart_transport_failure>            ChainFailure;
+		std::vector<application::git_smart_chain_request>       ChainRequests;
+		std::vector<application::git_chain_changed_entry>       ChainEntries;
+		std::optional<application::git_smart_transport_failure> ChainFailure;
+		/// [[BPR-2251]]. A chain fetch held until released, as a slow GitHub
+		/// holds it; `Entered` says the fetch is under way.
+		struct chain_hold
+		{
+			std::mutex              Mutex;
+			std::condition_variable Changed;
+			bool                    Entered  = false;
+			bool                    Released = false;
+		};
+		std::shared_ptr<chain_hold>                                        ChainHold;
 		std::vector<std::pair<core::git_commit_oid, std::string>>          ChainLookups;
 		std::vector<std::pair<core::git_commit_oid, core::git_commit_oid>> ChainDiffs;
 		bool                                                               SparseTreeMismatch         = false;
@@ -2160,6 +2170,12 @@ namespace {
 			-> application::git_smart_transport_result<std::shared_ptr<application::git_chain_tree_store>> override
 		{
 			State.ChainRequests.push_back(aRequest);
+			if (const auto hold = State.ChainHold) {
+				std::unique_lock lock{ hold->Mutex };
+				hold->Entered = true;
+				hold->Changed.notify_all();
+				hold->Changed.wait(lock, [&hold] { return hold->Released; });
+			}
 			if (State.ChainFailure) {
 				return std::unexpected{ application::git_smart_transport_error{ *State.ChainFailure } };
 			}
@@ -7717,6 +7733,92 @@ namespace {
 		expect(observations.size() == 3U && observations.back().Status == application::returning_change_status::cancelled, "a cancelled fetch is cancelled, to be asked again");
 	}
 
+	// [[BPR-2251]]. The owner: "Ideally fetching those historical things
+	// doesn't slow down our loading of the current state for reviewing". The
+	// change since a review fetches the reviewed head off the review's cache
+	// actor, so while GitHub holds that fetch the reviewer's own blob read on
+	// the same actor completes; the change answers once the fetch returns.
+	void a_held_returning_fetch_leaves_the_review_actor_free()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		const auto authority       = workbench_authority_for(value.Host->state());
+		const auto head            = value.Host->state().AcceptedRevision->Head;
+		const auto reviewed        = oid<core::git_commit_oid>(0x42U);
+		value.State.MissingCommits = { reviewed };
+		value.State.ChainEntries   = {
+			{ .Left   = application::git_chain_changed_side{ .Path = "a.cpp", .Object = sha1_blob("old\n"), .Mode = 0100644U },
+			  .Right  = application::git_chain_changed_side{ .Path = "a.cpp", .Object = sha1_blob("new\n"), .Mode = 0100644U },
+			  .Change = 'M' },
+		};
+		value.State.BatchContents = { { sha1_blob("old\n"), "old\n" }, { sha1_blob("new\n"), "new\n" } };
+		const auto hold           = std::make_shared<shared_state::chain_hold>();
+		value.State.ChainHold     = hold;
+		auto       observations   = std::vector<application::returning_change_observation>{ };
+		const auto record         = [&observations](const application::returning_change_observation& aObservation) { observations.push_back(aObservation); };
+		const auto request        = application::returning_change_request{
+			.WorkbenchAuthority = authority, .Head = head, .Steps = { { .Parent = reviewed, .Commit = head } }, .Depth = 3U, .Outside = reviewed, .Paths = { }
+		};
+		expect(value.Host->resolve_returning_change(request, record), "the change since the review is admitted");
+		const auto entered = [&hold] {
+			std::scoped_lock lock{ hold->Mutex };
+			return hold->Entered;
+		};
+		// The host's workers: each effect on a thread of its own, so one held
+		// by GitHub holds no other.
+		auto workers = std::vector<std::jthread>{ };
+		for (std::size_t attempt = 0U; attempt < 1'000U && !entered(); ++attempt) {
+			if (value.Effects.pending() != 0U) {
+				workers.emplace_back([&value] { value.Effects.run_next(); });
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		expect(entered(), "the reviewed head's fetch is under way and held");
+		// The reviewer's current state: a blob of the open comparison, read
+		// as the diff worker reads it.
+		auto read     = std::optional<application::diff_blob_observation>{ };
+		auto readDone = std::atomic_bool{ false };
+		auto reader   = std::jthread{ [&] {
+			read = value.Host->materialize(blob_request_for(value.Host->state()), { });
+			readDone.store(true, std::memory_order_release);
+		} };
+		for (std::size_t attempt = 0U; attempt < 2'000U && !readDone.load(std::memory_order_acquire); ++attempt) {
+			if (value.Effects.pending() != 0U) {
+				value.Effects.run_next();
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		const auto readWhileHeld = readDone.load(std::memory_order_acquire);
+		const auto queuedBehind  = value.Host->queued_actor_work();
+		std::cout << "returning-fetch-held: reviewer-read-done=" << readWhileHeld << " actor-work-queued-behind-fetch=" << queuedBehind << '\n';
+		{
+			std::scoped_lock lock{ hold->Mutex };
+			hold->Released = true;
+			hold->Changed.notify_all();
+		}
+		// Released whatever the outcome, so a failure reports instead of hanging.
+		while (!readDone.load(std::memory_order_acquire)) {
+			if (value.Effects.pending() != 0U) {
+				value.Effects.run_next();
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		reader.join();
+		expect(readWhileHeld && queuedBehind == 0U && observations.empty(), "the reviewer's blob is read while the fetch is held, nothing queued behind it");
+		expect(read && read->Status == application::diff_blob_status::available, "the reviewer's blob is available");
+		for (auto& worker : workers) {
+			worker.join();
+		}
+		drain(value);
+		expect(observations.size() == 1U && observations.front().Status == application::returning_change_status::resolved && observations.front().Steps.size() == 1U
+				   && observations.front().Steps.front().Files.size() == 1U && observations.front().Steps.front().Files.front().Path == "a.cpp"
+				   && observations.front().Steps.front().Files.front().Earlier && value.State.ChainRequests.size() == 1U,
+			   "once GitHub answers, the change since the review is read from the fetched trees");
+		expect(value.Host->outstanding_jobs() == 0U && value.Host->queued_actor_work() == 0U, "nothing is left outstanding");
+	}
+
 	// [[BPR-1212]] v002. Whether a comparison's left document is numbered as
 	// GitHub numbers `LEFT` lines: the unique merge base of GitHub's base and
 	// the accepted head, from the retained objects, holds the same blob at the
@@ -10569,6 +10671,7 @@ int main(int argc, char** argv)
 	sparse_review_acquires_the_chain_trees();
 	returning_change_reads_each_step_from_the_cache();
 	sparse_returning_change_fetches_the_reviewed_head();
+	a_held_returning_fetch_leaves_the_review_actor_free();
 	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;
 }

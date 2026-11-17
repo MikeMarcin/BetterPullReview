@@ -214,8 +214,11 @@ namespace bpr::application {
 		/// review's objects do not hold is fetched, trees only, through the
 		/// review's own lease when it can acquire them (its head's history to
 		/// `Depth`, and `Outside` by its SHA), and each blob the cache lacks is
-		/// read exactly and checked against its OID. Runs on the review's cache
-		/// actor; `earlier_unavailable` says a commit could not be got.
+		/// read exactly and checked against its OID. The cache is read on the
+		/// review's cache actor; [[BPR-2251]]: the fetches run on a worker of
+		/// their own, so a slow GitHub never holds the actor the reviewer's
+		/// own reads run on. `earlier_unavailable` says a commit could not be
+		/// got.
 		[[nodiscard]] auto resolve_returning_change(
 			returning_change_request    aRequest,
 			returning_change_completion aCompletion) -> bool;

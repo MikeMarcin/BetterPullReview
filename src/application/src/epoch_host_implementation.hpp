@@ -862,9 +862,18 @@ namespace bpr::application {
 			returning_change_request    aRequest,
 			returning_change_completion aCompletion) -> bool;
 
-		[[nodiscard]] auto returning_change(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
-											const std::shared_ptr<authority_context>& aContext, const returning_change_request& aRequest,
-											const std::stop_token aStop, returning_change_observation& aObservation) -> returning_change_status;
+		/// [[BPR-2247]], [[BPR-2251]]. One change since a review, across its
+		/// phases: the cache's parts on the review's actor, GitHub's parts on a
+		/// worker of their own, so a slow fetch never holds the actor the
+		/// reviewer's own reads run on.
+		struct returning_change_job;
+		void        returning_change_inspect(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_fetch_trees(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_diff(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_fetch_blobs(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_on_actor(const std::shared_ptr<returning_change_job>& aJob, void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&));
+		void        returning_change_off_actor(const std::shared_ptr<returning_change_job>& aJob, void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&));
+		static void finish_returning_change(const std::shared_ptr<returning_change_job>& aJob, returning_change_status aStatus) noexcept;
 
 		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool;
 

@@ -1425,6 +1425,50 @@ namespace bpr::application {
 		return true;
 	}
 
+	/// [[BPR-2247]], [[BPR-2251]]. What one change since a review carries
+	/// from phase to phase. Each phase runs alone, after the one before it,
+	/// so nothing here is shared by two threads at once.
+	struct epoch_application_host::implementation::returning_change_job final
+	{
+		/// Each side to read: which step, which file, which side, which blob.
+		struct pending final
+		{
+			std::size_t        Step    = 0U;
+			std::size_t        File    = 0U;
+			bool               Earlier = false;
+			core::git_blob_oid Blob;
+		};
+
+		std::shared_ptr<authority_effect_actor>                                Actor;
+		git_cache_open_request                                                 Expected;
+		std::shared_ptr<authority_context>                                     Context;
+		std::weak_ptr<completion_gate>                                         Gate;
+		decision_executor*                                                     DecisionLane = nullptr;
+		std::shared_ptr<job_control>                                           Control;
+		returning_change_completion                                            Completion;
+		returning_change_observation                                           Observation;
+		bool                                                                   CanFetch = false;
+		std::vector<core::git_commit_oid>                                      Commits;
+		std::shared_ptr<git_chain_tree_store>                                  Store;
+		std::vector<pending>                                                   Reads;
+		std::map<core::git_blob_oid, std::optional<std::vector<std::uint8_t>>> Bytes;
+		std::vector<core::git_blob_oid>                                        Remote;
+
+		[[nodiscard]] auto stop() const -> std::stop_token { return Control->Stop.get_token(); }
+
+		[[nodiscard]] auto smart_context(const git_smart_acquisition_mode aMode) const -> git_smart_request_context
+		{
+			auto smart               = git_smart_request_context{ };
+			smart.ApplicationSession = Context->Handoff.ApplicationSession;
+			smart.Authority          = Context->Authority;
+			smart.Revision           = Context->Revision;
+			smart.Repository         = Context->Handoff.Locator;
+			smart.BaseRef            = Context->Handoff.BaseRef;
+			smart.AcquisitionMode    = aMode;
+			return smart;
+		}
+	};
+
 	// [[BPR-2247]]. See `epoch_application_host::resolve_returning_change`.
 	auto epoch_application_host::implementation::resolve_returning_change(
 		returning_change_request    aRequest,
@@ -1446,142 +1490,206 @@ namespace bpr::application {
 		if (!reviewActor) {
 			return false;
 		}
-		auto       actor         = std::move(reviewActor->first);
-		const auto expected      = std::move(reviewActor->second);
-		auto       reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
-		auto       admitted      = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+		auto job          = std::make_shared<returning_change_job>();
+		job->Actor        = std::move(reviewActor->first);
+		job->Expected     = std::move(reviewActor->second);
+		job->Context      = Active && Active->Actor == job->Actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+		job->Gate         = CompletionGate;
+		job->DecisionLane = &DecisionLane;
+		job->Completion   = std::move(aCompletion);
+		job->CanFetch     = job->Context && job->Context->Handoff.SmartGit && !job->Context->Handoff.SmartGit->revoked()
+			&& job->Context->Handoff.SmartGit->supports_sparse_commit_trees();
+		job->Observation = returning_change_observation{ .Request = std::move(aRequest), .Status = returning_change_status::failure, .Steps = { }, .FilesOmitted = 0U };
+		auto admitted    = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
 		if (!admitted.has_value()) {
 			return false;
 		}
-		auto        control      = std::move(*admitted);
-		const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
-		auto* const decisionLane = &DecisionLane;
+		job->Control = std::move(*admitted);
 		try {
-			enqueue_actor_work(
-				actor,
-				[this,
-				 actor,
-				 expected,
-				 context = std::move(reviewContext),
-				 gate,
-				 decisionLane,
-				 control,
-				 request    = std::move(aRequest),
-				 completion = std::move(aCompletion)]() mutable {
-					auto observation   = returning_change_observation{ .Request = request, .Status = returning_change_status::failure, .Steps = { }, .FilesOmitted = 0U };
-					observation.Status = returning_change(*actor, expected, context, request, control->Stop.get_token(), observation);
-					if (observation.Status != returning_change_status::resolved) {
-						observation.Steps.clear();
-						observation.FilesOmitted = 0U;
-					}
-					enqueue_completion(gate, decisionLane, std::move(control), [answer = std::move(observation), deliver = std::move(completion)](implementation&) { deliver(answer); });
-				});
+			enqueue_actor_work(job->Actor, [this, job] { returning_change_inspect(job); });
 		} catch (...) {
-			finish_job(control);
+			finish_job(job->Control);
 			return false;
 		}
 		return true;
 	}
 
-	/// \brief [[BPR-2247]]. The change since a review, on the actor.
-	///
-	/// \details Each step is diffed in the retained cache when it holds both
-	/// commits; otherwise the steps' trees are acquired once into a transient
-	/// store through the review's own lease, the earlier revision by its SHA
-	/// when the head's history lacks it. Each side's blob is read from the
-	/// cache, or exactly through the lease, batched, and checked.
-	auto epoch_application_host::implementation::returning_change(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
-																  const std::shared_ptr<authority_context>& aContext, const returning_change_request& aRequest,
-																  const std::stop_token aStop, returning_change_observation& aObservation) -> returning_change_status
+	/// \brief [[BPR-2251]]. The answer, on the decision lane, exactly once.
+	void epoch_application_host::implementation::finish_returning_change(const std::shared_ptr<returning_change_job>& aJob, const returning_change_status aStatus) noexcept
+	{
+		aJob->Observation.Status = aStatus;
+		if (aStatus != returning_change_status::resolved) {
+			aJob->Observation.Steps.clear();
+			aJob->Observation.FilesOmitted = 0U;
+		}
+		auto deliver = [answer = std::move(aJob->Observation), completion = std::move(aJob->Completion)](implementation&) { completion(answer); };
+		enqueue_completion(aJob->Gate, aJob->DecisionLane, std::move(aJob->Control), std::move(deliver));
+	}
+
+	/// \brief [[BPR-2251]]. The next phase on the review's actor: the cache
+	/// is read only there.
+	void epoch_application_host::implementation::returning_change_on_actor(const std::shared_ptr<returning_change_job>& aJob,
+																		   void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&))
+	{
+		try {
+			enqueue_actor_work(aJob->Actor, [this, aJob, aPhase] {
+				try {
+					(this->*aPhase)(aJob);
+				} catch (...) {
+					finish_returning_change(aJob, returning_change_status::failure);
+				}
+			});
+		} catch (...) {
+			finish_returning_change(aJob, returning_change_status::failure);
+		}
+	}
+
+	/// \brief [[BPR-2251]]. The next phase on a worker of its own: GitHub's
+	/// reads, however long they take, hold no actor.
+	void epoch_application_host::implementation::returning_change_off_actor(const std::shared_ptr<returning_change_job>& aJob,
+																			void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&))
+	{
+		try {
+			Effects.post([this, aJob, aPhase] {
+				try {
+					(this->*aPhase)(aJob);
+				} catch (...) {
+					finish_returning_change(aJob, returning_change_status::failure);
+				}
+			});
+		} catch (...) {
+			finish_returning_change(aJob, returning_change_status::failure);
+		}
+	}
+
+	/// \brief [[BPR-2247]]. On the actor: which of the steps' commits the
+	/// review's objects hold. A commit they lack is fetched off the actor.
+	void epoch_application_host::implementation::returning_change_inspect(const std::shared_ptr<returning_change_job>& aJob)
+	{
+		using status    = returning_change_status;
+		auto&      job  = *aJob;
+		const auto stop = job.stop();
+		if (stop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+			finish_returning_change(aJob, status::cancelled);
+			return;
+		}
+		if (!open_actor_cache(*job.Actor, Caches, job.Expected, stop)) {
+			finish_returning_change(aJob, status::stale);
+			return;
+		}
+		for (const auto& step : job.Observation.Request.Steps) {
+			job.Commits.push_back(step.Parent);
+			job.Commits.push_back(step.Commit);
+		}
+		std::ranges::sort(job.Commits);
+		job.Commits.erase(std::unique(job.Commits.begin(), job.Commits.end()), job.Commits.end());
+		auto missing = false;
+		for (const auto& commit : job.Commits) {
+			if (stop.stop_requested()) {
+				finish_returning_change(aJob, status::cancelled);
+				return;
+			}
+			// As the touches job asks: the commit and its root tree, the
+			// closure check only when that refuses.
+			auto inspected = job.Expected.ObjectFormat == core::git_hash_algorithm::sha1
+				? job.Actor->Cache->inspect_sparse_commit_object(commit, stop)
+				: git_cache_result<git_cache_commit_inspection>{ std::unexpected{ git_cache_failure::invalid_request } };
+			if (!inspected.has_value() && inspected.error() != git_cache_failure::cancelled) {
+				inspected = job.Actor->Cache->inspect_commit_object(commit, stop);
+			}
+			if (inspected.has_value()) {
+				if (!application::valid(*inspected) || inspected->Commit != commit) {
+					finish_returning_change(aJob, status::failure);
+					return;
+				}
+				continue;
+			}
+			if (inspected.error() == git_cache_failure::cancelled || stop.stop_requested()) {
+				finish_returning_change(aJob, status::cancelled);
+				return;
+			}
+			if (inspected.error() != git_cache_failure::object_mismatch) {
+				finish_returning_change(aJob, status::failure);
+				return;
+			}
+			missing = true;
+		}
+		if (!missing) {
+			returning_change_diff(aJob);
+			return;
+		}
+		// A commit the review's objects do not hold: a sparse review holds
+		// only its heads' commits and root trees, and a rewritten branch's
+		// reviewed head is no longer in the head's history.
+		if (!job.CanFetch) {
+			finish_returning_change(aJob, status::earlier_unavailable);
+			return;
+		}
+		returning_change_off_actor(aJob, &implementation::returning_change_fetch_trees);
+	}
+
+	/// \brief [[BPR-2247]]. Off the actor: the steps' trees, acquired once
+	/// into a transient store through the review's own lease, the earlier
+	/// revision by its SHA when the head's history lacks it.
+	void epoch_application_host::implementation::returning_change_fetch_trees(const std::shared_ptr<returning_change_job>& aJob)
 	{
 		using status        = returning_change_status;
+		auto&       job     = *aJob;
+		const auto  stop    = job.stop();
+		const auto& request = job.Observation.Request;
+		const auto  context = job.smart_context(git_smart_acquisition_mode::sparse_commit_trees);
+		auto        chain   = git_smart_chain_request{ .Context = context, .Head = request.Head, .Depth = 0U, .Commits = job.Commits, .Outside = std::nullopt };
+		chain.Depth         = std::clamp<std::uint32_t>(request.Depth, 2U, maximum_git_smart_chain_depth);
+		if (request.Outside && std::ranges::binary_search(job.Commits, *request.Outside)) {
+			chain.Outside = request.Outside;
+		}
+		if (stop.stop_requested()) {
+			finish_returning_change(aJob, status::cancelled);
+			return;
+		}
+		if (!application::valid(chain)) {
+			finish_returning_change(aJob, status::earlier_unavailable);
+			return;
+		}
+		auto transport = job.Context->Handoff.SmartGit->acquire(context);
+		if (!transport || !*transport) {
+			finish_returning_change(aJob, status::earlier_unavailable);
+			return;
+		}
+		auto acquired = (*transport)->acquire_chain_trees(chain, stop);
+		if (!acquired || !*acquired) {
+			finish_returning_change(aJob, acquired || acquired.error().Failure != git_smart_transport_failure::cancelled ? status::earlier_unavailable : status::cancelled);
+			return;
+		}
+		if (!std::ranges::all_of(job.Commits, [&acquired](const core::git_commit_oid& aCommit) { return (*acquired)->holds(aCommit); })) {
+			finish_returning_change(aJob, status::earlier_unavailable);
+			return;
+		}
+		job.Store = std::move(*acquired);
+		returning_change_on_actor(aJob, &implementation::returning_change_diff);
+	}
+
+	/// \brief [[BPR-2247]]. On the actor: each step diffed in the retained
+	/// cache, or in the fetched store, and each side's blob read from the
+	/// cache. What the cache lacks is read off the actor.
+	void epoch_application_host::implementation::returning_change_diff(const std::shared_ptr<returning_change_job>& aJob)
+	{
+		using status        = returning_change_status;
+		auto&      job      = *aJob;
+		const auto stop     = job.stop();
 		const auto statusOf = [](const git_cache_failure aFailure) {
 			return aFailure == git_cache_failure::cancelled      ? status::cancelled
 				: aFailure == git_cache_failure::quota_exceeded  ? status::limit_exceeded
 				: aFailure == git_cache_failure::object_mismatch ? status::earlier_unavailable
 																 : status::failure;
 		};
-		if (aStop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
-			return status::cancelled;
+		if (stop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+			finish_returning_change(aJob, status::cancelled);
+			return;
 		}
-		if (!open_actor_cache(aActor, Caches, aExpected, aStop)) {
-			return status::stale;
-		}
-		auto commits = std::vector<core::git_commit_oid>{ };
-		for (const auto& step : aRequest.Steps) {
-			commits.push_back(step.Parent);
-			commits.push_back(step.Commit);
-		}
-		std::ranges::sort(commits);
-		commits.erase(std::unique(commits.begin(), commits.end()), commits.end());
-		auto missing = false;
-		for (const auto& commit : commits) {
-			if (aStop.stop_requested()) {
-				return status::cancelled;
-			}
-			// As the touches job asks: the commit and its root tree, the
-			// closure check only when that refuses.
-			auto inspected = aExpected.ObjectFormat == core::git_hash_algorithm::sha1
-				? aActor.Cache->inspect_sparse_commit_object(commit, aStop)
-				: git_cache_result<git_cache_commit_inspection>{ std::unexpected{ git_cache_failure::invalid_request } };
-			if (!inspected.has_value() && inspected.error() != git_cache_failure::cancelled) {
-				inspected = aActor.Cache->inspect_commit_object(commit, aStop);
-			}
-			if (inspected.has_value()) {
-				if (!application::valid(*inspected) || inspected->Commit != commit) {
-					return status::failure;
-				}
-				continue;
-			}
-			if (inspected.error() == git_cache_failure::cancelled || aStop.stop_requested()) {
-				return status::cancelled;
-			}
-			if (inspected.error() != git_cache_failure::object_mismatch) {
-				return status::failure;
-			}
-			missing = true;
-		}
-		const auto canFetch = aContext && aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees()
-			&& aRequest.Head == aContext->Revision.Head;
-		const auto smartContext = [&](const git_smart_acquisition_mode aMode) {
-			auto smart               = git_smart_request_context{ };
-			smart.ApplicationSession = aContext->Handoff.ApplicationSession;
-			smart.Authority          = aContext->Authority;
-			smart.Revision           = aContext->Revision;
-			smart.Repository         = aContext->Handoff.Locator;
-			smart.BaseRef            = aContext->Handoff.BaseRef;
-			smart.AcquisitionMode    = aMode;
-			return smart;
-		};
-		auto store = std::shared_ptr<git_chain_tree_store>{ };
-		if (missing) {
-			// A commit the review's objects do not hold: a sparse review holds
-			// only its heads' commits and root trees, and a rewritten branch's
-			// reviewed head is no longer in the head's history.
-			if (!canFetch) {
-				return status::earlier_unavailable;
-			}
-			const auto context = smartContext(git_smart_acquisition_mode::sparse_commit_trees);
-			auto       chain   = git_smart_chain_request{ .Context = context, .Head = aRequest.Head, .Depth = 0U, .Commits = commits, .Outside = std::nullopt };
-			chain.Depth        = std::clamp<std::uint32_t>(aRequest.Depth, 2U, maximum_git_smart_chain_depth);
-			if (aRequest.Outside && std::ranges::binary_search(commits, *aRequest.Outside)) {
-				chain.Outside = aRequest.Outside;
-			}
-			if (!application::valid(chain)) {
-				return status::earlier_unavailable;
-			}
-			auto transport = aContext->Handoff.SmartGit->acquire(context);
-			if (!transport || !*transport) {
-				return status::earlier_unavailable;
-			}
-			auto acquired = (*transport)->acquire_chain_trees(chain, aStop);
-			if (!acquired || !*acquired) {
-				return acquired || acquired.error().Failure != git_smart_transport_failure::cancelled ? status::earlier_unavailable : status::cancelled;
-			}
-			if (!std::ranges::all_of(commits, [&acquired](const core::git_commit_oid& aCommit) { return (*acquired)->holds(aCommit); })) {
-				return status::earlier_unavailable;
-			}
-			store = std::move(*acquired);
+		if (!open_actor_cache(*job.Actor, Caches, job.Expected, stop)) {
+			finish_returning_change(aJob, status::stale);
+			return;
 		}
 		struct change_side final
 		{
@@ -1602,150 +1710,164 @@ namespace bpr::application {
 										.Right = entry.Right ? std::optional{ change_side{ .Path = std::move(entry.Right->Path), .Blob = entry.Right->Object, .Mode = entry.Right->Mode } } : std::nullopt });
 				}
 			};
-			if (store) {
-				auto read = store->changed_entries(aStep.Parent, aStep.Commit, aStop);
+			if (job.Store) {
+				auto read = job.Store->changed_entries(aStep.Parent, aStep.Commit, stop);
 				if (!read) {
 					return std::unexpected{ read.error().Failure == git_smart_transport_failure::cancelled ? status::cancelled : status::failure };
 				}
 				add(*read);
 				return changes;
 			}
-			auto read = aActor.Cache->changed_entries({ .Left = aStep.Parent, .Right = aStep.Commit }, aStop);
+			auto read = job.Actor->Cache->changed_entries({ .Left = aStep.Parent, .Right = aStep.Commit }, stop);
 			if (!read.has_value()) {
 				return std::unexpected{ statusOf(read.error().Code) };
 			}
 			add(*read);
 			return changes;
 		};
-		// Each side to read: which step, which file, which side, which blob.
-		struct pending final
-		{
-			std::size_t        Step    = 0U;
-			std::size_t        File    = 0U;
-			bool               Earlier = false;
-			core::git_blob_oid Blob;
-		};
-		auto       reads  = std::vector<pending>{ };
-		auto       files  = std::size_t{ 0U };
-		const auto wanted = [&aRequest](const std::optional<change_side>& aSide) {
-			return aSide && std::ranges::find(aRequest.Paths, aSide->Path) != aRequest.Paths.end();
+		const auto& request = job.Observation.Request;
+		auto        files   = std::size_t{ 0U };
+		const auto  wanted  = [&request](const std::optional<change_side>& aSide) {
+			return aSide && std::ranges::find(request.Paths, aSide->Path) != request.Paths.end();
 		};
 		constexpr auto gitlink = std::uint32_t{ 0160000U };
-		for (const auto& step : aRequest.Steps) {
+		for (const auto& step : request.Steps) {
 			auto changes = diff(step);
 			if (!changes) {
-				return changes.error();
+				finish_returning_change(aJob, changes.error());
+				return;
 			}
 			if (changes->size() >= maximum_git_changed_entries) {
-				return status::limit_exceeded;
+				finish_returning_change(aJob, status::limit_exceeded);
+				return;
 			}
-			auto& answered = aObservation.Steps.emplace_back(returning_change_step{ .Commit = step.Commit, .Files = { } });
+			auto& answered = job.Observation.Steps.emplace_back(returning_change_step{ .Commit = step.Commit, .Files = { } });
 			for (auto& entry : *changes) {
 				const auto& named = entry.Right ? entry.Right : entry.Left;
-				if (!named || (!aRequest.Paths.empty() && !wanted(entry.Left) && !wanted(entry.Right)) || (entry.Left && entry.Left->Mode == gitlink)
+				if (!named || (!request.Paths.empty() && !wanted(entry.Left) && !wanted(entry.Right)) || (entry.Left && entry.Left->Mode == gitlink)
 					|| (entry.Right && entry.Right->Mode == gitlink)) {
 					continue;
 				}
 				if (files == maximum_returning_change_files) {
-					++aObservation.FilesOmitted;
+					++job.Observation.FilesOmitted;
 					continue;
 				}
 				++files;
 				const auto file = answered.Files.size();
 				answered.Files.push_back({ .Path = named->Path });
-				const auto stepIndex = aObservation.Steps.size() - 1U;
+				const auto stepIndex = job.Observation.Steps.size() - 1U;
 				for (const auto& [side, earlier] : { std::pair{ &entry.Left, true }, std::pair{ &entry.Right, false } }) {
 					if (*side) {
-						reads.push_back({ .Step = stepIndex, .File = file, .Earlier = earlier, .Blob = (*side)->Blob });
+						job.Reads.push_back({ .Step = stepIndex, .File = file, .Earlier = earlier, .Blob = (*side)->Blob });
 					}
 				}
 			}
 		}
 		// The cache first; what it lacks is read exactly through the lease.
-		auto bytes  = std::map<core::git_blob_oid, std::optional<std::vector<std::uint8_t>>>{ };
-		auto remote = std::vector<core::git_blob_oid>{ };
-		for (const auto& read : reads) {
-			if (bytes.contains(read.Blob) || std::ranges::find(remote, read.Blob) != remote.end()) {
+		for (const auto& read : job.Reads) {
+			if (job.Bytes.contains(read.Blob) || std::ranges::find(job.Remote, read.Blob) != job.Remote.end()) {
 				continue;
 			}
-			auto cached = aActor.Cache->materialize_blob({ .Blob = read.Blob, .MaximumBytes = maximum_returning_change_side_bytes }, aStop);
+			auto cached = job.Actor->Cache->materialize_blob({ .Blob = read.Blob, .MaximumBytes = maximum_returning_change_side_bytes }, stop);
 			if (cached.has_value()) {
-				bytes.emplace(read.Blob, std::move(*cached));
+				job.Bytes.emplace(read.Blob, std::move(*cached));
 				continue;
 			}
 			if (cached.error().Code == git_cache_failure::quota_exceeded) {
-				bytes.emplace(read.Blob, std::nullopt);
+				job.Bytes.emplace(read.Blob, std::nullopt);
 				continue;
 			}
 			if (cached.error().Code != git_cache_failure::object_mismatch) {
-				return statusOf(cached.error().Code);
+				finish_returning_change(aJob, statusOf(cached.error().Code));
+				return;
 			}
-			std::scoped_lock lock{ aActor.BlobAuthorityMutex };
-			if (auto retained = retained_blob(aActor, read.Blob)) {
-				bytes.emplace(read.Blob, retained->size() <= maximum_returning_change_side_bytes ? std::move(retained) : std::nullopt);
+			std::scoped_lock lock{ job.Actor->BlobAuthorityMutex };
+			if (auto retained = retained_blob(*job.Actor, read.Blob)) {
+				job.Bytes.emplace(read.Blob, retained->size() <= maximum_returning_change_side_bytes ? std::move(retained) : std::nullopt);
 			} else {
-				remote.push_back(read.Blob);
+				job.Remote.push_back(read.Blob);
 			}
 		}
-		if (!remote.empty()) {
-			if (!canFetch) {
-				return status::earlier_unavailable;
-			}
-			const auto context   = smartContext(git_smart_acquisition_mode{ });
-			const auto transport = aContext->Handoff.SmartGit->acquire(context);
+		if (job.Remote.empty()) {
+			returning_change_fetch_blobs(aJob);
+			return;
+		}
+		if (!job.CanFetch) {
+			finish_returning_change(aJob, status::earlier_unavailable);
+			return;
+		}
+		returning_change_off_actor(aJob, &implementation::returning_change_fetch_blobs);
+	}
+
+	/// \brief [[BPR-2247]]. Off the actor: each blob the cache lacks, read
+	/// exactly through the lease, batched, and checked; then the answer.
+	void epoch_application_host::implementation::returning_change_fetch_blobs(const std::shared_ptr<returning_change_job>& aJob)
+	{
+		using status    = returning_change_status;
+		auto&      job  = *aJob;
+		const auto stop = job.stop();
+		if (!job.Remote.empty()) {
+			const auto context   = job.smart_context(git_smart_acquisition_mode{ });
+			const auto transport = job.Context->Handoff.SmartGit->acquire(context);
 			if (!transport || !*transport) {
-				return status::earlier_unavailable;
+				finish_returning_change(aJob, status::earlier_unavailable);
+				return;
 			}
-			const auto exact = [&](const std::vector<std::byte>& aRead) {
+			const auto exact = [](const std::vector<std::byte>& aRead) {
 				auto copied = std::vector<std::uint8_t>(aRead.size());
 				std::ranges::transform(aRead, copied.begin(), [](const std::byte aByte) { return std::to_integer<std::uint8_t>(aByte); });
 				return copied;
 			};
+			const auto& remote = job.Remote;
 			for (std::size_t first = 0U; first < remote.size(); first += maximum_git_exact_blob_batch) {
 				const auto last  = std::min(remote.size(), first + maximum_git_exact_blob_batch);
 				const auto batch = std::vector<core::git_blob_oid>(remote.begin() + static_cast<std::ptrdiff_t>(first), remote.begin() + static_cast<std::ptrdiff_t>(last));
-				auto       found = (*transport)->read_exact_blobs({ context, batch, maximum_returning_change_side_bytes }, aStop);
-				if (aStop.stop_requested()) {
-					return status::cancelled;
+				auto       found = (*transport)->read_exact_blobs({ context, batch, maximum_returning_change_side_bytes }, stop);
+				if (stop.stop_requested()) {
+					finish_returning_change(aJob, status::cancelled);
+					return;
 				}
 				for (std::size_t index = 0U; index < batch.size(); ++index) {
 					if (found && index < found->size() && (*found)[index]) {
 						auto read = exact(*(*found)[index]);
 						if (blob_matches(batch[index], read) == blob_check::matches) {
-							bytes.emplace(batch[index], std::move(read));
+							job.Bytes.emplace(batch[index], std::move(read));
 							continue;
 						}
 					}
-					const auto single = (*transport)->read_exact_blob({ context, batch[index], maximum_returning_change_side_bytes }, aStop);
+					const auto single = (*transport)->read_exact_blob({ context, batch[index], maximum_returning_change_side_bytes }, stop);
 					if (!single) {
 						const auto failure = single.error().Failure;
 						if (failure == git_smart_transport_failure::cancelled) {
-							return status::cancelled;
+							finish_returning_change(aJob, status::cancelled);
+							return;
 						}
 						if (failure != git_smart_transport_failure::response_limit) {
-							return status::earlier_unavailable;
+							finish_returning_change(aJob, status::earlier_unavailable);
+							return;
 						}
-						bytes.emplace(batch[index], std::nullopt);
+						job.Bytes.emplace(batch[index], std::nullopt);
 						continue;
 					}
 					auto read = exact(*single);
 					// A mismatch or a collision detection both end here.
 					if (blob_matches(batch[index], read) != blob_check::matches) {
-						return status::failure;
+						finish_returning_change(aJob, status::failure);
+						return;
 					}
-					bytes.emplace(batch[index], std::move(read));
+					job.Bytes.emplace(batch[index], std::move(read));
 				}
 			}
 		}
-		for (const auto& read : reads) {
-			auto&       file  = aObservation.Steps[read.Step].Files[read.File];
-			const auto& found = bytes.at(read.Blob);
+		for (const auto& read : job.Reads) {
+			auto&       file  = job.Observation.Steps[read.Step].Files[read.File];
+			const auto& found = job.Bytes.at(read.Blob);
 			if (!found || found->size() > maximum_returning_change_side_bytes) {
 				file.TooLarge = true;
 				continue;
 			}
 			(read.Earlier ? file.Earlier : file.Current) = std::string{ found->begin(), found->end() };
 		}
-		return aStop.stop_requested() ? status::cancelled : status::resolved;
+		finish_returning_change(aJob, stop.stop_requested() ? status::cancelled : status::resolved);
 	}
 }
