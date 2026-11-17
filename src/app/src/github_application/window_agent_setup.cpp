@@ -1623,6 +1623,11 @@ namespace bpr::app {
 		tab->set_prompt_source([this](const core::prompt_chat_view& aView) { return chat_prompts(aView); });
 		if (auto* const editor = Window->tour_editor(); editor != nullptr && editor->side_chat() != nullptr) {
 			editor->side_chat()->set_prompt_source([this](const core::prompt_chat_view& aView) { return chat_prompts(aView); });
+			// [[BPR-2235]]. A tour chat's prompt turns read back by their names.
+			editor->side_chat()->set_turn_name_source([this](const std::string& aAsked) {
+				const auto name = PromptTurnNames ? PromptTurnNames->names().recall(aAsked) : std::nullopt;
+				return name ? QString::fromStdString(*name) : QString{ };
+			});
 		}
 		tab->set_suggestion_context([this] {
 			auto context = qt::agent_suggestion_context{ };

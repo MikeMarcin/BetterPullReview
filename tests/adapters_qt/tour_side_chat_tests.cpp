@@ -630,10 +630,32 @@ auto main(int argc, char** argv) -> int
 	expect(choose(QStringLiteral("Too many stops?")) && asked.size() == askedBefore + 1U && asked.back().Thread == core::tour_thread{ } && asked.back().Question == QStringLiteral("Too many stops?") && !asked.back().Update,
 		   "AC1 one click sends the prompt in the tour's chat");
 	expect(asked.back().SkillText == std::optional<std::string>{ "" }, "RFC-BPR-0125 AC09 a suggested prompt sent as offered reads skills only from its own text");
+	expect(asked.back().Name.isEmpty(), "BPR-2235 a prompt whose text is its name is sent with no other name");
+	// [[BPR-2235]]. A turn sent under a prompt's name (kept by the host for a
+	// restart) shows the agent glyph and the name; what was sent is behind
+	// Show prompt, as in the Agent tab.
+	chat->set_turn_name_source([](const std::string& aAsked) { return aAsked == "Too many stops?" ? QStringLiteral("Shape check") : QString{ }; });
 	const auto tourTurn = core::begin_tour_ask(session, asked.back().Thread, std::nullopt, "Too many stops?");
 	static_cast<void>(core::answer_tour_ask(session, *tourTurn, "Four stops is about right.", { }));
 	editor.present_tour_session(session, std::nullopt);
 	settle();
+	{
+		auto* const bubble   = chat->bubble(0);
+		auto* const name     = bubble != nullptr ? bubble->findChild<QLabel*>(QStringLiteral("tourSideChatPromptName")) : nullptr;
+		auto* const mark     = bubble != nullptr ? bubble->findChild<QLabel*>(QStringLiteral("tourSideChatPromptGlyph")) : nullptr;
+		auto* const fold     = bubble != nullptr ? bubble->findChild<QPushButton*>(QStringLiteral("tourSideChatShowPrompt")) : nullptr;
+		auto* const question = bubble != nullptr ? bubble->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion")) : nullptr;
+		expect(name != nullptr && name->text() == QStringLiteral("Shape check") && mark != nullptr && !mark->pixmap().isNull() && fold != nullptr && fold->text() == QStringLiteral("Show prompt") && question != nullptr
+				   && !question->isVisibleTo(chat),
+			   "BPR-2235 AC-a a prompt's turn shows its name and glyph, what was sent hidden");
+		render(*bubble, prefix, "bpr-2235-tour-prompt-turn");
+		fold->click();
+		settle();
+		expect(question->isVisibleTo(chat) && question->text() == QStringLiteral("Too many stops?") && fold->text() == QStringLiteral("Hide prompt"), "BPR-2235 AC-b Show prompt shows what was sent");
+		fold->click();
+		settle();
+		expect(!question->isVisibleTo(chat), "and Hide prompt hides it again");
+	}
 	expect(chat->turn_count() == 1U && offered() == QStringList{ QStringLiteral("Explain the selected block in Stop 1") }, "AC1 and they hide after the first turn");
 	// [[BPR-1937]]. An answer that changed nothing offers Update the tour
 	// from this chat in place, so a plan given in words can be asked for.
@@ -653,6 +675,10 @@ auto main(int argc, char** argv) -> int
 		expect(chat->refused_line() != nullptr && chat->refused_line()->text() == QStringLiteral("Merging stops 4 and 9 wasn't proposed: their lines are in different files and not confirmed yet, so one stop can't keep them all."),
 			   "BPR-1937 AC2 the refused merge is named with why: " + (chat->refused_line() != nullptr ? chat->refused_line()->text().toStdString() : std::string{ }));
 		expect(chat->unchanged_line() == nullptr, "BPR-1937 a turn with a refusal is not said to have changed nothing");
+		auto* const typed = chat->bubble(chat->turn_count() - 1U);
+		expect(typed != nullptr && typed->findChild<QLabel*>(QStringLiteral("tourSideChatPromptName")) == nullptr && typed->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->isVisibleTo(chat)
+				   && typed->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->text() == QStringLiteral("Lower, please."),
+			   "BPR-2235 AC-c a typed message shows as typed");
 	}
 	// v002. From another part's chat, Explain the selected block opens the
 	// selected part's chat and asks there.

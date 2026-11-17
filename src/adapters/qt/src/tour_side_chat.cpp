@@ -5,6 +5,7 @@
 #include "bpr/core/agent_queue.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/local_check_card.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -902,6 +903,8 @@ namespace bpr::qt {
 		refresh_actions();
 	}
 
+	void tour_side_chat::set_turn_name_source(turn_name_source aSource) { TurnNames = std::move(aSource); }
+
 	void tour_side_chat::set_prompt_source(prompt_source aSource)
 	{
 		PromptSource = std::move(aSource);
@@ -963,8 +966,10 @@ namespace bpr::qt {
 		case core::agent_suggestion_press::send_keeping_draft:
 			// AC09. Sent as offered: skills only from the template's own text.
 			SendingSkillText = core::prompt_skill_text(offer.Expansion);
+			SendingName      = QString::fromStdString(offer.Label) != text.trimmed() ? QString::fromStdString(offer.Label) : QString{ };
 			send(text, false);
 			SendingSkillText.reset();
+			SendingName.clear();
 			if (press == core::agent_suggestion_press::send_keeping_draft) {
 				// Sent alone, as if typed and sent; the reviewer's words stay.
 				Composer->setPlainText(draft);
@@ -1423,7 +1428,10 @@ namespace bpr::qt {
 			|| (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
 			return;
 		}
-		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::move(aUpdatePassage) : passage(), .Question = aQuestion, .Update = aUpdate, .SkillText = SendingSkillText, .Steer = following };
+		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::move(aUpdatePassage) : passage(), .Question = aQuestion, .Update = aUpdate, .SkillText = SendingSkillText, .Name = SendingName, .Steer = following };
+		if (!SendingName.isEmpty()) {
+			SentNames[aQuestion.toStdString()] = SendingName;
+		}
 		AskDispatch(ask);
 		if (!aUpdate) {
 			Composer->clear();
@@ -1792,6 +1800,49 @@ namespace bpr::qt {
 			}
 			auto* const asked = words(QString::fromStdString(run->Question), bubble);
 			asked->setObjectName(QStringLiteral("tourSideChatQuestion"));
+			// [[BPR-2235]], as the Agent tab ([[BPR-2219]] AC-h): a turn sent
+			// from a prompt shows the agent glyph and the prompt's name; what
+			// was sent is behind Show prompt.
+			auto name = QString{ };
+			if (const auto sent = SentNames.find(run->Question); sent != SentNames.end()) {
+				name = sent->second;
+			} else if (TurnNames) {
+				name = TurnNames(run->Question);
+			}
+			if (!name.isEmpty()) {
+				auto* const nameRow = new QHBoxLayout{ };
+				nameRow->setContentsMargins(0, 0, 0, 0);
+				nameRow->setSpacing(6);
+				auto* const glyph = new QLabel{ bubble };
+				glyph->setObjectName(QStringLiteral("tourSideChatPromptGlyph"));
+				glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
+				glyph->setToolTip(tr("Sent from a prompt"));
+				auto* const title = words(name, bubble);
+				title->setObjectName(QStringLiteral("tourSideChatPromptName"));
+				auto strong = title->font();
+				strong.setWeight(QFont::DemiBold);
+				title->setFont(strong);
+				const auto  shown = PromptsShown.contains(run->Question);
+				auto* const fold  = new quiet_push_button{ shown ? tr("Hide prompt") : tr("Show prompt"), bubble };
+				fold->setObjectName(QStringLiteral("tourSideChatShowPrompt"));
+				fold->setFlat(true);
+				connect(fold, &QPushButton::clicked, this, [this, asked, fold, question = run->Question] {
+					const auto open = !PromptsShown.contains(question);
+					if (open) {
+						PromptsShown.insert(question);
+					} else {
+						PromptsShown.erase(question);
+					}
+					asked->setVisible(open);
+					fold->setText(open ? tr("Hide prompt") : tr("Show prompt"));
+				});
+				nameRow->addWidget(glyph, 0, Qt::AlignVCenter);
+				nameRow->addWidget(title, 1);
+				nameRow->addWidget(fold, 0, Qt::AlignVCenter);
+				inside->addLayout(nameRow);
+				asked->setVisible(shown);
+				bubble->setAccessibleName(tr("%1: %2").arg(name, QString::fromStdString(run->Question)));
+			}
 			inside->addWidget(asked);
 			mineRow->addWidget(bubble);
 			Turns->addLayout(mineRow);
