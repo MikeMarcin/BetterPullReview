@@ -52,3 +52,20 @@ agent_tab_view colours: stage only this work's hunks; never the whole-tree
   report then plans with `core::plan_draft_all` over those states and runs
   `draft_all_agent_cards` (which ends by showing the Agent tab: the report's
   run should not). They need their own look.
+
+# Checkpoint 3 (2026-11-16): BPR-2232 and BPR-2231 built, look being frozen
+
+- `a7b9c2b20` (main `89434ccdf`): both cards In Progress.
+- `fe23e6040`: the change (core `agent_report_keep`, `report_finding::Card`;
+  host `settle_report_finding`, report Draft all through
+  `draft_all_agent_cards`; Qt report view records, Draft all row).
+- Passing on `fe23e6040` (dev, macOS): `core_agent_report`,
+  `core_agent_draft_all`, `core_agent_finding_card_memory`,
+  `qt_agent_report_view`, `application_review_report_public_path` (report to
+  card and card to report, Draft all, restart), `application_ask_report_public_path`,
+  `application_ask_menu_public_path`, `application_agent_keep_action_public_path`,
+  `qt_agent_finding_cards_retained`, `qt_agent_finding_cards_restart`,
+  `architecture_boundaries`, `architecture_boundary_contract`, docs gate.
+- Next: freeze `report-keeps-v001` (nested-folders-v1, renderer.cpp, Fixture
+  agent), renders from the frozen tree's course, fresh session with one
+  Accept/Reject per card, serve, record the session on the cards.
