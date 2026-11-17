@@ -19,6 +19,16 @@ application offscreen with the launcher's own arguments until the file shows
 (and, for `--next-push`, again on the pushed head). A freeze whose launcher
 cannot reach the file fails here, not in front of the owner.
 
+The check's next-push start begins only once everything the first start
+started has exited, its own process group and any helper in a session of its
+own (BPR-2239: the next push exited within seconds, intermittently, after
+`stop()` had waited for the first start's leader alone). A failed check keeps
+its scratch directory and prints the failing start's log path and last lines
+(`CHECK_KEPT:`, `CHECK_LOG:`); the freeze prints the check's stderr too. A look
+on a file asks the Fixture agent every ask at that file; What changed since
+my review is required only at the next push, and a look with no push says it
+is rightly absent.
+
 A look that starts on the pull request's own opening page (its Overview)
 rather than on a file freezes with `--open-pull-request` instead of
 `--open-file`; its launcher passes `--attended-open-pull-request` and waits for
@@ -99,6 +109,7 @@ reports within seconds if the application exits.
     --check     make the same checks, then open it offscreen until it
                 shows and close it (what the freeze ran){next_push_check}
 """
+import ctypes
 import os
 import shutil
 import signal
@@ -202,81 +213,174 @@ def await_shown(process, log_path, ready=None):
     return None, None, f"No setup line after {{WAIT_SECONDS}} seconds (pid {{process.pid}}). Log: {{log_path}}"
 
 
+def children(pid):
+    """`pid`'s running children, from libproc: a test's sandbox refuses `ps`."""
+    buffer = (ctypes.c_int * 1024)()
+    try:
+        count = ctypes.CDLL("/usr/lib/libproc.dylib").proc_listchildpids(pid, buffer, ctypes.sizeof(buffer))
+    except OSError:
+        return []
+    return [child for child in buffer[:max(count, 0)] if child > 0]
+
+
+def descendants(pid):
+    """Every process `pid` started that is still running, its own groups included."""
+    found, waiting = [], [pid]
+    while waiting:
+        for child in children(waiting.pop()):
+            found.append(child)
+            waiting.append(child)
+    return found
+
+
+def running(pid, group=False):
+    try:
+        (os.killpg if group else os.kill)(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def stop(process):
+    """Ends one start and waits until nothing it started is left.
+
+    [[BPR-2239]]. The next push's start reads the data this start wrote, so it
+    begins only once this start's whole process group has exited, and every
+    process it started in a group of its own (an agent runs in its own
+    session) with it. Waiting for the leader alone let a helper of the first
+    start outlive it. Returns the process IDs that had to be killed.
+    """
+    started = descendants(process.pid)
     if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         try:
             process.wait(timeout=15)
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
+    deadline = time.monotonic() + 20
+    while True:
+        left = [pid for pid in started if running(pid)]
+        if not left and not running(process.pid, group=True):
+            return []
+        if time.monotonic() > deadline:
+            for pid in left:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            return left
+        time.sleep(0.1)
+
+
+def kept(scratch, log_path):
+    """[[BPR-2239]]. A failed check keeps its scratch and prints the end of
+    the failing start's log, so the cause is read the first time."""
+    print(f"CHECK_KEPT: {{scratch}}")
+    print(f"CHECK_LOG: {{log_path}}")
+    text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else ""
+    for line in text.splitlines()[-40:]:
+        print(f"CHECK_LOG| {{line}}")
 
 
 def check(native):
-    """Opens the build as the launcher does and closes it once the file shows."""
+    """Opens the build as the launcher does and closes it once the file shows.
+
+    A failed check keeps its scratch directory and prints the end of the
+    failing start's log; a passed one removes it.
+    """
     print(FROZEN)
     if not preflight():
         return 1
     scratch = Path(tempfile.mkdtemp(prefix="check.", dir=str(ROOT)))
+    last = [scratch / "single.log"]
+    result = 1
     try:
-        courses = [("single", "first head")]
-        if NEXT_PUSH:
-            courses.append(("reuse", "next push"))
-        heads = []
-        for phase, label in courses:
-            data = scratch if NEXT_PUSH else None
-            log_path = scratch / f"{{phase}}.log"
-            sentinels(scratch / "real-agents", scratch / "real-agent-started")
-            process = start(arguments(data, phase), log_path, offscreen=not native, path_first=scratch / "real-agents")
-            try:
-                line, head, message = await_shown(process, log_path)
-            finally:
-                stop(process)
-            if line is None or not line.startswith(READY):
-                print(f"CHECK_FAILED ({{label}}): {{line or message}}")
-                return 1
-            if (scratch / "real-agent-started").exists():
-                print(f"CHECK_FAILED ({{label}}): REAL_AGENT_STARTED: {{(scratch / 'real-agent-started').read_text().strip()}}")
-                return 1
-            heads.append(head)
-            print(f"CHECK_OK ({{label}}): {{line}} head {{head}}")
-        print(f"CHECK_OK fixture agent: {{FIXTURE_AGENTS}}; no real agent program started")
-        if OPEN_FILE is not None and READY == "ATTENDED_FILE_SHOWN":
-            # Look ask-v002 (owner, 2026-11-14: "Aren't we supposed to have a
-            # mack agent for testing now?"): the look opened on an agent that
-            # never answered. The build asks the review bar's What could this
-            # change break? by itself and must get the fixture agent's answer,
-            # as a report, with no step and no real agent.
-            log_path = scratch / "fixture-agent.log"
-            sentinels(scratch / "real-agents", scratch / "real-agent-started")
-            # Look ask-v004 (owner: "still doesnt work"): at the push the
-            # look opens on, the build asks everything it offers (What changed
-            # since my review first, every quick ask, typed questions with the
-            # line chip, a continuation, a queue); every turn must answer.
-            process = start(arguments(scratch if NEXT_PUSH else None, "reuse" if NEXT_PUSH else "single"), log_path, offscreen=True,
-                            path_first=scratch / "real-agents",
-                            extra_environment={{"BPR_ATTENDED_FIXTURE_AGENT_CHECK": "1", "BPR_FIXTURE_AGENT_PAUSE_MS": "30"}})
-            try:
-                line, _, message = await_shown(process, log_path, "ATTENDED_FIXTURE_AGENT_ANSWERED")
-            finally:
-                stop(process)
-            # Look ask-v003 (owner: "The footer does not say fixture agent").
-            if (line is None or not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent")
-                    or ":footer=Fixture agent" not in line or ":report=1:menus=" not in line
-                    # Look ask-v008: every report's menu reached each section.
-                    or not line.rsplit("=", 1)[1].isdigit() or int(line.rsplit("=", 1)[1]) < 5):
-                print(f"CHECK_FAILED (fixture agent answers): FIXTURE_AGENT_SILENT: {{line or message}}")
-                return 1
-            if (scratch / "real-agent-started").exists():
-                print(f"CHECK_FAILED (fixture agent answers): REAL_AGENT_STARTED: {{(scratch / 'real-agent-started').read_text().strip()}}")
-                return 1
-            print(f"CHECK_OK (fixture agent answers): {{line}}")
-        if NEXT_PUSH and (not heads[0] or heads[0] == heads[1]):
-            print(f"CHECK_FAILED: the next push showed head {{heads[1]}}, the first head {{heads[0]}}")
-            return 1
-        return 0
+        result = checked(native, scratch, last)
+        return result
     finally:
-        shutil.rmtree(scratch, ignore_errors=True)
+        if result == 0:
+            shutil.rmtree(scratch, ignore_errors=True)
+        else:
+            kept(scratch, last[0])
+
+
+def checked(native, scratch, last):
+    courses = [("single", "first head")]
+    if NEXT_PUSH:
+        courses.append(("reuse", "next push"))
+    heads = []
+    for phase, label in courses:
+        data = scratch if NEXT_PUSH else None
+        log_path = scratch / f"{{phase}}.log"
+        last[0] = log_path
+        sentinels(scratch / "real-agents", scratch / "real-agent-started")
+        process = start(arguments(data, phase), log_path, offscreen=not native, path_first=scratch / "real-agents")
+        try:
+            line, head, message = await_shown(process, log_path)
+        finally:
+            killed = stop(process)
+        if killed:
+            print(f"CHECK_NOTE ({{label}}): the start left processes running, killed: {{killed}}")
+        if line is None or not line.startswith(READY):
+            print(f"CHECK_FAILED ({{label}}): {{line or message}}")
+            return 1
+        if (scratch / "real-agent-started").exists():
+            print(f"CHECK_FAILED ({{label}}): REAL_AGENT_STARTED: {{(scratch / 'real-agent-started').read_text().strip()}}")
+            return 1
+        heads.append(head)
+        print(f"CHECK_OK ({{label}}): {{line}} head {{head}}")
+    print(f"CHECK_OK fixture agent: {{FIXTURE_AGENTS}}; no real agent program started")
+    if OPEN_FILE is not None and READY == "ATTENDED_FILE_SHOWN":
+        # Look ask-v002 (owner, 2026-11-14: "Aren't we supposed to have a
+        # mack agent for testing now?"): the look opened on an agent that
+        # never answered. The build asks the review bar's What could this
+        # change break? by itself and must get the fixture agent's answer,
+        # as a report, with no step and no real agent.
+        log_path = scratch / "fixture-agent.log"
+        last[0] = log_path
+        sentinels(scratch / "real-agents", scratch / "real-agent-started")
+        # Look ask-v004 (owner: "still doesnt work"): at the push the
+        # look opens on, the build asks everything it offers (What changed
+        # since my review first, every quick ask, typed questions with the
+        # line chip, a continuation, a queue); every turn must answer.
+        # [[BPR-2239]]: a look on a file with no push has no review to return
+        # to, so What changed is not offered there; the build asks the rest
+        # at the look's own file and names What changed as skipped.
+        process = start(arguments(scratch if NEXT_PUSH else None, "reuse" if NEXT_PUSH else "single"), log_path, offscreen=True,
+                        path_first=scratch / "real-agents",
+                        extra_environment={{"BPR_ATTENDED_FIXTURE_AGENT_CHECK": "1" if NEXT_PUSH else "file", "BPR_FIXTURE_AGENT_PAUSE_MS": "30"}})
+        try:
+            line, _, message = await_shown(process, log_path, "ATTENDED_FIXTURE_AGENT_ANSWERED")
+        finally:
+            stop(process)
+        # Look ask-v003 (owner: "The footer does not say fixture agent").
+        if (line is None or not line.startswith("ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent")
+                or ":footer=Fixture agent" not in line or ":report=1:menus=" not in line
+                # Look ask-v008: every report's menu reached each section.
+                or not line.rsplit("=", 1)[1].isdigit() or int(line.rsplit("=", 1)[1]) < 5):
+            print(f"CHECK_FAILED (fixture agent answers): FIXTURE_AGENT_SILENT: {{line or message}}")
+            return 1
+        if (scratch / "real-agent-started").exists():
+            print(f"CHECK_FAILED (fixture agent answers): REAL_AGENT_STARTED: {{(scratch / 'real-agent-started').read_text().strip()}}")
+            return 1
+        print(f"CHECK_OK (fixture agent answers): {{line}}")
+        if not NEXT_PUSH and "What changed" in line.split(":skipped=", 1)[-1].split(":report=", 1)[0]:
+            print("CHECK_OK (What changed since my review): not offered, rightly: this look has no next push, "
+                  "so there is no earlier review to return to")
+    if NEXT_PUSH and (not heads[0] or heads[0] == heads[1]):
+        print(f"CHECK_FAILED: the next push showed head {{heads[1]}}, the first head {{heads[0]}}")
+        return 1
+    return 0
 
 
 def main():
@@ -692,6 +796,9 @@ def freeze(options: argparse.Namespace) -> int:
     # The freeze-time check: the launcher's own preflight and its own launch.
     checked = subprocess.run([sys.executable, str(launcher), "--check"], check=False, capture_output=True, text=True)
     print(checked.stdout, end="")
+    # [[BPR-2239]]. The check's own errors, which were dropped.
+    for line in checked.stderr.splitlines():
+        print(f"CHECK_STDERR| {line}")
     if checked.returncode != 0:
         return fail(f"the launcher's own check failed; the root is kept at {root}")
     # Nothing in the source or build may change after the check.

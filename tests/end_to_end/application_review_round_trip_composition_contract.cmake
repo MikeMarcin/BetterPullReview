@@ -3840,8 +3840,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2216]] reseal: the Home gesture leaves a read opened from a Home row
 	# running (window_navigation.cpp). No review mutation or submission path
 	# changed.
+	# [[BPR-2239]] reseal: the attended fixture agent check (main.cpp, tests
+	# on) asks at the look's own file and, on a look with no next push, skips
+	# What changed since my review. Also seals the lane's unsealed BPR-2245,
+	# BPR-2247, BPR-2248, BPR-2249 and BPR-2251 app changes. No review
+	# mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "e02e1ee404ef5b716df0756f6c9acc6b2669ffcf7b9dbbe28b6d9919827caee3"
+        "afd2a0f1b0d7a9861356ff7639e9e08d93a4d683fe87e84749237774b1b564ca"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

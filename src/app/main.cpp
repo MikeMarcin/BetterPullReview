@@ -5667,7 +5667,7 @@ namespace {
 	void          schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
-	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication);
+	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication, std::string aPath, bool aAtNextPush);
 	void schedule_attended_agent_helpers_look(bpr::app::github_application& aApplication);
 	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
@@ -5750,8 +5750,11 @@ namespace {
 					QTextStream{ stdout } << "ATTENDED_HEAD:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::accepted_head(aApplication)) << '\n';
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
 	#if defined(BPR_AGENT_INTEGRATIONS)
-					if (qEnvironmentVariable("BPR_ATTENDED_FIXTURE_AGENT_CHECK") == QStringLiteral("1")) {
-						schedule_attended_fixture_agent_check(aApplication);
+					// [[BPR-2239]]. `1` is a look at the next push, whose own
+					// path is What changed since my review; `file` is a look
+					// on a file with no push, where it is not offered.
+					if (const auto check = qEnvironmentVariable("BPR_ATTENDED_FIXTURE_AGENT_CHECK"); check == QStringLiteral("1") || check == QStringLiteral("file")) {
+						schedule_attended_fixture_agent_check(aApplication, path, check == QStringLiteral("1"));
 					}
 	#endif
 					if (look == "workshop") {
@@ -8189,7 +8192,11 @@ namespace {
 	// conversation, and two asks queued at once. Every turn must be answered.
 	// `BPR_ATTENDED_FOOTER_SHOT=FILE` saves the window after What changed. A
 	// freeze's `--check` and `fixture_agent_every_ask` read the line.
-	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication)
+	// [[BPR-2239]]. The asks are made at the look's own file. What changed
+	// since my review is the look's own path only at the next push
+	// (`aAtNextPush`), where it must be offered; a look on a file with no push
+	// has no review to return to, so it is skipped and named in `skipped=`.
+	void schedule_attended_fixture_agent_check(bpr::app::github_application& aApplication, std::string aPath, const bool aAtNextPush)
 	{
 		using access = bpr::app::detail::github_application_fixture_access;
 		struct ask_step
@@ -8221,7 +8228,7 @@ namespace {
 		const auto  started = automated_clock::now();
 		auto        state   = std::make_shared<check_state>();
 		timer->setInterval(100);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, state, alive = aApplication.liveness()]() mutable {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, state, path = std::move(aPath), aAtNextPush, alive = aApplication.liveness()]() mutable {
 			if (alive.expired()) {
 				return;
 			}
@@ -8245,9 +8252,11 @@ namespace {
 						   .arg(flat(tab->queue_note()->text()), tab->turn_count() > 0U ? flat(tab->turn_answer(last)) : QString{ }));
 				return;
 			}
-			const auto path = std::string{ "src/engine/renderer.cpp" };
+			// The line chip's line: line 6 of the next push's renderer.cpp,
+			// and the first line of any other look's file.
+			const auto line = aAtNextPush ? 6U : 1U;
 			if (!state->Planned) {
-				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent")) || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
+				if (!picker->currentText().startsWith(QStringLiteral("Fixture agent")) || !window.go_to_file_line(QString::fromStdString(path), line, false)) {
 					return;
 				}
 				// Look ask-v005 (owner: "I don't know why it says setup agent
@@ -8314,11 +8323,11 @@ namespace {
 												return true;
 											} });
 				}
-				const auto typed = [&aApplication, &window, path](const QString& aText) {
-					return [&aApplication, &window, path, aText]() {
+				const auto typed = [&aApplication, &window, path, line](const QString& aText) {
+					return [&aApplication, &window, path, line, aText]() {
 						window.open_agent_question();
 						auto* const chat = access::side_chat_panel(aApplication);
-						if (chat == nullptr || !window.go_to_file_line(QString::fromStdString(path), 6U, false)) {
+						if (chat == nullptr || !window.go_to_file_line(QString::fromStdString(path), line, false)) {
 							return false;
 						}
 						chat->composer()->setPlainText(aText);
@@ -8404,7 +8413,7 @@ namespace {
 					if (automated_clock::now() - state->Tried < std::chrono::seconds{ 20 }) {
 						return;
 					}
-					if (state->Next == 0U) {
+					if (state->Next == 0U && aAtNextPush) {
 						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-offered:step=%1").arg(next.Name));
 						return;
 					}
@@ -8440,6 +8449,9 @@ namespace {
 					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:no-report:step=%1:answer=%2").arg(current.Name, flat(tab->turn_answer(tab->turn_count() - 1U))));
 					return;
 				}
+				// [[BPR-2239]]. A report was answered as one, What changed or
+				// (on a look with no push) the first other report.
+				state->Report = true;
 			}
 			for (auto turn = state->TurnsBefore; turn < tab->turn_count(); ++turn) {
 				if (!tab->turn_footer(turn).contains(QStringLiteral("answered"))) {
@@ -8484,7 +8496,7 @@ namespace {
 						report->popover()->close();
 						QCoreApplication::processEvents();
 					}
-					static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
+					static_cast<void>(window.go_to_file_line(QString::fromStdString(path), line, false));
 					QCoreApplication::processEvents();
 					if (window.report_shown() || !window.file_ask_button()->isVisible()) {
 						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:file-tab:file-ask=%1").arg(window.file_ask_button()->isVisible() ? 1 : 0));
@@ -8599,7 +8611,7 @@ namespace {
 					return;
 				}
 				state->Menus << current.Name;
-				static_cast<void>(window.go_to_file_line(QString::fromStdString(path), 6U, false));
+				static_cast<void>(window.go_to_file_line(QString::fromStdString(path), line, false));
 				QCoreApplication::processEvents();
 			}
 			state->Asked << current.Name;
