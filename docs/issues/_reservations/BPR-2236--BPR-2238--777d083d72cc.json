@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2236",
+    "BPR-2237",
+    "BPR-2238"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2219 follow-ups: one colour source for the Agent tab and the report, a Shift-click-edited prompt's turn, the suggested-change box in a finding's card",
+  "created": "2026-11-17T04:21:07.088763+00:00",
+  "base": "8e009948db472663b689301fba3785477f3f5dd6"
+}
