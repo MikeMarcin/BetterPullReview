@@ -67,3 +67,46 @@ Where each element shown on both surfaces took its colour before this card:
   (severity tones, the card's verdict), `core_theme_exchange` (retired roles
   read past), `core_appearance_contrast`, role-count courses, and
   `application_review_report_public_path` (the tab's verdict over its summary).
+
+## Owner look (filed, not waited on)
+
+Attended-review session `3b22e7868c33624badafbfc8a436baf6`, external state
+directory `~/.attended-review-state/tones-v001-2026-11-16/` (`state/` the
+session, `manifest.json`, `serve.log`, `serve.pid`), served on the tailnet
+since 2026-11-16. One Accept/Reject question, `tones-alike`, on the frozen
+build `tones-v001` (root `~/tones-v001.u6chy2i4`, frozen from
+`87e489594672`, Fixture agent only, fixture `returning-review-v1` with
+`src/engine/renderer.cpp` open and its next push): one colour per element on
+both surfaces, Major a step quieter, light and dark. Its images: before and
+after, side by side, light and dark, drawn by `qt_agent_tone_colours`
+(`BPR_TONE_RENDER_ROOT`, Cocoa native look) at `87e489594` and, for before,
+at `3dd6195f9` in a scratch export. The freeze's own check passed whole,
+first head, next push and the Fixture agent's 17 asks. Lifecycle: pending.
+
+Filed: [[BPR-2239]] (the freeze tool's own check exiting at the next-push
+start on looks review-report-v002 and v003; not reproduced here).
+
+## Checkpoint (2026-11-16)
+
+- Commits on `claude/v0-5-0-prerelease-targets-52265d`: `3dd6195f9` (In
+  Progress), `555ba0abf` (the change), `87e489594` (render mode). The lane is
+  shared with BPR-2234's worker, whose commits and uncommitted edits sit
+  beside these.
+- Passing at `555ba0abf`/`87e489594` (dev): `core_agent_report`,
+  `core_appearance_contrast`, `core_appearance_policy`, `core_theme_exchange`,
+  `sqlite_appearance_settings_storage`, `qt_agent_tone_colours`,
+  `qt_agent_report_view`, `qt_agent_finding_cards_retained`,
+  `qt_agent_finding_cards_restart`, `qt_appearance_role_display`,
+  `qt_colour_role_list`, `qt_appearance_settings_panel`,
+  `qt_appearance_profile`, `qt_theme_preview_strip`,
+  `application_review_report_public_path`,
+  `application_fixture_agent_every_ask`, the appearance end-to-end contracts
+  (theme customization, older theme, gesture, store fallback, native probe,
+  profile consumers, host), `architecture_boundaries`, documentation gate.
+- Failing in the same tree, in paths this card did not touch:
+  `qt_composed_github_scale_100/125/200` ("the prepared loading overview does
+  not manufacture accepted content"), `qt_agent_launch_canary` ("hostile
+  partial reads"), `qt_agent_launch_canary_durable_course`. Not compared with
+  the base.
+- Next: read the owner's verdict on `tones-alike`; on Accept, Done; on
+  Reject, the note's change.

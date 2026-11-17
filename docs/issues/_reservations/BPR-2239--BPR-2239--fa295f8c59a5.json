@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2239"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "freeze tool's own launch check exits at the next-push start",
+  "created": "2026-11-17T05:10:08.750554+00:00",
+  "base": "5e886efd1c6813d698edd961ce731ec053373edf"
+}
