@@ -206,7 +206,10 @@ namespace bpr::application {
 		// Semantic deltas.
 		[[nodiscard]] auto subscribe(agent_queue_subscriber aSubscriber) -> std::uint64_t;
 		void               unsubscribe(std::uint64_t aSubscriber);
-		/// \brief Shows `aSession`'s queue to every subscriber again.
+		/// \brief Shows `aSession`'s queue to every subscriber again; an empty
+		/// queue when the session holds none. [[BPR-2245]]: a window that
+		/// opens another pull request is shown that session's queue, empty or
+		/// not, so it never keeps showing the last one's.
 		void show(const std::string& aSession);
 
 		[[nodiscard]] auto queue(const std::string& aSession) const -> const core::agent_queue*;

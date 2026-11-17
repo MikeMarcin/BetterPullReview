@@ -71,20 +71,51 @@ no agent stuff is running."
   was found that paints a delivered report with a cancelled ending, so no
   change was made to the turn's outcome.
 
+- Second report (owner): "When I opened a different PR there was a review
+  this pull request in the queue after the agent loaded", and "Stop all
+  still shows in the footer even after deleting that from the queue".
+  The queue key does cover the pull request
+  (`ask_session_key`, `window_quick_ask.cpp:380-395`: host, owner,
+  repository, number), and a restored queue is keyed the same way and
+  opens paused. But `agent_queue_host::show` returned without telling
+  anyone when the session held no queue, so a window that opened another
+  pull request in place (`observe_ask_queue`, `window_quick_ask.cpp:854-856`)
+  kept presenting the last pull request's rows. A Delete pressed there went
+  to the new session, which holds no such entry, so nothing was removed, and
+  the old pull request's message still counted toward Stop all. Fix:
+  `show` presents an empty queue for a session that holds none (and makes
+  none). Stop all's other input, the footer's run slots, is set and cleared
+  by the Agent tab's run and end observers; none was found left set.
+- Still open: why the owner's first pull request kept a "Review this pull
+  request" entry after its review ran. The course runs that sequence and
+  restarts, and finds nothing queued either time.
+
 ## Evidence
 
+- Another pull request: `application_agent_queue_host`
+  (`test_another_session_is_shown_its_own_empty_queue`: a session with no
+  queue is shown an empty one; a delete under it removes nothing; deleted
+  where it is queued, nothing waits). Pass.
 - `BPR-2245:stop-all`: `application_agent_queue_host`
   (`test_a_paused_queue_leaves_nothing_waiting_to_go`: a refused release
   pauses the queue and leaves nothing waiting to go; Resume waits again;
   Stop all leaves none) and `application_ask_setup_review_public_path`
-  (Stop all hidden after the review retires). Pass.
+  (Stop all hidden and nothing queued after the review retires, and again
+  after a restart). Pass.
 - `BPR-2245:answered`, `BPR-2245:once`: `application_ask_setup_review_public_path`
   passes on the owner's sequence; the owner's red ending is not reproduced
   (above), so these stay open until it is, or the owner reports it gone.
 - `BPR-2245:cancelled`: not touched; `application_review_agent_runtime`
   passes.
-- Also passing: `application_ask_queue_public_path`,
-  `application_agent_queue_windows_public_path`; documentation gate OK.
+- Also passing: `core_agent_queue`, `application_agent_queue_handoff`,
+  `application_queue_composition_contract`, `qt_agent_footer`,
+  `application_ask_queue_public_path`, `application_ask_menu_public_path`,
+  `application_ask_report_public_path`,
+  `application_agent_queue_windows_public_path`,
+  `application_tour_feedback_queue_public_path`,
+  `application_tour_chat_queue_{stop,whole_tour,local_draft}_public_path`,
+  `application_agent_steer_{sent,unavailable}_public_path`; documentation
+  gate OK.
 
 ## Owner report (2026-11-17)
 

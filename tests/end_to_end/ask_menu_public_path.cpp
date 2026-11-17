@@ -36,7 +36,9 @@
 /// - `setup-review STUB`: [[BPR-2245]]. Review this pull request pressed
 ///   while the agent's setup waits on Check is queued; Check passes, the
 ///   review runs once and its turn ends answered, not stopped and not drawn
-///   as an error, and once it retires the footer's Stop all is hidden.
+///   as an error, and once it retires the footer's Stop all is hidden and
+///   nothing is queued; restarted, the pull request opens with nothing
+///   queued and no Stop all.
 /// - `menu|addressed|report STUB --attended`: the same, then the window is left on
 ///   Review with a thread open for a person to look; closing it ends the
 ///   course.
@@ -312,6 +314,45 @@ auto main(int argc, char** argv) -> int
 				   "the review that answered says it answered: " + said());
 			expect(tab->turn_name(0U) == QStringLiteral("Review this pull request"), "the turn is the review: " + tab->turn_name(0U).toStdString());
 			expect(footer != nullptr && footer->stop_all_button()->isHidden(), "with nothing running or waiting, Stop all is hidden: " + said());
+			const auto rowsLeft = [](const qt::agent_tab_view& aTab) { return aTab.queue_list() != nullptr ? aTab.queue_list()->findChildren<QWidget*>(QStringLiteral("agentQueueRow")).size() : qsizetype{ 0 }; };
+			expect(rowsLeft(*tab) == 0 && tab->queue_note()->text().isEmpty(), "nothing is left in the queue: " + said());
+			shutdown(*application);
+			application.reset();
+			// The owner, 2026-11-17: "When I opened a different PR there was
+			// a review this pull request in the queue". Restarted, the pull
+			// request opens with nothing queued and no Stop all.
+			auto again                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
+			again.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
+			again.ClaudeAgentExecutable = stub;
+			again.ClaudeSearch          = search;
+			auto restarted              = false;
+			auto second                 = access::start(app::detail::github_public_path_fixture::returning_review_v1, std::move(again), [&](auto aResult) {
+				restarted = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+			wait([&] { return restarted && second && second->is_quiescent(); }, "restart terminal");
+			expect(application != nullptr, "the restart succeeds");
+			application->show();
+			auto& reopened = application->window();
+			reopened.resize(1440, 960);
+			reopened.github_connect_action()->trigger();
+			wait([&] { return reopened.github_open_action()->isEnabled(); }, "connected again");
+			reopened.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+			reopened.home_open_action()->trigger();
+			wait([&] { return reopened.what_changed_action()->isEnabled(); }, "the pull request opens again");
+			reopened.open_agent_question();
+			{
+				auto settle = QElapsedTimer{ };
+				settle.start();
+				while (settle.elapsed() < 1500) {
+					QApplication::processEvents(QEventLoop::AllEvents, 50);
+				}
+			}
+			auto* const kept = reopened.agent_tab();
+			expect(rowsLeft(*kept) == 0 && kept->queue_note()->text().isEmpty(), "restarted, nothing is queued: " + kept->queue_note()->text().toStdString());
+			expect(reopened.agent_footer_widget() != nullptr && reopened.agent_footer_widget()->stop_all_button()->isHidden(), "restarted, Stop all is hidden");
 			shutdown(*application);
 			std::cout << "ask-menu-setup-review:pass\n";
 			return EXIT_SUCCESS;

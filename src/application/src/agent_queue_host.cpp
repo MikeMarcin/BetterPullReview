@@ -153,17 +153,19 @@ namespace bpr::application {
 
 	void agent_queue_host::show(const std::string& aSession)
 	{
-		const auto queue = Queues.find(aSession);
-		if (queue == Queues.end()) {
-			return;
-		}
-		auto tokens = std::vector<std::uint64_t>{ };
+		// [[BPR-2245]]. A session that holds no queue is shown as empty, not
+		// left out: a window showing another session's messages would offer
+		// to edit and delete them under this one, where they are not.
+		static const auto none   = core::agent_queue{ };
+		const auto        queue  = Queues.find(aSession);
+		const auto&       shown  = queue == Queues.end() ? none : queue->second;
+		auto              tokens = std::vector<std::uint64_t>{ };
 		for (const auto& [token, subscriber] : Subscribers) {
 			tokens.push_back(token);
 		}
 		for (const auto token : tokens) {
 			if (const auto found = Subscribers.find(token); found != Subscribers.end() && found->second.Changed) {
-				found->second.Changed(aSession, queue->second);
+				found->second.Changed(aSession, shown);
 			}
 		}
 	}

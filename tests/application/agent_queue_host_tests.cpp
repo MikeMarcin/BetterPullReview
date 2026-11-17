@@ -387,12 +387,37 @@ namespace {
 		host.pause_all(core::queue_pause::stopped);
 		expect(shown.Waiting == 0U, "Stop all pauses it, and nothing is left waiting to go");
 	}
+
+	/// [[BPR-2245]] (owner, 2026-11-17: "When I opened a different PR there was
+	/// a review this pull request in the queue", and "Stop all still shows in
+	/// the footer even after deleting that from the queue"). A window that
+	/// opens another pull request is shown that session's queue even when it
+	/// holds none, so it does not keep showing the last one's message; and a
+	/// message deleted where it is queued leaves nothing waiting.
+	void test_another_session_is_shown_its_own_empty_queue()
+	{
+		auto       agents = runner{ };
+		auto       host   = application::agent_queue_host{ { .Runner = &agents } };
+		const auto first  = std::string{ "agent-tab:github.com/o/r#1" };
+		const auto second = std::string{ "agent-tab:github.com/o/r#2" };
+		auto       shown  = window{ };
+		static_cast<void>(host.subscribe(shown.subscriber()));
+		agents.States[first] = core::queue_agent::busy;
+		static_cast<void>(host.enqueue(first, typed("Review this pull request")));
+		expect(shown.Shown[first].Entries.size() == 1U && shown.Waiting == 1U, "the first pull request's review waits");
+		host.show(second);
+		expect(shown.Shown.contains(second) && shown.Shown[second].Entries.empty() && host.queue(second) == nullptr, "another pull request with no queue is shown an empty one, and none is made for it");
+		const auto id = shown.Shown[first].Entries.front().Id;
+		expect(host.withdraw(second, id, std::nullopt) != core::queue_refusal::none && shown.Waiting == 1U, "a delete under another session removes nothing");
+		expect(host.withdraw(first, id, std::nullopt) == core::queue_refusal::none && shown.Waiting == 0U && host.waiting_count() == 0U, "deleted where it is queued, nothing waits and Stop all has nothing to show for");
+	}
 } // namespace
 
 auto main() -> int
 {
 	test_admissions_settle_every_release();
 	test_a_paused_queue_leaves_nothing_waiting_to_go();
+	test_another_session_is_shown_its_own_empty_queue();
 	test_a_refused_write_on_the_effect_lane_hands_the_message_back();
 	test_no_window_drains_on_retirement();
 	test_windows_show_and_edit_one_queue();
