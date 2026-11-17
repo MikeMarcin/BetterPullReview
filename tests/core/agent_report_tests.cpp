@@ -22,6 +22,24 @@ namespace {
 		}
 	}
 
+	/// [[BPR-2246]]. The owner's 0.5.0 report: "Was this addressed? (32
+	/// threads)" stopped before the agent answered still wore a Report
+	/// attachment whose page only repeated the error.
+	void test_report_attachment_needs_an_answer()
+	{
+		const auto stopped = std::string{ "Claude stopped before answering. The agent's copy of this pull request could not be made." };
+		expect(shows_report_attachment({ .AlwaysReport = true, .Ended = true, .Answered = true }, "Two of the threads are addressed."), "an always-report ask's answer is a report");
+		expect(shows_report_attachment({ .AlwaysReport = true, .Ended = false, .Answered = false }, "Two of the threads"), "and so is its answer while it arrives");
+		expect(!shows_report_attachment({ .AlwaysReport = true, .Ended = true, .Answered = false }, stopped), "a turn that stopped before answering wears no report");
+		auto lines = std::string{ };
+		for (auto index = 0; index < 41; ++index) {
+			lines += "error line\n";
+		}
+		expect(!shows_report_attachment({ .AlwaysReport = false, .Ended = true, .Answered = false }, lines), "not even when its error text is report-length");
+		expect(!shows_report_attachment({ .AlwaysReport = true, .Ended = true, .Answered = true }, " \n\t\n"), "an empty answer is no report");
+		expect(!shows_report_attachment({ .AlwaysReport = false, .Ended = true, .Answered = true }, "Partly."), "a short reply to an ordinary ask is no report");
+	}
+
 	void test_shape_outline_and_card()
 	{
 		const auto report = std::string{ "# What changed since your review\n\n18 commits: the frame pool, and a merge of main.\nNothing else.\n\n## Rendering\n\nThe clear now waits.\n\n```cpp\n# not a heading\n```\n\n### Threads\n\n- line 6\n" };
@@ -342,6 +360,7 @@ namespace {
 
 auto main() -> int
 {
+	test_report_attachment_needs_an_answer();
 	test_shape_outline_and_card();
 	test_merges_fold_and_areas_group();
 	test_dressed_was_addressed();
