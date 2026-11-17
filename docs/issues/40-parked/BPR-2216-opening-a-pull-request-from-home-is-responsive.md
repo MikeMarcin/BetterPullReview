@@ -243,3 +243,54 @@ check), `BPR-2216-updates-line` (the owner's added ask) and
 session state.
 
 Next: read `status --after 9`. Accept on all three closes `BPR-2216:owner-look`.
+
+## Owner verdicts, look v003 (2026-11-17T03:39Z)
+
+Session `147392b2f24dd26b6a3d12da049825d3`, read at cursor 22, handed back:
+
+- `BPR-2216-home-one-status`: Accept, no note (decision `397234e6`).
+- `BPR-2216-updates-line`: Accept, no note (decision `ba157ef6`).
+- `BPR-2216-regression`: Accept (decision `157870ae`) with the note,
+  verbatim: "BUG: The heck now this double status came back on the review
+  screen." Attachment: on the review page a floating plate "Loading comments,
+  reviews and checks…" with a turning mark, above the status bar's "Loading
+  pull request details… 10 pages received".
+
+## Round 4 (look v004)
+
+- **The plate.** It was the Overview file list's partial plate
+  (`Veils.Files`, [[BPR-1842]]), shown once the file rows arrive and the
+  rest of the read continues; the large fixture pull request (ten pages) held
+  it long enough to see. The same kind of sentence stood in the Overview's
+  status column plate ("Loading reviewers, checks, merge rules and review
+  progress…"), each section's first-load words ("Loading checks…"), the
+  headings ("Files — 2 reported; catalogue loading…", "Review state —
+  loading…"), the summary ("Provisional metadata; review data is still
+  loading."), the title before GitHub names it ("Loading pull request…"), and
+  the review's panes and drawers ("Loading comments…", "Loading threads…",
+  "Files open once the review has loaded…", "Refreshing remaining details…").
+- **Change.** While the pull request is read, every waiting pane of the
+  review screen waits in the shape of its content without a sentence; a
+  partial or slow-refresh plate with nothing to say is not drawn
+  (`pending_veil::plate_rect`). The status bar alone says what loads. Kept:
+  a file the reviewer chose while it loads ("Opening review.cpp once the
+  review has loaded…", the gesture's answer) and every failure.
+- **Course.** `application_home_open_responsive_public_path` sweeps Overview,
+  Review, Discuss and Threads during the slow read: no busy pane in the
+  window (drawers included, shown or not) has words, and no visible label or
+  button outside the status bar says loading, refreshing, still waiting,
+  pages received or catalogue. `qt_pending_veil`,
+  `application_progressive_open_public_path` and
+  `application_refresh_current_file_public_path` follow.
+- Verification (Debug): `application_home_open_responsive_public_path`,
+  `qt_pending_veil`, `qt_pull_request_overview_page`,
+  `qt_refresh_feedback_window`, `application_home_open_feedback_public_path`,
+  `application_refresh_feedback_public_path`,
+  `application_refresh_current_file_public_path`,
+  `application_progressive_open_public_path` and
+  `application_pending_states_public_path` pass. The last failed once at
+  "the clicked file arrives" (its 90 s wait for the comparison) in a run
+  beside eight others, then passed alone twice; it checks no wording.
+- Not changed: the merge-rules detail text ("still loading") is the merge
+  assessment's own content, not a status line; after the read, the Updates
+  line's comparison-preparation words are outside this round.
