@@ -1438,6 +1438,12 @@ DefectThreadNames.reset();
 			if (weak.expired() || Closing) {
 				return;
 			}
+			// [[BPR-2216]]. A pull request opened from a Home row is the
+			// window's own while it loads: Home and its Return go between it
+			// and Home, and neither stops its read.
+			if (Window->listed_opening()) {
+				return;
+			}
 			cancel_restoration(false);
 			if (!WindowRead->accepted_snapshot()) {
 				Window->choose_home(true);

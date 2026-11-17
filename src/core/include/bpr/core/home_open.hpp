@@ -105,6 +105,60 @@ namespace bpr::core {
 		const repository_locator&             aRepository,
 		pull_request_number                   aNumber) noexcept -> bool;
 
+	/// \brief [[BPR-2216]]. The pull request a Home row named when it was
+	/// asked for: the queue's row or a Recently viewed row, so a pull request
+	/// this account has read before.
+	struct home_open_listed
+	{
+		repository_locator  Repository;
+		pull_request_number Number;
+
+		auto operator<=>(const home_open_listed&) const = default;
+	};
+
+	/// \brief [[BPR-2216]]. What the window knows of an opening besides its
+	/// read's stage.
+	struct home_open_facts
+	{
+		/// The Home row the open was asked from, if any.
+		std::optional<home_open_listed> Listed;
+		/// GitHub has answered enough of the read, or shown its overview, to
+		/// say this connection can read it ([[BPR-1200]]).
+		bool Answered = false;
+
+		auto operator<=>(const home_open_facts&) const = default;
+	};
+
+	/// \brief [[BPR-2216]]. What a pull request being opened is to its window
+	/// while the first read runs.
+	struct home_open_presence
+	{
+		/// The window shows the pull request's page, loading, rather than Home.
+		bool Page = false;
+		/// It is the window's active pull request: Home's Active review card
+		/// names it, its queue row is marked, and Home's button returns to it.
+		bool Active = false;
+
+		auto operator<=>(const home_open_presence&) const = default;
+	};
+
+	/// \brief [[BPR-2216]]. Decides what an opening is to the window from the
+	/// request on, not from the read's end.
+	///
+	/// \details The owner, 2026-11-16: "The pull request window doesn't open
+	/// very quickly. If I click home from a pull request that's not finished
+	/// loading it doesn't change it to the return button and it doesn't have
+	/// the active pull request near the top of home." A read in flight (opening
+	/// or waiting) that a Home row named shows its page at once and is the
+	/// window's active pull request: that account has read it, so the empty
+	/// page [[BPR-1200]] keeps from a refused name cannot follow. A name with
+	/// no row, typed into Home's bar, still waits on Home for GitHub's first
+	/// answers and becomes active once they have come. A failed read, or none,
+	/// is neither.
+	[[nodiscard]] auto decide_home_open_presence(
+		const std::optional<home_open_state>& aState,
+		const home_open_facts&                aFacts) noexcept -> home_open_presence;
+
 	/// \brief [[BPR-1679]]. Whether Home's own loading gives way to the reads
 	/// the profile's windows are waiting for.
 	///

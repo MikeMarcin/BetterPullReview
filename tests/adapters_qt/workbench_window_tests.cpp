@@ -23633,8 +23633,8 @@ namespace {
 		auto* const glyph   = qobject_cast<QToolButton*>(toolbar->widgetForAction(window.queue_refresh_action()));
 		auto* const label   = window.home_discovery_status();
 		expect(window.showing_home() && glyph != nullptr && glyph->isVisible() && !window.queue_refresh_action()->isEnabled()
-				   && label->isVisible() && label->text() == QStringLiteral("Finding my pull requests in 1 saved repository…"),
-			   "while a refresh runs the glyph waits and Home says what is being searched");
+				   && !label->isVisible() && label->text().isEmpty(),
+			   "while a refresh runs the glyph waits and Home leaves saying so to the status bar ([[BPR-2216]])");
 		expect(glyph->focusPolicy() == Qt::StrongFocus && !glyph->accessibleName().isEmpty() && !glyph->accessibleDescription().isEmpty()
 				   && window.focus_order().contains(glyph)
 				   && window.focus_order().indexOf(glyph) > window.focus_order().indexOf(window.home_view_button()),

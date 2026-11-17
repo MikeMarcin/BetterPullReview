@@ -1025,23 +1025,30 @@ namespace bpr::qt {
 		// already returns. There it is a command rather than a place, so it is
 		// not checkable: a checked Return would read as the place shown. A
 		// setup destination that holds Home has no way back to offer.
-		const auto returns = aHome && HasGithubPullRequest && !SetupDestinationNeedsHome && !IdentityNumber.isEmpty();
-		const auto key     = HomeAction->shortcut().toString(QKeySequence::NativeText);
-		auto       name    = QStringLiteral("Home");
-		auto       text    = QStringLiteral("&Home");
-		auto       tip     = QStringLiteral("Show Home (%1): sign-in or the review queue, and the way back to the review.").arg(key);
+		// [[BPR-2216]]. A pull request being opened offers the same way back
+		// from the request on, once the core makes it the window's own.
+		const auto loading     = !HasGithubPullRequest && IdentityText.isEmpty() && LoadingIdentity.has_value() && opening_presence().Active;
+		const auto shownNumber = loading ? LoadingIdentity->Number : IdentityNumber;
+		const auto shownOwner  = loading ? LoadingIdentity->Owner : IdentityOwner;
+		const auto shownRepo   = loading ? LoadingIdentity->Repository : IdentityRepository;
+		const auto shownTitle  = loading ? LoadingIdentity->Title : QString::fromStdString(OpenQueueTitle);
+		const auto returns     = aHome && (HasGithubPullRequest || loading) && !SetupDestinationNeedsHome && !shownNumber.isEmpty();
+		const auto key         = HomeAction->shortcut().toString(QKeySequence::NativeText);
+		auto       name        = QStringLiteral("Home");
+		auto       text        = QStringLiteral("&Home");
+		auto       tip         = QStringLiteral("Show Home (%1): sign-in or the review queue, and the way back to the review.").arg(key);
 		if (returns) {
 			// The number always, then as much of the title as reads at a
 			// glance; the tooltip carries the whole name.
 			constexpr auto titleWidth = 280;
-			const auto     title      = QString::fromStdString(OpenQueueTitle);
-			const auto     number     = QStringLiteral("#%1").arg(IdentityNumber);
+			const auto&    title      = shownTitle;
+			const auto     number     = QStringLiteral("#%1").arg(shownNumber);
 			const auto     metrics    = QFontMetrics{ PrimaryToolbar != nullptr ? PrimaryToolbar->font() : font() };
 			name                      = QStringLiteral("Return to %1").arg(title.isEmpty() ? number : number + QLatin1Char{ ' ' } + metrics.elidedText(title, Qt::ElideRight, titleWidth));
 			text                      = QString{ name }.replace(QLatin1Char{ '&' }, QStringLiteral("&&"));
-			const auto whole          = IdentityOwner.isEmpty() || IdentityRepository.isEmpty()
+			const auto whole          = shownOwner.isEmpty() || shownRepo.isEmpty()
 				? number
-				: QStringLiteral("%1/%2%3").arg(IdentityOwner, IdentityRepository, number);
+				: QStringLiteral("%1/%2%3").arg(shownOwner, shownRepo, number);
 			tip                       = title.isEmpty() ? QStringLiteral("Return to %1 (%2).").arg(whole, key)
 														: QStringLiteral("Return to %1: %2 (%3).").arg(whole, title, key);
 		}
@@ -1684,9 +1691,6 @@ namespace bpr::qt {
 		EpochSelectors->set_readiness(busy || !EpochSelectors->comparison_available() ? wording : QString{ }, updates_line_open());
 		// [[BPR-1576]]. A wait on the Updates line turns before its words.
 		EpochSelectors->set_readiness_busy(busy, pending_full_motion());
-		if (OverviewPage != nullptr) {
-			OverviewPage->set_read_waiting(read_stage_words());
-		}
 		// The line says what it waits for as the wait changes, not only when a
 		// workbench projection lands.
 		present_status_line();

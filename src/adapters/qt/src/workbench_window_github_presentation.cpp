@@ -312,7 +312,12 @@ namespace bpr::qt {
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
-		if (!aPreserveWindowNavigation) {
+		// [[BPR-2216]]. Home chosen while a pull request opened from a Home row
+		// was loading stays: the review arrives behind it, with Return.
+		const auto homeOverOpening = HomeRequested && !HasGithubPullRequest && ListedOpen.has_value()
+			&& ListedOpen->Repository.Owner == aPullRequest.Owner && ListedOpen->Repository.Name == aPullRequest.RepositoryName
+			&& ListedOpen->Number == aPullRequest.Number;
+		if (!aPreserveWindowNavigation && !homeOverOpening) {
 			HomeRequested = false;
 		}
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
@@ -414,6 +419,11 @@ namespace bpr::qt {
 			// overview the design opens on, Review, or the one last used here.
 			// [[BPR-1599]]: or the one chosen while it loaded.
 			enter_opening_modality(opening_modality());
+			// [[BPR-2216]]. Entering it behind Home leaves Home where it is.
+			if (homeOverOpening && !HomeRequested) {
+				HomeRequested = true;
+				update_home_landing();
+			}
 		}
 		LoadingChoice.reset();
 		// [[BPR-0661]]. The drawer's first filter and the comparison on return
@@ -1677,6 +1687,28 @@ namespace bpr::qt {
 		};
 	}
 
+	auto workbench_window::reviewing_queue_ref() const -> std::optional<core::pull_request_ref>
+	{
+		if (HasGithubPullRequest) {
+			return open_queue_ref();
+		}
+		// [[BPR-2216]]. A pull request being opened is the review being read
+		// from the request on, as the core decides; Follow, Save and Seen
+		// still wait for the review itself (open_queue_ref).
+		const auto presence = opening_presence();
+		if (!presence.Active || !HomeOpen.has_value() || !HomeOpen->State.has_value() || !QueueReady
+			|| QueueProjection.Session.Host.empty() || QueueProjection.Session.Account.empty()) {
+			return std::nullopt;
+		}
+		const auto& state = *HomeOpen->State;
+		return core::pull_request_ref{
+			.Host       = QueueProjection.Session.Host,
+			.Account    = QueueProjection.Session.Account,
+			.Repository = state.Repository.Owner + "/" + state.Repository.Name,
+			.Number     = static_cast<std::int64_t>(state.Number.value()),
+		};
+	}
+
 	void workbench_window::update_discovery_controls()
 	{
 		const auto& discovery = QueueProjection.Discovery;
@@ -1704,9 +1736,14 @@ namespace bpr::qt {
 			const auto hasSaved = std::ranges::any_of(QueueProjection.SavedRepositories, [this](const auto& aSaved) {
 				return aSaved.Host == QueueProjection.Session.Host && aSaved.Account == QueueProjection.Session.Account;
 			});
-			const auto sentence = !HomeAccount ? QString{ } : !hasSaved ? tr("Add a repository to find my pull requests and review requests.")
-				: session                                               ? home_discovery_sentence(discovery)
-																		: tr("Personal discovery is unavailable. Saved repositories are kept.");
+			// [[BPR-2216]]. The owner, 2026-11-16: "Seems home has a similar
+			// thing." While Home finds my pull requests the status bar says
+			// it is refreshing; this line says only what it last found.
+			const auto refreshing = discovery.State == application::queue_discovery_state::refreshing;
+			const auto sentence   = !HomeAccount ? QString{ } : !hasSaved ? tr("Add a repository to find my pull requests and review requests.")
+				: refreshing                                              ? QString{ }
+				: session                                                 ? home_discovery_sentence(discovery)
+																		  : tr("Personal discovery is unavailable. Saved repositories are kept.");
 			if (HomeDiscoveryStatus->text() != sentence) {
 				HomeDiscoveryStatus->setText(sentence);
 			}
@@ -1749,7 +1786,7 @@ namespace bpr::qt {
 		// [[BPR-1365]]. The queue row of the open pull request says so, by the
 		// same exact identity Follow names.
 		if (QueueLanding != nullptr) {
-			QueueLanding->set_reviewing(open_queue_ref());
+			QueueLanding->set_reviewing(reviewing_queue_ref());
 		}
 		// [[BPR-2217]]. The review says where my approval stands, in the
 		// core's words, and offers Seen beside Approve when the core does.

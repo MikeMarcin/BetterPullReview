@@ -419,11 +419,16 @@ namespace bpr::qt {
 
 	void workbench_window::present(const application::home_open_projection& aProjection)
 	{
-		HomeOpen = aProjection.State.has_value() ? std::optional{ aProjection } : std::nullopt;
+		const auto before = opening_presence();
+		HomeOpen          = aProjection.State.has_value() ? std::optional{ aProjection } : std::nullopt;
 		refresh_home_open();
-		// [[BPR-1843]]. The open is over: the held place goes.
-		if (!HomeOpen.has_value() && HomeLandingHold > 0) {
+		// [[BPR-1843]]. The open is over: the held place goes. [[BPR-2216]]: an
+		// opening the core makes the window's own takes its page, Home's
+		// Active review and Return from the request on, and gives them up when
+		// it fails or ends.
+		if ((!HomeOpen.has_value() && HomeLandingHold > 0) || opening_presence() != before) {
 			update_home_landing();
+			update_pull_request_queue_actions();
 		}
 	}
 

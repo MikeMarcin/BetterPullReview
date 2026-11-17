@@ -258,7 +258,9 @@ try {
 		}
 		wait_for([&] { return veils.Files->look() == core::pending_look::loading_slow || !veils.Files->busy(); }, "the files wait on", 30'000);
 		if (aAssert && veils.Files->busy()) {
-			expect(veils.Files->shown_text().startsWith(QStringLiteral("Still waiting for GitHub")), "a slow wait says what the read is on");
+			// [[BPR-2216]]. The status bar says what the read is on; the
+			// section does not say it again.
+			expect(!veils.Files->shown_text().contains(QStringLiteral("Still waiting for GitHub")), "a slow wait leaves the read's step to the status bar");
 			renders(aName + QStringLiteral("-slow"));
 		}
 		wait_for([&] { return window->overview_page()->projection().has_value() && window->overview_page()->projection()->Number.value() == aIdentity.section(QLatin1Char('#'), -1).toULongLong() && !veils.Files->busy() && !veils.Side->busy(); }, "the accepted review makes every section ready", 60'000);

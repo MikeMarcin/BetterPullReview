@@ -658,15 +658,6 @@ namespace bpr::qt {
 		return Veils;
 	}
 
-	void pull_request_overview_page::set_read_waiting(const QString& aWaiting)
-	{
-		if (ReadWaiting == aWaiting) {
-			return;
-		}
-		ReadWaiting = aWaiting;
-		apply_pending();
-	}
-
 	void pull_request_overview_page::set_pending_appearance(const bool aFullMotion, const bool aHighContrast, const QColor& aFailureInk)
 	{
 		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side, Veils.Merge, Veils.MyReview, Veils.Checks, Veils.People, Veils.Roster }) {
@@ -683,7 +674,11 @@ namespace bpr::qt {
 		if (Veils.Header == nullptr) {
 			return;
 		}
-		const auto waiting = ReadWaiting.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(ReadWaiting);
+		// [[BPR-2216]]. The owner, 2026-11-16: "Seems like overview has a
+		// loading status text that looks almost 1:1 copy of the status bar's
+		// loading status text just below it." The status bar alone says which
+		// step the read is on; each section says only what it is waiting for.
+		const auto waiting = QString{ };
 		const auto section = [&waiting](pending_veil& aVeil, const bool aPending, QString aLoading, QString aDone = { }) {
 			if (!aPending) {
 				aVeil.present_ready();

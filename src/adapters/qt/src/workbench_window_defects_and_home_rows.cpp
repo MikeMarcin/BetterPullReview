@@ -255,7 +255,32 @@ namespace bpr::qt {
 		// [[BPR-0651]] [[BPR-0650]]. A pull request chosen from a list
 		// arrives on Overview.
 		OpenOnOverview = true;
+		// [[BPR-2216]]. A row Home lists: the core shows its page and makes it
+		// the window's own from the request on, named as the row names it.
+		ListedOpen        = core::home_open_listed{ .Repository = intent.Repository, .Number = intent.Number };
+		const auto listed = *ListedOpen;
 		GithubDispatch(std::move(intent));
+		name_listed_open(listed, QString::fromStdString(aItem.Facts.Title), aItem.Facts.Draft.value_or(false));
+	}
+
+	void workbench_window::name_listed_open(const core::home_open_listed& aListed, const QString& aTitle, const bool aDraft)
+	{
+		// Only the read the core accepted for that row, before GitHub has
+		// named it and while no review is here.
+		if (HasGithubPullRequest || !IdentityText.isEmpty() || LoadingIdentity.has_value() || !HomeOpen.has_value()
+			|| !core::home_open_in_flight(HomeOpen->State, aListed.Repository, aListed.Number)) {
+			return;
+		}
+		auto name       = loading_identity{ };
+		name.Owner      = QString::fromStdString(aListed.Repository.Owner);
+		name.Repository = QString::fromStdString(aListed.Repository.Name);
+		name.Number     = QString::number(aListed.Number.value());
+		name.Title      = aTitle;
+		name.Text       = QStringLiteral("%1/%2  #%3 %4").arg(name.Owner, name.Repository, name.Number, aTitle);
+		name.Draft      = aDraft;
+		LoadingIdentity = std::move(name);
+		apply_strip_width();
+		update_home_landing();
 	}
 
 	auto workbench_window::home_open_action() const noexcept -> QAction*
@@ -484,11 +509,17 @@ namespace bpr::qt {
 		}
 		// [[BPR-0733]] [[BPR-0651]]. A pull request chosen from a list arrives
 		// on Overview, exactly as a queue row's does.
-		OpenOnOverview = true;
+		OpenOnOverview    = true;
+		const auto& entry = RecentReviews.Entries[index];
+		ListedOpen        = core::home_open_listed{ .Repository = entry.Destination.Repository, .Number = entry.Destination.Number };
+		const auto listed = *ListedOpen;
+		const auto title  = QString::fromStdString(entry.Title);
+		const auto draft  = entry.Draft.value_or(false);
 		RecentReviewDispatch(application::recent_review_intent{
 			.Index  = index,
 			.Resume = aResume,
 		});
+		name_listed_open(listed, title, draft);
 	}
 
 	auto workbench_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
@@ -1571,8 +1602,9 @@ namespace bpr::qt {
 		if (!reading) {
 			RefreshConversationCurrent = false;
 		}
-		const auto stage   = read_stage_words();
-		const auto waiting = stage.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(stage);
+		// [[BPR-2216]]. The status bar says which step the read is on; the
+		// panes beside it do not say it again (the owner, 2026-11-16).
+		const auto waiting = QString{ };
 		const auto apply   = [](pending_veil* const aVeil, const bool aPending, const bool aContent, const pending_words& aWords) {
 			if (aVeil == nullptr) {
 				return;

@@ -852,11 +852,12 @@ auto main(int aArgc, char** aArgv) -> int
 				  << " modality=" << static_cast<int>(first->current_modality())
 				  << " home-enabled=" << first->home_action()->isEnabled()
 				  << " notice=" << first->home_open_notice()->text().toStdString() << '\n';
-		expect(first->showing_home() && first->current_modality() == qt::review_modality::overview
-				   && first->home_open_notice()->isVisible()
+		// [[BPR-2216]]. A Recently viewed row is one this account has read: its
+		// page shows at once, loading, rather than waiting on Home.
+		expect(!first->showing_home() && first->current_modality() == qt::review_modality::overview
 				   && first->home_open_notice()->text() == QStringLiteral("Resuming the saved reading…")
 				   && first->home_action()->isEnabled(),
-			   "pending restoration is said under the Home bar until it is answered, with Overview prepared and Home available");
+			   "a resumed reading shows its page at once, on Overview, with Home available");
 		if (phase == "auth-home") {
 			first->home_action()->trigger();
 			std::cerr << "home-after-gesture=" << first->showing_home() << '\n';
@@ -868,7 +869,9 @@ auto main(int aArgc, char** aArgv) -> int
 			wait_for([&] { return delivered; }, "released read terminal reaches decision lane after Home gesture");
 			const auto snapshot = github_application_fixture_access::large_review_snapshot(*owner, firstContext);
 			std::cerr << "home-after-terminal=" << first->showing_home() << " accepted-snapshot=" << bool(snapshot) << '\n';
-			expect(first->showing_home() && !snapshot, "Home cancels pending restoration and refuses its late content");
+			// [[BPR-2216]]. Home over a reading opened from its row shows Home
+			// with the way back to it; its read goes on and arrives behind Home.
+			expect(first->showing_home() && snapshot && first->home_action_returns(), "Home over a resumed reading keeps its read and offers Return to it");
 		} else {
 			submit(*first, 18);
 			github_application_fixture_access::hold_window_read_terminal(*owner, firstContext, false);

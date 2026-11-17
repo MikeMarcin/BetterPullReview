@@ -103,6 +103,18 @@ namespace bpr::core {
 		return in_flight(aState) && aState->Repository == aRepository && aState->Number == aNumber;
 	}
 
+	auto decide_home_open_presence(
+		const std::optional<home_open_state>& aState,
+		const home_open_facts&                aFacts) noexcept -> home_open_presence
+	{
+		if (!in_flight(aState)) {
+			return { };
+		}
+		const auto listed = aFacts.Listed.has_value() && aFacts.Listed->Repository == aState->Repository && aFacts.Listed->Number == aState->Number;
+		const auto shown  = listed || aFacts.Answered;
+		return home_open_presence{ .Page = shown, .Active = shown };
+	}
+
 	auto home_loading_yields(const std::span<const github_state> aLanes, const bool aDiscoveryBeside) noexcept -> bool
 	{
 		return !aDiscoveryBeside && std::ranges::any_of(aLanes, [](const github_state& aLane) { return aLane.PendingPullRequest.has_value(); });

@@ -5701,6 +5701,20 @@ bpr_add_network_isolated_test(NAME application_tour_chat_queue_local_draft_publi
 set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-local-draft:pass")
 
+# [[BPR-2216]]. Opening a pull request from Home is responsive: its page in the
+# gesture's turn while GitHub is slow, Return and the Active review on Home
+# while it loads, and the loaded review keeps them.
+bpr_add_executable(test_home_open_responsive_public_path home_open_responsive_public_path_tests.cpp)
+target_link_libraries(test_home_open_responsive_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_home_open_responsive_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_home_open_responsive_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_home_open_responsive_public_path)
+bpr_enable_warnings(test_home_open_responsive_public_path)
+bpr_add_network_isolated_test(NAME application_home_open_responsive_public_path WINDOWS_UNCONTAINED COMMAND test_home_open_responsive_public_path)
+set_tests_properties(application_home_open_responsive_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "home-open-responsive-public-path:pass")
+
 # [[BPR-2221]]. Every prompt condition reads the window's real state: own
 # prompts conditioned on each fact are listed in the Ask menus exactly where
 # it holds, and follow a resolve and a file marked reviewed.
