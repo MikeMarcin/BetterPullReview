@@ -5303,8 +5303,9 @@ set_tests_properties(application_home_next_move_public_path PROPERTIES
     PASS_REGULAR_EXPRESSION "home-next-move-public-path:pass")
 
 # [[BPR-2048]] [[BPR-2049]]. One pull request too large to read fails no
-# refresh and opens to a card naming what was too large; an approval with
-# new commits after it offers Seen, which moves it to Following at once.
+# refresh and opens to a card naming what was too large; a reviewed row back
+# for new commits keeps its verdict chip and offers no Seen or Approve again
+# ([[BPR-2217]]); with --approve-again the review's Approve reads Approve again.
 bpr_add_executable(test_home_oversized_public_path home_oversized_public_path_tests.cpp)
 target_link_libraries(test_home_oversized_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_home_oversized_public_path PRIVATE BPR_BUILD_TESTING=1)
@@ -5317,6 +5318,13 @@ set_tests_properties(application_home_oversized_public_path PROPERTIES
     PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
 bpr_add_network_isolated_test(NAME application_home_approve_again_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --approve-again)
 set_tests_properties(application_home_approve_again_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+# [[BPR-2217]]. Seen and Approve again are the review's: the review of an
+# approval with new commits offers Seen beside Approve, which submits nothing
+# and leaves the review up to date.
+bpr_add_network_isolated_test(NAME application_review_seen_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --seen)
+set_tests_properties(application_review_seen_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
 

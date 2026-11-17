@@ -322,6 +322,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-account-setup-look" },
 		bpr::app::command_line_option{ .Name = "attended-home-rows" },
 		bpr::app::command_line_option{ .Name = "attended-home-moves" },
+		bpr::app::command_line_option{ .Name = "attended-home-approvals" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-refresh-delay-ms", .TakesValue = true },
@@ -13257,7 +13258,12 @@ auto main(int argc, char** argv) -> int
 		// [[RFC-BPR-0098]]. With the home look, ten pull requests of mine,
 		// one for each next move a fixture can show.
 		const auto attendedHomeMoves = launch.has("--attended-home-moves");
-		const auto parseCount        = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
+		// [[BPR-2217]]. With the home look, the fixture's own pull request
+		// (#17, the one that opens) is one I approved before commits were
+		// pushed, so its review offers Seen beside Approve, and #4004 one
+		// whose approval GitHub dismissed.
+		const auto attendedHomeApprovals = launch.has("--attended-home-approvals");
+		const auto parseCount            = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
 			if (!aText.has_value()) {
 				return std::nullopt;
 			}
@@ -13271,7 +13277,7 @@ auto main(int argc, char** argv) -> int
 		const auto readFailNumber   = parseCount(readFailText);
 		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
 		if ((readDelayText.has_value() && !readDelay.has_value()) || (readFailText.has_value() && !readFailNumber.has_value())
-			|| (attendedHomeRows && !attendedHomeLook) || (attendedHomeMoves && !attendedHomeLook)
+			|| (attendedHomeRows && !attendedHomeLook) || (attendedHomeMoves && !attendedHomeLook) || (attendedHomeApprovals && !attendedHomeLook)
 			|| (attendedHomeLook && (!attendedLaunch || attendedOpenPullRequest || attendedOpenSettings || attendedPreflightLook.has_value() || attendedTourStop || attendedWorkshopAgent.has_value() || attendedReadState))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -13349,6 +13355,12 @@ auto main(int argc, char** argv) -> int
 				for (auto& row : bpr::app::detail::home_next_move_fixture_pull_requests("octo-reviewer")) {
 					fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(std::move(row));
 				}
+			}
+			if (attendedHomeApprovals) {
+				fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(
+					{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "APPROVED" });
+				fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(
+					{ .Number = 4004U, .Author = "contributor-c", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "DISMISSED" });
 			}
 		}
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))

@@ -1416,6 +1416,16 @@ namespace bpr::qt {
 		RevealHint->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		RevealHint->hide();
 		RightColumn->addWidget(RevealHint);
+		// [[BPR-2217]]. Where my approval stands, said once, above the
+		// verdicts it bears on.
+		FollowupNote = new QLabel{ this };
+		FollowupNote->setObjectName(QStringLiteral("wholeReviewFollowup"));
+		FollowupNote->setTextFormat(Qt::PlainText);
+		FollowupNote->setWordWrap(true);
+		FollowupNote->setMinimumWidth(0);
+		FollowupNote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		FollowupNote->hide();
+		RightColumn->addWidget(FollowupNote);
 		// The three verdicts, and Discard at the far end, quiet.
 		auto* decision = new QHBoxLayout;
 		decision->setSpacing(8);
@@ -1429,6 +1439,19 @@ namespace bpr::qt {
 			decision->addWidget(button);
 			Decisions[index] = button;
 			connect(button, &QToolButton::clicked, this, [this, index] { submit_as(decision_order[index]); });
+			// [[BPR-2217]]. Seen sits beside Approve: the other answer to
+			// commits that followed my approval.
+			if (decision_order[index] == core::review_disposition::approve) {
+				SeenButton = new verdict_button{ this };
+				SeenButton->setObjectName(QStringLiteral("wholeReviewSeen"));
+				SeenButton->hide();
+				decision->addWidget(SeenButton);
+				connect(SeenButton, &QToolButton::clicked, this, [this] {
+					if (SeenDispatch && !Followup.Seen.empty()) {
+						SeenDispatch();
+					}
+				});
+			}
 		}
 		decision->addStretch();
 		Submit    = new QAction{ tr("Submit review"), this };
@@ -1647,6 +1670,7 @@ namespace bpr::qt {
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
 		present_preflight(aProjection);
 		present_verdicts();
+		present_followup();
 		Discard->setToolTip(Discard->isEnabled() ? (carried ? tr("Delete this review's pending comments and its summary. You are asked first.")
 															: tr("Discard this unpublished review draft."))
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
@@ -1701,7 +1725,7 @@ namespace bpr::qt {
 			approve->setToolTip(tr("Approve. You have %n open blocking comment(s) of your own; approving does not resolve them.", nullptr, static_cast<int>(open)));
 		} else {
 			approve->setIcon(QIcon{ });
-			approve->setToolTip(tr("Approve this pull request."));
+			approve->setToolTip(Followup.ApproveTip.empty() ? tr("Approve this pull request.") : QString::fromUtf8(Followup.ApproveTip.data(), static_cast<qsizetype>(Followup.ApproveTip.size())));
 		}
 		approve->setAccessibleDescription(approve->toolTip());
 
@@ -2046,6 +2070,62 @@ namespace bpr::qt {
 			Submit->setToolTip(Decisions[decision_index(Draft->Disposition)]->toolTip());
 		}
 	}
+	void review_submission_editor::set_followup(const core::review_followup_words& aWords)
+	{
+		if (aWords == Followup) {
+			return;
+		}
+		Followup = aWords;
+		present_preflight(Shown);
+		present_verdicts();
+		present_followup();
+	}
+
+	auto review_submission_editor::followup() const noexcept -> const core::review_followup_words&
+	{
+		return Followup;
+	}
+
+	void review_submission_editor::set_seen_dispatch(std::function<void()> aDispatch)
+	{
+		SeenDispatch = std::move(aDispatch);
+		present_followup();
+	}
+
+	auto review_submission_editor::seen_button() const noexcept -> QToolButton*
+	{
+		return SeenButton;
+	}
+
+	auto review_submission_editor::followup_label() const noexcept -> QLabel*
+	{
+		return FollowupNote;
+	}
+
+	void review_submission_editor::present_followup()
+	{
+		const auto  words   = [](const std::string_view aWords) { return QString::fromUtf8(aWords.data(), static_cast<qsizetype>(aWords.size())); };
+		auto* const approve = Decisions[decision_index(core::review_disposition::approve)];
+		if (const auto name = words(Followup.Approve); approve->text() != name) {
+			approve->setText(name);
+			approve->setAccessibleName(name);
+			approve->updateGeometry();
+		}
+		// Only while a review is being written: a review GitHub may hold is
+		// not the place to say the commits are seen.
+		const auto drafting = Draft.has_value() && Draft->State == core::review_submission_state::drafting;
+		const auto note     = words(Followup.Note);
+		FollowupNote->setText(note);
+		FollowupNote->setVisible(Draft.has_value() && !note.isEmpty());
+		const auto seen = words(Followup.Seen);
+		SeenButton->setText(seen);
+		SeenButton->setAccessibleName(seen);
+		SeenButton->setToolTip(words(Followup.SeenTip));
+		SeenButton->setAccessibleDescription(SeenButton->toolTip());
+		SeenButton->updateGeometry();
+		SeenButton->setVisible(drafting && !seen.isEmpty() && static_cast<bool>(SeenDispatch));
+	}
+
 	void review_submission_editor::submit_as(const core::review_disposition aDisposition)
 	{
 		if (!Draft || !Dispatch || !core::submits_as(Shown.Controls, aDisposition)) {

@@ -979,8 +979,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1683]]. Where Home's Ignore and Unignore go: the
 		/// profile's queue, never a provider.
 		void set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch);
-		/// \brief [[BPR-2049]]. Where a Home row's Seen goes: the profile's
-		/// queue, never a provider.
+		/// \brief [[BPR-2049]] [[BPR-2217]]. Where the review's Seen goes:
+		/// the profile's queue, never a provider.
 		void set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch);
 		/// \brief [[BPR-1683]]. The row menu's Ignore, named Unignore on an ignored row.
 		[[nodiscard]] auto home_ignore_action() const noexcept -> QAction*;
@@ -2868,11 +2868,10 @@ namespace bpr::qt {
 		void popup_home_row_menu(const QPoint& aGlobal);
 		/// \brief [[BPR-1683]]. Ignores a queue row, or unignores an ignored one.
 		void dispatch_home_ignore(const core::queue_item& aItem);
-		/// \brief [[BPR-2049]]. A row's Seen or Approve again, as the core offers it.
-		void dispatch_home_followup(const core::queue_item& aItem);
-		/// \brief [[BPR-2049]]. The pull request Approve again opened, once it
-		/// is shown: its review with Approve ready.
-		void take_pending_approve_again();
+		/// \brief [[BPR-2049]] [[BPR-2217]]. Seen on the open pull request's
+		/// new commits, from its review or the Pull Request menu, when the
+		/// core offers it. Nothing is submitted to GitHub.
+		void mark_new_commits_seen(const core::queue_item& aItem);
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
@@ -3744,10 +3743,8 @@ namespace bpr::qt {
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
 		workbench_home_seen_dispatch                       HomeSeenDispatch;
-		/// [[BPR-2049]]. The pull request a row's Approve again is opening.
-		std::optional<core::pull_request_ref> PendingApproveAgain;
-		QAction*                              HomeIgnoreAction = nullptr;
-		workbench_queue_discovery_dispatch    QueueDiscoveryDispatch;
+		QAction*                                           HomeIgnoreAction = nullptr;
+		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
 		/// [[BPR-1867]]. Coming back in front on the pull request shown.
 		std::function<void(std::int64_t)>                  PullRequestReturnDispatch;
 		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;

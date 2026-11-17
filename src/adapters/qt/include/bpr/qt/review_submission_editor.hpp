@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_SUBMISSION_EDITOR_HPP
 
 #include "bpr/core/review_preflight.hpp"
+#include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/review_submission.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -321,6 +322,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto local_line_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto local_show_button() const noexcept -> QToolButton*;
 
+		/// \brief [[BPR-2217]]. Where my approval stands against the commits
+		/// since it, in the core's words: a line above the verdicts, Seen
+		/// beside Approve while my approval stands, and Approve's own name
+		/// ("Approve again" once GitHub dismissed it). The default says
+		/// nothing and offers no Seen.
+		void               set_followup(const core::review_followup_words& aWords);
+		[[nodiscard]] auto followup() const noexcept -> const core::review_followup_words&;
+		/// \brief [[BPR-2217]]. Where Seen goes: marks the new commits seen.
+		/// It submits nothing to GitHub. Without it Seen is not offered.
+		void               set_seen_dispatch(std::function<void()> aDispatch);
+		[[nodiscard]] auto seen_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto followup_label() const noexcept -> QLabel*;
+
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 
@@ -347,6 +361,12 @@ namespace bpr::qt {
 		void                  restyle_pending_selection();
 		void                  prepare_pending_menu(std::size_t aIndex);
 		std::function<void()> SavedCommentsReveal;
+		/// [[BPR-2217]].
+		void                        present_followup();
+		core::review_followup_words Followup;
+		std::function<void()>       SeenDispatch;
+		QToolButton*                SeenButton   = nullptr;
+		QLabel*                     FollowupNote = nullptr;
 		/// [[BPR-2094]].
 		std::vector<outside_draft>                                                                      OutsideDrafts;
 		std::vector<outside_draft>                                                                      OutsideListed;

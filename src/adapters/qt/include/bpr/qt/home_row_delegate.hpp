@@ -100,9 +100,6 @@ namespace bpr::qt {
 			/// [[BPR-2049]]. What the row's labelled action does, as its
 			/// tooltip says it; empty for none.
 			row_action_tip,
-			/// [[BPR-2049]]. `int(core::review_followup)` the row offers;
-			/// absent for none.
-			followup,
 			/// RFC-BPR-0108 (X02). True when a local PR draft of this profile
 			/// was associated with this pull request: the row is its one row,
 			/// and its chip says it was prepared here.

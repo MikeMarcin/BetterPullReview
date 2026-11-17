@@ -298,9 +298,6 @@ namespace bpr::qt {
 		void set_ignore_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		/// \brief [[BPR-1338]]. A queue row's Open on GitHub, from its icon button.
 		void set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch);
-		/// \brief [[BPR-2049]]. A queue row's Seen or Approve again, from its
-		/// labelled button; the item says which the core offers.
-		void set_followup_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		/// \brief [[BPR-1338]]. The icon and tooltip every queue row's Open on
 		/// GitHub button shows, the window action's.
 		void set_page_action(const QIcon& aIcon, const QString& aToolTip);
@@ -596,7 +593,6 @@ namespace bpr::qt {
 		std::function<void(int aRow)>                RecentPageDispatch;
 		std::function<void()>                        ViewObserver;
 		std::function<void(const core::queue_item&)> PageDispatch;
-		std::function<void(const core::queue_item&)> FollowupDispatch;
 		std::function<void(const QPoint&)>           RowMenuDispatch;
 		std::function<void()>                        CurrentObserver;
 		std::function<void(const core::queue_item&)> NewWindowDispatch;

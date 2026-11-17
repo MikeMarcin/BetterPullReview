@@ -1525,7 +1525,7 @@ namespace bpr::qt {
 			const auto ref  = open_queue_ref();
 			const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
 			if (item) {
-				dispatch_home_followup(*item);
+				mark_new_commits_seen(*item);
 			}
 			update_pull_request_queue_actions();
 		});

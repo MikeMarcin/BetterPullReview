@@ -359,6 +359,32 @@ namespace bpr::core {
 		return review_followup::none;
 	}
 
+	auto review_followup_words_for(const queue_item& aItem) noexcept -> review_followup_words
+	{
+		auto words     = review_followup_words{ };
+		words.Followup = review_followup_for(aItem);
+		switch (words.Followup) {
+		case review_followup::seen:
+			words.Standing = review_standing::new_commits_since_approval;
+			words.Seen     = "Seen";
+			words.SeenTip  = "Marks the new commits seen. Nothing is submitted to GitHub; your approval stands.";
+			words.Note     = "New commits since you approved. Your approval still stands on GitHub.";
+			return words;
+		case review_followup::approve_again:
+			words.Standing   = review_standing::approval_dismissed;
+			words.Approve    = "Approve again";
+			words.ApproveTip = "Submits a new approval for the current commits.";
+			words.Note       = "GitHub dismissed your approval when new commits were pushed.";
+			return words;
+		case review_followup::none: break;
+		}
+		if (!aItem.Membership.authored() && head_seen(aItem.Facts)) {
+			words.Standing = review_standing::up_to_date;
+			words.Note     = "Up to date: you have seen every commit since you approved.";
+		}
+		return words;
+	}
+
 	auto bucket_for(
 		const queue_membership&           aMembership,
 		const queue_activity_observation& aActivity) noexcept -> attention_bucket

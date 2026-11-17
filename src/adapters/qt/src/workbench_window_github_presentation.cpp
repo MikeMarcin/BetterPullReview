@@ -406,9 +406,6 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		HasCachedOverview    = false;
 		update_pull_request_queue_actions();
-		if (PendingApproveAgain) {
-			QTimer::singleShot(0, this, [this] { take_pending_approve_again(); });
-		}
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
 		if (OpenOnOverview && !aPreserveWindowNavigation) {
@@ -814,55 +811,33 @@ namespace bpr::qt {
 		});
 	}
 
-	void workbench_window::dispatch_home_followup(const core::queue_item& aItem)
+	void workbench_window::mark_new_commits_seen(const core::queue_item& aItem)
 	{
-		const auto name = QStringLiteral("%1#%2").arg(QString::fromStdString(aItem.Ref.Repository)).arg(aItem.Ref.Number);
-		switch (core::review_followup_for(aItem)) {
-		case core::review_followup::seen:
-			if (HomeSeenDispatch) {
-				HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
-				statusBar()->showMessage(QStringLiteral("Marked the new commits on %1 seen; it moves to Following. Nothing changed on GitHub.").arg(name), 8000);
-			}
-			return;
-		case core::review_followup::approve_again:
-			// The approval is submitted from the pull request's own review, so
-			// what it holds (a summary, saved comments) is seen before it goes.
-			PendingApproveAgain = aItem.Ref;
-			open_pull_request_item(aItem);
-			return;
-		case core::review_followup::none:
+		if (!HomeSeenDispatch || core::review_followup_for(aItem) != core::review_followup::seen) {
 			return;
 		}
-	}
-
-	void workbench_window::take_pending_approve_again()
-	{
-		if (!PendingApproveAgain || !HasGithubPullRequest || ReviewSubmissionEditor == nullptr) {
-			return;
-		}
-		const auto ref = std::exchange(PendingApproveAgain, std::nullopt);
-		if (QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) != QString::fromStdString(ref->Repository) || IdentityNumber != QString::number(ref->Number)) {
-			return;
-		}
-		open_review_sheet(true);
-		// The review's controls show once its draft is read; Approve takes the
-		// keyboard then, so Return submits it and nothing else.
-		const auto focusApprove = std::make_shared<std::function<void(int)>>();
-		*focusApprove           = [this, editor = QPointer{ ReviewSubmissionEditor }, weak = std::weak_ptr{ focusApprove }](const int aTries) {
-			auto* const approve = editor ? editor->disposition_button(core::review_disposition::approve) : nullptr;
-			if (approve != nullptr && approve->isVisible()) {
-				approve->setFocus(Qt::OtherFocusReason);
-			} else if (const auto again = weak.lock(); again && aTries > 0) {
-				QTimer::singleShot(100, this, [again, aTries] { (*again)(aTries - 1); });
-			}
-		};
-		(*focusApprove)(50);
-		statusBar()->showMessage(QStringLiteral("GitHub dismissed your approval when commits were pushed. Approve submits a new one for the current commits."), 10000);
+		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
+		statusBar()->showMessage(QStringLiteral("Marked the new commits on %1#%2 seen; your approval stands. Nothing changed on GitHub.")
+									 .arg(QString::fromStdString(aItem.Ref.Repository))
+									 .arg(aItem.Ref.Number),
+								 8000);
 	}
 
 	void workbench_window::set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch)
 	{
 		HomeSeenDispatch = std::move(aDispatch);
+		// [[BPR-2217]]. The review's Seen, on the pull request it shows.
+		if (ReviewSubmissionEditor != nullptr) {
+			ReviewSubmissionEditor->set_seen_dispatch(HomeSeenDispatch ? std::function<void()>{ [this] {
+				const auto ref  = open_queue_ref();
+				const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
+				if (item) {
+					mark_new_commits_seen(*item);
+				}
+				update_pull_request_queue_actions();
+			} }
+																	   : std::function<void()>{ });
+		}
 	}
 
 	void workbench_window::set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch)
@@ -1774,7 +1749,14 @@ namespace bpr::qt {
 		// [[BPR-1365]]. The queue row of the open pull request says so, by the
 		// same exact identity Follow names.
 		if (QueueLanding != nullptr) {
-			QueueLanding->set_reviewing(open_queue_ref());
+			QueueLanding->set_reviewing(reviewing_queue_ref());
+		}
+		// [[BPR-2217]]. The review says where my approval stands, in the
+		// core's words, and offers Seen beside Approve when the core does.
+		if (ReviewSubmissionEditor != nullptr) {
+			const auto open  = QueueLanding != nullptr ? open_queue_ref() : std::nullopt;
+			const auto shown = open ? QueueLanding->item_for(*open) : std::nullopt;
+			ReviewSubmissionEditor->set_followup(shown ? core::review_followup_words_for(*shown) : core::review_followup_words{ });
 		}
 		if (FollowPullRequest == nullptr || SavePullRequestRepository == nullptr) {
 			return;
@@ -1793,7 +1775,7 @@ namespace bpr::qt {
 		if (SeenPullRequest != nullptr) {
 			const auto seen = item && core::review_followup_for(*item) == core::review_followup::seen && static_cast<bool>(HomeSeenDispatch);
 			SeenPullRequest->setEnabled(seen);
-			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen and moves it to Following on Home. Nothing changes on GitHub.")
+			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen. Nothing changes on GitHub.")
 									  : QStringLiteral("Offered when commits follow my standing approval.");
 			SeenPullRequest->setToolTip(seenTip);
 			SeenPullRequest->setStatusTip(seenTip);
