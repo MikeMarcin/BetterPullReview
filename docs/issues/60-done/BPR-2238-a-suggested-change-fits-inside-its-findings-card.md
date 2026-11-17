@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2238"
 title: "A suggested change fits inside its finding's card"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2236--BPR-2238--777d083d72cc.json","origin":"BPR-2219's look review-report-v002, 2026-11-16"}
