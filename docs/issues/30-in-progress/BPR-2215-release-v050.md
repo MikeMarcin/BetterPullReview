@@ -55,21 +55,25 @@ Debug on Windows (source `66448e35a`) and on Ubuntu 26.04. Fixed on
   Twelve of those direct baselines fail natively on Windows, independent of
   containment, and remain open for comprehensive qualification.
 
-Native results at `15745dc64` (measurement at `12c1f9250`, the pre-rebase
-identity of `9da22ad18`):
+Main was merged into the lane (`877f8091b`) and BPR-2245's new
+`application_ask_setup_review_public_path` was measured and pinned the same
+way. Native results, all in the station's Interactive Limited context on
+Windows:
 
-| Platform, config | Rows run | Result |
+| Candidate, platform, config | Rows run | Result |
 | --- | --- | --- |
-| Windows Release (Interactive Limited, session 1) | four affected rows | 4 passed (`local_changes` contained) |
-| Windows Release risk preflight, first | 9 | 8 passed; `application_diff_host` failed its BPR-1485 10 ms stop budget at 12.56 ms (Release timing, this change does not touch it) |
-| Windows Release risk preflight, fresh rerun | 9 | 9 passed; the row alone then passed 5 of 5 |
-| Windows Debug (same context) | four affected rows, then 9 | 4 passed; 9 passed |
-| Ubuntu 26.04 Release and Debug | 9 each | 9 passed each (the course reported `SCRATCH_WITHOUT_GENERATION: /tmp`) |
-| macOS dev | affected rows | `git_cache_contract`, `git_sparse_cache_contract`, `local_changes`, both network-isolation rows and `documentation_structure` passed |
+| `15745dc64` Windows Release | four affected rows | 4 passed (`local_changes` contained) |
+| `15745dc64` Windows Release risk preflight | 9 | 8 passed; `application_diff_host` failed its BPR-1485 10 ms stop budget at 12.56 ms. A fresh rerun passed 9, and the row alone passed 5 of 5 |
+| `15745dc64` Windows Debug | four affected rows, then 9 | 4 passed; 9 passed |
+| `15745dc64` Ubuntu 26.04 Release and Debug | 9 each | 9 passed each |
+| `018a9c954` (final) Windows Release | four affected rows, then 9 | 4 passed; 9 passed |
+| `018a9c954` (final) Windows Debug | four affected rows, then 9 | 4 passed; 9 passed |
+| `018a9c954` (final) Ubuntu 26.04 Release and Debug | 9 each | 9 passed each; the course reported `SCRATCH_WITHOUT_GENERATION: /tmp` |
+| `877f8091b` macOS dev | the 9 rows and the affected rows | 13 passed |
 
-The intermittent `application_diff_host` Release timing failure is kept as
-an actual failure; it is not dispositioned here. The Windows producer checkout
-(`D:\BetterPullReview-release-v050-r1\source`) and the Ubuntu guest checkout
-were moved to `15745dc64` and rebuilt there. Evidence, receipts and the
-dispatch scripts are under the external state's
+The intermittent `application_diff_host` Release stop-budget failure is kept
+as an actual failure; this change does not touch it and does not disposition
+it. The Windows producer checkout (`D:\BetterPullReview-release-v050-r1\source`)
+and the Ubuntu guest checkout were moved to `018a9c954` and rebuilt there.
+Evidence, receipts and dispatch scripts are under the external state's
 `windows-preflight-fix-r1/`.
