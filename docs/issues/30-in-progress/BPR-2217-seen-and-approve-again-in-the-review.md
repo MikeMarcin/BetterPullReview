@@ -76,3 +76,29 @@ the other lanes' uncommitted work (`c073674b4`, same tree for these paths),
   `qt_review_submission_editor_scale_100` — pass.
 
 Pending: the owner's look (filed, not waited on).
+
+## Checkpoint 2 (2026-11-16): owner look filed, not waited on
+
+Lane `764cfbee0`: the review lightbox fits its content again whenever the
+review presents (a draft read after it opened, or the line about my approval,
+had left the verdict row below its foot); the course renders natively.
+Re-run on the private verification checkout (`2aee77350`, same tree for these
+paths): `application_review_seen_public_path`,
+`application_home_approve_again_public_path`,
+`application_home_oversized_public_path`,
+`qt_review_submission_editor_scale_100` — pass.
+
+Frozen build `/Users/jaeger/bpr2217-review-seen-v002.c04pcimv` from
+`2aee77350` (fixture `github-com`, `--attended-home-look
+--attended-home-approvals`: #17 approved before new commits, #4004 dismissed;
+Fixture agent only; launcher `--check` reached `ATTENDED_HOME_SHOWN:rows=5`).
+Native Cocoa renders in `/Users/jaeger/bpr2217-look-renders`.
+
+Attended session `90d237427a59a8fc8e95d016e4d3573f`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261116-bpr2217-review-seen-v002/state`,
+served on the tailnet, cursor 9, three Accept/Reject candidates ready and
+protected: `BPR-2217-review-seen` (AC-a, build), `BPR-2217-approve-again`
+(AC-b, render: the frozen fixture opens only #17), `BPR-2217-home-row` (AC-c,
+build). The URL stays in the session state.
+
+Next: read `status --after 9`; Accept on all three closes the card.
