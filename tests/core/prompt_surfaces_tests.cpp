@@ -384,7 +384,9 @@ namespace {
 		expect(one != nullptr && one->Enabled && one->Each == std::vector<std::string>{ "t2" }, "and asks for the one that matches");
 
 		// What the page reads.
-		expect(prompt_has_conditions({ .Groups = { { } } }) && !prompt_has_conditions({ }), "a nested group is a condition");
+		// Named: GCC 15 misreads a braced temporary inside a && chain as dangling (BPR-2215).
+		const auto nested = prompt_macro_body{ .Groups = { { } } };
+		expect(prompt_has_conditions(nested) && !prompt_has_conditions({ }), "a nested group is a condition");
 		const auto activity = prompt_unmet_reading_of({ .Fact = prompt_fact::thread_activity, .Negated = true, .Activity = prompt_activity_value::pushes });
 		expect(activity.Present && activity.Activity == prompt_activity_value::pushes, "an unmet \"is not\" thread activity says the activity is there");
 	}

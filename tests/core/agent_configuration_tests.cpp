@@ -390,7 +390,9 @@ namespace {
 		expect(plan.Repositories.size() == 2U && plan.Repositories[app].SignInToUse && !plan.Repositories[app].Default, "a saved repository with no account on its host waits for a sign-in");
 		expect(!plan.Repositories[lib].SignInToUse && plan.Repositories[lib].Default && plan.Repositories[lib].Standing == core::import_standing::added, "a followed one needs no account and starts chosen");
 		const auto changes = core::profile_changes(*decoded, plan, true, std::array{ app, lib }, there);
-		expect(changes.Rename == std::optional<std::string>{ "Work" } && changes.RememberServers == std::vector{ core::portable_account{ .Host = "ghe.example.com", .Login = "octo-corp" } },
+		// Named: GCC 15 misreads a braced temporary inside a && chain as dangling (BPR-2215).
+		const auto enterprise = std::vector{ core::portable_account{ .Host = "ghe.example.com", .Login = "octo-corp" } };
+		expect(changes.Rename == std::optional<std::string>{ "Work" } && changes.RememberServers == enterprise,
 			   "Identity renames the profile and remembers the enterprise server, signing in to nothing");
 		expect(changes.Save.empty() && changes.Follow == std::vector<std::string>{ "octo/lib" }, "a repository waiting for a sign-in is not saved; the follow is");
 		const auto unchosen = core::profile_changes(*decoded, plan, false, { }, there);

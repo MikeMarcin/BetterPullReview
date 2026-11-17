@@ -186,7 +186,8 @@ namespace {
 		host.load();
 		host.agent_changed("s");
 		world.settle();
-		const auto& restored = front(host, "s");
+		// A copy: GCC 15 takes a reference returned beside the "s" temporary for a dangling one (BPR-2215).
+		const auto restored = front(host, "s");
 		expect(restored.State == core::queued_state::delivery_unknown && restored.Claim && restored.Claim->Conversation == 77U && restored.Input.Text == "claimed",
 			   "restored as Delivery unknown, with its text and what it was bound to");
 		expect(host.queue("s")->Paused == core::queue_pause::restarted && world.agents.Ran.empty(), "the queue opens paused; nothing is sent");

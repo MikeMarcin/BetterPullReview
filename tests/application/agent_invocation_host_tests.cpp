@@ -2322,9 +2322,9 @@ namespace {
 		expect(!test.Projection.Finished.empty() && test.Projection.Finished.back().SteerDeliveryUnknown && test.Projection.Finished.back().Steers.Unknown == 1U,
 			   "an uncorrelated correction reaches the presentation with the run's result, for the queue to pause on");
 		expect(test.Host.steer_support(ran) == agent_steer_support::not_running, "once the turn ended, nothing is steerable");
-		expect(!test.NativeSessions.Appended.empty()
-				   && test.NativeSessions.Appended.back().Steered
-					   == std::vector<application::agent_steered_message>{ { .Text = "Look at b.cpp instead", .At = std::string{ "First part. " }.size(), .AfterSteps = 3U, .Disposition = core::agent_steer_disposition::unknown } },
+		// Named: GCC 15 misreads a braced temporary inside a && chain as dangling (BPR-2215).
+		const auto steered = std::vector<application::agent_steered_message>{ { .Text = "Look at b.cpp instead", .At = std::string{ "First part. " }.size(), .AfterSteps = 3U, .Disposition = core::agent_steer_disposition::unknown } };
+		expect(!test.NativeSessions.Appended.empty() && test.NativeSessions.Appended.back().Steered == steered,
 			   "the native history keeps the steered message, where it went in, with its state");
 
 		auto terminal = harness{ };
