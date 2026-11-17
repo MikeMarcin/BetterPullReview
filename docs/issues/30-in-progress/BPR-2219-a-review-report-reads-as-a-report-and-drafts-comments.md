@@ -254,6 +254,24 @@ three mockups are its images. Lifecycle: pending.
 - Settings › Appearance › Reports still lists report paper, ink and code
   wash; the page no longer reads them (only the three verdict colours).
 
+### Owner look, round 2 (filed, not waited on)
+
+Attended-review session `391c751c296232358f316776c40960fc`, external state
+directory `~/.attended-review-state/review-report-v002-2026-11-16/`, served
+on the tailnet. Three Accept/Reject questions on the frozen build
+`review-report-v002` (root `~/review-report-v002.qcu5faom`, frozen from
+`84bfffc6bd0c`, Fixture agent only): `report-styling-native`,
+`prompt-turn-shows-title`, `prompt-editor-result`. The three looks' renders
+are its context. Lifecycle: pending. The freeze's own run of the launcher's
+check exited once at the next-push start; the same check, run by hand on the
+kept root, passed whole, and is the launch evidence recorded. Look v001's
+host is stopped and its root removed.
+
+Follow-ups filed in Backlog: [[BPR-2231]] (kept marks stored and shared),
+[[BPR-2232]] (Draft all from the report), [[BPR-2233]] (Go to draft, then
+the report row), [[BPR-2234]] (Not reviewed's voice), [[BPR-2235]] (the tour
+chats' prompt turns).
+
 ## Known gaps
 
 - What a report's keep actions made is remembered by the report view for the

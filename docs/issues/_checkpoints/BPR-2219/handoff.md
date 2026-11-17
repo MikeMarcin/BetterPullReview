@@ -1,3 +1,27 @@
+# BPR-2219 checkpoint 7 (2026-11-16): round 2 built, look v002 filed
+
+Supersedes the checkpoints below.
+
+- Lane: `fae6dac55` round 2 (AC-g report in the app's own hand, Cards; AC-h
+  a prompt's turn by its title, Agent tab only; AC-i the prompt editor);
+  `84bfffc6b` Backlog cards BPR-2231 to BPR-2235 (**the frozen commit**);
+  then the card's look record and this checkpoint.
+- Main: `2e0a354ae` (the Backlog cards), `772c90d7d` (card and design round
+  2), then the card's last mirror. Both gates print `DOCUMENTATION_OK`.
+- Look v002: session `391c751c296232358f316776c40960fc`, state
+  `~/.attended-review-state/review-report-v002-2026-11-16/` (URL in its
+  `serve.log` only, host pid in `serve.pid`), frozen root
+  `~/review-report-v002.qcu5faom`. Three questions pending.
+- Look v001: verdicts on the card; host stopped; root removed.
+- Not done: AC-h in the tour chats ([[BPR-2235]]); Settings › Appearance ›
+  Reports still lists paper, ink and code wash, now unread; the whole suite
+  was not run.
+- Left for the integrator: park the card on human-review; on the verdicts,
+  remove the v002 root with `scripts/freeze_attended_build.py remove`; close
+  MikeMarcin/BPR-Test#185 and delete its two branches when the card is done;
+  the private worktree `.claude/worktrees/bpr-2219-review-report` and its
+  `build/dev` can be removed (nothing uncommitted).
+
 # BPR-2219 checkpoint 6 (2026-11-16): look v001 handed back, round 2 begins
 
 Verdicts are on the card (two Accept, two Reject with the owner's words).
