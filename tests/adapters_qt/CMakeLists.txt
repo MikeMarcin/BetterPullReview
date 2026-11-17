@@ -3009,3 +3009,14 @@ if(WIN32)
         endif()
     endforeach()
 endif()
+
+# Owner, look report-keeps-v001: a document tab's glyph follows the theme.
+bpr_add_executable(test_better_pull_review_document_tab_glyph_tests document_tab_glyph_tests.cpp)
+target_link_libraries(test_better_pull_review_document_tab_glyph_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_document_tab_glyph_tests)
+bpr_enable_warnings(test_better_pull_review_document_tab_glyph_tests)
+bpr_add_network_isolated_test(NAME qt_document_tab_glyph COMMAND test_better_pull_review_document_tab_glyph_tests)
+set_tests_properties(qt_document_tab_glyph PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "DOCUMENT_TAB_GLYPH_OK"
+    TIMEOUT 60)
