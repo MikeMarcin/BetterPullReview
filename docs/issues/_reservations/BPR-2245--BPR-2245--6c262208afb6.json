@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2245"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "a queued review that finished after setup shows as stopped, and Stop all stays",
+  "created": "2026-11-17T15:47:02.700554+00:00",
+  "base": "19f4b63cc689573d3cf72f21aadd9909615c0a47"
+}
