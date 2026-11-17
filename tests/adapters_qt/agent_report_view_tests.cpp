@@ -127,19 +127,66 @@ try {
 	}
 	expect(drafts.empty(), "a link the report's text wrote drafts nothing, whatever it is written as");
 	expect(followed.contains(QStringLiteral("bpr-draft:2")), "it is followed as an ordinary link, by its text");
-	// The page's own Add as draft comment is a link this render minted.
+	// The page's own keep actions are links this render minted: Keep summary
+	// first, then the finding's Draft comment ([[BPR-2219]]).
 	auto minted = QString{ };
 	for (const auto& href : anchors(*reviewed)) {
 		if (href.startsWith(QStringLiteral("report-action-")) && href != QStringLiteral("report-action-00000000000000000000000000000000")) {
 			minted = href;
 		}
 	}
-	expect(!minted.isEmpty(), "the suggestion offers Add as draft comment");
+	expect(!minted.isEmpty() && view.findings().size() == 1U && view.summary_offered(), "the finding offers Draft comment and the summary Keep summary");
+	expect(reviewed->toPlainText().contains(QStringLiteral("Draft comment")) && reviewed->toPlainText().contains(QStringLiteral("Keep summary")), "both are on the page");
 	click(*reviewed, *anchor_point(*reviewed, minted));
 	expect(drafts.size() == 1U && drafts.front().Path == QStringLiteral("src/engine/renderer.cpp") && drafts.front().First == 12U, "the minted link drafts its own item");
+	// [[BPR-2219]]. What is drafted is the core's: the label and the finding,
+	// why, and the suggestion; the finding then reads Drafted and Go to
+	// draft, and is not drafted twice.
+	expect(drafts.front().Keep == bpr::core::report_keep::draft_comment && drafts.front().Comment.startsWith(QStringLiteral("issue (blocking): A zero height\n\nClamp it."))
+			   && drafts.front().Comment.contains(QStringLiteral("```suggestion\nconst auto width = 1;\nTarget.resize(width, 1);\n```")),
+		   "the draft starts from the finding's label, reasons and suggestion: " + drafts.front().Comment.toStdString());
+	expect(view.keep_state(drafts.front().Outline).Phase == bpr::qt::report_keep_phase::kept && reviewed->toPlainText().contains(QStringLiteral("Drafted")) && reviewed->toPlainText().contains(QStringLiteral("Go to draft")),
+		   "a drafted finding reads Drafted and Go to draft");
+	expect(!view.press(drafts.front().Outline, bpr::qt::report_link::keep) && drafts.size() == 1U, "and is not drafted twice");
+	auto gone = std::vector<bpr::qt::report_draft>{ };
+	view.set_go_dispatch([&gone](const bpr::qt::report_draft& aDraft) { gone.push_back(aDraft); });
+	expect(view.press(drafts.front().Outline, bpr::qt::report_link::go) && gone.size() == 1U && gone.front().First == 12U, "Go to draft goes to the finding's lines");
+	// A refusal is said at the finding, which still offers its action.
+	view.set_draft_dispatch([](const bpr::qt::report_draft&, bpr::qt::report_draft_done aDone) { aDone(false, QStringLiteral("Not kept: no store.")); });
+	expect(view.press(0U, bpr::qt::report_link::keep) && view.keep_state(0U).Phase == bpr::qt::report_keep_phase::refused && reviewed->toPlainText().contains(QStringLiteral("Not kept: no store."))
+			   && reviewed->toPlainText().contains(QStringLiteral("Keep summary")),
+		   "a refused keep says why and stays offered");
+	// A verdict stands over the summary; what the agent said while it worked
+	// is not on the page; a finding with no suggestion drafts too.
+	view.set_draft_dispatch([&drafts](const bpr::qt::report_draft& aDraft, bpr::qt::report_draft_done aDone) {
+		drafts.push_back(aDraft);
+		aDone(true, { });
+	});
+	view.present({ .Turn      = 3U,
+				   .Title     = QStringLiteral("Review of #21"),
+				   .Markdown  = QStringLiteral("Let me read the diff first.\n\nNow the callers.\n\n# Review of #21\n\n**Verdict:** Needs changes\n\nOne fix.\n\n## Must fix\n\n### issue (blocking): A zero height\n\n"
+											   "`src/engine/renderer.cpp:12-13`\n\nClamp it.\n\n## Worth a look\n\n### nitpick: The README is stale\n\n`README.md`\n\nIt names the old folder.\n"),
+				   .Question  = QStringLiteral("Review this pull request"),
+				   .Byline    = { },
+				   .Suggested = { { .Path = "src/engine/renderer.cpp", .First = 12U, .Last = 13U, .Comment = "issue: clamp the height too." } } });
+	QApplication::processEvents();
+	const auto pageText = view.dressed_view()->toPlainText();
+	expect(view.dressed_shown() && view.dressed().Verdict == "Needs changes" && pageText.contains(QStringLiteral("Verdict")) && pageText.contains(QStringLiteral("Needs changes")), "the verdict stands over the summary");
+	expect(!pageText.contains(QStringLiteral("Let me read the diff")) && !pageText.contains(QStringLiteral("Now the callers")), "what the agent said while it worked is not in the report");
+	expect(view.findings().size() == 2U && view.findings()[0].Keep == bpr::core::report_keep::draft_comment && view.findings()[1].Keep == bpr::core::report_keep::keep_local
+			   && pageText.count(QStringLiteral("Draft comment")) == 1 && pageText.count(QStringLiteral("Keep local")) == 1,
+		   "a finding without a suggestion offers Draft comment, one that names only a file Keep local");
+	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::offered, "another report's findings start offered");
+	drafts.clear();
+	expect(view.press(view.findings()[0].Outline, bpr::qt::report_link::keep) && drafts.size() == 1U && drafts.front().Comment == QStringLiteral("issue: clamp the height too."),
+		   "the agent's own suggested comment for the finding's place is what is drafted");
+	view.present({ .Turn = 2U, .Title = QStringLiteral("Review of #21"), .Markdown = hostile, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+	QApplication::processEvents();
+	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::kept && view.dressed_view()->toPlainText().contains(QStringLiteral("Go to draft")),
+		   "a report opened again says what was already drafted");
 	// Report pages render with no action at all where no view mints one.
 	const auto bare = bpr::qt::report_page_html(bpr::core::dress_report(hostile.toStdString()), { });
-	expect(!bare.contains(QStringLiteral("report-action-0000000000000000000000000000000a")) && bare.contains(QStringLiteral("bpr-draft:2")) && !bare.contains(QStringLiteral(">Add as draft comment</a>&nbsp;")),
+	expect(!bare.contains(QStringLiteral("report-action-0000000000000000000000000000000a")) && bare.contains(QStringLiteral("bpr-draft:2")) && !bare.contains(QStringLiteral("Draft comment")) && !bare.contains(QStringLiteral("Keep summary")),
 		   "a page written with no minted links offers no action; the report's own links stay links");
 	// N10: Tab reaches the page's links, and Return on the one reached
 	// follows it; a click follows a place by its text.

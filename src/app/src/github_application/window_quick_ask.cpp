@@ -160,23 +160,35 @@ namespace bpr::app {
 				tab->open_reference(aLink);
 			});
 			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
-			// docs/design/report-templates-v2: a suggestion's Add as draft
-			// comment drafts it at its lines as a finding card's does. Nothing
-			// is published.
+			// [[BPR-2219]] (docs/design/review-report-v1). A finding's keep
+			// action, as the core chose it, goes where a finding card's goes:
+			// Draft comment drafts at its lines, Keep local keeps a Local
+			// comment on its file or, with no file (the summary), on the pull
+			// request. Nothing is published.
 			report->set_draft_dispatch([this](const qt::report_draft& aDraft, qt::report_draft_done aDone) {
-				auto request                     = qt::agent_finding_card_request{ };
-				request.Finding.Path             = aDraft.Path.toStdString();
-				request.Finding.Lines            = { .Begin = aDraft.First > 0U ? aDraft.First - 1U : 0U, .End = aDraft.Last };
-				request.Finding.Claim            = aDraft.Comment.toStdString();
-				request.Finding.SuggestedComment = aDraft.Comment.toStdString();
-				request.Action                   = qt::agent_finding_card_action::draft_comment;
+				auto request          = qt::agent_finding_card_request{ };
+				request.Finding.Path  = aDraft.Path.toStdString();
+				request.Finding.Lines = { .Begin = aDraft.First > 0U ? aDraft.First - 1U : 0U, .End = aDraft.Last };
+				request.Finding.Claim = aDraft.Comment.toStdString();
+				request.Action        = aDraft.Keep == core::report_keep::draft_comment ? qt::agent_finding_card_action::draft_comment : qt::agent_finding_card_action::keep_local;
 				act_on_agent_card(request, [aDone](const qt::agent_finding_card_state aState, const QString& aWhy, std::uint64_t) {
-					if (aState == qt::agent_finding_card_state::drafted) {
+					if (aState == qt::agent_finding_card_state::drafted || aState == qt::agent_finding_card_state::noted) {
 						aDone(true, { });
 					} else if (aState == qt::agent_finding_card_state::refused) {
 						aDone(false, aWhy);
 					}
 				});
+			});
+			// Go to draft, Go to comment: the file, at the finding's lines.
+			report->set_go_dispatch([this](const qt::report_draft& aDraft) {
+				if (Closing || Window == nullptr || aDraft.Path.isEmpty()) {
+					return;
+				}
+				if (aDraft.First != 0U) {
+					static_cast<void>(Window->go_to_file_line(aDraft.Path, aDraft.First, false));
+				} else {
+					static_cast<void>(Window->open_file_in_review(aDraft.Path));
+				}
 			});
 			// docs/design/report-card-v4: the question under the title and
 			// Show in conversation: the Agent tab at the turn, the report's tab

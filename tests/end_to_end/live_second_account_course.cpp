@@ -95,12 +95,12 @@
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
-#include "bpr/qt/agent_report_view.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
-#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -108,6 +108,7 @@
 #include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/generated_files_view.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
@@ -140,10 +141,12 @@
 #include <QMessageBox>
 
 #include "account_setup_course.hpp"
+#include <QAbstractButton>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QScrollArea>
 #include <QStatusBar>
 #include <QTabBar>
@@ -474,7 +477,95 @@ namespace {
 		aWindow.choose_modality(qt::review_modality::review);
 		aWindow.tray_tabs()->setCurrentIndex(2);
 		auto* const tab = aWindow.agent_tab();
+		// As a reviewer sets an agent up: the Agent tab's setup, and Check it
+		// works where it asks for it.
+		aWindow.open_agent_question();
+		wait_for([&] { return tab->setup_readiness() != qt::agent_setup_readiness::checking; }, "the agent setup looks for agents", std::chrono::seconds{ 120 });
+		say("agent-review:readiness=" + std::to_string(static_cast<int>(tab->setup_readiness())) + " state=" + std::to_string(static_cast<int>(tab->state())));
+		if (tab->setup_readiness() != qt::agent_setup_readiness::ready) {
+			aWindow.open_agent_setup();
+			auto* const setup  = aWindow.agent_setup();
+			const auto  button = [setup](const char* aName) {
+				auto* const found = setup->findChild<QAbstractButton*>(QString::fromLatin1(aName));
+				return found != nullptr && found->isVisible() && found->isEnabled() ? found : nullptr;
+			};
+			// The repository step's card: BetterPullReview's own clone where
+			// it is offered (callers and history, as a linked clone gives),
+			// else this pull request only.
+			const auto card = [setup](const char* aName) {
+				auto* const box   = setup->findChild<QWidget*>(QString::fromLatin1(aName));
+				auto* const radio = box != nullptr ? box->findChild<QRadioButton*>() : nullptr;
+				return radio != nullptr && radio->isVisible() && radio->isEnabled() && !radio->isChecked() ? box : nullptr;
+			};
+			// A card is chosen as the keyboard chooses it: Space on the card.
+			const auto choose = [](QWidget& aCard) {
+				QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+				QApplication::sendEvent(&aCard, &press);
+			};
+			auto       said       = QString{ };
+			auto       checked    = std::chrono::steady_clock::time_point{ };
+			auto       kept       = false;
+			auto       triedAgent = qsizetype{ 0 };
+			const auto walked     = wait_for(
+				[&] {
+					if (tab->setup_readiness() == qt::agent_setup_readiness::ready) {
+						return true;
+					}
+					if (const auto step = setup->step_text(); step != said) {
+						said = step;
+						say("agent-review:setup-step=" + text(step));
+					}
+					const auto now = std::chrono::steady_clock::now();
+					if (auto* const check = button("agentSetupCheck"); check != nullptr && now - checked > std::chrono::seconds{ 240 }) {
+						checked = now;
+						say("agent-review:pressed " + text(check->text()));
+						check->click();
+					} else if (auto* const next = button("agentSetupContinue"); next != nullptr && next->text().contains(QStringLiteral("Claude"))) {
+						say("agent-review:pressed " + text(next->text()));
+						next->click();
+					} else if (auto* const keep = button("agentSetupKeepClone"); keep != nullptr && !kept) {
+						kept = true;
+						say("agent-review:pressed " + text(keep->text()));
+						keep->click();
+					} else if (auto* const only = button("agentSetupPullRequestOnly"); only != nullptr) {
+						say("agent-review:pressed " + text(only->text()));
+						only->click();
+					} else if (auto* const clone = card("agentSetupKeepCard"); clone != nullptr && !kept) {
+						say("agent-review:chose Keep a clone for me");
+						choose(*clone);
+					} else if (auto* const sparse = card("agentSetupPullRequestOnlyCard"); sparse != nullptr && setup->findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr) {
+						say("agent-review:chose This pull request only");
+						choose(*sparse);
+					} else if (triedAgent == 0) {
+						// The agent step: the installed Claude Code's row.
+						for (auto* const row : setup->findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"))) {
+							if (row->isVisible() && row->accessibleName().contains(QStringLiteral("Claude"))) {
+								triedAgent = 1;
+								say("agent-review:chose " + text(row->accessibleName()));
+								choose(*row);
+								break;
+							}
+						}
+					}
+					return false;
+				},
+				"the agent setup finishes", std::chrono::seconds{ 420 });
+			if (!walked) {
+				for (auto* const each : setup->findChildren<QAbstractButton*>()) {
+					if (each->isVisible()) {
+						say("agent-review:setup-control " + text(each->objectName()) + " \"" + text(each->text()) + "\" enabled=" + (each->isEnabled() ? "yes" : "no") + " checked=" + (each->isChecked() ? "yes" : "no"));
+					}
+				}
+				aWindow.grab().save(QString::fromStdString((aOptions.Root / "agent-setup-stalled.png").string()));
+				fail("the agent setup did not finish at step \"" + text(setup->step_text()) + "\"");
+			}
+			aWindow.open_agent_question();
+			if (const auto index = panel->profile_selector()->findData(id); index >= 0) {
+				panel->profile_selector()->setCurrentIndex(index);
+			}
+		}
 		wait_for([&] { return tab->state() == qt::agent_tab_state::idle; }, "the Agent tab is ready to ask", std::chrono::seconds{ 120 });
+		say("agent-review:readiness=" + std::to_string(static_cast<int>(tab->setup_readiness())) + " state=" + std::to_string(static_cast<int>(tab->state())) + " agent=" + text(panel->profile_selector()->currentText()));
 		const auto  before = tab->turn_count();
 		auto* const ask    = aWindow.review_ask_button();
 		auto*       review = static_cast<QAction*>(nullptr);
@@ -485,7 +576,9 @@ namespace {
 		},
 				"Review this pull request is offered in the review bar's Ask", std::chrono::seconds{ 120 });
 		review->trigger();
-		require([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 });
+		if (!wait_for([&] { return tab->turn_count() == before + 1U; }, "the turn starts", std::chrono::seconds{ 120 })) {
+			fail("the turn did not start: queue note \"" + text(tab->queue_note()->text()) + "\", panel \"" + text(panel->status_text()) + "\"");
+		}
 		require([&] { return tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value(); }, "the review ends", std::chrono::seconds{ 1500 });
 		QCoreApplication::processEvents();
 		const auto quote = [](const QString& aText) {

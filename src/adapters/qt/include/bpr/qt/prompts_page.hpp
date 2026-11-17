@@ -139,6 +139,13 @@ namespace bpr::qt {
 		/// kept where they are; `aConfirm` asks first, as the button does.
 		auto restore_built_ins(bool aConfirm = false) -> bool;
 		void set_filter(prompt_library_filter aFilter);
+		/// \brief [[BPR-2219]] (owner, 2026-11-16). The report format the
+		/// application always adds to a review prompt and reads the answer
+		/// by, shown read-only under the editor of a prompt that asks for
+		/// findings ("Result: Findings report"), so nothing a review is sent
+		/// with is hidden. Empty: the section is not shown.
+		void               set_review_result(const QString& aFormat);
+		[[nodiscard]] auto review_result_box() const noexcept -> QWidget* { return ResultBox; }
 		/// \brief Undo and Redo, every edit of the layer shown; false with
 		/// nothing to do.
 		auto undo() -> bool;
@@ -254,6 +261,8 @@ namespace bpr::qt {
 		QToolButton*    AsQuestion    = nullptr;
 		QToolButton*    AsFindings    = nullptr;
 		QPlainTextEdit* Text          = nullptr;
+		QWidget*        ResultBox     = nullptr;
+		QPlainTextEdit* ResultText    = nullptr;
 		QLabel*         ActionNote    = nullptr;
 		QWidget*        InsertRow     = nullptr;
 		QLabel*         Bytes         = nullptr;

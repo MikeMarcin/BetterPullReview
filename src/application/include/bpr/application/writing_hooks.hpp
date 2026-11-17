@@ -133,7 +133,7 @@ namespace bpr::application {
 	/// returning questions (What could this change break?, a review): the
 	/// shared rules and those two templates,
 	/// `resources/review-preparation/report-templates.md`.
-	inline constexpr std::string_view report_templates_version = "report-templates-v1";
+	inline constexpr std::string_view report_templates_version = "report-templates-v2";
 	[[nodiscard]] auto                report_templates_guidance() -> core::supplement_feedback_guidance;
 	[[nodiscard]] auto                workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }

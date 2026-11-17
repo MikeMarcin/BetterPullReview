@@ -264,7 +264,10 @@ namespace {
 			expect(aHarness.Sends.size() == sent + 1U, "AC05 a click sends: " + label.toStdString());
 			const auto& send = aHarness.Sends.back();
 			const auto  was  = today(label, subject, review, context, tab.lines_attached());
-			expect(send.Text == was.first && send.Question == was.second && send.Action.entry_point() == was.second->EntryPoint, "AC05 the request equals today's, byte for byte: " + label.toStdString());
+			// [[BPR-2219]]. A review chip is shown by its name and sends its
+			// body: its instructions, which open with the name.
+			const auto text = review ? send.Text.starts_with(label.toStdString() + " as a careful colleague would") && send.Text.find("Sections, in this order") != std::string::npos : send.Text == was.first;
+			expect(text && send.Question == was.second && send.Action.entry_point() == was.second->EntryPoint, "AC05 the request equals today's, byte for byte: " + label.toStdString());
 			expect(send.SkillText == std::optional<std::string>{ "" }, "AC05 a built-in's own text names no skill, as today");
 		}
 
@@ -502,7 +505,7 @@ namespace {
 		const auto sent = aHarness.Sends.size();
 		tab.ask_button()->click();
 		settle();
-		expect(aHarness.Sends.size() == sent + 1U && aHarness.Sends.back().Text == "Review this pull request, focusing on the cache" && aHarness.Sends.back().Question
+		expect(aHarness.Sends.size() == sent + 1U && aHarness.Sends.back().Text.starts_with("Review this pull request as a careful colleague would") && aHarness.Sends.back().Text.ends_with(", focusing on the cache") && aHarness.Sends.back().Question
 				   && aHarness.Sends.back().Question->EntryPoint == core::agent_entry_point::run_ai_review && !aHarness.Sends.back().SkillText,
 			   "AC10 edited and sent, it keeps its subject and kind: a review");
 		aHarness.answer(QStringLiteral("Reviewed."));
@@ -517,7 +520,7 @@ namespace {
 		expect(!tab.macro_chip()->isVisibleTo(&tab), "AC10 the chip's close removes it");
 		tab.ask_button()->click();
 		settle();
-		expect(aHarness.Sends.back().Text == "Review this pull request, focusing on the cache" && aHarness.Sends.back().Question
+		expect(aHarness.Sends.back().Text.starts_with("Review this pull request as a careful colleague would") && aHarness.Sends.back().Text.ends_with(", focusing on the cache") && aHarness.Sends.back().Question
 				   && aHarness.Sends.back().Question->EntryPoint == core::agent_entry_point::open_full_agent_session && aHarness.Sends.back().Question->Subject == core::agent_question_subject::pull_request,
 			   "AC10 with the chip removed the same text is sent as a typed question");
 		aHarness.answer(QStringLiteral("Answered."));

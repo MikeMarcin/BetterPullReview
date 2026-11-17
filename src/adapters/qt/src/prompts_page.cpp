@@ -900,6 +900,34 @@ namespace bpr::qt {
 		Text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 		Text->setTabChangesFocus(true);
 		left->addWidget(Text, 1);
+		// [[BPR-2219]]. What a review prompt is always sent with, read-only:
+		// the report format the application reads the answer by.
+		ResultBox = new QWidget{ page };
+		ResultBox->setObjectName(QStringLiteral("promptsResultBox"));
+		auto* const resultLayout = new QVBoxLayout{ ResultBox };
+		resultLayout->setContentsMargins(0, 4, 0, 0);
+		resultLayout->setSpacing(2);
+		auto* const resultTitle = new QLabel{ tr("Result: Findings report"), ResultBox };
+		resultTitle->setObjectName(QStringLiteral("promptsResultTitle"));
+		auto resultBold = resultTitle->font();
+		resultBold.setWeight(QFont::DemiBold);
+		resultTitle->setFont(resultBold);
+		resultLayout->addWidget(resultTitle);
+		auto* const resultNote = new QLabel{ tr("Always added: the report format BetterPullReview reads. It shows each finding at its place and makes Draft comment work, so it is not edited here."), ResultBox };
+		resultNote->setObjectName(QStringLiteral("promptsResultNote"));
+		resultNote->setWordWrap(true);
+		resultNote->setForegroundRole(QPalette::PlaceholderText);
+		resultLayout->addWidget(resultNote);
+		ResultText = new QPlainTextEdit{ ResultBox };
+		ResultText->setObjectName(QStringLiteral("promptsResultText"));
+		ResultText->setAccessibleName(tr("Result: Findings report, always added, read-only"));
+		ResultText->setReadOnly(true);
+		ResultText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+		ResultText->setTabChangesFocus(true);
+		ResultText->setMaximumHeight(150);
+		resultLayout->addWidget(ResultText);
+		ResultBox->hide();
+		left->addWidget(ResultBox);
 		InsertRow                = new QWidget{ page };
 		auto* const insertLayout = new QHBoxLayout{ InsertRow };
 		insertLayout->setContentsMargins(0, 0, 0, 0);
@@ -1469,6 +1497,13 @@ namespace bpr::qt {
 		return outcome.Refusal == core::prompt_edit_refusal::none;
 	}
 
+	void prompts_page::set_review_result(const QString& aFormat)
+	{
+		ResultText->setPlainText(aFormat);
+		const auto* const macro = Selected ? find(*Selected) : nullptr;
+		ResultBox->setVisible(macro != nullptr && macro->Body.Kind == core::prompt_ask::review && !aFormat.isEmpty());
+	}
+
 	void prompts_page::set_filter(const prompt_library_filter aFilter)
 	{
 		Filter = aFilter;
@@ -1831,6 +1866,7 @@ namespace bpr::qt {
 		BuiltInTag->setText(macro->BuiltIn ? (standing.Edited ? tr("Built-in, edited") : tr("Built-in")) : tr("Yours"));
 		AsQuestion->setChecked(macro->Body.Kind == core::prompt_ask::question);
 		AsFindings->setChecked(macro->Body.Kind == core::prompt_ask::review);
+		ResultBox->setVisible(macro->Body.Kind == core::prompt_ask::review && !ResultText->toPlainText().isEmpty());
 		MatchAll->setChecked(macro->Body.Match == core::prompt_match::all);
 		MatchAny->setChecked(macro->Body.Match == core::prompt_match::any);
 		MatchNone->setChecked(macro->Body.Match == core::prompt_match::none);

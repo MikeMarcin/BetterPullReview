@@ -208,6 +208,32 @@ namespace {
 		expect(page.delete_prompt(b) && !other.empty() && page.selected() == other, "deleting it selects the next row, else the one before");
 		settle();
 
+		// [[BPR-2219]] (owner, 2026-11-16). The review prompt's body is its
+		// real instructions, in the editor; under it, read-only, what is
+		// always added: the report format the application reads. A prompt
+		// that does not ask for findings has no such section.
+		{
+			page.set_review_result(QStringLiteral("# Reports\n\nThe first line is the title."));
+			page.select("agent-tab.review-pull-request");
+			settle();
+			auto* const body   = page.findChild<QPlainTextEdit*>(QStringLiteral("promptsText"));
+			auto* const box    = page.review_result_box();
+			auto* const title  = page.findChild<QLabel*>(QStringLiteral("promptsResultTitle"));
+			auto* const note   = page.findChild<QLabel*>(QStringLiteral("promptsResultNote"));
+			auto* const format = page.findChild<QPlainTextEdit*>(QStringLiteral("promptsResultText"));
+			expect(body != nullptr && body->toPlainText().startsWith(QStringLiteral("Review this pull request as a careful colleague would")) && body->toPlainText().contains(QStringLiteral("Sections, in this order"))
+					   && body->toPlainText().contains(QStringLiteral("Severity:")) && body->toPlainText().contains(QStringLiteral("Tone:")) && !body->isReadOnly(),
+				   "the review prompt's editor holds its instructions, editable");
+			expect(box != nullptr && box->isVisibleTo(&page) && title != nullptr && title->text() == QStringLiteral("Result: Findings report") && note != nullptr
+					   && note->text().startsWith(QStringLiteral("Always added: the report format BetterPullReview reads.")),
+				   "under it, the Result: Findings report section says it is always added");
+			expect(format != nullptr && format->isReadOnly() && format->toPlainText() == QStringLiteral("# Reports\n\nThe first line is the title.") && format->accessibleName().contains(QStringLiteral("read-only")),
+				   "it shows the format, read-only");
+			page.select("agent-tab.what-could-break");
+			settle();
+			expect(!box->isVisibleTo(&page), "a prompt that asks no findings has no Result section");
+		}
+
 		// A filter that still shows the selection keeps it.
 		page.select("agent-tab.what-could-break");
 		settle();

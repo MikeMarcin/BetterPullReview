@@ -1949,7 +1949,9 @@ namespace bpr::qt {
 					: many                     ? aTurn.Question
 					: !aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain)
 											   : tr("What changed since your review");
-				const auto card  = core::report_card_of(answer, named.toStdString());
+				// [[BPR-2219]]. The card reads the report, not what the agent
+				// said while it worked.
+				const auto card = core::report_card_of(core::read_report_answer(answer).Report, named.toStdString());
 				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
 				// Round 1's wording; defect 2: "1 section", counted without
 				// the title.
@@ -2947,14 +2949,23 @@ namespace bpr::qt {
 		const auto& turn = Turns[aTurn];
 		// References are links in the report as they are in the answer.
 		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+		// [[BPR-2219]]. The comments the agent suggested for this turn's
+		// findings, by place: the report's findings draft from them.
+		auto suggested = std::vector<core::report_suggested_comment>{ };
+		for (const auto& entry : CardEntries) {
+			if (entry.Turn == std::optional{ aTurn } && entry.Finding.SuggestedComment && !entry.Finding.SuggestedComment->empty()) {
+				suggested.push_back({ .Path = entry.Finding.Path, .First = entry.Finding.Lines.Begin + 1U, .Last = std::max(entry.Finding.Lines.End, entry.Finding.Lines.Begin + 1U), .Comment = *entry.Finding.SuggestedComment });
+			}
+		}
 		// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
 		// byline handed over as data.
 		ReportDispatch(agent_report_document{
-			.Turn     = turn.Serial,
-			.Title    = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
-			.Markdown = shown,
-			.Question = turn.Question,
-			.Byline   = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
+			.Turn      = turn.Serial,
+			.Title     = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
+			.Markdown  = shown,
+			.Question  = turn.Question,
+			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
+			.Suggested = std::move(suggested),
 		});
 	}
 

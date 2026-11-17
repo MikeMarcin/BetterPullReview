@@ -19,8 +19,9 @@
 /// shared convention, drawn as one page of Qt rich text in the hand of the
 /// attended-review page: serif reading text, sans labels, mono places; a
 /// rule at the left of each verdict; the tally as a meter and its counts;
-/// code numbered from its item's place; a suggestion as a diff with Add as
-/// draft comment, a link. Colour is spent only on verdicts.
+/// code numbered from its item's place; a suggestion as a diff; a review's
+/// verdict over its summary and one keep action at each finding's foot
+/// ([[BPR-2219]]). Colour is spent only on verdicts.
 namespace bpr::qt {
 	/// \brief The report's colours, the theme's named roles
 	/// (`core::appearance_role::report_*`).
@@ -60,15 +61,53 @@ namespace bpr::qt {
 	};
 	inline constexpr auto report_code_marker = "BPRREPORTCODE";
 
-	/// \brief The page's HTML. `aDraftNotes` says, by an item's row in the
-	/// menu, what became of its Add as draft comment. Each code block is a
-	/// marker paragraph, its slot appended to `aSlots`. Review of 2026-11-14:
-	/// an action never lives in a scheme agent text could write;
-	/// `aDraftLink` mints, per render, the link Add as draft comment carries
-	/// for an item's row in the menu, and only the view that minted it knows
-	/// it. Without one, no item offers the action.
-	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes = { },
-										std::vector<report_code_slot>* aSlots = nullptr, const std::function<QString(std::uint32_t)>& aDraftLink = { }) -> QString;
+	/// \brief [[BPR-2219]]. What became of one keep action of the page: a
+	/// finding's Draft comment or Keep local, or the summary's Keep summary.
+	enum class report_keep_phase : std::uint8_t {
+		/// Offered: nothing was made.
+		offered,
+		/// Asked for; not yet answered.
+		working,
+		/// Made: a draft at its lines, or a Local comment.
+		kept,
+		/// Not made, and why.
+		refused,
+	};
+	struct report_keep_state
+	{
+		report_keep_phase Phase = report_keep_phase::offered;
+		QString           Why;
+
+		auto operator==(const report_keep_state&) const -> bool = default;
+	};
+
+	/// \brief The two links a keep action wears: making it, and going to what
+	/// it made.
+	enum class report_link : std::uint8_t {
+		keep,
+		go,
+	};
+
+	/// \brief [[BPR-2219]] (docs/design/review-report-v1, A). The page's keep
+	/// actions: the findings the core read, each with the action the core
+	/// chose, drawn at its finding's foot; Keep summary under the summary;
+	/// what became of each, by its row in the menu (0 is the summary). Review
+	/// of 2026-11-14: an action never lives in a scheme agent text could
+	/// write; `Link` mints, per render, the link an action carries, and only
+	/// the view that minted it knows it. Without one, the page offers no
+	/// action.
+	struct report_page_actions
+	{
+		std::vector<core::report_finding>                  Findings;
+		bool                                               Summary = false;
+		std::map<std::uint32_t, report_keep_state>         States;
+		std::function<QString(std::uint32_t, report_link)> Link;
+	};
+
+	/// \brief The page's HTML. Each code block is a marker paragraph, its
+	/// slot appended to `aSlots`.
+	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions = { }, std::vector<report_code_slot>* aSlots = nullptr)
+		-> QString;
 
 	/// \brief The colour a tone wears; neutral is the stronger rule.
 	[[nodiscard]] auto report_tone_colour(core::report_tone aTone, const report_colours& aColours) -> QColor;

@@ -18,18 +18,8 @@ namespace bpr::qt {
 	namespace {
 		/// The slots the page being written collects its code blocks into.
 		std::vector<report_code_slot>* Collected = nullptr;
-		/// The page being written's Add as draft comment links, minted by its
-		/// view.
-		const std::function<QString(std::uint32_t)>* DraftLink = nullptr;
-
-		[[nodiscard]] auto draft_foot(const std::uint32_t aOutline, const QString& aLinkColour) -> QString
-		{
-			if (DraftLink == nullptr || !*DraftLink) {
-				return QObject::tr("Nothing is published");
-			}
-			return QStringLiteral("<a href=\"%1\" style=\"color:%2\">%3</a>&nbsp;&nbsp;&nbsp;%4")
-				.arg((*DraftLink)(aOutline).toHtmlEscaped(), aLinkColour, QObject::tr("Add as draft comment"), QObject::tr("Nothing is published"));
-		}
+		/// The page being written's keep actions.
+		const report_page_actions* Actions = nullptr;
 
 		[[nodiscard]] auto code_marker(report_code_slot aSlot) -> QString
 		{
@@ -124,6 +114,68 @@ namespace bpr::qt {
 				.arg(place_link(aPlace, aLink).toHtmlEscaped(), mono(), aPalette.Link, escaped(aPlace));
 		}
 
+		/// [[BPR-2219]]. A button-shaped link of the page's own text: a
+		/// bordered cell, so Tab and Return reach it as they reach any link.
+		[[nodiscard]] auto chip(const QString& aLink, const QString& aWords, const QString& aInk, const palette& aPalette) -> QString
+		{
+			return QStringLiteral("<td style=\"border:1px solid %1;background-color:%2;padding:4px 10px\"><a href=\"%3\" style=\"text-decoration:none;font-weight:600;color:%4\">%5</a></td>")
+				.arg(aPalette.Strong, aPalette.Wash, aLink.toHtmlEscaped(), aInk, aWords.toHtmlEscaped());
+		}
+
+		/// One keep action's row: the chip and what it does, or what became
+		/// of it. `aOutline` 0 is the summary's.
+		[[nodiscard]] auto keep_row(const std::uint32_t aOutline, const core::report_keep aKeep, const QString& aWhere, const bool aGoes, const palette& aPalette) -> QString
+		{
+			if (Actions == nullptr || !Actions->Link || aKeep == core::report_keep::none) {
+				return { };
+			}
+			const auto found = Actions->States.find(aOutline);
+			const auto state = found == Actions->States.end() ? report_keep_state{ } : found->second;
+			const auto draft = aKeep == core::report_keep::draft_comment;
+			const auto words = [&](const QString& aText, const QString& aColour, const bool aStrong) {
+				return QStringLiteral("<td style=\"padding:4px 12px 4px 0;color:%1;%2\">%3</td>").arg(aColour, aStrong ? QStringLiteral("font-weight:600;") : QString{ }, aText.toHtmlEscaped());
+			};
+			const auto spacer = QStringLiteral("<td width=\"12\"></td>");
+			const auto unsent = QObject::tr("Nothing is published");
+			auto       cells  = QString{ };
+			switch (state.Phase) {
+			case report_keep_phase::working: cells = words(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
+			case report_keep_phase::kept:
+				cells = words(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Done.name(), true);
+				if (aGoes) {
+					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
+				}
+				cells += words(aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent) : unsent, aPalette.Faint, false);
+				break;
+			case report_keep_phase::refused:
+			case report_keep_phase::offered:
+				cells = chip(Actions->Link(aOutline, report_link::keep), aOutline == 0U ? QObject::tr("Keep summary") : draft ? QObject::tr("Draft comment")
+																															  : QObject::tr("Keep local"),
+							 aPalette.Ink, aPalette)
+					+ spacer;
+				cells += state.Phase == report_keep_phase::refused ? words(state.Why, aPalette.Roles.Open.name(), false) : words(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
+				break;
+			}
+			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
+		}
+
+		/// The keep action of the item at `aOutline`, when it is a finding.
+		[[nodiscard]] auto finding_row(const std::uint32_t aOutline, const palette& aPalette) -> QString
+		{
+			if (Actions == nullptr) {
+				return { };
+			}
+			const auto found = std::ranges::find(Actions->Findings, aOutline, &core::report_finding::Outline);
+			if (found == Actions->Findings.end()) {
+				return { };
+			}
+			const auto file  = QString::fromStdString(found->Path).section(QLatin1Char{ '/' }, -1);
+			const auto where = found->First == 0U ? (found->Path.empty() ? QObject::tr("as a local comment on the pull request") : QObject::tr("as a local comment on %1").arg(file))
+				: found->First == found->Last     ? QObject::tr("at %1:%2").arg(file).arg(found->First)
+												  : QObject::tr("at %1:%2-%3").arg(file).arg(found->First).arg(found->Last);
+			return keep_row(aOutline, found->Keep, where, !found->Path.empty(), aPalette);
+		}
+
 		/// Emphasis, `**strong**` and `*emphasis*` or `_emphasis_`, outside
 		/// code, already escaped.
 		[[nodiscard]] auto emphasised(QString aText) -> QString
@@ -209,7 +261,7 @@ namespace bpr::qt {
 				.arg(aPalette.Line, aPalette.Wash, mono(), aPalette.Ink, lines.join(QLatin1Char{ '\n' }));
 		}
 
-		[[nodiscard]] auto suggestion_html(const dressed_block& aBlock, const dressed_item& aItem, const palette& aPalette, const std::map<std::uint32_t, QString>& aNotes) -> QString
+		[[nodiscard]] auto suggestion_html(const dressed_block& aBlock, const dressed_item& aItem, const palette& aPalette) -> QString
 		{
 			auto       rows  = QString{ };
 			const auto first = aBlock.FirstLine.value_or(0U);
@@ -236,28 +288,18 @@ namespace bpr::qt {
 			for (auto index = before; index + after < now.size(); ++index) {
 				row(aPalette.Added, first + static_cast<std::uint32_t>(index), QLatin1Char{ '+' }, now[index]);
 			}
-			const auto note = aNotes.find(aItem.Outline);
 			if (Collected != nullptr) {
-				// The suggested change as the Agent tab shows one, then Add as
-				// draft comment under it.
+				// The suggested change as the Agent tab shows one. Its keep
+				// action stands at the finding's foot ([[BPR-2219]]).
 				const auto place = core::read_report_place(aItem.Place);
-				auto       body  = code_marker({ .Language   = aBlock.Language,
-												 .Lines      = aBlock.Lines,
-												 .FirstLine  = aBlock.FirstLine,
-												 .Suggestion = true,
-												 .Replaced   = aBlock.Replaced,
-												 .Path       = place ? place->Path : std::string{ } });
-				body += QStringLiteral("<p style=\"margin:6px 0 0 0;font-family:%1;font-size:14px;color:%2\">%3</p>")
-							.arg(sans(), aPalette.Faint,
-								 note != aNotes.end() ? note->second.toHtmlEscaped()
-													  : draft_foot(aItem.Outline, aPalette.Link));
-				return body;
+				return code_marker({ .Language   = aBlock.Language,
+									 .Lines      = aBlock.Lines,
+									 .FirstLine  = aBlock.FirstLine,
+									 .Suggestion = true,
+									 .Replaced   = aBlock.Replaced,
+									 .Path       = place ? place->Path : std::string{ } });
 			}
-			const auto foot = note != aNotes.end() ? note->second.toHtmlEscaped()
-												   : draft_foot(aItem.Outline, aPalette.Link);
-			return QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"3\" style=\"margin-top:10px;border:1px solid %1;border-collapse:collapse\" bgcolor=\"%2\">%3"
-								  "<tr><td style=\"border-top:1px solid %1;padding:8px 10px;font-family:%4;font-size:14px;color:%5\">%6</td></tr></table>")
-				.arg(aPalette.Line, aPalette.Wash, rows, sans(), aPalette.Faint, foot);
+			return QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"3\" style=\"margin-top:10px;border:1px solid %1;border-collapse:collapse\" bgcolor=\"%2\">%3</table>").arg(aPalette.Line, aPalette.Wash, rows);
 		}
 
 		[[nodiscard]] auto rows_html(const std::vector<dressed_row>& aRows, const palette& aPalette) -> QString
@@ -283,7 +325,7 @@ namespace bpr::qt {
 			return html + QStringLiteral("</table>");
 		}
 
-		[[nodiscard]] auto blocks_html(const std::vector<dressed_block>& aBlocks, const dressed_item* aItem, const palette& aPalette, const std::map<std::uint32_t, QString>& aNotes) -> QString
+		[[nodiscard]] auto blocks_html(const std::vector<dressed_block>& aBlocks, const dressed_item* aItem, const palette& aPalette) -> QString
 		{
 			auto html = QString{ };
 			for (const auto& block : aBlocks) {
@@ -297,7 +339,7 @@ namespace bpr::qt {
 				case dressed_block_kind::rows: html += rows_html(block.Rows, aPalette); break;
 				case dressed_block_kind::code: html += code_html(block, aPalette); break;
 				case dressed_block_kind::suggestion:
-					html += aItem != nullptr && !aItem->Place.empty() ? suggestion_html(block, *aItem, aPalette, aNotes) : code_html(block, aPalette);
+					html += aItem != nullptr && !aItem->Place.empty() ? suggestion_html(block, *aItem, aPalette) : code_html(block, aPalette);
 					break;
 				}
 			}
@@ -307,11 +349,11 @@ namespace bpr::qt {
 		/// An item: a rule at the left in its verdict's colour, its label and
 		/// place above its heading. An area (no label, no place) is a heading
 		/// over its rows.
-		[[nodiscard]] auto item_html(const dressed_item& aItem, const palette& aPalette, const std::map<std::uint32_t, QString>& aNotes) -> QString
+		[[nodiscard]] auto item_html(const dressed_item& aItem, const palette& aPalette) -> QString
 		{
 			if (aItem.Label.empty() && aItem.Place.empty()) {
 				return QStringLiteral("<p style=\"margin:16px 0 6px 0;font-size:17px;font-weight:600\">%1%2</p>%3")
-					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette, aNotes));
+					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
 			}
 			const auto tone = aItem.Tone == report_tone::neutral ? aPalette.Strong : report_tone_colour(aItem.Tone, aPalette.Roles).name();
 			const auto word = aItem.Tone == report_tone::neutral ? aPalette.Dim : tone;
@@ -319,7 +361,10 @@ namespace bpr::qt {
 								  "<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td style=\"font-family:%2;font-size:13px;font-weight:600;color:%3\">%4</td><td align=\"right\">%5</td></tr></table>"
 								  "<p style=\"margin:2px 0 6px 0;font-size:19px;font-weight:600\">%6%7</p>%8</td></tr></table>")
 				.arg(tone, sans(), word, escaped(aItem.Label), aItem.Place.empty() ? QString{ } : place_html(aItem.Place, aItem.PlaceLink, aPalette), anchor(aItem.Outline),
-					 inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette, aNotes));
+					 inline_html(aItem.Heading, aPalette),
+					 (aItem.OtherPlaces.empty() ? QString{ }
+												: QStringLiteral("<p style=\"margin:0 0 6px 0;font-family:%1;font-size:13px;color:%2\">%3 %4</p>").arg(sans(), aPalette.Dim, QObject::tr("Also"), inline_html(aItem.OtherPlaces, aPalette)))
+						 + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
 		}
 
 		[[nodiscard]] auto tally_html(const dressed_report& aReport, const palette& aPalette) -> QString
@@ -357,24 +402,31 @@ namespace bpr::qt {
 
 	auto report_serif_families() -> QString { return QStringLiteral("Charter, 'Iowan Old Style', 'Bitstream Charter', Cambria, Georgia, serif"); }
 
-	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const std::map<std::uint32_t, QString>& aDraftNotes, std::vector<report_code_slot>* aSlots,
-						  const std::function<QString(std::uint32_t)>& aDraftLink) -> QString
+	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots) -> QString
 	{
 		Collected          = aSlots;
-		DraftLink          = &aDraftLink;
+		Actions            = &aActions;
 		const auto reset   = qScopeGuard([] {
 			Collected = nullptr;
-			DraftLink = nullptr;
+			Actions   = nullptr;
 		});
 		const auto colours = palette_of(aColours);
 		auto       html    = QStringLiteral("<html><body style=\"font-family:%1;font-size:17px;color:%2\">").arg(report_serif_families(), colours.Ink);
+		// [[BPR-2219]]. The verdict over the summary, whose rule wears its
+		// colour.
+		const auto verdict = aReport.Verdict.empty() || aReport.VerdictTone == report_tone::neutral ? colours.Strong : report_tone_colour(aReport.VerdictTone, colours.Roles).name();
+		if (!aReport.Verdict.empty()) {
+			html += QStringLiteral("<p style=\"margin:0 0 8px 0;font-family:%1;font-size:13px;font-weight:600;color:%2\">%3&nbsp;&nbsp;<span style=\"font-size:15px;color:%4\">%5</span></p>")
+						.arg(sans(), colours.Dim, QObject::tr("Verdict"), aReport.VerdictTone == report_tone::neutral ? colours.Ink : verdict, escaped(aReport.Verdict));
+		}
 		if (!aReport.Summary.empty()) {
 			auto paragraphs = QStringList{ };
 			for (const auto& part : QString::fromStdString(aReport.Summary).split(QStringLiteral("\n\n"))) {
 				paragraphs << QStringLiteral("<p style=\"margin:0;font-size:19px\">%1</p>").arg(inline_html(part.toStdString(), colours));
 			}
-			html += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"3\" bgcolor=\"%1\"></td><td style=\"padding-left:16px\">%2</td></tr></table>")
-						.arg(colours.Strong, paragraphs.join(QString{ }));
+			html += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"3\" bgcolor=\"%1\"></td><td style=\"padding-left:16px\">%2%3</td></tr></table>")
+						.arg(verdict, paragraphs.join(QString{ }),
+							 aActions.Summary ? keep_row(0U, core::report_keep::keep_local, QObject::tr("as a local comment on the pull request"), false, colours) : QString{ });
 		}
 		html += tally_html(aReport, colours);
 		for (const auto& section : aReport.Sections) {
@@ -387,9 +439,9 @@ namespace bpr::qt {
 									 ? QString{ }
 									 : QString::number(section.Items.size()));
 			}
-			html += blocks_html(section.Intro, nullptr, colours, aDraftNotes);
+			html += blocks_html(section.Intro, nullptr, colours);
 			for (const auto& item : section.Items) {
-				html += item_html(item, colours, aDraftNotes);
+				html += item_html(item, colours);
 			}
 		}
 		return html + QStringLiteral("</body></html>");

@@ -1,5 +1,7 @@
 #include "bpr/core/agent_report.hpp"
 
+#include "bpr/core/local_comment.hpp"
+
 #include <algorithm>
 #include <array>
 #include <map>
@@ -416,6 +418,35 @@ namespace bpr::core {
 			row.Text = std::string{ aText };
 			return row;
 		}
+
+		/// [[BPR-2219]]. The line a review's summary opens with.
+		constexpr auto verdict_mark = std::string_view{ "**Verdict:**" };
+
+		/// A verdict's colour: what must change, what is ready with something
+		/// said, what is ready.
+		[[nodiscard]] auto verdict_tone(const std::string_view aVerdict) -> report_tone
+		{
+			const auto word = lower_ascii(strip(aVerdict));
+			const auto says = [&word](const std::string_view aPart) { return word.find(aPart) != std::string::npos; };
+			if (says("needs changes") || says("request changes") || says("changes requested") || says("not ready") || says("do not merge") || says("needs work")) {
+				return report_tone::open;
+			}
+			if (says("with comments") || says("with nits") || says("comment")) {
+				return report_tone::partial;
+			}
+			if (says("ready") || says("approve") || says("looks good")) {
+				return report_tone::done;
+			}
+			return report_tone::neutral;
+		}
+
+		/// Whether an item's label is a Conventional Comments label, with or
+		/// without its decoration.
+		[[nodiscard]] auto conventional(const std::string_view aLabel) -> bool
+		{
+			const auto word = lower_ascii(strip(aLabel.substr(0U, aLabel.find(' '))));
+			return !word.empty() && std::ranges::find(conventional_labels, std::string_view{ word }) != conventional_labels.end();
+		}
 	} // namespace
 
 	auto report_tone_of(const std::string_view aWord) -> report_tone
@@ -457,6 +488,10 @@ namespace bpr::core {
 			return value == 0U ? std::nullopt : std::optional{ value };
 		};
 		auto lines = place.substr(colon + 1U);
+		// Several lines written with commas: the first.
+		if (const auto comma = lines.find(','); comma != std::string_view::npos) {
+			lines = lines.substr(0U, comma);
+		}
 		// A range is written with a hyphen or an en dash.
 		auto dash = lines.find('-');
 		auto skip = std::size_t{ 1U };
@@ -531,8 +566,20 @@ namespace bpr::core {
 		const auto place_blocks = [&report](std::vector<dressed_block>& aBlocks) {
 			if (report.Sections.empty()) {
 				for (const auto& block : aBlocks) {
-					if (!block.Text.empty()) {
-						report.Summary += (report.Summary.empty() ? "" : "\n\n") + block.Text;
+					auto text = std::string_view{ block.Text };
+					// [[BPR-2219]]. The verdict line that opens the summary.
+					if (report.Verdict.empty() && report.Summary.empty() && block.Kind == dressed_block_kind::paragraph && text.starts_with(verdict_mark)) {
+						const auto end  = text.find('\n');
+						auto       word = strip(text.substr(verdict_mark.size(), end == std::string_view::npos ? end : end - verdict_mark.size()));
+						while (!word.empty() && (word.back() == '.' || word.back() == ' ')) {
+							word.remove_suffix(1U);
+						}
+						report.Verdict     = std::string{ word };
+						report.VerdictTone = verdict_tone(word);
+						text               = end == std::string_view::npos ? std::string_view{ } : strip(text.substr(end + 1U));
+					}
+					if (!text.empty()) {
+						report.Summary += (report.Summary.empty() ? "" : "\n\n") + std::string{ text };
 					}
 				}
 			} else if (auto& section = report.Sections.back(); section.Items.empty()) {
@@ -545,6 +592,14 @@ namespace bpr::core {
 						if (const auto place = backticked(block.Text); place && place->Rest.empty()) {
 							item.Place     = place->Place;
 							item.PlaceLink = place->Link;
+							continue;
+						}
+						// [[BPR-2219]]. Several places on the line: the first
+						// is the item's, the rest are kept beside it.
+						if (const auto place = backticked(block.Text); place && place->Rest.starts_with(',') && backticked(strip(place->Rest.substr(1U)))) {
+							item.Place       = place->Place;
+							item.PlaceLink   = place->Link;
+							item.OtherPlaces = std::string{ strip(place->Rest.substr(1U)) };
 							continue;
 						}
 					}
@@ -691,5 +746,133 @@ namespace bpr::core {
 		}
 		report.Tally = labels.empty() ? std::move(areas) : std::move(labels);
 		return report;
+	}
+
+	auto read_report_answer(const std::string_view aAnswer) -> report_answer
+	{
+		// The title: the first level-one heading outside fenced code that a
+		// heading follows.
+		auto fenced = false;
+		auto title  = std::optional<std::size_t>{ };
+		auto before = false;
+		for (const auto line : lines_of(aAnswer)) {
+			if (fence(line)) {
+				fenced = !fenced;
+			} else if (!fenced) {
+				if (const auto found = heading(line)) {
+					if (title) {
+						if (!before) {
+							break;
+						}
+						auto notes = aAnswer.substr(0U, *title);
+						while (!notes.empty() && (notes.back() == '\n' || notes.back() == '\r' || notes.back() == ' ' || notes.back() == '\t')) {
+							notes.remove_suffix(1U);
+						}
+						return { .Notes = std::string{ notes }, .Report = std::string{ aAnswer.substr(*title) } };
+					}
+					if (found->first == 1U) {
+						title = static_cast<std::size_t>(line.data() - aAnswer.data());
+						continue;
+					}
+				}
+			}
+			if (!title && !trimmed(line).empty()) {
+				before = true;
+			}
+		}
+		return { .Notes = { }, .Report = std::string{ aAnswer } };
+	}
+
+	auto stable_name(const report_keep aKeep) noexcept -> std::string_view
+	{
+		switch (aKeep) {
+		case report_keep::none:          return "none";
+		case report_keep::draft_comment: return "draft_comment";
+		case report_keep::keep_local:    return "keep_local";
+		}
+		return "unknown";
+	}
+
+	auto report_findings(const dressed_report& aReport, const std::vector<report_suggested_comment>& aSuggested) -> std::vector<report_finding>
+	{
+		auto findings = std::vector<report_finding>{ };
+		auto taken    = std::vector<bool>(aSuggested.size(), false);
+		// A review: its title says so, or it gives a verdict.
+		const auto review = lower_ascii(aReport.Title).starts_with("review") || !aReport.Verdict.empty();
+		for (const auto& section : aReport.Sections) {
+			for (const auto& item : section.Items) {
+				const auto suggestion = std::ranges::find(item.Body, dressed_block_kind::suggestion, &dressed_block::Kind);
+				const auto proposes   = suggestion != item.Body.end() && !item.Place.empty();
+				if (!conventional(item.Label) && !proposes && !(review && !item.Place.empty())) {
+					continue;
+				}
+				auto finding = report_finding{ .Outline = item.Outline };
+				if (const auto place = read_report_place(item.Place)) {
+					finding.Path  = place->Path;
+					finding.First = place->First;
+					finding.Last  = place->Last;
+				} else {
+					finding.Path = item.Place;
+				}
+				// RFC-BPR-0127: a line takes a draft; anything else is kept
+				// local, on its file or on the pull request.
+				finding.Keep     = decide_keep({ .ThreadReply = false, .LineTakesDraft = finding.First != 0U, .FileInPullRequest = !finding.Path.empty() }).Kind == keep_kind::draft ? report_keep::draft_comment
+																																													 : report_keep::keep_local;
+				const auto block = [&] {
+					auto text = std::string{ "```suggestion\n" };
+					for (const auto& line : suggestion->Lines) {
+						text += line + "\n";
+					}
+					return text + "```";
+				};
+				// The agent's own comment for this place, when it wrote one.
+				for (auto index = std::size_t{ 0U }; index < aSuggested.size() && finding.First != 0U && finding.Comment.empty(); ++index) {
+					const auto& suggested = aSuggested[index];
+					if (!taken[index] && !suggested.Comment.empty() && suggested.Path == finding.Path && suggested.First <= finding.Last && finding.First <= suggested.Last) {
+						taken[index]    = true;
+						finding.Comment = suggested.Comment;
+						if (proposes && finding.Comment.find("```suggestion") == std::string::npos) {
+							finding.Comment += "\n\n" + block();
+						}
+					}
+				}
+				if (finding.Comment.empty()) {
+					finding.Comment = item.Label.empty() ? item.Heading : item.Label + ": " + item.Heading;
+					for (const auto& part : item.Body) {
+						if (part.Kind == dressed_block_kind::paragraph && !part.Text.empty()) {
+							finding.Comment += "\n\n" + part.Text;
+						}
+					}
+					if (proposes) {
+						finding.Comment += "\n\n" + block();
+					}
+				}
+				findings.push_back(std::move(finding));
+			}
+		}
+		return findings;
+	}
+
+	auto report_summary_comment(const dressed_report& aReport) -> std::string
+	{
+		if (aReport.Summary.empty()) {
+			return { };
+		}
+		auto comment = aReport.Verdict.empty() ? std::string{ } : "**Verdict:** " + aReport.Verdict + "\n\n";
+		comment += aReport.Summary;
+		auto rows = std::string{ };
+		for (const auto& section : aReport.Sections) {
+			for (const auto& item : section.Items) {
+				if (!conventional(item.Label) || report_tone_of(item.Label) == report_tone::done) {
+					continue;
+				}
+				rows += "- " + item.Label + ": " + item.Heading + (item.Place.empty() ? std::string{ } : " (`" + item.Place + "`)") + "\n";
+			}
+		}
+		if (!rows.empty()) {
+			rows.pop_back();
+			comment += "\n\n" + rows;
+		}
+		return comment;
 	}
 } // namespace bpr::core

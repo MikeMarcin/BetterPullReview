@@ -5563,6 +5563,28 @@ bpr_add_network_isolated_test(NAME application_ask_report_public_path
     COMMAND test_ask_menu_public_path report "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_report_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-report:pass")
+# [[BPR-2219]]. Review this pull request with the fixture agent, which answers
+# as a real agent does (a few words between its tool calls, then the report):
+# the report has its verdict and sections and none of those words, every
+# finding has its keep action, and Draft comment makes a private draft at the
+# finding's lines.
+bpr_add_executable(test_review_report_public_path review_report_public_path.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_review_report_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_review_report_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_review_report_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_review_report_public_path)
+bpr_enable_warnings(test_review_report_public_path)
+add_dependencies(test_review_report_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_review_report_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_review_report_public_path)
+    set_tests_properties(application_review_report_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "review-report:pass")
+endif()
 # [[BPR-2153]], RFC-BPR-0126 AC05. Steer through the window on the session
 # queue host: a follow-up steered into the steerable fixture agent's running
 # turn, and a queued message's Steer on an agent that can't be steered.

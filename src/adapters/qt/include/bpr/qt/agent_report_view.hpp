@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
+#include <utility>
 #include <vector>
 
 class QFrame;
@@ -51,6 +53,10 @@ namespace bpr::qt {
 		QString             Markdown;
 		QString             Question;
 		agent_report_byline Byline;
+		/// [[BPR-2219]]. The comments the agent suggested for the answer's
+		/// findings in its findings block, by place: a report finding at the
+		/// same place drafts from the agent's own words.
+		std::vector<core::report_suggested_comment> Suggested;
 	};
 
 	/// \brief RFC-BPR-0128 ([[BPR-2166]], owner Q8: "file tab is more
@@ -61,17 +67,23 @@ namespace bpr::qt {
 	/// report's sections (the one being read marked) and its other actions
 	/// (Show in conversation, View source, Copy source). It reads only what
 	/// it is given.
-	/// \brief A report item's Add as draft comment: where and what.
+	/// \brief [[BPR-2219]]. One keep action of a report, as the core read
+	/// it: a finding's Draft comment or Keep local, or the summary kept as a
+	/// Local comment on the pull request.
 	struct report_draft
 	{
-		QString       Path;
-		std::uint32_t First = 0U;
-		std::uint32_t Last  = 0U;
-		/// The comment: the item's label and heading, its reasons and the
-		/// suggestion block.
+		/// The finding's row in the report's menu; 0 for the summary.
+		std::uint32_t Outline = 0U;
+		/// Draft comment at the lines, or Keep local (on `Path`, or on the
+		/// pull request when it is empty).
+		core::report_keep Keep = core::report_keep::draft_comment;
+		QString           Path;
+		std::uint32_t     First = 0U;
+		std::uint32_t     Last  = 0U;
+		/// What the draft or the Local comment starts from.
 		QString Comment;
 	};
-	/// \brief How a draft went: made, or why not.
+	/// \brief How it went: made, or why not.
 	using report_draft_done     = std::function<void(bool aDrafted, const QString& aWhy)>;
 	using report_draft_dispatch = std::function<void(const report_draft& aDraft, report_draft_done aDone)>;
 
@@ -104,8 +116,22 @@ namespace bpr::qt {
 		/// theme's roles; the page is drawn again in them.
 		void               set_report_colours(const report_colours& aColours);
 		[[nodiscard]] auto colours() const noexcept -> const report_colours& { return Colours; }
-		/// \brief Where a suggestion's Add as draft comment goes.
+		/// \brief Where a keep action goes: a finding's Draft comment or Keep
+		/// local, and Keep summary.
 		void set_draft_dispatch(report_draft_dispatch aDispatch);
+		/// \brief Where Go to draft and Go to comment go: what the keep made.
+		void set_go_dispatch(std::function<void(const report_draft&)> aDispatch);
+		/// \brief [[BPR-2219]]. The report's findings, as the core read them,
+		/// each with its keep action.
+		[[nodiscard]] auto findings() const noexcept -> const std::vector<core::report_finding>& { return Findings; }
+		/// \brief Whether the page offers Keep summary.
+		[[nodiscard]] auto summary_offered() const -> bool;
+		/// \brief What became of the keep action at `aOutline` (0: the
+		/// summary's) of the report shown.
+		[[nodiscard]] auto keep_state(std::uint32_t aOutline) const -> report_keep_state;
+		/// \brief Presses the keep action at `aOutline`, or its Go to, as
+		/// following its link does; false when the page offers none there.
+		auto press(std::uint32_t aOutline, report_link aLink) -> bool;
 		/// \brief The report as read by the convention; its page shows when it
 		/// has sections (`dressed_shown`), else the Markdown as written.
 		[[nodiscard]] auto dressed() const noexcept -> const core::dressed_report& { return Dress; }
@@ -145,6 +171,7 @@ namespace bpr::qt {
 		void               apply_colours();
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
+		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;
 
 		agent_report_document Document;
 		std::vector<QString>  Headings;
@@ -162,20 +189,25 @@ namespace bpr::qt {
 		QObject*                         CodeObjects = nullptr;
 		core::dressed_report             Dress;
 		report_colours                   Colours;
-		std::map<std::uint32_t, QString> DraftNotes;
-		/// This render's Add as draft comment links, by token.
-		std::map<QString, std::uint32_t>         DraftLinks;
-		report_draft_dispatch                    DraftDispatch;
-		QLabel*                                  Title      = nullptr;
-		QLabel*                                  Byline     = nullptr;
-		QScrollArea*                             Scroll     = nullptr;
-		markdown_body_view*                      Body       = nullptr;
-		QToolButton*                             MenuButton = nullptr;
-		QFrame*                                  Popover    = nullptr;
-		QListWidget*                             Sections   = nullptr;
-		std::function<void(const QString&)>      LinkDispatch;
-		std::function<void(markdown_body_view&)> Dresser;
-		std::function<void(std::uint64_t)>       ConversationDispatch;
+		/// The report's findings, and what became of each keep action, by
+		/// the report's turn and the action's row (0: the summary), so a
+		/// report opened again says what was already kept.
+		std::vector<core::report_finding>                                   Findings;
+		std::map<std::uint64_t, std::map<std::uint32_t, report_keep_state>> Keeps;
+		/// This render's keep links, by token.
+		std::map<QString, std::pair<std::uint32_t, report_link>> ActionLinks;
+		report_draft_dispatch                                    DraftDispatch;
+		std::function<void(const report_draft&)>                 GoDispatch;
+		QLabel*                                                  Title      = nullptr;
+		QLabel*                                                  Byline     = nullptr;
+		QScrollArea*                                             Scroll     = nullptr;
+		markdown_body_view*                                      Body       = nullptr;
+		QToolButton*                                             MenuButton = nullptr;
+		QFrame*                                                  Popover    = nullptr;
+		QListWidget*                                             Sections   = nullptr;
+		std::function<void(const QString&)>                      LinkDispatch;
+		std::function<void(markdown_body_view&)>                 Dresser;
+		std::function<void(std::uint64_t)>                       ConversationDispatch;
 	};
 } // namespace bpr::qt
 

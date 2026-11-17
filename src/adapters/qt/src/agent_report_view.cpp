@@ -410,7 +410,9 @@ namespace bpr::qt {
 		Byline->setText(QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none\">%1</a>%2")
 							.arg(aDocument.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped()));
 		Byline->setToolTip(tr("Show in conversation"));
-		const auto text = aDocument.Markdown.toStdString();
+		// [[BPR-2219]]. What the agent said while it worked is not the report:
+		// the report starts at its title.
+		const auto text = core::read_report_answer(aDocument.Markdown.toStdString()).Report;
 		if (Dresser) {
 			Dresser(*Body);
 		}
@@ -433,8 +435,8 @@ namespace bpr::qt {
 		dress_headings();
 		Headings.clear();
 		Tail->setFixedHeight(0);
-		Dress = core::dress_report(text, aDocument.Title.toStdString());
-		DraftNotes.clear();
+		Dress    = core::dress_report(text, aDocument.Title.toStdString());
+		Findings = core::report_findings(Dress, aDocument.Suggested);
 		render_dressed();
 		OutlineTitles.clear();
 		for (const auto& section : card.Outline) {
@@ -632,15 +634,19 @@ namespace bpr::qt {
 			const auto top = Scroll->verticalScrollBar()->value();
 			Dressed->document()->setDefaultFont(QFont{ QStringLiteral("Charter"), 13 });
 			auto collected = std::vector<report_code_slot>{ };
-			// Add as draft comment's links, minted afresh for this render: a
-			// random token no answer can know, mapped to its item.
-			DraftLinks.clear();
-			const auto mint = std::function<QString(std::uint32_t)>{ [this](const std::uint32_t aOutline) {
+			// The keep actions' links, minted afresh for this render: a
+			// random token no answer can know, mapped to its action.
+			ActionLinks.clear();
+			auto actions = report_page_actions{ .Findings = Findings, .Summary = summary_offered() };
+			if (const auto kept = Keeps.find(Document.Turn); kept != Keeps.end()) {
+				actions.States = kept->second;
+			}
+			actions.Link = [this](const std::uint32_t aOutline, const report_link aLink) {
 				auto token = QStringLiteral("report-action-%1%2").arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' }).arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' });
-				DraftLinks.emplace(token, aOutline);
+				ActionLinks.emplace(token, std::pair{ aOutline, aLink });
 				return token;
-			} };
-			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes, &collected, mint));
+			};
+			Dressed->setHtml(report_page_html(Dress, Colours, actions, &collected));
 			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
 			// Look report-templates-v003: each code block is the Agent tab's
 			// own code box (its syntax colours, the code colours, Wrap and
@@ -750,52 +756,84 @@ namespace bpr::qt {
 
 	void agent_report_view::set_draft_dispatch(report_draft_dispatch aDispatch) { DraftDispatch = std::move(aDispatch); }
 
-	/// A link of the page: Add as draft comment, or a place or address.
+	void agent_report_view::set_go_dispatch(std::function<void(const report_draft&)> aDispatch) { GoDispatch = std::move(aDispatch); }
+
+	/// Keep summary is offered where the report has findings to sum up.
+	auto agent_report_view::summary_offered() const -> bool { return !Findings.empty() && !core::report_summary_comment(Dress).empty(); }
+
+	auto agent_report_view::keep_state(const std::uint32_t aOutline) const -> report_keep_state
+	{
+		const auto kept = Keeps.find(Document.Turn);
+		if (kept == Keeps.end()) {
+			return { };
+		}
+		const auto found = kept->second.find(aOutline);
+		return found == kept->second.end() ? report_keep_state{ } : found->second;
+	}
+
+	/// The keep action at `aOutline`, as the core read it.
+	auto agent_report_view::keep_request(const std::uint32_t aOutline) const -> std::optional<report_draft>
+	{
+		if (aOutline == 0U) {
+			if (!summary_offered()) {
+				return std::nullopt;
+			}
+			return report_draft{ .Outline = 0U, .Keep = core::report_keep::keep_local, .Comment = QString::fromStdString(core::report_summary_comment(Dress)) };
+		}
+		const auto found = std::ranges::find(Findings, aOutline, &core::report_finding::Outline);
+		if (found == Findings.end() || found->Keep == core::report_keep::none) {
+			return std::nullopt;
+		}
+		return report_draft{ .Outline = aOutline, .Keep = found->Keep, .Path = QString::fromStdString(found->Path), .First = found->First, .Last = found->Last, .Comment = QString::fromStdString(found->Comment) };
+	}
+
+	auto agent_report_view::press(const std::uint32_t aOutline, const report_link aLink) -> bool
+	{
+		const auto request = keep_request(aOutline);
+		if (!request) {
+			return false;
+		}
+		const auto state = keep_state(aOutline);
+		if (aLink == report_link::go) {
+			if (state.Phase != report_keep_phase::kept || !GoDispatch) {
+				return false;
+			}
+			GoDispatch(*request);
+			return true;
+		}
+		if (state.Phase == report_keep_phase::working || state.Phase == report_keep_phase::kept || !DraftDispatch) {
+			return false;
+		}
+		const auto turn       = Document.Turn;
+		Keeps[turn][aOutline] = { .Phase = report_keep_phase::working };
+		render_dressed();
+		DraftDispatch(*request, [this, turn, aOutline, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
+			if (alive.isNull()) {
+				return;
+			}
+			Keeps[turn][aOutline] = aDrafted ? report_keep_state{ .Phase = report_keep_phase::kept } : report_keep_state{ .Phase = report_keep_phase::refused, .Why = aWhy };
+			if (Document.Turn == turn) {
+				render_dressed();
+			}
+		});
+		return true;
+	}
+
+	/// A link of the page: a keep action, or a place or address.
 	void agent_report_view::follow(const QString& aLink)
 	{
 		// Review of 2026-11-14: an action is only a link this render minted;
 		// anything the report's own text links to is a place or an address,
 		// never an action, whatever it is written as.
-		const auto minted = DraftLinks.find(aLink);
-		if (minted == DraftLinks.end()) {
+		const auto minted = ActionLinks.find(aLink);
+		if (minted == ActionLinks.end()) {
 			if (LinkDispatch) {
 				LinkDispatch(aLink);
 			}
 			return;
 		}
-		const auto outline = minted->second;
-		for (const auto& section : Dress.Sections) {
-			for (const auto& item : section.Items) {
-				if (item.Outline != outline) {
-					continue;
-				}
-				const auto place = core::read_report_place(item.Place);
-				const auto it    = std::ranges::find(item.Body, core::dressed_block_kind::suggestion, &core::dressed_block::Kind);
-				if (!place || it == item.Body.end() || !DraftDispatch) {
-					return;
-				}
-				auto words = QString::fromStdString(item.Label.empty() ? item.Heading : item.Label + ": " + item.Heading);
-				if (const auto reason = std::ranges::find(item.Body, core::dressed_block_kind::paragraph, &core::dressed_block::Kind); reason != item.Body.end()) {
-					words += QStringLiteral("\n\n") + QString::fromStdString(reason->Text);
-				}
-				auto lines = QStringList{ };
-				for (const auto& line : it->Lines) {
-					lines << QString::fromStdString(line);
-				}
-				words += QStringLiteral("\n\n```suggestion\n") + lines.join(QLatin1Char{ '\n' }) + QStringLiteral("\n```");
-				DraftNotes[outline] = tr("Adding as a draft comment…");
-				render_dressed();
-				DraftDispatch({ .Path = QString::fromStdString(place->Path), .First = place->First, .Last = place->Last, .Comment = words },
-							  [this, outline, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
-								  if (alive.isNull()) {
-									  return;
-								  }
-								  DraftNotes[outline] = aDrafted ? tr("Added as a draft comment. Nothing is published.") : aWhy;
-								  render_dressed();
-							  });
-				return;
-			}
-		}
+		const auto [outline, link] = minted->second;
+		static_cast<void>(press(outline, link));
 	}
 
 	void agent_report_view::resizeEvent(QResizeEvent* aEvent)

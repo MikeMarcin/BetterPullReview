@@ -82,6 +82,35 @@ namespace bpr::core {
 		return facts;
 	}
 
+	namespace {
+		/// [[BPR-2219]] (owner, 2026-11-16: "How is 1 sentence useful to
+		/// anyone trying to tweak the review request to their particular
+		/// circumstances?"). A review prompt's body is its real instructions,
+		/// visible and editable in Settings › Prompts: what to review, the
+		/// focus, the sections, the severity scheme, the verdict and the
+		/// tone. The form the application reads (the title, the verdict
+		/// line, a finding's place) is not here: it is the application's,
+		/// always added, and shown read-only under the editor.
+		auto review_body(const std::string& aSubject, const std::string& aWhat) -> std::string
+		{
+			return "Review " + aSubject + " as a careful colleague would, and answer with a review report.\n\n"
+										  "What to review: "
+				+ aWhat + " Follow what changed into its callers, the types it relies on and the tests that cover it, and check every finding against the code before you report it. "
+						  "Say whether the pull request introduced a problem or only touches code that already had it.\n\n"
+						  "Focus: correctness first, then security, then what will be hard to maintain or test. Leave formatting to the formatter unless it hides a defect.\n\n"
+						  "Sections, in this order, leaving out any that would be empty:\n"
+						  "- Must fix: what has to change before this merges.\n"
+						  "- Worth a look: everything else worth saying.\n"
+						  "- Good: what was done well, only where it is earned.\n"
+						  "- Questions for the author: what only they can answer.\n"
+						  "- Not reviewed: what you did not read or could not check, and why.\n\n"
+						  "Severity: head each finding with a Conventional Comments label: issue, suggestion, question, nitpick or praise, with (blocking) or (non-blocking) after issue and suggestion. "
+						  "A blocking issue goes under Must fix.\n\n"
+						  "Verdict: Needs changes when anything stands under Must fix, Ready with comments when only smaller things do, Ready to merge when nothing does.\n\n"
+						  "Tone: plain and specific, as one engineer writes to another. No praise that is not earned, and no hedging.";
+		}
+	} // namespace
+
 	auto shipped_prompt_macros() -> std::vector<prompt_builtin>
 	{
 		using enum prompt_subject;
@@ -89,8 +118,15 @@ namespace bpr::core {
 		return std::vector<prompt_builtin>{
 			// The Agent tab: owner decision (a), 2026-10-23, and looks v004
 			// and v005 (a block says so, and names its file and lines).
-			quick(plain("agent-tab.review-pull-request", prompt_place::agent_tab, "Review this pull request", pull_request, { }, prompt_ask::review), at_pull_request),
-			quick(plain("agent-tab.review-open-file", prompt_place::agent_tab, "Review {file}", open_file, { }, prompt_ask::review), at_file),
+			// [[BPR-2219]]. Shown by their names; what they send is their
+			// body, the review's instructions.
+			quick(named(plain("agent-tab.review-pull-request", prompt_place::agent_tab, review_body("this pull request", "the change, then the code around it."), pull_request, { }, prompt_ask::review),
+						"Review this pull request"),
+				  at_pull_request),
+			quick(named(plain("agent-tab.review-open-file", prompt_place::agent_tab, review_body("{file}", "this file's change in the pull request, then the code around it; the rest of the pull request is context."), open_file, { },
+							  prompt_ask::review),
+						"Review {file}"),
+				  at_file),
 			quick(plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request), at_pull_request),
 			plain("agent-tab.explain-line", prompt_place::agent_tab, "Explain {file} {lines}", selected_lines, { lines(prompt_lines_value::one) }),
 			plain("agent-tab.explain-block", prompt_place::agent_tab, "Explain the selected block ({file} {lines})", selected_lines, { lines(prompt_lines_value::several) }),
