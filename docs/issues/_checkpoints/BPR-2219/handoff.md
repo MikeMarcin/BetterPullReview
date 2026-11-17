@@ -1,3 +1,32 @@
+# BPR-2219 checkpoint 6 (2026-11-16): look v001 handed back, round 2 begins
+
+Verdicts are on the card (two Accept, two Reject with the owner's words).
+Round 2 is AC-g, AC-h and AC-i on the card. Nothing of round 2 is built at
+this checkpoint. Order planned: AC-i (prompt editor), AC-h (prompt turn
+shows its title), AC-g (report restyle, with two or three offscreen Qt
+renders light and dark), then four Backlog cards for the known gaps, then
+freeze v002 and a fresh short session with three questions.
+
+Pointers for whoever continues:
+
+- Prompt editor: `src/adapters/qt/src/prompts_page.cpp` (the `Text` editor,
+  `InsertRow`, and `ResultBox` added by this card; a chevron disclosure is a
+  `disclosure_button`).
+- Prompt turn: `src/adapters/qt/src/agent_tab_view.cpp` (a turn's `Name`,
+  shown above its question, and the question's fold past six lines);
+  `tour_side_chat.cpp` for the tour chats.
+- Report styling: `src/adapters/qt/src/report_page.cpp` (the page's HTML,
+  `report_serif_families`, the palette from `report_colours`) and
+  `agent_report_view.cpp` (`apply_colours`, the title's font). The report
+  view test draws a saved report with `BPR_REPORT_RENDER_MARKDOWN` and
+  `BPR_REPORT_RENDER_OUT`; the real after report is in the session
+  scratchpad's `review-report/after/run/review-answer.md`.
+- The owner's screenshots of look v001: the session scratchpad's
+  `looks/r-*.png`.
+- Build in `.claude/worktrees/bpr-2219-review-report` (level with the lane),
+  one build or test at a time, then squash onto the lane with explicit
+  paths, as rounds one's commits were made.
+
 # BPR-2219 checkpoint 5 (2026-11-16): built, tested, look filed
 
 Supersedes the checkpoints below.
