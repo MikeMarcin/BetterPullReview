@@ -1914,6 +1914,46 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	/// [[BPR-2249]]. Seen says what became of it, after the store answers: the
+	/// review closes on recorded and stays open on anything else. A seen head
+	/// the store did not keep is withdrawn, so Seen is offered again.
+	void test_seen_answers_after_the_store()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true) }));
+		fixture.settle();
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true, true) }));
+		fixture.settle();
+		expect(core::review_followup_for(*fixture.item(17)) == core::review_followup::seen, "an approval with commits after it offers Seen");
+		const auto head    = std::string(40U, 'b');
+		auto       answers = std::vector<application::queue_seen_outcome>{ };
+		const auto record  = [&answers](const application::queue_seen_outcome aOutcome) { answers.push_back(aOutcome); };
+
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = std::string(40U, 'c') }, record);
+		expect(answers == std::vector{ application::queue_seen_outcome::refused }, "Seen on a head the row no longer shows is refused at once");
+
+		answers.clear();
+		fixture.Store.FailEnrollmentStore = true;
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = head }, record);
+		expect(answers.empty(), "no answer before the store answers");
+		fixture.settle();
+		expect(answers == std::vector{ application::queue_seen_outcome::not_kept }, "a store that fails answers not kept");
+		expect(core::review_followup_for(*fixture.item(17)) == core::review_followup::seen && fixture.item(17)->Facts.SeenHead.empty(),
+			   "the seen head the store did not keep is withdrawn and Seen is offered again");
+
+		answers.clear();
+		fixture.Store.FailEnrollmentStore = false;
+		fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = head }, record);
+		expect(answers.empty(), "no answer before the store answers");
+		fixture.settle();
+		expect(answers == std::vector{ application::queue_seen_outcome::recorded }, "a kept Seen answers recorded, once");
+		expect(core::review_followup_for(*fixture.item(17)) == core::review_followup::none && fixture.item(17)->Facts.SeenHead == head, "and the row is seen");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	/// [[BPR-2049]]. Approved, then commits: Seen moves the row to Following at
 	/// once, survives the store, and a later push brings it back.
 	void test_seen_moves_an_approved_row_back_to_following()
@@ -3524,6 +3564,7 @@ auto main() -> int
 	test_my_review_verdict_from_retained_reads();
 	test_too_large_row_does_not_fail_the_refresh();
 	test_seen_moves_an_approved_row_back_to_following();
+	test_seen_answers_after_the_store();
 	test_my_review_codec_refuses_malformed_version_three();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();

@@ -2944,14 +2944,17 @@ namespace bpr::app {
 		/// [[BPR-1562]]. The readers' fenced code: its own texts, classifier
 		/// and host over the shared definitions and the appearance effect
 		/// lane, so it never waits behind or reorders the panes' work.
-		application::markdown_code_texts                                MarkdownCodeTexts;
-		std::unique_ptr<markdown_code_blob_source>                      MarkdownCodeBlobs;
-		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>   MarkdownCodeClassifier;
-		std::unique_ptr<application::markdown_code_syntax_host>         MarkdownCode;
-		std::unique_ptr<permalink_snippet_source>                       MarkdownSnippetSource;
-		std::unique_ptr<application::markdown_blob_snippet_host>        MarkdownSnippets;
-		std::uint64_t                                                   MotionSubscription       = 0U;
-		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
+		application::markdown_code_texts                              MarkdownCodeTexts;
+		std::unique_ptr<markdown_code_blob_source>                    MarkdownCodeBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier> MarkdownCodeClassifier;
+		std::unique_ptr<application::markdown_code_syntax_host>       MarkdownCode;
+		std::unique_ptr<permalink_snippet_source>                     MarkdownSnippetSource;
+		std::unique_ptr<application::markdown_blob_snippet_host>      MarkdownSnippets;
+		std::uint64_t                                                 MotionSubscription = 0U;
+		decltype(github_profile_runtime::QueueStore)&                 QueueStore         = Profile->QueueStore;
+#if defined(BPR_BUILD_TESTING)
+		decltype(github_profile_runtime::QueueStoreRefusesForTesting)& QueueStoreRefusesForTesting = Profile->QueueStoreRefusesForTesting;
+#endif
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
 		decltype(github_profile_runtime::QueueHost)&                    QueueHost                = Profile->QueueHost;
 		decltype(github_profile_runtime::Discovery)&                    Discovery                = Profile->Discovery;

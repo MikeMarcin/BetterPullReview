@@ -1505,25 +1505,10 @@ namespace bpr::qt {
 		// [[BPR-1816]]. Or, as the core decided from that verdict's setting,
 		// the review closes too and Home shows (owner, 2026-10-29).
 		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments, const core::review_finish_transition aTransition) {
-			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
-				close_review_composition(false);
-			}
-			close_review_sheet();
 			const auto said = aComments == 0U ? tr("Review submitted")
 				: aComments == 1U             ? tr("Review submitted with 1 comment")
 											  : tr("Review submitted with %1 comments").arg(aComments);
-			statusBar()->showMessage(said, 8000);
-			if (aTransition == core::review_finish_transition::close_review_and_go_home && CloseReviewDispatch) {
-				// The workflow that confirmed the review is still on the
-				// stack; closing the review retires its host, so the close
-				// waits for the next turn and is said there.
-				FinishingAtHome = IdentityText;
-				QTimer::singleShot(0, this, [this, said] { finish_review_at_home(said); });
-				return;
-			}
-			QAccessibleAnnouncementEvent event{ this, said };
-			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
-			QAccessible::updateAccessibility(&event);
+			leave_review_page(said, aTransition);
 		});
 		ReviewSubmissionEditor->set_item_reveal([this](const std::string& aIdentity) {
 			if (aIdentity.starts_with("draft:")) {

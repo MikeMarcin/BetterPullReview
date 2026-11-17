@@ -5331,6 +5331,17 @@ bpr_add_network_isolated_test(NAME application_review_seen_public_path WINDOWS_U
 set_tests_properties(application_review_seen_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+# [[BPR-2249]]. A recorded Seen leaves the review as Approve does: with
+# Approve's finish choice unticked it returns to the pull request; a Seen the
+# store does not keep stays open and says so.
+bpr_add_network_isolated_test(NAME application_review_seen_stays_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --seen-stays)
+set_tests_properties(application_review_seen_stays_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+bpr_add_network_isolated_test(NAME application_review_seen_fails_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --seen-fails)
+set_tests_properties(application_review_seen_fails_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
 
 # [[BPR-1575]]. Refresh made visible on the pull request and on Home, through
 # the composed application with slow, changed, unchanged, offline and

@@ -407,4 +407,13 @@ namespace bpr::core {
 			? review_finish_transition::close_review_and_go_home
 			: review_finish_transition::return_to_pull_request;
 	}
+
+	auto decide_seen_finish(const review_finish_settings& aSettings, const bool aRecorded) noexcept -> review_finish_transition
+	{
+		return decide_review_finish(aSettings, review_finish_event{
+												   .Disposition = review_disposition::approve,
+												   .Answer      = aRecorded ? review_finish_answer::published : review_finish_answer::not_published,
+												   .Origin      = review_finish_origin::submit,
+											   });
+	}
 } // namespace bpr::core

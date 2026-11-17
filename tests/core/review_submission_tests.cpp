@@ -491,6 +491,22 @@ namespace {
 				   && decide_review_finish(defaults, { .Disposition = static_cast<review_disposition>(9U), .Answer = review_finish_answer::published }) == transition::return_to_pull_request,
 			   "an unknown verdict stays on the pull request");
 	}
+	/// [[BPR-2249]]. The review's Seen leaves the pull request exactly as
+	/// Approve would: by Approve's own choice, and only once recorded.
+	void test_seen_finish_transition()
+	{
+		using transition = review_finish_transition;
+		const auto stay  = review_finish_settings{ .Approve = review_finish_return::pull_request };
+		const auto other = review_finish_settings{ .Comment = review_finish_return::pull_request, .RequestChanges = review_finish_return::pull_request };
+		for (const auto& settings : { review_finish_settings{ }, stay, other }) {
+			const auto approve = decide_review_finish(settings, { .Disposition = review_disposition::approve, .Answer = review_finish_answer::published });
+			expect(decide_seen_finish(settings, true) == approve, "a recorded Seen goes where a confirmed Approve goes");
+			expect(decide_seen_finish(settings, false) == transition::keep_review, "a Seen not recorded keeps the review open");
+		}
+		expect(decide_seen_finish(review_finish_settings{ }, true) == transition::close_review_and_go_home, "by default Seen closes the review and goes Home");
+		expect(decide_seen_finish(stay, true) == transition::return_to_pull_request, "with Approve unticked Seen returns to the pull request");
+		expect(decide_seen_finish(other, true) == transition::close_review_and_go_home, "Comment's and Request changes' choices are not Seen's");
+	}
 }
 
 int main()
@@ -520,6 +536,7 @@ int main()
 	expect(answer_draft_place_for(false, true) == answer_draft_place::line_comment, "an answer asked on selected lines is drafted on them");
 	expect(answer_draft_place_for(false, false) == answer_draft_place::pull_request_comment, "an answer with no anchor is a new pull request comment, never no draft");
 	test_finish_transition();
+	test_seen_finish_transition();
 	test_unknown_reasons();
 	test_unknown_notices();
 	test_ending_lines();

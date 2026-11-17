@@ -15,7 +15,9 @@
 // "its dumb to put that on home, I'm going to look at the new commits from
 // within the review"). `--seen` opens #17, approved before commits were
 // pushed: its review offers Seen beside Approve, Seen asks GitHub for nothing
-// and the review then reads up to date. `--approve-again` opens #17 with its
+// and, recorded, leaves the review as a confirmed Approve does ([[BPR-2249]]):
+// Home by default, the pull request with Approve unticked (`--seen-stays`); a
+// Seen the store does not keep stays open and says so (`--seen-fails`). `--approve-again` opens #17 with its
 // approval dismissed: its review's Approve reads Approve again.
 // With `--attended` the window stays open for the owner's look.
 #include "../../src/app/src/github_application_fixture_access.hpp"
@@ -32,12 +34,14 @@
 #include "private_data_root.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
@@ -133,7 +137,11 @@ try {
 	// one that opens, is the one whose approval GitHub dismissed. `--seen`:
 	// it is the one I approved before commits were pushed.
 	const auto approveAgain = arguments.contains(QStringLiteral("--approve-again"));
-	const auto seenCourse   = arguments.contains(QStringLiteral("--seen"));
+	// [[BPR-2249]]. `--seen-fails`: the first Seen is not kept; `--seen-stays`:
+	// Approve's finish choice is unticked. Both are `--seen` courses.
+	const auto seenFails  = arguments.contains(QStringLiteral("--seen-fails"));
+	const auto seenStays  = arguments.contains(QStringLiteral("--seen-stays"));
+	const auto seenCourse = arguments.contains(QStringLiteral("--seen")) || seenFails || seenStays;
 	// `--attended`: the owner's look. Every check of the rows as listed runs;
 	// the gestures (Seen, opening a review, opening #17) are left to the person.
 	const auto attended   = arguments.contains(QStringLiteral("--attended"));
@@ -238,13 +246,46 @@ try {
 				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-seen.png"));
 			}
 			const auto reads = discovery().Statistics.Submitted;
-			seen->click();
-			wait_for([&] { return editor->followup_label()->text().startsWith(QStringLiteral("Up to date")); }, "after Seen the review reads up to date", 5'000);
-			expect(!seen->isVisible() && approve->text() == QStringLiteral("Approve"), "Seen is no longer offered; Approve is unchanged");
-			expect(discovery().Statistics.Submitted == reads, "Seen asks GitHub for nothing");
-			expect(!window->open_pull_request_seen_head().empty(), "the head I said Seen on is recorded");
+			const auto said  = QStringLiteral("Marked the new commits on octo-org/review-repository#17 seen; your approval stands. Nothing changed on GitHub.");
+			if (seenFails) {
+				// ---- BPR-2249: a Seen the store does not keep stays open ----
+				access::refuse_queue_store_writes(*owner, true);
+				seen->click();
+				wait_for([&] { return window->statusBar()->currentMessage().contains(QStringLiteral("not marked seen")); }, "a Seen the store refused says so", 10'000);
+				QApplication::processEvents();
+				expect(!window->finishing_at_home() && !window->showing_home() && window->review_sheet_open(), "the review stays open on its page");
+				expect(window->statusBar()->currentMessage() == QStringLiteral("The new commits were not marked seen. The review stays open; try Seen again."),
+					   "and says the commits were not marked seen: " + window->statusBar()->currentMessage().toStdString());
+				// The queue reads unavailable until its store keeps a write again;
+				// the unkept seen head is withdrawn, so the row has not moved.
+				expect(row_of(*window, 17).Group == qt::home_group::needs_you, "Home still has it in Needs me");
+				expect(discovery().Statistics.Submitted == reads, "Seen asks GitHub for nothing");
+				access::refuse_queue_store_writes(*owner, false);
+			} else if (seenStays) {
+				// ---- BPR-2249: Approve unticked, Seen returns to the pull request
+				auto* const box = window->finish_review_switch(core::review_disposition::approve);
+				expect(box != nullptr && box->isChecked(), "Approve goes Home by default");
+				box->click();
+				wait_for([&] { return window->behaviour().FinishReview.Approve == core::review_finish_return::pull_request; }, "Approve's finish choice is accepted");
+				window->settings()->hide();
+				seen->click();
+				wait_for([&] { return !window->review_sheet_open(); }, "a recorded Seen closes the review page", 10'000);
+				QApplication::processEvents();
+				expect(!window->finishing_at_home() && !window->showing_home() && window->statusBar()->currentMessage() == said,
+					   "with Approve unticked, Seen returns to the pull request and says so: " + window->statusBar()->currentMessage().toStdString());
+				expect(!window->open_pull_request_seen_head().empty(), "the head I said Seen on is recorded");
+				expect(discovery().Statistics.Submitted == reads, "Seen asks GitHub for nothing");
+				wait_for([&] { return row_of(*window, 17).Group == qt::home_group::following; }, "and Home has it in Following", 10'000);
+			} else {
+				seen->click();
+				wait_for([&] { return window->finishing_at_home() || window->showing_home(); }, "a recorded Seen leaves the review as Approve does", 10'000);
+				wait_for([&] { return !window->finishing_at_home(); }, "the close runs on the next turn");
+				expect(window->showing_home() && !window->review_sheet_open()
+						   && window->statusBar()->currentMessage() == said + QStringLiteral(". Closed the review of octo-org/review-repository#17."),
+					   "Seen closes the review and shows Home, and says both: " + window->statusBar()->currentMessage().toStdString());
+				wait_for([&] { return row_of(*window, 17).Group == qt::home_group::following; }, "and Home has it in Following", 10'000);
+			}
 			expect(!editor->shown_draft() || editor->shown_draft()->State == core::review_submission_state::drafting, "Seen submitted no review");
-			expect(row_of(*window, 17).Group == qt::home_group::following, "and Home has it in Following");
 			if (renderAt >= 0) {
 				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-seen-up-to-date.png"));
 			}

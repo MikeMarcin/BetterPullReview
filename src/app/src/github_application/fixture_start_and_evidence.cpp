@@ -165,6 +165,11 @@ namespace bpr::app {
 		aApplication.Implementation->ReturningReviewHeadForTesting = std::move(aHead);
 	}
 
+	void detail::github_application_fixture_access::refuse_queue_store_writes(github_application& aApplication, const bool aRefuse)
+	{
+		aApplication.Implementation->QueueStoreRefusesForTesting->store(aRefuse);
+	}
+
 	auto detail::github_application_fixture_access::reread_owed(const github_application& aApplication) noexcept -> bool
 	{
 		const auto& implementation = *aApplication.Implementation;

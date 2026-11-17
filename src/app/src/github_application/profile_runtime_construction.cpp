@@ -49,9 +49,72 @@
 #endif
 #if defined(BPR_BUILD_TESTING)
 	#include <QSystemTrayIcon>
+
+	#include <atomic>
+	#include <expected>
+	#include <memory>
+	#include <span>
+	#include <stop_token>
+	#include <utility>
 #endif
 
 namespace bpr::app {
+#if defined(BPR_BUILD_TESTING)
+	namespace {
+		/// [[BPR-2249]]. The profile's queue store, whose one-record writes a
+		/// course can make fail: a Seen the store does not keep.
+		class refusable_queue_store final : public application::queue_enrollment_store_port
+		{
+		public:
+			refusable_queue_store(std::unique_ptr<application::queue_enrollment_store_port> aStore, std::shared_ptr<std::atomic<bool>> aRefuse)
+				: Store{ std::move(aStore) }
+				, Refuse{ std::move(aRefuse) }
+			{
+			}
+			[[nodiscard]] auto load(std::stop_token aStop) -> std::expected<application::durable_queue_state, application::queue_store_failure> override
+			{
+				return Store->load(std::move(aStop));
+			}
+			[[nodiscard]] auto apply_rule_change(const application::queue_rule_intent& aIntent, std::span<const application::enrollment_record> aEnrollments, std::stop_token aStop)
+				-> std::expected<void, application::queue_store_failure> override
+			{
+				return Store->apply_rule_change(aIntent, aEnrollments, std::move(aStop));
+			}
+			[[nodiscard]] auto store_enrollment(const application::enrollment_record& aRecord, std::stop_token aStop) -> std::expected<void, application::queue_store_failure> override
+			{
+				if (Refuse->load()) {
+					return std::unexpected(application::queue_store_failure::unavailable);
+				}
+				return Store->store_enrollment(aRecord, std::move(aStop));
+			}
+			[[nodiscard]] auto store_enrollments(std::span<const application::enrollment_record> aRecords, std::stop_token aStop) -> std::expected<void, application::queue_store_failure> override
+			{
+				return Store->store_enrollments(aRecords, std::move(aStop));
+			}
+			[[nodiscard]] auto store_preferences(const application::queue_presentation_preferences& aPreferences, std::stop_token aStop) -> std::expected<void, application::queue_store_failure> override
+			{
+				return Store->store_preferences(aPreferences, std::move(aStop));
+			}
+			[[nodiscard]] auto apply_saved_repository_change(const application::saved_repository_intent& aIntent, std::stop_token aStop) -> std::expected<void, application::queue_store_failure> override
+			{
+				return Store->apply_saved_repository_change(aIntent, std::move(aStop));
+			}
+			[[nodiscard]] auto apply_saved_server_change(const application::saved_server_intent& aIntent, std::stop_token aStop) -> std::expected<void, application::queue_store_failure> override
+			{
+				return Store->apply_saved_server_change(aIntent, std::move(aStop));
+			}
+			[[nodiscard]] auto apply_home_ignores(std::span<const core::home_ignore_delta> aDeltas, std::stop_token aStop) -> std::expected<void, application::queue_store_failure> override
+			{
+				return Store->apply_home_ignores(aDeltas, std::move(aStop));
+			}
+
+		private:
+			std::unique_ptr<application::queue_enrollment_store_port> Store;
+			std::shared_ptr<std::atomic<bool>>                        Refuse;
+		};
+	} // namespace
+#endif
+
 	github_profile_runtime::github_profile_runtime(
 		github_application_config aConfig, application::profile_startup_admission aAdmission, std::filesystem::path aRegistryRoot,
 		std::optional<application::durable_queue_state> aSavedQueue, std::unique_ptr<application::remembered_connection_store_port> aConnectionStore, application::remembered_connection_store_result<core::remembered_connection_state> aConnections, std::shared_ptr<void> aScratch, bool aDesktop,
@@ -685,8 +748,11 @@ namespace bpr::app {
 		QueueStore            = adapters::sqlite::make_queue_enrollment_store({
 			.StorageRoot = applicationDataRoot,
 		});
-		QueueRefresh          = std::make_unique<composition_queue_refresh>();
-		QueueHost             = std::make_unique<application::review_queue_application_host>(
+#if defined(BPR_BUILD_TESTING)
+		QueueStore = std::make_unique<refusable_queue_store>(std::move(QueueStore), QueueStoreRefusesForTesting);
+#endif
+		QueueRefresh = std::make_unique<composition_queue_refresh>();
+		QueueHost    = std::make_unique<application::review_queue_application_host>(
 			*QueueStore,
 			*QueueRefresh,
 			QueueEffects,

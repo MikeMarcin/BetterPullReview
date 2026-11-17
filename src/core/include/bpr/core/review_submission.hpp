@@ -309,6 +309,12 @@ namespace bpr::core {
 	/// published answer returns to the pull request; an unpublished or
 	/// unknown one keeps the review.
 	[[nodiscard]] auto decide_review_finish(const review_finish_settings& aSettings, const review_finish_event& aEvent) noexcept -> review_finish_transition;
+	/// \brief [[BPR-2249]]. Where the review's Seen leaves the reviewer: it
+	/// is the other answer beside Approve, so it follows Approve's choice.
+	/// \details Only a Seen the queue recorded leaves the review: Home when
+	/// Approve's choice is Home, otherwise back to the pull request. A Seen
+	/// refused or not kept keeps the review, as an unpublished Approve does.
+	[[nodiscard]] auto decide_seen_finish(const review_finish_settings& aSettings, bool aRecorded) noexcept -> review_finish_transition;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_SUBMISSION_HPP

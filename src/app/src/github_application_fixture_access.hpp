@@ -2186,7 +2186,10 @@ namespace bpr::app::detail {
 		/// not hold stands for a rewritten branch whose earlier commits are
 		/// gone. (The fixture GitHub refuses to load a review on a commit it
 		/// cannot serve, so the read cannot carry one.)
-		static void               force_returning_review_head(github_application& aApplication, std::string aHead);
+		static void force_returning_review_head(github_application& aApplication, std::string aHead);
+		/// [[BPR-2249]]. Makes the profile's queue store refuse (or keep again)
+		/// one-record writes, as a Seen's.
+		static void               refuse_queue_store_writes(github_application& aApplication, bool aRefuse);
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

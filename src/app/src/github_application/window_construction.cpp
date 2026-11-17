@@ -603,11 +603,30 @@ namespace bpr::app {
 				}
 			});
 		// [[BPR-2049]]. Seen is the queue's, and local.
+		// [[BPR-2249]]. The review's Seen leaves the review as a confirmed
+		// Approve does: the core decides from Approve's accepted finish
+		// choice once the queue has kept it; anything else keeps the review.
 		Window->set_home_seen_dispatch(
-			[this](application::queue_seen_intent aIntent) {
-				if (!Closing && QueueHost != nullptr) {
-					QueueHost->apply(std::move(aIntent));
+			[this](application::queue_seen_intent aIntent, qt::workbench_seen_answer aAnswer) {
+				if (Closing || QueueHost == nullptr) {
+					if (aAnswer) {
+						aAnswer(core::review_finish_transition::keep_review);
+					}
+					return;
 				}
+				if (!aAnswer) {
+					QueueHost->apply(std::move(aIntent));
+					return;
+				}
+				QueueHost->apply(std::move(aIntent), [this, weak = std::weak_ptr<const int>{ WindowLifetime }, answer = std::move(aAnswer)](const application::queue_seen_outcome aOutcome) {
+					if (weak.expired() || Closing) {
+						return;
+					}
+					const auto* const preferences = Profile->WorkbenchPreferences.get();
+					const auto&       accepted    = preferences != nullptr ? preferences->accepted() : std::optional<application::workbench_profile_preferences>{ };
+					answer(core::decide_seen_finish(accepted ? accepted->Behaviour.FinishReview : core::review_finish_settings{ },
+													aOutcome == application::queue_seen_outcome::recorded));
+				});
 			});
 		// [[BPR-1407]]. Home's row ages are measured to discovery's clock.
 		Window->set_home_clock([this]() -> std::optional<std::int64_t> {
