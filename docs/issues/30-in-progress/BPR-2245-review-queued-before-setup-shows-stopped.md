@@ -85,3 +85,7 @@ no agent stuff is running."
   passes.
 - Also passing: `application_ask_queue_public_path`,
   `application_agent_queue_windows_public_path`; documentation gate OK.
+
+## Owner report (2026-11-17)
+
+The owner confirmed the review was started from the review bar's Ask menu. They don't think a queue was showing but can't be sure; the run is gone now. The red "Canceled" stays unreproduced. If it recurs, record what the queue showed and keep the session log.
