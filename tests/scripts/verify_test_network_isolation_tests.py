@@ -770,6 +770,16 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # passes normally; contained, its fixture Git command fails.
                 # The measured predicate makes no lower-level cause claim.
                 "fixture-git-command-failed",
+                # [[BPR-2215]]. The 0.5.0 Windows measurement's first contained
+                # observations, without an inferred Win32 or ACL cause.
+                "fresh-discuss-preferences-store-predicate-failed",
+                "agent-configuration-store-predicate-failed",
+                "profile-root-refused",
+                "child-exit-3-without-output",
+                "application-startup-refused",
+                "private-data-root-refused",
+                "private-course-root-refused",
+                "author-state-fixture-failed",
                 # RFC-BPR-0093 measured native loader refusals.
                 "cmake-dll-initialization",
                 "qt-dll-initialization",
