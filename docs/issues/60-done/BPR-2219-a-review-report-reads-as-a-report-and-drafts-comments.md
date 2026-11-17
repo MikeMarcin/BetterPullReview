@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2219"
 title: "A review ask's report reads as a report and drafts comments from its findings"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2219--BPR-2219--f5f7c1180ea8.json","origin":"owner, 2026-11-16, about BPR-2166"}
+acceptance: [{"criterion":"AC-a","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"core_agent_report and application_review_report_public_path (composed, fixture agent): the report holds no word the agent said while it worked; application_fixture_agent_every_ask fails on notes in a report's title, summary or row on the attended path; real agent after run on MikeMarcin/BPR-Test#185 (verdict, summary about the change, findings at their places); owner Accept review-reads-as-a-report (session 61844d36f1e7580e88fb7552e98de6b6, decision 0c6ff8f0) and report-title-clean (session ccad4e9b534766ad7995e5ab2f7464f2, decision 71de878e)"}},{"criterion":"AC-b","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"application_review_report_public_path (composed, fixture agent): every finding has its keep action; Draft comment makes a draft conversation at line 12 of src/engine/renderer.cpp, reads Drafted and Go to draft, is not made twice; Keep local keeps; nothing is published; qt_agent_report_view; owner Accept report-styling-native on the build that drafts (session 391c751c296232358f316776c40960fc, decision 4da7ca6a)"}},{"criterion":"AC-c","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"application_review_report_public_path (composed, fixture agent): Keep summary keeps the verdict, the summary and a line a finding as a Local comment on the pull request; core_agent_report (report_summary_comment)"}},{"criterion":"AC-d","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"core_agent_report: report_findings decides each finding's keep action by decide_keep's rule and the comment it starts from; window_quick_ask performs it through act_on_agent_card; report_page presents it; architecture_boundaries and architecture_boundary_contract pass"}},{"criterion":"AC-e","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"fixture_agent_answers (three working notes, then a report with a verdict whose findings block lists its findings) and application_review_report_public_path (composed, fixture agent)"}},{"criterion":"AC-f","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"core_prompt_macro (the review built-ins keep their names and send their instructions), qt_prompts_page and application_review_report_public_path (composed, fixture agent) (the body in the editor, the read-only Result section); core_agent_report (a review with another severity scheme and no verdict still drafts); owner Accept prompt-editor-result (session 391c751c296232358f316776c40960fc, decision d316dfe5)"}},{"criterion":"AC-g","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"qt_agent_report_view; docs/design/review-report-v2 (Cards, Band, Plain drawn by the report view, light and dark); owner Accept report-styling-native (decision 4da7ca6a) and report-title-clean (decision 71de878e)"}},{"criterion":"AC-h","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"qt_prompt_macro_chips (a prompt's turn shows its name with the agent glyph before it and Show prompt, Hide prompt on the name's row); owner Accept prompt-turn-shows-title (decision d4e32b4a) and prompt-toggle-compact (session ccad4e9b534766ad7995e5ab2f7464f2, decision 4557b0dd). Agent tab; the tour chats were split to BPR-2235"}},{"criterion":"AC-i","outcome":"pass","revision":"b29a5c4ce","evidence":{"kind":"command","detail":"qt_prompts_page (highlighted body; the Result closed behind its disclosure, under the Insert row, drawn read-only); owner Accept prompt-editor-result (decision d316dfe5)"}}]
 ---
 
 # A review ask's report reads as a report and drafts comments from its findings
@@ -223,8 +224,10 @@ three mockups are its images. Lifecycle: pending.
   spacing, controls) while still special beside a plain file tab; the serif
   review theme goes. The accepted structure and layout stay.
 - **AC-h.** A turn that came from a prompt (a chip or a menu, in the Agent
-  tab and the tour chats) shows the prompt's title as the user's turn; the
-  full text sent is behind a small disclosure.
+  tab) shows the prompt's title as the user's turn; the full text sent is
+  behind a small disclosure. The tour chats were in this criterion as first
+  written; they were split to [[BPR-2235]] on 2026-11-16, when the card was
+  closed on the Agent tab the owner had accepted.
 - **AC-i.** The prompt editor: Markdown syntax highlighting in the body;
   the Result section collapsed behind a disclosure and plainly read-only;
   the Insert, variables and byte-count row directly under the body it
@@ -324,6 +327,20 @@ freeze's own run of the launcher's check exited at the next-push start and
 the same check, run by hand on the kept root, passed whole; twice now, so
 the freeze tool's back-to-back starts deserve a look. Look v002's host is
 stopped and its root removed.
+
+### Verdicts, look review-report-v003 (handed back 2026-11-16), and close
+
+- **Accept** `report-title-clean` (decision `71de878e`), no note.
+- **Accept** `prompt-toggle-compact` (decision `4557b0dd`): "Good, I would
+  add the little indigo ai symbol next to anything coming from an app prompt
+  in the transcript. I don't need a rereview for that." Built at
+  `b29a5c4ce`: the agent glyph in the Agent accent before a prompt turn's
+  name in the Agent tab (`qt_prompt_macro_chips`); the tour chats are
+  [[BPR-2235]]'s.
+
+Closed 2026-11-16. The look's host is stopped and its frozen root removed;
+MikeMarcin/BPR-Test#185 is closed and its two branches deleted. What is not
+in this card is filed: [[BPR-2231]] to [[BPR-2238]].
 
 ## Known gaps
 

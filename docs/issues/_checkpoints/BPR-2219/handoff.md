@@ -1,3 +1,12 @@
+# BPR-2219 checkpoint 9 (2026-11-16): Done
+
+Look v003: both Accept. The glyph the owner asked for with it is built at
+`b29a5c4ce`. The card is in `60-done` with its acceptance record; the hosts
+are stopped, the frozen roots removed, MikeMarcin/BPR-Test#185 closed and
+its branches deleted, the private worktree removed. What was not built is
+filed as BPR-2231 to BPR-2238; BPR-2236 (one colour source) has its own
+worker. The checkpoints below are history.
+
 # BPR-2219 checkpoint 8 (2026-11-16): round 3 built, look v003 filed
 
 Supersedes the checkpoints below.
