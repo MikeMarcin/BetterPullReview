@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2248"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Ask what changed in selected commits from the Commits tab",
+  "created": "2026-11-17T19:43:33.927971+00:00",
+  "base": "19ee3502b7f85ca772a1ddfd80b806938792f043"
+}
