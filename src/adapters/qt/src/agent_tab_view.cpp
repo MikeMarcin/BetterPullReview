@@ -75,6 +75,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -2991,10 +2992,18 @@ namespace bpr::qt {
 		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
 		// [[BPR-2219]]. The comments the agent suggested for this turn's
 		// findings, by place: the report's findings draft from them.
-		auto suggested = std::vector<core::report_suggested_comment>{ };
+		// [[BPR-2231]]: every card of the turn, so a report finding at a
+		// card's place is that card and shares its one state.
+		auto       suggested = std::vector<core::report_suggested_comment>{ };
+		auto       cards     = std::vector<agent_report_card>{ };
+		const auto block     = core::digest_agent_findings(turn.FindingsBlock);
 		for (const auto& entry : CardEntries) {
-			if (entry.Turn == std::optional{ aTurn } && entry.Finding.SuggestedComment && !entry.Finding.SuggestedComment->empty()) {
-				suggested.push_back({ .Path = entry.Finding.Path, .First = entry.Finding.Lines.Begin + 1U, .Last = std::max(entry.Finding.Lines.End, entry.Finding.Lines.Begin + 1U), .Comment = *entry.Finding.SuggestedComment });
+			if (entry.Turn == std::optional{ aTurn } && entry.Ordinal <= std::numeric_limits<std::uint32_t>::max()) {
+				suggested.push_back({ .Path    = entry.Finding.Path,
+									  .First   = entry.Finding.Lines.Begin + 1U,
+									  .Last    = std::max(entry.Finding.Lines.End, entry.Finding.Lines.Begin + 1U),
+									  .Comment = entry.Finding.SuggestedComment ? *entry.Finding.SuggestedComment : std::string{ } });
+				cards.push_back({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Key = { .Findings = block, .Ordinal = static_cast<std::uint32_t>(entry.Ordinal) } });
 			}
 		}
 		// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
@@ -3008,6 +3017,8 @@ namespace bpr::qt {
 			.Question  = turn.Name.isEmpty() ? turn.Question : turn.Name,
 			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
 			.Suggested = std::move(suggested),
+			.Cards     = std::move(cards),
+			.Answer    = turn.AnswerText.trimmed(),
 		});
 	}
 

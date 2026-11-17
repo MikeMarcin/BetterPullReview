@@ -166,6 +166,23 @@ namespace bpr::qt {
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
 		}
 
+		/// [[BPR-2232]]. Draft all from the report: the chip while it has a
+		/// finding to draft, and what it is doing or last did.
+		[[nodiscard]] auto draft_all_row(const palette& aPalette) -> QString
+		{
+			if (Actions == nullptr || !Actions->Link || (Actions->DraftAll == 0U && !Actions->DraftAllBusy && Actions->DraftAllSaid.isEmpty())) {
+				return { };
+			}
+			const auto words = [](const QString& aText, const QString& aColour) { return QStringLiteral("<td style=\"padding:4px 12px 4px 0;color:%1\">%2</td>").arg(aColour, aText.toHtmlEscaped()); };
+			auto       cells = QString{ };
+			if (Actions->DraftAll > 0U && !Actions->DraftAllBusy) {
+				cells += chip(Actions->Link(0U, report_link::draft_all), QObject::tr("Draft all (%1)").arg(Actions->DraftAll), aPalette.Ink, aPalette) + QStringLiteral("<td width=\"12\"></td>");
+			}
+			cells += Actions->DraftAllSaid.isEmpty() ? words(QObject::tr("Each finding not yet drafted, at its lines. Nothing is published"), aPalette.Faint)
+													 : words(Actions->DraftAllSaid, Actions->DraftAllBusy ? aPalette.Faint : aPalette.Dim);
+			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
+		}
+
 		/// The keep action of the item at `aOutline`, when it is a finding.
 		[[nodiscard]] auto finding_row(const std::uint32_t aOutline, const palette& aPalette) -> QString
 		{
@@ -469,6 +486,7 @@ namespace bpr::qt {
 			opening += paragraphs.join(QString{ });
 			opening += aActions.Summary ? keep_row(0U, core::report_keep::keep_local, QObject::tr("as a local comment on the pull request"), false, colours) : QString{ };
 		}
+		opening += draft_all_row(colours);
 		if (!opening.isEmpty()) {
 			// The opening: on a raised band with the verdict's rule (band,
 			// cards), or beside a rule alone (plain).

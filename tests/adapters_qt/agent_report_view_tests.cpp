@@ -6,6 +6,7 @@
 #include "bpr/qt/agent_report_view.hpp"
 
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/report_page.hpp"
 
@@ -29,6 +30,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <optional>
 
 namespace {
@@ -294,6 +296,62 @@ try {
 	followed.clear();
 	click(*reviewed, *anchor_point(*reviewed, QStringLiteral("src/engine/renderer.cpp#L12-L13")));
 	expect(followed == QStringList{ QStringLiteral("src/engine/renderer.cpp#L12-L13") }, "a click on a place follows it by its text");
+
+	// [[BPR-2231]]. With the host's records, a finding's state is the turn's
+	// one state: a finding at a card's place is that card (its key and
+	// delivery go with the keep), one with no card is kept under the
+	// report's own digest; what the card did reads on the report.
+	auto records = std::map<std::pair<bpr::core::agent_findings_digest, std::uint32_t>, bpr::core::agent_finding_card_record>{ };
+	view.set_keep_records([&records](const bpr::core::report_finding_key& aKey) {
+		const auto found = records.find({ aKey.Findings, aKey.Ordinal });
+		return found == records.end() ? bpr::core::agent_finding_card_record{ } : found->second;
+	});
+	auto       batches = std::vector<std::vector<bpr::qt::report_draft>>{ };
+	auto       finish  = bpr::qt::report_draft_all_done{ };
+	const auto block   = bpr::core::digest_agent_findings("[]");
+	view.set_draft_all_dispatch([&batches, &finish](std::vector<bpr::qt::report_draft> aDrafts, const bpr::core::draft_all_outcome&, bpr::qt::report_draft_all_done aDone) {
+		batches.push_back(std::move(aDrafts));
+		finish = std::move(aDone);
+	});
+	view.set_placeable([](const bpr::qt::report_draft& aDraft) { return aDraft.Path != QStringLiteral("src/gone.cpp"); });
+	const auto three  = QStringLiteral("# Review of #30\n\n**Verdict:** Needs changes\n\nThree things.\n\n## Must fix\n\n### issue: A\n\n`src/a.cpp:3`\n\nWhy A.\n\n### issue: B\n\n`src/b.cpp:7`\n\nWhy B.\n\n"
+									   "### issue: C\n\n`src/c.cpp:2`\n\nWhy C.\n\n### issue: D\n\n`src/gone.cpp:4`\n\nWhy D.\n");
+	auto       card   = bpr::qt::agent_report_card{ .Session = 77U, .Ordinal = 1U, .Finding = { }, .Key = { .Findings = block, .Ordinal = 1U } };
+	card.Finding.Path = "src/b.cpp";
+	view.present({ .Turn      = 9U,
+				   .Title     = QStringLiteral("Review of #30"),
+				   .Markdown  = three,
+				   .Question  = QStringLiteral("Review this pull request"),
+				   .Byline    = { },
+				   .Suggested = { { .Path = "src/b.cpp", .First = 7U, .Last = 7U, .Comment = "" } },
+				   .Cards     = { card },
+				   .Answer    = three });
+	QApplication::processEvents();
+	expect(view.findings().size() == 4U && view.findings()[1].Card == std::optional<std::size_t>{ 0U } && !view.findings()[0].Card, "B is its card; A, C and D are no card's");
+	const auto own         = bpr::core::digest_report_findings(three.toStdString());
+	records[{ block, 1U }] = { .Findings = block, .Ordinal = 1U, .State = bpr::core::agent_finding_card_disposition::drafted };
+	view.settle_keep({ .Findings = block, .Ordinal = 1U, .Card = true });
+	expect(view.keep_state(view.findings()[1].Outline).Phase == bpr::qt::report_keep_phase::kept, "drafted on its card, the finding reads Drafted on the report");
+	// [[BPR-2232]]. Draft all: the findings not yet drafted, in the report's
+	// order (B is drafted; D is not in the diff and is counted so).
+	expect(view.draft_all_offered() == 2U && view.dressed_view()->toPlainText().contains(QStringLiteral("Draft all (2)")), "Draft all offers the two left to draft: " + std::to_string(view.draft_all_offered()));
+	expect(view.press_draft_all() && batches.size() == 1U && batches[0].size() == 2U && batches[0][0].Path == QStringLiteral("src/a.cpp") && batches[0][1].Path == QStringLiteral("src/c.cpp")
+			   && !batches[0][0].Card && batches[0][0].Key == bpr::core::report_finding_key{ .Findings = own, .Ordinal = view.findings()[0].Outline, .Card = false },
+		   "Draft all drafts A then C, each under the report's own key");
+	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::working && view.draft_all_said().contains(QStringLiteral("Drafting 2 findings")) && !view.press_draft_all(),
+		   "under way: each says so, and Draft all is not pressed twice");
+	records[{ own, view.findings()[0].Outline }] = { .Findings = own, .Ordinal = view.findings()[0].Outline, .State = bpr::core::agent_finding_card_disposition::drafted };
+	view.settle_keep({ .Findings = own, .Ordinal = view.findings()[0].Outline, .Card = false });
+	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::kept && view.keep_state(view.findings()[2].Outline).Phase == bpr::qt::report_keep_phase::working,
+		   "each finding settles as its draft is made");
+	records[{ own, view.findings()[2].Outline }] = { .Findings = own, .Ordinal = view.findings()[2].Outline, .State = bpr::core::agent_finding_card_disposition::refused, .Why = QStringLiteral("Not drafted: resolve the draft open at that line first.").toStdString() };
+	finish({ .Drafted = 1U, .AlreadyDrafted = 1U, .NotInDiff = 1U, .Refused = 1U });
+	QApplication::processEvents();
+	const auto said = view.dressed_view()->toPlainText();
+	expect(view.draft_all_said() == QStringLiteral("Drafted 1 private draft. Skipped 3: 1 already drafted, 1 no longer in the diff, 1 could not be drafted; its finding says why.") && said.contains(view.draft_all_said())
+			   && view.keep_state(view.findings()[2].Outline).Phase == bpr::qt::report_keep_phase::refused && said.contains(QStringLiteral("resolve the draft open")),
+		   "it says how many were drafted and which were not, and the refused one says why: " + view.draft_all_said().toStdString());
+	expect(view.draft_all_offered() == 1U && said.contains(QStringLiteral("Draft all (1)")), "the refused one is still offered");
 	std::cout << "AGENT_REPORT_VIEW_OK\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

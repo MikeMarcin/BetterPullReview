@@ -2,9 +2,11 @@
 // outline and card, and a commit listing with a merge of the base branch as
 // one line and the rest grouped by area (AC07).
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -259,6 +261,68 @@ namespace {
 		expect(report_findings(dress_report("# What `a.cpp` does\n\nS.\n\n## How it works\n\n### resize\n\n`src/a.cpp:9`\n\nIt resizes.\n")).empty(), "a report that is not a review offers no keep action on its items");
 	}
 
+	/// [[BPR-2231]], [[BPR-2232]]. A report's finding is its card when one is
+	/// at its place; its one state is kept where the card's is, or under the
+	/// report's own digest; Draft all from the report plans over those states.
+	void test_report_findings_share_their_cards_state()
+	{
+		const auto report = dress_report("# Review of #9\n\n**Verdict:** Needs changes\n\nTwo things.\n\n## Must fix\n\n### issue: A\n\n`src/a.cpp:3`\n\nWhy A.\n\n"
+										 "### issue: B\n\n`src/b.cpp:7-8`\n\nWhy B.\n\n### nitpick: C\n\n`src/c.cpp:2`\n\nWhy C.\n\n### thought: D\n\n`README.md`\n\nWhy D.\n");
+		// Cards in the answer's order: B's with a comment, a commentless one
+		// at A, and one at a place the report does not name.
+		const auto cards    = std::vector<report_suggested_comment>{ { .Path = "src/b.cpp", .First = 8U, .Last = 8U, .Comment = "issue: B, as the agent put it." },
+																	 { .Path = "src/a.cpp", .First = 3U, .Last = 3U, .Comment = "" },
+																	 { .Path = "src/z.cpp", .First = 1U, .Last = 1U, .Comment = "Elsewhere." } };
+		const auto findings = report_findings(report, cards);
+		expect(findings.size() == 4U && findings[0].Card == std::optional<std::size_t>{ 1U } && findings[0].Comment.starts_with("issue: A") && findings[1].Card == std::optional<std::size_t>{ 0U }
+				   && findings[1].Comment == "issue: B, as the agent put it." && !findings[2].Card && !findings[3].Card,
+			   "a finding is the card at its place, with or without the agent's comment; one with none is no card's");
+		const auto commentFirst = report_findings(report, { { .Path = "src/a.cpp", .First = 3U, .Last = 3U, .Comment = "" }, { .Path = "src/a.cpp", .First = 2U, .Last = 4U, .Comment = "issue: A, said." } });
+		expect(commentFirst[0].Card == std::optional<std::size_t>{ 1U } && commentFirst[0].Comment == "issue: A, said.", "a card with the agent's comment is taken before one without");
+
+		const auto block  = digest_agent_findings("[{\"path\":\"src/b.cpp\"}]");
+		const auto keys   = std::vector<report_card_key>{ { .Findings = block, .Ordinal = 0U }, { .Findings = block, .Ordinal = 1U }, { .Findings = block, .Ordinal = 2U } };
+		const auto own    = digest_report_findings("# Review of #9\n");
+		const auto keyOfA = report_finding_key_of(findings[0], keys, own);
+		const auto keyOfC = report_finding_key_of(findings[2], keys, own);
+		expect(keyOfA == report_finding_key{ .Findings = block, .Ordinal = 1U, .Card = true }, "a card's finding is kept under its card's block and ordinal");
+		expect(keyOfC == report_finding_key{ .Findings = own, .Ordinal = findings[2].Outline, .Card = false } && own != digest_agent_findings("# Review of #9\n") && own == digest_report_findings("# Review of #9\n"),
+			   "a finding no card carries is kept under the report's own digest, which no block's equals, at its row");
+
+		// One memory: drafted from the report is the card's state, and a
+		// restart (the records written and adopted again) keeps both.
+		auto memory = agent_finding_card_memory{ };
+		expect(memory.remember(report_keep_record(keyOfA, report_keep::draft_comment, true)), "Draft comment from the report keeps the card drafted");
+		expect(memory.remember(report_keep_record(keyOfC, report_keep::draft_comment, true)), "and a card-less finding under the report's key");
+		expect(memory.recall(block, 1U).State == agent_finding_card_disposition::drafted, "the card reads Drafted");
+		auto restarted = agent_finding_card_memory{ };
+		restarted.adopt(memory.records());
+		expect(report_finding_standing_of(restarted.recall(keyOfA.Findings, keyOfA.Ordinal).State) == report_finding_standing::drafted
+				   && report_finding_standing_of(restarted.recall(keyOfC.Findings, keyOfC.Ordinal).State) == report_finding_standing::drafted,
+			   "after a restart both read Drafted");
+		const auto kept    = report_keep_record(keyOfC, report_keep::keep_local, true, { }, 41U);
+		const auto refused = report_keep_record(keyOfC, report_keep::draft_comment, false, "Line 2 is gone.");
+		expect(kept.State == agent_finding_card_disposition::noted && kept.Note == 41U && refused.State == agent_finding_card_disposition::refused && refused.Why == "Line 2 is gone."
+				   && report_finding_standing_of(kept.State) == report_finding_standing::kept_local && report_finding_standing_of(agent_finding_card_disposition::dismissed) == report_finding_standing::dismissed,
+			   "Keep local keeps its note; a refusal says why");
+		expect(stable_name(report_finding_standing::kept_local) == "kept_local" && stable_name(report_finding_standing::refused) == "refused", "stable names");
+
+		// Draft all from the report: in the report's order, the drafted one
+		// counted as already drafted, the unplaceable one as not in the diff,
+		// the file-only one neither drafted nor counted.
+		const auto facts      = std::vector<report_draft_all_fact>{ { .Standing = report_finding_standing::drafted, .Placeable = true },
+																	{ .Standing = report_finding_standing::open, .Placeable = true },
+																	{ .Standing = report_finding_standing::refused, .Placeable = false },
+																	{ .Standing = report_finding_standing::open, .Placeable = true } };
+		const auto candidates = report_draft_all_candidates(findings, facts);
+		const auto plan       = plan_draft_all(candidates);
+		expect(candidates.size() == 4U && !candidates[3].Suggested && plan.Draft == std::vector<std::size_t>{ 1U } && plan.AlreadyDrafted == 1U && plan.NotInDiff == 1U && draft_all_offer(candidates) == 1U,
+			   "Draft all drafts what is not yet drafted, in the report's order, and counts the rest");
+		const auto busy = report_draft_all_candidates(findings, std::vector<report_draft_all_fact>{ { .Working = true, .Placeable = true }, { .Standing = report_finding_standing::dismissed, .Placeable = true } });
+		expect(busy[0].State == draft_all_card_state::working && busy[1].State == draft_all_card_state::dismissed && busy[2].State == draft_all_card_state::open && !busy[2].Placeable,
+			   "under way and dismissed as the Agent tab's Draft all reads them; a missing fact is open and not placeable");
+	}
+
 	/// [[BPR-2236]]. The tone a finding's severity wears is core's, as its
 	/// label's is; the card says the verdict apart from its summary.
 	void test_tones_of_severity_and_the_card_verdict()
@@ -285,6 +349,7 @@ auto main() -> int
 	test_dressed_areas();
 	test_review_answer_verdict_and_findings();
 	test_tones_of_severity_and_the_card_verdict();
+	test_report_findings_share_their_cards_state();
 	std::cout << "agent-report-tests:pass\n";
 	return EXIT_SUCCESS;
 }

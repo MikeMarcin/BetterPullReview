@@ -38,6 +38,7 @@
 	#include "bpr/core/agent_comment_suggestion.hpp"
 	#include "bpr/core/agent_entry.hpp"
 	#include "bpr/core/agent_finding_card_memory.hpp"
+	#include "bpr/core/agent_report_keep.hpp"
 	#include "bpr/core/agent_wrapper.hpp"
 	#include "bpr/core/markdown_code.hpp"
 	#include "bpr/core/review_skill.hpp"
@@ -394,7 +395,7 @@ namespace bpr::app {
 	/// in turn through `act_on_agent_card`, exactly as its own Add as draft
 	/// comment does, so a batch makes the drafts a reviewer pressing each
 	/// card would. Nothing is published.
-	void github_application::implementation::draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone)
+	void github_application::implementation::draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone, std::vector<core::report_finding_key> aReportKeys, const std::uint64_t aReportTurn)
 	{
 		if (Closing || Window == nullptr || DraftAllRun) {
 			if (aDone) {
@@ -406,7 +407,7 @@ namespace bpr::app {
 			}
 			return;
 		}
-		DraftAllRun = draft_all_run{ .Batch = aRequest.Batch, .Queue = std::move(aRequest.Cards), .Outcome = aRequest.Planned, .Done = std::move(aDone) };
+		DraftAllRun = draft_all_run{ .Batch = aRequest.Batch, .Queue = std::move(aRequest.Cards), .Outcome = aRequest.Planned, .Done = std::move(aDone), .ReportKeys = std::move(aReportKeys), .ReportTurn = aReportTurn };
 		next_draft_all_card();
 	}
 
@@ -422,13 +423,20 @@ namespace bpr::app {
 			for (; run.Next < run.Queue.size(); ++run.Next) {
 				run.Outcome = core::settle_draft_all(run.Outcome, core::draft_all_result::refused);
 			}
-			const auto undoable = !run.Made.empty();
+			const auto report   = !run.ReportKeys.empty();
+			const auto undoable = !run.Made.empty() && !report;
 			if (undoable) {
 				DraftAllBatches[run.Batch] = std::move(run.Made);
 			}
 			// Drafting opened each line's draft in Comments; the reply that
-			// says what was drafted is shown again.
-			if (tab != nullptr && !Closing && Window->open_agent_action() != nullptr) {
+			// says what was drafted is shown again. A report's Draft all
+			// goes back to the report ([[BPR-2232]]).
+			if (report) {
+				if (auto* const view = Window != nullptr && !Closing ? Window->report_view() : nullptr; view != nullptr && view->document().Turn == run.ReportTurn) {
+					const auto shown = view->document();
+					Window->open_report("turn:" + std::to_string(shown.Turn), shown);
+				}
+			} else if (tab != nullptr && !Closing && Window->open_agent_action() != nullptr) {
 				Window->open_agent_action()->trigger();
 			}
 			if (run.Done) {
@@ -442,12 +450,16 @@ namespace bpr::app {
 		// A card whose draft never settles (its line's editor never opened)
 		// is given up after a while, so the batch still ends and says so.
 		QTimer::singleShot(20'000, Window.get(), [this, serial] { settle_draft_all_card(serial, core::draft_all_result::refused); });
-		act_on_agent_card(request, [this, tab, serial, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+		const auto reportKey = DraftAllRun->Next < DraftAllRun->ReportKeys.size() ? std::optional{ DraftAllRun->ReportKeys[DraftAllRun->Next] } : std::nullopt;
+		act_on_agent_card(request, [this, tab, serial, reportKey, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
 			if (Closing) {
 				return;
 			}
 			const auto gone = CardRefusalGone;
 			tab->present_finding_card_state(session, ordinal, aState, aWhy, aNote);
+			if (reportKey) {
+				settle_report_finding(*reportKey, aState, aWhy, aNote);
+			}
 			if (aState == qt::agent_finding_card_state::drafted) {
 				if (DraftAllRun && DraftAllRun->Serial == serial && ReviewDraft) {
 					DraftAllRun->Made.push_back({ .Session = session, .Ordinal = ordinal, .Draft = ReviewDraft->Id, .Revision = ReviewDraftRevision });
@@ -582,11 +594,24 @@ namespace bpr::app {
 		if (Closing || !AgentFindingCards || !state || aChange.FindingsBlock.empty() || aChange.Ordinal > std::numeric_limits<std::uint32_t>::max()) {
 			return;
 		}
-		AgentFindingCards->remember({ .Findings = core::digest_agent_findings(aChange.FindingsBlock),
-									  .Ordinal  = static_cast<std::uint32_t>(aChange.Ordinal),
-									  .State    = *state,
-									  .Why      = aChange.Why.toStdString(),
-									  .Note     = aChange.Note });
+		const auto findings = core::digest_agent_findings(aChange.FindingsBlock);
+		AgentFindingCards->remember({ .Findings = findings, .Ordinal = static_cast<std::uint32_t>(aChange.Ordinal), .State = *state, .Why = aChange.Why.toStdString(), .Note = aChange.Note });
+		// [[BPR-2231]]. A report finding that is this card says so too.
+		if (Window != nullptr && Window->report_view() != nullptr) {
+			Window->report_view()->settle_keep({ .Findings = findings, .Ordinal = static_cast<std::uint32_t>(aChange.Ordinal), .Card = true });
+		}
+	}
+
+	void github_application::implementation::settle_report_finding(const core::report_finding_key& aKey, const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote)
+	{
+		const auto made = aState == qt::agent_finding_card_state::drafted || aState == qt::agent_finding_card_state::noted;
+		if (Closing || !AgentFindingCards || (!made && aState != qt::agent_finding_card_state::refused)) {
+			return;
+		}
+		AgentFindingCards->remember(core::report_keep_record(aKey, aState == qt::agent_finding_card_state::noted ? core::report_keep::keep_local : core::report_keep::draft_comment, made, aWhy.toStdString(), aNote));
+		if (Window != nullptr && Window->report_view() != nullptr) {
+			Window->report_view()->settle_keep(aKey);
+		}
 	}
 
 	auto github_application::implementation::named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>
@@ -625,6 +650,10 @@ namespace bpr::app {
 		// open; each kept one takes its state now.
 		for (const auto& kept : AgentFindingCards->memory().records()) {
 			Window->agent_tab()->present_finding_card_state(core::restored_finding_session(kept.Findings), kept.Ordinal, shown_state(kept.State), QString::fromStdString(kept.Why), kept.Note);
+		}
+		// [[BPR-2231]]. A report shown before they were read says them now.
+		if (Window->report_view() != nullptr) {
+			Window->report_view()->refresh_keeps();
 		}
 	}
 

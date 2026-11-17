@@ -380,6 +380,10 @@ namespace bpr::core {
 		/// finding in a few words, why, and the proposed change as a
 		/// suggestion GitHub can apply.
 		std::string Comment;
+		/// [[BPR-2231]]. The finding card it is: the position in
+		/// `report_findings`' `aSuggested` of the card at the same place.
+		/// None when no card is at its place.
+		std::optional<std::size_t> Card;
 
 		auto operator<=>(const report_finding&) const = default;
 	};
@@ -387,11 +391,12 @@ namespace bpr::core {
 	/// \brief The findings of a report, in its order, each with its keep
 	/// action (`decide_keep`'s rule: a line takes a draft, anything else is
 	/// kept local) and the comment it starts from. `aSuggested` are the
-	/// comments the agent wrote for the same findings in its findings block,
-	/// by place (`path`, first line, last line, comment): a finding at the
-	/// same file whose lines overlap takes the agent's own comment, which
-	/// follows the reviewer's comment format, in place of the one made from
-	/// the item.
+	/// answer's finding cards, by place (`path`, first line, last line, the
+	/// comment the agent suggested, possibly empty): a finding at the same
+	/// file whose lines overlap is that card ([[BPR-2231]]: `Card`), a card
+	/// with a comment before one without, each card one finding's; and it
+	/// takes the agent's own comment, which follows the reviewer's comment
+	/// format, in place of the one made from the item.
 	struct report_suggested_comment
 	{
 		std::string   Path;

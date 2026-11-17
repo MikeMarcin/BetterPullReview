@@ -715,15 +715,24 @@ namespace bpr::app {
 			/// Names the card being drafted, so a late answer for one the
 			/// watchdog gave up on is not counted twice.
 			std::uint64_t Serial = 0U;
+			/// [[BPR-2232]]. A report's Draft all: where each finding's state
+			/// is kept, by the queue's order. The report stays in front, and
+			/// the batch is not the Agent tab's to undo.
+			std::vector<core::report_finding_key> ReportKeys;
+			std::uint64_t                         ReportTurn = 0U;
 		};
 		std::optional<draft_all_run>                         DraftAllRun;
 		std::map<std::uint64_t, std::vector<draft_all_made>> DraftAllBatches;
-		std::uint64_t                                        DraftAllSerial = 0U;
-		void                                                 draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone);
+		std::uint64_t                                        DraftAllSerial      = 0U;
+		std::uint64_t                                        ReportDraftAllBatch = 0U;
+		void                                                 draft_all_agent_cards(qt::agent_draft_all_request aRequest, qt::agent_draft_all_done aDone, std::vector<core::report_finding_key> aReportKeys = { }, std::uint64_t aReportTurn = 0U);
 		void                                                 next_draft_all_card();
 		void                                                 settle_draft_all_card(std::uint64_t aSerial, core::draft_all_result aResult);
 		void                                                 undo_draft_all(std::uint64_t aBatch, qt::agent_draft_all_undo_done aDone);
 		[[nodiscard]] auto                                   agent_finding_placeable(const core::agent_finding& aFinding) const -> bool;
+		/// [[BPR-2231]]. What a report's keep action made, kept as the turn's
+		/// one state for the finding; the report says it.
+		void settle_report_finding(const core::report_finding_key& aKey, qt::agent_finding_card_state aState, const QString& aWhy, std::uint64_t aNote);
 		/// Owner report 2026-11-10, after BPR-2052. The cards a stored
 		/// answer's findings block makes, each as the reviewer left it.
 		[[nodiscard]] auto restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>;

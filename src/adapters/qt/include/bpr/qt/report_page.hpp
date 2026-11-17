@@ -112,6 +112,8 @@ namespace bpr::qt {
 	enum class report_link : std::uint8_t {
 		keep,
 		go,
+		/// [[BPR-2232]]. Draft all from the report.
+		draft_all,
 	};
 
 	/// \brief [[BPR-2219]] (docs/design/review-report-v1, A). The page's keep
@@ -128,6 +130,11 @@ namespace bpr::qt {
 		bool                                               Summary = false;
 		std::map<std::uint32_t, report_keep_state>         States;
 		std::function<QString(std::uint32_t, report_link)> Link;
+		/// [[BPR-2232]]. Draft all: how many it would draft (0: not
+		/// offered), whether it is under way, and what its last press said.
+		std::size_t DraftAll     = 0U;
+		bool        DraftAllBusy = false;
+		QString     DraftAllSaid;
 	};
 
 	/// \brief [[BPR-2219]], round 2 (owner, look review-report-v001: "redesign

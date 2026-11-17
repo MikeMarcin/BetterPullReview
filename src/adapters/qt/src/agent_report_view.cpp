@@ -1,6 +1,8 @@
 #include "bpr/qt/agent_report_view.hpp"
 
+#include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "markdown_document.hpp"
@@ -453,6 +455,9 @@ namespace bpr::qt {
 		Tail->setFixedHeight(0);
 		Dress    = core::dress_report(text, aDocument.Title.toStdString());
 		Findings = core::report_findings(Dress, aDocument.Suggested);
+		// [[BPR-2231]]. The report's own findings are kept under its text as
+		// the turn holds it.
+		ReportDigest = core::digest_report_findings(aDocument.Answer.isEmpty() ? text : core::read_report_answer(aDocument.Answer.toStdString()).Report);
 		render_dressed();
 		OutlineTitles.clear();
 		for (const auto& section : card.Outline) {
@@ -663,10 +668,15 @@ namespace bpr::qt {
 			// random token no answer can know, mapped to its action.
 			ActionLinks.clear();
 			auto actions = report_page_actions{ .Findings = Findings, .Summary = summary_offered() };
-			if (const auto kept = Keeps.find(Document.Turn); kept != Keeps.end()) {
-				actions.States = kept->second;
+			// [[BPR-2231]]. Each action's state, as the turn keeps it.
+			actions.States[0U] = keep_state(0U);
+			for (const auto& finding : Findings) {
+				actions.States[finding.Outline] = keep_state(finding.Outline);
 			}
-			actions.Link = [this](const std::uint32_t aOutline, const report_link aLink) {
+			actions.DraftAll     = draft_all_offered();
+			actions.DraftAllBusy = DraftAllBusy[Document.Turn];
+			actions.DraftAllSaid = draft_all_said();
+			actions.Link         = [this](const std::uint32_t aOutline, const report_link aLink) {
 				auto token = QStringLiteral("report-action-%1%2").arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' }).arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' });
 				ActionLinks.emplace(token, std::pair{ aOutline, aLink });
 				return token;
@@ -802,12 +812,202 @@ namespace bpr::qt {
 
 	auto agent_report_view::keep_state(const std::uint32_t aOutline) const -> report_keep_state
 	{
-		const auto kept = Keeps.find(Document.Turn);
-		if (kept == Keeps.end()) {
-			return { };
+		const auto kept  = Keeps.find(Document.Turn);
+		const auto local = [&]() -> report_keep_state {
+			if (kept == Keeps.end()) {
+				return { };
+			}
+			const auto found = kept->second.find(aOutline);
+			return found == kept->second.end() ? report_keep_state{ } : found->second;
+		}();
+		// An action under way is the view's until it settles; what it made is
+		// the turn's one state for the finding ([[BPR-2231]]).
+		if (local.Phase == report_keep_phase::working || !KeepRecords) {
+			return local;
 		}
-		const auto found = kept->second.find(aOutline);
-		return found == kept->second.end() ? report_keep_state{ } : found->second;
+		const auto record = KeepRecords(keep_key(aOutline));
+		switch (core::report_finding_standing_of(record.State)) {
+		case core::report_finding_standing::drafted:
+		case core::report_finding_standing::kept_local: return { .Phase = report_keep_phase::kept };
+		case core::report_finding_standing::refused:    return { .Phase = report_keep_phase::refused, .Why = QString::fromStdString(record.Why) };
+		case core::report_finding_standing::open:
+		case core::report_finding_standing::dismissed:  return { };
+		}
+		return { };
+	}
+
+	auto agent_report_view::card_keys() const -> std::vector<core::report_card_key>
+	{
+		auto keys = std::vector<core::report_card_key>{ };
+		keys.reserve(Document.Cards.size());
+		for (const auto& card : Document.Cards) {
+			keys.push_back(card.Key);
+		}
+		return keys;
+	}
+
+	/// [[BPR-2231]]. Where the action at `aOutline` is kept: a finding's card,
+	/// or the report's own record at its row (0: the summary).
+	auto agent_report_view::keep_key(const std::uint32_t aOutline) const -> core::report_finding_key
+	{
+		const auto found = std::ranges::find(Findings, aOutline, &core::report_finding::Outline);
+		if (aOutline == 0U || found == Findings.end()) {
+			return { .Findings = ReportDigest, .Ordinal = aOutline, .Card = false };
+		}
+		const auto keys = card_keys();
+		return core::report_finding_key_of(*found, keys, ReportDigest);
+	}
+
+	void agent_report_view::set_keep_records(report_keep_records aRecords)
+	{
+		KeepRecords = std::move(aRecords);
+		render_dressed();
+	}
+
+	void agent_report_view::settle_keep(const core::report_finding_key& aKey)
+	{
+		auto changed = false;
+		for (const auto& finding : Findings) {
+			const auto key = keep_key(finding.Outline);
+			if (key.Findings == aKey.Findings && key.Ordinal == aKey.Ordinal) {
+				changed = true;
+				if (auto kept = Keeps.find(Document.Turn); kept != Keeps.end()) {
+					kept->second.erase(finding.Outline);
+				}
+			}
+		}
+		if (aKey.Findings == ReportDigest && aKey.Ordinal == 0U) {
+			changed = true;
+		}
+		if (changed) {
+			render_dressed();
+		}
+	}
+
+	void agent_report_view::refresh_keeps() { render_dressed(); }
+
+	void agent_report_view::set_draft_all_dispatch(report_draft_all_dispatch aDispatch)
+	{
+		DraftAllDispatch = std::move(aDispatch);
+		render_dressed();
+	}
+
+	void agent_report_view::set_placeable(std::function<bool(const report_draft&)> aPlaceable)
+	{
+		Placeable = std::move(aPlaceable);
+		render_dressed();
+	}
+
+	/// [[BPR-2232]]. The report's findings as the Agent tab's Draft all reads
+	/// its cards, planned by the core; with each one's row.
+	auto agent_report_view::draft_all_plan() const -> std::pair<core::draft_all_plan, std::vector<std::uint32_t>>
+	{
+		auto facts = std::vector<core::report_draft_all_fact>{ };
+		auto rows  = std::vector<std::uint32_t>{ };
+		facts.reserve(Findings.size());
+		for (const auto& finding : Findings) {
+			const auto state   = keep_state(finding.Outline);
+			const auto request = keep_request(finding.Outline);
+			const auto record  = KeepRecords ? KeepRecords(keep_key(finding.Outline)) : core::agent_finding_card_record{ };
+			auto       fact    = core::report_draft_all_fact{ .Standing  = core::report_finding_standing_of(record.State),
+															  .Working   = state.Phase == report_keep_phase::working,
+															  .Placeable = request && (!Placeable || Placeable(*request)) };
+			if (!KeepRecords && state.Phase == report_keep_phase::kept) {
+				fact.Standing = finding.Keep == core::report_keep::draft_comment ? core::report_finding_standing::drafted : core::report_finding_standing::kept_local;
+			}
+			facts.push_back(fact);
+			rows.push_back(finding.Outline);
+		}
+		const auto candidates = core::report_draft_all_candidates(Findings, facts);
+		return { core::plan_draft_all(candidates), std::move(rows) };
+	}
+
+	auto agent_report_view::draft_all_offered() const -> std::size_t
+	{
+		if (!DraftAllDispatch || !dressed_shown() || Findings.empty()) {
+			return 0U;
+		}
+		// As the Agent tab's: offered with two suggested comments or more and
+		// one to draft.
+		const auto suggested = static_cast<std::size_t>(std::ranges::count(Findings, core::report_keep::draft_comment, &core::report_finding::Keep));
+		return suggested >= core::minimum_draft_all_suggestions ? draft_all_plan().first.Draft.size() : 0U;
+	}
+
+	auto agent_report_view::draft_all_said() const -> QString
+	{
+		const auto found = DraftAllSaid.find(Document.Turn);
+		return found == DraftAllSaid.end() ? QString{ } : found->second;
+	}
+
+	auto agent_report_view::press_draft_all() -> bool
+	{
+		const auto turn = Document.Turn;
+		if (!DraftAllDispatch || DraftAllBusy[turn] || draft_all_offered() == 0U) {
+			return false;
+		}
+		const auto [plan, rows] = draft_all_plan();
+		auto drafts             = std::vector<report_draft>{ };
+		for (const auto position : plan.Draft) {
+			if (auto request = keep_request(rows[position])) {
+				Keeps[turn][rows[position]] = { .Phase = report_keep_phase::working };
+				drafts.push_back(std::move(*request));
+			}
+		}
+		DraftAllBusy[turn] = true;
+		DraftAllSaid[turn] = drafts.size() == 1U ? tr("Drafting 1 finding\u2026") : tr("Drafting %1 findings\u2026").arg(drafts.size());
+		render_dressed();
+		auto rowsDrafted = std::vector<std::uint32_t>{ };
+		for (const auto& draft : drafts) {
+			rowsDrafted.push_back(draft.Outline);
+		}
+		DraftAllDispatch(std::move(drafts), core::start_draft_all(plan), [this, turn, rowsDrafted, alive = QPointer<agent_report_view>{ this }](const core::draft_all_outcome& aOutcome) {
+			if (alive.isNull()) {
+				return;
+			}
+			DraftAllBusy[turn] = false;
+			DraftAllSaid[turn] = draft_all_words(aOutcome);
+			if (auto kept = Keeps.find(turn); kept != Keeps.end()) {
+				for (const auto row : rowsDrafted) {
+					if (const auto found = kept->second.find(row); found != kept->second.end() && found->second.Phase == report_keep_phase::working) {
+						kept->second.erase(found);
+					}
+				}
+			}
+			if (Document.Turn == turn) {
+				render_dressed();
+			}
+		});
+		return true;
+	}
+
+	/// As the Agent tab's Draft all says it, of findings rather than cards.
+	auto agent_report_view::draft_all_words(const core::draft_all_outcome& aOutcome) -> QString
+	{
+		const auto counted = [](const std::size_t aCount, const QString& aOne, const QString& aMany) { return QStringLiteral("%1 %2").arg(aCount).arg(aCount == 1U ? aOne : aMany); };
+		auto       reasons = QStringList{ };
+		if (aOutcome.AlreadyDrafted > 0U) {
+			reasons << tr("%1 already drafted").arg(aOutcome.AlreadyDrafted);
+		}
+		if (aOutcome.NotInDiff > 0U) {
+			reasons << tr("%1 no longer in the diff").arg(aOutcome.NotInDiff);
+		}
+		if (aOutcome.Dismissed > 0U) {
+			reasons << tr("%1 dismissed").arg(aOutcome.Dismissed);
+		}
+		if (aOutcome.Busy > 0U) {
+			reasons << tr("%1 still being drafted or saved").arg(aOutcome.Busy);
+		}
+		if (aOutcome.KeptLocal > 0U) {
+			reasons << tr("%1 kept local").arg(aOutcome.KeptLocal);
+		}
+		if (aOutcome.Refused > 0U) {
+			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its finding says why") : tr("%1 could not be drafted; their findings say why").arg(aOutcome.Refused));
+		}
+		const auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		if (reasons.isEmpty()) {
+			return drafted;
+		}
+		return drafted + QLatin1Char{ ' ' } + tr("Skipped %1: %2.").arg(aOutcome.skipped()).arg(reasons.join(QStringLiteral(", ")));
 	}
 
 	/// The keep action at `aOutline`, as the core read it.
@@ -817,13 +1017,17 @@ namespace bpr::qt {
 			if (!summary_offered()) {
 				return std::nullopt;
 			}
-			return report_draft{ .Outline = 0U, .Keep = core::report_keep::keep_local, .Comment = QString::fromStdString(core::report_summary_comment(Dress)) };
+			return report_draft{ .Outline = 0U, .Keep = core::report_keep::keep_local, .Comment = QString::fromStdString(core::report_summary_comment(Dress)), .Key = keep_key(0U) };
 		}
 		const auto found = std::ranges::find(Findings, aOutline, &core::report_finding::Outline);
 		if (found == Findings.end() || found->Keep == core::report_keep::none) {
 			return std::nullopt;
 		}
-		return report_draft{ .Outline = aOutline, .Keep = found->Keep, .Path = QString::fromStdString(found->Path), .First = found->First, .Last = found->Last, .Comment = QString::fromStdString(found->Comment) };
+		auto request = report_draft{ .Outline = aOutline, .Keep = found->Keep, .Path = QString::fromStdString(found->Path), .First = found->First, .Last = found->Last, .Comment = QString::fromStdString(found->Comment), .Key = keep_key(aOutline) };
+		if (found->Card && *found->Card < Document.Cards.size()) {
+			request.Card = Document.Cards[*found->Card];
+		}
+		return request;
 	}
 
 	auto agent_report_view::press(const std::uint32_t aOutline, const report_link aLink) -> bool
@@ -850,7 +1054,13 @@ namespace bpr::qt {
 			if (alive.isNull()) {
 				return;
 			}
-			Keeps[turn][aOutline] = aDrafted ? report_keep_state{ .Phase = report_keep_phase::kept } : report_keep_state{ .Phase = report_keep_phase::refused, .Why = aWhy };
+			// With the host's records, what was made is the turn's one state
+			// for the finding, kept there ([[BPR-2231]]); the view keeps none.
+			if (KeepRecords) {
+				Keeps[turn].erase(aOutline);
+			} else {
+				Keeps[turn][aOutline] = aDrafted ? report_keep_state{ .Phase = report_keep_phase::kept } : report_keep_state{ .Phase = report_keep_phase::refused, .Why = aWhy };
+			}
 			if (Document.Turn == turn) {
 				render_dressed();
 			}
@@ -872,6 +1082,10 @@ namespace bpr::qt {
 			return;
 		}
 		const auto [outline, link] = minted->second;
+		if (link == report_link::draft_all) {
+			static_cast<void>(press_draft_all());
+			return;
+		}
 		static_cast<void>(press(outline, link));
 	}
 

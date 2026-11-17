@@ -900,14 +900,20 @@ namespace bpr::core {
 					}
 					return text + "```";
 				};
-				// The agent's own comment for this place, when it wrote one.
-				for (auto index = std::size_t{ 0U }; index < aSuggested.size() && finding.First != 0U && finding.Comment.empty(); ++index) {
-					const auto& suggested = aSuggested[index];
-					if (!taken[index] && !suggested.Comment.empty() && suggested.Path == finding.Path && suggested.First <= finding.Last && finding.First <= suggested.Last) {
-						taken[index]    = true;
-						finding.Comment = suggested.Comment;
-						if (proposes && finding.Comment.find("```suggestion") == std::string::npos) {
-							finding.Comment += "\n\n" + block();
+				// [[BPR-2231]]. The card at this place, one with the agent's own
+				// comment first; its comment, when it has one.
+				for (const auto commented : { true, false }) {
+					for (auto index = std::size_t{ 0U }; index < aSuggested.size() && finding.First != 0U && !finding.Card; ++index) {
+						const auto& suggested = aSuggested[index];
+						if (!taken[index] && suggested.Comment.empty() != commented && suggested.Path == finding.Path && suggested.First <= finding.Last && finding.First <= suggested.Last) {
+							taken[index] = true;
+							finding.Card = index;
+							if (commented) {
+								finding.Comment = suggested.Comment;
+								if (proposes && finding.Comment.find("```suggestion") == std::string::npos) {
+									finding.Comment += "\n\n" + block();
+								}
+							}
 						}
 					}
 				}

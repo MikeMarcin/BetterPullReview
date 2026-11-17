@@ -47,6 +47,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -232,6 +233,42 @@ auto main(int argc, char** argv) -> int
 		expect(!report->press(issue.Outline, qt::report_link::keep), "a drafted finding is not drafted twice");
 		render(*report, QStringLiteral("review-report-drafted"));
 
+		// [[BPR-2231]] AC-b, from the report: the issue is the answer's first
+		// finding card, which now reads Drafted too and offers no Draft.
+		const auto cardState = [&](const std::size_t aCard) {
+			const auto  shown = tab->turn_cards(before);
+			auto* const said  = aCard < shown.size() ? shown[aCard]->findChild<QLabel*>(QStringLiteral("agentFindingState")) : nullptr;
+			return said != nullptr ? said->text() : QString{ };
+		};
+		expect(issue.Card == std::optional<std::size_t>{ 0U } && findings[1].Card == std::optional<std::size_t>{ 1U } && tab->turn_cards(before).size() == 2U, "the issue and the tonemap question are the answer's two finding cards");
+		wait([&] { return cardState(0U).startsWith(QStringLiteral("Drafted")); }, "the issue's card reads Drafted: " + cardState(0U).toStdString());
+		// And the other way round: the tonemap card's own Draft, and the
+		// report reads Drafted at that finding.
+		auto* const tonemapDraft = tab->turn_cards(before)[1]->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		expect(tonemapDraft != nullptr && tonemapDraft->isEnabled(), "the tonemap card offers Draft");
+		tonemapDraft->click();
+		wait([&] { return cardState(1U).startsWith(QStringLiteral("Drafted")); }, "the tonemap card is drafted: " + cardState(1U).toStdString());
+		row->click();
+		wait([&] { return window.report_shown() && report->isVisible(); }, "the report opens again");
+		expect(report->keep_state(findings[1].Outline).Phase == qt::report_keep_phase::kept && !report->press(findings[1].Outline, qt::report_link::keep), "drafted on its card, the finding reads Drafted on the report and is not drafted twice");
+
+		// [[BPR-2232]]. Draft all from the report: the two findings not yet
+		// drafted, in the report's order, by the Agent tab's Draft all path;
+		// it says how many and which were passed over; the report stays.
+		page = report->dressed_view()->toPlainText();
+		expect(report->draft_all_offered() == 2U && page.contains(QStringLiteral("Draft all (2)")), "the report offers Draft all for the two left: " + std::to_string(report->draft_all_offered()));
+		render(*report, QStringLiteral("review-report-draft-all-offered"));
+		expect(report->press_draft_all(), "Draft all is pressed");
+		wait([&] { return !report->draft_all_said().startsWith(QStringLiteral("Drafting")) && !report->draft_all_said().isEmpty(); }, "Draft all ends");
+		expect(report->draft_all_said() == QStringLiteral("Drafted 2 private drafts. Skipped 2: 2 already drafted."), "it says how many were drafted and which were not: " + report->draft_all_said().toStdString());
+		expect(report->keep_state(findings[2].Outline).Phase == qt::report_keep_phase::kept && report->keep_state(findings[4].Outline).Phase == qt::report_keep_phase::kept && report->draft_all_offered() == 0U,
+			   "both read Drafted, and nothing is left to draft");
+		wait([&] { return window.report_shown() && report->isVisible(); }, "the report is in front when Draft all ends");
+		expect(unpublished(), "Draft all publishes nothing");
+		page = report->dressed_view()->toPlainText();
+		expect(page.contains(report->draft_all_said()) && !page.contains(QStringLiteral("Draft all (")), "the page says it, and offers Draft all no more");
+		render(*report, QStringLiteral("review-report-draft-all-done"));
+
 		// Keep local, for the finding that names only a file, and Keep summary.
 		for (const auto outline : { findings[3].Outline, std::uint32_t{ 0U } }) {
 			expect(report->press(outline, qt::report_link::keep), "Keep is pressed");
@@ -299,6 +336,62 @@ auto main(int argc, char** argv) -> int
 
 		application->begin_shutdown();
 		wait([&] { return application->status().ShutdownComplete; }, "shutdown");
+		application.reset();
+
+		// [[BPR-2231]] AC-a. After a restart the report and the cards still
+		// say what was drafted and kept.
+		{
+			auto again                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			again.FixtureAgentSession = true;
+			auto restarted            = false;
+			auto second               = access::start(app::detail::github_public_path_fixture::nested_folders_v1, std::move(again), [&](auto aResult) {
+				restarted = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+			wait([&] { return restarted && second && second->is_quiescent(); }, "restart terminal");
+			expect(application != nullptr, "the restart succeeds");
+			application->show();
+			auto& reopened = application->window();
+			reopened.resize(1440, 960);
+			reopened.github_connect_action()->trigger();
+			wait([&] { return reopened.github_open_action()->isEnabled(); }, "connected again");
+			reopened.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+			reopened.home_open_action()->trigger();
+			wait([&] { return reopened.go_to_file_line(path, 3U, false) && reopened.active_document_path() == path; }, "the file opens again");
+			reopened.open_agent_question();
+			auto* const kept = reopened.agent_tab();
+			auto        at   = std::size_t{ 0U };
+			wait([&] {
+				for (at = 0U; at < kept->turn_count(); ++at) {
+					if (kept->turn_report_card(at) != nullptr) {
+						return true;
+					}
+				}
+				return false;
+			},
+				 "the review's turn is back");
+			wait([&] {
+				const auto shown = kept->turn_cards(at);
+				return shown.size() == 2U && std::ranges::all_of(shown, [](QWidget* aCard) {
+						   auto* const said = aCard->findChild<QLabel*>(QStringLiteral("agentFindingState"));
+						   return said != nullptr && said->text().startsWith(QStringLiteral("Drafted"));
+					   });
+			},
+				 "both finding cards read Drafted after the restart");
+			auto* const open = kept->turn_report_card(at)->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
+			open->click();
+			auto* const back = reopened.report_view();
+			wait([&] { return reopened.report_shown() && back->isVisible() && back->findings().size() == 5U; }, "the report opens after the restart");
+			wait([&] { return std::ranges::all_of(back->findings(), [&](const core::report_finding& aFinding) { return back->keep_state(aFinding.Outline).Phase == qt::report_keep_phase::kept; }); },
+				 "every finding still reads Drafted or Kept after the restart");
+			expect(back->keep_state(0U).Phase == qt::report_keep_phase::kept && back->draft_all_offered() == 0U && !back->dressed_view()->toPlainText().contains(QStringLiteral("Keep summary")),
+				   "and the summary still reads Kept");
+			render(*back, QStringLiteral("review-report-after-restart"));
+			application->begin_shutdown();
+			wait([&] { return application->status().ShutdownComplete; }, "shutdown after the restart");
+		}
 		std::cout << "review-report:pass\n";
 		return EXIT_SUCCESS;
 	} catch (const std::exception& aError) {
