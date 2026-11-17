@@ -148,6 +148,68 @@ owner chose on 2026-11-14, is kept.
 - **Fixture agent**: a review is three working notes beside tool calls, then
   a report with a verdict whose findings block lists the report's findings.
 
+## Verification
+
+On the lane at `cf4702b54` (built in the card's own worktree, level with the
+lane), dev preset, macOS:
+
+- `core_agent_report`, `core_prompt_macro`, `core_quick_ask`,
+  `core_agent_question`, `core_review_composition`,
+  `core_feedback_private_promotion`.
+- `qt_agent_report_view`, `qt_prompts_page`, `qt_prompt_macro_chips`,
+  `qt_workbench_window_scale_100`.
+- `application_review_report_public_path` (new; composed, fixture agent):
+  the turn's answer holds the agent's working notes before the report; the
+  card's summary and the opened report hold none of them; verdict, sections
+  and five findings with their keep actions; Draft comment makes a draft
+  conversation at line 12 of `src/engine/renderer.cpp`, then reads Drafted
+  and Go to draft, and is not made twice; Keep local and Keep summary keep;
+  nothing is published; the report opened again still says what was kept;
+  Settings › Prompts shows the body and the read-only section.
+- `application_ask_menu_public_path`, `application_ask_report_public_path`,
+  `application_ask_addressed_public_path`, `application_ask_queue_public_path`,
+  `application_prompt_macros_public_path`, `application_prompt_macro_host`,
+  `application_fixture_agent_every_ask`, `fixture_agent_answers`,
+  `application_agent_chat_composition_contract`,
+  `application_agent_chat_subject_contract`,
+  `application_agent_chat_conversation_contract`,
+  `sqlite_agent_setup_storage`, `architecture_boundaries`,
+  `architecture_boundary_contract`.
+- Not run: the whole suite; `qt_workbench_window` at 125 and 200;
+  `application_agent_chat_replies` (not built).
+- Real agent, after: Claude Code 2.1.319, Sonnet, medium effort, one turn,
+  31 seconds, $0.17 as reported, on MikeMarcin/BPR-Test#185 with the new
+  visible prompt: a verdict (Needs changes), a summary about the change,
+  eight findings under Must fix and Worth a look, two with suggestion
+  blocks, each with its keep action. Its Not reviewed rows still say "I did
+  not" twice.
+
+## Owner look (filed, not waited on)
+
+Attended-review session `61844d36f1e7580e88fb7552e98de6b6`, external state
+directory `~/.attended-review-state/review-report-v001-2026-11-16/`
+(`state/` the session, `manifest.json`, `serve.log`, `serve.pid`), served on
+the tailnet, hosting since 2026-11-16. Four Accept/Reject questions on the
+frozen build `review-report-v001` (root `~/review-report-v001.d9f1mwjz`,
+frozen from `cf4702b541f6`, Fixture agent only): the review reads as a
+report; Draft comment from a finding; the layout (A of three); the review
+prompt's visible body. The before and after real-agent reports and the
+three mockups are its images. Lifecycle: pending.
+
+## Known gaps
+
+- What a report's keep actions made is remembered by the report view for the
+  session, by the report's turn. It is not stored, and it is not shared with
+  the Agent tab's finding cards for the same findings.
+- The report has no Draft all; the Agent tab's Draft all still drafts every
+  finding card of the answer.
+- Pressing the report's row within moments of Go to draft can lose the front
+  to the file's own open (seen once in eight course runs; the course presses
+  until it takes).
+- The Claude stream decoder still appends every text block of a turn to the
+  answer; the report is cut at its title in core. Moving an agent's working
+  notes out of the answer is the Agent tab's (RFC-BPR-0129, [[BPR-2222]]).
+
 ## Intended verification
 
 A real-agent reproduction (Claude Code, Sonnet, medium effort, a mid-sized
