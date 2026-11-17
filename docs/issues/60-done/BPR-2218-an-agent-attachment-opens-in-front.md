@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2218"
 title: "Opening an agent attachment brings it to the front from any mode"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2218--BPR-2218--4840eee868c4.json","origin":"owner, 2026-11-16, about BPR-2166"}
+acceptance: [{"criterion":"AC-a","outcome":"pass","revision":"6a016b3fb","evidence":{"kind":"command","detail":"application_ask_report_public_path on a clean build of 51807e1cc (from Overview, Discuss, Threads and Review the report row lands in Review on its one tab); owner Accept, look attachment-front-from-overview (session 8c5b746b21ea6fd8ae1e2b463e4f49f2, decision 35525a9e)"}},{"criterion":"AC-b","outcome":"pass","revision":"6a016b3fb","evidence":{"kind":"command","detail":"application_ask_report_public_path on a clean build of 51807e1cc (from Overview, Discuss, Threads and Review the report row lands in Review on its one tab); owner Accept, look attachment-front-from-overview (session 8c5b746b21ea6fd8ae1e2b463e4f49f2, decision 35525a9e)"}},{"criterion":"AC-c","outcome":"pass","revision":"6a016b3fb","evidence":{"kind":"command","detail":"application_ask_report_public_path on a clean build of 51807e1cc (from Overview, Discuss, Threads and Review the report row lands in Review on its one tab); owner Accept, look attachment-front-from-overview (session 8c5b746b21ea6fd8ae1e2b463e4f49f2, decision 35525a9e)"}}]
 ---
 
 # Opening an agent attachment brings it to the front from any mode
@@ -69,4 +70,11 @@ the mode stays Review.
 - A first freeze (`bpr-2218-attachment-front-v001.0gl4iri7` in the home
   folder) died with the machine before writing its marker; the freeze tool
   refuses to remove it, so it is left for the owner.
-- Next: read the session's verdict; on Accept, move to Done (mirror to main).
+
+## Owner look (2026-11-16)
+
+- attachment-front-from-overview, **Accept** (no note), on the frozen build of
+  `51807e1cc`; session `8c5b746b21ea6fd8ae1e2b463e4f49f2`, decision
+  `35525a9e-b902-4e1d-ba70-eaa16b4df73a`, handed back at sequence 5. The
+  review host is stopped and the v002 frozen root removed with
+  `freeze_attended_build.py remove`.
