@@ -26,6 +26,7 @@
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextObjectInterface>
+#include <QTextTable>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -68,18 +69,33 @@ namespace bpr::qt {
 
 			void drawObject(QPainter*, const QRectF&, QTextDocument*, int, const QTextFormat&) override { }
 
-			/// An item's code is in its cell, which is the page less the rule
-			/// and its padding.
+			/// An item's code is in its cell: the page less the box's borders,
+			/// the rule's column and the cell's own padding at both sides.
+			/// [[BPR-2238]]: read from the cell, not assumed; the cards look
+			/// pads both sides of a finding's box, the plain look its left.
 			[[nodiscard]] static auto place_width(QTextDocument* aDocument, const int aPosition) -> int
 			{
 				if (aDocument == nullptr) {
 					return 1;
 				}
-				auto width = static_cast<int>(aDocument->textWidth() - 2.0 * aDocument->documentMargin());
-				if (QTextCursor{ aDocument->findBlock(aPosition) }.currentTable() != nullptr) {
-					width -= 3 + 16;
+				auto        width  = aDocument->textWidth() - 2.0 * aDocument->documentMargin();
+				const auto  cursor = QTextCursor{ aDocument->findBlock(aPosition) };
+				auto* const table  = cursor.currentTable();
+				if (table == nullptr) {
+					return std::max(1, static_cast<int>(width));
 				}
-				return std::max(1, width);
+				const auto shape = table->format();
+				const auto cell  = table->cellAt(aPosition);
+				const auto own   = cell.format().toTableCellFormat();
+				const auto side  = [&](const QTextFormat::Property aSide) { return own.hasProperty(aSide) ? own.doubleProperty(aSide) : shape.cellPadding(); };
+				width -= 2.0 * shape.border() + side(QTextFormat::TableCellLeftPadding) + side(QTextFormat::TableCellRightPadding) + shape.cellSpacing() * (table->columns() + 1);
+				const auto widths = shape.columnWidthConstraints();
+				for (auto column = 0; column < table->columns() && column < widths.size(); ++column) {
+					if (column != cell.column() && widths[column].type() == QTextLength::FixedLength) {
+						width -= widths[column].rawValue() + 2.0 * shape.cellPadding();
+					}
+				}
+				return std::max(1, static_cast<int>(std::floor(width)));
 			}
 
 		private:
@@ -600,7 +616,16 @@ namespace bpr::qt {
 			auto cursor = QTextCursor{ document };
 			cursor.setPosition(CodePlaces[index]);
 			const auto line  = Dressed->cursorRect(cursor);
-			const auto width = report_code_objects::place_width(document, CodePlaces[index]);
+			auto       width = report_code_objects::place_width(document, CodePlaces[index]);
+			// [[BPR-2238]]. Never past the right of the line its place is
+			// laid out on: the cell as the layout made it.
+			if (const auto block = document->findBlock(CodePlaces[index]); block.isValid()) {
+				const auto laid = document->documentLayout()->blockBoundingRect(block);
+				const auto room = static_cast<int>(std::floor(laid.right())) - Dressed->horizontalScrollBar()->value() - line.left();
+				if (laid.width() > 0.0 && room > 0) {
+					width = std::min(width, room);
+				}
+			}
 			const auto shape = QRect{ line.left(), line.top(), width, view->heightForWidth(width) };
 			if (view->geometry() != shape) {
 				view->setGeometry(shape);

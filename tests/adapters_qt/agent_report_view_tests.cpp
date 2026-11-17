@@ -6,8 +6,10 @@
 #include "bpr/qt/agent_report_view.hpp"
 
 #include "bpr/core/agent_report.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/report_page.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFile>
@@ -15,11 +17,13 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextTable>
 #include <QUrl>
 
 #include <algorithm>
@@ -56,6 +60,35 @@ namespace {
 					found << href;
 				}
 			}
+		}
+		return found;
+	}
+
+	/// [[BPR-2238]]. How far each code box stands inside the left and the
+	/// right of its finding's box, as the page laid that box out.
+	struct inset
+	{
+		int Left  = 0;
+		int Right = 0;
+	};
+
+	[[nodiscard]] auto code_insets(bpr::qt::agent_report_view& aView) -> std::vector<inset>
+	{
+		auto  found = std::vector<inset>{ };
+		auto* page  = aView.dressed_view();
+		for (auto* const code : aView.code_views()) {
+			if (!code->isVisible()) {
+				continue;
+			}
+			const auto  box    = code->geometry();
+			const auto  cursor = page->cursorForPosition(box.topLeft() + QPoint{ 2, 2 });
+			auto* const table  = cursor.currentTable();
+			if (table == nullptr) {
+				found.push_back({ .Left = -1000, .Right = -1000 });
+				continue;
+			}
+			const auto frame = page->document()->documentLayout()->frameBoundingRect(table).translated(-page->horizontalScrollBar()->value(), -page->verticalScrollBar()->value());
+			found.push_back({ .Left = box.left() - static_cast<int>(frame.left()), .Right = static_cast<int>(frame.right()) - (box.left() + box.width()) });
 		}
 		return found;
 	}
@@ -222,6 +255,21 @@ try {
 	QApplication::processEvents();
 	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::kept && view.dressed_view()->toPlainText().contains(QStringLiteral("Go to draft")),
 		   "a report opened again says what was already drafted");
+	// [[BPR-2238]]. In the cards look a finding's code box and suggested
+	// change stand inside the finding's box, its padding at both sides, at
+	// every pane width.
+	for (const auto width : { 360, 520, 700, 900, 1400 }) {
+		view.resize(width, 700);
+		QApplication::processEvents();
+		const auto insets = code_insets(view);
+		expect(insets.size() == 2U, "the finding's code and its suggested change are shown at " + std::to_string(width));
+		for (const auto& at : insets) {
+			std::cout << "BPR-2238 width " << width << ": left " << at.Left << ", right " << at.Right << "\n";
+			expect(at.Right >= 14 && at.Right <= 16 && at.Left >= 3 + 14 && at.Left <= 3 + 16, "a code box keeps the box's padding at both sides at " + std::to_string(width) + ": left " + std::to_string(at.Left) + ", right " + std::to_string(at.Right));
+		}
+	}
+	view.resize(900, 700);
+	QApplication::processEvents();
 	// Report pages render with no action at all where no view mints one.
 	const auto bare = bpr::qt::report_page_html(bpr::core::dress_report(hostile.toStdString()), { });
 	expect(!bare.contains(QStringLiteral("report-action-0000000000000000000000000000000a")) && bare.contains(QStringLiteral("bpr-draft:2")) && !bare.contains(QStringLiteral("Draft comment")) && !bare.contains(QStringLiteral("Keep summary")),
