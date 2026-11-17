@@ -35,11 +35,17 @@ when the list is truly empty.
   list says so; clearing it shows the editor again with the selection it had.
 - **AC-e.** Presentation only: the selection policy lives in the Qt page; the
   core's prompt editor is unchanged.
+- **AC-f.** The owner, 2026-11-16, on the same page: "we can probably move the
+  restore built-ins and new prompt to the same row as the filter for the
+  prompt library." New prompt and Restore built-ins sit on the filter's row,
+  at its right; the filter takes the room left. The row fits the page's
+  narrowest width at 100, 125 and 200 percent without clipping: as the page
+  narrows the title, then the filter choices, go on their own lines.
 
 The owner's look on a frozen build (Fixture agent only, a fresh short session,
-one Accept/Reject) is filed, not waited on.
+one Accept/Reject for each of AC-a to AC-d and AC-f) is filed, not waited on.
 
 ## Intended verification
 
-`qt_prompts_page` asserts AC-a to AC-d; native-look renders light and dark,
-before and after.
+`qt_prompts_page` asserts AC-a to AC-d and AC-f (run at 100, 125 and 200
+percent); native-look renders light and dark, before and after.
