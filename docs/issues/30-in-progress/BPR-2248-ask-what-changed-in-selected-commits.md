@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2248"
 title: "Agent actions on selected commits in the Commits tab"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"reservation":"docs/issues/_reservations/BPR-2248--BPR-2248--f74f9df334a2.json","origin":"owner request, 2026-11-17"}
+platforms: ["mac", "win", "linux"]
+metadata: {"reservation":"docs/issues/_reservations/BPR-2248--BPR-2248--f74f9df334a2.json","origin":"owner request, 2026-11-17","mandate_revision":"v0-5-0-prerelease-targets-r1","related":["BPR-2247","BPR-2179"]}
 ---
 
 # Agent actions on selected commits in the Commits tab
