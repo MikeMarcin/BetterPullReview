@@ -115,8 +115,6 @@ REQUIRED = [SOURCE / relative for relative in {required!r}]
 FIXTURE = {fixture!r}
 # None opens the pull request on its own opening page (its Overview).
 OPEN_FILE = {open_file!r}
-# True starts on Home: the look's own --attended-home-look decides what it holds.
-OPEN_HOME = {open_home!r}
 NEXT_PUSH = {next_push!r}
 # Further application arguments; {{build}} is the build tree in this root.
 EXTRA = [argument.replace("{{build}}", str(SOURCE / {build!r})) for argument in {extra!r}]
@@ -152,7 +150,7 @@ def preflight() -> bool:
 
 
 def arguments(data, phase):
-    opening = [] if OPEN_HOME else ["--attended-open-pull-request"] if OPEN_FILE is None else ["--attended-open-file", OPEN_FILE]
+    opening = ["--attended-open-pull-request"] if OPEN_FILE is None else ["--attended-open-file", OPEN_FILE]
     result = [str(EXECUTABLE), "--github-fixture", FIXTURE, "--attended-launch", *opening, *EXTRA]
     if data is not None:
         result += ["--epoch-fixture-root", str(data / "data"), "--epoch-fixture-phase", phase]
@@ -511,15 +509,13 @@ NEXT_PUSH_CHECK = "; with the push, it\n                opens the pushed head to
 
 
 def render_launcher(*, root: Path, title: str, commit: str, fixture: str, open_file: str | None, required: list[str], next_push: bool,
-                    extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN", wait: int = 60, open_home: bool = False) -> str:
+                    extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN", wait: int = 60) -> str:
     """The launcher for one frozen root, from the one template.
 
-    `open_file` None starts on the pull request's own opening page;
-    `open_home` starts on Home instead.
+    `open_file` None starts on the pull request's own opening page.
     """
     return LAUNCHER.format(
-        opens="on Home" if open_home else "on its Overview" if open_file is None else f"with {open_file} open in Review",
-        open_home=open_home,
+        opens="on its Overview" if open_file is None else f"with {open_file} open in Review",
         build=BUILD,
         extra=list(extra or []),
         ready=ready,
@@ -623,16 +619,9 @@ def freeze(options: argparse.Namespace) -> int:
             return fail("--live freezes no fixture: it takes no --fixture, --open-file, --open-pull-request, "
                         "--next-push, --require, --generate or --ready")
         return freeze_live(options)
-    if not options.fixture or not (options.open_file or options.open_pull_request or options.open_home):
-        return fail("a fixture look needs --fixture and one of --open-file, --open-pull-request or --open-home")
-    if options.open_home:
-        # [[BPR-2216]]. A look at Home opens nothing itself; the application's
-        # own home look signs in and fills Home, and says when it has.
-        if "--attended-home-look" not in options.argument or options.next_push:
-            return fail("--open-home needs --argument --attended-home-look and has no next push")
-        if options.ready is None:
-            options.ready = "ATTENDED_HOME_SHOWN"
-    elif options.open_pull_request:
+    if not options.fixture or not (options.open_file or options.open_pull_request):
+        return fail("a fixture look needs --fixture and one of --open-file or --open-pull-request")
+    if options.open_pull_request:
         if options.next_push or options.ready not in (None, OPENED):
             return fail("--open-pull-request waits for ATTENDED_PULL_REQUEST_OPENED and has no next push")
         options.ready = OPENED
@@ -692,8 +681,7 @@ def freeze(options: argparse.Namespace) -> int:
     launcher = root / "launch.py"
     launcher.write_text(render_launcher(root=root, title=options.title, commit=session_line(record), fixture=options.fixture,
                                         open_file=options.open_file, required=required, next_push=options.next_push,
-                                        extra=options.argument, ready=options.ready, wait=options.wait,
-                                        open_home=options.open_home))
+                                        extra=options.argument, ready=options.ready, wait=options.wait))
     launcher.chmod(0o755)
     digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     (root / MARKER).write_text(json.dumps({
@@ -795,8 +783,6 @@ def main() -> int:
     frozen.add_argument("--fixture")
     opening = frozen.add_mutually_exclusive_group()
     opening.add_argument("--open-file", help="the fixture file the look opens in Review")
-    opening.add_argument("--open-home", action="store_true",
-                         help="start on Home, filled by --argument --attended-home-look; ready at ATTENDED_HOME_SHOWN")
     opening.add_argument("--open-pull-request", action="store_true",
                          help="open the pull request on its own opening page (its Overview), no file")
     frozen.add_argument("--commit", default="HEAD",
