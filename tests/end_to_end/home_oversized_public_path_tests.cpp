@@ -219,6 +219,7 @@ try {
 			wait_for([&] { return settled(QStringLiteral("Approve again")); }, "a dismissed approval's review reads Approve again", 20'000);
 			expect(editor->followup_label()->text().contains(QStringLiteral("dismissed")), "the review says GitHub dismissed my approval: " + editor->followup_label()->text().toStdString());
 			expect(!editor->seen_button()->isVisible(), "a dismissed approval cannot be seen away");
+			wait_for([&] { return approve->isEnabled(); }, "Approve again can be submitted once the review's comments are read", 20'000);
 			expect(approve->toolTip().contains(QStringLiteral("new approval")) && approve->accessibleName() == QStringLiteral("Approve again"),
 				   "Approve again says it submits a new approval: " + approve->toolTip().toStdString());
 			if (renderAt >= 0) {

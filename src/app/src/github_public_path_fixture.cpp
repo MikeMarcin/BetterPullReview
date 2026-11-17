@@ -3800,6 +3800,26 @@ namespace bpr::app::detail {
 					State->DraftNode = object.value(QStringLiteral("node_id")).toString();
 					response->Body   = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
+				// [[BPR-2217]]. A Home row whose verdict came before commits
+				// (`ViewerVerdictBefore`) opens to the same history: the viewer's
+				// own recorded review carries that verdict on the earlier commit,
+				// so the open pull request agrees with its row.
+				if (State->PersonalDiscovery && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::list_reviews && response->Status == 200) {
+					const auto& rows  = State->PersonalDiscovery->OpenPullRequests;
+					const auto  found = std::ranges::find_if(rows, [&](const auto& aRow) { return aRow.Number == aRequest.Wire.Semantic.PullRequestNumber && !aRow.ViewerVerdictBefore.empty(); });
+					if (found != rows.end()) {
+						auto reviews = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).array();
+						for (qsizetype index = 0; index < reviews.size(); ++index) {
+							auto review = reviews[index].toObject();
+							if (review.value(QStringLiteral("user")).toObject().value(QStringLiteral("node_id")).toString() == QStringLiteral("U_fixture_viewer")) {
+								review.insert(QStringLiteral("state"), QString::fromUtf8(found->ViewerVerdictBefore.data(), static_cast<qsizetype>(found->ViewerVerdictBefore.size())));
+								review.insert(QStringLiteral("commit_id"), QString{ 40, QLatin1Char('b') });
+								reviews[index] = review;
+							}
+						}
+						response->Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
+					}
+				}
 				// The read holds the repository search's row for the pull request
 				// to its metadata, so the row says the same.
 				if (State->DraftStateServed && aRequest.Wire.Operation == read_operation::search_pull_requests && response->Status == 200 && !State->DraftNode.isEmpty()) {
