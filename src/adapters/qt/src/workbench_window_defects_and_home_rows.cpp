@@ -1657,6 +1657,10 @@ namespace bpr::qt {
 		const auto  repositories = discovery.Repositories == 1U ? QStringLiteral("1 saved repository") : QStringLiteral("%1 saved repositories").arg(discovery.Repositories);
 		if (restoring) {
 			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false, { .Loading = QStringLiteral("Loading my pull requests…") });
+		} else if (finding && rows) {
+			// [[BPR-2216]]. Listed rows stay readable and the status bar says
+			// Home refreshes; the list's foot does not say it again.
+			PendingPanes.HomeList->present_ready();
 		} else if (finding) {
 			// [[BPR-1848]]. Rows already listed are the newest there are until
 			// the refresh replaces them row by row, so they are never washed

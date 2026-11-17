@@ -280,8 +280,12 @@ namespace bpr::qt {
 		if (RefreshNote != nullptr && shown) {
 			switch (state.Phase) {
 			case core::refresh_phase::refreshing:
-				if (state.Trigger == core::refresh_trigger::reviewer && (before.Phase != core::refresh_phase::refreshing || before.Trigger != core::refresh_trigger::reviewer)) {
-					RefreshNote->present(refresh_note_tone::busy, aHome ? QStringLiteral("Finding my pull requests…") : QStringLiteral("Refreshing the pull request…"), button);
+				// [[BPR-2216]]. On Home the status bar alone says it refreshes
+				// (the owner, 2026-11-16: "Seems home has a similar thing").
+				if (aHome) {
+					RefreshNote->dismiss();
+				} else if (state.Trigger == core::refresh_trigger::reviewer && (before.Phase != core::refresh_phase::refreshing || before.Trigger != core::refresh_trigger::reviewer)) {
+					RefreshNote->present(refresh_note_tone::busy, QStringLiteral("Refreshing the pull request…"), button);
 				}
 				break;
 			case core::refresh_phase::updated:

@@ -25262,7 +25262,7 @@ namespace {
 		auto* const note = window.refresh_note_widget();
 		expect(window.home_refresh().Phase == core::refresh_phase::refreshing && window.home_refresh().Trigger == core::refresh_trigger::reviewer,
 			   "the refresh it started is the reviewer's");
-		expect(note->isVisible() && note->text() == QStringLiteral("Finding my pull requests…"), "and says so under the button");
+		expect(!note->isVisible(), "and leaves saying so to the status bar ([[BPR-2216]])");
 		press(window);
 		expect(refreshes() == 1 && homeTriggers == 1, "while it runs a second press starts nothing");
 		status.State             = state::stale;

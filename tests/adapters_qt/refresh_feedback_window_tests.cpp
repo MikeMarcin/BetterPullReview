@@ -284,7 +284,7 @@ namespace {
 		subject.Window.publish(projection);
 		expect(subject.Window.home_refresh().Phase == core::refresh_phase::refreshing && subject.Window.home_refresh().Trigger == core::refresh_trigger::reviewer,
 			   "Home's Refresh is the reviewer's");
-		expect(subject.Window.refresh_note_widget()->text() == QStringLiteral("Finding my pull requests…"), "Home's note says it");
+		expect(!subject.Window.refresh_note_widget()->isVisible(), "Home's note leaves saying it to the status bar ([[BPR-2216]])");
 		projection.Discovery.State             = application::queue_discovery_state::stale;
 		projection.Discovery.Problem           = application::queue_discovery_problem::rate_limited;
 		projection.Discovery.RetryAfterSeconds = 30U;

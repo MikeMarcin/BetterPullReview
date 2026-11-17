@@ -277,14 +277,13 @@ try {
 		window->queue_refresh_action()->trigger();
 		wait_for([&] { return window->home_refresh().Phase == core::refresh_phase::refreshing; }, "Home's refresh starts");
 		expect(window->home_refresh().Trigger == core::refresh_trigger::reviewer, "it is the reviewer's");
-		expect(note->text() == QStringLiteral("Finding my pull requests…"), "Home's note says it");
+		expect(!note->isVisible(), "Home's note leaves saying it to the status bar ([[BPR-2216]])");
 		renders(QStringLiteral("home-refresh-started"));
 		pause(800);
-		// [[BPR-1848]]. Its rows are not washed over: the refresh is said on
-		// the partial plate at the list's foot.
-		expect(window->pending_veils().HomeList->look() == core::pending_look::partial
-				   && window->pending_veils().HomeList->shown_text().startsWith(QStringLiteral("Refreshing my pull requests")),
-			   "Home's list says it is refreshed, at its foot, without veiling its rows");
+		// [[BPR-1848]]. Its rows are not washed over. [[BPR-2216]]: the status
+		// bar says Home refreshes; the list's foot does not say it again.
+		expect(!window->pending_veils().HomeList->busy() && window->refresh_freshness_label()->text().startsWith(QStringLiteral("Refreshing")),
+			   "Home's rows stay readable and only the status bar says it refreshes");
 		renders(QStringLiteral("home-refresh-under-way"));
 		wait_for([&] { return window->home_refresh().Phase != core::refresh_phase::refreshing; }, "Home's refresh settles");
 		expect(note->text() == QStringLiteral("Up to date: no new pull requests."), "Home's note says what it found");

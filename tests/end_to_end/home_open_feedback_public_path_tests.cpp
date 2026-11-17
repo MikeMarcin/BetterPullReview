@@ -436,9 +436,11 @@ try {
 			pause(200);
 			refresh();
 		}
+		// [[BPR-2216]]. Home chosen to refresh while it opened: the review
+		// arrives behind Home, with Return.
 		wait_for([&] {
 			cancelledSeen = cancelledSeen || window->session_panel()->status() == core::github_status::pull_request_cancelled;
-			return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; },
+			return window->session_panel()->status() == core::github_status::pull_request_ready && (!window->showing_home() || window->home_action_returns()); },
 				 "the pull request opens", [&] { std::cerr << "status=" << static_cast<int>(window->session_panel()->status()) << " cancelled=" << delay->Cancelled.load() - cancelledBefore << '\n'; },
 				 static_cast<int>(2U * retained_hold_ms));
 		std::cerr << "opened " << aName << (aRefreshFirst ? " after" : " before") << " a refresh in " << opening.elapsed() << " ms; refreshing="
@@ -811,9 +813,9 @@ try {
 		pause(300);
 		expect(discovery().Status.State == application::queue_discovery_state::refreshing && discovery().Statistics.Answered == before.Answered + 1U,
 			   "Home is still loading, its searches held on the wire");
-		// [[BPR-1848]]. Its rows are no longer greyed while it loads: the
-		// plate at the list's foot says so.
-		wait_for([&] { return window->pending_veils().HomeList->look() == core::pending_look::partial; }, "and its list says it is refreshing, at its foot", { }, 3000);
+		// [[BPR-1848]]. Its rows are no longer greyed while it loads.
+		// [[BPR-2216]]: the status bar alone says Home refreshes.
+		wait_for([&] { return !window->pending_veils().HomeList->busy() && (window->refresh_freshness_label()->text().startsWith(QStringLiteral("Refreshing")) || window->refresh_freshness_label()->text().startsWith(QStringLiteral("Updating"))); }, "and only the status bar says it is refreshing", { }, 3000);
 		QElapsedTimer opening;
 		opening.start();
 		double_click(row_of(*window, failing_name));

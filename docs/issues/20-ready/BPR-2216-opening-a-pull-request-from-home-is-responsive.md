@@ -111,8 +111,13 @@ permanently nongating (AGENTS.md, "Debug timings").
   read opened from a Home row (`listed_opening`); a startup restoration is
   cancelled by Home as before.
 - **One loading sentence.** The Overview's sections and the review's panes
-  no longer say "Still waiting for GitHub: …"; Home's discovery line is
-  hidden while Home refreshes. The status bar says both. The empty list's
+  no longer say "Still waiting for GitHub: …". While Home refreshes, its
+  discovery line is hidden, its Refresh button shows no "Finding my pull
+  requests…" note, and its listed rows carry no "Refreshing my pull
+  requests…" plate at the list's foot. The status bar says both
+  ("Loading changed files… N pages received.", "Refreshing…"). The Updates
+  line's readiness while a pull request loads is unchanged and is asked about
+  in the look. The empty list's
   own placeholder ("Finding my pull requests in …" in place of rows that do
   not exist yet) stays: it stands where content will be, not under the bar.
 - Courses changed to the new behaviour: BPR-1357's (`home_open_feedback`;
