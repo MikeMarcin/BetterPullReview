@@ -56,8 +56,17 @@ the mode stays Review.
   lands in Review on the report's one tab).
 - `frontend-design:frontend-design` loaded before the Qt work; the change is
   behaviour only, nothing drawn differently.
-- Verification pending: the shared lane tree carries another worker's
-  half-edited Home file, so the course is built and run from the freeze's
-  clean export of `6a016b3fb` (`--target test_ask_menu_public_path`).
-- Next: run `application_ask_menu_public_path_report`'s command from that
-  build; open the owner's look (frozen build, one Accept/Reject).
+- Verified on a clean export of lane HEAD `51807e1cc` (contains the fix):
+  `application_ask_report_public_path` passes (`ask-menu-report:pass`), run
+  from the frozen root's own tests-on build, so HEAD builds.
+- Owner look filed, not waited on: frozen root
+  `/Users/jaeger/bpr-2218-attachment-front-v002.jsodf4_n` (session line:
+  "Frozen from 51807e1ccada ... HEAD of claude/v0-5-0-prerelease-targets-52265d
+  at freeze"), fixture returning-review-v1 at its next push, Fixture agent.
+  Attended session `8c5b746b21ea6fd8ae1e2b463e4f49f2`, state
+  `/Users/jaeger/bpr-attended/bpr-2218-v001/attended-review`, served on the
+  tailnet; one Accept/Reject (`attachment-front-from-overview`), cursor 2.
+- A first freeze (`bpr-2218-attachment-front-v001.0gl4iri7` in the home
+  folder) died with the machine before writing its marker; the freeze tool
+  refuses to remove it, so it is left for the owner.
+- Next: read the session's verdict; on Accept, move to Done (mirror to main).
