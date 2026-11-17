@@ -23,7 +23,9 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -33,6 +35,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTextEdit>
@@ -239,14 +242,37 @@ auto main(int argc, char** argv) -> int
 		// says what was kept.
 		expect(report->press(issue.Outline, qt::report_link::go), "Go to draft is pressed");
 		wait([&] { return window.active_document_path() == path && !window.report_shown(); }, "Go to draft shows the file");
-		row->click();
-		wait([&] { return window.report_shown() && report->isVisible(); }, "the report opens again");
+		// Pressed until it takes: the file's own open may still be settling
+		// when the row is first pressed, and would take the front back.
+		wait([&] {
+			if (!window.report_shown()) {
+				row->click();
+				QApplication::processEvents();
+			}
+			return window.report_shown() && report->isVisible();
+		},
+			 "the report opens again");
 		QApplication::processEvents();
 		page = report->dressed_view()->toPlainText();
 		expect(report->keep_state(issue.Outline).Phase == qt::report_keep_phase::kept && report->keep_state(0U).Phase == qt::report_keep_phase::kept && page.contains(QStringLiteral("Go to draft"))
 				   && !page.contains(QStringLiteral("Keep summary")),
 			   "opened again, the report still says what was drafted and kept");
 		render(window, QStringLiteral("review-report-window"));
+
+		// AC-f. Settings › Prompts: the review prompt's body is its
+		// instructions, and under its editor the format that is always added.
+		window.open_settings(qt::settings_page::prompts);
+		window.prompts()->select("agent-tab.review-pull-request");
+		QApplication::processEvents();
+		auto* const body   = window.prompts()->findChild<QPlainTextEdit*>(QStringLiteral("promptsText"));
+		auto* const format = window.prompts()->findChild<QPlainTextEdit*>(QStringLiteral("promptsResultText"));
+		expect(body != nullptr && body->toPlainText().startsWith(QStringLiteral("Review this pull request as a careful colleague would")) && body->toPlainText().contains(QStringLiteral("Sections, in this order")),
+			   "Settings › Prompts shows the review prompt's instructions as its body");
+		expect(window.prompts()->review_result_box()->isVisibleTo(window.prompts()) && format != nullptr && format->isReadOnly() && format->toPlainText().contains(QStringLiteral("# Review of #N"))
+				   && format->toPlainText().contains(QStringLiteral("**Verdict:**")),
+			   "and, read-only under it, the report format that is always added");
+		render(*window.settings(), QStringLiteral("review-report-prompts"));
+		window.settings()->hide();
 
 		application->begin_shutdown();
 		wait([&] { return application->status().ShutdownComplete; }, "shutdown");
