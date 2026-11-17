@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2217"
 title: "Seen and Approve again move from Home into the review"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0098", "RFC-BPR-0116"]
 depends_on: []
+acceptance: [{"criterion":"AC-a","outcome":"pass","revision":"764cfbee0","evidence":{"kind":"command","detail":"Seen beside Approve, writes nothing, review then up to date","command":"ctest --preset dev -R '^(core_review_queue_attention|application_review_seen_public_path)$'"}},{"criterion":"AC-b","outcome":"pass","revision":"764cfbee0","evidence":{"kind":"command","detail":"a dismissed approval's review reads Approve again","command":"ctest --preset dev -R '^(core_review_queue_attention|application_home_approve_again_public_path)$'"}},{"criterion":"AC-c","outcome":"pass","revision":"764cfbee0","evidence":{"kind":"command","detail":"Home rows keep the verdict chip, offer no Seen or Approve again","command":"ctest --preset dev -R '^application_home_oversized_public_path$'"}},{"criterion":"AC-d","outcome":"pass","revision":"764cfbee0","evidence":{"kind":"command","detail":"core::review_followup_words_for decides states and words; Qt presents","command":"ctest --preset dev -R '^core_review_queue_attention$'"}},{"criterion":"owner look","outcome":"pass","revision":"2aee77350","evidence":{"kind":"observation","detail":"Owner accepted BPR-2217-review-seen (fb938082), BPR-2217-approve-again (c78ee981), BPR-2217-home-row (4316515b, note: the Home screenshot did not show what was asked), session 90d237427a59a8fc8e95d016e4d3573f"}}]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2217--BPR-2217--3558698e5e90.json","origin":"owner, 2026-11-16, about BPR-2049","supersedes_surface_of":"BPR-2049"}
 ---
 
@@ -102,3 +103,20 @@ protected: `BPR-2217-review-seen` (AC-a, build), `BPR-2217-approve-again`
 build). The URL stays in the session state.
 
 Next: read `status --after 9`; Accept on all three closes the card.
+
+## Owner verdict and closeout (2026-11-16)
+
+Session `90d237427a59a8fc8e95d016e4d3573f`, read at cursor 18: all three
+accepted. `BPR-2217-review-seen` decision `fb938082` and
+`BPR-2217-approve-again` decision `c78ee981`, no note. `BPR-2217-home-row`
+decision `4316515b`, with the note, verbatim:
+
+> Yes i checked, although you screenshot doesnt show what you wanted me to check.
+
+Feedback for later looks: that question's Now image was a course render of
+Home with no row hovered, and from other rows (#18, #19) than the frozen build
+listed (#17, #4004). It did not show the hover the question asked about. A
+Now image must come from the frozen build and show the exact state the
+question asks the owner to judge.
+
+The review host is stopped. The frozen root and the renders are removed.
