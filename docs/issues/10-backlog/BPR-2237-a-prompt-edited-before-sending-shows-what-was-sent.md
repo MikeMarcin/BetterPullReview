@@ -12,7 +12,7 @@ metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs
 
 ## Origin
 
-In the Agent tab a turn sent from a prompt shows the prompt's name, with Show prompt for what was sent ([[BPR-2219]], AC-h). A prompt put in the question field with Shift-click and edited there is still sent under the prompt's name (, where the pending name is kept whenever a prompt is being sent), so the reviewer's own words are behind Show prompt too.
+In the Agent tab a turn sent from a prompt shows the prompt's name, with Show prompt for what was sent ([[BPR-2219]], AC-h). A prompt put in the question field with Shift-click and edited there is still sent under the prompt's name (`agent_tab_view`, where the pending name is kept whenever a prompt is being sent), so the reviewer's own words are behind Show prompt too.
 
 ## Scope and acceptance
 

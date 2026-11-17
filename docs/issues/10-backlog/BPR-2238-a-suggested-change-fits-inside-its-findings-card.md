@@ -17,4 +17,4 @@ In the report's Cards look ([[BPR-2219]], docs/design/review-report-v2) the sugg
 ## Scope and acceptance
 
 - **AC-a.** A code box and a suggested change stand within the finding's box, with the box's padding at both sides, at every pane width.
-- **AC-b.**  measures it.
+- **AC-b.** `qt_agent_report_view` measures it.
