@@ -15,17 +15,18 @@ metadata: {"reservation":"docs/issues/_reservations/BPR-2229--BPR-2230--95323aae
 RFC-BPR-0129 milestone M2 ([RFC](../../rfcs/RFC-BPR-0129-prompts-declare-a-result-and-features.md), "A self-describing export, and an
 import check"; owner decision 2026-11-16). This card is separate from
 [[BPR-2224]] because it needs a person's own prompts in the file, which
-RFC-BPR-0125's [[BPR-2149]] adds.
+RFC-BPR-0125's [[BPR-2149]] adds to the version 2 file. The dependency is
+functional, not for compatibility: most refusal reasons (an unknown Result,
+a forbidden placement) arise only on a person's own prompts.
 
 ## Scope
 
 - **The guide.** Core generates it from the catalog. It covers every
   Result and Feature with a one-line description, the placements, the
   Features each Result carries, the rules, and one worked example. It is
-  written into every export as the Prompts item `guide.prompts`, using
-  only existing item fields. The decoder is strict, so a new top-level
-  section would make older builds refuse the whole file.
-- **Import.** The new build never imports the guide item. The import check
+  written into every export as the top-level `guide` section of the
+  version 2 file.
+- **Import.** Import reads past the guide and acts on nothing in it. The import check
   decides in core whether each prompt is Add, Change or Refused, with the
   RFC's reasons. The import preview shows those decisions and writes
   nothing until the person confirms; Cancel writes nothing.
@@ -44,5 +45,4 @@ RFC-BPR-0129 AC18, AC19, AC20.
 - A core test comparing the guide with the catalog.
 - Fixture files with the worked example and with each mistake, through the
   import preview.
-- Importing into a build from before this RFC: the guide and the `flow.*`
-  items are listed as not importable, and the rest imports.
+- The same file with its guide edited or removed gives identical decisions.
