@@ -317,6 +317,20 @@ namespace bpr::core {
 		const document_tabs_state& aState,
 		const document_tab&        aTab) noexcept -> bool;
 
+	/// \brief [[BPR-2233]]. Whether the active tab takes the window's selected
+	/// file now.
+	///
+	/// \details A file tab takes a selection it does not show. A report's tab
+	/// yields only to a choice still in force (`observe_file_choice`): the
+	/// report's tab taking the front after the choice retired it, so the
+	/// later of the two gestures stands, whenever the file's own open
+	/// settles. With no active tab, a selection the host has not yet
+	/// reflected (`aReflected`) opens.
+	[[nodiscard]] auto takes_selected_file(
+		const document_tabs_state&          aState,
+		const file_identity&                aSelected,
+		const std::optional<file_identity>& aReflected) noexcept -> bool;
+
 	/// \brief The tab with this identity, if the collection holds it.
 	[[nodiscard]] auto find_tab(
 		const document_tabs_state& aState,

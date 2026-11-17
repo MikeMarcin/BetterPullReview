@@ -900,8 +900,9 @@ namespace bpr::app {
 		}
 		const auto selected     = WorkbenchHost->selected();
 		const auto previousFile = std::exchange(ObservedTabFile, selected);
-		if (const auto* active = activeTab(); selected.has_value()
-			&& (active != nullptr ? active->View.File != selected : previousFile != selected)) {
+		// [[BPR-2233]]. A report's tab opened after the file was chosen keeps
+		// the front while the file's own open settles.
+		if (selected.has_value() && core::takes_selected_file(TabHost->state(), *selected, previousFile)) {
 			TabHost->apply(core::open_in_active_tab_intent{ .File = *selected });
 		}
 		observe_tab_reading();

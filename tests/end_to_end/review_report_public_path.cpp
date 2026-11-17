@@ -32,6 +32,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -247,17 +248,19 @@ auto main(int argc, char** argv) -> int
 		// says what was kept.
 		expect(report->press(issue.Outline, qt::report_link::go), "Go to draft is pressed");
 		wait([&] { return window.active_document_path() == path && !window.report_shown(); }, "Go to draft shows the file");
-		// Pressed until it takes: the file's own open may still be settling
-		// when the row is first pressed, and would take the front back.
-		wait([&] {
-			if (!window.report_shown()) {
-				row->click();
-				QApplication::processEvents();
-			}
-			return window.report_shown() && report->isVisible();
-		},
-			 "the report opens again");
+		// [[BPR-2233]]. The report's row pressed once, straight after, while
+		// the file's own open may still be settling: the later gesture wins.
+		row->click();
 		QApplication::processEvents();
+		wait([&] { return window.report_shown() && report->isVisible(); }, "the report opens again");
+		{
+			auto settle = QElapsedTimer{ };
+			settle.start();
+			while (settle.elapsed() < 3000) {
+				QApplication::processEvents(QEventLoop::AllEvents, 50);
+				expect(window.report_shown() && report->isVisible(), "the file's settling open does not take the front back from the report");
+			}
+		}
 		page = report->dressed_view()->toPlainText();
 		expect(report->keep_state(issue.Outline).Phase == qt::report_keep_phase::kept && report->keep_state(0U).Phase == qt::report_keep_phase::kept && page.contains(QStringLiteral("Go to draft"))
 				   && !page.contains(QStringLiteral("Keep summary")),
