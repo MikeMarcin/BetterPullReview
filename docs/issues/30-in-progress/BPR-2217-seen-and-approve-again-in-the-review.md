@@ -41,3 +41,38 @@ the fixture GitHub server: the review of an approved pull request with new
 commits offers Seen beside Approve, Seen asks GitHub for nothing and the
 review then reads up to date; a dismissed approval's review reads Approve
 again; Home rows offer no Seen or Approve again.
+
+## Checkpoint 1 (2026-11-16)
+
+Frontend-design was loaded before the Qt work.
+
+Lane commits: `200ada033` (core words, review editor, Home removal, courses),
+`e3f7f16ee` (drops a BPR-2216 line that rode in with it), `dc2bda139` (the
+public-path fixture's opened pull request carries its Home row's earlier
+verdict, so the open agrees with the row).
+
+- Core: `core::review_followup_words_for` (`review_queue_attention.hpp`)
+  decides the standing (`new_commits_since_approval`, `approval_dismissed`,
+  `up_to_date`) and every word the review shows; Qt
+  (`review_submission_editor::set_followup`) presents them: a note above the
+  verdicts, Seen beside Approve, Approve's name.
+- Home: the hover Seen / Approve again action, its `followup` role and
+  `home_list::set_followup_dispatch` are gone; the verdict chip stays. The
+  Pull Request menu's Mark New Commits Seen stays.
+
+Verification, on a private worktree of the lane's BPR-2217 commits without
+the other lanes' uncommitted work (`c073674b4`, same tree for these paths),
+`ctest --preset dev -R …`:
+
+- `core_review_queue_attention` (test_review_followup_words) — pass (AC-a, AC-b, AC-d).
+- `application_review_seen_public_path` — pass (AC-a): #17's review offers
+  Seen beside Approve, Seen asks GitHub for nothing, no review submitted, the
+  review then reads "Up to date…", Home has it in Following.
+- `application_home_approve_again_public_path` — pass (AC-b): the dismissed
+  approval's review reads Approve again and says GitHub dismissed it.
+- `application_home_oversized_public_path` — pass (AC-c): #18/#19 keep their
+  verdict chips in Needs me with no row action and no hover Seen / Approve again.
+- `qt_review_landing_model`, `qt_home_list_scale_100`,
+  `qt_review_submission_editor_scale_100` — pass.
+
+Pending: the owner's look (filed, not waited on).
