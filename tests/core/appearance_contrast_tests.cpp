@@ -258,9 +258,13 @@ namespace {
 			const auto count = std::ranges::count_if(
 				pairs,
 				[background, expectedKind](const contrast_pair& aPair) {
+					// [[BPR-2236]]. The three tones are words on the code
+					// canvas too, but not syntax.
+					const auto tone = aPair.Foreground == appearance_role::report_verdict_open || aPair.Foreground == appearance_role::report_verdict_partial
+						|| aPair.Foreground == appearance_role::report_verdict_done;
 					return aPair.Background == background
 						&& aPair.Kind == expectedKind
-						&& !aPair.Wash.has_value();
+						&& !aPair.Wash.has_value() && !tone;
 				});
 			expect_equal(static_cast<std::uint32_t>(count), 28U,
 						 "every syntax role is checked over every canvas background");
@@ -343,8 +347,14 @@ namespace {
 						 return aPair.Foreground == appearance_role::agent_accent && aPair.Background == appearance_role::application_surface && aPair.Kind == contrast_kind::text;
 					 })),
 					 1U, "the agent accent is held to the text floor on the application surface");
-		// RFC-BPR-0128: five report pairs.
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 716U,
+		// RFC-BPR-0128, [[BPR-2236]]: the three tones on the code canvas.
+		expect_equal(static_cast<std::uint32_t>(std::ranges::count_if(pairs, [](const contrast_pair& aPair) {
+						 return (aPair.Foreground == appearance_role::report_verdict_open || aPair.Foreground == appearance_role::report_verdict_partial
+								 || aPair.Foreground == appearance_role::report_verdict_done)
+							 && aPair.Background == appearance_role::code_background && aPair.Kind == contrast_kind::text;
+					 })),
+					 3U, "the three tones are held to the text floor on the code canvas");
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 714U,
 					 "the checked set is the four fixed pairs, the boundary rule, "
 					 "28 syntax roles over "
 					 "bare canvas backgrounds and under the selection and two Find "
@@ -1119,13 +1129,13 @@ namespace {
 	/// paper only as far as the text floor allows.
 	auto test_report_shades_hold_the_floor() -> void
 	{
-		auto palette                                     = appearance_palette{ };
-		palette[index_of(appearance_role::report_paper)] = srgb(0xEEF1F0);
-		palette[index_of(appearance_role::report_ink)]   = srgb(0x1C2427);
-		const auto shades                                = derive_report_shades(palette);
-		expect(contrast_ratio_hundredths(shades.Faint, palette[index_of(appearance_role::report_paper)]) >= text_contrast_minimum_hundredths, "faint ink meets the text floor on the light slate");
-		expect(contrast_ratio_hundredths(shades.Dim, palette[index_of(appearance_role::report_paper)]) >= text_contrast_minimum_hundredths, "dim ink meets it too");
-		expect(contrast_ratio_hundredths(shades.Link, palette[index_of(appearance_role::report_paper)]) >= text_contrast_minimum_hundredths, "the link meets it");
+		auto palette                                        = appearance_palette{ };
+		palette[index_of(appearance_role::code_background)] = srgb(0xEEF1F0);
+		palette[index_of(appearance_role::syntax_normal)]   = srgb(0x1C2427);
+		const auto shades                                   = derive_report_shades(palette);
+		expect(contrast_ratio_hundredths(shades.Faint, palette[index_of(appearance_role::code_background)]) >= text_contrast_minimum_hundredths, "faint ink meets the text floor on the light slate");
+		expect(contrast_ratio_hundredths(shades.Dim, palette[index_of(appearance_role::code_background)]) >= text_contrast_minimum_hundredths, "dim ink meets it too");
+		expect(contrast_ratio_hundredths(shades.Link, palette[index_of(appearance_role::code_background)]) >= text_contrast_minimum_hundredths, "the link meets it");
 		expect(std::ranges::all_of(measure_report_shades(palette), [](const contrast_finding& aFinding) { return aFinding.Meets; }), "every derived shade is measured and meets its floor");
 		expect(derive_report_shades(palette) == shades, "deterministic");
 	}

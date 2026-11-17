@@ -164,19 +164,14 @@ namespace bpr::qt {
 		case role::state_attention:
 			return { group::review_states, "State attention" };
 
-		// RFC-BPR-0128. A report's page.
-		case role::report_paper:
-			return { group::reports, "Report paper" };
-		case role::report_ink:
-			return { group::reports, "Report ink" };
+		// RFC-BPR-0128, [[BPR-2236]]. The three tones a finding, verdict or
+		// label wears, in the Agent tab and on the report page alike.
 		case role::report_verdict_open:
-			return { group::reports, "Report needs work" };
+			return { group::reports, "Needs work (Major)" };
 		case role::report_verdict_partial:
-			return { group::reports, "Report half done or asked" };
+			return { group::reports, "Half done or asked (Minor)" };
 		case role::report_verdict_done:
-			return { group::reports, "Report done" };
-		case role::report_code_wash:
-			return { group::reports, "Report code wash" };
+			return { group::reports, "Done or good" };
 		}
 
 		return { };
@@ -214,7 +209,7 @@ namespace bpr::qt {
 		case appearance_role_group::comment_labels:
 			return QStringLiteral("Comment labels");
 		case appearance_role_group::reports:
-			return QStringLiteral("Reports");
+			return QStringLiteral("Findings and reports");
 		}
 
 		return { };

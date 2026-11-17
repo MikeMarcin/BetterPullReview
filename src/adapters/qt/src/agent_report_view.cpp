@@ -736,7 +736,7 @@ namespace bpr::qt {
 	}
 
 	/// The page's colours: the pane's own ground and ink, the theme's three
-	/// verdict colours, and a wash a little off the ground for code and
+	/// tones, and a wash a little off the ground for code and
 	/// the action's face.
 	auto agent_report_view::native_colours() const -> report_colours
 	{
@@ -759,12 +759,12 @@ namespace bpr::qt {
 		render_dressed();
 	}
 
-	void agent_report_view::set_report_colours(const report_colours& aColours)
+	void agent_report_view::set_tone_colours(const tone_colours& aColours)
 	{
-		if (Colours == aColours) {
+		if (Colours.Tones == aColours) {
 			return;
 		}
-		Colours = aColours;
+		Colours.Tones = aColours;
 		render_dressed();
 	}
 

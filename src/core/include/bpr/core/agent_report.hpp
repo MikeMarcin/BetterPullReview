@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP
 
+#include "bpr/core/defect_workflow.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -54,6 +56,19 @@ namespace bpr::core {
 		auto operator<=>(const report_section&) const = default;
 	};
 
+	/// \brief docs/design/report-templates-v1 and v2 (owner, 2026-11-14: B,
+	/// Dressed, in Qt's rich text). What a verdict or label means, for its
+	/// colour: what still needs work, what is half done or asked, what is
+	/// done or good, or nothing in particular. [[BPR-2236]]: wherever such a
+	/// thing is shown, the Agent tab or the report page, its tone names one
+	/// of the three theme roles `appearance_role::report_verdict_*`.
+	enum class report_tone : std::uint8_t {
+		neutral,
+		open,
+		partial,
+		done,
+	};
+
 	/// \brief What a report's card and its opened tab show
 	/// (docs/design/report-card-v4/SPEC.md).
 	struct report_card
@@ -65,7 +80,12 @@ namespace bpr::core {
 		std::uint32_t Sections = 0U;
 		/// What stands between the title and the first section, Markdown
 		/// kept; with no prose there, the first paragraph after the title.
+		/// [[BPR-2236]]: without the `**Verdict:**` line, which is `Verdict`.
 		std::string Summary;
+		/// [[BPR-2236]]. The verdict the summary opens with, and its tone, as
+		/// `dressed_report` reads it; empty when there is none.
+		std::string Verdict;
+		report_tone VerdictTone = report_tone::neutral;
 		/// Every heading after the title, in order.
 		std::vector<report_section> Outline;
 
@@ -156,17 +176,6 @@ namespace bpr::core {
 	/// (24 commits), changed this pull request's files" lines, then each
 	/// area's commits.
 	[[nodiscard]] auto render_commit_listing(const commit_listing& aListing) -> std::string;
-
-	/// \brief docs/design/report-templates-v1 and v2 (owner, 2026-11-14: B,
-	/// Dressed, in Qt's rich text). What a verdict or label means, for its
-	/// colour: what still needs work, what is half done or asked, what is
-	/// done or good, or nothing in particular.
-	enum class report_tone : std::uint8_t {
-		neutral,
-		open,
-		partial,
-		done,
-	};
 
 	/// \brief A short row: a list item, its bold label first where the
 	/// template gives one, then its place in backticks, then what to know.
@@ -287,6 +296,11 @@ namespace bpr::core {
 	/// \brief The colour a verdict, section name or Conventional Comments
 	/// label means; neutral for anything else.
 	[[nodiscard]] auto report_tone_of(std::string_view aWord) -> report_tone;
+
+	/// \brief [[BPR-2236]]. The tone a finding's severity wears, on its card
+	/// in the Agent tab as its label does on the report page: critical and
+	/// major need work, minor is half way, trivial is nothing in particular.
+	[[nodiscard]] auto report_tone_of(defect_severity aSeverity) noexcept -> report_tone;
 
 	/// \brief Reads `aAnswer` by the report convention: the title (the
 	/// heading it opens with, else `aTitle`), the summary, each section and

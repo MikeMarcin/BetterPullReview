@@ -334,31 +334,22 @@ namespace bpr::core {
 				.Background = appearance_role::application_surface,
 				.Kind       = contrast_kind::text,
 			},
-			// RFC-BPR-0128. A report's words on its paper and on its code
-			// wash, and its verdict words on its paper.
-			contrast_pair{
-				.Foreground = appearance_role::report_ink,
-				.Background = appearance_role::report_paper,
-				.Kind       = contrast_kind::text,
-			},
-			contrast_pair{
-				.Foreground = appearance_role::report_ink,
-				.Background = appearance_role::report_code_wash,
-				.Kind       = contrast_kind::text,
-			},
+			// RFC-BPR-0128, [[BPR-2236]]. The three tones are words and
+			// marks on the code canvas, the ground of the report page and of
+			// the Agent tab's finding cards alike.
 			contrast_pair{
 				.Foreground = appearance_role::report_verdict_open,
-				.Background = appearance_role::report_paper,
+				.Background = appearance_role::code_background,
 				.Kind       = contrast_kind::text,
 			},
 			contrast_pair{
 				.Foreground = appearance_role::report_verdict_partial,
-				.Background = appearance_role::report_paper,
+				.Background = appearance_role::code_background,
 				.Kind       = contrast_kind::text,
 			},
 			contrast_pair{
 				.Foreground = appearance_role::report_verdict_done,
-				.Background = appearance_role::report_paper,
+				.Background = appearance_role::code_background,
 				.Kind       = contrast_kind::text,
 			},
 			contrast_pair{
@@ -1064,8 +1055,8 @@ namespace bpr::core {
 
 	auto derive_report_shades(const appearance_palette& aPalette) noexcept -> report_shades
 	{
-		const auto paper = aPalette[index_of(appearance_role::report_paper)];
-		const auto ink   = aPalette[index_of(appearance_role::report_ink)];
+		const auto paper = aPalette[index_of(appearance_role::code_background)];
+		const auto ink   = aPalette[index_of(appearance_role::syntax_normal)];
 		const auto dark  = static_cast<std::uint32_t>(paper.Red) + paper.Green + paper.Blue < 3U * 128U;
 		// The link: the page's blue, darkened (or lightened on a dark paper)
 		// until it meets the text floor.
@@ -1084,13 +1075,13 @@ namespace bpr::core {
 
 	auto measure_report_shades(const appearance_palette& aPalette) -> std::vector<contrast_finding>
 	{
-		const auto paper  = aPalette[index_of(appearance_role::report_paper)];
+		const auto paper  = aPalette[index_of(appearance_role::code_background)];
 		const auto shades = derive_report_shades(aPalette);
 		auto       found  = std::vector<contrast_finding>{ };
 		for (const auto& [shade, floor] : { std::pair{ shades.Dim, text_contrast_minimum_hundredths }, std::pair{ shades.Faint, text_contrast_minimum_hundredths },
 											std::pair{ shades.Link, text_contrast_minimum_hundredths }, std::pair{ shades.Strong, indicator_contrast_minimum_hundredths } }) {
 			const auto ratio = contrast_ratio_hundredths(shade, paper);
-			found.push_back({ .Pair              = { .Foreground = appearance_role::report_ink, .Background = appearance_role::report_paper, .Kind = floor == text_contrast_minimum_hundredths ? contrast_kind::text : contrast_kind::indicator },
+			found.push_back({ .Pair              = { .Foreground = appearance_role::syntax_normal, .Background = appearance_role::code_background, .Kind = floor == text_contrast_minimum_hundredths ? contrast_kind::text : contrast_kind::indicator },
 							  .RatioHundredths   = ratio,
 							  .MinimumHundredths = floor,
 							  .Meets             = ratio >= floor });

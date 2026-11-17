@@ -23,16 +23,42 @@
 /// verdict over its summary and one keep action at each finding's foot
 /// ([[BPR-2219]]). Colour is spent only on verdicts.
 namespace bpr::qt {
-	/// \brief The report's colours, the theme's named roles
-	/// (`core::appearance_role::report_*`).
+	class appearance_profile;
+
+	/// \brief [[BPR-2236]] (owner, 2026-11-16: "colors in the agent tab and
+	/// the report which correspond to the same elements but use different
+	/// colors"). The three tones' colours, the theme's roles
+	/// `core::appearance_role::report_verdict_*`. One source for every
+	/// surface that colours a finding, verdict or label by its tone: the
+	/// report page and the Agent tab's cards both read it.
+	struct tone_colours
+	{
+		QColor Open;
+		QColor Partial;
+		QColor Done;
+
+		auto operator==(const tone_colours&) const -> bool = default;
+	};
+
+	/// \brief The theme's three tones, as the profile resolves them.
+	[[nodiscard]] auto tone_colours_of(const appearance_profile& aProfile) -> tone_colours;
+
+	/// \brief The built-in Light's or Dark's, for a view no theme reached yet.
+	[[nodiscard]] auto builtin_tone_colours(bool aDark) -> tone_colours;
+
+	/// \brief The colour a tone wears; none for neutral, which each surface
+	/// says in its own quiet ink.
+	[[nodiscard]] auto tone_colour(core::report_tone aTone, const tone_colours& aColours) -> std::optional<QColor>;
+
+	/// \brief The report's colours: the view's own ground, ink and code wash
+	/// (round 2 of [[BPR-2219]]: the page stands on its pane's palette), and
+	/// the theme's three tones.
 	struct report_colours
 	{
-		QColor Paper{ 0xEE, 0xF1, 0xF0 };
-		QColor Ink{ 0x1C, 0x24, 0x27 };
-		QColor Open{ 0xB2, 0x39, 0x2A };
-		QColor Partial{ 0x94, 0x61, 0x0A };
-		QColor Done{ 0x1D, 0x70, 0x40 };
-		QColor CodeWash{ 0xFF, 0xFF, 0xFF };
+		QColor       Paper{ 0xFF, 0xFF, 0xFF };
+		QColor       Ink{ 0x1F, 0x23, 0x28 };
+		QColor       CodeWash{ 0xF2, 0xF3, 0xF4 };
+		tone_colours Tones = builtin_tone_colours(false);
 
 		auto operator==(const report_colours&) const -> bool = default;
 	};
@@ -123,7 +149,8 @@ namespace bpr::qt {
 	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions = { }, std::vector<report_code_slot>* aSlots = nullptr,
 										report_look aLook = report_look::cards) -> QString;
 
-	/// \brief The colour a tone wears; neutral is the stronger rule.
+	/// \brief The colour a tone wears on the page; neutral is the stronger
+	/// rule.
 	[[nodiscard]] auto report_tone_colour(core::report_tone aTone, const report_colours& aColours) -> QColor;
 } // namespace bpr::qt
 

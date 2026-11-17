@@ -97,11 +97,7 @@ try {
 		view.set_look(look == QStringLiteral("band") ? bpr::qt::report_look::band : look == QStringLiteral("plain") ? bpr::qt::report_look::plain
 																													: bpr::qt::report_look::cards);
 		if (view.palette().color(QPalette::Base).lightness() < 128) {
-			auto dark    = view.colours();
-			dark.Open    = QColor{ 0xE5, 0xA0, 0x93 };
-			dark.Partial = QColor{ 0xE4, 0xC2, 0x7A };
-			dark.Done    = QColor{ 0x8F, 0xCA, 0xA0 };
-			view.set_report_colours(dark);
+			view.set_tone_colours(bpr::qt::builtin_tone_colours(true));
 		}
 		const auto markdown = QString::fromUtf8(file.readAll());
 		view.present({ .Turn     = 1U,

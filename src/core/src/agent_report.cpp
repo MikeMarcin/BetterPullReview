@@ -9,6 +9,16 @@
 
 namespace bpr::core {
 	namespace {
+		/// The verdict a paragraph opens with, its tone and the rest of the
+		/// paragraph; none when it does not open with one.
+		struct taken_verdict
+		{
+			std::string      Word;
+			report_tone      Tone = report_tone::neutral;
+			std::string_view Rest;
+		};
+		[[nodiscard]] auto take_verdict(std::string_view aParagraph) -> std::optional<taken_verdict>;
+
 		[[nodiscard]] auto lines_of(const std::string_view aText) -> std::vector<std::string_view>
 		{
 			auto lines = std::vector<std::string_view>{ };
@@ -202,6 +212,12 @@ namespace bpr::core {
 		card.Summary = sections.empty() ? paragraph(from, lines.size(), false) : paragraph(from, first, true);
 		if (card.Summary.empty()) {
 			card.Summary = paragraph(from, lines.size(), false);
+		}
+		// [[BPR-2236]]. The verdict is said apart, in its tone's colour.
+		if (const auto verdict = take_verdict(card.Summary)) {
+			card.Verdict     = verdict->Word;
+			card.VerdictTone = verdict->Tone;
+			card.Summary     = std::string{ verdict->Rest };
 		}
 		return card;
 	}
@@ -440,6 +456,23 @@ namespace bpr::core {
 			return report_tone::neutral;
 		}
 
+		auto take_verdict(const std::string_view aParagraph) -> std::optional<taken_verdict>
+		{
+			if (!aParagraph.starts_with(verdict_mark)) {
+				return std::nullopt;
+			}
+			const auto end  = aParagraph.find('\n');
+			auto       word = strip(aParagraph.substr(verdict_mark.size(), end == std::string_view::npos ? end : end - verdict_mark.size()));
+			while (!word.empty() && (word.back() == '.' || word.back() == ' ')) {
+				word.remove_suffix(1U);
+			}
+			auto rest = end == std::string_view::npos ? std::string_view{ } : aParagraph.substr(end + 1U);
+			while (!rest.empty() && (rest.front() == '\n' || rest.front() == '\r')) {
+				rest.remove_prefix(1U);
+			}
+			return taken_verdict{ .Word = std::string{ word }, .Tone = verdict_tone(word), .Rest = strip(rest) };
+		}
+
 		/// Whether an item's label is a Conventional Comments label, with or
 		/// without its decoration.
 		[[nodiscard]] auto conventional(const std::string_view aLabel) -> bool
@@ -466,6 +499,17 @@ namespace bpr::core {
 		}
 		if (std::ranges::find(done, std::string_view{ word }) != done.end()) {
 			return report_tone::done;
+		}
+		return report_tone::neutral;
+	}
+
+	auto report_tone_of(const defect_severity aSeverity) noexcept -> report_tone
+	{
+		switch (aSeverity) {
+		case defect_severity::critical:
+		case defect_severity::major:    return report_tone::open;
+		case defect_severity::minor:    return report_tone::partial;
+		case defect_severity::trivial:  break;
 		}
 		return report_tone::neutral;
 	}
@@ -568,15 +612,12 @@ namespace bpr::core {
 				for (const auto& block : aBlocks) {
 					auto text = std::string_view{ block.Text };
 					// [[BPR-2219]]. The verdict line that opens the summary.
-					if (report.Verdict.empty() && report.Summary.empty() && block.Kind == dressed_block_kind::paragraph && text.starts_with(verdict_mark)) {
-						const auto end  = text.find('\n');
-						auto       word = strip(text.substr(verdict_mark.size(), end == std::string_view::npos ? end : end - verdict_mark.size()));
-						while (!word.empty() && (word.back() == '.' || word.back() == ' ')) {
-							word.remove_suffix(1U);
+					if (report.Verdict.empty() && report.Summary.empty() && block.Kind == dressed_block_kind::paragraph) {
+						if (const auto verdict = take_verdict(text)) {
+							report.Verdict     = verdict->Word;
+							report.VerdictTone = verdict->Tone;
+							text               = verdict->Rest;
 						}
-						report.Verdict     = std::string{ word };
-						report.VerdictTone = verdict_tone(word);
-						text               = end == std::string_view::npos ? std::string_view{ } : strip(text.substr(end + 1U));
 					}
 					if (!text.empty()) {
 						report.Summary += (report.Summary.empty() ? "" : "\n\n") + std::string{ text };

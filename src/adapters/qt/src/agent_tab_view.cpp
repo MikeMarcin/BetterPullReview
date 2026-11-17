@@ -424,18 +424,6 @@ namespace bpr::qt {
 			return chip;
 		}
 
-		[[nodiscard]] auto severity_colour(const core::defect_severity aSeverity, const QPalette& aPalette) -> QColor
-		{
-			const auto night = dark(aPalette);
-			switch (aSeverity) {
-			case core::defect_severity::critical:
-			case core::defect_severity::major:    return night ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
-			case core::defect_severity::minor:    return night ? QColor{ 0xE3, 0xB3, 0x41 } : QColor{ 0xC3, 0x8A, 0x10 };
-			case core::defect_severity::trivial:  return aPalette.color(QPalette::Active, QPalette::PlaceholderText);
-			}
-			return aPalette.color(QPalette::Active, QPalette::PlaceholderText);
-		}
-
 		[[nodiscard]] auto confidence_words(const core::agent_finding_confidence aConfidence) -> QString
 		{
 			switch (aConfidence) {
@@ -1550,6 +1538,14 @@ namespace bpr::qt {
 		claim->hide();
 		replyColumn->addWidget(claim);
 		aTurn.Claim = claim;
+		// [[BPR-2236]]. A report's verdict, over its summary, as the page
+		// shows it.
+		auto* const verdict = new QLabel{ reply };
+		verdict->setObjectName(QStringLiteral("agentTurnReportVerdict"));
+		verdict->setTextFormat(Qt::RichText);
+		verdict->hide();
+		replyColumn->addWidget(verdict);
+		aTurn.Verdict = verdict;
 		replyColumn->addWidget(answer);
 		// RFC-BPR-0128 ([[BPR-2166]]) as the owner chose it on 2026-11-14
 		// (docs/design/report-card-v4, round 1's C, Attachment): the reply
@@ -1987,8 +1983,14 @@ namespace bpr::qt {
 				aTurn.ReportOpen->setAccessibleName(tr("Open report: %1").arg(aTurn.ReportTitle->text()));
 				aTurn.ReportOpen->setToolTip(tr("Open report"));
 				aTurn.ReportOpen->updateGeometry();
-				summary = QString::fromStdString(card.Summary);
+				summary           = QString::fromStdString(card.Summary);
+				aTurn.VerdictWord = card.Verdict;
+				aTurn.VerdictTone = card.VerdictTone;
+			} else {
+				aTurn.VerdictWord.clear();
+				aTurn.VerdictTone = core::report_tone::neutral;
 			}
+			show_verdict(aTurn);
 			aTurn.ReportCard->setVisible(report);
 		}
 
@@ -3020,6 +3022,8 @@ namespace bpr::qt {
 
 	auto agent_tab_view::turn_claim(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Claim.data() : nullptr; }
 
+	auto agent_tab_view::turn_verdict(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Verdict.data() : nullptr; }
+
 	auto agent_tab_view::turn_ask_more_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].AskMore.data() : nullptr; }
 
 	auto agent_tab_view::turn_returning(const std::size_t aTurn) const -> std::optional<core::returning_operation> { return aTurn < Turns.size() ? Turns[aTurn].Returning : std::nullopt; }
@@ -3463,11 +3467,72 @@ namespace bpr::qt {
 	{
 		CodeFont  = aProfile.code_font();
 		CodeTheme = markdown_code_theme{ .Colors = code_role_colors_of(aProfile.palette()), .Variant = aProfile.variant() };
+		Tones     = tone_colours_of(aProfile);
 		for (const auto& kept : Turns) {
 			if (kept.Answer != nullptr) {
 				dress_answer(*kept.Answer);
 			}
+			show_verdict(kept);
 		}
+		for (const auto& entry : CardEntries) {
+			colour_card(entry);
+		}
+	}
+
+	auto agent_tab_view::tones() const -> tone_colours { return Tones.value_or(builtin_tone_colours(dark(palette()))); }
+
+	void agent_tab_view::colour_card(const card_entry& aEntry) const
+	{
+		// A card's widget is always its `rounded` frame (`make_card`).
+		auto* const card = static_cast<rounded*>(aEntry.Widget.data());
+		if (card == nullptr) {
+			return;
+		}
+		const auto colours = tones();
+		const auto quiet   = palette().color(QPalette::Active, QPalette::PlaceholderText);
+		const auto tone    = tone_colour(core::report_tone_of(aEntry.Finding.Severity), colours);
+		card->Edge         = tone.value_or(quiet);
+		card->update();
+		const auto paint = [](QLabel* aLabel, const std::optional<QColor>& aColour) {
+			if (aLabel == nullptr) {
+				return;
+			}
+			if (aColour) {
+				auto coloured = aLabel->palette();
+				coloured.setColor(QPalette::WindowText, *aColour);
+				aLabel->setForegroundRole(QPalette::WindowText);
+				aLabel->setPalette(coloured);
+			} else {
+				aLabel->setForegroundRole(QPalette::PlaceholderText);
+			}
+		};
+		paint(card->findChild<QLabel*>(QStringLiteral("agentFindingSeverity")), tone.value_or(quiet));
+		if (auto* const label = card->findChild<QLabel*>(QStringLiteral("agentFindingSuggestionLabel")); label != nullptr) {
+			paint(label, tone_colour(core::report_tone_of(label->property("bprToneLabel").toString().toStdString()), colours));
+		}
+	}
+
+	void agent_tab_view::show_verdict(const turn& aTurn) const
+	{
+		if (aTurn.Verdict == nullptr) {
+			return;
+		}
+		if (aTurn.VerdictWord.empty()) {
+			aTurn.Verdict->clear();
+			aTurn.Verdict->hide();
+			return;
+		}
+		// The report page's mark: "Verdict", quiet, then the verdict filled
+		// with its tone and lettered in the ground.
+		const auto ground = palette().color(QPalette::Active, QPalette::Base);
+		const auto quiet  = palette().color(QPalette::Active, QPalette::PlaceholderText);
+		const auto words  = QString::fromStdString(aTurn.VerdictWord).toHtmlEscaped();
+		const auto tone   = tone_colour(aTurn.VerdictTone, tones());
+		aTurn.Verdict->setText(tone ? QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp;&nbsp;<span style=\"background-color:%3;color:%4;font-weight:600\">&nbsp;%5&nbsp;</span>")
+										  .arg(quiet.name(), tr("Verdict").toHtmlEscaped(), tone->name(), ground.name(), words)
+									: QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp;&nbsp;<b>%3</b>").arg(quiet.name(), tr("Verdict").toHtmlEscaped(), words));
+		aTurn.Verdict->setAccessibleName(tr("Verdict: %1").arg(QString::fromStdString(aTurn.VerdictWord)));
+		aTurn.Verdict->show();
 	}
 
 	auto agent_tab_view::turn_answer(const std::size_t aTurn) const -> QString
@@ -3816,7 +3881,6 @@ namespace bpr::qt {
 		const auto& finding = aEntry.Finding;
 		auto* const card    = new rounded{ rounded::look::card, aParent };
 		card->setObjectName(QStringLiteral("agentFindingCard"));
-		card->Edge      = severity_colour(finding.Severity, palette());
 		auto* const col = new QVBoxLayout{ card };
 		col->setContentsMargins(14, 10, 12, 10);
 		col->setSpacing(5);
@@ -3826,9 +3890,9 @@ namespace bpr::qt {
 		auto        sevFont  = severity->font();
 		sevFont.setWeight(QFont::DemiBold);
 		severity->setFont(sevFont);
-		auto sevPalette = severity->palette();
-		sevPalette.setColor(QPalette::WindowText, severity_colour(finding.Severity, palette()));
-		severity->setPalette(sevPalette);
+		// [[BPR-2236]]. Its colour, and the card's edge, are its tone's
+		// (`colour_card`), as the report page draws the same finding.
+		severity->setObjectName(QStringLiteral("agentFindingSeverity"));
 		meta->addWidget(severity);
 		auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
 		kind->setObjectName(QStringLiteral("agentFindingKind"));
@@ -3932,7 +3996,9 @@ namespace bpr::qt {
 			if (!label.isEmpty()) {
 				auto* const labelled = new QLabel{ label, inset };
 				labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
+				// [[BPR-2236]]. In its tone, as the report page draws the label.
 				labelled->setForegroundRole(QPalette::PlaceholderText);
+				labelled->setProperty("bprToneLabel", label);
 				labelled->setFont(small);
 				labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
 				captionRow->addWidget(labelled);
@@ -3993,6 +4059,7 @@ namespace bpr::qt {
 		card->setProperty("agentFindingCard", QVariant::fromValue<qulonglong>(index));
 		card->setCursor(Qt::PointingHandCursor);
 		aEntry.Widget = card;
+		colour_card(aEntry);
 		show_card_state(aEntry);
 		return card;
 	}

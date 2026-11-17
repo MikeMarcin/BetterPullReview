@@ -678,7 +678,8 @@ namespace bpr::core {
 		const appearance_palette& aPalette) -> std::vector<color_vision_finding>;
 
 	/// \brief [[BPR-2184]] (review N6). The shades a report's page derives from
-	/// its paper and ink, decided here so the contrast floor sees them: quieter
+	/// its paper and ink (the code canvas and its normal text,
+	/// `code_background` and `syntax_normal`, since [[BPR-2236]]), decided here so the contrast floor sees them: quieter
 	/// ink for secondary words (`Dim`) and for the quietest (`Faint`), both
 	/// held to the text floor on the paper; the stronger rule (`Strong`) at
 	/// least the indicator ratio; the hairline (`Line`), decorative; and the

@@ -112,9 +112,10 @@ namespace bpr::qt {
 		/// the top of what shows; -1 when the report has no such heading.
 		[[nodiscard]] auto section_top(int aIndex) const -> int;
 
-		/// \brief docs/design/report-templates-v2. The report's colours, the
-		/// theme's roles; the page is drawn again in them.
-		void               set_report_colours(const report_colours& aColours);
+		/// \brief docs/design/report-templates-v2, [[BPR-2236]]. The theme's
+		/// three tones (`tone_colours_of`, as the Agent tab reads them); the
+		/// page is drawn again in them.
+		void               set_tone_colours(const tone_colours& aColours);
 		[[nodiscard]] auto colours() const noexcept -> const report_colours& { return Colours; }
 		/// \brief [[BPR-2219]], round 2. Which of the page's looks is drawn
 		/// (`cards` is the product's; the others are for the design round's

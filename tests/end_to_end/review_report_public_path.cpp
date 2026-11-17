@@ -148,8 +148,11 @@ auto main(int argc, char** argv) -> int
 		auto* const title = card->findChild<QLabel*>(QStringLiteral("agentTurnReportTitle"));
 		expect(title != nullptr && title->text() == QStringLiteral("Review of #21"), "the card names the report by its title: " + (title != nullptr ? title->text().toStdString() : std::string{ }));
 		const auto summary = tab->turn_answer_view(before)->original_body();
-		expect(summary.find("Needs changes") != std::string::npos && summary.find("The move is clean") != std::string::npos && summary.find(note) == std::string::npos && summary.find("## Must fix") == std::string::npos,
-			   "the card's summary is the report's verdict and summary, with no word of the notes: " + summary);
+		expect(summary.find("The move is clean") != std::string::npos && summary.find(note) == std::string::npos && summary.find("## Must fix") == std::string::npos && summary.find("Verdict") == std::string::npos,
+			   "the card's summary is the report's summary, with no word of the notes: " + summary);
+		// [[BPR-2236]]. The verdict is said over it, in its tone, as the page says it.
+		const auto* const verdict = tab->turn_verdict(before);
+		expect(verdict != nullptr && verdict->isVisibleTo(tab) && verdict->text().contains(QStringLiteral("Needs changes")), "the verdict stands over the summary");
 		render(window, QStringLiteral("review-report-card"));
 
 		// The opened report: a report, not a transcript.

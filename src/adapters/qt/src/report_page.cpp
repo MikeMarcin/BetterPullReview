@@ -3,6 +3,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 
 #include <QFontDatabase>
 #include <QGuiApplication>
@@ -72,12 +73,12 @@ namespace bpr::qt {
 			const auto to_core = [](const QColor& aColour) {
 				return core::appearance_color{ .Red = static_cast<std::uint8_t>(aColour.red()), .Green = static_cast<std::uint8_t>(aColour.green()), .Blue = static_cast<std::uint8_t>(aColour.blue()), .Alpha = 255U };
 			};
-			const auto to_qt                                           = [](const core::appearance_color aColour) { return QColor{ aColour.Red, aColour.Green, aColour.Blue }; };
-			auto       roles                                           = core::appearance_palette{ };
-			roles[core::index_of(core::appearance_role::report_paper)] = to_core(aColours.Paper);
-			roles[core::index_of(core::appearance_role::report_ink)]   = to_core(aColours.Ink);
-			const auto shades                                          = core::derive_report_shades(roles);
-			const auto dark                                            = aColours.Paper.lightness() < 128;
+			const auto to_qt                                              = [](const core::appearance_color aColour) { return QColor{ aColour.Red, aColour.Green, aColour.Blue }; };
+			auto       roles                                              = core::appearance_palette{ };
+			roles[core::index_of(core::appearance_role::code_background)] = to_core(aColours.Paper);
+			roles[core::index_of(core::appearance_role::syntax_normal)]   = to_core(aColours.Ink);
+			const auto shades                                             = core::derive_report_shades(roles);
+			const auto dark                                               = aColours.Paper.lightness() < 128;
 			return palette{
 				.Roles   = aColours,
 				.Ink     = aColours.Ink.name(),
@@ -87,8 +88,8 @@ namespace bpr::qt {
 				.Strong  = to_qt(shades.Strong).name(),
 				.Link    = to_qt(shades.Link).name(),
 				.Wash    = aColours.CodeWash.name(),
-				.Removed = mixed(aColours.Open, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
-				.Added   = mixed(aColours.Done, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
+				.Removed = mixed(aColours.Tones.Open, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
+				.Added   = mixed(aColours.Tones.Done, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
 				.Raised  = mixed(aColours.Paper, aColours.Ink, dark ? 0.09 : 0.05).name(),
 			};
 		}
@@ -147,7 +148,7 @@ namespace bpr::qt {
 			switch (state.Phase) {
 			case report_keep_phase::working: cells = words(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
 			case report_keep_phase::kept:
-				cells = words(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Done.name(), true);
+				cells = words(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
 				if (aGoes) {
 					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
 				}
@@ -159,7 +160,7 @@ namespace bpr::qt {
 																															  : QObject::tr("Keep local"),
 							 aPalette.Ink, aPalette)
 					+ spacer;
-				cells += state.Phase == report_keep_phase::refused ? words(state.Why, aPalette.Roles.Open.name(), false) : words(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
+				cells += state.Phase == report_keep_phase::refused ? words(state.Why, aPalette.Roles.Tones.Open.name(), false) : words(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
 				break;
 			}
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
@@ -403,7 +404,23 @@ namespace bpr::qt {
 		}
 	} // namespace
 
-	auto report_tone_colour(const core::report_tone aTone, const report_colours& aColours) -> QColor
+	auto tone_colours_of(const appearance_profile& aProfile) -> tone_colours
+	{
+		using role = core::appearance_role;
+		return { .Open = aProfile.color(role::report_verdict_open), .Partial = aProfile.color(role::report_verdict_partial), .Done = aProfile.color(role::report_verdict_done) };
+	}
+
+	auto builtin_tone_colours(const bool aDark) -> tone_colours
+	{
+		const auto& palette = builtin_appearance_palette(aDark ? core::appearance_variant::dark : core::appearance_variant::light);
+		const auto  of      = [&palette](const core::appearance_role aRole) {
+			const auto colour = palette[core::index_of(aRole)];
+			return QColor{ colour.Red, colour.Green, colour.Blue };
+		};
+		return { .Open = of(core::appearance_role::report_verdict_open), .Partial = of(core::appearance_role::report_verdict_partial), .Done = of(core::appearance_role::report_verdict_done) };
+	}
+
+	auto tone_colour(const core::report_tone aTone, const tone_colours& aColours) -> std::optional<QColor>
 	{
 		switch (aTone) {
 		case report_tone::open:    return aColours.Open;
@@ -411,7 +428,12 @@ namespace bpr::qt {
 		case report_tone::done:    return aColours.Done;
 		case report_tone::neutral: break;
 		}
-		return QColor{ palette_of(aColours).Strong };
+		return std::nullopt;
+	}
+
+	auto report_tone_colour(const core::report_tone aTone, const report_colours& aColours) -> QColor
+	{
+		return tone_colour(aTone, aColours.Tones).value_or(QColor{ palette_of(aColours).Strong });
 	}
 
 	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots, const report_look aLook) -> QString

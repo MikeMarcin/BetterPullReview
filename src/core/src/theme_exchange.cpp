@@ -517,6 +517,10 @@ namespace bpr::core {
 				return;
 			}
 
+			// [[BPR-2236]]. A role the vocabulary retired is read past.
+			if (retired_appearance_role(tokens.front())) {
+				return;
+			}
 			const auto role = find_appearance_role(tokens.front());
 			if (!role.has_value()) {
 				aState.Rejections.push_back(rejection_of(

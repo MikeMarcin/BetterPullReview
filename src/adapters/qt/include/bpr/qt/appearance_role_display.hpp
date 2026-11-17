@@ -26,8 +26,9 @@ namespace bpr::qt {
 		/// [[BPR-1083]]. The fifth group, Comment labels: the twelve label
 		/// tints (owner, BPR-1079 `tints-v002`).
 		comment_labels,
-		/// RFC-BPR-0128. The sixth group, Reports: a report's paper, ink,
-		/// verdict colours and code wash.
+		/// RFC-BPR-0128, [[BPR-2236]]. The sixth group, Findings and reports:
+		/// the three tones a finding, verdict or label wears in the Agent tab
+		/// and on the report page.
 		reports,
 	};
 

@@ -258,6 +258,22 @@ namespace {
 			   "a review's items draft whatever they are headed with, and a missing verdict is no error");
 		expect(report_findings(dress_report("# What `a.cpp` does\n\nS.\n\n## How it works\n\n### resize\n\n`src/a.cpp:9`\n\nIt resizes.\n")).empty(), "a report that is not a review offers no keep action on its items");
 	}
+
+	/// [[BPR-2236]]. The tone a finding's severity wears is core's, as its
+	/// label's is; the card says the verdict apart from its summary.
+	void test_tones_of_severity_and_the_card_verdict()
+	{
+		expect(report_tone_of(defect_severity::critical) == report_tone::open && report_tone_of(defect_severity::major) == report_tone::open
+				   && report_tone_of(defect_severity::minor) == report_tone::partial && report_tone_of(defect_severity::trivial) == report_tone::neutral,
+			   "Major and Critical need work, Minor is half way, Trivial is nothing in particular");
+		expect(report_tone_of(defect_severity::major) == report_tone_of("issue (blocking)") && report_tone_of(defect_severity::minor) == report_tone_of("suggestion (non-blocking)"),
+			   "a Major finding and its issue label wear one tone, a Minor one and its suggestion another");
+		const auto card = report_card_of("# Review of #21\n\n**Verdict:** Needs changes.\n\nOne thing must be fixed.\n\n## Must fix\n\nx\n");
+		expect(card.Verdict == "Needs changes" && card.VerdictTone == report_tone::open && card.Summary == "One thing must be fixed.",
+			   "the card's verdict and tone, and its summary without the verdict line");
+		const auto plain = report_card_of("# What a.cpp does\n\nIt resizes.\n\n## How\n\nx\n");
+		expect(plain.Verdict.empty() && plain.VerdictTone == report_tone::neutral && plain.Summary == "It resizes.", "a report with no verdict keeps its summary whole");
+	}
 } // namespace
 
 auto main() -> int
@@ -268,6 +284,7 @@ auto main() -> int
 	test_dressed_review_and_rows();
 	test_dressed_areas();
 	test_review_answer_verdict_and_findings();
+	test_tones_of_severity_and_the_card_verdict();
 	std::cout << "agent-report-tests:pass\n";
 	return EXIT_SUCCESS;
 }
