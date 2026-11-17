@@ -2234,9 +2234,9 @@ namespace bpr::application {
 			aDone({ });
 			return;
 		}
-		auto request = github_merge_count_request{ .Read = *host.LastProvider, .Repository = host.AcceptedSnapshot->Repository.Repository, .Merges = std::move(aMerges) };
-		auto weak    = std::weak_ptr<implementation>{ Implementation };
-		auto* lane   = &host.DecisionLane;
+		auto  request = github_merge_count_request{ .Read = *host.LastProvider, .Repository = host.AcceptedSnapshot->Repository.Repository, .Merges = std::move(aMerges) };
+		auto  weak    = std::weak_ptr<implementation>{ Implementation };
+		auto* lane    = &host.DecisionLane;
 		try {
 			host.pull_request_port_for(request.Read).count_merges(std::move(request), [weak, lane, done = std::move(aDone)](std::vector<std::pair<std::string, std::uint64_t>> aCounts) mutable {
 				if (weak.expired()) {
