@@ -3742,10 +3742,11 @@ namespace bpr::application {
 			// `.mcp.json`: a pull request's hooks, MCP servers, API key
 			// helper, skills, agents and commands ran on the first turn
 			// (live, 2026-11-11). Only the user's settings are read there.
-			// A restricted run already reads no settings source at all.
+			// A restricted run names the same source in its restrictions
+			// ([[BPR-2242]]: the person's sign-in can live there).
 			if (!aOptions.PullRequestCheckout.empty() && !aOptions.WritingOnly && !aOptions.ReadOnlyTools) {
 				arguments.emplace_back("--setting-sources");
-				arguments.emplace_back("user");
+				arguments.emplace_back(claude_user_setting_source);
 			}
 			break;
 		case core::agent_protocol::external_terminal:

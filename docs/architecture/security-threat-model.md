@@ -1726,8 +1726,9 @@ person's own Claude account sign-in, never a paid API key
 - **What `--bare` used to shut, shut another way.** Dropping `--bare` lets
   Claude read the account sign-in, and also lets it load what `--bare`
   skipped. Each is closed explicitly and checked on Claude Code 2.1.296: no
-  settings source (no project or user `CLAUDE.md`, `.claude` settings or
-  `.mcp.json`), hooks off, auto-memory off, the three built-in plugins off
+  project or local settings source (no project `CLAUDE.md`, `.claude`
+  settings or `.mcp.json`; the user's own settings are read, where the
+  person's sign-in can live, [[BPR-2242]]), hooks off, auto-memory off, the three built-in plugins off
   (the telemetry plugin otherwise starts `sh` in the working folder), an empty
   strict MCP configuration (also closing claude.ai connectors), no tools, no
   slash commands, no session saved. The request starts in a fresh empty
@@ -1893,7 +1894,7 @@ what a Claude launch can be, never what it receives:
   reviewer's wrapper runs; host policy still decides by profile, before any
   wrapper is read.
 - **Tool-free writing.** Its restrictions (`--tools ""`, `--disallowedTools
-  "*"`, an empty MCP configuration, no settings source, hooks, auto-memory and
+  "*"`, an empty MCP configuration, only the user's settings source, hooks, auto-memory and
   the built-in plugins off; [[BPR-1375]]) are Claude flags passed to the
   wrapper unchanged. A wrapper can drop or replace them, so a writing run is
   only as tool-free as the wrapper keeps it; one that passes its own

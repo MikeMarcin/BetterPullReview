@@ -22,6 +22,7 @@
 #include <QVariant>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace bpr::qt {
@@ -119,7 +120,13 @@ namespace bpr::qt {
 			if (line.size() > 400) {
 				line = line.left(400) + QStringLiteral("…");
 			}
-			sections << QStringLiteral("First line this app couldn't read:\n%1").arg(line);
+			// [[BPR-2242]]. A line the run was read up to and stopped at (a
+			// 401 retry, a usage limit, a refused tool, a failed turn) was
+			// read; only the others are lines this app could not read.
+			using failure      = application::agent_protocol_failure;
+			const auto endings = std::array{ failure::not_signed_in, failure::usage_limit, failure::tool_refused, failure::remote_failed, failure::remote_interrupted };
+			const auto endedAt = aResult.Outcome == application::agent_run_outcome::protocol_failure && aResult.ProtocolFailure && std::ranges::contains(endings, *aResult.ProtocolFailure);
+			sections << (endedAt ? QStringLiteral("The line it ended at:\n%1") : QStringLiteral("First line this app couldn't read:\n%1")).arg(line);
 		}
 		if (!aResult.StandardError.empty()) {
 			sections << QStringLiteral("Last lines of its errors:\n%1")

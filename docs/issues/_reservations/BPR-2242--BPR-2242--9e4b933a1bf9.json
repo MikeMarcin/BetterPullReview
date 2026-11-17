@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2242"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets",
+  "purpose": "restricted Claude runs read the user settings source so a wrapper's sign-in reaches Draft tour",
+  "created": "2026-11-17T07:01:59.086060+00:00",
+  "base": "b5b50a529cb8b90423e662dd47734b86702523a3"
+}

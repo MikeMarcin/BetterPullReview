@@ -1699,7 +1699,7 @@ API key. For Claude that is:
 claude -p --input-format stream-json --output-format stream-json --verbose
   [--model NAME]
   --tools "" --disallowedTools "*" --strict-mcp-config --mcp-config '{"mcpServers":{}}'
-  --setting-sources "" --disable-slash-commands --no-session-persistence
+  --setting-sources user --disable-slash-commands --no-session-persistence
   --settings '{"disableAllHooks":true,"autoMemoryEnabled":false,
               "enabledPlugins":{"cc-plugin-agents-md@builtin":false,
                                 "cc-plugin-telemetry@builtin":false,
@@ -1718,14 +1718,31 @@ planted `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json` (a hook) and
 
 | `--bare` skipped | Held off by | Observed |
 |---|---|---|
-| `CLAUDE.md` auto-discovery | `--setting-sources ""`, and the empty folder below | Neither planted file reached the system prompt or messages |
-| Hooks | `disableAllHooks`, no settings source | The planted hook did not run |
-| Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no settings source names a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder. Hardening, not a gate: a builtin policy holds on still loads ([[BPR-1891]]) |
+| `CLAUDE.md` auto-discovery | `--setting-sources` without `project` or `local`, and the empty folder below | Neither planted file reached the system prompt or messages |
+| Hooks | `disableAllHooks`, no project or local settings | The planted hook did not run |
+| Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no project settings name a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder. Hardening, not a gate: a builtin policy holds on still loads ([[BPR-1891]]) |
 | Auto-memory | `autoMemoryEnabled: false`, and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in the environment ([[BPR-1896]]) | No memory section in the prompt; no `memory_paths` in the init frame. Hardening, not a gate: a wrapper whose own settings replace these can turn it back on, and the init frame then reports a memory folder ([[BPR-1896]]) |
 | MCP servers, claude.ai connectors | `--strict-mcp-config` with an empty configuration | `mcp_servers: []`, signed in with a Claude account too |
-| LSP | No plugin, no settings source | Zero LSP servers |
+| LSP | No plugin, no project settings | Zero LSP servers |
 | Background prefetches | Not held off | Claude still fetches its own bootstrap from Anthropic, on the same sign-in |
 | Keychain reads | Wanted: this is the sign-in | `apiKeySource: "none"`, the account answers |
+
+**The user's own settings are read ([[BPR-2242]], owner, 2026-11-16).** The
+table above was checked with no settings source at all. Every Claude launch now
+reads the user's own settings (`application::claude_user_setting_source`),
+as Ask in the Agent tab always did in a pull request's checkout, because the
+person's sign-in can live there: an `apiKeyHelper`, or the token and gateway a
+wrapper's setup writes. The owner's Draft Tour through their wrapper failed
+with a 401 on 2026-11-16 while Ask in the Agent tab answered through it.
+Checked on Claude Code 2.1.319 with an `apiKeyHelper` in a scratch user
+settings file: `--setting-sources ""` starts with `apiKeySource: "none"`,
+`user` with `"apiKeyHelper"`. The project and local sources stay unread, so
+the working folder's (and a pull request's) `CLAUDE.md`, `.claude` settings
+and `.mcp.json` still never load. What the user's settings add is the
+person's own: their user `CLAUDE.md`, their plugins (no tool or MCP server
+gets past the init check; hooks are off while this app's `--settings` holds),
+and their permission rules, which can widen what a read-only run is approved
+to run as a wrapper's can (below).
 
 The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
@@ -1817,8 +1834,8 @@ tool-free as above. A read-only Claude launch adds
 `--allowedTools` list of Read, Grep, Glob and the shell programs `rg`, `grep`,
 `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find` and `git log|show|blame|diff|grep|ls-files`,
 `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`,
-an empty strict MCP configuration, no setting sources, no slash commands,
-`claude_writing_settings` and auto-memory off. Native conversational launches
+an empty strict MCP configuration, only the user's own settings source, no
+slash commands, `claude_writing_settings` and auto-memory off. Native conversational launches
 retain the native transcript; one-shot writing launches keep their no-session
 restriction. In print mode a
 tool use outside the allowed list is denied without a prompt.
@@ -1828,8 +1845,8 @@ command runs; this app reads only what Claude reports afterwards, so it reads
 what Claude decided and names what ran outside its own list. Claude approves
 the shell commands it classifies as read-only beyond `--allowedTools`, release
 by release (2.1.310: `cd`, `sed -n`, `jq`, `column`, `comm`, `od`, `xargs`;
-2.1.314 through a wrapper: `awk`), and a wrapper's or policy's own permission
-rules can widen that. The decoder still ends the run as `tool_refused` for an
+2.1.314 through a wrapper: `awk`), and a wrapper's, policy's or the person's
+own user-settings permission rules can widen that ([[BPR-2242]]). The decoder still ends the run as `tool_refused` for an
 init frame that loads another tool or any MCP server, and for a `tool_use` of
 a tool outside the four, which was never loaded. A shell command
 `core::decide_read_only_tool` refuses (one that is not plain commands of the
@@ -1928,7 +1945,9 @@ request's supplement as its own `skill.N.name`, `.source`, `.origin`,
 cannot end its field or pose as another; the prompt ends with one sentence
 saying what those fields are. A prompt that names none sends no field and
 keeps its exact bytes. No run gets the `Skill` tool, a plugin, a setting
-source or a permission rule for skills: BPR-1375's writing restrictions,
+source or a permission rule for skills (the user settings source every run
+reads since [[BPR-2242]] is for the person's sign-in; slash commands stay
+off): BPR-1375's writing restrictions,
 BPR-1900's read-only allowlist and the init checks of BPR-1891, BPR-1896,
 BPR-1899 and BPR-1912 are unchanged.
 

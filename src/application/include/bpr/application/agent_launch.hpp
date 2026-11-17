@@ -502,6 +502,21 @@ namespace bpr::application {
 	inline constexpr std::string_view claude_writing_settings
 		= R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
 
+	/// \brief [[BPR-2242]]. The one settings source a Claude launch that
+	/// names any reads: the user's own.
+	///
+	/// \details The person's sign-in to Claude can live there: an
+	/// `apiKeyHelper`, or the token and gateway a wrapper's setup writes
+	/// (owner, 2026-11-16: Ask in the Agent tab answered through their
+	/// wrapper and Draft Tour failed with a 401). Checked against Claude Code
+	/// 2.1.319 with a user `apiKeyHelper`: `--setting-sources ""` starts with
+	/// `apiKeySource: "none"`, `user` with `"apiKeyHelper"`. So every Claude
+	/// launch reads it: the Agent tab in a pull request's checkout, a
+	/// tool-free writing run and a read-only drafting run alike. Never
+	/// `project` or `local`: those are the working folder's, and a pull
+	/// request's checkout holds the pull request's own.
+	inline constexpr std::string_view claude_user_setting_source = "user";
+
 	/// \brief [[BPR-1375]]. What every tool-free writing launch appends to
 	/// Claude's print-mode arguments.
 	///
@@ -510,16 +525,16 @@ namespace bpr::application {
 	/// `ANTHROPIC_API_KEY` or an `apiKeyHelper` and never the Claude account
 	/// sign-in. What `--bare` also skipped is held off another way: no tools,
 	/// every tool denied, an empty strict MCP configuration (which also
-	/// keeps the claude.ai connectors out), no settings file of any source,
-	/// so no project or user `CLAUDE.md`, `.claude` settings or `.mcp.json`,
-	/// no skills or slash commands, no session saved, and
-	/// `claude_writing_settings`. The process also starts in an empty
-	/// folder of its own rather than the review workspace.
+	/// keeps the claude.ai connectors out), only the user's own settings
+	/// (`claude_user_setting_source`), so no project `CLAUDE.md`, `.claude`
+	/// settings or `.mcp.json`, no skills or slash commands, no session
+	/// saved, and `claude_writing_settings`. The process also starts in an
+	/// empty folder of its own rather than the review workspace.
 	/// [[BPR-1896]]. A wrapper can drop or replace any of these, so a writing
 	/// run is only as tool-free as the wrapper keeps it. What is enforced is
 	/// read back from Claude's init frame: no tool and no MCP server.
 	inline constexpr std::array<std::string_view, 13> claude_writing_restrictions = {
-		"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "--setting-sources", "",
+		"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "--setting-sources", claude_user_setting_source,
 		"--disable-slash-commands", "--no-session-persistence", "--settings", claude_writing_settings
 	};
 
@@ -540,15 +555,16 @@ namespace bpr::application {
 	/// read-only shell commands are approved (`--allowedTools`), so in print
 	/// mode every other use is denied without a prompt; edits, writes, the
 	/// network and subagents are named again in `--disallowedTools`. No MCP
-	/// server, no settings file of any source, no slash commands, no session
-	/// saved, and `claude_writing_settings`. The decoder also refuses an init
-	/// frame that lists another tool or any MCP server, and any tool use
-	/// `core::decide_read_only_tool` refuses (`tool_refused`).
+	/// server, only the user's own settings (`claude_user_setting_source`),
+	/// no slash commands, no session saved, and `claude_writing_settings`.
+	/// The decoder also refuses an init frame that lists another tool or any
+	/// MCP server, and any tool use `core::decide_read_only_tool` refuses
+	/// (`tool_refused`).
 	inline constexpr std::array<std::string_view, 17> claude_read_only_restrictions = {
 		"--tools", "Read,Grep,Glob,Bash", "--allowedTools",
 		"Read,Grep,Glob,Bash(rg:*),Bash(grep:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(nl:*),Bash(find:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git diff:*),Bash(git grep:*),Bash(git ls-files:*)",
 		"--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task", "--permission-mode", "default", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})",
-		"--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--settings", claude_writing_settings
+		"--setting-sources", claude_user_setting_source, "--disable-slash-commands", "--no-session-persistence", "--settings", claude_writing_settings
 	};
 
 	/// \brief [[BPR-1900]]. What a read-only tour drafting launch gives

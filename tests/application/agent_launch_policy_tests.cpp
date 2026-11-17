@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <expected>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <string>
@@ -490,6 +491,66 @@ namespace {
 		expect(decode("Warning: no stdin data received in 3s, proceeding without it\n" + init) != application::agent_protocol_failure::not_signed_in, "a wrapper's banner line is still read past");
 		expect(application::agent_sign_in_failure_words.find("signed in") != std::string_view::npos, "the words say it is a sign-in problem");
 	}
+
+	/// [[BPR-2242]]. A stand-in for Claude run through a wrapper whose sign-in
+	/// is an `apiKeyHelper` in the user's own settings, as Claude Code 2.1.319
+	/// reads it: the user's settings load unless `--setting-sources` names
+	/// sources without `user`. Signed in, it answers; otherwise it writes what
+	/// the owner's Draft Tour got on 2026-11-16: an init frame with no key
+	/// source, then the first 401 retry.
+	[[nodiscard]] auto through_a_wrapper_signed_in_by_user_settings(const std::vector<std::string>& aArguments) -> std::string
+	{
+		auto userSettings = true;
+		if (const auto named = std::ranges::find(aArguments, "--setting-sources"); named != aArguments.end()) {
+			const auto value = std::next(named) == aArguments.end() ? std::string{ } : "," + *std::next(named) + ",";
+			userSettings     = value.find(",user,") != std::string::npos;
+		}
+		const auto init = std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"apiKeySource":")" } + (userSettings ? "apiKeyHelper" : "none") + "\"}\n";
+		if (!userSettings) {
+			return init + R"({"type":"system","subtype":"api_retry","attempt":1,"max_retries":10,"retry_delay_ms":547,"error_status":401,"error":"authentication_failed","session_id":"s"})" + "\n";
+		}
+		return init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"answered"}]}})" + "\n"
+			+ R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"answered"})" + "\n";
+	}
+
+	/// [[BPR-2242]] (owner, 2026-11-16). Ask in the Agent tab answered
+	/// through the owner's wrapper and Draft Tour failed to sign in: every
+	/// harness run of the selected agent reads the user's settings, where
+	/// the person's sign-in can live, as the Agent tab does.
+	void test_every_harness_run_reads_the_users_sign_in()
+	{
+		const auto checkout = std::vector<std::string>{ "/review/checkout" };
+		struct run
+		{
+			std::string_view                  Name;
+			application::agent_launch_options Options;
+		};
+		const auto runs = std::vector<run>{
+			{ "Ask in the Agent tab, in the pull request's checkout", { .PullRequestCheckout = checkout, .Path = core::agent_run_path::agent_tab } },
+			{ "Ask in the Agent tab, in the reviewer's own checkout", { .Path = core::agent_run_path::agent_tab } },
+			{ "an agent-assistance first answer", { .WritingOnly = true, .Path = core::agent_run_path::assistance_first_answer, .SystemInstructions = "Explain." } },
+			{ "Draft Tour with the diff up front", { .WritingOnly = true, .Path = core::agent_run_path::draft_tour_first_draft, .SystemInstructions = "Draft a tour." } },
+			{ "Draft Tour reading the repository", { .ReadOnlyTools = true, .PullRequestCheckout = checkout, .Path = core::agent_run_path::draft_tour_first_draft } },
+			{ "a field draft", { .WritingOnly = true, .Path = core::agent_run_path::tour_field_draft } },
+			{ "Enhance on a stop", { .WritingOnly = true, .Path = core::agent_run_path::tour_enhance } },
+			{ "a tour side chat", { .ReadOnlyTools = true, .PullRequestCheckout = checkout, .Path = core::agent_run_path::tour_side_chat } },
+			{ "the whole-tour conversation", { .ReadOnlyTools = true, .PullRequestCheckout = checkout, .Path = core::agent_run_path::tour_conversation } },
+			{ "Enhance on a comment", { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing } },
+			{ "a local draft's first description", { .WritingOnly = true, .Path = core::agent_run_path::local_description_first_draft } },
+			{ "a local draft's discussion", { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion } },
+			{ "a local draft's check plan", { .ReadOnlyTools = true, .PullRequestCheckout = checkout, .Path = core::agent_run_path::local_draft_discussion } },
+		};
+		for (const auto& each : runs) {
+			const auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(), reader(), each.Options);
+			expect(launch.has_value(), std::string{ each.Name } + " builds");
+			auto       decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, launch->WritingOnly, application::agent_launch_purpose::conversation, launch->ReadOnlyTools };
+			const auto pushed  = decoder.push(through_a_wrapper_signed_in_by_user_settings(launch->Arguments));
+			expect(pushed.has_value() && decoder.finish().has_value(), std::string{ each.Name } + " signs in through the wrapper and answers");
+			const auto named = std::ranges::find(launch->Arguments, "--setting-sources");
+			expect(named == launch->Arguments.end() || (std::next(named) != launch->Arguments.end() && *std::next(named) == "user"),
+				   std::string{ each.Name } + " names no settings source but the user's");
+		}
+	}
 } // namespace
 
 auto main(const int aCount, char** aArguments) -> int
@@ -543,6 +604,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_the_review_skill_rides_the_system_prompt();
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
+	test_every_harness_run_reads_the_users_sign_in();
 	test_a_returning_question_is_one_fresh_tool_free_call();
 	test_explain_this_file_is_one_fresh_tool_free_call();
 	test_suggest_the_change_is_one_fresh_tool_free_call();
