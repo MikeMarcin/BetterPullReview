@@ -216,8 +216,9 @@ namespace bpr::application {
 		Finished.reset();
 		// [[BPR-2181]]. A native session's turn is kept in its native history,
 		// the transcript a window shows it from; only another is kept here.
-		TurnNative = !aRequest.NativeAgentIdentity.empty();
-		Turn       = agent_conversation_turn{ .Asked = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion };
+		TurnNative  = !aRequest.NativeAgentIdentity.empty();
+		Turn        = agent_conversation_turn{ .Asked = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion };
+		TurnStarted = std::chrono::steady_clock::now();
 		if (!Turns->authorized()) {
 			// The window said ready before the runtime's review was accepted:
 			// the turn waits for that rather than being refused.
@@ -440,6 +441,7 @@ namespace bpr::application {
 			core::settle_steered_messages(Turn->Steered, endings);
 			Turn->Ending  = std::string{ name(aResult.Outcome) };
 			Turn->Outcome = turn_outcome(aResult.Outcome);
+			Turn->Seconds = agent_turn_seconds(TurnStarted);
 			if (Turn->Answered.empty()) {
 				for (const auto& item : aResult.AssistantItems) {
 					Turn->Answered += item;

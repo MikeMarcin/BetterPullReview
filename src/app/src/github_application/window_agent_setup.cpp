@@ -765,7 +765,8 @@ namespace bpr::app {
 							  .Footer   = QString::fromStdString(turn.Ending),
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered),
-							  .Steered  = turn.Steered });
+							  .Steered  = turn.Steered,
+							  .Seconds  = turn.Seconds ? std::optional<qint64>{ *turn.Seconds } : std::nullopt });
 		}
 		tab->present_thread(named_turns(std::move(turns)));
 		// [[BPR-1999]]. The conversation's cost, kept with its history.
@@ -1220,7 +1221,8 @@ namespace bpr::app {
 							  .Footer   = QString::fromStdString(turn.Ending),
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered),
-							  .Steered  = turn.Steered });
+							  .Steered  = turn.Steered,
+							  .Seconds  = turn.Seconds ? std::optional<qint64>{ *turn.Seconds } : std::nullopt });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		if (aView.Loaded) {

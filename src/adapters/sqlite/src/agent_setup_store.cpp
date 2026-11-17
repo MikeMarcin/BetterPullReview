@@ -139,6 +139,35 @@ namespace bpr::adapters::sqlite {
 				|| detail::execute(aDatabase, "ALTER TABLE agent_queue_entries ADD COLUMN claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256)").has_value();
 		}
 
+		/// [[BPR-2241]]. A native turn keeps how long its run took, so it is
+		/// restored saying how it ended; a file made before has no column.
+		[[nodiscard]] auto add_native_turn_seconds_column(sqlite3* const aDatabase) -> bool
+		{
+			const auto present = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='native_agent_turns' AND sql LIKE '%seconds INTEGER%'");
+			if (!present) {
+				return false;
+			}
+			return *present != 0
+				|| detail::execute(aDatabase, "ALTER TABLE native_agent_turns ADD COLUMN seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295)").has_value();
+		}
+
+		void bind_seconds(sqlite3_stmt* const aRow, const int aColumn, const std::optional<std::uint32_t> aSeconds)
+		{
+			if (aSeconds) {
+				sqlite3_bind_int64(aRow, aColumn, static_cast<sqlite3_int64>(*aSeconds));
+			} else {
+				sqlite3_bind_null(aRow, aColumn);
+			}
+		}
+
+		[[nodiscard]] auto column_seconds(sqlite3_stmt* const aRow, const int aColumn) -> std::optional<std::uint32_t>
+		{
+			if (sqlite3_column_type(aRow, aColumn) == SQLITE_NULL) {
+				return std::nullopt;
+			}
+			return static_cast<std::uint32_t>(std::clamp<sqlite3_int64>(sqlite3_column_int64(aRow, aColumn), 0, UINT32_MAX));
+		}
+
 		[[nodiscard]] auto open(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
 		{
 			if (!detail::sqlite_runtime_ready()) {
@@ -228,7 +257,7 @@ namespace bpr::adapters::sqlite {
 									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_workspaces(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295), PRIMARY KEY(conversation,ordinal)) STRICT")
 				// [[BPR-2153]]. What the reviewer steered into each turn, in the
 				// order sent: their words, where in the answer it went in, the
 				// agent's step it followed, and whether the agent took it.
@@ -453,6 +482,7 @@ namespace bpr::adapters::sqlite {
 									"PRIMARY KEY(session, position)) STRICT")
 				|| !add_queue_prompt_column(db)
 				|| !add_queue_claim_column(db)
+				|| !add_native_turn_seconds_column(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
@@ -1412,7 +1442,7 @@ namespace bpr::adapters::sqlite {
 						if (sqlite3_step(origin->Value) != SQLITE_ROW) {
 							return std::unexpected(failure::conflict);
 						}
-						source = detail::prepare(db, "SELECT asked,answered,ending,outcome FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
+						source = detail::prepare(db, "SELECT asked,answered,ending,outcome,seconds FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
 						if (source) {
 							bind_text(source->Value, 1, replaySource);
 						}
@@ -1432,6 +1462,7 @@ namespace bpr::adapters::sqlite {
 								return std::unexpected(failure::unavailable);
 							}
 							turn.Outcome = *outcome;
+							turn.Seconds = column_seconds(source->Value, 4);
 							replayTurns.push_back(std::move(turn));
 						}
 						if (sourceStatus != SQLITE_DONE || !application::valid(replayTurns) || (replaySource.starts_with("legacy:") && replayTurns.empty())) {
@@ -1570,7 +1601,7 @@ namespace bpr::adapters::sqlite {
 							return std::unexpected(failure::unavailable);
 						}
 						for (std::size_t index = 0; index < replayTurns.size(); ++index) {
-							auto turn = detail::prepare(db, "INSERT INTO native_agent_turns VALUES(?1,?2,?3,?4,?5,?6)");
+							auto turn = detail::prepare(db, "INSERT INTO native_agent_turns(conversation,ordinal,asked,answered,ending,outcome,seconds) VALUES(?1,?2,?3,?4,?5,?6,?7)");
 							if (!turn) {
 								return std::unexpected(failure::unavailable);
 							}
@@ -1580,6 +1611,7 @@ namespace bpr::adapters::sqlite {
 							bind_text(turn->Value, 4, replayTurns[index].Answered);
 							bind_text(turn->Value, 5, replayTurns[index].Ending);
 							sqlite3_bind_int(turn->Value, 6, static_cast<int>(replayTurns[index].Outcome));
+							bind_seconds(turn->Value, 7, replayTurns[index].Seconds);
 							if (sqlite3_step(turn->Value) != SQLITE_DONE) {
 								return std::unexpected(failure::unavailable);
 							}
@@ -1784,7 +1816,7 @@ namespace bpr::adapters::sqlite {
 					}
 					view.ReadOnly = true;
 				}
-				auto turns  = detail::prepare(db, "SELECT asked,answered,ending,outcome,ordinal FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
+				auto turns  = detail::prepare(db, "SELECT asked,answered,ending,outcome,ordinal,seconds FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
 				auto steers = detail::prepare(db, "SELECT text,at,steps,disposition FROM native_agent_turn_steers WHERE conversation=?1 AND ordinal=?2 ORDER BY position LIMIT 16");
 				if (!turns || !steers) {
 					return std::unexpected(failure::unavailable);
@@ -1797,6 +1829,7 @@ namespace bpr::adapters::sqlite {
 					turn.Answered = column_text(turns->Value, 1).value_or("");
 					turn.Ending   = column_text(turns->Value, 2).value_or("");
 					turn.Outcome  = static_cast<core::agent_turn_outcome>(sqlite3_column_int(turns->Value, 3));
+					turn.Seconds  = column_seconds(turns->Value, 5);
 					sqlite3_reset(steers->Value);
 					bind_text(steers->Value, 1, conversation);
 					sqlite3_bind_int64(steers->Value, 2, sqlite3_column_int64(turns->Value, 4));
@@ -1827,7 +1860,7 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				auto* db  = connection->Database.get();
-				auto  row = detail::prepare(db, "INSERT INTO native_agent_turns SELECT ?1,coalesce(max(ordinal),0)+1,?2,?3,?4,?5 FROM native_agent_turns WHERE conversation=?1");
+				auto  row = detail::prepare(db, "INSERT INTO native_agent_turns(conversation,ordinal,asked,answered,ending,outcome,seconds) SELECT ?1,coalesce(max(ordinal),0)+1,?2,?3,?4,?5,?6 FROM native_agent_turns WHERE conversation=?1");
 				if (!row) {
 					return false;
 				}
@@ -1836,6 +1869,7 @@ namespace bpr::adapters::sqlite {
 				bind_text(row->Value, 3, aTurn.Answered);
 				bind_text(row->Value, 4, aTurn.Ending);
 				sqlite3_bind_int(row->Value, 5, static_cast<int>(aTurn.Outcome));
+				bind_seconds(row->Value, 6, aTurn.Seconds);
 				if (sqlite3_step(row->Value) != SQLITE_DONE) {
 					return false;
 				}

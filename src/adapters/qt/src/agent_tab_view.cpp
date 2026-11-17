@@ -2211,11 +2211,18 @@ namespace bpr::qt {
 		std::erase_if(CardEntries, [](const card_entry& aEntry) { return aEntry.Turn.has_value(); });
 		for (const auto& shown : aTurns) {
 			auto next = turn{ };
+			// [[BPR-2241]]. A turn kept with how it ended as an outcome
+			// rather than the line it settled with (a native session's, or
+			// one no window saw end) is said as the live turn said it.
+			const auto worded = shown.Footer.contains(QLatin1Char{ ' ' });
+			const auto ending = worded ? shown.Footer.section(QStringLiteral(" · "), 0, 0)
+									   : agent_turn_ending_words(Launch.profile_selector()->currentText(), shown.Outcome == core::agent_turn_outcome::answered, shown.Seconds);
+			const auto footer = worded ? shown.Footer : ending + QLatin1Char{ '.' };
 			if (const auto at = Turns.size(); at < before.size() && std::get<0>(before[at]) == shown.Question) {
 				next.Serial = std::get<1>(before[at]);
 				next.Ending = std::get<2>(before[at]);
 			} else {
-				next.Ending = shown.Footer.section(QStringLiteral(" · "), 0, 0);
+				next.Ending = ending;
 			}
 			next.Question   = shown.Question;
 			next.Name       = shown.Name;
@@ -2233,7 +2240,7 @@ namespace bpr::qt {
 			Turns.push_back(std::move(next));
 			auto& kept = Turns.back();
 			set_answer(kept, shown.Answer);
-			kept.Footer->setText(shown.Footer);
+			kept.Footer->setText(footer);
 			// [[BPR-2005]]. A turn this window saw end keeps its line and its
 			// folded block when the thread is drawn again.
 			// The same question in the same order: the latest such turn not
@@ -2247,7 +2254,7 @@ namespace bpr::qt {
 				}
 			}
 			if (seen != EndedTurns.end()) {
-				if (!shown.Footer.contains(QLatin1Char{ ' ' })) {
+				if (!worded) {
 					kept.Footer->setText(seen->Footer);
 				}
 				if (!seen->Ending.isEmpty()) {
@@ -3169,7 +3176,7 @@ namespace bpr::qt {
 		const auto cost      = Launch.last_turn_cost();
 		const auto spent     = cost ? QString::fromStdString(core::agent_cost_words(*cost)) : QString{ };
 		const auto delivered = succeeded && findings > 0U && FindingsPresented != FindingsAtTurn;
-		auto       parts     = QStringList{ succeeded ? agent_run_answered_words(agent_short_name(agent), seconds) : agent_run_stopped_words(seconds) };
+		auto       parts     = QStringList{ agent_turn_ending_words(agent, succeeded, seconds) };
 		auto       tip       = QStringList{ succeeded ? agent_run_answered_words(ran, seconds) : parts.front() };
 		if (cost) {
 			parts << spent;

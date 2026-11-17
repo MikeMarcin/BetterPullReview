@@ -161,12 +161,15 @@ namespace bpr::application {
 			/// continuation is bound by BPR-0521's design to a revision the
 			/// review may already have moved away from, so "the binding
 			/// changed" is not news about it.
-			const bool                           Continued = false;
-			std::shared_ptr<std::stop_source>    Stop;
-			std::mutex                           WorkspaceMutex;
-			std::optional<owned_agent_workspace> OwnedWorkspace;
-			std::optional<native_agent_session>  Native;
-			bool                                 RetainWorkspace = false;
+			const bool Continued = false;
+			/// [[BPR-2241]]. When the turn was admitted, as the Agent tab
+			/// starts its clock: the stored turn keeps how long it took.
+			const std::chrono::steady_clock::time_point Admitted = std::chrono::steady_clock::now();
+			std::shared_ptr<std::stop_source>           Stop;
+			std::mutex                                  WorkspaceMutex;
+			std::optional<owned_agent_workspace>        OwnedWorkspace;
+			std::optional<native_agent_session>         Native;
+			bool                                        RetainWorkspace = false;
 			/// [[BPR-1999]]. The run resumed the runtime's own session (its
 			/// handle was known at launch), so its reported cost is that
 			/// session's running total.
@@ -1206,6 +1209,7 @@ namespace bpr::application {
 					turn.Answered = std::move(answer);
 					turn.Ending   = std::string{ name(result.Outcome) };
 					turn.Outcome  = result.Outcome == agent_run_outcome::success ? core::agent_turn_outcome::answered : core::agent_turn_outcome::ended_without_answer;
+					turn.Seconds  = agent_turn_seconds(aInvocation->Admitted);
 					auto bounded  = bound_conversation({ std::move(turn) });
 					for (auto& steered : bounded.front().Steered) {
 						steered.At = std::min(steered.At, bounded.front().Answered.size());

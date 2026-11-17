@@ -113,6 +113,9 @@ namespace bpr::qt {
 		/// [[BPR-2153]]. What the reviewer steered into it, shown as their own
 		/// messages where they went in.
 		std::vector<application::agent_steered_message> Steered;
+		/// [[BPR-2241]]. How long its run took, when `Footer` is the stored
+		/// outcome rather than the line it settled with.
+		std::optional<qint64> Seconds;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
