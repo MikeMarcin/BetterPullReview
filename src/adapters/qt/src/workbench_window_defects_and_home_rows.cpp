@@ -1615,14 +1615,14 @@ namespace bpr::qt {
 			}
 			aVeil->present(core::pending_activity::loading, aContent, false, aWords);
 		};
-		// The review's own words are its Refresh control's; the veil only
-		// speaks once the read is slow.
+		// [[BPR-2216]]. The owner, 2026-11-17: "The heck now this double
+		// status came back on the review screen." While the pull request is
+		// read, its panes wait in the shape of their content, without
+		// sentences; the status bar says what the read is on.
 		if (refreshing && RefreshConversationCurrent && PendingPanes.Content != nullptr) {
 			// [[BPR-1851]]. The file on screen and its threads are this
-			// refresh's already: they are not washed over while the rest comes,
-			// which the partial plate says at the review's foot.
-			PendingPanes.Content->present(core::pending_activity::loading, true, true,
-										  { .Waiting = waiting, .Coming = QStringLiteral("Refreshing remaining details…") });
+			// refresh's already: they are not washed over while the rest comes.
+			PendingPanes.Content->present(core::pending_activity::loading, true, true, { });
 		} else {
 			apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
 		}
@@ -1630,14 +1630,15 @@ namespace bpr::qt {
 		// Files drawer lists them too: readable, with what is still coming said
 		// on the plate at its foot rather than over the rows.
 		if (first && LoadingReadiness.FirstRead && LoadingReadiness.Files && !ProvisionalFiles.empty()) {
-			const auto coming = PendingOpenPath.isEmpty() ? QStringLiteral("Files open once the review has loaded…")
+			// Only a file the reviewer chose is said: the gesture's answer.
+			const auto coming = PendingOpenPath.isEmpty() ? QString{ }
 														  : QStringLiteral("Opening %1 once the review has loaded…").arg(PendingOpenPath.section(QLatin1Char('/'), -1));
 			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = coming });
 		} else {
-			apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+			apply(PendingPanes.Files, first, false, { });
 		}
-		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
-		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
+		apply(PendingPanes.Conversations, first, false, { });
+		apply(PendingPanes.Threads, first, false, { });
 		// Only a composed queue restores: without one nothing is on its way.
 		const auto queued = static_cast<bool>(QueueDiscoveryDispatch);
 		apply(PendingPanes.Repositories, queued && HomeAccount && QueueProjection.Status == application::queue_landing_status::restoring, false,

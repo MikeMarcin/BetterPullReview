@@ -29,6 +29,7 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QDir>
@@ -394,6 +395,40 @@ try {
 	// The rest of the read is held long enough to go to Home and back.
 	delay->Milliseconds     = first_hold_ms;
 	delay->PageMilliseconds = 5U * first_hold_ms;
+	// The owner, 2026-11-17, of look v003: "The heck now this double status
+	// came back on the review screen." Every mode and every waiting pane,
+	// drawers included, waits without a sentence while the status bar says
+	// what the read is on.
+	{
+		const auto said = QRegularExpression{ QStringLiteral("loading|refreshing|still waiting|pages received|catalogue"), QRegularExpression::CaseInsensitiveOption };
+		for (const auto modality : { qt::review_modality::overview, qt::review_modality::review, qt::review_modality::discuss, qt::review_modality::threads }) {
+			window->choose_modality(modality);
+			for (auto settle = 0; settle < 10; ++settle) {
+				turn();
+			}
+			expect(window->session_panel()->status() == core::github_status::loading_pull_request, "the read is still under way in every mode");
+			const auto name = std::to_string(static_cast<int>(modality));
+			auto*      bar  = window->statusBar();
+			for (auto* const widget : window->findChildren<QWidget*>()) {
+				if (widget == bar || bar->isAncestorOf(widget)) {
+					continue;
+				}
+				if (auto* const veil = dynamic_cast<qt::pending_veil*>(widget); veil != nullptr && veil->busy()) {
+					expect(veil->shown_text().isEmpty(), "mode " + name + ": no waiting pane says a sentence: " + veil->objectName().toStdString() + " " + veil->shown_text().toStdString());
+				}
+				if (auto* const label = qobject_cast<QLabel*>(widget); label != nullptr && label->isVisible()) {
+					expect(!label->text().contains(said), "mode " + name + ": no label on the page says what loads: " + label->objectName().toStdString() + " " + label->text().toStdString());
+				}
+				if (auto* const button = qobject_cast<QAbstractButton*>(widget); button != nullptr && button->isVisible()) {
+					expect(!button->text().contains(said), "mode " + name + ": no button says what loads: " + button->text().toStdString());
+				}
+			}
+			expect(window->status_label()->text().startsWith(QStringLiteral("Loading")), "mode " + name + ": the status bar says what loads");
+			render(QStringLiteral("review-mode-%1-loading").arg(static_cast<int>(modality)));
+		}
+		window->choose_modality(qt::review_modality::overview);
+		turn();
+	}
 #if defined(NDEBUG)
 	expect(paintMs >= 0 && paintMs < 100, "the page's first frame is painted within 100 ms of the double-click in an optimized build");
 	expect(turnsMax < 100, "no turn between the double-click and that frame takes 100 ms or more in an optimized build");

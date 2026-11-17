@@ -638,11 +638,16 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present_loading()
 	{
-		Title->setText(QStringLiteral("Loading pull request…"));
-		Summary->setText(QStringLiteral("Details, files and threads are loading in the background."));
-		present_heading(*FilesHeading, QStringLiteral("Files — loading…"));
+		// [[BPR-2216]]. The owner, 2026-11-17, of a loading sentence on the
+		// review screen beside the status bar's: "The heck now this double
+		// status came back on the review screen." While the pull request is
+		// read the status bar alone says so; the page waits in the shape of
+		// its content, without sentences.
+		Title->clear();
+		Summary->clear();
+		present_heading(*FilesHeading, QStringLiteral("Files"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
-			none->setText(QStringLiteral("Loading participants…"));
+			none->clear();
 		}
 		// [[BPR-1576]]. The description's place is held while it is unknown,
 		// so the placeholders stand where it will.
@@ -676,44 +681,32 @@ namespace bpr::qt {
 		}
 		// [[BPR-2216]]. The owner, 2026-11-16: "Seems like overview has a
 		// loading status text that looks almost 1:1 copy of the status bar's
-		// loading status text just below it." The status bar alone says which
-		// step the read is on; each section says only what it is waiting for.
-		const auto waiting = QString{ };
-		const auto section = [&waiting](pending_veil& aVeil, const bool aPending, QString aLoading, QString aDone = { }) {
+		// loading status text just below it." Each section waits in its own
+		// shape, without a sentence: the status bar says what the read is on.
+		const auto section = [](pending_veil& aVeil, const bool aPending, QString aDone = { }) {
 			if (!aPending) {
 				aVeil.present_ready();
 				return;
 			}
-			aVeil.present(core::pending_activity::loading, false, false, { .Loading = std::move(aLoading), .Waiting = waiting, .Done = std::move(aDone) });
+			aVeil.present(core::pending_activity::loading, false, false, { .Done = std::move(aDone) });
 		};
 		// Provisional sections become readable independently; anything not
 		// received yet keeps its own loading presentation.
-		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
-		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
+		section(*Veils.Header, Loading && !Observed);
+		section(*Veils.Description, Loading && !Observed);
 		// [[BPR-2180]]. The column is never covered whole: each section stands
 		// in its place under its heading and waits over its own body for its
-		// own part of the read, and the column's plate says what is still
-		// coming. A section whose part has arrived shows while others wait.
-		// Each wait is the read lane's: the readiness the host published.
+		// own part of the read. A section whose part has arrived shows while
+		// others wait. Each wait is the read lane's: the readiness the host
+		// published. [[BPR-2216]]: the column carries no plate of its own.
 		const auto reading = Readiness.FirstRead && !Cached;
 		if (reading) {
-			// The words are BPR-1895's; review progress always comes last.
-			auto remaining = QStringList{ };
-			if (!Readiness.People) {
-				remaining.push_back(QStringLiteral("reviewers"));
-			}
-			if (!Readiness.Checks) {
-				remaining.push_back(QStringLiteral("checks"));
-			}
-			// Merge rules finish only with the accepted review.
-			remaining.push_back(QStringLiteral("merge rules"));
-			Veils.Side->present(core::pending_activity::loading, true, true,
-								{ .Waiting = waiting, .Coming = QStringLiteral("Loading %1 and review progress…").arg(remaining.join(QStringLiteral(", "))) });
+			Veils.Side->present(core::pending_activity::loading, true, true, { });
 		} else {
 			Veils.Side->present_ready();
 		}
 		const auto line  = QFontMetrics{ font() }.height();
-		const auto waits = [&](const overview_status_section aSection, pending_veil& aVeil, const bool aPending, const int aHeight, QString aLoading) {
+		const auto waits = [&](const overview_status_section aSection, pending_veil& aVeil, const bool aPending, const int aHeight) {
 			auto& parts = Sections[static_cast<std::size_t>(aSection)];
 			if (aPending) {
 				parts.Frame->show();
@@ -721,29 +714,23 @@ namespace bpr::qt {
 			// The section's body holds a place for its placeholders while it
 			// waits, however little of its own it has yet.
 			parts.Body->setMinimumHeight(aPending ? aHeight : 0);
-			section(aVeil, aPending, std::move(aLoading));
+			section(aVeil, aPending);
 		};
 		const auto pairs = (pending_veil::inset / 2) + 4;
-		waits(overview_status_section::attention, *Veils.Merge, reading && !Readiness.Merge, pairs + (2 * (line + 6)), QStringLiteral("Loading the merge state…"));
-		waits(overview_status_section::my_review, *Veils.MyReview, reading, pairs + (4 * (line + 6)), QStringLiteral("Loading my review…"));
-		waits(overview_status_section::checks, *Veils.Checks, reading && !Readiness.Checks, pairs + (2 * (((line * 3) / 2) + 4)), QStringLiteral("Loading checks…"));
-		waits(overview_status_section::people, *Veils.People, reading && !Readiness.People, line + 12, QStringLiteral("Loading reviewers…"));
-		section(*Veils.Roster, reading && !Readiness.People, QStringLiteral("Loading participants…"));
+		waits(overview_status_section::attention, *Veils.Merge, reading && !Readiness.Merge, pairs + (2 * (line + 6)));
+		waits(overview_status_section::my_review, *Veils.MyReview, reading, pairs + (4 * (line + 6)));
+		waits(overview_status_section::checks, *Veils.Checks, reading && !Readiness.Checks, pairs + (2 * (((line * 3) / 2) + 4)));
+		waits(overview_status_section::people, *Veils.People, reading && !Readiness.People, line + 12);
+		section(*Veils.Roster, reading && !Readiness.People);
 		// As many placeholder rows as GitHub reported files, once it has.
 		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
 		if (Loading && ObservedFiles) {
-			// [[BPR-1842]]. The rows are there to read; what is still coming is
-			// said on the plate, not dimmed over them.
-			const auto coming = QStringLiteral("Loading comments, reviews and checks…");
-			Veils.Files->present(core::pending_activity::loading, true, true,
-								 { .Waiting = waiting, .Coming = coming, .Done = QStringLiteral("Overview ready: files, reviewers and checks are shown.") });
+			// [[BPR-1842]]. The rows are there to read, not dimmed over.
+			Veils.Files->present(core::pending_activity::loading, true, true, { .Done = QStringLiteral("Overview ready: files, reviewers and checks are shown.") });
 			return;
 		}
 		if (Loading) {
-			section(*Veils.Files, true,
-					Observed ? QStringLiteral("Loading the file list: %1 reported…").arg(ReportedFiles == 1U ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count_text(ReportedFiles)))
-							 : QStringLiteral("Loading the file list…"),
-					QStringLiteral("Overview ready: files, reviewers and checks are shown."));
+			section(*Veils.Files, true, QStringLiteral("Overview ready: files, reviewers and checks are shown."));
 			return;
 		}
 		// The counts by file are the files' last part to arrive: said, not
@@ -783,7 +770,7 @@ namespace bpr::qt {
 		present_draft_controls();
 		const auto commits = aObservation.ReportedCommits == 1U ? QStringLiteral("1 commit")
 																: QStringLiteral("%1 commits").arg(count_text(aObservation.ReportedCommits));
-		Summary->setText(QStringLiteral("%1 · %2 · %3 → %4 · %5. Provisional metadata; review data is still loading.")
+		Summary->setText(QStringLiteral("%1 · %2 · %3 → %4 · %5.")
 							 .arg(aObservation.AuthorLogin.empty() ? QStringLiteral("Unknown author") : text(aObservation.AuthorLogin),
 								  commits, text(aObservation.HeadRef), text(aObservation.BaseRef), state));
 		Body->present_body(aObservation.Body);
@@ -792,10 +779,10 @@ namespace bpr::qt {
 		FullView->setVisible(!aObservation.Body.empty());
 		present_description_controls();
 		SummarySplit->queue_layout();
-		present_heading(*FilesHeading, QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
-		SinceHeading->setText(QStringLiteral("Review state — loading…"));
+		present_heading(*FilesHeading, QStringLiteral("Files — %1 reported").arg(count_text(aObservation.ReportedFiles)));
+		SinceHeading->setText(QStringLiteral("Review state"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
-			none->setText(QStringLiteral("Loading participants…"));
+			none->clear();
 		}
 		apply_pending();
 	}

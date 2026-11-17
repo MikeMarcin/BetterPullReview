@@ -380,6 +380,10 @@ namespace bpr::qt {
 			return QRect{ 0, 0, width(), height };
 		}
 		case core::pending_look::partial: {
+			// [[BPR-2216]]. Nothing to say, no plate: the status bar says it.
+			if (Words.Coming.isEmpty()) {
+				return { };
+			}
 			const auto metrics = QFontMetrics{ font() };
 			// [[BPR-1851]]. A little room beyond the words' advance: measured
 			// exactly, eliding them to that width dropped their last letter.
@@ -388,6 +392,9 @@ namespace bpr::qt {
 			return plate;
 		}
 		case core::pending_look::refreshing_slow: {
+			if (shown_text().isEmpty()) {
+				return { };
+			}
 			const auto metrics = QFontMetrics{ font() };
 			const auto text    = std::min(metrics.horizontalAdvance(shown_text()), std::max(0, width() - (4 * inset) - line));
 			const auto wide    = line + 8 + text + 20;

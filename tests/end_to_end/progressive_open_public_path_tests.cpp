@@ -273,7 +273,8 @@ try {
 					holdStatus = false;
 				}
 				expect(checksVisible && partial && !accepted, "check results and remaining-loading plate are visible while merge assessment is held");
-				expect(overview->pending_veils().Side->shown_text().contains(QStringLiteral("Loading reviewers")), "Status names its remaining loading");
+				// [[BPR-2216]]. The status bar says what loads; the column does not.
+				expect(overview->pending_veils().Side->shown_text().isEmpty(), "Status leaves its remaining loading to the status bar");
 				auto* const header = overview->status_section_header(qt::overview_status_section::checks);
 				if (!header->isChecked()) {
 					header->click();
@@ -310,7 +311,8 @@ try {
 			if (holdRules && rulesHeld && (times.People || clock.elapsed() > 15'000)) {
 				holdRules = false;
 				expect(times.Merge && times.People && !accepted && !overview->participant_rows().empty(), "people and merge are readable before held rules finish");
-				expect(overview->pending_veils().Side->shown_text().contains(QStringLiteral("Loading merge rules and review progress")), "completed reviewers leave the remaining-loading plate");
+				// [[BPR-2216]]. The column says nothing of what still loads.
+				expect(overview->pending_veils().Side->shown_text().isEmpty(), "completed reviewers leave no remaining-loading plate");
 				auto* header = overview->status_section_header(qt::overview_status_section::people);
 				if (!header->isChecked()) {
 					header->click();

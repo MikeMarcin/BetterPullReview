@@ -257,7 +257,8 @@ try {
 		renders(aName + QStringLiteral("-first-answer"));
 		wait_for([&] { return !veils.Header->busy() && !veils.Description->busy(); }, "the title and description show as soon as GitHub names them");
 		if (aAssert) {
-			expect(veils.Files->busy() && veils.Files->words().Loading.contains(QStringLiteral("reported")), "the file table says how many files GitHub reported");
+			// [[BPR-2216]]. The file table waits without a sentence.
+			expect(veils.Files->busy() && veils.Files->shown_text().isEmpty(), "the file table waits without saying what loads");
 		}
 		wait_for([&] { return veils.Files->look() == core::pending_look::loading_slow || !veils.Files->busy(); }, "the files wait on", 30'000);
 		if (aAssert && veils.Files->busy()) {
@@ -363,7 +364,8 @@ try {
 		delay->Milliseconds     = 1'500U;
 		delay->PageMilliseconds = 1'200U;
 		open(first);
-		wait_for([&] { return window->pending_veils().Files->words().Coming.startsWith(QStringLiteral("Files open")); }, "the first pull request's files are reported again", 60'000);
+		// [[BPR-2216]]. The drawer lists them again, waiting without a sentence.
+		wait_for([&] { return window->pending_veils().Files->busy() && window->pending_veils().Files->look() == core::pending_look::partial && window->pending_veils().Files->shown_text().isEmpty(); }, "the first pull request's files are reported again", 60'000);
 		const auto provisional = paths();
 		std::cerr << "shown " << shown.join(QLatin1Char{ ',' }).toStdString() << " provisional " << provisional.join(QLatin1Char{ ',' }).toStdString() << '\n';
 		delay->FailNumber = 18U;
