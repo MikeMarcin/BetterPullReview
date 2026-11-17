@@ -195,6 +195,14 @@ namespace {
 		expect(read_report_answer("Looked around.\n\n# Only a title\n\nNo sections.").Notes.empty() && read_report_answer("No headings at all.").Report == "No headings at all.", "no title a section follows: the answer is the report");
 		expect(read_report_answer("Working.\n\n## Likely\n\nx\n\n## Possible\n\ny").Notes.empty(), "a report that has no level-one title keeps everything: its summary may stand there");
 		expect(read_report_answer(answer) == read, "deterministic");
+		// Look review-report-v002, as the owner saw it: the agent's text
+		// blocks joined with nothing between them, the title mid-line.
+		const auto glued = read_report_answer("I'll start with the brief and the diff, then read the files the change touches.The resize is the change that matters.I have what I need. Now I'll write up the review." + report_text);
+		expect(glued.Report == report_text && glued.Notes.ends_with("Now I'll write up the review.") && dress_report(glued.Report).Title == "Review of #21" && report_card_of(glued.Report).Title == "Review of #21",
+			   "a title glued to the end of the agent's last note is still the report's start: " + glued.Notes);
+		expect(read_report_answer("See issue # 5 and C# code.\n\nNothing more.").Notes.empty() && read_report_answer("Use `x# y` here.\n\n## A\n\nb").Notes.empty()
+				   && read_report_answer("Written in C# for speed.\n\n## A\n\nb").Notes.empty() && read_report_answer("It ends `here.# x` so.\n\n## A\n\nb").Notes.empty(),
+			   "a mark after a space, after a letter or in code is not a title");
 
 		const auto report = dress_report(read.Report);
 		expect(report.Verdict == "Needs changes" && report.VerdictTone == report_tone::open && report.Summary == "One thing must be fixed before this merges.", "the verdict opens the summary and is not part of it: " + report.Summary);

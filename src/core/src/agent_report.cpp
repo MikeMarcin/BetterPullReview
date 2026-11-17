@@ -780,6 +780,40 @@ namespace bpr::core {
 				before = true;
 			}
 		}
+		// Look review-report-v002: text blocks joined with nothing between
+		// them put the title in the middle of a line ("...write up the
+		// review.# Review of #21"). A level-one mark glued to the end of a
+		// sentence, with a heading after it, is the report's title too.
+		fenced     = false;
+		auto glued = std::optional<std::size_t>{ };
+		for (const auto line : lines_of(aAnswer)) {
+			if (fence(line)) {
+				fenced = !fenced;
+				continue;
+			}
+			if (fenced) {
+				continue;
+			}
+			if (glued) {
+				if (heading(line)) {
+					auto notes = aAnswer.substr(0U, *glued);
+					while (!notes.empty() && (notes.back() == '\n' || notes.back() == '\r' || notes.back() == ' ' || notes.back() == '\t')) {
+						notes.remove_suffix(1U);
+					}
+					return { .Notes = std::string{ notes }, .Report = std::string{ aAnswer.substr(*glued) } };
+				}
+				continue;
+			}
+			for (auto at = line.find("# "); at != std::string_view::npos; at = line.find("# ", at + 1U)) {
+				// Glued to the end of a sentence, outside a code span.
+				const auto before_mark = at == 0U ? ' ' : line[at - 1U];
+				const auto in_code     = std::ranges::count(line.substr(0U, at), '`') % 2 != 0;
+				if (at != 0U && !in_code && std::string_view{ ".!?:)" }.find(before_mark) != std::string_view::npos && !trimmed(line.substr(at + 2U)).empty()) {
+					glued = static_cast<std::size_t>(line.data() - aAnswer.data()) + at;
+					break;
+				}
+			}
+		}
 		return { .Notes = { }, .Report = std::string{ aAnswer } };
 	}
 

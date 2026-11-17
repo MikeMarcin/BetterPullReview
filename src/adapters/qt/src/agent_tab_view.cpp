@@ -1426,6 +1426,10 @@ namespace bpr::qt {
 		}
 		// RFC-BPR-0125 (AC07). A suggested prompt's turn shows what was sent
 		// under the prompt's name, in the weight About uses.
+		// Look review-report-v002 (owner: "I wish the option when it's
+		// collapsed took a little less space"): the name and its Show prompt
+		// share one row.
+		auto* nameRow = static_cast<QHBoxLayout*>(nullptr);
 		if (!aTurn.Name.isEmpty()) {
 			auto* const name = new QLabel{ aTurn.Name, asked };
 			name->setObjectName(QStringLiteral("agentTurnName"));
@@ -1434,7 +1438,11 @@ namespace bpr::qt {
 			auto strong = name->font();
 			strong.setWeight(QFont::DemiBold);
 			name->setFont(strong);
-			askedColumn->addWidget(name);
+			nameRow = new QHBoxLayout{ };
+			nameRow->setContentsMargins(0, 0, 0, 0);
+			nameRow->setSpacing(8);
+			nameRow->addWidget(name, 1);
+			askedColumn->addLayout(nameRow);
 		}
 		const auto spoken = aTurn.Name.isEmpty() ? aTurn.Question : tr("%1: %2").arg(aTurn.Name, aTurn.Question);
 		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, spoken) : spoken);
@@ -1475,7 +1483,9 @@ namespace bpr::qt {
 			question->setFont(italic);
 		}
 		askedColumn->addWidget(question);
-		if (aTurn.ShowAll != nullptr) {
+		if (aTurn.ShowAll != nullptr && nameRow != nullptr) {
+			nameRow->addWidget(aTurn.ShowAll, 0, Qt::AlignRight | Qt::AlignTop);
+		} else if (aTurn.ShowAll != nullptr) {
 			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
 		}
 		column->addWidget(asked);

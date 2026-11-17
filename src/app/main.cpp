@@ -8515,6 +8515,18 @@ namespace {
 					finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:not-dressed:step=%1").arg(current.Name));
 					return;
 				}
+				// [[BPR-2219]], look review-report-v002 (the title read "I'll
+				// start with the brief ... Now I'll write up the review.# Review
+				// of #21"): no word the agent said while it worked is in the
+				// report's title, its summary or the card's row.
+				{
+					const auto  noted = [](const QString& aText) { return aText.contains(QStringLiteral("I'll start with")) || aText.contains(QStringLiteral("write up the review")) || aText.contains(QStringLiteral("# ")); };
+					auto* const named = open->findChild<QLabel*>(QStringLiteral("agentTurnReportTitle"));
+					if (noted(report->title()) || noted(QString::fromStdString(report->dressed().Summary)) || (named != nullptr && noted(named->text()))) {
+						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:notes-in-report:step=%1:title=%2").arg(current.Name, report->title().left(160)));
+						return;
+					}
+				}
 				// Look report-templates-v003: every code block of the report is
 				// the Agent tab's own code box (its Copy and Wrap, its syntax
 				// colours), shown over its place, numbered unless a suggestion.

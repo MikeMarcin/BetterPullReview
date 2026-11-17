@@ -4635,6 +4635,13 @@ namespace bpr::application {
 				return false;
 			}
 			auto found = std::ranges::find(AssistantIds, it->Item);
+			// [[BPR-2219]] (look review-report-v002: a report's title read
+			// "...Now I'll write up the review.# Review of #21"). Each text
+			// block of a turn is its own paragraph of the answer: an agent's
+			// words between its tool calls and the report it then writes
+			// are separate blocks, and joined with nothing between them the
+			// report's title was no longer at the start of a line.
+			const auto opens = found == AssistantIds.end() && AssistantBytes != 0U;
 			if (found == AssistantIds.end()) {
 				if (AssistantIds.size() >= 256) {
 					return false;
@@ -4659,6 +4666,11 @@ namespace bpr::application {
 			AssistantItems[index] += it->Text;
 			AssistantBytes += it->Text.size();
 			AssistantComplete[index] = it->CompleteItem;
+			// The item is kept as it was written (a repeated complete item
+			// must equal it); what goes on to the answer opens a paragraph.
+			if (opens && !it->Text.empty() && it->Text.front() != '\n') {
+				it->Text.insert(0U, "\n\n");
+			}
 			++it;
 		}
 		return true;

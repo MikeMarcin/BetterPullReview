@@ -326,8 +326,10 @@ namespace bpr::core {
 	};
 	/// \brief Splits an answer at its report's title: the first level-one
 	/// heading outside fenced code that a section heading follows. With no
-	/// such heading, or nothing before it, the answer is the report. Linear;
-	/// no effects.
+	/// such heading, or nothing before it, the answer is the report. A
+	/// level-one mark glued to a sentence's last mark ("...the review.# Review
+	/// of #21": text blocks joined with nothing between them) that a heading
+	/// follows is the title too. Linear; no effects.
 	[[nodiscard]] auto read_report_answer(std::string_view aAnswer) -> report_answer;
 
 	/// \brief [[BPR-2219]] (owner, 2026-11-16: "we lost the most useful
