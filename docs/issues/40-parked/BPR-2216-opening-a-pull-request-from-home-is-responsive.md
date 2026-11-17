@@ -173,3 +173,45 @@ questions: `BPR-2216-page-at-once`, `BPR-2216-return-while-loading`,
 Next: read `status --after 15`. Accept on all five closes `BPR-2216:owner-look`;
 a Reject's note is the next round's change. The Release timing assertions
 (`NDEBUG`) still await a Release run of the course.
+
+## Owner verdicts, look v002 (2026-11-17T02:46Z)
+
+Session `b18827b241a9a4112cfdc8e81bdaa3b2`, read at cursor 34, handed back:
+
+- `BPR-2216-page-at-once`: Accept, no note (decision `157edf61`).
+- `BPR-2216-return-while-loading`: Accept, no note (decision `2c62e99e`).
+- `BPR-2216-active-while-loading`: Accept, no note (decision `534621a9`).
+- `BPR-2216-overview-said-once`: Accept, no note (decision `1bd603fa`).
+- `BPR-2216-home-said-once`: **Reject** (decision `320c2dd9`), verbatim:
+  "No, there are still 2 differnet places status messages appear. They just
+  toggle back and forth now which is terrible." Two attachments: Home with a
+  framed box under Review Cycles reading "Find my pull requests in saved
+  repositories again; this never changes GitHub." and no status bar; Home
+  with no box and the status bar reading "Signed in as octo-reviewer on
+  github.com.".
+
+The owner also asked, before answering, to remove the Updates line's naming
+of the read and an empty Home's "Finding my pull requests…" sentence.
+
+## Round 3 (look v003)
+
+- **Why the box toggled.** [[BPR-1357]]'s status band under Home's lists
+  repeated the status bar's current message (a hovered action's status tip,
+  what was just done, a problem) and, while it did, the status bar stopped
+  painting (`home_status_echoes_bar` in `eventFilter`). Moving the pointer on
+  and off the Refresh button flipped the sentence between the two places.
+- **Change.** Home has one status place, the status bar, always shown. The
+  band no longer carries general status (`update_home_status`); everything it
+  said is already in the status bar's own line (session, connection,
+  problems) or message. The band keeps only an opening typed into Home's bar,
+  with its Cancel and Retry.
+- The Updates line says nothing while the pull request itself is read; the
+  status bar's line keeps the read's words (`ReadWording`).
+- An empty Home waits in the shape of its rows with no sentence while it
+  finds my pull requests.
+- Courses: the new course checks the Updates line, a hovered action's help
+  on Home and the band; BPR-1357's course, `pending_states` and the
+  workbench epoch-row case follow.
+- `application_setup_destination_public_path`'s tab-width failure is not
+  this lane's: it passed alone with BPR-2216's product changes reversed and
+  four times out of four with them in place. Carded as [[BPR-2228]].
