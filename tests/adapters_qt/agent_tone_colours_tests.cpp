@@ -165,6 +165,28 @@ namespace {
 		page.present({ .Turn = 1U, .Title = QStringLiteral("Review of #21"), .Markdown = QString::fromStdString(review), .Question = QStringLiteral("Review this pull request"), .Byline = { } });
 		settle();
 
+		// With BPR_TONE_RENDER_ROOT set (and the native look, light or dark),
+		// this only draws the matching elements for the owner's look: the
+		// tab's reply and cards, and the page, in the built-in theme of the
+		// scheme drawn.
+		if (const auto root = qEnvironmentVariable("BPR_TONE_RENDER_ROOT"); !root.isEmpty()) {
+			const auto dark    = agent->palette().color(QPalette::Base).lightness() < 128;
+			const auto profile = qt::appearance_profile{ qt::default_appearance_settings(), core::appearance_observation{ .Scheme = dark ? core::os_color_scheme::dark : core::os_color_scheme::light } };
+			agent->adopt_appearance(profile);
+			page.set_tone_colours(qt::tone_colours_of(profile));
+			for (auto waited = 0; waited < 60; ++waited) {
+				settle();
+			}
+			static_cast<void>(agent->turn_reply(0U)->grab().save(root + QStringLiteral("/tab-reply.png")));
+			auto index = 0;
+			for (auto* const card : agent->turn_cards(0U)) {
+				static_cast<void>(card->grab().save(root + QStringLiteral("/tab-card-%1.png").arg(++index)));
+			}
+			static_cast<void>(page.grab().save(root + QStringLiteral("/page.png")));
+			std::cout << "agent-tone-colours:pass\n";
+			std::exit(EXIT_SUCCESS);
+		}
+
 		auto light = qt::appearance_profile{ };
 		expect(light.variant() == core::appearance_variant::light || light.variant() == core::appearance_variant::dark, "a built-in profile");
 		expect_both_surfaces(*agent, page, light, "the built-in theme");
