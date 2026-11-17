@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+from scripts.contained_temporary_support import contained_temporary_directory, git_cache_parent  # noqa: E402
 from process_kill_support import kill_at_checkpoint, run  # noqa: E402
 
 
@@ -81,7 +81,7 @@ def main() -> int:
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--git", type=Path, required=True)
     args = parser.parse_args()
-    with contained_temporary_directory(prefix="bpr-epoch-kill-") as raw:
+    with contained_temporary_directory(prefix="bpr-epoch-kill-", parent=git_cache_parent(args.executable.parent)) as raw:
         root = Path(raw)
         failures: list[str] = []
         for boundary in ("fetch", "spool", "prepared", "visible"):

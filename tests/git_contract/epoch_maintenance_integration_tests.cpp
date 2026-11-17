@@ -569,7 +569,7 @@ namespace {
 			// [[BPR-1128]]. A root made here is made at a name nothing had, mode
 			// `0700` from creation, and owned from then, so a failure below
 			// removes it. An existing one is left, as its owner is.
-			Path      = aExisting ? *aExisting : bpr::tests::make_scratch_directory(std::string{ "bpr-maintenance-" } + std::string{ aLabel });
+			Path      = aExisting ? *aExisting : bpr::tests::make_git_cache_scratch_directory(std::string{ "bpr-maintenance-" } + std::string{ aLabel });
 			auto made = bpr::tests::scratch_guard{ Owned ? Path : std::filesystem::path{ } };
 			std::filesystem::create_directories(Path / "git");
 			std::filesystem::create_directories(Path / "catalog");

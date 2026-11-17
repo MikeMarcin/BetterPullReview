@@ -10,7 +10,7 @@ import subprocess
 
 from epoch_kill_recovery_tests import inspect_recovered_state
 from process_kill_support import kill_at_checkpoint, run
-from scripts.contained_temporary_support import contained_temporary_directory
+from scripts.contained_temporary_support import contained_temporary_directory, git_cache_parent
 
 
 def inspect_rollback(root: Path, boundary: str, with_history: bool) -> None:
@@ -63,7 +63,7 @@ def main() -> int:
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--git", type=Path, required=True)
     args = parser.parse_args()
-    with contained_temporary_directory(prefix="bpr-epoch-transaction-kill-") as raw:
+    with contained_temporary_directory(prefix="bpr-epoch-transaction-kill-", parent=git_cache_parent(args.executable.parent)) as raw:
         root = Path(raw)
         failures: list[str] = []
         for name in ("receiving", "spool", "install", "receiving-history", "spool-history", "install-history"):
