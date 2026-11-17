@@ -272,6 +272,59 @@ Follow-ups filed in Backlog: [[BPR-2231]] (kept marks stored and shared),
 the report row), [[BPR-2234]] (Not reviewed's voice), [[BPR-2235]] (the tour
 chats' prompt turns).
 
+### Verdicts, look review-report-v002 (handed back 2026-11-16)
+
+- **Accept** `report-styling-native` (decision `4da7ca6a`): "It looks good
+  except for the title." The screenshot showed the title reading "I'll start
+  with the brief and the diff, then read the files the change touches.The
+  resize is the change that matters. Let me check ... zero extent.I have
+  what I need. Now I'll write up the review.# Review of #21".
+- **Accept** `prompt-turn-shows-title` (decision `d4e32b4a`): "I wish the
+  show prompt also had a hide prompt to collapse it again. I wish the option
+  when it's collapsed took a little less space."
+- **Accept** `prompt-editor-result` (decision `d316dfe5`), no note.
+
+### Round 3 (from those notes), built
+
+- **The title.** Cause: the decoder joined a turn's text blocks with nothing
+  between them, so the report's level-one title was not at the start of a
+  line; round 1's guard looked only at line starts, and round 1's course
+  went by a launch path that separated the blocks, so it passed. The working
+  notes this card set out to keep from the report were in its title, its
+  summary card, its tab's name and its row on the path a person takes.
+  Fixed in the decoder (each new text block opens a paragraph of the
+  answer) and in core (`read_report_answer` also takes a level-one mark
+  glued to a sentence's last mark, outside code, with a heading after it).
+  The every-ask check the freeze runs on that path now fails when a report's
+  title, summary or card row holds a word of the notes.
+- **The prompt toggle.** Show prompt and Hide prompt sit on the name's row;
+  collapsed, the turn is one row.
+- Passing: `core_agent_report`, `application_agent_launch`,
+  `application_agent_protocol_loop`, `application_agent_finding_protocol`,
+  `application_agent_invocation_host`, `application_agent_chat_replies`,
+  `application_agent_conversation_host`, `qt_prompt_macro_chips`,
+  `application_review_report_public_path`,
+  `application_fixture_agent_every_ask`, `fixture_agent_answers`.
+- **Not built this round**, filed: [[BPR-2236]] (the owner, 2026-11-16: "we
+  have colors in the agent tab and the report which correspond to the same
+  elements but use different colors", and "tone major down a tiny bit";
+  with the unused Appearance › Reports roles), [[BPR-2237]] (a prompt edited
+  before sending), [[BPR-2238]] (the suggested change in its card).
+
+### Owner look, round 3 (filed, not waited on)
+
+Attended-review session `ccad4e9b534766ad7995e5ab2f7464f2`, external state
+directory `~/.attended-review-state/review-report-v003-2026-11-16/`, served
+on the tailnet. Two Accept/Reject questions on the frozen build
+`review-report-v003` (root `~/review-report-v003.z7xa2_t2`, frozen from
+`37347e7979de`, Fixture agent only): `report-title-clean` and
+`prompt-toggle-compact`. The colour question the owner asked for is not in
+it: [[BPR-2236]] is not started. Lifecycle: pending. As for v002, the
+freeze's own run of the launcher's check exited at the next-push start and
+the same check, run by hand on the kept root, passed whole; twice now, so
+the freeze tool's back-to-back starts deserve a look. Look v002's host is
+stopped and its root removed.
+
 ## Known gaps
 
 - What a report's keep actions made is remembered by the report view for the
