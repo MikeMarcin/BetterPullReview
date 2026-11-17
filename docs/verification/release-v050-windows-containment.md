@@ -114,3 +114,18 @@ every stdout/stderr pair and generated CTest file, and the measurement script
 is beside them. This is a finite inventory measurement, not Release or Debug
 qualification. No registration's assertions, deadline or network capability
 changed.
+
+## Merged-main registration
+
+[[BPR-2245]] registered `application_ask_setup_review_public_path` on main
+while this measurement ran. It was measured the same way at
+`877f8091b241fd026c797321b24ae5bc653f151a`, the lane with main merged, in
+the same Interactive Limited context with a freshly built Release graph.
+
+| Course | Direct exit | Contained exit | First contained observation |
+| --- | --- | --- | --- |
+| `application_ask_setup_review_public_path` | 0 | 8 | `private data root refused` |
+
+The direct course passes in 14.39 seconds. Its receipt is
+`measure-release-2-receipt.json` beside the first one (SHA-256
+`8c1a8621839240a13450efeb2d5b81d366d845231febb2dec0b8ba2bea5cf8ab`).
