@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2221"
 title: "Every prompt condition reads the window's real state"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2179"]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2221--BPR-2221--0b9e7f5091ed.json","origin":"owner request, 2026-11-16: wire the prompt-condition facts that are never filled"}
