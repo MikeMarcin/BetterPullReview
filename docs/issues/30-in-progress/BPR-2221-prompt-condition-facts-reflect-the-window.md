@@ -50,3 +50,26 @@ fixture GitHub server (returning-review-v1) where an own prompt conditioned on
 each fact is listed or not in the Ask menu, and changes when a thread is
 resolved and a file is marked reviewed. No look unless something visible
 changes beyond prompts appearing.
+
+## Checkpoint, 2026-11-16
+
+Audit of the 15 facts against the window: `file_open`, `selected_lines`,
+`path`, `takes_replies`, `empty_chat`, `pushes_since_review`, `draft`,
+`author_is_me` and `repository` were already filled; thread pushes
+(`thread_activity`'s pushes) too. Unfilled were `thread_unresolved`,
+`file_unresolved_threads` (a thread whose resolution was never handed in
+counted as resolved, so "has unresolved threads" never held),
+`thread_activity`'s replies, `replies_since_mine`,
+`file_unreviewed` and `checks_failing`.
+
+Wired: `core::decide_thread_replies` (authors and the viewer's login) and
+`core::decide_checks_failing` (each check's end, the head, whether checks and
+statuses were both read) in `quick_ask.hpp`; `quick_ask_facts::ThreadsRead`,
+and `file_unresolved_threads` unknown while a thread's state is. The window
+hands in each thread's resolution as `core::project_thread_resolution`
+projects the read's over the viewer's own change, the comment authors and
+`snapshot.Viewer.Login`, and the files the Overview counts done
+(`application::overview_done_files`) once it has read every receipt; the
+suggestion context hands in the checks. Every surface (the three Ask menus,
+the Agent tab's and tour chats' chips, a queued press) reads these one set of
+facts.

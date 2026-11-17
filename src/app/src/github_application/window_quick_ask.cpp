@@ -252,7 +252,24 @@ namespace bpr::app {
 			const auto progress = core::thread_progress_since(core::thread_baseline(said), head, commits);
 			entry.Changed       = progress.Changed;
 			entry.CommitsSince  = progress.CommitsSince;
+			// [[BPR-2221]]. Resolved as the viewer's own resolve or reopen
+			// projects the read's; the replies facts are core's, from the
+			// authors and the signed-in account.
+			entry.Resolved = core::project_thread_resolution(thread.Resolved, ConversationOverlay, thread_identity(thread)).Resolved;
+			auto authors   = std::vector<core::quick_ask_comment>{ };
+			for (const auto& comment : thread.Comments) {
+				authors.push_back({ .Author = comment.Author ? comment.Author->Login : std::string{ }, .Deleted = comment.Deleted });
+			}
+			const auto replies     = core::decide_thread_replies(authors, snapshot->Viewer.Login);
+			entry.Replied          = replies.Replied;
+			entry.RepliesSinceMine = replies.RepliesSinceMine;
 			facts.Threads.push_back(std::move(entry));
+		}
+		facts.ThreadsRead = snapshot->ReviewThreadsAvailability == application::github_collection_availability::available;
+		// [[BPR-2221]]. The files the review's own marks count done, once the
+		// Overview has read every receipt.
+		if (PublishedOverview && OverviewReceiptRevision) {
+			facts.ReviewedFiles = application::overview_done_files(*PublishedOverview);
 		}
 		return facts;
 	}

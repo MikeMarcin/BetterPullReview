@@ -5696,3 +5696,15 @@ bpr_add_network_isolated_test(NAME application_tour_chat_queue_local_draft_publi
     COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --local-draft "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_worktree.sh")
 set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-local-draft:pass")
+
+# [[BPR-2221]]. Every prompt condition reads the window's real state: own
+# prompts conditioned on each fact are listed in the Ask menus exactly where
+# it holds, and follow a resolve and a file marked reviewed.
+bpr_add_executable(test_prompt_facts_public_path prompt_facts_public_path.cpp)
+target_link_libraries(test_prompt_facts_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_prompt_facts_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_prompt_facts_public_path)
+bpr_enable_warnings(test_prompt_facts_public_path)
+bpr_add_network_isolated_test(NAME application_prompt_facts_public_path WINDOWS_UNCONTAINED COMMAND test_prompt_facts_public_path)
+set_tests_properties(application_prompt_facts_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "prompt-facts:pass")

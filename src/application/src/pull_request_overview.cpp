@@ -786,6 +786,17 @@ namespace bpr::application {
 		return { .Checks = projection.Checks, .CheckRows = std::move(projection.CheckRows), .ChecksComplete = projection.ChecksComplete, .ChecksNote = std::move(projection.ChecksNote) };
 	}
 
+	auto overview_done_files(const pull_request_overview_projection& aProjection) -> std::vector<std::string>
+	{
+		auto done = std::vector<std::string>{ };
+		for (const auto& row : aProjection.Files) {
+			if (row_done(row)) {
+				done.push_back(row.Path);
+			}
+		}
+		return done;
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)

@@ -18,7 +18,22 @@ namespace bpr::core {
 		/// [[BPR-2179]]. The facts the newer conditions read about a file.
 		void add_file_facts(prompt_facts& aFacts, const quick_ask_facts& aFrom, const std::string& aPath)
 		{
-			aFacts.FileUnresolvedThreads = std::ranges::any_of(aFrom.Threads, [&aPath](const quick_ask_thread& aThread) { return aThread.Path == aPath && aThread.Review && aThread.Resolved == false; });
+			// [[BPR-2221]]. Unknown when the read holds no threads, or one of
+			// the file's threads' state is unknown and none is open.
+			aFacts.FileUnresolvedThreads.reset();
+			if (aFrom.ThreadsRead) {
+				auto open    = false;
+				auto unknown = false;
+				for (const auto& thread : aFrom.Threads) {
+					if (thread.Path == aPath && thread.Review) {
+						open    = open || thread.Resolved == false;
+						unknown = unknown || !thread.Resolved;
+					}
+				}
+				if (open || !unknown) {
+					aFacts.FileUnresolvedThreads = open;
+				}
+			}
 			aFacts.FileUnreviewed.reset();
 			if (aFrom.ReviewedFiles) {
 				aFacts.FileUnreviewed = std::ranges::find(*aFrom.ReviewedFiles, aPath) == aFrom.ReviewedFiles->end();
@@ -425,6 +440,44 @@ namespace bpr::core {
 			}
 		}
 		return nullptr;
+	}
+
+	namespace {
+		[[nodiscard]] auto same_login(const std::string_view aLeft, const std::string_view aRight) noexcept -> bool
+		{
+			const auto lower = [](const char aChar) { return aChar >= 'A' && aChar <= 'Z' ? static_cast<char>(aChar - 'A' + 'a') : aChar; };
+			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, { }, lower, lower);
+		}
+	} // namespace
+
+	auto decide_thread_replies(const std::span<const quick_ask_comment> aComments, const std::string_view aViewer) -> quick_ask_replies
+	{
+		auto decided    = quick_ask_replies{ };
+		decided.Replied = aComments.size() > 1U && std::ranges::any_of(aComments.subspan(1U), [](const quick_ask_comment& aComment) { return !aComment.Deleted; });
+		if (aViewer.empty()) {
+			return decided;
+		}
+		const auto mine = [aViewer](const quick_ask_comment& aComment) { return !aComment.Deleted && same_login(aComment.Author, aViewer); };
+		const auto last = std::ranges::find_if(aComments.rbegin(), aComments.rend(), mine);
+		if (last == aComments.rend()) {
+			decided.RepliesSinceMine = false;
+			return decided;
+		}
+		decided.RepliesSinceMine = std::any_of(aComments.rbegin(), last, [&mine](const quick_ask_comment& aComment) { return !aComment.Deleted && !mine(aComment); });
+		return decided;
+	}
+
+	auto decide_checks_failing(const std::span<const quick_ask_check> aChecks, const std::string_view aHead, const bool aComplete) -> std::optional<bool>
+	{
+		const auto failed = std::ranges::any_of(aChecks, [aHead](const quick_ask_check& aCheck) {
+			using enum quick_ask_check_end;
+			const auto ended = aCheck.End == failure || aCheck.End == timed_out || aCheck.End == cancelled || aCheck.End == action_required || aCheck.End == errored;
+			return ended && (aCheck.Commit.empty() || aCheck.Commit == aHead);
+		});
+		if (failed) {
+			return true;
+		}
+		return aComplete ? std::optional{ false } : std::nullopt;
 	}
 
 	auto chat_prompt_facts(const quick_ask_facts& aFacts, const prompt_chat_view& aView) -> prompt_facts

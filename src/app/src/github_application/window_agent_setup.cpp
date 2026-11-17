@@ -7,6 +7,7 @@
 #include "bpr/core/local_comment.hpp"
 #include "bpr/core/note_placement.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
+#include "bpr/core/quick_ask.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1625,8 +1626,6 @@ namespace bpr::app {
 			auto context = qt::agent_suggestion_context{ };
 			// RFC-BPR-0125. The names a suggested prompt may fill in and the
 			// facts its conditions read, from what the window already holds.
-			// Whether checks fail is not gathered yet: unknown, which no
-			// condition holds for.
 			if (!Closing && WindowRead != nullptr && WindowRead->accepted_snapshot() && AgentReview) {
 				const auto& record      = WindowRead->accepted_snapshot()->PullRequest;
 				auto        pullRequest = core::prompt_pull_request{ };
@@ -1644,6 +1643,30 @@ namespace bpr::app {
 				if (const auto& viewer = WindowRead->accepted_snapshot()->Viewer.Login; !viewer.empty() && record.Author) {
 					context.AuthorIsMe = record.Author->Login == viewer;
 				}
+				// [[BPR-2221]]. Whether a check on the head failed is core's,
+				// from each check's end as the read gives it.
+				const auto& snapshot = *WindowRead->accepted_snapshot();
+				auto        checks   = std::vector<core::quick_ask_check>{ };
+				checks.reserve(snapshot.Checks.size());
+				for (const auto& check : snapshot.Checks) {
+					using conclusion = application::github_check_conclusion;
+					using end        = core::quick_ask_check_end;
+					const auto ended = check.StatusError                              ? end::errored
+						: check.Status != application::github_check_status::completed ? end::unfinished
+						: check.Conclusion == conclusion::success                     ? end::success
+						: check.Conclusion == conclusion::failure                     ? end::failure
+						: check.Conclusion == conclusion::neutral                     ? end::neutral
+						: check.Conclusion == conclusion::cancelled                   ? end::cancelled
+						: check.Conclusion == conclusion::skipped                     ? end::skipped
+						: check.Conclusion == conclusion::timed_out                   ? end::timed_out
+						: check.Conclusion == conclusion::action_required             ? end::action_required
+						: check.Conclusion == conclusion::stale                       ? end::stale
+																					  : end::unfinished;
+					checks.push_back({ .Commit = std::string{ check.EvaluatedOid.value() }, .End = ended });
+				}
+				const auto complete = snapshot.ChecksAvailability == application::github_collection_availability::available
+					&& snapshot.StatusesAvailability == application::github_collection_availability::available;
+				context.ChecksFailing = core::decide_checks_failing(checks, record.HeadOid.value(), complete);
 			}
 			// [[BPR-1781]]. Asked on Overview, a question is about the pull
 			// request: no open file, no lines.

@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -316,6 +318,126 @@ void test_chat_prompts_read_the_review()
 	expect(decide_quick_ask_prompt(open, threads, "t10").has_value() && !decide_quick_ask_prompt(open, threads, "t31"), "a thread's press decides on that thread");
 }
 
+/// [[BPR-2221]]. The facts the window used never to fill, decided from raw
+/// data: replies from comment authors and the viewer, checks from their ends,
+/// resolution and reviewed files as handed in. "Is" holds when the fact is
+/// true, "is not" when false, and neither when unknown.
+void test_window_facts()
+{
+	const auto holds = [](const prompt_fact aFact, const prompt_facts& aFacts, const bool aNegated = false) {
+		return prompt_condition_holds(prompt_condition{ .Fact = aFact, .Negated = aNegated }, aFacts);
+	};
+	const auto known = [&holds](const prompt_fact aFact, const prompt_facts& aFacts) -> std::optional<bool> {
+		if (holds(aFact, aFacts)) {
+			return true;
+		}
+		if (holds(aFact, aFacts, true)) {
+			return false;
+		}
+		return std::nullopt;
+	};
+	const auto comments = [](std::initializer_list<std::string_view> aAuthors) {
+		auto list = std::vector<quick_ask_comment>{ };
+		for (const auto author : aAuthors) {
+			list.push_back({ .Author = std::string{ author } });
+		}
+		return list;
+	};
+
+	// Replies, and replies since mine, from the fixture's threads (viewer jiayin).
+	{
+		const auto after = decide_thread_replies(comments({ "tbutler", "fixture-author", "jiayin", "tbutler" }), "jiayin");
+		expect(after.Replied == true && after.RepliesSinceMine == true, "someone replied after my last comment");
+		const auto mineLast = decide_thread_replies(comments({ "tbutler", "jiayin" }), "jiayin");
+		expect(mineLast.Replied == true && mineLast.RepliesSinceMine == false, "my comment is the last: no replies since mine");
+		const auto alone = decide_thread_replies(comments({ "tbutler" }), "jiayin");
+		expect(alone.Replied == false && alone.RepliesSinceMine == false, "one comment, not mine: no replies, none since mine");
+		const auto onlyMine = decide_thread_replies(comments({ "jiayin", "jiayin" }), "jiayin");
+		expect(onlyMine.Replied == true && onlyMine.RepliesSinceMine == false, "my own follow-up is no reply since mine");
+		expect(decide_thread_replies(comments({ "JiaYin", "tbutler" }), "jiayin").RepliesSinceMine == true, "logins compare without case");
+		expect(decide_thread_replies(comments({ "jiayin", "" }), "jiayin").RepliesSinceMine == true, "a comment by a deleted account is someone else's");
+		auto deleted           = comments({ "jiayin", "tbutler" });
+		deleted.back().Deleted = true;
+		const auto gone        = decide_thread_replies(deleted, "jiayin");
+		expect(gone.Replied == false && gone.RepliesSinceMine == false, "a deleted reply counts for neither");
+		const auto signedOut = decide_thread_replies(comments({ "jiayin", "tbutler" }), "");
+		expect(signedOut.Replied == true && !signedOut.RepliesSinceMine, "no viewer: replies since mine is unknown");
+		expect(decide_thread_replies({ }, "jiayin") == quick_ask_replies{ .Replied = false, .RepliesSinceMine = false }, "no comments: nothing");
+	}
+
+	// Checks on the head.
+	{
+		using enum quick_ask_check_end;
+		const auto head = std::string{ "h2" };
+		for (const auto end : { failure, timed_out, cancelled, action_required, errored }) {
+			expect(decide_checks_failing(std::vector{ quick_ask_check{ .Commit = head, .End = end } }, head, false) == true, "a failed end on the head is failing, read in full or not");
+		}
+		for (const auto end : { unfinished, success, neutral, skipped, stale }) {
+			expect(decide_checks_failing(std::vector{ quick_ask_check{ .Commit = head, .End = end } }, head, true) == false, "no failed end: not failing");
+		}
+		expect(decide_checks_failing(std::vector{ quick_ask_check{ .Commit = "h1", .End = failure } }, head, true) == false, "a failure on an earlier commit is not the head's");
+		expect(decide_checks_failing(std::vector{ quick_ask_check{ .End = failure } }, head, true) == true, "a failure naming no commit is the read's, the head's");
+		expect(!decide_checks_failing(std::vector{ quick_ask_check{ .Commit = head, .End = success } }, head, false), "statuses unread and nothing failed: unknown");
+		auto facts               = returning_facts();
+		facts.Base.ChecksFailing = decide_checks_failing(std::vector{ quick_ask_check{ .Commit = head, .End = failure } }, head, true);
+		expect(holds(prompt_fact::checks_failing, chat_prompt_facts(facts, prompt_chat_view{ .Place = prompt_place::tour_whole })), "a tour chat reads it too");
+	}
+
+	// Thread is unresolved, new replies since the comment, replies since mine.
+	auto facts = returning_facts();
+	for (auto& thread : facts.Threads) {
+		thread.Resolved = false;
+	}
+	facts.Threads[0].Resolved         = true;
+	facts.Threads[0].Replied          = true;
+	facts.Threads[0].RepliesSinceMine = true;
+	facts.Threads[1].Replied          = false;
+	facts.Threads[1].RepliesSinceMine = false;
+	const auto thread                 = [&facts](const std::string& aIdentity) { return chat_prompt_facts(facts, prompt_chat_view{ .Place = prompt_place::conversation, .Thread = aIdentity }); };
+	expect(known(prompt_fact::thread_unresolved, thread("t10")) == false && known(prompt_fact::thread_unresolved, thread("t22")) == true, "thread is unresolved reads the thread's own state");
+	expect(known(prompt_fact::replies_since_mine, thread("t10")) == true && known(prompt_fact::replies_since_mine, thread("t22")) == false, "replies since mine reads the thread's own");
+	expect(!known(prompt_fact::replies_since_mine, thread("t31")) && !known(prompt_fact::thread_unresolved, prompt_facts{ }), "unset stays unknown");
+	const auto replies = prompt_condition{ .Fact = prompt_fact::thread_activity, .Activity = prompt_activity_value::replies };
+	expect(prompt_condition_holds(replies, thread("t10")) && !prompt_condition_holds(replies, thread("t22")), "new replies since the comment counts replies");
+	auto notReplied    = replies;
+	notReplied.Negated = true;
+	expect(prompt_condition_holds(notReplied, thread("t22")), "and its \"is not\" holds on a thread with none");
+
+	// File has unresolved threads; I haven't reviewed this file.
+	const auto file = [&facts](const std::string& aPath) { return chat_prompt_facts(facts, prompt_chat_view{ .Place = prompt_place::agent_tab, .OpenFile = aPath }); };
+	expect(known(prompt_fact::file_unresolved_threads, file("src/render/renderer.cpp")) == true, "an open thread on the file");
+	facts.Threads[1].Resolved = true;
+	facts.Threads[2].Resolved = true;
+	expect(known(prompt_fact::file_unresolved_threads, file("src/render/renderer.cpp")) == false, "every thread on it resolved");
+	facts.Threads[2].Resolved.reset();
+	expect(!known(prompt_fact::file_unresolved_threads, file("src/render/renderer.cpp")), "one thread's state unknown and none open: unknown");
+	facts.Threads[1].Resolved = false;
+	expect(known(prompt_fact::file_unresolved_threads, file("src/render/renderer.cpp")) == true, "one open is enough, whatever the others");
+	expect(known(prompt_fact::file_unresolved_threads, file("src/render/other.cpp")) == false, "no threads on the file");
+	facts.ThreadsRead = false;
+	expect(!known(prompt_fact::file_unresolved_threads, file("src/render/other.cpp")), "threads not read: unknown");
+	facts.ThreadsRead = true;
+	expect(!known(prompt_fact::file_unreviewed, file("src/render/renderer.cpp")), "reviewed files unknown: unknown");
+	facts.ReviewedFiles = std::vector<std::string>{ "src/render/frame_pool.cpp" };
+	expect(known(prompt_fact::file_unreviewed, file("src/render/renderer.cpp")) == true && known(prompt_fact::file_unreviewed, file("src/render/frame_pool.cpp")) == false,
+		   "I haven't reviewed this file reads the marked files");
+
+	// The Ask menus decide on the same facts: a prompt on the file menu shows
+	// for the unreviewed file and not once it is marked reviewed.
+	auto unreviewed            = prompt_macro{ .Id = "own.unreviewed", .Place = prompt_place::agent_tab };
+	unreviewed.Body.Name       = "Walk me through it";
+	unreviewed.Body.Template   = "Walk me through {file}";
+	unreviewed.Body.Subject    = prompt_subject::open_file;
+	unreviewed.Body.Conditions = { { .Fact = prompt_fact::file_unreviewed } };
+	unreviewed.Body.QuickAsk   = true;
+	unreviewed.Body.Scopes     = { .File = true };
+	unreviewed.Body.WhenUnmet  = prompt_when_unmet::hide;
+	const auto listed          = [&facts, &unreviewed] { return find_quick_ask(decide_quick_asks(std::vector{ unreviewed }, facts, quick_ask_anchor::file), "own.unreviewed", prompt_scope::file) != nullptr; };
+	expect(listed(), "the file menu lists it for the unreviewed file");
+	facts.ReviewedFiles->push_back("src/render/renderer.cpp");
+	expect(!listed(), "marked reviewed, it is not listed");
+}
+
 auto main() -> int
 {
 	test_legality();
@@ -325,6 +447,7 @@ auto main() -> int
 	test_reviewer_choices();
 	test_wide_ask_is_capped();
 	test_chat_prompts_read_the_review();
+	test_window_facts();
 	std::cout << "quick-ask-tests:pass\n";
 	return EXIT_SUCCESS;
 }
