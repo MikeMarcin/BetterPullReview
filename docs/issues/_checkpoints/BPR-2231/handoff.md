@@ -30,3 +30,25 @@ Colour worker (BPR-2236) edits report_page / agent_report_view /
 agent_tab_view colours: stage only this work's hunks; never the whole-tree
 `coding-format` target (it reformats others' files): format named files with
 `_coding-standard/scripts/format.py`.
+
+# Checkpoint 2 (2026-11-16): five done, look filed, BPR-2232 and BPR-2231 not started
+
+- Done: BPR-2234, BPR-2238, BPR-2233, BPR-2237, BPR-2235 (`aac47473b`).
+- Look `review-followups-v001`: session `6e525e076ba6400a9dbc677a2c9bbd88`,
+  state `~/.attended-review-state/review-followups-v001-2026-11-16/`, frozen
+  root `~/review-followups-v001.pn_cb0u7` from `0feba206bd70`. Three
+  questions: `suggestion-in-card` (2238), `edited-prompt-shows-text` (2237),
+  `tour-chat-prompt-turn` (2235, renders: the fixture has no tour). On the
+  verdicts: stop the host by its pid, remove the root with
+  `scripts/freeze_attended_build.py remove`.
+- BPR-2232 and BPR-2231 are still in Backlog, untouched; the worker's context
+  ran out. Design read so far: `core::report_findings` already matches a
+  report finding to the turn's card by place (`Suggested`); give each finding
+  its card's index, take the finding's state from the card's
+  (`agent_finding_card_disposition`, kept by `AgentFindingCards`), send a
+  report keep through the card's Session/Ordinal (`window_quick_ask.cpp`
+  `set_draft_dispatch`), and give card-less findings a record keyed by a
+  digest of the report's text and the finding's outline. Draft all from the
+  report then plans with `core::plan_draft_all` over those states and runs
+  `draft_all_agent_cards` (which ends by showing the Agent tab: the report's
+  run should not). They need their own look.
