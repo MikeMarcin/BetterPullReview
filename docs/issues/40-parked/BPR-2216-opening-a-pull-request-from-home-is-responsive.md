@@ -294,3 +294,20 @@ Session `147392b2f24dd26b6a3d12da049825d3`, read at cursor 22, handed back:
 - Not changed: the merge-rules detail text ("still loading") is the merge
   assessment's own content, not a status line; after the read, the Updates
   line's comparison-preparation words are outside this round.
+
+## Owner look v004 — prepared 2026-11-17
+
+Look v003's host stopped and its root removed with the freeze tool. Frozen
+build `/Users/jaeger/bpr2216-home-open-v004.jbzyttil` from `e5e50701f`
+(fixture `github-com`, first reads 4 s, each later part 1.5 s, Home's
+searches 3 s; `--check` reached `ATTENDED_HOME_SHOWN:rows=3:delay=4000ms`;
+executable SHA-256 `7e22632e9c27ae8d613688fef171c653abfd7e51ebbbe2050e419004b993414e`).
+Native renders of every mode while loading in
+`/Users/jaeger/bpr2216-look-renders-v004`.
+
+Attended session `976501d361fd7566b5d41bc53ea3e260`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261117-bpr2216-review-loading-v004/state`,
+served on the tailnet, ready at cursor 3 with one protected Accept/Reject
+question, `BPR-2216-review-loading-once`. The URL stays in the session state.
+
+Next: read `status --after 3`. Accept closes `BPR-2216:owner-look` and the card.
