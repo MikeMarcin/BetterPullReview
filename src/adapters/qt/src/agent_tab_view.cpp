@@ -979,6 +979,7 @@ namespace bpr::qt {
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
 			PendingName       = SendingMacro && SendingMacro->Name != *PendingQuestion ? SendingMacro->Name : QString{ };
+			PendingEdited     = !PendingName.isEmpty() && !core::prompt_sent_unedited(PendingQuestion->toStdString(), SendingMacro->Expansion.toStdString());
 			PendingReview     = false;
 			PendingKeepsField = KeepingDraft;
 			PendingAbout      = ConversationShown;
@@ -1336,6 +1337,7 @@ namespace bpr::qt {
 		} else {
 			next.Question    = *PendingQuestion;
 			next.Name        = PendingName;
+			next.Edited      = PendingEdited;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
 			next.Returning   = PendingReturning;
@@ -1357,6 +1359,7 @@ namespace bpr::qt {
 		PendingQuestion.reset();
 		PendingAbout.reset();
 		PendingName.clear();
+		PendingEdited = false;
 		PendingDraftTarget.reset();
 		PendingReturning.reset();
 		PendingExplain.clear();
@@ -1455,7 +1458,9 @@ namespace bpr::qt {
 		// just noise. Maybe you can see it with a click or disclosure"): a
 		// turn sent under a prompt's name shows the name; what was sent is
 		// behind Show prompt.
-		const auto named = !aTurn.Name.isEmpty();
+		// [[BPR-2237]]. Unless the reviewer changed the prompt's text: then it
+		// is theirs, shown as written under the name.
+		const auto named = !aTurn.Name.isEmpty() && !aTurn.Edited;
 		if (named || aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
 			// RFC-BPR-0125 (AC07). Text past six lines folds behind Show all.
 			auto* const showAll = new quiet_push_button{ named ? tr("Show prompt") : tr("Show all"), asked };
@@ -1467,8 +1472,8 @@ namespace bpr::qt {
 					return;
 				}
 				found->Unfolded = !found->Unfolded;
-				found->ShowAll->setText(!found->Name.isEmpty() ? (found->Unfolded ? tr("Hide prompt") : tr("Show prompt")) : found->Unfolded ? tr("Show less")
-																																			 : tr("Show all"));
+				found->ShowAll->setText(!found->Name.isEmpty() && !found->Edited ? (found->Unfolded ? tr("Hide prompt") : tr("Show prompt")) : found->Unfolded ? tr("Show less")
+																																							   : tr("Show all"));
 				show_question(*found);
 			});
 			aTurn.ShowAll = showAll;
@@ -2092,10 +2097,10 @@ namespace bpr::qt {
 		// the references within them are links.
 		// [[BPR-2219]]. A named turn's text shows whole, or not at all.
 		if (aTurn.QuestionLabel != nullptr) {
-			aTurn.QuestionLabel->setVisible(aTurn.Name.isEmpty() || aTurn.Unfolded);
+			aTurn.QuestionLabel->setVisible(aTurn.Name.isEmpty() || aTurn.Edited || aTurn.Unfolded);
 		}
 		auto shown = aTurn.Question;
-		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded && aTurn.Name.isEmpty()) {
+		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded && (aTurn.Name.isEmpty() || aTurn.Edited)) {
 			shown = aTurn.Question.section(QLatin1Char{ '\n' }, 0, folded_question_lines - 1) + QStringLiteral("…");
 			std::erase_if(refs, [cut = shown.size() - 1](const shown_reference& aRef) { return aRef.Begin + aRef.Length > cut; });
 		}
@@ -2221,6 +2226,7 @@ namespace bpr::qt {
 			}
 			next.Question   = shown.Question;
 			next.Name       = shown.Name;
+			next.Edited     = shown.Edited;
 			next.Done       = true;
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
@@ -2396,6 +2402,7 @@ namespace bpr::qt {
 				}
 				result.push_back({ .Question   = kept.Question,
 								   .Name       = kept.Name,
+								   .Edited     = kept.Edited,
 								   .Answer     = answer,
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
@@ -2589,10 +2596,11 @@ namespace bpr::qt {
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
 		auto       carried  = macro_send{
-			.Key     = QString::fromStdString(offer.Id),
-			.Name    = QString::fromStdString(offer.Label),
-			.Subject = core::suggested_subject_of(offer.Subject),
-			.Review  = offer.Kind == core::prompt_ask::review,
+			.Key       = QString::fromStdString(offer.Id),
+			.Name      = QString::fromStdString(offer.Label),
+			.Subject   = core::suggested_subject_of(offer.Subject),
+			.Review    = offer.Kind == core::prompt_ask::review,
+			.Expansion = text,
 		};
 		const auto toEnd = [composer] {
 			auto cursor = composer->textCursor();

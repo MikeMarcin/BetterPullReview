@@ -96,6 +96,9 @@ namespace bpr::qt {
 		/// RFC-BPR-0125 (AC07). The suggested prompt it was sent as, when
 		/// that is not its question; empty for a typed question.
 		QString Name;
+		/// [[BPR-2237]]. Sent from a prompt with its text changed: the text is
+		/// shown as written, under the name.
+		bool    Edited = false;
 		QString Answer;
 		QString Footer;
 		/// When it was asked and answered; invalid when not known.
@@ -859,9 +862,11 @@ namespace bpr::qt {
 			QString               Name;
 			QPointer<QPushButton> ShowAll;
 			bool                  Unfolded = false;
-			bool                  Review   = false;
-			bool                  Done     = false;
-			QPointer<QWidget>     Widget;
+			/// [[BPR-2237]]. The prompt's text was changed before sending.
+			bool              Edited = false;
+			bool              Review = false;
+			bool              Done   = false;
+			QPointer<QWidget> Widget;
 			/// The answer as written, shown as Markdown.
 			QPointer<markdown_body_view> Answer;
 			QString                      AnswerText;
@@ -1098,6 +1103,8 @@ namespace bpr::qt {
 			std::optional<core::agent_suggested_subject> Subject;
 			bool                                         Review = false;
 			std::optional<std::string>                   SkillText;
+			/// [[BPR-2237]]. The text the prompt put in the field.
+			QString Expansion;
 		};
 		/// The suggestion being sent, while it is.
 		std::optional<macro_send> SendingMacro;
@@ -1110,6 +1117,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto        offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*;
 		/// The name the next admitted turn was sent under.
 		QString PendingName;
+		bool    PendingEdited = false;
 		/// RFC-BPR-0116. The returning prompts by their keys, the one being
 		/// sent, the one a sent question was, and what the host offers.
 		std::map<QString, core::returning_operation> ReturningPrompts;

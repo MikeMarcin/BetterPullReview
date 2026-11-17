@@ -525,10 +525,20 @@ namespace {
 			expect(found->Body.Template.size() <= maximum_prompt_template_bytes && prompt_macro_valid(*found), std::string{ id } + " is a valid prompt");
 		}
 	}
+	/// [[BPR-2237]]. A prompt's text sent as it was put in the field is the
+	/// prompt's own; any change to it is the reviewer's.
+	void test_a_prompt_sent_unedited()
+	{
+		expect(prompt_sent_unedited("Review this pull request.\n\nFocus: x.", "  Review this pull request.\n\nFocus: x.\n"), "white space at the ends aside, the expansion is unedited");
+		expect(!prompt_sent_unedited("Review this pull request.\n\nFocus: x., focusing on the cache", "Review this pull request.\n\nFocus: x."), "words added are an edit");
+		expect(!prompt_sent_unedited("Review this pull request.", "Review this pull request.\n\nFocus: x."), "words taken out are an edit");
+		expect(prompt_sent_unedited("", " \n"), "empty is empty");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_a_prompt_sent_unedited();
 	test_review_prompts_carry_their_instructions();
 	test_shipped_equals_today();
 	test_scan_and_expansion();

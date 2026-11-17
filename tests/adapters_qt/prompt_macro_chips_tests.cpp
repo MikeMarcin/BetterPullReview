@@ -528,6 +528,36 @@ namespace {
 		aHarness.answer(QStringLiteral("Reviewed."));
 		expect(!tab.macro_chip()->isVisibleTo(&tab), "the chip goes with the sent question");
 		expect(tab.turn_name(tab.turn_count() - 1U) == QStringLiteral("Review this pull request"), "the edited turn shows the prompt it was sent as");
+		// [[BPR-2237]]. The reviewer's words are not behind Show prompt: an
+		// edited prompt's turn shows its text as written, under the name.
+		{
+			const auto  edited = tab.turn_count() - 1U;
+			auto* const text   = tab.turn_question_label(edited);
+			auto* const fold   = tab.turn_show_all(edited);
+			expect(text != nullptr && text->isVisibleTo(&tab) && text->text().contains(QStringLiteral("Review this pull request as a careful colleague")) && fold != nullptr && fold->text() == QStringLiteral("Show all"),
+				   "an edited prompt's turn shows what was sent, as written, folded past six lines as a typed question is, with no Show prompt");
+			fold->click();
+			settle();
+			expect(text->text().contains(QStringLiteral("focusing on the cache")) && fold->text() == QStringLiteral("Show less"), "Show all shows the reviewer's own words");
+			expect(!tab.thread_turns().empty() && tab.thread_turns().back().Edited && tab.thread_turns().back().Name == QStringLiteral("Review this pull request"), "the kept turn says it was edited");
+			auto* const box = text->parentWidget();
+			if (box != nullptr) {
+				render(*box, QStringLiteral("bpr-2237-edited-turn"));
+			}
+		}
+		// Put in the field and sent unchanged, it is the prompt's own: the
+		// name alone, with Show prompt.
+		click(*aHarness.chip(QStringLiteral("Review this pull request")), Qt::ShiftModifier);
+		tab.ask_button()->click();
+		settle();
+		aHarness.answer(QStringLiteral("Reviewed again."));
+		{
+			const auto  unedited = tab.turn_count() - 1U;
+			auto* const fold     = tab.turn_show_all(unedited);
+			expect(tab.turn_name(unedited) == QStringLiteral("Review this pull request") && fold != nullptr && fold->text() == QStringLiteral("Show prompt") && !tab.turn_question_label(unedited)->isVisibleTo(&tab)
+					   && !tab.thread_turns().back().Edited,
+				   "a prompt put in the field and sent unchanged shows its name alone, with Show prompt");
+		}
 
 		click(*aHarness.chip(QStringLiteral("Review this pull request")), Qt::ShiftModifier);
 		aHarness.field().moveCursor(QTextCursor::End);

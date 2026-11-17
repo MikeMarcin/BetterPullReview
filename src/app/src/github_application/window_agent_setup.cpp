@@ -1483,9 +1483,11 @@ namespace bpr::app {
 				return;
 			}
 			// RFC-BPR-0125 (AC07). Each suggested prompt's turn keeps its name.
+			// [[BPR-2237]]. One whose text the reviewer changed reads back as
+			// written: the name alone would hide their words.
 			if (PromptTurnNames) {
 				for (const auto& turn : aTurns) {
-					if (!turn.Name.isEmpty()) {
+					if (!turn.Name.isEmpty() && !turn.Edited) {
 						PromptTurnNames->remember({ .Asked = turn.Question.toStdString(), .Name = turn.Name.toStdString() });
 					}
 				}
