@@ -1,3 +1,32 @@
+# BPR-2219 checkpoint 8 (2026-11-16): round 3 built, look v003 filed
+
+Supersedes the checkpoints below.
+
+- Lane: `7b54f9121` round 3 (the decoder separates a turn's text blocks;
+  the glued-title guard in core; the every-ask check's notes assertion; the
+  prompt toggle on the title row); `37347e797` Backlog cards BPR-2236 to
+  BPR-2238 (**the frozen commit**); then the card's records and this
+  checkpoint. Main mirrors the cards and the BPR-2219 card; both gates
+  print `DOCUMENTATION_OK`.
+- Look v003: session `ccad4e9b534766ad7995e5ab2f7464f2`, state
+  `~/.attended-review-state/review-report-v003-2026-11-16/` (URL in its
+  `serve.log` only, host pid in `serve.pid`), frozen root
+  `~/review-report-v003.z7xa2_t2`. Two questions pending.
+- Looks v001 and v002: verdicts on the card; hosts stopped; roots removed.
+- **Not built, the owner asked for it in this round**: [[BPR-2236]], one
+  colour source for the Agent tab and the report, Major toned down, the
+  unused Appearance › Reports roles removed, with a side-by-side render and
+  its own Accept/Reject question. The worker ran out of room; nothing of it
+  is started, and v003 says so in its first question's "not in this round".
+- Also filed: [[BPR-2231]] to [[BPR-2235]], [[BPR-2237]], [[BPR-2238]].
+- The freeze tool's own check failed at the next-push start for v002 and
+  v003 (passing by hand each time); v001's passed.
+- Left for the integrator: park the card on human-review; on the verdicts
+  remove the v003 root with `scripts/freeze_attended_build.py remove`; close
+  MikeMarcin/BPR-Test#185 and delete its two branches when the card is done;
+  the private worktree `.claude/worktrees/bpr-2219-review-report` and its
+  `build/dev` can be removed (nothing uncommitted).
+
 # BPR-2219 checkpoint 7 (2026-11-16): round 2 built, look v002 filed
 
 Supersedes the checkpoints below.

@@ -311,6 +311,20 @@ chats' prompt turns).
   with the unused Appearance › Reports roles), [[BPR-2237]] (a prompt edited
   before sending), [[BPR-2238]] (the suggested change in its card).
 
+### Owner look, round 3 (filed, not waited on)
+
+Attended-review session `ccad4e9b534766ad7995e5ab2f7464f2`, external state
+directory `~/.attended-review-state/review-report-v003-2026-11-16/`, served
+on the tailnet. Two Accept/Reject questions on the frozen build
+`review-report-v003` (root `~/review-report-v003.z7xa2_t2`, frozen from
+`37347e7979de`, Fixture agent only): `report-title-clean` and
+`prompt-toggle-compact`. The colour question the owner asked for is not in
+it: [[BPR-2236]] is not started. Lifecycle: pending. As for v002, the
+freeze's own run of the launcher's check exited at the next-push start and
+the same check, run by hand on the kept root, passed whole; twice now, so
+the freeze tool's back-to-back starts deserve a look. Look v002's host is
+stopped and its root removed.
+
 ## Known gaps
 
 - What a report's keep actions made is remembered by the report view for the
