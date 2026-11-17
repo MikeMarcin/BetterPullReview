@@ -196,6 +196,64 @@ report; Draft comment from a finding; the layout (A of three); the review
 prompt's visible body. The before and after real-agent reports and the
 three mockups are its images. Lifecycle: pending.
 
+### Verdicts, look review-report-v001 (handed back 2026-11-16)
+
+- **Accept** `review-reads-as-a-report` (decision `0c6ff8f0`).
+- **Accept** `review-report-layout` (decision `5c9839ff`): A, the action at
+  each finding's foot.
+- **Reject** `draft-comment-from-a-finding` (decision `574fca80`), verbatim:
+  "It's close however... The more I look at it the more this review theme
+  just doesnt really work in the app. I know I asked for this but let's see
+  if we can redesign the report styling and formatting to feel more native
+  but also still special compared with a normal file tab. 2nd img: All of
+  this extra context from a prompt we select should be hidden.. it's just
+  noise. Maybe you can see it with a click or disclosure if you really want
+  but one of the big points behind the prompts is to keep the agent
+  interfaces streamlined and readable."
+- **Reject** `review-prompt-visible-body` (decision `b6308481`), verbatim:
+  "Yes but needs syntax highlighting and the result needs to look
+  non-editable becaus right now it reads the same. Actually in fact I would
+  say we shouldn't show the result prompt by default it should require an
+  extra click. And then those controls at the bottom look like they're
+  attached to the result but they're really for modifying the prompt."
+
+### Round 2 (from those notes)
+
+- **AC-g.** The report's styling is the app's own (its fonts, palette,
+  spacing, controls) while still special beside a plain file tab; the serif
+  review theme goes. The accepted structure and layout stay.
+- **AC-h.** A turn that came from a prompt (a chip or a menu, in the Agent
+  tab and the tour chats) shows the prompt's title as the user's turn; the
+  full text sent is behind a small disclosure.
+- **AC-i.** The prompt editor: Markdown syntax highlighting in the body;
+  the Result section collapsed behind a disclosure and plainly read-only;
+  the Insert, variables and byte-count row directly under the body it
+  edits, above the Result.
+
+### Round 2, built
+
+- **AC-g.** [docs/design/review-report-v2](../../design/review-report-v2/README.md):
+  three looks drawn by the report view itself, light and dark (Cards, Band,
+  Plain); **Cards** is built. `report_page` is set in the application's font
+  at its sizes; `agent_report_view` gives the page the pane's own ground and
+  ink and keeps the theme's report roles for verdicts; the serif is gone.
+- **AC-h.** `agent_tab_view`: a turn sent under a prompt's name shows the
+  name; **Show prompt** and **Hide prompt** show and hide what was sent. The
+  tour chats are **not** done: their shipped prompts send their own short
+  text, and a named long prompt there still shows whole.
+- **AC-i.** `prompts_page`: a highlighter on the body (variables, a line's
+  label, headings, list markers, code, strong text); the Result section
+  under the Insert row, closed behind **Result: Findings report — show
+  format**, drawn on the pane's ground with no field frame and no caret,
+  and said to be read-only.
+- Passing: `qt_agent_report_view`, `qt_prompts_page`,
+  `qt_prompt_macro_chips`, `qt_workbench_window_scale_100`,
+  `application_review_report_public_path`,
+  `application_ask_report_public_path`,
+  `application_fixture_agent_every_ask`.
+- Settings › Appearance › Reports still lists report paper, ink and code
+  wash; the page no longer reads them (only the three verdict colours).
+
 ## Known gaps
 
 - What a report's keep actions made is remembered by the report view for the
