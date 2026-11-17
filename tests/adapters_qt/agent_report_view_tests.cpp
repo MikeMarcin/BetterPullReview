@@ -91,6 +91,18 @@ try {
 		QFile file{ source };
 		expect(file.open(QIODevice::ReadOnly), "the report to draw opens");
 		view.resize(820, 900);
+		// The design round's renders: which look, and the dark theme's
+		// verdict colours when the palette is dark.
+		const auto look = qEnvironmentVariable("BPR_REPORT_RENDER_LOOK");
+		view.set_look(look == QStringLiteral("band") ? bpr::qt::report_look::band : look == QStringLiteral("plain") ? bpr::qt::report_look::plain
+																													: bpr::qt::report_look::cards);
+		if (view.palette().color(QPalette::Base).lightness() < 128) {
+			auto dark    = view.colours();
+			dark.Open    = QColor{ 0xE5, 0xA0, 0x93 };
+			dark.Partial = QColor{ 0xE4, 0xC2, 0x7A };
+			dark.Done    = QColor{ 0x8F, 0xCA, 0xA0 };
+			view.set_report_colours(dark);
+		}
 		const auto markdown = QString::fromUtf8(file.readAll());
 		view.present({ .Turn     = 1U,
 					   .Title    = QString::fromStdString(bpr::core::report_card_of(bpr::core::read_report_answer(markdown.toStdString()).Report).Title),

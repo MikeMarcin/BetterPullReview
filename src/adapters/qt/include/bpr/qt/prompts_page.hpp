@@ -143,7 +143,9 @@ namespace bpr::qt {
 		/// application always adds to a review prompt and reads the answer
 		/// by, shown read-only under the editor of a prompt that asks for
 		/// findings ("Result: Findings report"), so nothing a review is sent
-		/// with is hidden. Empty: the section is not shown.
+		/// with is hidden. It is closed behind a disclosure, under the
+		/// prompt's own Insert row, and drawn as something read, not edited
+		/// (look review-report-v001). Empty: the section is not shown.
 		void               set_review_result(const QString& aFormat);
 		[[nodiscard]] auto review_result_box() const noexcept -> QWidget* { return ResultBox; }
 		/// \brief Undo and Redo, every edit of the layer shown; false with
@@ -262,6 +264,8 @@ namespace bpr::qt {
 		QToolButton*    AsFindings    = nullptr;
 		QPlainTextEdit* Text          = nullptr;
 		QWidget*        ResultBox     = nullptr;
+		QToolButton*    ResultToggle  = nullptr;
+		QWidget*        ResultBody    = nullptr;
 		QPlainTextEdit* ResultText    = nullptr;
 		QLabel*         ActionNote    = nullptr;
 		QWidget*        InsertRow     = nullptr;

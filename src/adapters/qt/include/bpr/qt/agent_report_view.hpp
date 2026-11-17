@@ -116,6 +116,10 @@ namespace bpr::qt {
 		/// theme's roles; the page is drawn again in them.
 		void               set_report_colours(const report_colours& aColours);
 		[[nodiscard]] auto colours() const noexcept -> const report_colours& { return Colours; }
+		/// \brief [[BPR-2219]], round 2. Which of the page's looks is drawn
+		/// (`cards` is the product's; the others are for the design round's
+		/// renders).
+		void set_look(report_look aLook);
 		/// \brief Where a keep action goes: a finding's Draft comment or Keep
 		/// local, and Keep summary.
 		void set_draft_dispatch(report_draft_dispatch aDispatch);
@@ -171,6 +175,7 @@ namespace bpr::qt {
 		void               apply_colours();
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
+		[[nodiscard]] auto native_colours() const -> report_colours;
 		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;
 
 		agent_report_document Document;
@@ -189,6 +194,7 @@ namespace bpr::qt {
 		QObject*                         CodeObjects = nullptr;
 		core::dressed_report             Dress;
 		report_colours                   Colours;
+		report_look                      Look = report_look::cards;
 		/// The report's findings, and what became of each keep action, by
 		/// the report's turn and the action's row (0: the summary), so a
 		/// report opened again says what was already kept.

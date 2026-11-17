@@ -1,4 +1,5 @@
 #include "bpr/qt/prompts_page.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -20,6 +21,7 @@
 #include <QDropEvent>
 #include <QFontDatabase>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -34,11 +36,14 @@
 #include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QShortcut>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
+#include <QSyntaxHighlighter>
+#include <QTextCharFormat>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -49,6 +54,75 @@
 
 namespace bpr::qt {
 	namespace {
+		/// [[BPR-2219]]. A prompt's text, coloured as it is typed: its
+		/// variables (`{file}`), a line's leading label ("Focus:"), headings,
+		/// list markers, code spans and fences, and strong text. Colours are
+		/// the palette's own roles, read at each block, so a theme change
+		/// shows on the next rehighlight.
+		class prompt_text_highlighter final : public QSyntaxHighlighter
+		{
+		public:
+			explicit prompt_text_highlighter(QTextDocument* aDocument)
+				: QSyntaxHighlighter{ aDocument }
+			{ }
+
+		protected:
+			void highlightBlock(const QString& aText) override
+			{
+				const auto palette = QGuiApplication::palette();
+				auto       quiet   = QTextCharFormat{ };
+				quiet.setForeground(palette.brush(QPalette::PlaceholderText));
+				auto strong = QTextCharFormat{ };
+				strong.setFontWeight(QFont::DemiBold);
+				auto variable = QTextCharFormat{ };
+				variable.setForeground(palette.brush(QPalette::Link));
+				variable.setFontWeight(QFont::DemiBold);
+				auto code = QTextCharFormat{ };
+				code.setBackground(palette.brush(QPalette::AlternateBase));
+				// Inside a fenced block every line is code; the fence is quiet.
+				const auto fence  = aText.trimmed().startsWith(QStringLiteral("```")) || aText.trimmed().startsWith(QStringLiteral("~~~"));
+				const auto inside = previousBlockState() == 1;
+				setCurrentBlockState(fence ? (inside ? 0 : 1) : (inside ? 1 : 0));
+				if (fence) {
+					setFormat(0, static_cast<int>(aText.size()), quiet);
+					return;
+				}
+				if (inside) {
+					setFormat(0, static_cast<int>(aText.size()), code);
+					return;
+				}
+				static const auto heading   = QRegularExpression{ QStringLiteral(R"(^\s{0,3}#{1,6}\s.*$)") };
+				static const auto label     = QRegularExpression{ QStringLiteral(R"(^(?:\s*[-*]\s+)?([A-Z][^:.{}`]{0,38}:)(?=\s|$))") };
+				static const auto marker    = QRegularExpression{ QStringLiteral(R"(^\s*([-*]|\d+\.)\s)") };
+				static const auto spans     = QRegularExpression{ QStringLiteral(R"(`[^`]+`)") };
+				static const auto bold      = QRegularExpression{ QStringLiteral(R"(\*\*[^*]+\*\*)") };
+				static const auto variables = QRegularExpression{ QStringLiteral(R"(\{[a-z][a-z0-9_.]*\})") };
+				if (const auto match = heading.match(aText); match.hasMatch()) {
+					setFormat(0, static_cast<int>(aText.size()), strong);
+				}
+				if (const auto match = label.match(aText); match.hasMatch()) {
+					setFormat(static_cast<int>(match.capturedStart(1)), static_cast<int>(match.capturedLength(1)), strong);
+				}
+				if (const auto match = marker.match(aText); match.hasMatch()) {
+					setFormat(static_cast<int>(match.capturedStart(1)), static_cast<int>(match.capturedLength(1)), quiet);
+				}
+				for (const auto* const each : { &bold }) {
+					for (auto found = each->globalMatch(aText); found.hasNext();) {
+						const auto match = found.next();
+						setFormat(static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), strong);
+					}
+				}
+				for (auto found = spans.globalMatch(aText); found.hasNext();) {
+					const auto match = found.next();
+					setFormat(static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), code);
+				}
+				for (auto found = variables.globalMatch(aText); found.hasNext();) {
+					const auto match = found.next();
+					setFormat(static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), variable);
+				}
+			}
+		};
+
 		using core::prompt_surface;
 
 		constexpr auto mime_type   = "application/x-bpr-prompt-placement";
@@ -899,40 +973,67 @@ namespace bpr::qt {
 		Text->setAccessibleName(tr("Prompt text"));
 		Text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 		Text->setTabChangesFocus(true);
+		// Look review-report-v001 (owner: "needs syntax highlighting"): the
+		// body's Markdown and its variables are coloured as they are typed.
+		new prompt_text_highlighter{ Text->document() };
 		left->addWidget(Text, 1);
-		// [[BPR-2219]]. What a review prompt is always sent with, read-only:
-		// the report format the application reads the answer by.
-		ResultBox = new QWidget{ page };
-		ResultBox->setObjectName(QStringLiteral("promptsResultBox"));
-		auto* const resultLayout = new QVBoxLayout{ ResultBox };
-		resultLayout->setContentsMargins(0, 4, 0, 0);
-		resultLayout->setSpacing(2);
-		auto* const resultTitle = new QLabel{ tr("Result: Findings report"), ResultBox };
-		resultTitle->setObjectName(QStringLiteral("promptsResultTitle"));
-		auto resultBold = resultTitle->font();
-		resultBold.setWeight(QFont::DemiBold);
-		resultTitle->setFont(resultBold);
-		resultLayout->addWidget(resultTitle);
-		auto* const resultNote = new QLabel{ tr("Always added: the report format BetterPullReview reads. It shows each finding at its place and makes Draft comment work, so it is not edited here."), ResultBox };
-		resultNote->setObjectName(QStringLiteral("promptsResultNote"));
-		resultNote->setWordWrap(true);
-		resultNote->setForegroundRole(QPalette::PlaceholderText);
-		resultLayout->addWidget(resultNote);
-		ResultText = new QPlainTextEdit{ ResultBox };
-		ResultText->setObjectName(QStringLiteral("promptsResultText"));
-		ResultText->setAccessibleName(tr("Result: Findings report, always added, read-only"));
-		ResultText->setReadOnly(true);
-		ResultText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-		ResultText->setTabChangesFocus(true);
-		ResultText->setMaximumHeight(150);
-		resultLayout->addWidget(ResultText);
-		ResultBox->hide();
-		left->addWidget(ResultBox);
-		InsertRow                = new QWidget{ page };
+		InsertRow = new QWidget{ page };
+		InsertRow->setObjectName(QStringLiteral("promptsInsertRow"));
 		auto* const insertLayout = new QHBoxLayout{ InsertRow };
 		insertLayout->setContentsMargins(0, 0, 0, 0);
 		insertLayout->setSpacing(4);
 		left->addWidget(InsertRow);
+		// [[BPR-2219]]. What a review prompt is always sent with: the report
+		// format the application reads the answer by. Look review-report-v001
+		// (owner, 2026-11-16: "the result needs to look non-editable ... we
+		// shouldn't show the result prompt by default it should require an
+		// extra click. And then those controls at the bottom look like
+		// they're attached to the result but they're really for modifying
+		// the prompt"): under the prompt's own controls, closed behind a
+		// disclosure, and drawn as something read, not edited (the pane's
+		// ground, no frame of a field, no caret).
+		ResultBox = new QWidget{ page };
+		ResultBox->setObjectName(QStringLiteral("promptsResultBox"));
+		auto* const resultLayout = new QVBoxLayout{ ResultBox };
+		resultLayout->setContentsMargins(0, 8, 0, 0);
+		resultLayout->setSpacing(4);
+		ResultToggle = new disclosure_button{ ResultBox };
+		ResultToggle->setObjectName(QStringLiteral("promptsResultToggle"));
+		ResultToggle->setCheckable(true);
+		ResultToggle->setText(tr("Result: Findings report \u2014 show format"));
+		ResultToggle->setToolTip(tr("Always added to this prompt: the report format BetterPullReview reads. It is not edited here."));
+		resultLayout->addWidget(ResultToggle);
+		ResultBody = new QWidget{ ResultBox };
+		ResultBody->setObjectName(QStringLiteral("promptsResultBody"));
+		auto* const resultBody = new QVBoxLayout{ ResultBody };
+		resultBody->setContentsMargins(0, 0, 0, 0);
+		resultBody->setSpacing(4);
+		auto* const resultNote = new QLabel{ tr("Read-only. Always added: the report format BetterPullReview reads. It shows each finding at its place and makes Draft comment work, so it is not edited here."), ResultBody };
+		resultNote->setObjectName(QStringLiteral("promptsResultNote"));
+		resultNote->setWordWrap(true);
+		resultNote->setForegroundRole(QPalette::PlaceholderText);
+		resultBody->addWidget(resultNote);
+		ResultText = new QPlainTextEdit{ ResultBody };
+		ResultText->setObjectName(QStringLiteral("promptsResultText"));
+		ResultText->setAccessibleName(tr("Result: Findings report, always added, read-only"));
+		ResultText->setReadOnly(true);
+		ResultText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		ResultText->setFocusPolicy(Qt::ClickFocus);
+		ResultText->setFrameShape(QFrame::NoFrame);
+		ResultText->viewport()->setBackgroundRole(QPalette::Window);
+		ResultText->setForegroundRole(QPalette::PlaceholderText);
+		ResultText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+		ResultText->setMaximumHeight(170);
+		new prompt_text_highlighter{ ResultText->document() };
+		resultBody->addWidget(ResultText);
+		ResultBody->hide();
+		resultLayout->addWidget(ResultBody);
+		connect(ResultToggle, &QToolButton::toggled, this, [this](const bool aOpen) {
+			ResultBody->setVisible(aOpen);
+			ResultToggle->setText(aOpen ? tr("Result: Findings report \u2014 hide format") : tr("Result: Findings report \u2014 show format"));
+		});
+		ResultBox->hide();
+		left->addWidget(ResultBox);
 		columns->addLayout(left, 1);
 
 		auto* const right = new QVBoxLayout{ };

@@ -41,6 +41,14 @@ The functional core decides whether an explicit AI action is legal, what local c
   says so. **Keep summary**, under the summary, keeps the verdict, the
   summary and a line a finding as a Local comment on the pull request.
   Nothing is published until the reviewer publishes.
+- The report is drawn in the app's own hand (look review-report-v001's
+  hand-back; docs/design/review-report-v2, Cards): the application's font
+  and the pane's own ground and ink, the opening on a bordered band with the
+  verdict as a filled mark, each finding a bordered box as a conversation
+  card is. The theme's report roles colour only verdicts.
+- A turn sent from a prompt shows the prompt's name as the user's turn, with
+  **Show prompt** to see what was sent (look review-report-v001: "All of
+  this extra context from a prompt we select should be hidden").
 - A review prompt says what it asks ([[BPR-2219]], owner 2026-11-16): the
   shipped Review this pull request and Review {file} carry their real
   instructions as their body in Settings › Prompts, where they are edited

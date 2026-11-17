@@ -1445,9 +1445,15 @@ namespace bpr::qt {
 		// Owner look v004: a file and line the question names is a link to it.
 		connect(question, &QLabel::linkActivated, this, [this](const QString& aLink) { follow_link(aLink); });
 		aTurn.QuestionLabel = question;
-		if (aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
+		// [[BPR-2219]], look review-report-v001 (owner, 2026-11-16: "All of
+		// this extra context from a prompt we select should be hidden.. it's
+		// just noise. Maybe you can see it with a click or disclosure"): a
+		// turn sent under a prompt's name shows the name; what was sent is
+		// behind Show prompt.
+		const auto named = !aTurn.Name.isEmpty();
+		if (named || aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
 			// RFC-BPR-0125 (AC07). Text past six lines folds behind Show all.
-			auto* const showAll = new quiet_push_button{ tr("Show all"), asked };
+			auto* const showAll = new quiet_push_button{ named ? tr("Show prompt") : tr("Show all"), asked };
 			showAll->setObjectName(QStringLiteral("agentTurnShowAll"));
 			showAll->setFlat(true);
 			connect(showAll, &QPushButton::clicked, this, [this, serial = aTurn.Serial] {
@@ -1456,7 +1462,8 @@ namespace bpr::qt {
 					return;
 				}
 				found->Unfolded = !found->Unfolded;
-				found->ShowAll->setText(found->Unfolded ? tr("Show less") : tr("Show all"));
+				found->ShowAll->setText(!found->Name.isEmpty() ? (found->Unfolded ? tr("Hide prompt") : tr("Show prompt")) : found->Unfolded ? tr("Show less")
+																																			 : tr("Show all"));
 				show_question(*found);
 			});
 			aTurn.ShowAll = showAll;
@@ -2062,8 +2069,12 @@ namespace bpr::qt {
 		}
 		// RFC-BPR-0125 (AC07). Folded, the first six lines show, and only
 		// the references within them are links.
+		// [[BPR-2219]]. A named turn's text shows whole, or not at all.
+		if (aTurn.QuestionLabel != nullptr) {
+			aTurn.QuestionLabel->setVisible(aTurn.Name.isEmpty() || aTurn.Unfolded);
+		}
 		auto shown = aTurn.Question;
-		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded) {
+		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded && aTurn.Name.isEmpty()) {
 			shown = aTurn.Question.section(QLatin1Char{ '\n' }, 0, folded_question_lines - 1) + QStringLiteral("…");
 			std::erase_if(refs, [cut = shown.size() - 1](const shown_reference& aRef) { return aRef.Begin + aRef.Length > cut; });
 		}

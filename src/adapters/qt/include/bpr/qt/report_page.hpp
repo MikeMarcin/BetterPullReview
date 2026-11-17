@@ -17,7 +17,7 @@
 /// \brief RFC-BPR-0128 (docs/design/report-templates-v1 and v2; owner,
 /// 2026-11-14: B, Dressed, in Qt's rich text). A report the core read by the
 /// shared convention, drawn as one page of Qt rich text in the hand of the
-/// attended-review page: serif reading text, sans labels, mono places; a
+/// application's own hand (round 2: its font and palette, no serif); mono places; a
 /// rule at the left of each verdict; the tally as a meter and its counts;
 /// code numbered from its item's place; a suggestion as a diff; a review's
 /// verdict over its summary and one keep action at each finding's foot
@@ -104,16 +104,27 @@ namespace bpr::qt {
 		std::function<QString(std::uint32_t, report_link)> Link;
 	};
 
+	/// \brief [[BPR-2219]], round 2 (owner, look review-report-v001: "redesign
+	/// the report styling and formatting to feel more native but also still
+	/// special compared with a normal file tab"). The page is set in the
+	/// application's own font and stands on its own palette; what sets it
+	/// apart from a file is one of three looks. `cards` is built: the opening
+	/// on a raised band with the verdict as a filled mark, and each finding a
+	/// bordered box as a conversation card is. `band` keeps the band and
+	/// leaves findings beside their rules; `plain` has neither.
+	enum class report_look : std::uint8_t {
+		cards,
+		band,
+		plain,
+	};
+
 	/// \brief The page's HTML. Each code block is a marker paragraph, its
 	/// slot appended to `aSlots`.
-	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions = { }, std::vector<report_code_slot>* aSlots = nullptr)
-		-> QString;
+	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions = { }, std::vector<report_code_slot>* aSlots = nullptr,
+										report_look aLook = report_look::cards) -> QString;
 
 	/// \brief The colour a tone wears; neutral is the stronger rule.
 	[[nodiscard]] auto report_tone_colour(core::report_tone aTone, const report_colours& aColours) -> QColor;
-
-	/// \brief The serif the reading text is set in, with its fallbacks.
-	[[nodiscard]] auto report_serif_families() -> QString;
 } // namespace bpr::qt
 
 #endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REPORT_PAGE_HPP

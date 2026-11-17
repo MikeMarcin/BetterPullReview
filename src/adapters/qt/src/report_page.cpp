@@ -20,6 +20,8 @@ namespace bpr::qt {
 		std::vector<report_code_slot>* Collected = nullptr;
 		/// The page being written's keep actions.
 		const report_page_actions* Actions = nullptr;
+		/// The page being written's look.
+		report_look Look = report_look::cards;
 
 		[[nodiscard]] auto code_marker(report_code_slot aSlot) -> QString
 		{
@@ -57,6 +59,9 @@ namespace bpr::qt {
 			QString        Wash;
 			QString        Removed;
 			QString        Added;
+			/// [[BPR-2219]], round 2. The ground a band or a card's head
+			/// stands on: the paper, a little towards the ink.
+			QString Raised;
 		};
 
 		[[nodiscard]] auto palette_of(const report_colours& aColours) -> palette
@@ -84,6 +89,7 @@ namespace bpr::qt {
 				.Wash    = aColours.CodeWash.name(),
 				.Removed = mixed(aColours.Open, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
 				.Added   = mixed(aColours.Done, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
+				.Raised  = mixed(aColours.Paper, aColours.Ink, dark ? 0.09 : 0.05).name(),
 			};
 		}
 
@@ -319,7 +325,7 @@ namespace bpr::qt {
 				if (placed) {
 					html += cell.arg(aPalette.Line, QString{ }, row.Place.empty() ? QString{ } : place_html(row.Place, row.PlaceLink, aPalette));
 				}
-				html += cell.arg(aPalette.Line, QStringLiteral("font-size:15px;color:%1").arg(aPalette.Dim), inline_html(row.Text, aPalette));
+				html += cell.arg(aPalette.Line, QStringLiteral("font-size:13px;color:%1").arg(aPalette.Dim), inline_html(row.Text, aPalette));
 				html += QStringLiteral("</tr>");
 			}
 			return html + QStringLiteral("</table>");
@@ -333,7 +339,7 @@ namespace bpr::qt {
 				case dressed_block_kind::paragraph: html += QStringLiteral("<p style=\"margin:8px 0 0 0\">%1</p>").arg(inline_html(block.Text, aPalette)); break;
 				case dressed_block_kind::quote:     html += QStringLiteral("<p style=\"margin:0 0 8px 0;font-style:italic;color:%1\">%2</p>").arg(aPalette.Dim, inline_html(block.Text, aPalette)); break;
 				case dressed_block_kind::check:
-					html += QStringLiteral("<p style=\"margin:10px 0 0 0;font-size:15px;color:%1\"><span style=\"font-family:%2;font-size:13px;font-weight:600;color:%3\">%4</span>&nbsp;&nbsp;%5</p>")
+					html += QStringLiteral("<p style=\"margin:10px 0 0 0;font-size:13px;color:%1\"><span style=\"font-family:%2;font-size:13px;font-weight:600;color:%3\">%4</span>&nbsp;&nbsp;%5</p>")
 								.arg(aPalette.Dim, sans(), aPalette.Ink, QObject::tr("Check"), inline_html(block.Text, aPalette));
 					break;
 				case dressed_block_kind::rows: html += rows_html(block.Rows, aPalette); break;
@@ -352,19 +358,27 @@ namespace bpr::qt {
 		[[nodiscard]] auto item_html(const dressed_item& aItem, const palette& aPalette) -> QString
 		{
 			if (aItem.Label.empty() && aItem.Place.empty()) {
-				return QStringLiteral("<p style=\"margin:16px 0 6px 0;font-size:17px;font-weight:600\">%1%2</p>%3")
+				return QStringLiteral("<p style=\"margin:16px 0 6px 0;font-size:14px;font-weight:600\">%1%2</p>%3")
 					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
 			}
 			const auto tone = aItem.Tone == report_tone::neutral ? aPalette.Strong : report_tone_colour(aItem.Tone, aPalette.Roles).name();
 			const auto word = aItem.Tone == report_tone::neutral ? aPalette.Dim : tone;
-			return QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:14px\"><tr><td width=\"3\" bgcolor=\"%1\"></td><td style=\"padding-left:16px\">"
-								  "<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td style=\"font-family:%2;font-size:13px;font-weight:600;color:%3\">%4</td><td align=\"right\">%5</td></tr></table>"
-								  "<p style=\"margin:2px 0 6px 0;font-size:19px;font-weight:600\">%6%7</p>%8</td></tr></table>")
-				.arg(tone, sans(), word, escaped(aItem.Label), aItem.Place.empty() ? QString{ } : place_html(aItem.Place, aItem.PlaceLink, aPalette), anchor(aItem.Outline),
-					 inline_html(aItem.Heading, aPalette),
-					 (aItem.OtherPlaces.empty() ? QString{ }
-												: QStringLiteral("<p style=\"margin:0 0 6px 0;font-family:%1;font-size:13px;color:%2\">%3 %4</p>").arg(sans(), aPalette.Dim, QObject::tr("Also"), inline_html(aItem.OtherPlaces, aPalette)))
-						 + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
+			// Round 2 (owner: "feel more native but also still special"): in
+			// the cards look a finding is a bordered box, as a conversation
+			// card is, its verdict's rule at its left.
+			const auto box = Look == report_look::cards ? QStringLiteral("margin-top:12px;border:1px solid %1;border-collapse:collapse").arg(aPalette.Line) : QStringLiteral("margin-top:14px");
+			const auto pad = Look == report_look::cards ? QStringLiteral("padding:10px 14px 12px 14px") : QStringLiteral("padding-left:16px");
+			// The box is made first: a finding's own words may hold a marker.
+			const auto open = QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"%1\"><tr><td width=\"3\" bgcolor=\"%2\"></td><td style=\"%3\">").arg(box, tone, pad);
+			return open
+				+ QStringLiteral(
+					  "<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td style=\"font-family:%2;font-size:13px;font-weight:600;color:%3\">%4</td><td align=\"right\">%5</td></tr></table>"
+					  "<p style=\"margin:2px 0 6px 0;font-size:15px;font-weight:600\">%6%7</p>%8</td></tr></table>")
+					  .arg(sans(), word, escaped(aItem.Label), aItem.Place.empty() ? QString{ } : place_html(aItem.Place, aItem.PlaceLink, aPalette), anchor(aItem.Outline),
+						   inline_html(aItem.Heading, aPalette),
+						   (aItem.OtherPlaces.empty() ? QString{ }
+													  : QStringLiteral("<p style=\"margin:0 0 6px 0;font-family:%1;font-size:13px;color:%2\">%3 %4</p>").arg(sans(), aPalette.Dim, QObject::tr("Also"), inline_html(aItem.OtherPlaces, aPalette)))
+							   + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
 		}
 
 		[[nodiscard]] auto tally_html(const dressed_report& aReport, const palette& aPalette) -> QString
@@ -400,40 +414,53 @@ namespace bpr::qt {
 		return QColor{ palette_of(aColours).Strong };
 	}
 
-	auto report_serif_families() -> QString { return QStringLiteral("Charter, 'Iowan Old Style', 'Bitstream Charter', Cambria, Georgia, serif"); }
-
-	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots) -> QString
+	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots, const report_look aLook) -> QString
 	{
 		Collected          = aSlots;
 		Actions            = &aActions;
+		Look               = aLook;
 		const auto reset   = qScopeGuard([] {
 			Collected = nullptr;
 			Actions   = nullptr;
 		});
 		const auto colours = palette_of(aColours);
-		auto       html    = QStringLiteral("<html><body style=\"font-family:%1;font-size:17px;color:%2\">").arg(report_serif_families(), colours.Ink);
+		auto       html    = QStringLiteral("<html><body style=\"font-family:%1;font-size:14px;color:%2\">").arg(sans(), colours.Ink);
 		// [[BPR-2219]]. The verdict over the summary, whose rule wears its
 		// colour.
 		const auto verdict = aReport.Verdict.empty() || aReport.VerdictTone == report_tone::neutral ? colours.Strong : report_tone_colour(aReport.VerdictTone, colours.Roles).name();
+		const auto banded  = Look != report_look::plain;
+		auto       opening = QString{ };
 		if (!aReport.Verdict.empty()) {
-			html += QStringLiteral("<p style=\"margin:0 0 8px 0;font-family:%1;font-size:13px;font-weight:600;color:%2\">%3&nbsp;&nbsp;<span style=\"font-size:15px;color:%4\">%5</span></p>")
-						.arg(sans(), colours.Dim, QObject::tr("Verdict"), aReport.VerdictTone == report_tone::neutral ? colours.Ink : verdict, escaped(aReport.Verdict));
+			// Plain: the verdict as a coloured word. Band and cards: a filled
+			// mark, the app's own way of saying a state.
+			opening += banded ? QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin:0 0 8px 0\"><tr><td style=\"font-family:%1;font-size:12px;color:%2;padding:3px 10px 3px 0\">%3</td>"
+											   "<td style=\"background-color:%4;color:%5;font-family:%1;font-size:12px;font-weight:600;padding:3px 9px\">%6</td></tr></table>")
+									.arg(sans(), colours.Dim, QObject::tr("Verdict"), aReport.VerdictTone == report_tone::neutral ? colours.Strong : verdict, colours.Roles.Paper.name(), escaped(aReport.Verdict))
+							  : QStringLiteral("<p style=\"margin:0 0 8px 0;font-family:%1;font-size:13px;font-weight:600;color:%2\">%3&nbsp;&nbsp;<span style=\"font-size:14px;color:%4\">%5</span></p>")
+									.arg(sans(), colours.Dim, QObject::tr("Verdict"), aReport.VerdictTone == report_tone::neutral ? colours.Ink : verdict, escaped(aReport.Verdict));
 		}
 		if (!aReport.Summary.empty()) {
 			auto paragraphs = QStringList{ };
 			for (const auto& part : QString::fromStdString(aReport.Summary).split(QStringLiteral("\n\n"))) {
-				paragraphs << QStringLiteral("<p style=\"margin:0;font-size:19px\">%1</p>").arg(inline_html(part.toStdString(), colours));
+				paragraphs << QStringLiteral("<p style=\"margin:0;font-size:15px\">%1</p>").arg(inline_html(part.toStdString(), colours));
 			}
-			html += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"3\" bgcolor=\"%1\"></td><td style=\"padding-left:16px\">%2%3</td></tr></table>")
-						.arg(verdict, paragraphs.join(QString{ }),
-							 aActions.Summary ? keep_row(0U, core::report_keep::keep_local, QObject::tr("as a local comment on the pull request"), false, colours) : QString{ });
+			opening += paragraphs.join(QString{ });
+			opening += aActions.Summary ? keep_row(0U, core::report_keep::keep_local, QObject::tr("as a local comment on the pull request"), false, colours) : QString{ };
+		}
+		if (!opening.isEmpty()) {
+			// The opening: on a raised band with the verdict's rule (band,
+			// cards), or beside a rule alone (plain).
+			html += banded ? QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"%1\" style=\"border:1px solid %2;border-collapse:collapse\"><tr><td width=\"3\" bgcolor=\"%3\"></td>"
+											"<td style=\"padding:12px 14px 12px 14px\">%4</td></tr></table>")
+								 .arg(colours.Raised, colours.Line, verdict, opening)
+						   : QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"3\" bgcolor=\"%1\"></td><td style=\"padding-left:16px\">%2</td></tr></table>").arg(verdict, opening);
 		}
 		html += tally_html(aReport, colours);
 		for (const auto& section : aReport.Sections) {
 			if (!section.Name.empty()) {
 				html += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:30px\"><tr>"
-									   "<td style=\"border-top:1px solid %1;padding-top:14px;font-family:%2;font-size:15px;font-weight:600;color:%3\">%4%5</td>"
-									   "<td align=\"right\" style=\"border-top:1px solid %1;padding-top:14px;font-family:%2;font-size:15px;color:%6\">%7</td></tr></table>")
+									   "<td style=\"border-top:1px solid %1;padding-top:14px;font-family:%2;font-size:13px;font-weight:600;color:%3\">%4%5</td>"
+									   "<td align=\"right\" style=\"border-top:1px solid %1;padding-top:14px;font-family:%2;font-size:13px;color:%6\">%7</td></tr></table>")
 							.arg(colours.Line, sans(), colours.Dim, anchor(section.Outline), escaped(section.Name), colours.Faint,
 								 section.Items.empty() || std::ranges::all_of(section.Items, [](const dressed_item& aItem) { return aItem.Label.empty() && aItem.Place.empty(); })
 									 ? QString{ }

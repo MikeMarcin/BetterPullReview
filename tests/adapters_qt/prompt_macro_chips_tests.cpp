@@ -357,14 +357,18 @@ namespace {
 		expect(tab.turn_name(turn) == QStringLiteral("Long pass on renderer.cpp") && tab.turn_question(turn) == expansion, "AC07 the turn shows the sent text under the macro's name");
 		auto* const showAll = tab.turn_show_all(turn);
 		auto* const shown   = tab.findChildren<QLabel*>(QStringLiteral("agentTurnQuestionText")).back();
-		expect(showAll != nullptr && showAll->text() == QStringLiteral("Show all") && shown->text().count(QLatin1Char{ '\n' }) + shown->text().count(QStringLiteral("<br>")) == 5,
-			   "AC07 folded past six lines, behind Show all");
+		// [[BPR-2219]] (look review-report-v001, owner: "All of this extra
+		// context from a prompt we select should be hidden"): a turn sent
+		// under a prompt's name shows the name alone; what was sent is behind
+		// Show prompt, whole.
+		expect(showAll != nullptr && showAll->text() == QStringLiteral("Show prompt") && !shown->isVisibleTo(&tab), "AC07 the sent text is behind Show prompt, the name alone showing");
 		if (auto* const box = showAll->parentWidget() != nullptr ? showAll->parentWidget()->parentWidget() : nullptr; box != nullptr) {
 			render(*box, QStringLiteral("rfc0125-m2-sent-turn-folded"));
 		}
 		showAll->click();
 		settle();
-		expect(showAll->text() == QStringLiteral("Show less") && shown->text().count(QLatin1Char{ '\n' }) + shown->text().count(QStringLiteral("<br>")) == 14, "AC07 Show all shows every line");
+		expect(showAll->text() == QStringLiteral("Hide prompt") && shown->isVisibleTo(&tab) && shown->text().count(QLatin1Char{ '\n' }) + shown->text().count(QStringLiteral("<br>")) == 14,
+			   "AC07 Show prompt shows every line of what was sent");
 		showAll->click();
 		settle();
 

@@ -632,7 +632,7 @@ namespace bpr::qt {
 		const auto shown = dressed_shown();
 		if (!Dress.Sections.empty()) {
 			const auto top = Scroll->verticalScrollBar()->value();
-			Dressed->document()->setDefaultFont(QFont{ QStringLiteral("Charter"), 13 });
+			Dressed->document()->setDefaultFont(font());
 			auto collected = std::vector<report_code_slot>{ };
 			// The keep actions' links, minted afresh for this render: a
 			// random token no answer can know, mapped to its action.
@@ -646,7 +646,7 @@ namespace bpr::qt {
 				ActionLinks.emplace(token, std::pair{ aOutline, aLink });
 				return token;
 			};
-			Dressed->setHtml(report_page_html(Dress, Colours, actions, &collected));
+			Dressed->setHtml(report_page_html(Dress, native_colours(), actions, &collected, Look));
 			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
 			// Look report-templates-v003: each code block is the Agent tab's
 			// own code box (its syntax colours, the code colours, Wrap and
@@ -719,30 +719,44 @@ namespace bpr::qt {
 	/// the page shows; the pane's own colours otherwise.
 	void agent_report_view::apply_colours()
 	{
+		// [[BPR-2219]], round 2 (owner: "feel more native"): the page stands on
+		// the pane's own ground, in its own ink and font; the report's
+		// theme roles are spent only on verdicts. The title is the app's
+		// font, larger and heavier, with or without the page.
 		auto*      page    = Scroll->widget();
-		auto       colours = palette();
-		const auto shown   = dressed_shown();
-		if (shown) {
-			colours.setColor(QPalette::Base, Colours.Paper);
-			colours.setColor(QPalette::Window, Colours.Paper);
-			colours.setColor(QPalette::Text, Colours.Ink);
-			colours.setColor(QPalette::WindowText, Colours.Ink);
-		}
+		const auto colours = palette();
 		page->setPalette(colours);
 		Scroll->viewport()->setPalette(colours);
 		Title->setPalette(colours);
 		Byline->setPalette(colours);
-		auto big = Title->font();
-		if (shown) {
-			big.setFamilies({ QStringLiteral("Charter"), QStringLiteral("Iowan Old Style"), QStringLiteral("Bitstream Charter"), QStringLiteral("Cambria"), QStringLiteral("Georgia") });
-			big.setPixelSize(28);
-			big.setWeight(QFont::DemiBold);
-		} else {
-			big = font();
-			big.setPointSizeF(22.0);
-			big.setBold(true);
-		}
+		auto big = font();
+		big.setPointSizeF(font().pointSizeF() * 1.55);
+		big.setWeight(QFont::DemiBold);
 		Title->setFont(big);
+	}
+
+	/// The page's colours: the pane's own ground and ink, the theme's three
+	/// verdict colours, and a wash a little off the ground for code and
+	/// the action's face.
+	auto agent_report_view::native_colours() const -> report_colours
+	{
+		auto native  = Colours;
+		native.Paper = palette().color(QPalette::Base);
+		native.Ink   = palette().color(QPalette::Text);
+		// A little off the ground towards the ink, in either theme: a
+		// platform's alternate base can be far from its base.
+		const auto towards = [](const int aGround, const int aInk) { return aGround + (aInk - aGround) * 8 / 100; };
+		native.CodeWash    = QColor{ towards(native.Paper.red(), native.Ink.red()), towards(native.Paper.green(), native.Ink.green()), towards(native.Paper.blue(), native.Ink.blue()) };
+		return native;
+	}
+
+	void agent_report_view::set_look(const report_look aLook)
+	{
+		if (Look == aLook) {
+			return;
+		}
+		Look = aLook;
+		render_dressed();
 	}
 
 	void agent_report_view::set_report_colours(const report_colours& aColours)

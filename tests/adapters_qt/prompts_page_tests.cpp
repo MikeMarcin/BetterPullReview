@@ -22,6 +22,7 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QDir>
+#include <QFrame>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -32,6 +33,9 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSyntaxHighlighter>
+#include <QTextBlock>
+#include <QTextLayout>
 #include <QTimer>
 #include <QToolButton>
 
@@ -224,11 +228,27 @@ namespace {
 			expect(body != nullptr && body->toPlainText().startsWith(QStringLiteral("Review this pull request as a careful colleague would")) && body->toPlainText().contains(QStringLiteral("Sections, in this order"))
 					   && body->toPlainText().contains(QStringLiteral("Severity:")) && body->toPlainText().contains(QStringLiteral("Tone:")) && !body->isReadOnly(),
 				   "the review prompt's editor holds its instructions, editable");
-			expect(box != nullptr && box->isVisibleTo(&page) && title != nullptr && title->text() == QStringLiteral("Result: Findings report") && note != nullptr
-					   && note->text().startsWith(QStringLiteral("Always added: the report format BetterPullReview reads.")),
-				   "under it, the Result: Findings report section says it is always added");
-			expect(format != nullptr && format->isReadOnly() && format->toPlainText() == QStringLiteral("# Reports\n\nThe first line is the title.") && format->accessibleName().contains(QStringLiteral("read-only")),
-				   "it shows the format, read-only");
+			// Look review-report-v001: the Result is closed behind a
+			// disclosure, under the prompt's own Insert row, and reads as
+			// something read, not edited; the body's text is highlighted.
+			auto* const toggle = page.findChild<QToolButton*>(QStringLiteral("promptsResultToggle"));
+			auto* const insert = page.findChild<QWidget*>(QStringLiteral("promptsInsertRow"));
+			expect(box != nullptr && box->isVisibleTo(&page) && toggle != nullptr && toggle->isCheckable() && !toggle->isChecked() && toggle->text() == QStringLiteral("Result: Findings report \u2014 show format")
+					   && format != nullptr && !format->isVisibleTo(&page) && note != nullptr && !note->isVisibleTo(&page),
+				   "the Result section is one closed disclosure: its format is not shown by default");
+			expect(body->mapTo(&page, QPoint{ }).y() < box->mapTo(&page, QPoint{ }).y() && (insert == nullptr || insert->mapTo(&page, QPoint{ }).y() < box->mapTo(&page, QPoint{ }).y()),
+				   "it stands under the body and the body's own Insert row");
+			toggle->click();
+			settle();
+			expect(format->isVisibleTo(&page) && note->isVisibleTo(&page) && note->text().startsWith(QStringLiteral("Read-only. Always added: the report format BetterPullReview reads."))
+					   && toggle->text() == QStringLiteral("Result: Findings report \u2014 hide format"),
+				   "a click shows the format and says it is read-only and always added");
+			expect(format->isReadOnly() && format->textInteractionFlags() == Qt::TextSelectableByMouse && format->frameShape() == QFrame::NoFrame && format->viewport()->backgroundRole() == QPalette::Window
+					   && format->toPlainText() == QStringLiteral("# Reports\n\nThe first line is the title.") && format->accessibleName().contains(QStringLiteral("read-only")),
+				   "the format is drawn as something read: no field's frame or ground, no caret, text that can only be selected");
+			const auto focus = body->document()->find(QStringLiteral("Focus:")).block();
+			expect(body->document()->findChild<QSyntaxHighlighter*>() != nullptr && focus.isValid() && !focus.layout()->formats().isEmpty(), "the body's Markdown is highlighted: a line's label is set apart");
+			static_cast<void>(title);
 			page.select("agent-tab.what-could-break");
 			settle();
 			expect(!box->isVisibleTo(&page), "a prompt that asks no findings has no Result section");

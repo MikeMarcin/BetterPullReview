@@ -40,6 +40,7 @@
 #include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTextEdit>
+#include <QToolButton>
 
 #include <algorithm>
 #include <cstdlib>
@@ -281,6 +282,13 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 		render(*window.settings(), QStringLiteral("review-report-prompts"));
+		// Its format shows only on a click of its disclosure.
+		auto* const toggle = window.prompts()->findChild<QToolButton*>(QStringLiteral("promptsResultToggle"));
+		expect(toggle != nullptr && !toggle->isChecked() && !format->isVisibleTo(window.prompts()), "the Result's format is closed by default");
+		toggle->click();
+		QApplication::processEvents();
+		expect(format->isVisibleTo(window.prompts()), "and opens on a click");
+		render(*window.settings(), QStringLiteral("review-report-prompts-open"));
 		window.settings()->hide();
 
 		application->begin_shutdown();
