@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2222",
+    "BPR-2223",
+    "BPR-2224",
+    "BPR-2225",
+    "BPR-2226"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0129 Results and Features cards",
+  "created": "2026-11-17T02:04:30.022761+00:00",
+  "base": "51e39545084ece348e80c4af10b7cc086fcb40ad"
+}
