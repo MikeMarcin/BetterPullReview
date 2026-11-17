@@ -1440,7 +1440,16 @@ namespace bpr::qt {
 			name->setFont(strong);
 			nameRow = new QHBoxLayout{ };
 			nameRow->setContentsMargins(0, 0, 0, 0);
-			nameRow->setSpacing(8);
+			nameRow->setSpacing(6);
+			// Look review-report-v003 (owner, 2026-11-16: "I would add the
+			// little indigo ai symbol next to anything coming from an app
+			// prompt in the transcript"): the agent glyph in the Agent
+			// accent, before the prompt's name.
+			auto* const glyph = new QLabel{ asked };
+			glyph->setObjectName(QStringLiteral("agentTurnPromptGlyph"));
+			glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
+			glyph->setToolTip(tr("Sent from a prompt"));
+			nameRow->addWidget(glyph, 0, Qt::AlignVCenter);
 			nameRow->addWidget(name, 1);
 			askedColumn->addLayout(nameRow);
 		}
@@ -4853,6 +4862,10 @@ namespace bpr::qt {
 		// instead, in the ordinary roles.
 		if (Ask->text().isEmpty()) {
 			wear_agent_accent(*Ask, palette());
+			// The prompt turns' glyphs follow the palette too.
+			for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
+				glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
+			}
 			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
 		}
 		for (const auto& kept : Turns) {

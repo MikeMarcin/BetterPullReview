@@ -362,6 +362,19 @@ namespace {
 		// under a prompt's name shows the name alone; what was sent is behind
 		// Show prompt, whole.
 		expect(showAll != nullptr && showAll->text() == QStringLiteral("Show prompt") && !shown->isVisibleTo(&tab), "AC07 the sent text is behind Show prompt, the name alone showing");
+		// Look review-report-v003 (owner: "the little indigo ai symbol next
+		// to anything coming from an app prompt in the transcript"): the
+		// agent glyph stands before the prompt's name, on the name's row
+		// with Show prompt; a turn that was typed has none.
+		{
+			auto* const name   = tab.findChildren<QLabel*>(QStringLiteral("agentTurnName")).back();
+			const auto  glyphs = tab.findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"));
+			expect(!glyphs.isEmpty() && !glyphs.back()->pixmap().isNull() && glyphs.back()->parentWidget() == name->parentWidget() && glyphs.back()->isVisibleTo(&tab)
+					   && glyphs.back()->mapTo(&tab, QPoint{ }).x() < name->mapTo(&tab, QPoint{ }).x() && showAll->mapTo(&tab, QPoint{ }).x() > name->mapTo(&tab, QPoint{ }).x()
+					   && std::abs(showAll->mapTo(&tab, QPoint{ }).y() - name->mapTo(&tab, QPoint{ }).y()) < name->height() + 8,
+				   "AC07 the agent glyph stands before the prompt's name, and Show prompt on the same row");
+			expect(glyphs.size() == tab.findChildren<QLabel*>(QStringLiteral("agentTurnName")).size(), "AC07 only a turn sent under a prompt's name wears the glyph");
+		}
 		if (auto* const box = showAll->parentWidget() != nullptr ? showAll->parentWidget()->parentWidget() : nullptr; box != nullptr) {
 			render(*box, QStringLiteral("rfc0125-m2-sent-turn-folded"));
 		}
