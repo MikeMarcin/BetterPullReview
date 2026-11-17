@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2250"
 title: "The Overview's changed-since-my-review mark is never shown on a sparse review"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
