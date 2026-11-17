@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <new>
 #include <optional>
 #include <string>
@@ -16,6 +17,11 @@
 #include <vector>
 
 namespace bpr::adapters::github::detail {
+	/// [[BPR-2244]]. REST's UTC timestamp in milliseconds, defined with the paged
+	/// reads' record parsing; declared here alone, because that header's other
+	/// helpers collide with this file's.
+	[[nodiscard]] auto parse_timeline_timestamp(std::string_view aValue) -> std::optional<std::int64_t>;
+
 	namespace {
 		/// [[BPR-1900]]. The head lines of a file's patch hunks, as the
 		/// record keeps them; absent with no patch or one it cannot read.
@@ -354,13 +360,26 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
-		struct json_commit_message
+		/// [[BPR-2244]]. A commit's committer, read only for its date.
+		struct json_commit_person
 		{
-			std::string Message;
+			std::optional<std::string> Date;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
-					"message", &json_commit_message::Message);
+					"date", &json_commit_person::Date);
+			};
+		};
+
+		struct json_commit_message
+		{
+			std::string                       Message;
+			std::optional<json_commit_person> Committer;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"message", &json_commit_message::Message,
+					"committer", &json_commit_message::Committer);
 			};
 		};
 
@@ -1253,6 +1272,8 @@ namespace bpr::adapters::github::detail {
 						.Author   = optional_rest_actor(object.Author),
 						.Headline = std::move(headline),
 						.Parents  = std::move(parents),
+						// [[BPR-2244]]. A date in another shape leaves the age unknown.
+						.CommittedAt = object.Commit.Committer && object.Commit.Committer->Date ? parse_timeline_timestamp(*object.Commit.Committer->Date).transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; }) : std::nullopt,
 					});
 			}
 			if (

@@ -112,7 +112,7 @@ namespace bpr::application {
 
 	void agent_queue_host::notify_waiting()
 	{
-		const auto waiting = queued_count();
+		const auto waiting = waiting_count();
 		// A copy of the tokens: a subscriber may leave while it is told.
 		auto tokens = std::vector<std::uint64_t>{ };
 		for (const auto& [token, subscriber] : Subscribers) {
@@ -153,17 +153,19 @@ namespace bpr::application {
 
 	void agent_queue_host::show(const std::string& aSession)
 	{
-		const auto queue = Queues.find(aSession);
-		if (queue == Queues.end()) {
-			return;
-		}
-		auto tokens = std::vector<std::uint64_t>{ };
+		// [[BPR-2245]]. A session that holds no queue is shown as empty, not
+		// left out: a window showing another session's messages would offer
+		// to edit and delete them under this one, where they are not.
+		static const auto none   = core::agent_queue{ };
+		const auto        queue  = Queues.find(aSession);
+		const auto&       shown  = queue == Queues.end() ? none : queue->second;
+		auto              tokens = std::vector<std::uint64_t>{ };
 		for (const auto& [token, subscriber] : Subscribers) {
 			tokens.push_back(token);
 		}
 		for (const auto token : tokens) {
 			if (const auto found = Subscribers.find(token); found != Subscribers.end() && found->second.Changed) {
-				found->second.Changed(aSession, queue->second);
+				found->second.Changed(aSession, shown);
 			}
 		}
 	}
@@ -451,10 +453,13 @@ namespace bpr::application {
 
 	void agent_queue_host::unsubscribe(const std::uint64_t aSubscriber) { Subscribers.erase(aSubscriber); }
 
-	auto agent_queue_host::queued_count() const -> std::size_t
+	auto agent_queue_host::waiting_count() const -> std::size_t
 	{
 		auto count = std::size_t{ 0 };
 		for (const auto& [session, queue] : Queues) {
+			if (queue.Paused != core::queue_pause::none) {
+				continue;
+			}
 			count += static_cast<std::size_t>(std::ranges::count(queue.Entries, core::queued_state::queued, &core::queued_entry::State));
 		}
 		return count;

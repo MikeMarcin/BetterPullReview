@@ -1965,12 +1965,13 @@ namespace bpr::qt {
 		// not show an attachment report?"): it was left out on purpose, as a
 		// claim's answer; one about several threads is a report too, a section
 		// a thread, with its claims on the threads.
-		const auto many    = aTurn.Returning == core::returning_operation::addressed_threads;
-		const auto always  = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload || many;
-		const auto report  = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix
-			? (core::is_report_answer(answer) || (always && !aTurn.AnswerText.trimmed().isEmpty()))
-			: false;
-		auto       summary = QString{ };
+		const auto many   = aTurn.Returning == core::returning_operation::addressed_threads;
+		const auto always = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload || many;
+		// [[BPR-2246]]. A turn that ended without an answer has no report:
+		// its text is why it stopped, shown in the thread.
+		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix
+			&& core::shows_report_attachment({ .AlwaysReport = always, .Ended = aTurn.Done, .Answered = aTurn.Outcome == core::agent_turn_outcome::answered }, answer);
+		auto summary = QString{ };
 		if (aTurn.ReportCard != nullptr) {
 			if (report) {
 				const auto named = !always     ? QString{ }

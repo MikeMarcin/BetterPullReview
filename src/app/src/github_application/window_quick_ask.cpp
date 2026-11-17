@@ -427,7 +427,8 @@ namespace bpr::app {
 					present_chat_queues();
 				} },
 			// RFC-BPR-0126 AC09: Stop all shows while any session's queue holds
-			// a message.
+			// a message that would go next ([[BPR-2245]]: not one a paused
+			// queue holds, which nothing starts).
 			.Waiting = [this](const std::size_t aWaiting) {
 				if (!Closing && Window != nullptr) {
 					QTimer::singleShot(0, Window.get(), [this, aWaiting] {
@@ -481,7 +482,7 @@ namespace bpr::app {
 					AgentQueue->pause_all(core::queue_pause::stopped);
 				}
 			});
-			footer->present_queued(AgentQueue->queued_count());
+			footer->present_queued(AgentQueue->waiting_count());
 		}
 	}
 

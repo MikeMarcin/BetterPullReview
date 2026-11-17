@@ -4,6 +4,7 @@
 #include "bpr/application/commit_filter_model.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -136,6 +137,14 @@ namespace {
 		expect(projection.Rows.size() == 3U && projection.Rows[0].ShortCommit == "1111111" && projection.Rows[0].Headline == "Change the generator input"
 				   && projection.Rows[0].Author == "octo-author" && !projection.Rows[0].Files && projection.Trees == application::commit_filter_trees::idle,
 			   "the Commits tab lists the commits before the trees are read");
+		expect(!projection.Rows[0].CommittedAt, "a commit GitHub gave no date has none");
+		auto dated                   = snapshot();
+		dated.Commits[1].CommittedAt = std::int64_t{ 1'790'000'000 };
+		auto datedModel              = application::commit_filter_model{ };
+		datedModel.adopt(dated);
+		const auto datedRows = datedModel.projection().Rows;
+		expect(datedRows.size() == 3U && datedRows[1].CommittedAt == std::optional{ std::int64_t{ 1'790'000'000 } } && !datedRows[0].CommittedAt,
+			   "[[BPR-2244]] each row carries its commit's date, for its age");
 		const auto answer = touches(model, application::commit_filter_touches_status::resolved);
 		model.begin_touches();
 		expect(!model.touches_steps(), "the trees are asked for once");

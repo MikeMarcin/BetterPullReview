@@ -518,8 +518,9 @@ namespace {
 			"a failed workspace terminal visibly renders its bounded diagnostic");
 		expect(
 			panel.stop_reason_text().startsWith(QStringLiteral("The agent's copy of this pull request could not be made."))
-				&& panel.stop_reason_text().contains(QStringLiteral("resend")),
-			"a workspace stop with no reason says the copy failed and what to do [[BPR-1738]]");
+				&& panel.stop_reason_text().contains(QStringLiteral("Resend to try again"))
+				&& !panel.stop_reason_text().contains(QStringLiteral("Reopen")),
+			"a workspace stop with no reason says the copy failed and what to do [[BPR-1738]], and no longer offers reopening, which repairs nothing [[BPR-2246]]");
 		for (const auto& [reason, phrase] : std::array{
 				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("fetching the pull request's new objects for the agent failed") },
 				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then resend.") },

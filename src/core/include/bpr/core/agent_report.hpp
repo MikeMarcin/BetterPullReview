@@ -27,6 +27,26 @@ namespace bpr::core {
 	/// \brief Whether an answer is read as a report (Q7, by its shape).
 	[[nodiscard]] auto is_report_answer(std::string_view aAnswer) -> bool;
 
+	/// \brief [[BPR-2246]]. What decides whether a turn's reply wears a
+	/// Report attachment.
+	struct report_attachment_facts
+	{
+		/// The ask answers as a report whatever its shape (Explain this file,
+		/// What changed since your review, Was this addressed? on several
+		/// threads).
+		bool AlwaysReport = false;
+		/// The turn has ended.
+		bool Ended = false;
+		/// It ended with the agent's answer.
+		bool Answered = false;
+	};
+
+	/// \brief Whether a turn's reply is shown as a report: an answer of a
+	/// report's shape, or any answer to an ask that always reports. A turn
+	/// that ended without an answer never is: its text says why it stopped,
+	/// and it shows in the thread, not as a page repeating the error.
+	[[nodiscard]] auto shows_report_attachment(const report_attachment_facts& aFacts, std::string_view aAnswer) -> bool;
+
 	/// \brief One heading of a report's outline.
 	struct report_heading
 	{

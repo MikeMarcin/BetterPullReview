@@ -1669,6 +1669,9 @@ namespace bpr::qt {
 	{
 		HomeClock = std::move(aClock);
 		QueueLanding->set_now(HomeClock ? HomeClock() : std::nullopt);
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_commit_clock(HomeClock);
+		}
 	}
 
 	auto workbench_window::open_queue_ref() const -> std::optional<core::pull_request_ref>

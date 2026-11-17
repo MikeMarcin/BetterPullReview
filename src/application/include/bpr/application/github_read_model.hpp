@@ -270,6 +270,10 @@ namespace bpr::application {
 		/// recorded response may; the commit filter is then unavailable rather
 		/// than guessed. An empty list is a root commit.
 		std::optional<std::vector<commit_oid>> Parents;
+		/// [[BPR-2244]]. When the commit was committed (`commit.committer.date`),
+		/// in seconds since the epoch. Absent when the record named none or
+		/// named it in another shape; the Commits tab then shows no age.
+		std::optional<std::int64_t> CommittedAt;
 
 		auto operator<=>(const github_commit_record&) const = default;
 	};

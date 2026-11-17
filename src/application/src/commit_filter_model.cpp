@@ -109,8 +109,10 @@ namespace bpr::application {
 		list.Head       = head.value_or(core::git_commit_oid{ });
 		auto parents    = true;
 		auto authors    = std::vector<std::string>{ };
+		auto committed  = std::vector<std::optional<std::int64_t>>{ };
 		list.Commits.reserve(aSnapshot.Commits.size());
 		authors.reserve(aSnapshot.Commits.size());
+		committed.reserve(aSnapshot.Commits.size());
 		auto malformed = !head.has_value();
 		for (const auto& record : aSnapshot.Commits) {
 			auto commit = core::filter_commit{ };
@@ -134,6 +136,7 @@ namespace bpr::application {
 			commit.Author   = record.Author ? record.Author->Login : std::string{ };
 			list.Commits.push_back(std::move(commit));
 			authors.push_back(record.Author ? record.Author->Login : std::string{ });
+			committed.push_back(record.CommittedAt);
 		}
 		const auto reported = aSnapshot.PullRequest.ReportedCommitCount;
 		list.Truncated      = reported ? *reported > aSnapshot.Commits.size() : aSnapshot.Commits.size() >= core::maximum_filter_commits;
@@ -159,6 +162,7 @@ namespace bpr::application {
 		Head          = head;
 		Known         = true;
 		Authors       = std::move(authors);
+		CommittedAt   = std::move(committed);
 		SnapshotFiles = aSnapshot.Files;
 		if (Graph && Trees == commit_filter_trees::ready && Touches.size() != Graph->Chain.size()) {
 			Touches.clear();
@@ -918,6 +922,7 @@ namespace bpr::application {
 			row.ShortCommit = short_hex(entry.Oid);
 			row.Headline    = entry.Listed < graph.Headlines.size() ? graph.Headlines[entry.Listed] : std::string{ };
 			row.Author      = entry.Listed < Authors.size() ? Authors[entry.Listed] : std::string{ };
+			row.CommittedAt = entry.Listed < CommittedAt.size() ? CommittedAt[entry.Listed] : std::nullopt;
 			row.Role        = entry.Role;
 			row.State       = core::commit_state(State, graph, rowSpan, entry);
 			if (Trees == commit_filter_trees::ready && entry.Chain && *entry.Chain < Touches.size()) {

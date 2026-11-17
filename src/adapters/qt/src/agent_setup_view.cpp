@@ -105,7 +105,8 @@ namespace bpr::qt {
 		case reason::inspection_timed_out:
 			return QStringLiteral("The retained workspace check reached its time limit. Its transcript and files are kept.");
 		case reason::copy_failed:
-			return QObject::tr("The agent's copy of this pull request could not be made. Reopen the pull request, then check again.");
+			// [[BPR-2246]]. As the launch panel says it.
+			return QObject::tr("The agent's copy of this pull request could not be made. Check again, or show the log for the cause.");
 		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing
 		// is asked of the reviewer's clone.
 		case reason::download_failed:

@@ -14,6 +14,7 @@
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -395,6 +396,7 @@ namespace {
 		commit_wrong_required,
 		commit_parents,
 		commit_parents_malformed,
+		commit_committer_malformed,
 		review_missing_required,
 		review_wrong_required,
 		issue_comment_missing_required,
@@ -929,6 +931,14 @@ namespace {
 						},
 					},
 					{ "comment_count", 0 },
+					{
+						"committer",
+						fixture_object{
+							{ "date", "2026-07-30T12:30:00Z" },
+							{ "email", "committer@example.invalid" },
+							{ "name", "Octo Committer" },
+						},
+					},
 					{ "message",
 					  index == 0U ? std::string{ "Paged read\n\nBody" }
 								  : std::string{ "Paged read " } + std::to_string(index) + "\n\nBody" },
@@ -968,6 +978,12 @@ namespace {
 					auto parents = fixture_array{ };
 					parents.emplace_back(fixture_object{ { "sha", "not-a-commit-oid" } });
 					commit.insert_or_assign("parents", parents);
+				}
+				if (index == 0U && Scenario == fixture_scenario::commit_committer_malformed) {
+					// [[BPR-2244]]: a date in another shape describes nothing.
+					auto details = commitDetails;
+					details.insert_or_assign("committer", fixture_object{ { "date", 1722342600 } });
+					commit.insert_or_assign("commit", details);
 				}
 				commits.emplace_back(commit);
 			}
@@ -2198,6 +2214,16 @@ namespace {
 						   == std::optional{ std::vector{ application::commit_oid{ std::string{ base_oid } },
 														  application::commit_oid{ std::string(40U, 'e') } } },
 				   "a commit record's parents are kept in order (RFC-BPR-0089)");
+		}
+		// [[BPR-2244]]. The committer's date, in seconds, for the Commits tab.
+		expect(result->Commits.size() == 1U && result->Commits.front().CommittedAt == std::optional{ std::int64_t{ 1'785'414'600 } },
+			   "a commit record keeps its committer's date");
+		{
+			auto       malformedTransport = paged_fixture_transport{ fixture_scenario::commit_committer_malformed };
+			const auto malformedResult    = perform_paged_github_read(malformedTransport, profile(), provider_request(),
+																	  core::provider_snapshot_id{ 59U }, std::stop_token{ });
+			expect(malformedResult.has_value() && malformedResult->Commits.size() == 1U && !malformedResult->Commits.front().CommittedAt.has_value(),
+				   "a committer's date in another shape leaves the age unknown and fails nothing");
 		}
 		expect(result->Commits.size() == 1U
 				   && result->Commits.front().Headline == "Paged read"
