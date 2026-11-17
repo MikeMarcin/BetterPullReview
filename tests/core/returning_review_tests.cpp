@@ -29,9 +29,9 @@ namespace {
 	auto commit(const char aDigit) -> std::string { return std::string(40U, aDigit); }
 	auto bytes(const std::string_view aText) -> std::vector<std::uint8_t> { return { aText.begin(), aText.end() }; }
 
-	auto facts(std::string aReviewed, std::string aSeen, std::string aCurrent, core::returning_material aMaterial) -> core::latest_upload_facts
+	auto facts(std::string aReviewed, std::string aSeen, std::string aCurrent) -> core::latest_upload_facts
 	{
-		return { .ReviewedHead = std::move(aReviewed), .SeenHead = std::move(aSeen), .CurrentHead = std::move(aCurrent), .Commits = { commit('1'), commit('2'), commit('3') }, .Material = aMaterial };
+		return { .ReviewedHead = std::move(aReviewed), .SeenHead = std::move(aSeen), .CurrentHead = std::move(aCurrent), .Commits = { commit('1'), commit('2'), commit('3') } };
 	}
 
 	/// AC01. Offered only with commits newer than the review or the Seen,
@@ -39,31 +39,31 @@ namespace {
 	void latest_upload_is_offered_only_for_newer_commits()
 	{
 		using state = core::latest_upload_state;
-		expect(core::decide_latest_upload(facts({ }, { }, commit('3'), core::returning_material::readable)).State == state::hidden, "no review and no Seen: not offered");
-		expect(core::decide_latest_upload(facts(commit('3'), { }, commit('3'), core::returning_material::readable)).State == state::hidden, "reviewed at the head: not offered");
-		const auto offered = core::decide_latest_upload(facts(commit('1'), { }, commit('3'), core::returning_material::readable));
+		expect(core::decide_latest_upload(facts({ }, { }, commit('3'))).State == state::hidden, "no review and no Seen: not offered");
+		expect(core::decide_latest_upload(facts(commit('3'), { }, commit('3'))).State == state::hidden, "reviewed at the head: not offered");
+		const auto offered = core::decide_latest_upload(facts(commit('1'), { }, commit('3')));
 		expect(offered.State == state::offered && offered.Earlier && offered.Earlier->Head == commit('1') && offered.Earlier->Basis == core::returning_basis::review,
 			   "reviewed earlier: offered on the reviewed head");
-		const auto seen = core::decide_latest_upload(facts(commit('1'), commit('2'), commit('3'), core::returning_material::readable));
+		const auto seen = core::decide_latest_upload(facts(commit('1'), commit('2'), commit('3')));
 		expect(seen.State == state::offered && seen.Earlier && seen.Earlier->Head == commit('2') && seen.Earlier->Basis == core::returning_basis::seen, "a later Seen is the earlier revision");
-		const auto reviewedAfterSeen = core::decide_latest_upload(facts(commit('2'), commit('1'), commit('3'), core::returning_material::readable));
+		const auto reviewedAfterSeen = core::decide_latest_upload(facts(commit('2'), commit('1'), commit('3')));
 		expect(reviewedAfterSeen.Earlier && reviewedAfterSeen.Earlier->Head == commit('2'), "a review after the Seen is the earlier revision");
-		expect(core::decide_latest_upload(facts(commit('1'), commit('3'), commit('3'), core::returning_material::readable)).State == state::hidden, "Seen at the head: not offered");
-		const auto gone = core::decide_latest_upload(facts(commit('9'), { }, commit('3'), core::returning_material::readable));
+		expect(core::decide_latest_upload(facts(commit('1'), commit('3'), commit('3'))).State == state::hidden, "Seen at the head: not offered");
+		const auto gone = core::decide_latest_upload(facts(commit('9'), { }, commit('3')));
 		expect(gone.State == state::offered && gone.Earlier->Head == commit('9'), "a review on a commit no longer listed still names it");
-		auto authored     = facts(commit('1'), { }, commit('3'), core::returning_material::readable);
+		auto authored     = facts(commit('1'), { }, commit('3'));
 		authored.Authored = true;
 		expect(core::decide_latest_upload(authored).State == state::hidden, "never on the reviewer's own pull request");
-		expect(core::decide_latest_upload(facts(commit('1'), { }, commit('3'), core::returning_material::reading)).State == state::reading, "reading while the material is read");
 	}
 
-	/// AC02. The earlier revision cannot be read: unavailable, and it still
-	/// says which revision that is.
-	void unreadable_earlier_revision_is_unavailable()
+	/// [[BPR-2251]]. Whether the earlier revision can be read is not asked
+	/// before a press: offered on the heads alone, a review on a commit the
+	/// pull request no longer lists included.
+	void latest_upload_is_offered_before_anything_is_read()
 	{
-		const auto offer = core::decide_latest_upload(facts(commit('1'), { }, commit('3'), core::returning_material::unreadable));
-		expect(offer.State == core::latest_upload_state::unavailable && offer.Earlier && offer.Earlier->Head == commit('1'), "unavailable, naming the unreadable revision");
-		expect(core::stable_name(offer.State) == "unavailable", "named");
+		const auto offer = core::decide_latest_upload(facts(commit('9'), { }, commit('3')));
+		expect(offer.State == core::latest_upload_state::offered && offer.Earlier && offer.Earlier->Head == commit('9'), "offered, naming the revision a press reads");
+		expect(core::stable_name(offer.State) == "offered", "named");
 	}
 
 	/// AC03. Was this addressed? is offered only on a thread the reviewer
@@ -365,7 +365,7 @@ auto main() -> int
 	a_change_by_commit_keeps_its_commits_in_order();
 	one_ask_reads_every_threads_claim();
 	latest_upload_is_offered_only_for_newer_commits();
-	unreadable_earlier_revision_is_unavailable();
+	latest_upload_is_offered_before_anything_is_read();
 	proposed_fix_is_offered_on_my_threads_after_new_commits();
 	the_answer_leads_with_one_of_four_words();
 	the_change_is_unified_text_within_its_bound();

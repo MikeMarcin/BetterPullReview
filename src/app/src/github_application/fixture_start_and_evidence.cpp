@@ -165,6 +165,11 @@ namespace bpr::app {
 		aApplication.Implementation->ReturningReviewHeadForTesting = std::move(aHead);
 	}
 
+	auto detail::github_application_fixture_access::returning_change_reads(const github_application& aApplication) noexcept -> std::size_t
+	{
+		return aApplication.Implementation->ReturningReadsForTesting;
+	}
+
 	void detail::github_application_fixture_access::refuse_queue_store_writes(github_application& aApplication, const bool aRefuse)
 	{
 		aApplication.Implementation->QueueStoreRefusesForTesting->store(aRefuse);

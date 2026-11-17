@@ -90,10 +90,8 @@ namespace bpr::core {
 	auto stable_name(const latest_upload_state aState) noexcept -> std::string_view
 	{
 		switch (aState) {
-		case latest_upload_state::hidden:      return "hidden";
-		case latest_upload_state::reading:     return "reading";
-		case latest_upload_state::offered:     return "offered";
-		case latest_upload_state::unavailable: return "unavailable";
+		case latest_upload_state::hidden:  return "hidden";
+		case latest_upload_state::offered: return "offered";
 		}
 		return "hidden";
 	}
@@ -104,12 +102,7 @@ namespace bpr::core {
 		if (!earlier || aFacts.CurrentHead.empty() || earlier->Head == aFacts.CurrentHead) {
 			return { };
 		}
-		switch (aFacts.Material) {
-		case returning_material::reading:    return { .State = latest_upload_state::reading, .Earlier = earlier };
-		case returning_material::readable:   return { .State = latest_upload_state::offered, .Earlier = earlier };
-		case returning_material::unreadable: return { .State = latest_upload_state::unavailable, .Earlier = earlier };
-		}
-		return { };
+		return { .State = latest_upload_state::offered, .Earlier = earlier };
 	}
 
 	auto proposed_fix_offered(const proposed_fix_facts& aFacts) noexcept -> bool

@@ -734,15 +734,6 @@ namespace bpr::qt {
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
 		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
 		contentCol->addWidget(Suggestions);
-		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
-		// offered when the earlier revision cannot be read, said where the
-		// suggestion would stand.
-		LatestUploadNote = new QLabel{ content };
-		LatestUploadNote->setObjectName(QStringLiteral("agentLatestUploadUnavailable"));
-		LatestUploadNote->setWordWrap(true);
-		LatestUploadNote->setForegroundRole(QPalette::PlaceholderText);
-		LatestUploadNote->hide();
-		contentCol->addWidget(LatestUploadNote);
 		// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a plain
 		// click queues it"). What waits its turn, in words.
 		QueueNote = new QLabel{ content };
@@ -2561,7 +2552,13 @@ namespace bpr::qt {
 		});
 		if (const auto chosen = returning != ReturningPrompts.end() ? returning : byLabel; chosen != ReturningPrompts.end()) {
 			if (!aEditFirst) {
-				ask_returning(chosen->second);
+				// [[BPR-2251]]. What changed since my review reads the change
+				// at the press; the host asks once it has.
+				if (chosen->second == core::returning_operation::latest_upload && LatestUploadDispatch) {
+					LatestUploadDispatch();
+				} else {
+					ask_returning(chosen->second);
+				}
 			}
 			return;
 		}
@@ -2721,11 +2718,6 @@ namespace bpr::qt {
 		// check's Ready line does not hold them back ([[BPR-1877]]).
 		const auto verdict = suggestions_verdict();
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
-		if (LatestUploadNote != nullptr) {
-			const auto unavailable = LatestUpload.State == core::latest_upload_state::unavailable && LatestUpload.Earlier && !ConversationShown;
-			LatestUploadNote->setText(unavailable ? tr("What changed since my review: the code you reviewed (%1) could not be fetched from GitHub.").arg(QString::fromStdString(LatestUpload.Earlier->Head.substr(0U, 7U))) : QString{ });
-			LatestUploadNote->setVisible(unavailable && verdict == core::agent_suggestions_verdict::shown);
-		}
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
 		// The setup's way in, unless the setup is on screen. Only once the
 		// setup knows what is missing: not while agents are still being

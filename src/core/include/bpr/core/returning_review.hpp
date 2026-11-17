@@ -30,17 +30,6 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto stable_name(returning_basis aBasis) noexcept -> std::string_view;
 
-	/// \brief Whether the earlier revision's material can be read here.
-	enum class returning_material : std::uint8_t {
-		/// Not asked yet, or asked and not answered.
-		reading,
-		/// Every changed file was read at both revisions.
-		readable,
-		/// The earlier revision, or a file at it, cannot be read (a rewritten
-		/// branch whose earlier commits are gone, objects never retained).
-		unreadable,
-	};
-
 	/// \brief What the pull request says about the reviewer's return.
 	///
 	/// \details Commits are full lowercase hexadecimal names; empty means
@@ -52,7 +41,6 @@ namespace bpr::core {
 		std::string              SeenHead;
 		std::string              CurrentHead;
 		std::vector<std::string> Commits;
-		returning_material       Material = returning_material::reading;
 		/// The reviewer authored the pull request: the commits are their own.
 		bool Authored = false;
 
@@ -76,16 +64,15 @@ namespace bpr::core {
 	/// review). None on a pull request the reviewer authored, or with neither.
 	[[nodiscard]] auto returning_point_of(const latest_upload_facts& aFacts) -> std::optional<returning_point>;
 
+	/// \details [[BPR-2251]] (owner, 2026-11-17: "Put it off until you need
+	/// it is probably the right lazy approach"). Whether the earlier revision
+	/// can be read is not known until a press reads it, so the question is
+	/// offered on the heads alone; a press that cannot read it says why.
 	enum class latest_upload_state : std::uint8_t {
 		/// Not offered: no review or Seen, or nothing newer than it.
 		hidden,
-		/// Newer commits; the earlier material is still being read.
-		reading,
-		/// Newer commits and both revisions read.
+		/// Newer commits than the review or Seen.
 		offered,
-		/// Newer commits, but the earlier revision cannot be read: the control
-		/// says so and sends nothing.
-		unavailable,
 	};
 	[[nodiscard]] auto stable_name(latest_upload_state aState) noexcept -> std::string_view;
 

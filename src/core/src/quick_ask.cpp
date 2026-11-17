@@ -169,10 +169,8 @@ namespace bpr::core {
 				return greyed(std::move(aRow), quick_ask_reason::not_reviewed);
 			}
 			switch (aFacts.LatestUpload) {
-			case latest_upload_state::hidden:      return greyed(std::move(aRow), quick_ask_reason::no_commits_since_review);
-			case latest_upload_state::reading:     return greyed(std::move(aRow), quick_ask_reason::reading_commits);
-			case latest_upload_state::unavailable: return greyed(std::move(aRow), quick_ask_reason::earlier_unreadable);
-			case latest_upload_state::offered:     return aRow;
+			case latest_upload_state::hidden:  return greyed(std::move(aRow), quick_ask_reason::no_commits_since_review);
+			case latest_upload_state::offered: return aRow;
 			}
 			return aRow;
 		}
@@ -355,8 +353,6 @@ namespace bpr::core {
 		case quick_ask_reason::agent_busy:               return "agent-busy";
 		case quick_ask_reason::not_reviewed:             return "not-reviewed";
 		case quick_ask_reason::no_commits_since_review:  return "no-commits-since-review";
-		case quick_ask_reason::reading_commits:          return "reading-commits";
-		case quick_ask_reason::earlier_unreadable:       return "earlier-unreadable";
 		case quick_ask_reason::no_threads:               return "no-threads";
 		case quick_ask_reason::no_commits_since_threads: return "no-commits-since-threads";
 		case quick_ask_reason::no_commits_since_thread:  return "no-commits-since-thread";

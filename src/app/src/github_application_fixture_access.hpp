@@ -2191,6 +2191,9 @@ namespace bpr::app::detail {
 		/// gone. (The fixture GitHub refuses to load a review on a commit it
 		/// cannot serve, so the read cannot carry one.)
 		static void force_returning_review_head(github_application& aApplication, std::string aHead);
+		/// \brief [[BPR-2251]]. How many times What changed since my review
+		/// has asked the host for the change since the review.
+		[[nodiscard]] static auto returning_change_reads(const github_application& aApplication) noexcept -> std::size_t;
 		/// [[BPR-2249]]. Makes the profile's queue store refuse (or keep again)
 		/// one-record writes, as a Seen's.
 		static void               refuse_queue_store_writes(github_application& aApplication, bool aRefuse);

@@ -785,10 +785,13 @@ namespace bpr::app {
 		/// questions: what each offers now, the material they carry up front,
 		/// and the two presses. Defined in `window_returning_review.cpp`.
 		void refresh_returning_review();
-		void read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead);
-		void retry_returning_material();
-		void finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges);
+		/// [[BPR-2251]]. The change since the review, read at the press and
+		/// then asked; a read that fails is refused on the Agent tab.
+		void read_returning_material();
+		void send_what_changed();
+		void refuse_what_changed(const std::string& aWhy);
 		void read_addressed_lines(const std::string& aIdentity, bool aThen);
+		void retry_addressed_lines();
 		void ask_what_changed();
 		void ask_was_addressed(const std::string& aIdentity);
 		/// RFC-BPR-0128 as amended (look ask-v005): a file's or the pull
@@ -2406,15 +2409,18 @@ namespace bpr::app {
 		struct returning_review_state final
 		{
 			/// Earlier and current head, joined: which material this is.
-			std::string                               Key;
-			std::optional<core::returning_point>      Earlier;
-			std::string                               CurrentHead;
-			core::latest_upload_offer                 Offer;
+			std::string                          Key;
+			std::optional<core::returning_point> Earlier;
+			std::string                          CurrentHead;
+			core::latest_upload_offer            Offer;
+			/// [[BPR-2251]]. Read at the first press for these heads, kept
+			/// for the next; `Reading` while a press's read is under way.
 			std::optional<core::supplement_returning> Material;
-			bool                                      Reading  = false;
-			bool                                      Readable = false;
-			/// Asks made before the cache served the head; bounded.
-			std::uint32_t Retries = 0U;
+			bool                                      Reading = false;
+			/// [[BPR-2251]]. Thread lines asked again after a refusal (the
+			/// cache not yet serving the head); bounded.
+			std::uint32_t LineRetries        = 0U;
+			bool          LineRetryScheduled = false;
 			/// [[BPR-2184]] (review N3). What each merge since the review
 			/// brought in, asked when What changed's material is read, for the
 			/// head it was asked at.
@@ -2463,6 +2469,8 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		/// Testing only: the head my last review is taken to be on.
 		std::string ReturningReviewHeadForTesting;
+		/// Testing only ([[BPR-2251]]): the change-since-review reads asked.
+		std::size_t ReturningReadsForTesting = 0U;
 #endif
 		/// [[BPR-2138]]. Ask more on a returning answer: the question and the
 		/// answer the next Agent tab turn opens with.
