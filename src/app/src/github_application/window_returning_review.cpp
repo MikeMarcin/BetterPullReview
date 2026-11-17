@@ -24,30 +24,9 @@
 namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 	namespace {
-		/// A file larger than this on either side is left out of the change
-		/// rather than compared on the window's lane.
-		constexpr std::size_t maximum_returning_side_bytes = 256U * 1024U;
-
 		[[nodiscard]] auto hex(const core::git_commit_oid& aOid) -> std::string { return std::string{ core::canonical_hex(aOid).view() }; }
 
 		[[nodiscard]] auto short_hex(const std::string& aHex) -> QString { return QString::fromStdString(aHex.substr(0U, 7U)); }
-
-		/// One file's two sides as they arrive.
-		struct returning_read final
-		{
-			std::string                Path;
-			std::optional<std::string> Earlier;
-			std::optional<std::string> Current;
-			bool                       TooLarge = false;
-		};
-		struct returning_gather final
-		{
-			std::string                 Key;
-			std::vector<returning_read> Files;
-			std::size_t                 Waiting = 0U;
-			bool                        Failed  = false;
-			std::size_t                 Omitted = 0U;
-		};
 	}
 
 	/// What the returning questions offer for the pull request as accepted
@@ -173,9 +152,11 @@ namespace bpr::app {
 		Window->set_addressed_threads(std::move(offered));
 	}
 
-	/// Reads the change between the earlier revision and the head from the
-	/// review's own objects: which files differ, then each at both commits.
-	/// A commit the objects do not hold makes the question unavailable.
+	/// [[BPR-2247]]. Reads the change since the review as core plans it: the
+	/// earlier revision to the head, or, with merges of the base among the
+	/// commits since, each real commit's own change, so none of the base's
+	/// changes ride in it. The host fetches what the review's objects lack;
+	/// only a commit it cannot get makes the question unavailable.
 	void github_application::implementation::read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead)
 	{
 		const auto  key      = ReturningReview.Key;
@@ -185,103 +166,90 @@ namespace bpr::app {
 			finish_returning_material(key, std::nullopt);
 			return;
 		}
-		ReturningReview.Reading = true;
-		auto paths              = std::vector<std::filesystem::path>{ };
-		for (const auto& file : snapshot->Files) {
-			paths.emplace_back(file.Path);
-			if (file.PreviousPath) {
-				paths.emplace_back(*file.PreviousPath);
+		auto commits = std::vector<core::listed_commit>{ };
+		for (const auto& commit : snapshot->Commits) {
+			auto listed = core::listed_commit{ .Oid = std::string{ commit.Oid.value() }, .Headline = commit.Headline };
+			if (commit.Parents) {
+				for (const auto& parent : *commit.Parents) {
+					listed.Parents.emplace_back(parent.value());
+				}
+			}
+			commits.push_back(std::move(listed));
+		}
+		const auto plan    = core::plan_returning_change(aEarlier.Head, hex(aHead), commits, snapshot->PullRequest.BaseRef);
+		auto       request = application::returning_change_request{ .WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff), .Head = aHead, .Depth = plan.Depth, .Outside = earlier };
+		auto       heads   = std::vector<std::pair<std::string, std::string>>{ };
+		for (const auto& step : plan.Steps) {
+			const auto parent = core::parse_git_commit_oid(step.Parent);
+			const auto commit = core::parse_git_commit_oid(step.Commit);
+			if (!parent || !commit) {
+				finish_returning_material(key, std::nullopt);
+				return;
+			}
+			request.Steps.push_back({ .Parent = *parent, .Commit = *commit });
+			heads.emplace_back(step.Commit, step.Headline);
+		}
+		if (request.Steps.empty()) {
+			// Only merges of the base since the review: nothing of the pull
+			// request's own changed; the commit listing says what merged.
+			finish_returning_material(key, core::returning_changes{ });
+			return;
+		}
+		if (!plan.Listed) {
+			// A rewritten branch: the earlier revision is not one of the pull
+			// request's commits, so only its files are compared.
+			for (const auto& file : snapshot->Files) {
+				request.Paths.push_back(file.Path);
+				if (file.PreviousPath) {
+					request.Paths.push_back(*file.PreviousPath);
+				}
 			}
 		}
-		const auto authority = workbench_authority(*LastAcceptedHandoff);
-		auto       request   = application::changed_paths_request{ .WorkbenchAuthority = authority, .Left = *earlier, .Right = aHead, .Paths = std::move(paths) };
-		const auto admitted  = EpochHost->resolve_changed_paths(std::move(request), [this, key, authority, earlierOid = *earlier, head = aHead](const application::changed_paths_observation& aChanged) {
+		ReturningReview.Reading = true;
+		const auto admitted     = EpochHost->resolve_returning_change(std::move(request), [this, key, byCommit = plan.ByCommit, heads](const application::returning_change_observation& aRead) {
 			if (Closing || ReturningReview.Key != key) {
 				return;
 			}
-			if (aChanged.Status == application::changed_paths_status::stale || aChanged.Status == application::changed_paths_status::cancelled) {
+			using status = application::returning_change_status;
+			if (aRead.Status == status::stale || aRead.Status == status::cancelled) {
 				// Asked again shortly, once the cache serves the head.
 				retry_returning_material();
 				return;
 			}
-			if (aChanged.Status != application::changed_paths_status::resolved) {
+			if (aRead.Status != status::resolved) {
 				finish_returning_material(key, std::nullopt);
 				return;
 			}
-			auto gather = std::make_shared<returning_gather>();
-			gather->Key = key;
-			for (const auto& path : aChanged.Changed) {
-				if (gather->Files.size() == core::maximum_returning_files) {
-					++gather->Omitted;
-					continue;
+			// The comparisons are bounded by the host's side and file bounds,
+			// so they run here.
+			const auto compare = [this](const application::returning_change_file& aFile) -> core::returning_change_file {
+				if (aFile.TooLarge) {
+					return { .Path = aFile.Path, .Text = "File " + aFile.Path + " is too large to compare here\n" };
 				}
-				gather->Files.push_back({ .Path = path.generic_string() });
-			}
-			if (gather->Files.empty()) {
-				finish_returning_material(key, core::returning_changes{ });
-				return;
-			}
-			gather->Waiting = gather->Files.size() * 2U;
-			const auto done = [this, gather] {
-				if (gather->Waiting != 0U || Closing || ReturningReview.Key != gather->Key) {
-					return;
+				const auto asSpan = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
+					return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
+				};
+				const auto options = core::diff_options{ };
+				const auto left    = asSpan(aFile.Earlier);
+				const auto right   = asSpan(aFile.Current);
+				const auto mkey    = core::returning_comparison(aFile.Path, left, right, options);
+				if (!mkey || !LineMatcher) {
+					return { .Path = aFile.Path };
 				}
-				if (gather->Failed) {
-					finish_returning_material(gather->Key, std::nullopt);
-					return;
-				}
-				// The comparisons are bounded by `maximum_returning_side_bytes`
-				// a side and `maximum_returning_files`, so they run here.
-				auto files = std::vector<core::returning_change_file>{ };
-				for (const auto& read : gather->Files) {
-					if (read.TooLarge) {
-						files.push_back({ .Path = read.Path, .Text = "File " + read.Path + " is too large to compare here\n" });
-						continue;
-					}
-					const auto as_span = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
-						return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
-					};
-					const auto options = core::diff_options{ };
-					const auto left    = as_span(read.Earlier);
-					const auto right   = as_span(read.Current);
-					const auto mkey    = core::returning_comparison(read.Path, left, right, options);
-					if (!mkey || !LineMatcher) {
-						continue;
-					}
-					auto       matching = application::diff_line_matching{ *LineMatcher };
-					const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);
-					files.push_back({ .Path = read.Path, .Text = outcome.Result ? core::render_returning_change(read.Path, *outcome.Result) : "File " + read.Path + " changed and could not be compared\n" });
-				}
-				auto changes = core::bound_returning_changes(std::move(files));
-				changes.FilesOmitted += gather->Omitted;
-				finish_returning_material(gather->Key, std::move(changes));
+				auto       matching = application::diff_line_matching{ *LineMatcher };
+				const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);
+				return { .Path = aFile.Path, .Text = outcome.Result ? core::render_returning_change(aFile.Path, *outcome.Result) : "File " + aFile.Path + " changed and could not be compared\n" };
 			};
-			for (auto index = std::size_t{ 0U }; index < gather->Files.size(); ++index) {
-				for (const auto earlierSide : { true, false }) {
-					auto       read         = application::permalink_source_request{ .WorkbenchAuthority = authority, .Head = head, .Commit = earlierSide ? earlierOid : head, .Path = gather->Files[index].Path };
-					const auto admittedRead = EpochHost->resolve_permalink_source(std::move(read), [gather, index, earlierSide, done](const application::permalink_source_observation& aRead) {
-						auto& file   = gather->Files[index];
-						using status = application::permalink_source_status;
-						if (aRead.Status == status::resolved) {
-							(earlierSide ? file.Earlier : file.Current) = aRead.Bytes;
-							if (aRead.Bytes && aRead.Bytes->size() > maximum_returning_side_bytes) {
-								file.TooLarge = true;
-							}
-						} else if (aRead.Status == status::too_large) {
-							file.TooLarge = true;
-						} else {
-							gather->Failed = true;
-						}
-						--gather->Waiting;
-						done();
-					});
-					if (!admittedRead) {
-						gather->Failed = true;
-						--gather->Waiting;
-					}
+			auto steps = std::vector<core::returning_commit_files>{ };
+			for (std::size_t index = 0U; index < aRead.Steps.size() && index < heads.size(); ++index) {
+				auto& step = steps.emplace_back(core::returning_commit_files{ .Commit = heads[index].first, .Headline = heads[index].second });
+				for (const auto& file : aRead.Steps[index].Files) {
+					step.Files.push_back(compare(file));
 				}
 			}
-			done();
+			auto changes = byCommit ? core::bound_returning_commits(std::move(steps)) : core::bound_returning_changes(steps.empty() ? std::vector<core::returning_change_file>{ } : std::move(steps.front().Files));
+			changes.FilesOmitted += aRead.FilesOmitted;
+			finish_returning_material(key, std::move(changes));
 		});
 		if (!admitted) {
 			// Not admitted now (ingestion in flight); asked again shortly.
@@ -519,7 +487,7 @@ namespace bpr::app {
 			if (ReturningReview.Offer.State != core::latest_upload_state::offered || !ReturningReview.Material) {
 				const auto earlier = ReturningReview.Offer.Earlier ? short_hex(ReturningReview.Offer.Earlier->Head) : QString{ };
 				Window->agent_panel()->refuse(ReturningReview.Offer.State == core::latest_upload_state::unavailable
-												  ? QStringLiteral("What changed since my review: the code at %1 can't be read here. Nothing was sent.").arg(earlier).toStdString()
+												  ? QStringLiteral("What changed since my review: the code you reviewed (%1) could not be fetched from GitHub. Nothing was sent.").arg(earlier).toStdString()
 												  : QStringLiteral("What changed since my review: there are no commits since your review. Nothing was sent.")
 														.toStdString());
 				return false;

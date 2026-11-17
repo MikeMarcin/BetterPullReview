@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <limits>
 #include <utility>
 
 namespace bpr::core {
@@ -312,6 +313,68 @@ namespace bpr::core {
 				++result.FilesShown;
 			} else {
 				++result.FilesOmitted;
+			}
+		}
+		return result;
+	}
+
+	auto plan_returning_change(const std::string_view aEarlier, const std::string_view aCurrent, const std::vector<listed_commit>& aCommits, const std::string_view aBase)
+		-> returning_plan
+	{
+		auto       plan      = returning_plan{ .Steps = { { .Parent = std::string{ aEarlier }, .Commit = std::string{ aCurrent }, .Headline = { } } } };
+		const auto find      = [&aCommits](const std::string_view aOid) { return std::ranges::find(aCommits, aOid, &listed_commit::Oid); };
+		const auto earlierAt = find(aEarlier);
+		if (earlierAt == aCommits.end() || find(aCurrent) == aCommits.end()) {
+			return plan;
+		}
+		plan.Listed = true;
+		// The head's first-parent chain back to the earlier revision, newest
+		// first; no longer than the list, so a cycle cannot hold it.
+		auto chain = std::vector<listed_commit>{ };
+		for (auto at = find(aCurrent); at != aCommits.end() && at->Oid != aEarlier && chain.size() < aCommits.size(); at = at->Parents.empty() ? aCommits.end() : find(at->Parents.front())) {
+			chain.push_back(*at);
+		}
+		const auto reached = !chain.empty() && !chain.back().Parents.empty() && chain.back().Parents.front() == aEarlier;
+		if (!reached) {
+			plan.Depth = static_cast<std::uint32_t>(std::min<std::size_t>(static_cast<std::size_t>(aCommits.end() - earlierAt), std::size_t{ std::numeric_limits<std::uint32_t>::max() }));
+			return plan;
+		}
+		std::ranges::reverse(chain);
+		plan.Depth = static_cast<std::uint32_t>(std::min<std::size_t>(chain.size() + 1U, std::size_t{ std::numeric_limits<std::uint32_t>::max() }));
+		auto all   = std::vector<std::string>{ };
+		for (const auto& commit : aCommits) {
+			all.push_back(commit.Oid);
+		}
+		if (std::ranges::any_of(chain, [&](const listed_commit& aCommit) { return merges_base(aCommit, aBase, all); })) {
+			plan.ByCommit = true;
+			plan.Steps    = own_change_steps(chain, all, aBase);
+		}
+		return plan;
+	}
+
+	auto bound_returning_commits(std::vector<returning_commit_files> aCommits) -> returning_changes
+	{
+		auto result = returning_changes{ };
+		for (auto& commit : aCommits) {
+			std::ranges::sort(commit.Files, { }, &returning_change_file::Path);
+			// A headline is the commit's own text; one that is not UTF-8
+			// would make the whole change invalid, so it is left out.
+			if (!utf8::valid(commit.Headline) || commit.Headline.find('\n') != std::string::npos) {
+				commit.Headline.clear();
+			}
+			auto heading = "Commit " + commit.Commit.substr(0U, 7U) + (commit.Headline.empty() ? std::string{ } : ": " + commit.Headline) + "\n";
+			for (const auto& file : commit.Files) {
+				if (file.Text.empty()) {
+					continue;
+				}
+				if (result.FilesShown < maximum_returning_files && result.Text.size() + heading.size() + file.Text.size() <= maximum_returning_change_bytes) {
+					result.Text += heading;
+					heading.clear();
+					result.Text += file.Text;
+					++result.FilesShown;
+				} else {
+					++result.FilesOmitted;
+				}
 			}
 		}
 		return result;

@@ -228,6 +228,11 @@ namespace bpr::application {
 		core::git_commit_oid              Head;
 		std::uint32_t                     Depth = 0U;
 		std::vector<core::git_commit_oid> Commits;
+		/// [[BPR-2247]]. One of `Commits` that may lie outside the head's
+		/// history (a reviewed head a force push left behind, or one beyond
+		/// `Depth`): when the chain lacks it, it is fetched by its SHA, one
+		/// generation, trees only, and the store holds it too.
+		std::optional<core::git_commit_oid> Outside;
 	};
 
 	inline constexpr std::uint32_t maximum_git_smart_chain_depth = 251U;
@@ -241,7 +246,8 @@ namespace bpr::application {
 			&& aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
 			&& std::ranges::all_of(aRequest.Commits, [&aRequest](const core::git_commit_oid& aCommit) {
 				   return aCommit.valid() && aCommit.algorithm() == aRequest.Head.algorithm();
-			   });
+			   })
+			&& (!aRequest.Outside || std::ranges::find(aRequest.Commits, *aRequest.Outside) != aRequest.Commits.end());
 	}
 
 	/// \brief One side of a path a chain commit's tree diff names.

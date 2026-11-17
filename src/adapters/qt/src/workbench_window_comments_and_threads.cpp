@@ -2081,7 +2081,7 @@ namespace bpr::qt {
 		// Owner rule: no explainer tooltips. The reason it is unavailable
 		// is in its words, and the item stays where it is.
 		const auto unavailable = aOffer.State == core::latest_upload_state::unavailable && aOffer.Earlier;
-		WhatChangedPullRequest->setText(unavailable ? QStringLiteral("What Changed Since My Review (code at %1 can't be read here)").arg(QString::fromStdString(aOffer.Earlier->Head.substr(0U, 7U)))
+		WhatChangedPullRequest->setText(unavailable ? QStringLiteral("What Changed Since My Review (code at %1 could not be fetched)").arg(QString::fromStdString(aOffer.Earlier->Head.substr(0U, 7U)))
 													: QStringLiteral("What &Changed Since My Review"));
 		WhatChangedPullRequest->setEnabled(aOffer.State == core::latest_upload_state::offered && static_cast<bool>(WhatChangedDispatch));
 	}

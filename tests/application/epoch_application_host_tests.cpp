@@ -7599,6 +7599,124 @@ namespace {
 			   "a chain that cannot be acquired leaves the filter's trees unavailable");
 	}
 
+	// [[BPR-2247]]. The change since a review: each step's changed files with
+	// both sides' bytes, from the retained cache when it holds the commits; a
+	// gitlink is not a file, and `Paths` keeps only the files named. A commit
+	// the cache lacks with no lease that can fetch it is `earlier_unavailable`.
+	void returning_change_reads_each_step_from_the_cache()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto authority = workbench_authority_for(value.Host->state());
+		const auto head      = value.Host->state().AcceptedRevision->Head;
+		const auto reviewed  = oid<core::git_commit_oid>(0x42U);
+		const auto side      = [](std::string aPath, const std::uint8_t aBlob, const std::uint32_t aMode = 0100644U) {
+			return application::git_cache_changed_side{ .Path = std::move(aPath), .Object = oid<core::git_blob_oid>(aBlob), .Mode = aMode };
+		};
+		value.State.CatalogueEntries = {
+			{ .Left = side("a.cpp", 0x61U), .Right = side("a.cpp", 0x62U), .Change = 'M' },
+			{ .Left = std::nullopt, .Right = side("b.cpp", 0x63U), .Change = 'A' },
+			{ .Left = side("vendor", 0x64U, 0160000U), .Right = side("vendor", 0x65U, 0160000U), .Change = 'M' },
+		};
+		auto       observations = std::vector<application::returning_change_observation>{ };
+		const auto record       = [&observations](const application::returning_change_observation& aObservation) { observations.push_back(aObservation); };
+		auto       request      = application::returning_change_request{
+			.WorkbenchAuthority = authority, .Head = head, .Steps = { { .Parent = reviewed, .Commit = head } }, .Depth = 3U, .Outside = reviewed, .Paths = { }
+		};
+		expect(value.Host->resolve_returning_change(request, record) && observations.empty(), "the change since the review is admitted and answers later");
+		drain(value);
+		expect(observations.size() == 1U && observations.front().Status == application::returning_change_status::resolved && observations.front().Steps.size() == 1U
+				   && observations.front().Steps.front().Commit == head,
+			   "the one step is answered");
+		const auto& files = observations.front().Steps.front().Files;
+		expect(files.size() == 2U && files[0].Path == "a.cpp" && files[0].Earlier == std::optional<std::string>{ "blob\n" } && files[0].Current == std::optional<std::string>{ "blob\n" }
+				   && files[1].Path == "b.cpp" && !files[1].Earlier && files[1].Current && value.State.ChainRequests.empty() && value.Host->outstanding_jobs() == 0U,
+			   "each changed file with both sides from the cache, an added file with none before, the gitlink left out, nothing fetched");
+		request.Paths = { "b.cpp" };
+		expect(value.Host->resolve_returning_change(request, record), "a request naming its paths is admitted");
+		drain(value);
+		expect(observations.size() == 2U && observations.back().Steps.front().Files.size() == 1U && observations.back().Steps.front().Files.front().Path == "b.cpp",
+			   "only the files named are read");
+		request.Paths              = { };
+		value.State.MissingCommits = { reviewed };
+		expect(value.Host->resolve_returning_change(request, record), "a request whose earlier commit is not held is admitted");
+		drain(value);
+		expect(observations.size() == 3U && observations.back().Status == application::returning_change_status::earlier_unavailable && observations.back().Steps.empty()
+				   && value.State.ChainRequests.empty(),
+			   "with no lease that can fetch it, the commit is said to be unavailable");
+		auto moved = request;
+		moved.Head = reviewed;
+		expect(!value.Host->resolve_returning_change(moved, record), "another head is refused before admission");
+		auto self  = request;
+		self.Steps = { { .Parent = head, .Commit = head } };
+		expect(!value.Host->resolve_returning_change(self, record), "a commit compared with itself is refused");
+		auto absolute  = request;
+		absolute.Paths = { "/a.cpp" };
+		expect(!value.Host->resolve_returning_change(absolute, record) && observations.size() == 3U, "an absolute path is refused before admission");
+	}
+
+	// [[BPR-2247]]. A sparse review holds only its heads' commits and root
+	// trees, so the reviewed head is fetched: the steps' trees through the
+	// review's own lease, to the generations asked and the reviewed head by
+	// its SHA, and each blob the cache lacks read exactly, batched, and
+	// checked. A reviewed head the lease cannot get is `earlier_unavailable`.
+	void sparse_returning_change_fetches_the_reviewed_head()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		const auto authority       = workbench_authority_for(value.Host->state());
+		const auto head            = value.Host->state().AcceptedRevision->Head;
+		const auto reviewed        = oid<core::git_commit_oid>(0x42U);
+		const auto fix             = oid<core::git_commit_oid>(0x43U);
+		const auto merge           = oid<core::git_commit_oid>(0x44U);
+		value.State.MissingCommits = { reviewed, fix, merge };
+		value.State.ChainEntries   = {
+			{ .Left   = application::git_chain_changed_side{ .Path = "a.cpp", .Object = sha1_blob("old\n"), .Mode = 0100644U },
+			  .Right  = application::git_chain_changed_side{ .Path = "a.cpp", .Object = sha1_blob("new\n"), .Mode = 0100644U },
+			  .Change = 'M' },
+		};
+		value.State.CachedBlobMissing = true;
+		value.State.BatchContents     = { { sha1_blob("old\n"), "old\n" }, { sha1_blob("new\n"), "new\n" } };
+		auto       observations       = std::vector<application::returning_change_observation>{ };
+		const auto record             = [&observations](const application::returning_change_observation& aObservation) { observations.push_back(aObservation); };
+		// Two real commits around a merge of the base: each its own change.
+		const auto request = application::returning_change_request{ .WorkbenchAuthority = authority,
+																	.Head               = head,
+																	.Steps              = { { .Parent = reviewed, .Commit = fix }, { .Parent = merge, .Commit = head } },
+																	.Depth              = 4U,
+																	.Outside            = reviewed,
+																	.Paths              = { } };
+		expect(value.Host->resolve_returning_change(request, record), "the change is admitted");
+		drain(value);
+		auto held = std::vector{ reviewed, fix, merge, head };
+		std::ranges::sort(held);
+		expect(value.State.ChainRequests.size() == 1U && value.State.ChainRequests.front().Depth == 4U && value.State.ChainRequests.front().Commits == held
+				   && value.State.ChainRequests.front().Outside == std::optional{ reviewed }
+				   && value.State.ChainRequests.front().Context.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees,
+			   "the steps' trees are acquired once, sparsely, to the generations asked, the reviewed head by its SHA when outside them");
+		expect(value.State.ChainDiffs == std::vector<std::pair<core::git_commit_oid, core::git_commit_oid>>{ { reviewed, fix }, { merge, head } },
+			   "each real commit is diffed against its own parent; the merge is not");
+		expect(observations.size() == 1U && observations.front().Status == application::returning_change_status::resolved && observations.front().Steps.size() == 2U
+				   && observations.front().Steps.front().Commit == fix && observations.front().Steps.front().Files.size() == 1U
+				   && observations.front().Steps.front().Files.front().Earlier == std::optional<std::string>{ "old\n" }
+				   && observations.front().Steps.front().Files.front().Current == std::optional<std::string>{ "new\n" },
+			   "each step's file is read at both its commits");
+		expect(value.State.ExactBlobBatches.size() == 1U && value.State.ExactBlobBatches.front().ExpectedBlobs.size() == 2U,
+			   "the blobs the cache lacks are read exactly in one batch, each once");
+
+		value.State.ChainFailure = application::git_smart_transport_failure::response_limit;
+		expect(value.Host->resolve_returning_change(request, record), "a second request is admitted");
+		drain(value);
+		expect(observations.size() == 2U && observations.back().Status == application::returning_change_status::earlier_unavailable && observations.back().Steps.empty(),
+			   "a reviewed head GitHub no longer serves is said to be unavailable");
+		value.State.ChainFailure = application::git_smart_transport_failure::cancelled;
+		expect(value.Host->resolve_returning_change(request, record), "a third request is admitted");
+		drain(value);
+		expect(observations.size() == 3U && observations.back().Status == application::returning_change_status::cancelled, "a cancelled fetch is cancelled, to be asked again");
+	}
+
 	// [[BPR-1212]] v002. Whether a comparison's left document is numbered as
 	// GitHub numbers `LEFT` lines: the unique merge base of GitHub's base and
 	// the accepted head, from the retained objects, holds the same blob at the
@@ -10449,6 +10567,8 @@ int main(int argc, char** argv)
 	commit_filter_touches_authorize_filtered_diffs();
 	head_move_lines_compare_an_earlier_head_with_the_head();
 	sparse_review_acquires_the_chain_trees();
+	returning_change_reads_each_step_from_the_cache();
+	sparse_returning_change_fetches_the_reviewed_head();
 	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;
 }

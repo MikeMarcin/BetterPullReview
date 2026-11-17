@@ -178,7 +178,7 @@ namespace bpr::core {
 		no_commits_since_review,
 		/// What changed: the earlier code is still being read.
 		reading_commits,
-		/// What changed: the earlier code can't be read here.
+		/// What changed: the code reviewed could not be fetched ([[BPR-2247]]).
 		earlier_unreadable,
 		/// No review threads at this scope.
 		no_threads,

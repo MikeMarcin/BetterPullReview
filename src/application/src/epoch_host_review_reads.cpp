@@ -6,7 +6,9 @@
 #include "bpr/core/generated_files.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 
+#include <algorithm>
 #include <initializer_list>
+#include <map>
 #include <string_view>
 
 namespace bpr::application {
@@ -1421,5 +1423,329 @@ namespace bpr::application {
 			return false;
 		}
 		return true;
+	}
+
+	// [[BPR-2247]]. See `epoch_application_host::resolve_returning_change`.
+	auto epoch_application_host::implementation::resolve_returning_change(
+		returning_change_request    aRequest,
+		returning_change_completion aCompletion) -> bool
+	{
+		const auto stepValid = [&aRequest](const commit_filter_touch_step& aStep) {
+			return aStep.Parent.valid() && aStep.Commit.valid() && aStep.Parent != aStep.Commit && aStep.Parent.algorithm() == aRequest.Head.algorithm()
+				&& aStep.Commit.algorithm() == aRequest.Head.algorithm();
+		};
+		const auto pathInvalid = [](const std::string& aPath) {
+			return aPath.empty() || aPath.size() > maximum_git_tree_entry_path_bytes || aPath.starts_with('/');
+		};
+		if (!aCompletion || !aRequest.Head.valid() || aRequest.Steps.empty() || aRequest.Steps.size() > maximum_commit_filter_touch_steps
+			|| !std::ranges::all_of(aRequest.Steps, stepValid) || std::ranges::any_of(aRequest.Paths, pathInvalid)
+			|| (aRequest.Outside && (!aRequest.Outside->valid() || aRequest.Outside->algorithm() != aRequest.Head.algorithm()))) {
+			return false;
+		}
+		auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+		if (!reviewActor) {
+			return false;
+		}
+		auto       actor         = std::move(reviewActor->first);
+		const auto expected      = std::move(reviewActor->second);
+		auto       reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+		auto       admitted      = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+		if (!admitted.has_value()) {
+			return false;
+		}
+		auto        control      = std::move(*admitted);
+		const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+		auto* const decisionLane = &DecisionLane;
+		try {
+			enqueue_actor_work(
+				actor,
+				[this,
+				 actor,
+				 expected,
+				 context = std::move(reviewContext),
+				 gate,
+				 decisionLane,
+				 control,
+				 request    = std::move(aRequest),
+				 completion = std::move(aCompletion)]() mutable {
+					auto observation   = returning_change_observation{ .Request = request, .Status = returning_change_status::failure, .Steps = { }, .FilesOmitted = 0U };
+					observation.Status = returning_change(*actor, expected, context, request, control->Stop.get_token(), observation);
+					if (observation.Status != returning_change_status::resolved) {
+						observation.Steps.clear();
+						observation.FilesOmitted = 0U;
+					}
+					enqueue_completion(gate, decisionLane, std::move(control), [answer = std::move(observation), deliver = std::move(completion)](implementation&) { deliver(answer); });
+				});
+		} catch (...) {
+			finish_job(control);
+			return false;
+		}
+		return true;
+	}
+
+	/// \brief [[BPR-2247]]. The change since a review, on the actor.
+	///
+	/// \details Each step is diffed in the retained cache when it holds both
+	/// commits; otherwise the steps' trees are acquired once into a transient
+	/// store through the review's own lease, the earlier revision by its SHA
+	/// when the head's history lacks it. Each side's blob is read from the
+	/// cache, or exactly through the lease, batched, and checked.
+	auto epoch_application_host::implementation::returning_change(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+																  const std::shared_ptr<authority_context>& aContext, const returning_change_request& aRequest,
+																  const std::stop_token aStop, returning_change_observation& aObservation) -> returning_change_status
+	{
+		using status        = returning_change_status;
+		const auto statusOf = [](const git_cache_failure aFailure) {
+			return aFailure == git_cache_failure::cancelled      ? status::cancelled
+				: aFailure == git_cache_failure::quota_exceeded  ? status::limit_exceeded
+				: aFailure == git_cache_failure::object_mismatch ? status::earlier_unavailable
+																 : status::failure;
+		};
+		if (aStop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+			return status::cancelled;
+		}
+		if (!open_actor_cache(aActor, Caches, aExpected, aStop)) {
+			return status::stale;
+		}
+		auto commits = std::vector<core::git_commit_oid>{ };
+		for (const auto& step : aRequest.Steps) {
+			commits.push_back(step.Parent);
+			commits.push_back(step.Commit);
+		}
+		std::ranges::sort(commits);
+		commits.erase(std::unique(commits.begin(), commits.end()), commits.end());
+		auto missing = false;
+		for (const auto& commit : commits) {
+			if (aStop.stop_requested()) {
+				return status::cancelled;
+			}
+			// As the touches job asks: the commit and its root tree, the
+			// closure check only when that refuses.
+			auto inspected = aExpected.ObjectFormat == core::git_hash_algorithm::sha1
+				? aActor.Cache->inspect_sparse_commit_object(commit, aStop)
+				: git_cache_result<git_cache_commit_inspection>{ std::unexpected{ git_cache_failure::invalid_request } };
+			if (!inspected.has_value() && inspected.error() != git_cache_failure::cancelled) {
+				inspected = aActor.Cache->inspect_commit_object(commit, aStop);
+			}
+			if (inspected.has_value()) {
+				if (!application::valid(*inspected) || inspected->Commit != commit) {
+					return status::failure;
+				}
+				continue;
+			}
+			if (inspected.error() == git_cache_failure::cancelled || aStop.stop_requested()) {
+				return status::cancelled;
+			}
+			if (inspected.error() != git_cache_failure::object_mismatch) {
+				return status::failure;
+			}
+			missing = true;
+		}
+		const auto canFetch = aContext && aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees()
+			&& aRequest.Head == aContext->Revision.Head;
+		const auto smartContext = [&](const git_smart_acquisition_mode aMode) {
+			auto smart               = git_smart_request_context{ };
+			smart.ApplicationSession = aContext->Handoff.ApplicationSession;
+			smart.Authority          = aContext->Authority;
+			smart.Revision           = aContext->Revision;
+			smart.Repository         = aContext->Handoff.Locator;
+			smart.BaseRef            = aContext->Handoff.BaseRef;
+			smart.AcquisitionMode    = aMode;
+			return smart;
+		};
+		auto store = std::shared_ptr<git_chain_tree_store>{ };
+		if (missing) {
+			// A commit the review's objects do not hold: a sparse review holds
+			// only its heads' commits and root trees, and a rewritten branch's
+			// reviewed head is no longer in the head's history.
+			if (!canFetch) {
+				return status::earlier_unavailable;
+			}
+			const auto context = smartContext(git_smart_acquisition_mode::sparse_commit_trees);
+			auto       chain   = git_smart_chain_request{ .Context = context, .Head = aRequest.Head, .Depth = 0U, .Commits = commits, .Outside = std::nullopt };
+			chain.Depth        = std::clamp<std::uint32_t>(aRequest.Depth, 2U, maximum_git_smart_chain_depth);
+			if (aRequest.Outside && std::ranges::binary_search(commits, *aRequest.Outside)) {
+				chain.Outside = aRequest.Outside;
+			}
+			if (!application::valid(chain)) {
+				return status::earlier_unavailable;
+			}
+			auto transport = aContext->Handoff.SmartGit->acquire(context);
+			if (!transport || !*transport) {
+				return status::earlier_unavailable;
+			}
+			auto acquired = (*transport)->acquire_chain_trees(chain, aStop);
+			if (!acquired || !*acquired) {
+				return acquired || acquired.error().Failure != git_smart_transport_failure::cancelled ? status::earlier_unavailable : status::cancelled;
+			}
+			if (!std::ranges::all_of(commits, [&acquired](const core::git_commit_oid& aCommit) { return (*acquired)->holds(aCommit); })) {
+				return status::earlier_unavailable;
+			}
+			store = std::move(*acquired);
+		}
+		struct change_side final
+		{
+			std::string        Path;
+			core::git_blob_oid Blob;
+			std::uint32_t      Mode = 0U;
+		};
+		struct change final
+		{
+			std::optional<change_side> Left;
+			std::optional<change_side> Right;
+		};
+		const auto diff = [&](const commit_filter_touch_step& aStep) -> std::expected<std::vector<change>, status> {
+			auto       changes = std::vector<change>{ };
+			const auto add     = [&changes](auto& aEntries) {
+				for (auto& entry : aEntries) {
+					changes.push_back({ .Left  = entry.Left ? std::optional{ change_side{ .Path = std::move(entry.Left->Path), .Blob = entry.Left->Object, .Mode = entry.Left->Mode } } : std::nullopt,
+										.Right = entry.Right ? std::optional{ change_side{ .Path = std::move(entry.Right->Path), .Blob = entry.Right->Object, .Mode = entry.Right->Mode } } : std::nullopt });
+				}
+			};
+			if (store) {
+				auto read = store->changed_entries(aStep.Parent, aStep.Commit, aStop);
+				if (!read) {
+					return std::unexpected{ read.error().Failure == git_smart_transport_failure::cancelled ? status::cancelled : status::failure };
+				}
+				add(*read);
+				return changes;
+			}
+			auto read = aActor.Cache->changed_entries({ .Left = aStep.Parent, .Right = aStep.Commit }, aStop);
+			if (!read.has_value()) {
+				return std::unexpected{ statusOf(read.error().Code) };
+			}
+			add(*read);
+			return changes;
+		};
+		// Each side to read: which step, which file, which side, which blob.
+		struct pending final
+		{
+			std::size_t        Step    = 0U;
+			std::size_t        File    = 0U;
+			bool               Earlier = false;
+			core::git_blob_oid Blob;
+		};
+		auto       reads  = std::vector<pending>{ };
+		auto       files  = std::size_t{ 0U };
+		const auto wanted = [&aRequest](const std::optional<change_side>& aSide) {
+			return aSide && std::ranges::find(aRequest.Paths, aSide->Path) != aRequest.Paths.end();
+		};
+		constexpr auto gitlink = std::uint32_t{ 0160000U };
+		for (const auto& step : aRequest.Steps) {
+			auto changes = diff(step);
+			if (!changes) {
+				return changes.error();
+			}
+			if (changes->size() >= maximum_git_changed_entries) {
+				return status::limit_exceeded;
+			}
+			auto& answered = aObservation.Steps.emplace_back(returning_change_step{ .Commit = step.Commit, .Files = { } });
+			for (auto& entry : *changes) {
+				const auto& named = entry.Right ? entry.Right : entry.Left;
+				if (!named || (!aRequest.Paths.empty() && !wanted(entry.Left) && !wanted(entry.Right)) || (entry.Left && entry.Left->Mode == gitlink)
+					|| (entry.Right && entry.Right->Mode == gitlink)) {
+					continue;
+				}
+				if (files == maximum_returning_change_files) {
+					++aObservation.FilesOmitted;
+					continue;
+				}
+				++files;
+				const auto file = answered.Files.size();
+				answered.Files.push_back({ .Path = named->Path });
+				const auto stepIndex = aObservation.Steps.size() - 1U;
+				for (const auto& [side, earlier] : { std::pair{ &entry.Left, true }, std::pair{ &entry.Right, false } }) {
+					if (*side) {
+						reads.push_back({ .Step = stepIndex, .File = file, .Earlier = earlier, .Blob = (*side)->Blob });
+					}
+				}
+			}
+		}
+		// The cache first; what it lacks is read exactly through the lease.
+		auto bytes  = std::map<core::git_blob_oid, std::optional<std::vector<std::uint8_t>>>{ };
+		auto remote = std::vector<core::git_blob_oid>{ };
+		for (const auto& read : reads) {
+			if (bytes.contains(read.Blob) || std::ranges::find(remote, read.Blob) != remote.end()) {
+				continue;
+			}
+			auto cached = aActor.Cache->materialize_blob({ .Blob = read.Blob, .MaximumBytes = maximum_returning_change_side_bytes }, aStop);
+			if (cached.has_value()) {
+				bytes.emplace(read.Blob, std::move(*cached));
+				continue;
+			}
+			if (cached.error().Code == git_cache_failure::quota_exceeded) {
+				bytes.emplace(read.Blob, std::nullopt);
+				continue;
+			}
+			if (cached.error().Code != git_cache_failure::object_mismatch) {
+				return statusOf(cached.error().Code);
+			}
+			std::scoped_lock lock{ aActor.BlobAuthorityMutex };
+			if (auto retained = retained_blob(aActor, read.Blob)) {
+				bytes.emplace(read.Blob, retained->size() <= maximum_returning_change_side_bytes ? std::move(retained) : std::nullopt);
+			} else {
+				remote.push_back(read.Blob);
+			}
+		}
+		if (!remote.empty()) {
+			if (!canFetch) {
+				return status::earlier_unavailable;
+			}
+			const auto context   = smartContext(git_smart_acquisition_mode{ });
+			const auto transport = aContext->Handoff.SmartGit->acquire(context);
+			if (!transport || !*transport) {
+				return status::earlier_unavailable;
+			}
+			const auto exact = [&](const std::vector<std::byte>& aRead) {
+				auto copied = std::vector<std::uint8_t>(aRead.size());
+				std::ranges::transform(aRead, copied.begin(), [](const std::byte aByte) { return std::to_integer<std::uint8_t>(aByte); });
+				return copied;
+			};
+			for (std::size_t first = 0U; first < remote.size(); first += maximum_git_exact_blob_batch) {
+				const auto last  = std::min(remote.size(), first + maximum_git_exact_blob_batch);
+				const auto batch = std::vector<core::git_blob_oid>(remote.begin() + static_cast<std::ptrdiff_t>(first), remote.begin() + static_cast<std::ptrdiff_t>(last));
+				auto       found = (*transport)->read_exact_blobs({ context, batch, maximum_returning_change_side_bytes }, aStop);
+				if (aStop.stop_requested()) {
+					return status::cancelled;
+				}
+				for (std::size_t index = 0U; index < batch.size(); ++index) {
+					if (found && index < found->size() && (*found)[index]) {
+						auto read = exact(*(*found)[index]);
+						if (blob_matches(batch[index], read) == blob_check::matches) {
+							bytes.emplace(batch[index], std::move(read));
+							continue;
+						}
+					}
+					const auto single = (*transport)->read_exact_blob({ context, batch[index], maximum_returning_change_side_bytes }, aStop);
+					if (!single) {
+						const auto failure = single.error().Failure;
+						if (failure == git_smart_transport_failure::cancelled) {
+							return status::cancelled;
+						}
+						if (failure != git_smart_transport_failure::response_limit) {
+							return status::earlier_unavailable;
+						}
+						bytes.emplace(batch[index], std::nullopt);
+						continue;
+					}
+					auto read = exact(*single);
+					// A mismatch or a collision detection both end here.
+					if (blob_matches(batch[index], read) != blob_check::matches) {
+						return status::failure;
+					}
+					bytes.emplace(batch[index], std::move(read));
+				}
+			}
+		}
+		for (const auto& read : reads) {
+			auto&       file  = aObservation.Steps[read.Step].Files[read.File];
+			const auto& found = bytes.at(read.Blob);
+			if (!found || found->size() > maximum_returning_change_side_bytes) {
+				file.TooLarge = true;
+				continue;
+			}
+			(read.Earlier ? file.Earlier : file.Current) = std::string{ found->begin(), found->end() };
+		}
+		return aStop.stop_requested() ? status::cancelled : status::resolved;
 	}
 }

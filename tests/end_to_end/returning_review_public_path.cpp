@@ -16,8 +16,9 @@
 ///   its press asks about that conversation with its lines then and now; the
 ///   answer's claim is shown; the thread is not resolved and nothing is posted.
 /// - `gone STUB`: with my review taken to be on a commit the review's objects
-///   do not hold (a rewritten branch), the menu item and the Agent tab say
-///   the earlier code can't be read, and nothing is sent.
+///   do not hold and the repository no longer serves (a rewritten branch
+///   whose earlier commits are gone), the menu item and the Agent tab say it
+///   could not be fetched ([[BPR-2247]]), and nothing is sent.
 /// - `latest STUB --attended` / `addressed STUB --attended`: the same, then
 ///   the window stays open for a person to look; closing it ends the course.
 
@@ -165,12 +166,12 @@ auto main(int argc, char** argv) -> int
 		const auto launchesAt = [&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations; };
 
 		if (course == "gone") {
-			wait([&] { return whatChanged->text().contains(QStringLiteral("can't be read here")); }, "the menu says the earlier code can't be read");
+			wait([&] { return whatChanged->text().contains(QStringLiteral("could not be fetched")); }, "the menu says the earlier code could not be fetched");
 			agent_ready(window);
 			const auto before = launchesAt();
 			expect(!whatChanged->isEnabled() && whatChanged->text().contains(QStringLiteral("0badc0d")), "unavailable, naming the reviewed commit");
 			expect(tab->latest_upload_offer().State == core::latest_upload_state::unavailable && tab->latest_upload_note() != nullptr && tab->latest_upload_note()->isVisible()
-					   && tab->latest_upload_note()->text().contains(QStringLiteral("can't be read here")),
+					   && tab->latest_upload_note()->text().contains(QStringLiteral("could not be fetched from GitHub")),
 				   "the Agent tab says why, where the suggestion would be");
 			expect(!tab->suggestions().contains(QStringLiteral("What changed since my review")), "no suggestion is offered in its place");
 			tab->ask_returning(core::returning_operation::latest_upload);

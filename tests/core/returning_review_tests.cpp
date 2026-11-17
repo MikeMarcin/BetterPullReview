@@ -219,9 +219,93 @@ namespace {
 	}
 }
 
+namespace {
+	auto listed(const char aDigit, std::vector<char> aParents, std::string aHeadline) -> core::listed_commit
+	{
+		auto parents = std::vector<std::string>{ };
+		for (const auto parent : aParents) {
+			parents.push_back(commit(parent));
+		}
+		return { .Oid = commit(aDigit), .Headline = std::move(aHeadline), .Parents = std::move(parents), .Paths = std::nullopt };
+	}
+
+	/// [[BPR-2247]]. The rule for what of a selection of commits is the pull
+	/// request's own work: every commit but a merge of the base branch, each
+	/// as its first parent to it, in the selection's order. Any selection.
+	void own_changes_leave_out_merges_of_the_base()
+	{
+		const auto all       = std::vector{ commit('1'), commit('2'), commit('4'), commit('5') };
+		const auto selection = std::vector{
+			listed('2', { '1' }, "Fix the parser"),
+			listed('4', { '2', 'b' }, "Merge branch 'main' into feature"),
+			listed('5', { '4' }, "Handle the empty case"),
+		};
+		const auto steps = core::own_change_steps(selection, all, "main");
+		expect(steps
+				   == std::vector<core::commit_change_step>{ { .Parent = commit('1'), .Commit = commit('2'), .Headline = "Fix the parser" },
+															 { .Parent = commit('4'), .Commit = commit('5'), .Headline = "Handle the empty case" } },
+			   "the merge of main is left out whole; the real commits are each their first parent to them, in order");
+		const auto chosen = core::own_change_steps({ selection[1] }, all, "main");
+		expect(chosen.empty(), "a selection of only a base merge carries nothing of the pull request's own");
+		auto other = listed('6', { '5', '2' }, "Merge feature-part into feature");
+		expect(core::own_change_steps({ other }, all, "main").size() == 1U, "a merge of the pull request's own branch keeps its first-parent change");
+		expect(core::own_change_steps({ listed('7', { }, "Root") }, all, "main").empty(), "a commit with no parent has nothing to compare");
+	}
+
+	/// [[BPR-2247]]. The change since a review is read as one comparison
+	/// unless merges of the base are among the commits since; then by commit.
+	void the_change_since_a_review_is_planned_around_base_merges()
+	{
+		const auto plain = std::vector{ listed('1', { 'a' }, "Start"), listed('2', { '1' }, "Reviewed"), listed('3', { '2' }, "More"), listed('4', { '3' }, "Even more") };
+		const auto net   = core::plan_returning_change(commit('2'), commit('4'), plain, "main");
+		expect(net.Listed && !net.ByCommit && net.Depth == 3U && net.Steps.size() == 1U && net.Steps.front().Parent == commit('2') && net.Steps.front().Commit == commit('4'),
+			   "without merges, the reviewed head to the head, with the generations that reach it");
+
+		const auto merged = std::vector{ listed('1', { 'a' }, "Start"), listed('2', { '1' }, "Reviewed"), listed('3', { '2', 'b' }, "Merge branch 'main' into feature"),
+										 listed('4', { '3' }, "Real fix"), listed('5', { '4', 'c' }, "Merge remote-tracking branch 'origin/main' into feature"),
+										 listed('6', { '5' }, "Second fix") };
+		const auto split  = core::plan_returning_change(commit('2'), commit('6'), merged, "main");
+		expect(split.Listed && split.ByCommit && split.Depth == 5U
+				   && split.Steps
+					   == std::vector<core::commit_change_step>{ { .Parent = commit('3'), .Commit = commit('4'), .Headline = "Real fix" },
+																 { .Parent = commit('5'), .Commit = commit('6'), .Headline = "Second fix" } },
+			   "with merges of main since the review, each real commit's own change, and no merge's");
+
+		const auto rewritten = core::plan_returning_change(commit('9'), commit('6'), merged, "main");
+		expect(!rewritten.Listed && !rewritten.ByCommit && rewritten.Steps.size() == 1U && rewritten.Steps.front().Parent == commit('9'),
+			   "a reviewed head that is not one of the commits (a rewritten branch) is compared whole");
+		auto broken    = merged;
+		broken[3]      = listed('4', { 'z' }, "Real fix");
+		const auto cut = core::plan_returning_change(commit('2'), commit('6'), broken, "main");
+		expect(cut.Listed && !cut.ByCommit && cut.Steps.size() == 1U && cut.Depth == 5U, "a first-parent chain that does not reach the reviewed head is compared whole");
+	}
+
+	/// [[BPR-2247]]. A change read by commit keeps commit order, a line for
+	/// each commit that changed something, and the same bounds.
+	void a_change_by_commit_keeps_its_commits_in_order()
+	{
+		const auto changes = core::bound_returning_commits({
+			{ .Commit = commit('4'), .Headline = "Real fix", .Files = { { .Path = "b.cpp", .Text = "B\n" }, { .Path = "a.cpp", .Text = "A\n" } } },
+			{ .Commit = commit('5'), .Headline = "Nothing", .Files = { { .Path = "c.cpp", .Text = "" } } },
+			{ .Commit = commit('6'), .Headline = "bad\xff", .Files = { { .Path = "a.cpp", .Text = "A2\n" } } },
+		});
+		expect(changes.Text == "Commit 4444444: Real fix\nA\nB\nCommit 6666666\nA2\n" && changes.FilesShown == 3U && changes.FilesOmitted == 0U,
+			   "each commit's files in path order under its line; a commit that changed nothing has none, and a headline that is not UTF-8 is left out");
+		auto many = std::vector<core::returning_commit_files>{ { .Commit = commit('4'), .Headline = "Many", .Files = { } } };
+		for (std::size_t index = 0U; index < core::maximum_returning_files + 2U; ++index) {
+			many.front().Files.push_back({ .Path = "f" + std::to_string(1000U + index), .Text = "x\n" });
+		}
+		const auto bounded = core::bound_returning_commits(std::move(many));
+		expect(bounded.FilesShown == core::maximum_returning_files && bounded.FilesOmitted == 2U, "past the file bound the rest are counted, not shown");
+	}
+}
+
 auto main() -> int
 {
 	thread_baseline_is_decided_in_core();
+	own_changes_leave_out_merges_of_the_base();
+	the_change_since_a_review_is_planned_around_base_merges();
+	a_change_by_commit_keeps_its_commits_in_order();
 	one_ask_reads_every_threads_claim();
 	latest_upload_is_offered_only_for_newer_commits();
 	unreadable_earlier_revision_is_unavailable();

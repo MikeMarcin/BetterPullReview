@@ -2723,7 +2723,7 @@ namespace bpr::qt {
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
 		if (LatestUploadNote != nullptr) {
 			const auto unavailable = LatestUpload.State == core::latest_upload_state::unavailable && LatestUpload.Earlier && !ConversationShown;
-			LatestUploadNote->setText(unavailable ? tr("What changed since my review: the code at %1 can't be read here.").arg(QString::fromStdString(LatestUpload.Earlier->Head.substr(0U, 7U))) : QString{ });
+			LatestUploadNote->setText(unavailable ? tr("What changed since my review: the code you reviewed (%1) could not be fetched from GitHub.").arg(QString::fromStdString(LatestUpload.Earlier->Head.substr(0U, 7U))) : QString{ });
 			LatestUploadNote->setVisible(unavailable && verdict == core::agent_suggestions_verdict::shown);
 		}
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);

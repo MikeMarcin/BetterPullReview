@@ -208,6 +208,17 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_changed_paths(
 			changed_paths_request    aRequest,
 			changed_paths_completion aCompletion) -> bool;
+		/// \brief [[BPR-2247]]. Reads the change since a review: each step's
+		/// changed files, with both sides' bytes.
+		/// \details Admitted like `resolve_changed_paths`. A step's commit the
+		/// review's objects do not hold is fetched, trees only, through the
+		/// review's own lease when it can acquire them (its head's history to
+		/// `Depth`, and `Outside` by its SHA), and each blob the cache lacks is
+		/// read exactly and checked against its OID. Runs on the review's cache
+		/// actor; `earlier_unavailable` says a commit could not be got.
+		[[nodiscard]] auto resolve_returning_change(
+			returning_change_request    aRequest,
+			returning_change_completion aCompletion) -> bool;
 		/// \brief RFC-BPR-0089. Answers which paths each first-parent commit
 		/// changes, from local tree diffs of the retained objects.
 		/// \details Never fetches. A step whose commit or parent tree is not

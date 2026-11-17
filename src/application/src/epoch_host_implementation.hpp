@@ -858,6 +858,14 @@ namespace bpr::application {
 													  const std::stop_token aStop)
 			-> std::expected<std::shared_ptr<git_chain_tree_store>, commit_filter_touches_status>;
 
+		[[nodiscard]] auto resolve_returning_change(
+			returning_change_request    aRequest,
+			returning_change_completion aCompletion) -> bool;
+
+		[[nodiscard]] auto returning_change(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+											const std::shared_ptr<authority_context>& aContext, const returning_change_request& aRequest,
+											const std::stop_token aStop, returning_change_observation& aObservation) -> returning_change_status;
+
 		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool;
 
 		[[nodiscard]] static auto delta_failure(const git_smart_transport_error& aError) -> agent_workspace_error;

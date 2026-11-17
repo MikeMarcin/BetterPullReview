@@ -1614,6 +1614,25 @@ namespace {
 			const auto missing = (*sparseTransport)->acquire_chain_trees(chain, { });
 			expect(!missing && missing.error().Failure == application::git_smart_transport_failure::response_limit,
 				   "a chain commit the clone did not bring refuses the store");
+			// [[BPR-2247]]. A reviewed head the chain clone did not bring (a
+			// force push left it behind, or it is past the depth) is fetched
+			// by its SHA into a second store the first borrows.
+			write(root / "chain-omitted", ancestor.toStdString() + "\n");
+			// The one-generation clone by SHA brings the commit (the fixture's
+			// sparse clones otherwise leave it out).
+			write(root / "sparse-omitted", blob.toStdString() + "\n" + changedBlob.toStdString() + "\n");
+			auto outside       = chain;
+			outside.Outside    = commitOf(ancestor);
+			const auto fetched = (*sparseTransport)->acquire_chain_trees(outside, { });
+			expect(fetched && *fetched && (*fetched)->holds(commitOf(ancestor)) && (*fetched)->holds(commitOf(head)), "the commit outside the chain is fetched by its SHA and held");
+			const auto across = fetched && *fetched ? (*fetched)->changed_entries(commitOf(ancestor), commitOf(head), { }) : decltype((*fetched)->changed_entries(commitOf(ancestor), commitOf(head), { })){ };
+			expect(fetched && *fetched && across && across->size() == 2U, "the fetched commit is compared with the head in the one store");
+			auto elsewhere    = chain;
+			elsewhere.Outside = commitOf(base);
+			const auto other  = (*sparseTransport)->acquire_chain_trees(elsewhere, { });
+			expect(!other && other.error().Failure == application::git_smart_transport_failure::response_limit,
+				   "only the commit named outside is fetched by its SHA; another missing commit still refuses the store");
+			write(root / "sparse-omitted", sparseOmitted);
 			std::filesystem::remove(root / "chain-omitted");
 		}
 		{

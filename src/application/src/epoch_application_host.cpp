@@ -271,6 +271,13 @@ namespace bpr::application {
 		return Implementation->resolve_changed_paths(std::move(aRequest), std::move(aCompletion));
 	}
 
+	auto epoch_application_host::resolve_returning_change(
+		returning_change_request    aRequest,
+		returning_change_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_returning_change(std::move(aRequest), std::move(aCompletion));
+	}
+
 	auto epoch_application_host::resolve_commit_filter_touches(
 		commit_filter_touches_request    aRequest,
 		commit_filter_touches_completion aCompletion) -> bool

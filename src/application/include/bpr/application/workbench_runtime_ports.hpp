@@ -802,6 +802,81 @@ namespace bpr::application {
 
 	using changed_paths_completion = std::function<void(const changed_paths_observation&)>;
 
+	/// \brief [[BPR-2247]]. Asks for the change since a review: each step's
+	/// changed files, with both sides' bytes.
+	///
+	/// \details `Steps` run oldest first (core's `returning_plan`): the
+	/// earlier revision to the head as one step, or each real commit's own
+	/// change. `Head` is the accepted head. A step's commit the review's
+	/// objects do not hold is fetched, trees only, through the review's own
+	/// lease: `Depth` generations of the head's history, and `Outside`, a
+	/// commit that may lie outside it (the reviewed head of a rewritten
+	/// branch), by its SHA. Blobs the cache lacks are read exactly. When
+	/// `Paths` is not empty, only those paths are read.
+	struct returning_change_request
+	{
+		workbench_pull_request_authority      WorkbenchAuthority;
+		core::git_commit_oid                  Head;
+		std::vector<commit_filter_touch_step> Steps;
+		std::uint32_t                         Depth = 2U;
+		std::optional<core::git_commit_oid>   Outside;
+		std::vector<std::string>              Paths;
+
+		auto operator<=>(const returning_change_request&) const = default;
+	};
+
+	/// The most files a returning change reads, across its steps, and the
+	/// largest side read; a larger side is said to be too large.
+	inline constexpr std::size_t maximum_returning_change_files      = 64U;
+	inline constexpr std::size_t maximum_returning_change_side_bytes = 256U * 1024U;
+
+	/// \brief One changed file of a step: each side's bytes, none where the
+	/// file is absent on that side.
+	struct returning_change_file
+	{
+		std::string                Path;
+		std::optional<std::string> Earlier;
+		std::optional<std::string> Current;
+		bool                       TooLarge = false;
+
+		auto operator<=>(const returning_change_file&) const = default;
+	};
+
+	struct returning_change_step
+	{
+		core::git_commit_oid               Commit;
+		std::vector<returning_change_file> Files;
+
+		auto operator<=>(const returning_change_step&) const = default;
+	};
+
+	enum class returning_change_status : std::uint8_t {
+		/// `Steps` answers every step, in order.
+		resolved,
+		/// A commit to compare is neither held nor could be fetched from the
+		/// repository: GitHub no longer serves it, or the fetch failed.
+		earlier_unavailable,
+		/// A step changes more paths than one tree diff reports.
+		limit_exceeded,
+		/// The retained cache no longer serves the accepted review.
+		stale,
+		cancelled,
+		failure,
+	};
+
+	struct returning_change_observation
+	{
+		returning_change_request           Request;
+		returning_change_status            Status = returning_change_status::failure;
+		std::vector<returning_change_step> Steps;
+		/// Changed files past `maximum_returning_change_files`, not read.
+		std::size_t FilesOmitted = 0U;
+
+		auto operator<=>(const returning_change_observation&) const = default;
+	};
+
+	using returning_change_completion = std::function<void(const returning_change_observation&)>;
+
 	/// \brief Asks whether a comparison's base side is numbered as GitHub
 	/// numbers a pull request's `LEFT` lines.
 	///

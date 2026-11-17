@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_RETURNING_REVIEW_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_RETURNING_REVIEW_HPP
 
+#include "bpr/core/agent_report.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_model.hpp"
 
@@ -198,6 +199,51 @@ namespace bpr::core {
 	/// `maximum_returning_change_bytes` and `maximum_returning_files`, and
 	/// counts the files left out. A file that did not change is not counted.
 	[[nodiscard]] auto bound_returning_changes(std::vector<returning_change_file> aFiles) -> returning_changes;
+
+	/// \brief [[BPR-2247]]. What the change since a review is read as.
+	struct returning_plan
+	{
+		/// The comparisons to read, oldest first: the earlier revision to the
+		/// head as one, or, with `ByCommit`, each real commit's own change.
+		std::vector<commit_change_step> Steps;
+		/// Merges of the base branch are among the commits since the review:
+		/// the change is the other commits' own changes (`own_change_steps`),
+		/// so none of the base's changes ride in it.
+		bool ByCommit = false;
+		/// The earlier revision is one of the pull request's commits. When it
+		/// is not (a rewritten branch), only the pull request's files are read.
+		bool Listed = false;
+		/// Generations from the head that hold every commit a step reads.
+		std::uint32_t Depth = 2U;
+
+		auto operator<=>(const returning_plan&) const = default;
+	};
+
+	/// \brief How the change from `aEarlier` to `aCurrent` is read.
+	///
+	/// \details `aCommits` is the pull request's commits, oldest first, with
+	/// their parents. The commits since the review are the head's first-parent
+	/// chain back to `aEarlier`. With a merge of the base `aBase` among them,
+	/// the plan is by commit; otherwise it is the one comparison. When the
+	/// chain does not reach `aEarlier` it is the one comparison too.
+	[[nodiscard]] auto plan_returning_change(std::string_view aEarlier, std::string_view aCurrent, const std::vector<listed_commit>& aCommits, std::string_view aBase)
+		-> returning_plan;
+
+	/// \brief One commit's files, for a change read by commit.
+	struct returning_commit_files
+	{
+		std::string                        Commit;
+		std::string                        Headline;
+		std::vector<returning_change_file> Files;
+
+		auto operator<=>(const returning_commit_files&) const = default;
+	};
+
+	/// \brief Joins each commit's changes in commit order, files in path
+	/// order under a `Commit abc1234: headline` line, within the same bounds
+	/// as `bound_returning_changes`. A commit that changed nothing shown has
+	/// no line.
+	[[nodiscard]] auto bound_returning_commits(std::vector<returning_commit_files> aCommits) -> returning_changes;
 
 	/// \brief Which question a returning run answers.
 	enum class returning_operation : std::uint8_t {
