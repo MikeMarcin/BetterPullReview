@@ -1386,6 +1386,14 @@ namespace bpr::adapters::github::detail {
 			});
 		}
 
+		/// [[BPR-2244]]. A recorded commit may keep its committer's date, and
+		/// only the date: exactly `{ "date": <string> }`.
+		[[nodiscard]] auto recorded_committer(const fixture_json_value& aValue) -> bool
+		{
+			return json_is_undefined(aValue)
+				|| (json_is_object(aValue) && has_exact_keys(json_object(aValue), { "date" }) && json_is_string(json_member(json_object(aValue), "date")));
+		}
+
 		[[nodiscard]] auto validate_commits_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
@@ -1418,8 +1426,9 @@ namespace bpr::adapters::github::detail {
 					&& nonempty_string(json_member(object, "node_id"))
 					&& optional_rest_actor(json_member(object, "author"))
 					&& json_is_object(commit)
-					&& has_exact_keys(json_object(commit), { "message" })
-					&& json_is_string(json_member(json_object(commit), "message"));
+					&& (has_exact_keys(json_object(commit), { "message" }) || has_exact_keys(json_object(commit), { "committer", "message" }))
+					&& json_is_string(json_member(json_object(commit), "message"))
+					&& recorded_committer(json_member(json_object(commit), "committer"));
 			});
 		}
 

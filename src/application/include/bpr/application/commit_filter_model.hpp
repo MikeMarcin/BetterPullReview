@@ -8,6 +8,7 @@
 #include "bpr/core/generated_files.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <optional>
@@ -226,10 +227,12 @@ namespace bpr::application {
 		std::expected<core::filter_commit_graph, core::commit_filter_unavailable> Graph = std::unexpected{ core::commit_filter_unavailable::invalid_list };
 		bool                                                                      Known = false;
 		std::vector<std::string>                                                  Authors;
-		std::vector<github_file_record>                                           SnapshotFiles;
-		std::optional<core::filter_comparison>                                    Comparison;
-		core::commit_filter_state                                                 State;
-		commit_filter_trees                                                       Trees = commit_filter_trees::idle;
+		/// [[BPR-2244]]. Commit dates in listed order, as GitHub sent them.
+		std::vector<std::optional<std::int64_t>> CommittedAt;
+		std::vector<github_file_record>          SnapshotFiles;
+		std::optional<core::filter_comparison>   Comparison;
+		core::commit_filter_state                State;
+		commit_filter_trees                      Trees = commit_filter_trees::idle;
 		/// Touches for every chain commit, oldest first, once read.
 		std::vector<commit_filter_commit_touch>    Touches;
 		std::optional<core::commit_filter_refusal> Refusal;

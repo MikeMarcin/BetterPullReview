@@ -20,9 +20,11 @@
 #include <QToolButton>
 #include <QTreeWidget>
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -45,6 +47,9 @@ namespace {
 			QApplication::processEvents();
 		}
 	}
+
+	/// Saves a render when `BPR_RFC0089_RENDER_DIR` names a directory.
+	void render(QWidget& aWidget, const std::string& aName);
 
 	auto row(const char aDigit, std::string aHeadline, const core::filter_commit_state aState = core::filter_commit_state::shown,
 			 const core::filter_commit_role aRole = core::filter_commit_role::chain) -> application::commit_filter_row
@@ -240,6 +245,63 @@ namespace {
 		rows[0].Role = core::filter_commit_role::base_merge;
 		model.apply(rows);
 		expect(qt::commit_filter_delegate::tag(model.index(0)) == QStringLiteral("Merge from base"), "a merge from the base branch is labelled");
+	}
+
+	/// [[BPR-2244]]. Each row says how old its commit is, to the host's clock,
+	/// in the words the window uses for ages; its accessible name says it and
+	/// its tooltip names the exact date. A later clock updates the words in
+	/// place.
+	void test_commit_age()
+	{
+		constexpr auto committed = std::int64_t{ 1'790'000'000 };
+		constexpr auto day       = std::int64_t{ 24 * 60 * 60 };
+		auto           rows      = owner().Rows;
+		rows[0].CommittedAt      = committed;
+		rows[1].CommittedAt      = committed + day - (3 * 60 * 60);
+		auto model               = qt::commit_filter_list_model{ };
+		auto counter             = structure_counter{ };
+		QObject::connect(&model, &QAbstractItemModel::modelReset, [&counter] { ++counter.Reset; });
+		QObject::connect(&model, &QAbstractItemModel::dataChanged, [&counter] { ++counter.Changed; });
+		model.apply(rows);
+		expect(model.data(model.index(0), qt::commit_filter_list_model::age_role).toString().isEmpty(), "without the host's clock no age is drawn");
+		model.set_now(committed + (2 * day) + 60);
+		expect(model.data(model.index(0), qt::commit_filter_list_model::age_role).toString() == QStringLiteral("2 days ago")
+				   && model.data(model.index(1), qt::commit_filter_list_model::age_role).toString() == QStringLiteral("1 day ago")
+				   && model.data(model.index(2), qt::commit_filter_list_model::age_role).toString().isEmpty(),
+			   "each dated commit's age is measured to the host's clock; an undated one shows none");
+		expect(model.data(model.index(0), Qt::AccessibleTextRole).toString().contains(QStringLiteral("by octo-author, committed 2 days ago, 2 files")),
+			   "the accessible name says the age");
+		const auto tip = model.data(model.index(0), Qt::ToolTipRole).toString();
+		expect(tip.contains(QStringLiteral("Committed ")) && tip.contains(QStringLiteral("2026")), "the tooltip names the exact date");
+		expect(!model.data(model.index(2), Qt::ToolTipRole).toString().contains(QStringLiteral("Committed")), "an undated commit's tooltip names no date");
+		const auto changed = counter.Changed;
+		model.set_now(committed + (2 * day) + 120);
+		expect(counter.Changed == changed, "a clock that leaves the words alone changes no row");
+		model.set_now(committed + (3 * day));
+		expect(counter.Changed == changed + 2 && counter.Reset == 0
+				   && model.data(model.index(0), qt::commit_filter_list_model::age_role).toString() == QStringLiteral("3 days ago"),
+			   "a later clock updates only the rows whose words change, without a reset");
+		model.set_now(committed - 3'600);
+		expect(model.data(model.index(0), qt::commit_filter_list_model::age_role).toString() == QStringLiteral("just now"), "a clock behind GitHub's says just now");
+
+		auto tab   = qt::commit_filter_tab{ };
+		auto clock = committed + (2 * day);
+		tab.resize(360, 300);
+		tab.set_clock([&clock] { return std::optional{ clock }; });
+		auto projection = owner();
+		projection.Rows = rows;
+		tab.present(projection);
+		expect(tab.model()->data(tab.model()->index(0), qt::commit_filter_list_model::age_role).toString() == QStringLiteral("2 days ago"),
+			   "the tab measures ages as the commits arrive");
+		clock += 5 * day;
+		tab.show();
+		settle();
+		expect(tab.model()->data(tab.model()->index(0), qt::commit_filter_list_model::age_role).toString() == QStringLiteral("7 days ago"),
+			   "and again as it shows");
+		render(tab, "commit-age");
+		tab.resize(180, 300);
+		settle();
+		render(tab, "commit-age-narrow");
 	}
 
 	// RFC-BPR-0089 M2.
@@ -561,6 +623,7 @@ auto main(int aArgc, char** aArgv) -> int
 	test_tab_states_and_menu();
 	test_chip();
 	test_rows_wrap_and_tag();
+	test_commit_age();
 	test_bulk_label_and_hide_files();
 	test_file_filter_chip_and_counts();
 	test_generated_row();

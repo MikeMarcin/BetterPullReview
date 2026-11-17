@@ -995,7 +995,8 @@ namespace bpr::qt {
 		void set_home_return_dispatch(std::function<void(const core::pull_request_ref&)> aDispatch);
 		/// \brief [[BPR-1407]]. The host's clock, read when the queue is
 		/// projected, that a Home row's age is measured to. The window reads no
-		/// clock of its own; without one no age is drawn.
+		/// clock of its own; without one no age is drawn. [[BPR-2244]]: the
+		/// Commits tab measures each commit's age to the same clock.
 		void set_home_clock(std::function<std::optional<std::int64_t>()> aClock);
 		/// \brief [[BPR-0660]], [[BPR-0774]]. Receives the enterprise servers the
 		/// reviewer keeps: Add enterprise server, a card's Remember switch and
