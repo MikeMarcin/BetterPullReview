@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2229",
+    "BPR-2230"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0129 self-describing export, import check, prompts check CLI",
+  "created": "2026-11-17T03:01:46.423818+00:00",
+  "base": "c1670e9862e333a8a72f119ff6cc0e4b5451b709"
+}

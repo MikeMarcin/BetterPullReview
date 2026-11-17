@@ -4,7 +4,7 @@ id: "BPR-2226"
 title: "Verify and close RFC-BPR-0129"
 status: "Backlog"
 rfcs: ["RFC-BPR-0129"]
-depends_on: ["BPR-2222", "BPR-2223", "BPR-2224", "BPR-2225", "BPR-2227", "BPR-2150"]
+depends_on: ["BPR-2222", "BPR-2223", "BPR-2224", "BPR-2225", "BPR-2227", "BPR-2229", "BPR-2230", "BPR-2150"]
 closeout_for: ["RFC-BPR-0129"]
 priority: "P2"
 platforms: ["mac","linux","win"]
@@ -15,7 +15,7 @@ metadata: {"reservation":"docs/issues/_reservations/BPR-2222--BPR-2226--052c4bca
 
 RFC base: `51e39545084ece348e80c4af10b7cc086fcb40ad`.
 
-Evidence for each of AC01 to AC17 against the
+Evidence for each of AC01 to AC21 against the
 [RFC](../../rfcs/RFC-BPR-0129-prompts-declare-a-result-and-features.md), the owner's accepted looks (AC09), the documentation gate, and
 the RFC's status in its front matter and in the index.
 
@@ -40,3 +40,7 @@ the RFC's status in its front matter and in the index.
 | **AC15:** A pull request titled `/bpr:proposed-fix`, or material containing a Feature reference, brings in no Feature; an answer containing a Feature block its request did not declare shows the block as plain code with no action. | Not run | No producing revision |
 | **AC16:** A typed Agent tab question, a person's Answer prompt and each returning question each carry the Agent tab contract's boundary, legend and conversation rule, whatever their text says; a writing request carries only its Result's writing rule, not another Result's. | Not run | No producing revision |
 | **AC17:** Core decides the catalog, placements, which Features a Result carries, the request's instruction classes and the actions an output unlocks; the host performs, Qt presents, and no widget composes instruction text. | Not run | No producing revision |
+| **AC18:** Every export, version 1 or 2, carries one `guide.prompts` item whose text names every Result and Feature of the core catalog with its one-line description, where each Result may be placed, which Features each Result carries, every rule listed under "A self-describing export", and the worked example; a core test fails if any catalog entry or rule is missing; the new build never imports the item, and an older build lists it as not importable and imports the rest of the file. | Not run | No producing revision |
+| **AC19:** The guide's worked example, added verbatim to an exported file as a new prompt, imports with no refusal, and the imported prompt sends that Feature's contract. | Not run | No producing revision |
+| **AC20:** Importing a file that holds one prompt for each mistake (an unknown Result, a Feature its Result does not carry, a placement its Result cannot open in, an unknown `/bpr:` name, a flow prompt's Result changed) lists each as Refused with its reason and the valid prompts as Add or Change, writes nothing before confirmation and nothing on Cancel, and on confirmation writes exactly the listed Adds and Changes; core gives equal decisions for equal file and profile. | Not run | No producing revision |
+| **AC21:** `bpr prompts check FILE`, run on the AC20 file, prints the same decisions and reasons as the import check, exits non-zero, and leaves the profile and the file unchanged; on the file with only valid prompts it exits zero. | Not run | No producing revision |
