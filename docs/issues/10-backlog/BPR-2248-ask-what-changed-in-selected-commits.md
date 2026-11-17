@@ -54,7 +54,7 @@ Rejected options:
 
 ## Acceptance
 
-- With commits selected, both actions are offered. Each It runs on exactly those
+- With commits selected, both actions are offered. Each runs on exactly those
   commits, and the request names them.
 - Base-merge commits in the selection are handled as described above.
 - The action works on a shallow clone.
