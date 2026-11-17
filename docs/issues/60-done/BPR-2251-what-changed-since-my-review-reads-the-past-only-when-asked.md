@@ -111,3 +111,11 @@ findings on lines this card did not touch; documentation gate.
   is used, not at load.
 - A press while the review is still ingesting is refused ("still loading");
   it is not queued until ingestion finishes.
+
+## Owner decision (2026-11-17)
+
+Refusing with "still loading" when the review hasn't finished loading is
+correct. The owner: "Still loading is fine, it can even be a reason to grey out
+an ask. It's better to say that and let the user do something else immediately
+than lock them into waiting for it". A click never waits for loading. An ask may
+also be shown disabled, with "still loading" as its reason.
