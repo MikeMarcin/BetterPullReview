@@ -3262,9 +3262,13 @@ namespace bpr::adapters::git {
 					}
 				}
 				if (linked) {
-					// Aggregate initialisation: `DeleteFile` is also a Windows macro.
-					auto disposition = FILE_DISPOSITION_INFO{ TRUE };
-					changed          = SetFileInformationByHandle(handle, FileDispositionInfo, &disposition, sizeof(disposition)) != 0 || changed;
+					// Git leaves its pack files read-only (`0444`, which Git for
+					// Windows maps to FILE_ATTRIBUTE_READONLY), and a plain
+					// delete disposition refuses such a file.
+					auto disposition  = FILE_DISPOSITION_INFO_EX{ };
+					disposition.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS
+						| FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
+					changed = SetFileInformationByHandle(handle, FileDispositionInfoEx, &disposition, sizeof(disposition)) != 0 || changed;
 				}
 				static_cast<void>(CloseHandle(handle));
 			}
