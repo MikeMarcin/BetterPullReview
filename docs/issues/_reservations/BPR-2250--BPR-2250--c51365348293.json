@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2250"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "overview changed-since-review column on sparse reviews",
+  "created": "2026-11-17T21:02:50.353817+00:00",
+  "base": "15e61e5dc4dd511a0bc547f73144820bbc7a1cd5"
+}
