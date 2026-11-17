@@ -82,6 +82,18 @@ namespace {
 	}
 
 	[[nodiscard]] auto action(QMenu& aMenu, const QString& aName) -> QAction* { return aMenu.findChild<QAction*>(aName); }
+
+	/// With `BPR_COMMIT_ASKS_RENDER_ROOT` set, a widget is saved there as a PNG
+	/// (the owner's looks).
+	void render(QWidget& aWidget, const QString& aName)
+	{
+		const auto root = qEnvironmentVariable("BPR_COMMIT_ASKS_RENDER_ROOT");
+		if (root.isEmpty()) {
+			return;
+		}
+		QApplication::processEvents();
+		static_cast<void>(aWidget.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")));
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -145,6 +157,10 @@ auto main(int argc, char** argv) -> int
 			const auto at      = [&actions](const QAction* aAction) { return std::ranges::find(actions, aAction) - actions.begin(); };
 			expect(at(explain) > at(action(*menu, QStringLiteral("commitFilterHideFiles"))) && at(review) < at(action(*menu, QStringLiteral("commitFilterClearAll"))),
 				   "after the filter actions, before Clear all filters");
+			menu->popup(commits->mapToGlobal(QPoint{ 40, 40 }));
+			render(*menu, QStringLiteral("commit-asks-menu"));
+			render(window, QStringLiteral("commit-asks-window"));
+			menu->hide();
 			explain->trigger();
 		}
 		wait([&] { return tab->turn_count() == before + 1U && tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value() && access::agent_invocation_evidence(*application).Quiescent; },
@@ -157,6 +173,7 @@ auto main(int argc, char** argv) -> int
 			   "the answer reads the selected commits and no other:\n" + answer);
 		expect(answer.find("## Merges of the base branch") != std::string::npos && answer.find("`5cc6213` Merge branch 'main'") != std::string::npos, "the merge of main is named, not explained");
 		expect(answer.find("Base branch changes in the request: none.") != std::string::npos, "main's own change did not ride in the request");
+		render(window, QStringLiteral("commit-asks-explained"));
 
 		// Review these commits on C2 and C3: a report with findings to draft.
 		select(*commits, { QStringLiteral("Regenerate"), QStringLiteral("Follow-ups") });
@@ -182,6 +199,7 @@ auto main(int argc, char** argv) -> int
 		expect(std::ranges::any_of(findings, [](const core::report_finding& aFinding) { return aFinding.Keep == core::report_keep::draft_comment && aFinding.Path == "src/app.cpp" && aFinding.First == 40U; }),
 			   "a finding offers Draft comment at its line");
 		expect(report->dressed_view()->toPlainText().contains(QStringLiteral("Draft comment")), "the page offers Draft comment");
+		render(window, QStringLiteral("commit-asks-review"));
 
 		application->begin_shutdown();
 		wait([&] { return application->status().ShutdownComplete; }, "shutdown");
