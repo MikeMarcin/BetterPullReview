@@ -19,3 +19,57 @@ acceptance: []
 - Correct blockers through successor cohorts, then package, audit, sign and publish the full release, verifying downloaded bytes and native trust on each producer.
 
 No prior release failure, security disposition or native acceptance transfers without its exact input and authority checks. Existing releases and assets remain immutable.
+
+## Risk-preflight repairs: `git_cache_contract` and `test_network_isolation_manifest` (2026-11-17)
+
+The 0.5.0 native risk preflight failed two of its nine rows in Release and
+Debug on Windows (source `66448e35a`) and on Ubuntu 26.04. Fixed on
+`claude/release-0-5-0-windows-preflight`:
+
+- **`git_cache_contract`, Windows.** `inject-cache-interrupted-pack-link`
+  ended `repair_required` (code 13): BPR-2195's `settle_interrupted_index`
+  removed a temporary name that is a second link to the expected pack only on
+  POSIX. Windows now recognises it by the open handle's volume and file index
+  (exactly two names) and removes that name through the same handle. The first
+  native run still failed: Git for Windows leaves packs read-only (observed on
+  the station), and a plain delete disposition refuses that, so the removal
+  uses `FileDispositionInfoEx` with POSIX semantics and the read-only
+  attribute ignored. The assertion is unchanged.
+- **`git_cache_contract`, Ubuntu.** It failed earlier, at `create lineage
+  baseline spool`: `/tmp` is tmpfs on Ubuntu 26.04, tmpfs does not answer
+  `FS_IOC_GETVERSION` (probed: `ENOTTY`; ext4 answers), and the cache refuses
+  durable artifacts there by design (BPR-2095, whose `/dev/shm` control the
+  course keeps). A different cause from Windows. The course now makes its
+  ordinary cache roots beside the test executable when the system temporary
+  directory lacks generations, and prints `SCRATCH_WITHOUT_GENERATION` when it
+  does. Any other course that builds a Git cache under a tmpfs temporary
+  directory would refuse the same way on that host.
+- **`test_network_isolation_manifest`.** Five rows registered
+  `WINDOWS_UNCONTAINED` without a pin now carry one
+  (`application_review_report_public_path` is registered only off Windows and
+  keeps the unmeasured pin). Fifty Windows rows were measured contained on the
+  station and pinned with their first contained observation; none passes
+  contained. `local_changes` compiled its course out on Windows and printed
+  nothing; it now prints its skip there and is registered contained. See
+  [the measurement record](../../verification/release-v050-windows-containment.md).
+  Twelve of those direct baselines fail natively on Windows, independent of
+  containment, and remain open for comprehensive qualification.
+
+Native results at `15745dc64` (measurement at `12c1f9250`, the pre-rebase
+identity of `9da22ad18`):
+
+| Platform, config | Rows run | Result |
+| --- | --- | --- |
+| Windows Release (Interactive Limited, session 1) | four affected rows | 4 passed (`local_changes` contained) |
+| Windows Release risk preflight, first | 9 | 8 passed; `application_diff_host` failed its BPR-1485 10 ms stop budget at 12.56 ms (Release timing, this change does not touch it) |
+| Windows Release risk preflight, fresh rerun | 9 | 9 passed; the row alone then passed 5 of 5 |
+| Windows Debug (same context) | four affected rows, then 9 | 4 passed; 9 passed |
+| Ubuntu 26.04 Release and Debug | 9 each | 9 passed each (the course reported `SCRATCH_WITHOUT_GENERATION: /tmp`) |
+| macOS dev | affected rows | `git_cache_contract`, `git_sparse_cache_contract`, `local_changes`, both network-isolation rows and `documentation_structure` passed |
+
+The intermittent `application_diff_host` Release timing failure is kept as
+an actual failure; it is not dispositioned here. The Windows producer checkout
+(`D:\BetterPullReview-release-v050-r1\source`) and the Ubuntu guest checkout
+were moved to `15745dc64` and rebuilt there. Evidence, receipts and the
+dispatch scripts are under the external state's
+`windows-preflight-fix-r1/`.
