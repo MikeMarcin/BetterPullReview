@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2243"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A press sent while the last agent turn retires waits for it instead of being refused (application_suggest_change_public_path race)",
+  "created": "2026-11-17T08:11:36.844153+00:00",
+  "base": "d3ef1104c4b96494dc132f2e0ea96e3744e22c9d"
+}
