@@ -1,3 +1,56 @@
+# BPR-2219 checkpoint 4 (2026-11-16)
+
+Supersedes the checkpoints below where they differ.
+
+## Done and committed on the lane
+
+`b3569ae3b` holds the whole change (36 files): core report model, host
+wiring, the report page and view, the review prompts' visible bodies and the
+read-only Result: Findings report section, the fixture agent's structured
+review, the composed course, the tests that follow, the design round, the
+card's cause and the UX guide. It was built from the private worktree
+(`.claude/worktrees/bpr-2219-review-report`, level with the lane) and these
+pass on its content: `core_agent_report`, `core_prompt_macro`,
+`qt_agent_report_view`, `qt_prompts_page`, `qt_prompt_macro_chips`,
+`fixture_agent_answers`, `application_review_report_public_path`,
+`application_fixture_agent_every_ask`. Before the squash, on the same code:
+`qt_workbench_window_scale_100`, `architecture_boundaries`,
+`architecture_boundary_contract`, the ask and prompt courses,
+`core_quick_ask`, `core_agent_question`, `core_review_composition`,
+`application_prompt_macro_host`, `sqlite_agent_setup_storage`,
+`application_agent_chat_composition_contract`, `_subject_contract`,
+`_conversation_contract`. Not run: the whole suite, scale 125 and 200 of the
+workbench window, `application_agent_chat_replies` (its binary was not
+built). The documentation gate's one error is another card's
+(`BPR-2226`).
+
+## The real-agent runs
+
+Before (the old code, one turn, 35 s, 4,554 output tokens, $0.16 as
+reported, Claude Code 2.1.319, Sonnet, medium): the scratchpad's
+`review-report/before/run/` (answer, report, facts, renders) and
+`review-report/before/raw-agent-output.jsonl`. The cause it showed is on the
+card. After: in progress, into `review-report/after/run/`.
+
+## Remaining
+
+1. After run: read it, keep the renders.
+2. Freeze the lane's HEAD (frozen builds join the jobserver; no other build
+   of mine meanwhile); fixture agent only.
+3. Attended review in a fresh short session: four Accept/Reject questions
+   (reads as a report; Draft comment from a finding; layout; the Prompts
+   page), the mockups and the before/after renders as images, SESSION_LINE
+   in each; serve on the tailnet; record session ID and state directory
+   here, never the URL.
+4. Mirror the card to main; close MikeMarcin/BPR-Test#185 when the card is
+   done.
+
+Known gaps to say in the report: a report's keep states are kept by the view
+for the session, not stored, and are not shared with the Agent tab's finding
+cards for the same findings; the report has no Draft all; the first code
+block of a real report rendered blank in the offscreen before-render (not
+investigated).
+
 # BPR-2219 checkpoint 3 (2026-11-16)
 
 Supersedes checkpoint 2 below where they differ.
