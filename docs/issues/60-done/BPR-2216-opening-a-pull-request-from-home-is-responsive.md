@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2216"
 title: "Opening a pull request from Home is responsive: its page at once, Return and the Active review while it loads"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
-parked_on: "human-review"
 priority: "P1"
 platforms: ["mac","win","linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-11-16","reservation":"docs/issues/_reservations/BPR-2216--BPR-2216--0ff5959e3c1a.json","related_cards":["BPR-1200","BPR-1357","BPR-1365","BPR-1599","BPR-1842","BPR-1843","BPR-2180"],"related_rfcs":["RFC-BPR-0032","RFC-BPR-0026"]}
+acceptance: [{"criterion": "BPR-2216:page-at-once", "outcome": "pass", "revision": "5d809b68d", "evidence": {"kind": "command", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "application_home_open_responsive_public_path in Release (NDEBUG 100 ms assertions active), three runs: double-click turn 14/16/16 ms, first frame 20/19/19 ms, longest turn 14/16/16 ms; window leaves Home in the gesture's turn. Owner Accept v002 decision 157edf61."}}, {"criterion": "BPR-2216:return-while-loading", "outcome": "pass", "revision": "e5e50701f", "evidence": {"kind": "command", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "Course: Home while #17 loads is Return to #17, unchecked, and returns to the loading page; the loaded review arrives behind Home. Owner Accept v002 decision 2c62e99e; regression Accept v003 decision 157870ae."}}, {"criterion": "BPR-2216:active-while-loading", "outcome": "pass", "revision": "e5e50701f", "evidence": {"kind": "command", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "Course: Active review card names #17 with its title and Back to the review; the queue row is marked Reviewing, while loading and once loaded. Owner Accept v002 decision 534621a9."}}, {"criterion": "BPR-2216:said-once", "outcome": "pass", "revision": "e5e50701f", "evidence": {"kind": "command", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "Course sweeps Overview, Review, Discuss and Threads during the slow read (no worded busy pane, no loading label or button outside the status bar), the Updates line, Home's refresh and a hovered action's help. Owner Accepts: overview v002 1bd603fa, Home v003 397234e6, Updates v003 ba157ef6, review screen v004 2bddd08a."}}, {"criterion": "BPR-2216:decided-in-core", "outcome": "pass", "revision": "c41707298", "evidence": {"kind": "command", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "core_home_open: decide_home_open_presence decides page and active from the read's request (listed row, or GitHub's answer for a typed name); Qt presents it; the read runs on the host lane."}}, {"criterion": "BPR-2216:courses", "outcome": "pass", "revision": "e5e50701f", "evidence": {"kind": "command", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "application_home_open_responsive_public_path (new) plus the BPR-1357, restoration, pending-state, progressive-open, refresh and workbench courses updated to the new behaviour pass. Failing-before shown by the code at 00f42d5d3, not a separate run."}}, {"criterion": "BPR-2216:owner-look", "outcome": "pass", "revision": "e5e50701f", "evidence": {"kind": "observation", "path": "docs/issues/60-done/BPR-2216-opening-a-pull-request-from-home-is-responsive.md", "detail": "Owner Accept 2026-11-17T04:15:50Z: session 976501d361fd7566b5d41bc53ea3e260, candidate BPR-2216-review-loading-once (frozen e5e50701f, v004), decision 2bddd08a-0484-4ccc-bf2a-396f01975af2, no note."}}]
 ---
 
 # BPR-2216: Opening a pull request from Home is responsive: its page at once, Return and the Active review while it loads
@@ -311,3 +311,10 @@ served on the tailnet, ready at cursor 3 with one protected Accept/Reject
 question, `BPR-2216-review-loading-once`. The URL stays in the session state.
 
 Next: read `status --after 3`. Accept closes `BPR-2216:owner-look` and the card.
+
+## Owner verdict, look v004 (2026-11-17T04:15Z)
+
+Session `976501d361fd7566b5d41bc53ea3e260`, read at cursor 6, handed back:
+`BPR-2216-review-loading-once` Accept, no note (decision `2bddd08a`). Every
+criterion passes; the card is Done. The v004 host is stopped, its frozen root
+removed with the freeze tool and its renders deleted.
