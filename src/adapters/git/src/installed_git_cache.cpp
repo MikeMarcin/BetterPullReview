@@ -3144,7 +3144,9 @@ namespace bpr::adapters::git {
 		/// new temporary name that is a second link to one of them is unlinked,
 		/// and then a new `.pack` whose `.idx` never arrived is removed, each a
 		/// private regular file this user owns. Anything else stays for the
-		/// inventory to refuse.
+		/// inventory to refuse. On Windows the same second name is recognised
+		/// by its volume and file index and removed through its own handle
+		/// ([[BPR-2215]]: the Windows release preflight found it left there).
 		auto settle_interrupted_index(
 			const std::filesystem::path&                           aRepository,
 			const application::git_pack_oid&                       aPack,
@@ -3199,6 +3201,72 @@ namespace bpr::adapters::git {
 			}
 			for (const auto& link : links) {
 				changed = ::unlink(link.c_str()) == 0 || changed;
+			}
+#elif defined(Q_OS_WIN)
+			// The same rule through NTFS: a new temporary name whose open
+			// handle is a regular file with exactly two names, on the volume and
+			// at the file index of one of the final names, loses that name by
+			// its own handle, so a name replaced between the check and the
+			// removal is never removed.
+			const auto      finals     = std::array{ packPath, indexPath };
+			auto            candidates = std::vector<std::filesystem::path>{ };
+			std::size_t     visited    = 0U;
+			std::error_code error;
+			for (auto entry = std::filesystem::directory_iterator{ directory, error };
+				 !error && entry != std::filesystem::directory_iterator{ };
+				 entry.increment(error)) {
+				if (++visited > maximum_pack_directory_walk) {
+					return;
+				}
+				const auto name = entry->path().filename().native();
+				if (index_pack_temporary_name(name) && !std::ranges::binary_search(aBefore, name)) {
+					candidates.push_back(entry->path());
+				}
+			}
+			if (error) {
+				return;
+			}
+			const auto information = [](const HANDLE aHandle) -> std::optional<BY_HANDLE_FILE_INFORMATION> {
+				auto result = BY_HANDLE_FILE_INFORMATION{ };
+				if (GetFileInformationByHandle(aHandle, &result) == 0
+					|| (result.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0U) {
+					return std::nullopt;
+				}
+				return result;
+			};
+			for (const auto& candidate : candidates) {
+				const auto handle = CreateFileW(candidate.c_str(), DELETE | FILE_READ_ATTRIBUTES,
+												FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+												FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+				if (handle == INVALID_HANDLE_VALUE) {
+					continue;
+				}
+				const auto temporary = information(handle);
+				auto       linked    = false;
+				if (temporary.has_value() && temporary->nNumberOfLinks == 2U) {
+					for (const auto& final : finals) {
+						const auto finalHandle = CreateFileW(final.c_str(), FILE_READ_ATTRIBUTES,
+															 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+															 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+						if (finalHandle == INVALID_HANDLE_VALUE) {
+							continue;
+						}
+						const auto finished = information(finalHandle);
+						static_cast<void>(CloseHandle(finalHandle));
+						if (finished.has_value() && finished->dwVolumeSerialNumber == temporary->dwVolumeSerialNumber
+							&& finished->nFileIndexHigh == temporary->nFileIndexHigh
+							&& finished->nFileIndexLow == temporary->nFileIndexLow) {
+							linked = true;
+							break;
+						}
+					}
+				}
+				if (linked) {
+					// Aggregate initialisation: `DeleteFile` is also a Windows macro.
+					auto disposition = FILE_DISPOSITION_INFO{ TRUE };
+					changed          = SetFileInformationByHandle(handle, FileDispositionInfo, &disposition, sizeof(disposition)) != 0 || changed;
+				}
+				static_cast<void>(CloseHandle(handle));
 			}
 #endif
 			if (!missing(packPath) && missing(indexPath) && private_regular_file(packPath)) {

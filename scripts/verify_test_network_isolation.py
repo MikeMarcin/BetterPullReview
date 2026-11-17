@@ -347,6 +347,15 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_ask_queue_public_path": "unmeasured (registered on macOS)",
     "application_prompt_macros_public_path": "unmeasured (registered on macOS)",
     "application_fixture_agent_guard_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2215]]. Registered WINDOWS_UNCONTAINED on macOS without an entry
+    # (BPR-2216, BPR-2217, BPR-2189, BPR-2219, BPR-2221); the 0.5.0 Windows
+    # and Ubuntu risk preflights refused each. The report course is registered
+    # only off Windows (`if(APPLE OR UNIX)`), so Windows never measures it.
+    "application_review_seen_public_path": "unmeasured (registered on macOS)",
+    "application_local_draft_check_desktop_public_path": "unmeasured (registered on macOS)",
+    "application_home_open_responsive_public_path": "unmeasured (registered on macOS)",
+    "application_prompt_facts_public_path": "unmeasured (registered on macOS)",
+    "application_review_report_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
