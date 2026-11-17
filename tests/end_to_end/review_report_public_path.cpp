@@ -37,6 +37,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTextEdit>
 
@@ -271,6 +272,14 @@ auto main(int argc, char** argv) -> int
 		expect(window.prompts()->review_result_box()->isVisibleTo(window.prompts()) && format != nullptr && format->isReadOnly() && format->toPlainText().contains(QStringLiteral("# Review of #N"))
 				   && format->toPlainText().contains(QStringLiteral("**Verdict:**")),
 			   "and, read-only under it, the report format that is always added");
+		// For the look: the editor and the section under it, in view.
+		for (auto* parent = window.prompts()->review_result_box()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+			if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr) {
+				scroll->ensureWidgetVisible(body, 0, 40);
+				scroll->ensureWidgetVisible(window.prompts()->review_result_box(), 0, 40);
+				break;
+			}
+		}
 		render(*window.settings(), QStringLiteral("review-report-prompts"));
 		window.settings()->hide();
 
