@@ -906,7 +906,11 @@ namespace {
 		QApplication::processEvents();
 		auto* title = window.epoch_selectors()->comparing_button();
 		title->installEventFilter(&observer);
-		provider.OnSubmit = [&] {
+		// [[BPR-2240]]. Since [[BPR-2216]] (the owner, accepting look v004) the
+		// status bar alone says what loads while the pull request is read; the
+		// Updates line and the review screen say nothing of it.
+		auto* const statusLine = required_label(window, "workbenchStatus");
+		provider.OnSubmit      = [&] {
 			expect(presentation_state(window) == QStringLiteral("loading"),
 				   "loading is projected before provider submission");
 			// [[BPR-1200]]. Nothing yet shows that this connection can read the
@@ -936,7 +940,7 @@ namespace {
 				   && window.home_open_notice()->isVisible()
 				   && window.home_open_notice()->text() == QStringLiteral("Loading the pull request."),
 			   "[[BPR-1200]] the held read is said under the Home bar until it shows what it names");
-		expect(title->text().contains(QStringLiteral("Loading"))
+		expect(!title->text().contains(QStringLiteral("Loading"))
 				   && !window.overview_page()->presented() && window.overview_page()->file_model()->file_count() == 0U,
 			   "the prepared loading overview does not manufacture accepted content");
 		expect(window.home_open_details_button()->isHidden(),
@@ -955,32 +959,35 @@ namespace {
 		lane.drain();
 		QApplication::processEvents();
 		expect(!window.showing_home() && window.overview_page()->isVisible() && title->isVisible()
-				   && title->text().contains(QStringLiteral("Loading")),
-			   "[[BPR-1200]] the read's overview presents the workbench while provider completion remains held");
-		expect(observer.Paints > 0U, "the loading title paints while provider completion remains held");
+				   && !title->text().contains(QStringLiteral("Loading"))
+				   && statusLine->text().startsWith(QStringLiteral("Loading")),
+			   "[[BPR-1200]] the read's overview presents the workbench while provider completion remains held; the status bar says the read");
+		expect(observer.Paints > 0U, "the Updates line paints while provider completion remains held");
 		auto* observedTitle = required_child<QLabel>(window, "overviewTitle");
 		expect(observedTitle->text() == QStringLiteral("<b>Literal provisional title</b>")
 				   && observedTitle->textFormat() == Qt::PlainText
 				   && !window.overview_page()->entry_path() && !window.overview_page()->presented(),
 			   "validated metadata paints literal useful content but grants no review authority");
-		expect(required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("3 commits"))
-				   && required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("Open. Provisional metadata")),
-			   "provisional metadata names its observed state and reported commit count");
+		const auto summary = required_child<QLabel>(window, "overviewSummary")->text();
+		expect(summary.contains(QStringLiteral("3 commits")) && summary.endsWith(QStringLiteral("Open."))
+				   && !summary.contains(QStringLiteral("loading"), Qt::CaseInsensitive),
+			   "provisional metadata names its observed state and reported commit count, and no loading sentence");
 		for (std::uint32_t page = 1U; page <= 100U; ++page) {
 			provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::files, .PagesReceived = page, .Sequence = page });
 		}
 		expect(lane.pending() == 1U, "progress coalesces into one decision task");
 		lane.drain();
-		expect(title->text().contains(QStringLiteral("changed files")) && title->text().contains(QStringLiteral("100 pages")),
-			   "latest actual stage and received-page count are visible");
+		expect(statusLine->text().contains(QStringLiteral("changed files")) && statusLine->text().contains(QStringLiteral("100 pages"))
+				   && !title->text().contains(QStringLiteral("changed files")),
+			   "latest actual stage and received-page count are said once, in the status bar");
 		capture_layout_state(window, QStringLiteral("loading-overview-progress"));
-		const auto currentProgress = title->text();
+		const auto currentProgress = statusLine->text();
 		provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::metadata, .PagesReceived = 1U, .Sequence = 1U });
 		auto wrongContext       = provider.Request->Context;
 		wrongContext.Generation = core::request_generation{ 999 };
 		provider.Progress(wrongContext, { .Phase = application::github_read_phase::comments, .PagesReceived = 101U, .Sequence = 101U });
 		lane.drain();
-		expect(title->text() == currentProgress, "older and foreign progress cannot replace the current read");
+		expect(statusLine->text() == currentProgress, "older and foreign progress cannot replace the current read");
 		host.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::commits, .PagesReceived = 101U, .Sequence = 102U });
 		provider.Complete(application::github_pull_request_cancelled{ *provider.Request });
