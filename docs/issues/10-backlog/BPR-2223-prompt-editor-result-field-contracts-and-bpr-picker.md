@@ -16,11 +16,12 @@ RFC-BPR-0129 milestone M1, the editor half ([RFC](../../rfcs/RFC-BPR-0129-prompt
 
 ## Scope
 
-- In Settings › Prompts, the Result field and the read-only sections: the
+- In Settings › Prompts, the Result field (read-only for a shipped flow
+  prompt, owner Q3) and the read-only sections: the
   application contract, the Result's and each Feature's contract, the
   inlined skills, and the run's material listed by name.
 - `/bpr:` rows in the completion popup that offers `/skills`, in the editor
-  and, per the RFC's Q6 default, in a typed question's composer.
+  and in a typed chat question's composer (owner, Q6).
 - The workflow beyond those parts is the designer's call (owner decision 8).
   Load `frontend-design:frontend-design` first and say so in the report.
 - The owner's look: a frozen Fixture-agent build that opens on a fixture

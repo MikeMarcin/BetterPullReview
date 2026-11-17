@@ -29,8 +29,12 @@ report Result.
   each Feature's contract. Sent the same way for Claude and Codex, and
   rendered as one value the editor shows.
 - Parsing each contract's blocks and deciding their actions, then the
-  host's Draft comment, Keep local and Apply. Proposed fix's Apply follows
-  the RFC's Q4 default unless the owner answers otherwise.
+  host's Draft comment, Keep local and Apply. Proposed fix's Apply shows
+  disabled with its reason, and the patch can be copied, until RFC-BPR-0115's
+  local-draft worktree exists (Q4, default accepted by the coordinator).
+- Which Results a person's prompt may choose: any Result, placed only where
+  that Result works (owner, Q5). A shipped flow prompt's Result is fixed
+  (owner, Q3).
 - Migration: `prompt_ask::question` becomes Answer and `prompt_ask::review`
   becomes Findings report. The shipped review prompts gain their Features.
 - The Fixture agent answers with and without each Feature's block, and with
