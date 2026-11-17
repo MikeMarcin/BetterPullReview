@@ -183,6 +183,7 @@ if(BPR_BUILD_QT)
             src/github_application/window_account_setup.cpp
             src/github_application/window_agent_chat.cpp
             src/github_application/window_agent_setup.cpp
+            src/github_application/window_commit_asks.cpp
             src/github_application/window_commit_filter.cpp
             src/github_application/window_composition.cpp
             src/github_application/window_construction.cpp
@@ -620,6 +621,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_account_setup.cpp
 		src/app/src/github_application/window_agent_chat.cpp
 		src/app/src/github_application/window_agent_setup.cpp
+		src/app/src/github_application/window_commit_asks.cpp
 		src/app/src/github_application/window_commit_filter.cpp
 		src/app/src/github_application/window_composition.cpp
 		src/app/src/github_application/window_composition.hpp

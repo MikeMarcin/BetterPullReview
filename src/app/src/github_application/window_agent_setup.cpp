@@ -1559,6 +1559,8 @@ namespace bpr::app {
 		bind_explain_file();
 		// RFC-BPR-0128 ([[BPR-2164]]). The Ask controls and menus.
 		bind_quick_ask();
+		// [[BPR-2248]]. The Commits tab's agent prompts.
+		bind_commit_asks();
 		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on a draft comment.
 		bind_suggest_change();
 		tab->set_ask_more_dispatch([this](const QString& aQuestion, const QString& aAnswer) {

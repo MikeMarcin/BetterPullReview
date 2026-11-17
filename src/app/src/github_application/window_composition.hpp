@@ -988,6 +988,17 @@ namespace bpr::app {
 		void               ask_explain_file(const std::string& aPath);
 		void               refuse_explain_file(const std::string& aPath, const QString& aWords);
 		[[nodiscard]] auto compose_explain(application::agent_context_observation& aObservation) -> bool;
+		/// [[BPR-2248]]. The Commits tab's agent prompts: the rows a
+		/// selection lists, a press queued, and its release reading the
+		/// commits' own changes. `window_commit_asks.cpp`.
+		void               bind_commit_asks();
+		[[nodiscard]] auto commit_asks_for(const std::vector<std::string>& aCommits) const -> core::commit_asks;
+		void               queue_commit_ask(const core::commit_ask_row& aRow);
+		void               ask_about_commits(const core::prompt_offer& aOffer);
+		void               refuse_commit_ask(const std::string& aLabel, const std::string& aWhy);
+		/// [[BPR-2247]], [[BPR-2248]]. One changed file of a read change, as
+		/// the agent reads it. `window_returning_review.cpp`.
+		[[nodiscard]] auto compare_change_file(const application::returning_change_file& aFile) -> core::returning_change_file;
 		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: the press on the
 		/// drawer draft, its material, and the answer handed to the window,
 		/// whose core decides. `window_suggest_change.cpp`.
@@ -2439,6 +2450,14 @@ namespace bpr::app {
 			std::size_t Shown = 0U;
 		};
 		explain_file_state ExplainFile;
+		/// [[BPR-2248]]. The Commits selection prompt being read, by head and
+		/// prompt, and its material while its turn is sent.
+		struct commit_ask_state final
+		{
+			std::string                             Key;
+			std::optional<core::supplement_commits> Material;
+		};
+		commit_ask_state CommitAsk;
 		/// RFC-BPR-0118. The material of the press under way, sent with it.
 		std::optional<core::supplement_suggest_change> SuggestChangeMaterial;
 #if defined(BPR_BUILD_TESTING)

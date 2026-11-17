@@ -5596,6 +5596,21 @@ if(APPLE OR UNIX)
     set_tests_properties(application_review_report_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "review-report:pass")
 endif()
+# [[BPR-2248]]. The Commits tab's agent prompts on commit-selection-v1 (a merge
+# of main among four commits), answered by the fixture agent.
+bpr_add_executable(test_commit_asks_public_path commit_asks_public_path.cpp)
+target_link_libraries(test_commit_asks_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_commit_asks_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_commit_asks_public_path)
+bpr_enable_warnings(test_commit_asks_public_path)
+add_dependencies(test_commit_asks_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_commit_asks_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_commit_asks_public_path)
+    set_tests_properties(application_commit_asks_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "commit-asks:pass")
+endif()
 # [[BPR-2153]], RFC-BPR-0126 AC05. Steer through the window on the session
 # queue host: a follow-up steered into the steerable fixture agent's running
 # turn, and a queued message's Steer on an agent that can't be steered.

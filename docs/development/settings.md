@@ -198,7 +198,10 @@ The rest of the page applies to every agent:
 
 **Prompts** has two parts. **Surfaces** lists where prompts appear, in order:
 the pull request, file and thread **Ask** menus and their suggested chips (up
-to 5 show), and the tour's stop, part and whole-tour chats. Drag a prompt up
+to 5 show), the tour's stop, part and whole-tour chats, and the Commits tab's
+**Selection menu**, which asks about the selected commits (**Explain these
+commits** and **Review these commits** ship there; a prompt there may use
+`{commits}`, their short IDs). Drag a prompt up
 from the **Prompt library**, or right-click it and choose **Add to**. The
 library holds every prompt and filters by **All**, **Built-in**, **Yours**,
 **Not on a surface** or **System**. **New prompt** adds one of your own (the

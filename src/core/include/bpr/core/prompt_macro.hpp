@@ -58,6 +58,9 @@ namespace bpr::core {
 		part,
 		selected_text,
 		tour,
+		/// [[BPR-2248]]. The commits selected in the Commits tab: a prompt
+		/// placed on the Commits selection menu asks about them.
+		selected_commits,
 	};
 	[[nodiscard]] auto stable_name(prompt_subject aSubject) noexcept -> std::string_view;
 
@@ -65,7 +68,7 @@ namespace bpr::core {
 	enum class prompt_ask : std::uint8_t {
 		question,
 		/// A review with findings; the Agent tab only, about the pull
-		/// request or the open file.
+		/// request, the open file or the selected commits.
 		review,
 	};
 	[[nodiscard]] auto stable_name(prompt_ask aKind) noexcept -> std::string_view;
@@ -109,8 +112,11 @@ namespace bpr::core {
 		tour_stop,
 		tour_part,
 		whole_tour,
+		/// [[BPR-2248]]. The Commits tab's menu over the selected commits: a
+		/// menu of its own, not one of the Ask menus, never chips.
+		commits_menu,
 	};
-	inline constexpr std::size_t prompt_surface_count = 9U;
+	inline constexpr std::size_t prompt_surface_count = 10U;
 
 	/// \brief [[BPR-2179]]. Every surface's placements, in order, by prompt
 	/// identity; one prompt is on one surface at most once.
@@ -374,11 +380,13 @@ namespace bpr::core {
 		stop_number,
 		stop_title,
 		part,
+		/// [[BPR-2248]]. The selected commits' short IDs, oldest first.
+		commits,
 		/// Fills in nothing; marks where the caret goes. A template holding
 		/// it is put in the question field, never sent by a click.
 		cursor,
 	};
-	inline constexpr std::size_t prompt_variable_count = 17U;
+	inline constexpr std::size_t prompt_variable_count = 18U;
 	/// \brief The name written between braces: `pr.number`, `file.name`,
 	/// `cursor`.
 	[[nodiscard]] auto stable_name(prompt_variable aVariable) noexcept -> std::string_view;
@@ -509,6 +517,9 @@ namespace bpr::core {
 		std::optional<prompt_tour_part> Thread;
 		/// The part where tour text is selected, this chat's or another's.
 		std::optional<prompt_tour_part> Selection;
+		/// [[BPR-2248]]. The commits selected in the Commits tab, full IDs
+		/// oldest first; empty where none are.
+		std::vector<std::string> Commits;
 
 		auto operator<=>(const prompt_facts&) const = default;
 	};
@@ -572,6 +583,8 @@ namespace bpr::core {
 		condition,
 		/// The expansion is longer than `maximum_prompt_expansion_bytes`.
 		expansion_too_long,
+		/// [[BPR-2248]]. Its About or a variable needs selected commits.
+		needs_commits,
 	};
 	[[nodiscard]] auto stable_name(prompt_unmet aUnmet) noexcept -> std::string_view;
 
@@ -586,6 +599,10 @@ namespace bpr::core {
 		prompt_place     Place   = prompt_place::agent_tab;
 		prompt_subject   Subject = prompt_subject::pull_request;
 		prompt_ask       Kind    = prompt_ask::question;
+		/// [[BPR-2248]]. The commits an offer about selected commits asks
+		/// about, full IDs oldest first, as decided at the press; empty for
+		/// every other offer.
+		std::vector<std::string> Commits;
 
 		/// \brief Whether a click puts the expansion in the question field
 		/// rather than sending it (the template has `{cursor}`).

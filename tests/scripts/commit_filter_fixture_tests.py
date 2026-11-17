@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """RFC-BPR-0089. commit-filter-v1, commit-filter-attributes-v1,
-commit-filter-split-v1 and commit-filter-comment-v1 are exactly what their
-builder writes.
+commit-filter-split-v1, commit-filter-comment-v1 and commit-selection-v1
+([[BPR-2248]]) are exactly what their builder writes.
 
 The builder runs into a scratch root. Metadata equals the committed bytes;
 Git validates each pack and its complete object inventory equals the committed
@@ -32,8 +32,9 @@ VARIANTS = {
     "commit_filter_attributes_v1": ("commit-filter-attributes-v1", ["--attributes"]),
     "commit_filter_split_v1": ("commit-filter-split-v1", ["--split"]),
     "commit_filter_comment_v1": ("commit-filter-comment-v1", ["--comment"]),
+    "commit_selection_v1": ("commit-selection-v1", ["--merges"]),
 }
-FILES = {"commit-filter-v1": 98, "commit-filter-attributes-v1": 98, "commit-filter-split-v1": 99, "commit-filter-comment-v1": 99}
+FILES = {"commit-filter-v1": 98, "commit-filter-attributes-v1": 98, "commit-filter-split-v1": 99, "commit-filter-comment-v1": 99, "commit-selection-v1": 98}
 BASE_PLACEHOLDER = "1" * 40
 HEAD_PLACEHOLDER = "2" * 40
 
@@ -104,8 +105,16 @@ class CommitFilterFixtureTests(unittest.TestCase):
                 commits = json.loads((ROOT / contract / "responses/commits.json").read_text(encoding="utf-8"))
                 shas = [commit["sha"] for commit in commits]
                 parents = [[parent["sha"] for parent in commit["parents"]] for commit in commits]
-                self.assertEqual(len(commits), 3)
                 self.assertEqual(shas[-1], HEAD_PLACEHOLDER)
+                if name == "commit-selection-v1":
+                    # [[BPR-2248]]. C1 follows M, which is not the merge base;
+                    # X merges the base's tip into C2; C3 follows X.
+                    self.assertEqual(len(commits), 4)
+                    self.assertEqual(parents[1:], [[shas[0]], [shas[1], BASE_PLACEHOLDER], [shas[2]]])
+                    self.assertNotEqual(parents[0], [BASE_PLACEHOLDER])
+                    self.assertTrue(commits[2]["commit"]["message"].startswith("Merge branch 'main'"))
+                    continue
+                self.assertEqual(len(commits), 3)
                 self.assertEqual(parents, [[BASE_PLACEHOLDER], [shas[0]], [shas[1]]])
 
     def test_split_variant_serves_a_reworded_second_head(self) -> None:

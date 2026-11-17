@@ -222,25 +222,8 @@ namespace bpr::app {
 			}
 			// The comparisons are bounded by the host's side and file bounds,
 			// so they run here.
-			const auto compare = [this](const application::returning_change_file& aFile) -> core::returning_change_file {
-				if (aFile.TooLarge) {
-					return { .Path = aFile.Path, .Text = "File " + aFile.Path + " is too large to compare here\n" };
-				}
-				const auto asSpan = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
-					return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
-				};
-				const auto options = core::diff_options{ };
-				const auto left    = asSpan(aFile.Earlier);
-				const auto right   = asSpan(aFile.Current);
-				const auto mkey    = core::returning_comparison(aFile.Path, left, right, options);
-				if (!mkey || !LineMatcher) {
-					return { .Path = aFile.Path };
-				}
-				auto       matching = application::diff_line_matching{ *LineMatcher };
-				const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);
-				return { .Path = aFile.Path, .Text = outcome.Result ? core::render_returning_change(aFile.Path, *outcome.Result) : "File " + aFile.Path + " changed and could not be compared\n" };
-			};
-			auto steps = std::vector<core::returning_commit_files>{ };
+			const auto compare = [this](const application::returning_change_file& aFile) { return compare_change_file(aFile); };
+			auto       steps   = std::vector<core::returning_commit_files>{ };
 			for (std::size_t index = 0U; index < aRead.Steps.size() && index < heads.size(); ++index) {
 				auto& step = steps.emplace_back(core::returning_commit_files{ .Commit = heads[index].first, .Headline = heads[index].second });
 				for (const auto& file : aRead.Steps[index].Files) {
@@ -255,6 +238,28 @@ namespace bpr::app {
 			// Not admitted now (ingestion in flight); asked again shortly.
 			retry_returning_material();
 		}
+	}
+
+	/// [[BPR-2247]], [[BPR-2248]]. One changed file of a read change as the
+	/// agent reads it: its diff, or why there is none.
+	auto github_application::implementation::compare_change_file(const application::returning_change_file& aFile) -> core::returning_change_file
+	{
+		if (aFile.TooLarge) {
+			return { .Path = aFile.Path, .Text = "File " + aFile.Path + " is too large to compare here\n" };
+		}
+		const auto asSpan = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
+			return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
+		};
+		const auto options = core::diff_options{ };
+		const auto left    = asSpan(aFile.Earlier);
+		const auto right   = asSpan(aFile.Current);
+		const auto mkey    = core::returning_comparison(aFile.Path, left, right, options);
+		if (!mkey || !LineMatcher) {
+			return { .Path = aFile.Path };
+		}
+		auto       matching = application::diff_line_matching{ *LineMatcher };
+		const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);
+		return { .Path = aFile.Path, .Text = outcome.Result ? core::render_returning_change(aFile.Path, *outcome.Result) : "File " + aFile.Path + " changed and could not be compared\n" };
 	}
 
 	/// The earlier material could not be asked for yet (the cache not yet

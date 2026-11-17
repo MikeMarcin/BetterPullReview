@@ -2215,6 +2215,17 @@ namespace {
 														  application::commit_oid{ std::string(40U, 'e') } } },
 				   "a commit record's parents are kept in order (RFC-BPR-0089)");
 		}
+		// [[BPR-2248]]. A commit's message body, for the agent to read it against.
+		expect(result->Commits.size() == 1U && result->Commits.front().Body == "Body", "a commit keeps its message body");
+		expect(application::github_commit_body("Fix the parser\n\nIt read past the end.\nTwice.") == "It read past the end.\nTwice." && application::github_commit_body("One line").empty(),
+			   "the body is what follows the headline and its blank line");
+		{
+			auto message = std::string{ "Head\n\n" };
+			message.append(application::maximum_github_commit_body_bytes - 1U, 'b');
+			message.append("\xC3\xA9tail");
+			const auto body = application::github_commit_body(message);
+			expect(body.size() == application::maximum_github_commit_body_bytes - 1U, "a long body is cut at a character's boundary");
+		}
 		// [[BPR-2244]]. The committer's date, in seconds, for the Commits tab.
 		expect(result->Commits.size() == 1U && result->Commits.front().CommittedAt == std::optional{ std::int64_t{ 1'785'414'600 } },
 			   "a commit record keeps its committer's date");

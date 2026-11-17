@@ -139,6 +139,10 @@ namespace bpr::application {
 		/// front: the draft's lines, its words and the lines around them.
 		/// Absent for every other launch.
 		std::optional<core::supplement_suggest_change> SuggestChange;
+		/// [[BPR-2248]]. The commits a Commits selection prompt asks about,
+		/// with their messages and own changes, up front. Absent for every
+		/// other launch.
+		std::optional<core::supplement_commits> Commits;
 		/// [[BPR-1916]]. Skills the prompt named, carried inline
 		/// (`application::inline_skills`); empty for every launch that named
 		/// none.

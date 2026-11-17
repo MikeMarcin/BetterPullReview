@@ -245,6 +245,16 @@ namespace {
 		const auto text = encode_queued_prompt(offer);
 		expect(!decode_queued_prompt(text.substr(0U, text.size() - 1U)) && !decode_queued_prompt(text + "x") && !decode_queued_prompt("p2;" + text.substr(3U)) && !decode_queued_prompt(""),
 			   "a cut, padded or other version's value is none");
+		// [[BPR-2248]]. An offer about selected commits keeps them.
+		auto commits    = offer;
+		commits.Subject = prompt_subject::selected_commits;
+		commits.Commits = { std::string(40U, 'a'), std::string(40U, 'b') };
+		const auto both = encode_queued_prompt(commits);
+		expect(both.starts_with("p2;") && decode_queued_prompt(both) == std::optional{ commits }, "the commits an offer asks about are read back in order");
+		expect(!decode_queued_prompt(both.substr(0U, both.size() - 1U)) && !decode_queued_prompt("p1;" + both.substr(3U)), "a cut commit list, or one under the older version, is none");
+		auto shortId    = commits;
+		shortId.Commits = { "abc1234" };
+		expect(!decode_queued_prompt(encode_queued_prompt(shortId)), "a commit that is not a full ID is none");
 		auto queue   = agent_queue{ };
 		auto input   = ask("Ready to look again?");
 		input.Prompt = offer;

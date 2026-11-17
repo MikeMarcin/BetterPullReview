@@ -522,6 +522,13 @@ namespace bpr::app {
 			return false;
 		}
 		const auto firstAnswer = returning || explaining || suggesting;
+		// [[BPR-2248]]. A Commits selection prompt carries the selected
+		// commits, read at its release, beside its question: only the turn
+		// its send starts sees the material.
+		if (CommitAsk.Material && !aWritingOnly && !firstAnswer
+			&& (aEntryPoint == core::agent_entry_point::open_full_agent_session || aEntryPoint == core::agent_entry_point::run_ai_review)) {
+			observation.Commits = *CommitAsk.Material;
+		}
 		// [[BPR-2138]]. Ask more: the next Agent tab question opens with the
 		// one-off question and answer it continues, once.
 		if (!aWritingOnly && !firstAnswer && AskMoreSeed && aEntryPoint != core::agent_entry_point::workshop_comment) {

@@ -56,7 +56,10 @@ namespace bpr::core {
 		}
 
 		constexpr auto queued_prompt_version = std::string_view{ "p1;" };
-		constexpr auto queued_claim_version  = std::string_view{ "c1;" };
+		/// [[BPR-2248]]. With the commits an offer about selected commits
+		/// asks about, after its texts; `p1;` is read as before.
+		constexpr auto queued_prompt_commits_version = std::string_view{ "p2;" };
+		constexpr auto queued_claim_version          = std::string_view{ "c1;" };
 
 		/// One unsigned 64-bit decimal field and its `;`.
 		[[nodiscard]] auto take_wide(std::string_view& aFrom) -> std::optional<std::uint64_t>
@@ -733,7 +736,7 @@ namespace bpr::core {
 
 	auto encode_queued_prompt(const prompt_offer& aOffer) -> std::string
 	{
-		auto text = std::string{ queued_prompt_version };
+		auto text = std::string{ aOffer.Commits.empty() ? queued_prompt_version : queued_prompt_commits_version };
 		put_number(text, static_cast<std::size_t>(aOffer.Place));
 		put_number(text, static_cast<std::size_t>(aOffer.Subject));
 		put_number(text, static_cast<std::size_t>(aOffer.Kind));
@@ -747,12 +750,20 @@ namespace bpr::core {
 			put_number(text, field->size());
 			text += *field;
 		}
+		if (!aOffer.Commits.empty()) {
+			put_number(text, aOffer.Commits.size());
+			for (const auto& commit : aOffer.Commits) {
+				put_number(text, commit.size());
+				text += commit;
+			}
+		}
 		return text;
 	}
 
 	auto decode_queued_prompt(std::string_view aText) -> std::optional<prompt_offer>
 	{
-		if (!aText.starts_with(queued_prompt_version)) {
+		const auto withCommits = aText.starts_with(queued_prompt_commits_version);
+		if (!withCommits && !aText.starts_with(queued_prompt_version)) {
 			return std::nullopt;
 		}
 		aText.remove_prefix(queued_prompt_version.size());
@@ -761,7 +772,7 @@ namespace bpr::core {
 		const auto kind    = take_number(aText);
 		const auto cursor  = take_number(aText);
 		const auto values  = take_number(aText);
-		if (!place || *place >= prompt_place_count || !subject || *subject > static_cast<std::size_t>(prompt_subject::tour) || !kind
+		if (!place || *place >= prompt_place_count || !subject || *subject > static_cast<std::size_t>(prompt_subject::selected_commits) || !kind
 			|| *kind > static_cast<std::size_t>(prompt_ask::review) || !cursor || !values || *values > aText.size()) {
 			return std::nullopt;
 		}
@@ -780,6 +791,19 @@ namespace bpr::core {
 		auto id    = take_text(aText);
 		auto label = take_text(aText);
 		auto body  = take_text(aText);
+		if (withCommits) {
+			const auto count = take_number(aText);
+			if (!count || *count == 0U || *count > aText.size()) {
+				return std::nullopt;
+			}
+			for (auto index = std::size_t{ 0U }; index < *count; ++index) {
+				auto commit = take_text(aText);
+				if (!commit || commit->size() != 40U || !std::ranges::all_of(*commit, [](const char aByte) { return (aByte >= '0' && aByte <= '9') || (aByte >= 'a' && aByte <= 'f'); })) {
+					return std::nullopt;
+				}
+				offer.Commits.push_back(std::move(*commit));
+			}
+		}
 		if (!id || !label || !body || !aText.empty() || !utf8::valid(*body) || !utf8::valid(*label)) {
 			return std::nullopt;
 		}

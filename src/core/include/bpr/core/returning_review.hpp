@@ -360,6 +360,85 @@ namespace bpr::core {
 		auto operator<=>(const supplement_returning&) const = default;
 	};
 
+	/// \brief [[BPR-2248]]. The most commits one Commits selection asks about.
+	inline constexpr std::size_t maximum_selected_commits = 50U;
+	/// \brief [[BPR-2248]]. The longest headline and message body sent for one
+	/// selected commit; a longer one is cut at a character's boundary.
+	inline constexpr std::size_t maximum_selected_commit_headline_bytes = 512U;
+	inline constexpr std::size_t maximum_selected_commit_message_bytes  = 4U * 1024U;
+
+	/// \brief [[BPR-2248]]. Why a selection of commits cannot be asked about.
+	enum class commit_selection_refusal : std::uint8_t {
+		none,
+		/// No commit is selected.
+		nothing_selected,
+		/// More than `maximum_selected_commits` are selected.
+		too_many,
+		/// A selected commit is no longer one of the pull request's.
+		not_listed,
+		/// Every selected commit is a merge of the base branch (or has no
+		/// parent): there is no change of the pull request's own to ask about.
+		no_own_change,
+	};
+	[[nodiscard]] auto stable_name(commit_selection_refusal aRefusal) noexcept -> std::string_view;
+
+	/// \brief [[BPR-2248]]. What a selection of commits is read as.
+	struct commit_selection_plan
+	{
+		/// The selected commits in the pull request's order, oldest first.
+		std::vector<listed_commit> Selected;
+		/// Each selected commit's own change (`own_change_steps`): merges of
+		/// the base branch are left out.
+		std::vector<commit_change_step> Steps;
+		/// The selected merges of the base branch, by ID, in order.
+		std::vector<std::string> BaseMerges;
+		/// Generations from the head that hold every commit a step reads.
+		std::uint32_t            Depth   = 2U;
+		commit_selection_refusal Refusal = commit_selection_refusal::none;
+
+		auto operator<=>(const commit_selection_plan&) const = default;
+	};
+
+	/// \brief How the commits `aSelected` (full IDs, any order, contiguous or
+	/// not) are read. `aCommits` is the pull request's commits, oldest first,
+	/// with their parents; `aBase` the base branch's name.
+	[[nodiscard]] auto plan_commit_selection(const std::vector<std::string>& aSelected, const std::vector<listed_commit>& aCommits, std::string_view aBase) -> commit_selection_plan;
+
+	/// \brief [[BPR-2248]]. One selected commit as the agent reads it.
+	struct selected_commit
+	{
+		std::string Oid;
+		std::string Headline;
+		/// The message after its headline; empty when there is none.
+		std::string Message;
+		/// A merge of the base branch: named, its change left out.
+		bool MergesBase = false;
+
+		auto operator<=>(const selected_commit&) const = default;
+	};
+
+	/// \brief [[BPR-2248]]. A Commits selection's material, up front: the
+	/// commits asked about, in order, with their messages, and their own
+	/// changes commit by commit (`bound_returning_commits`).
+	struct supplement_commits
+	{
+		std::vector<selected_commit> Commits;
+		std::string                  Changes;
+		std::size_t                  FilesShown   = 0U;
+		std::size_t                  FilesOmitted = 0U;
+
+		auto operator<=>(const supplement_commits&) const = default;
+	};
+
+	/// \brief [[BPR-2248]]. The material within its bounds: each headline one
+	/// line and each headline and message cut at a character's boundary.
+	/// Nothing when there is no commit, more than `maximum_selected_commits`,
+	/// or a commit ID that is not a full lowercase hex ID.
+	[[nodiscard]] auto bound_selected_commits(std::vector<selected_commit> aCommits, returning_changes aChanges) -> std::optional<supplement_commits>;
+	/// \brief Whether a Commits selection's material is within every bound
+	/// `bound_selected_commits` keeps.
+	[[nodiscard]] auto valid(const supplement_commits& aCommits) -> bool;
+
 	/// \brief Whether a returning supplement is within every bound: both
 	/// heads named and different, changes only on a latest-upload run and
 	/// within its bound, lines only on a proposed-fix run and within theirs.

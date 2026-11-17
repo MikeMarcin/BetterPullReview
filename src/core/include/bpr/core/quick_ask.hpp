@@ -320,6 +320,45 @@ namespace bpr::core {
 	/// so a release sends it as decided at the press. None when it no longer
 	/// applies.
 	[[nodiscard]] auto decide_quick_ask_prompt(const prompt_macro& aMacro, const quick_ask_facts& aFacts, std::string_view aItem) -> std::optional<prompt_offer>;
+
+	/// \brief [[BPR-2248]]. One row of the Commits selection menu: a prompt
+	/// placed there, and what a press sends.
+	struct commit_ask_row
+	{
+		std::string Id;
+		std::string Label;
+		prompt_ask  Kind    = prompt_ask::question;
+		bool        Enabled = true;
+		/// The untrue condition a disabled row gives the reason of; none when
+		/// the selection itself refuses (`commit_asks::Refusal`).
+		std::optional<prompt_condition> Condition;
+		/// What it waits for while enabled: `agent_not_set_up` or `agent_busy`.
+		quick_ask_reason Waits = quick_ask_reason::none;
+		/// What a press sends, its commits named; none while disabled.
+		std::optional<prompt_offer> Offer;
+
+		auto operator<=>(const commit_ask_row&) const = default;
+	};
+
+	/// \brief [[BPR-2248]]. The Commits selection menu's agent rows.
+	struct commit_asks
+	{
+		std::vector<commit_ask_row> Rows;
+		/// Why the selection cannot be asked about; every row is disabled.
+		commit_selection_refusal Refusal = commit_selection_refusal::none;
+
+		auto operator<=>(const commit_asks&) const = default;
+	};
+
+	/// \brief [[BPR-2248]]. Decides the Commits selection menu from the placed
+	/// prompts in order: only the copies on `prompt_surface::commits_menu`,
+	/// decided against the pull request's facts with `aCommits` (full IDs,
+	/// oldest first) as the selection. A prompt whose conditions do not hold
+	/// is hidden or disabled as it says; one that is off, invalid or needs
+	/// anything but commits is not listed. A selection refused by
+	/// `aRefusal` disables every row.
+	[[nodiscard]] auto decide_commit_asks(std::span<const prompt_macro> aPlaced, const quick_ask_facts& aFacts, const std::vector<std::string>& aCommits, commit_selection_refusal aRefusal)
+		-> commit_asks;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_QUICK_ASK_HPP

@@ -156,6 +156,10 @@ namespace bpr::app::detail {
 		/// as BPR-Test #116 for comments on a filtered diff; see
 		/// `scripts/build_commit_filter_fixture.py --comment`.
 		commit_filter_comment_v1,
+		/// [[BPR-2248]]. commit_filter_v1's chain with a merge of the base
+		/// branch between C2 and C3, and messages with bodies: four commits;
+		/// see `scripts/build_commit_filter_fixture.py --merges`.
+		commit_selection_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

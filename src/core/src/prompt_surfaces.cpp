@@ -15,6 +15,7 @@ namespace bpr::core {
 			"tour-stop",
 			"tour-part",
 			"whole-tour",
+			"commits-menu",
 		};
 
 		[[nodiscard]] auto list(prompt_surfaces& aSurfaces, const prompt_surface aSurface) -> std::vector<std::string>&
@@ -40,10 +41,14 @@ namespace bpr::core {
 			if (!prompt_variable_allowed(surface_place(aSurface), aVariable)) {
 				return false;
 			}
-			// The pull request's surfaces have no file or lines.
+			// The pull request's surfaces and the Commits selection have no
+			// file or lines; only the Commits selection has commits.
 			const auto fileOrLines = aVariable == prompt_variable::file || aVariable == prompt_variable::file_name || aVariable == prompt_variable::lines
 				|| aVariable == prompt_variable::lines_first || aVariable == prompt_variable::lines_last;
-			return !(fileOrLines && (aSurface == prompt_surface::pull_request_menu || aSurface == prompt_surface::pull_request_chips));
+			if (aVariable == prompt_variable::commits) {
+				return aSurface == prompt_surface::commits_menu;
+			}
+			return !(fileOrLines && (aSurface == prompt_surface::pull_request_menu || aSurface == prompt_surface::pull_request_chips || aSurface == prompt_surface::commits_menu));
 		}
 
 		[[nodiscard]] auto is_tour_surface(const prompt_surface aSurface) noexcept -> bool
@@ -66,7 +71,7 @@ namespace bpr::core {
 
 	auto is_menu(const prompt_surface aSurface) noexcept -> bool
 	{
-		return aSurface == prompt_surface::pull_request_menu || aSurface == prompt_surface::file_menu || aSurface == prompt_surface::thread_menu;
+		return aSurface == prompt_surface::pull_request_menu || aSurface == prompt_surface::file_menu || aSurface == prompt_surface::thread_menu || aSurface == prompt_surface::commits_menu;
 	}
 
 	auto surface_scope(const prompt_surface aSurface) noexcept -> std::optional<prompt_scope>
@@ -100,6 +105,12 @@ namespace bpr::core {
 			if (macro.Action != prompt_action::none) {
 				continue;
 			}
+			// [[BPR-2248]]. A prompt about selected commits is on the Commits
+			// selection, and nowhere else.
+			if (macro.Body.Subject == prompt_subject::selected_commits) {
+				list(surfaces, prompt_surface::commits_menu).push_back(macro.Id);
+				continue;
+			}
 			switch (macro.Place) {
 			case prompt_place::agent_tab:
 				list(surfaces, macro.Body.Subject == prompt_subject::pull_request ? prompt_surface::pull_request_chips : prompt_surface::file_chips).push_back(macro.Id);
@@ -123,12 +134,22 @@ namespace bpr::core {
 		case placement_refusal::not_placed:           return "It is not on that surface.";
 		case placement_refusal::wrong_chat:           return "It was written for another chat.";
 		case placement_refusal::action_too_narrow:    return "This action asks about more than this menu's scope holds.";
+		case placement_refusal::action_not_commits:   return "This prompt runs an action of its own, which can't ask about selected commits.";
+		case placement_refusal::commits_only:         return "It asks about selected commits, which only the Commits selection menu holds.";
 		}
 		return "";
 	}
 
 	auto placement_refusal_of(const prompt_macro& aMacro, const prompt_surface aSurface) -> placement_refusal
 	{
+		// [[BPR-2248]]. The Commits selection takes ordinary prompts only,
+		// and a prompt about selected commits goes nowhere else.
+		if (aSurface == prompt_surface::commits_menu && aMacro.Action != prompt_action::none) {
+			return placement_refusal::action_not_commits;
+		}
+		if (aSurface != prompt_surface::commits_menu && aMacro.Body.Subject == prompt_subject::selected_commits) {
+			return placement_refusal::commits_only;
+		}
 		if (aMacro.Action != prompt_action::none && !is_menu(aSurface)) {
 			return placement_refusal::action_not_chip;
 		}
@@ -256,6 +277,15 @@ namespace bpr::core {
 		auto placed      = aMacro;
 		placed.Surface   = aSurface;
 		const auto scope = surface_scope(aSurface);
+		if (aSurface == prompt_surface::commits_menu) {
+			// [[BPR-2248]]. Asked in the Agent tab about the selected commits;
+			// a review stays a review.
+			placed.Place         = prompt_place::agent_tab;
+			placed.Body.Subject  = prompt_subject::selected_commits;
+			placed.Body.QuickAsk = false;
+			placed.Body.Scopes   = { };
+			return placed;
+		}
 		if (!scope) {
 			// A tour chat: its own place, and what that place asks about.
 			placed.Place = surface_place(aSurface);
@@ -313,7 +343,7 @@ namespace bpr::core {
 	{
 		auto offers = std::vector<prompt_offer>{ };
 		for (const auto& macro : aPlaced) {
-			if (!macro.Surface || !is_menu(*macro.Surface) || macro.Action != prompt_action::none || macro.Place != aFacts.Place
+			if (!macro.Surface || !is_menu(*macro.Surface) || *macro.Surface == prompt_surface::commits_menu || macro.Action != prompt_action::none || macro.Place != aFacts.Place
 				|| std::ranges::find(offers, macro.Id, &prompt_offer::Id) != offers.end()) {
 				continue;
 			}

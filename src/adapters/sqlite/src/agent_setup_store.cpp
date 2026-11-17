@@ -2802,7 +2802,7 @@ namespace bpr::adapters::sqlite {
 					if (body) {
 						macro.Body.Name       = column_text(row->Value, 4).value_or(std::string{ });
 						macro.Body.Template   = column_text(row->Value, 5).value_or(std::string{ });
-						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), 8U);
+						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), 9U);
 						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), 2U);
 						auto       match      = core::prompt_match::all;
 						auto       groups     = std::vector<core::prompt_condition_group>{ };
@@ -2978,7 +2978,7 @@ namespace bpr::adapters::sqlite {
 						continue;
 					}
 					const auto place   = named_value<core::prompt_place>(column_text(prompts->Value, 3).value_or(std::string{ }), core::prompt_place_count);
-					const auto subject = named_value<core::prompt_subject>(column_text(prompts->Value, 4).value_or(std::string{ }), 8U);
+					const auto subject = named_value<core::prompt_subject>(column_text(prompts->Value, 4).value_or(std::string{ }), 9U);
 					if (!place || !subject) {
 						continue;
 					}

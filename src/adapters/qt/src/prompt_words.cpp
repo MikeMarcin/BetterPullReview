@@ -130,6 +130,7 @@ namespace bpr::qt {
 		case tour_stop:          return QObject::tr("Tour stop chips");
 		case tour_part:          return QObject::tr("Tour part chips");
 		case whole_tour:         return QObject::tr("Whole tour chips");
+		case commits_menu:       return QObject::tr("Commits selection menu");
 		}
 		return { };
 	}

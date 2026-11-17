@@ -43,6 +43,21 @@ request, so its Files changed is the same 98 files and the head's rules mark
     build_commit_filter_fixture.py --attributes [--root <dir> | <out.json>]
     build_commit_filter_fixture.py --split [--root <dir> | <out.json>]
     build_commit_filter_fixture.py --comment [--root <dir> | <out.json>]
+    build_commit_filter_fixture.py --merges [--root <dir> | <out.json>]
+
+With `--merges` it writes commit-selection-v1 instead ([[BPR-2248]]): the same
+chain with a merge of the base branch between C2 and C3, and commit messages
+with bodies. While C1 and C2 were made, `main` gained B1, which adds
+`docs/release-notes.md`; X merges `main` into the branch (parents C2 and B1),
+and C3 follows it:
+
+    M --- C1 --- C2 --- X --- C3
+     \\                 /
+      B1 -------------
+
+B1 is both the base branch's tip and the merge base, so Files changed is
+`B1...C3`, the plain variant's 98 files, and the merge's own change (the
+release notes) is in none of them. The commit list serves four commits.
 """
 
 from __future__ import annotations
@@ -72,6 +87,17 @@ VARIANTS = {
     "attributes": {"name": "commit-filter-attributes-v1", "repository": "commit-filter-attributes", "number": 1692},
     "split": {"name": "commit-filter-split-v1", "repository": "commit-filter-split", "number": 893},
     "comment": {"name": "commit-filter-comment-v1", "repository": "commit-filter-comment", "number": 894},
+    "merges": {"name": "commit-selection-v1", "repository": "commit-selection", "number": 2248},
+}
+# [[BPR-2248]]. The file the base branch gained while the branch was made.
+RELEASE_NOTES = "docs/release-notes.md"
+RELEASE_NOTES_TEXT = "# Release notes\n\n- The base branch's own change, merged into the pull request.\n"
+MERGE_MESSAGE = "Merge branch 'main' into commit-selection"
+# Messages with bodies, so the agent reads each change against its message.
+MERGES_MESSAGES = {
+    "C1": "Change the generator input\n\nThe generator reads value 2 now, and the app's fifth line names the change.",
+    "C2": "Regenerate\n\nRun the generator over gen/. Nothing here is edited by hand.",
+    "C3": "Follow-ups\n\nTidy src/app.cpp after the regeneration.",
 }
 # RFC-BPR-0089 M4. The file a comment is written on with C3 hidden.
 NOTES_PATH = "src/notes.txt"
@@ -193,9 +219,43 @@ def write(repository: str, files: dict[str, str]) -> None:
         target.write_bytes(text.encode("utf-8"))
 
 
+def build_merges(repository: str) -> dict[str, str]:
+    """[[BPR-2248]]. M, C1 and C2 on the branch; B1 on main; X merging main
+    into the branch; C3 on X."""
+    commits: dict[str, str] = {}
+    write(repository, snapshot("M"))
+    git(repository, "add", "-A")
+    git(repository, "commit", "-q", "-m", "merge base")
+    commits["M"] = git(repository, "rev-parse", "HEAD")
+    git(repository, "checkout", "-q", "-b", "commit-selection")
+    for stage in ("C1", "C2"):
+        write(repository, snapshot(stage))
+        git(repository, "add", "-A")
+        git(repository, "commit", "-q", "-m", MERGES_MESSAGES[stage])
+        commits[stage] = git(repository, "rev-parse", "HEAD")
+    git(repository, "checkout", "-q", "main")
+    write(repository, {RELEASE_NOTES: RELEASE_NOTES_TEXT})
+    git(repository, "add", "-A")
+    git(repository, "commit", "-q", "-m", "Add release notes")
+    commits["B1"] = git(repository, "rev-parse", "HEAD")
+    git(repository, "checkout", "-q", "commit-selection")
+    write(repository, {RELEASE_NOTES: RELEASE_NOTES_TEXT})
+    git(repository, "add", "-A")
+    tree = git(repository, "write-tree")
+    commits["X"] = git(repository, "commit-tree", tree, "-p", commits["C2"], "-p", commits["B1"], "-m", MERGE_MESSAGE)
+    git(repository, "reset", "-q", "--soft", commits["X"])
+    write(repository, snapshot("C3"))
+    git(repository, "add", "-A")
+    git(repository, "commit", "-q", "-m", MERGES_MESSAGES["C3"])
+    commits["C3"] = git(repository, "rev-parse", "HEAD")
+    return commits
+
+
 def build(repository: str, variant: str = "plain") -> dict[str, str]:
     subprocess.run(["git", "init", "-q", "--initial-branch=main", repository], check=True, capture_output=True,
                    env={**os.environ, **pack.FIXTURE_ENVIRONMENT})
+    if variant == "merges":
+        return build_merges(repository)
     commits: dict[str, str] = {}
     for stage in ("M", "C1", "C2", "C3"):
         write(repository, snapshot(stage, variant))
@@ -211,30 +271,63 @@ def build(repository: str, variant: str = "plain") -> dict[str, str]:
 
 def construction(commits: dict[str, str], name: str = "plain") -> dict:
     variant = VARIANTS[name]
+    merges = name == "merges"
     base = snapshot("M", name)
     head = snapshot("C3", name)
+    if merges:
+        base[RELEASE_NOTES] = RELEASE_NOTES_TEXT
+        head[RELEASE_NOTES] = RELEASE_NOTES_TEXT
     nested.FILES = tuple((path, base[path], head[path]) for path in sorted(head) if base.get(path) != head[path])
-    nested.BASE_OID = commits["M"]
+    nested.BASE_OID = commits["B1"] if merges else commits["M"]
     nested.HEAD_OID = commits["C3"]
     result = nested.construction()
     result["constructed"] = f"Synthetic RFC-BPR-0089 {variant['repository']} course written by scripts/build_commit_filter_fixture.py; not a recording"
     result["repository"] = {"name": variant["repository"], "owner": "bpr-fixtures"}
     result["pull_request"].update(number=variant["number"], title="Change the generator input and regenerate",
-                                  body="Synthetic course: a source change, a regeneration and follow-ups to both.\n", commits=3)
+                                  body="Synthetic course: a source change, a regeneration and follow-ups to both.\n", commits=4 if merges else 3)
     result["pull_request"]["head"]["ref"] = variant["repository"]
     author = result["commits"][0]["author"]
-    result["commits"] = [
-        {"author": author, "message": MESSAGES["C1"], "parents": [commits["M"]], "sha": commits["C1"]},
-        {"author": author, "message": MESSAGES["C2"], "parents": [commits["C1"]], "sha": commits["C2"]},
-        {"author": author, "message": MESSAGES["C3"], "parents": [commits["C2"]], "sha": commits["C3"]},
-    ]
+    if merges:
+        result["commits"] = [
+            {"author": author, "message": MERGES_MESSAGES["C1"], "parents": [commits["M"]], "sha": commits["C1"]},
+            {"author": author, "message": MERGES_MESSAGES["C2"], "parents": [commits["C1"]], "sha": commits["C2"]},
+            {"author": author, "message": MERGE_MESSAGE, "parents": [commits["C2"], commits["B1"]], "sha": commits["X"]},
+            {"author": author, "message": MERGES_MESSAGES["C3"], "parents": [commits["X"]], "sha": commits["C3"]},
+        ]
+    else:
+        result["commits"] = [
+            {"author": author, "message": MESSAGES["C1"], "parents": [commits["M"]], "sha": commits["C1"]},
+            {"author": author, "message": MESSAGES["C2"], "parents": [commits["C1"]], "sha": commits["C2"]},
+            {"author": author, "message": MESSAGES["C3"], "parents": [commits["C2"]], "sha": commits["C3"]},
+        ]
     result["packed_history"] = True
     result["serve_parents"] = True
-    result["merge_base"] = commits["M"]
+    result["merge_base"] = commits["B1"] if merges else commits["M"]
     return result
 
 
+def verify_merges(result: dict, repository: str, commits: dict[str, str]) -> list[str]:
+    """[[BPR-2248]]. B1 is the merge base; Files changed is the plain 98; X
+    merges main and carries only the release notes as its first-parent change."""
+    failures = pack.verify(result, repository, commits["B1"], commits["C3"])
+    if git(repository, "merge-base", commits["B1"], commits["C3"]) != commits["B1"]:
+        failures.append("B1 must be the merge base")
+    if len(result["files"]) != GENERATED + 2:
+        failures.append(f"Whole PR must list {GENERATED + 2} files, not {len(result['files'])}")
+    if any(file["filename"] == RELEASE_NOTES for file in result["files"]):
+        failures.append("the base branch's own change must not be in Files changed")
+    if git(repository, "rev-parse", f"{commits['X']}^1", f"{commits['X']}^2").splitlines() != [commits["C2"], commits["B1"]]:
+        failures.append("X must merge B1 into C2")
+    if set(git(repository, "diff", "--name-only", commits["C2"], commits["X"]).splitlines()) != {RELEASE_NOTES}:
+        failures.append("X's first-parent change must be the release notes alone")
+    if git(repository, "rev-parse", f"{commits['C3']}^") != commits["X"]:
+        failures.append("C3 must follow X")
+    return failures
+
+
 def verify(result: dict, repository: str, commits: dict[str, str], variant: str = "plain") -> list[str]:
+    if variant == "merges":
+        return verify_merges(result, repository, commits)
     failures = pack.verify(result, repository, commits["M"], commits["C3"])
     split = variant == "split"
     if variant == "attributes":
@@ -280,7 +373,7 @@ def main() -> int:
     source = Path(__file__).resolve().parents[1]
     arguments = sys.argv[1:]
     variant = "plain"
-    if arguments[:1] in (["--attributes"], ["--split"], ["--comment"]):
+    if arguments[:1] in (["--attributes"], ["--split"], ["--comment"], ["--merges"]):
         variant = arguments[0][2:]
         arguments = arguments[1:]
     name = VARIANTS[variant]["name"]

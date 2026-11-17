@@ -12431,6 +12431,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "commit-selection-v1") {
+				// [[BPR-2248]]. commit-filter-v1's chain with a merge of the base
+				// branch among its four commits, for judging the Commits tab's
+				// agent prompts; see `scripts/build_commit_filter_fixture.py --merges`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::commit_selection_v1;
+				fixtureName            = "commit-selection-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "commit-selection",
+					.Number                   = 2248,
+					.ExpectedTitle            = "Change the generator input and regenerate",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "nested-folders-v1") {
 				// [[BPR-1213]]. Constructed, not recorded: several folders,
 				// nested subfolders and a root file, for judging the Overview's

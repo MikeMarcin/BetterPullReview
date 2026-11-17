@@ -910,6 +910,10 @@ namespace bpr::app {
 		// decides what it asks about.
 		const auto set   = placed_prompts();
 		auto       macro = std::ranges::find_if(set, [&aEntry](const core::prompt_macro& aMacro) {
+			// [[BPR-2248]]. The Commits selection's copy is queued as `commits`.
+			if (aEntry.Input.Scope == "commits") {
+				return aMacro.Id == aEntry.Input.QuickAsk && aMacro.Surface == std::optional{ core::prompt_surface::commits_menu };
+			}
 			return aMacro.Id == aEntry.Input.QuickAsk && aMacro.Surface && core::is_menu(*aMacro.Surface) && core::surface_scope(*aMacro.Surface)
 				&& core::stable_name(*core::surface_scope(*aMacro.Surface)) == aEntry.Input.Scope;
 		});
@@ -934,6 +938,16 @@ namespace bpr::app {
 			}
 			break;
 		case core::prompt_action::none:
+			// [[BPR-2248]]. About selected commits: their changes are read
+			// first, then the offer decided at the press is sent with them.
+			if (macro->Body.Subject == core::prompt_subject::selected_commits) {
+				if (aEntry.Input.Prompt && !aEntry.Input.Prompt->Commits.empty()) {
+					ask_about_commits(*aEntry.Input.Prompt);
+				} else {
+					refuse_commit_ask(macro->Body.Name, "the queued question no longer names its commits.");
+				}
+				break;
+			}
 			if (macro->Body.Subject == core::prompt_subject::conversation) {
 				ask_agent_about_thread(aEntry.Input.Threads.empty() ? std::string{ } : aEntry.Input.Threads.front());
 			} else {

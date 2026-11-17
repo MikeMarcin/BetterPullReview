@@ -298,10 +298,67 @@ namespace {
 		const auto bounded = core::bound_returning_commits(std::move(many));
 		expect(bounded.FilesShown == core::maximum_returning_files && bounded.FilesOmitted == 2U, "past the file bound the rest are counted, not shown");
 	}
+
+	/// [[BPR-2248]]. A selection of commits, contiguous or not, is read in the
+	/// pull request's order as each real commit's own change; a merge of the
+	/// base is named and left out; the depth reaches the oldest selected.
+	void a_selection_of_commits_is_planned_around_base_merges()
+	{
+		const auto commits = std::vector{ listed('1', { 'a' }, "Start"), listed('2', { '1' }, "Fix the parser"), listed('3', { '2', 'b' }, "Merge branch 'main' into feature"),
+										  listed('4', { '3' }, "Handle the empty case"), listed('5', { '4' }, "Tidy") };
+		const auto plan    = core::plan_commit_selection({ commit('4'), commit('3'), commit('2') }, commits, "main");
+		expect(plan.Refusal == core::commit_selection_refusal::none, "a selection of the pull request's commits is planned");
+		expect(plan.Selected.size() == 3U && plan.Selected[0].Oid == commit('2') && plan.Selected[1].Oid == commit('3') && plan.Selected[2].Oid == commit('4'),
+			   "in the pull request's order, whatever order they were selected in");
+		expect(plan.Steps
+				   == std::vector<core::commit_change_step>{ { .Parent = commit('1'), .Commit = commit('2'), .Headline = "Fix the parser" },
+															 { .Parent = commit('3'), .Commit = commit('4'), .Headline = "Handle the empty case" } },
+			   "each real commit's own change; the merge of main carries none");
+		expect(plan.BaseMerges == std::vector{ commit('3') }, "the merge of main is named");
+		expect(plan.Depth == 5U, "four commits from the oldest selected to the head, and its parent");
+
+		const auto apart = core::plan_commit_selection({ commit('5'), commit('2') }, commits, "main");
+		expect(apart.Refusal == core::commit_selection_refusal::none && apart.Steps.size() == 2U && apart.Steps[0].Commit == commit('2') && apart.Steps[1].Commit == commit('5'),
+			   "commits that are not contiguous are each their own change");
+
+		expect(core::plan_commit_selection({ commit('3') }, commits, "main").Refusal == core::commit_selection_refusal::no_own_change,
+			   "a merge of main alone changes nothing of the pull request's own");
+		expect(core::plan_commit_selection({ }, commits, "main").Refusal == core::commit_selection_refusal::nothing_selected, "nothing selected");
+		expect(core::plan_commit_selection({ commit('9') }, commits, "main").Refusal == core::commit_selection_refusal::not_listed, "a commit no longer listed");
+		auto many = std::vector<core::listed_commit>{ };
+		auto ids  = std::vector<std::string>{ };
+		for (std::size_t index = 0U; index <= core::maximum_selected_commits; ++index) {
+			auto oid = std::string(38U, '0') + (index < 10U ? "0" : "") + std::to_string(index);
+			many.push_back({ .Oid = oid, .Headline = "c", .Parents = { many.empty() ? std::string(40U, 'f') : many.back().Oid } });
+			ids.push_back(oid);
+		}
+		expect(core::plan_commit_selection(ids, many, "main").Refusal == core::commit_selection_refusal::too_many, "past the bound, refused");
+	}
+
+	/// [[BPR-2248]]. The material keeps its bounds: one-line headlines, cut
+	/// messages, full commit IDs.
+	void the_selected_commits_keep_their_bounds()
+	{
+		auto changes = core::returning_changes{ .Text = "Commit 2222222: Fix\n", .FilesShown = 1U };
+		auto long_   = std::string(core::maximum_selected_commit_message_bytes + 10U, 'm');
+		long_.replace(core::maximum_selected_commit_message_bytes - 1U, 2U, "\xC3\xA9");
+		const auto material = core::bound_selected_commits({ { .Oid = commit('2'), .Headline = "Fix\nsecond line", .Message = long_ }, { .Oid = commit('3'), .Headline = "Merge", .MergesBase = true } }, changes);
+		expect(material && core::valid(*material), "a selection within bounds is material");
+		expect(material->Commits[0].Headline == "Fix" && material->Commits[0].Message.size() == core::maximum_selected_commit_message_bytes - 1U && material->Commits[1].MergesBase,
+			   "a headline is one line and a message is cut at a character's boundary");
+		expect(material->Changes == changes.Text && material->FilesShown == 1U, "the changes are carried as read");
+		expect(!core::bound_selected_commits({ }, changes), "no commit, no material");
+		expect(!core::bound_selected_commits({ { .Oid = "abc1234" } }, changes), "a short ID is refused");
+		auto bad               = *material;
+		bad.Commits[0].Message = "\xff";
+		expect(!core::valid(bad), "a message that is not UTF-8 is not valid");
+	}
 }
 
 auto main() -> int
 {
+	a_selection_of_commits_is_planned_around_base_merges();
+	the_selected_commits_keep_their_bounds();
 	thread_baseline_is_decided_in_core();
 	own_changes_leave_out_merges_of_the_base();
 	the_change_since_a_review_is_planned_around_base_merges();

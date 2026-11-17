@@ -1,6 +1,8 @@
 #include "bpr/qt/commit_filter_view.hpp"
 
+#include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
+#include "bpr/qt/prompt_words.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "refresh_age_words.hpp"
 
@@ -547,7 +549,7 @@ namespace bpr::qt {
 		});
 		column->addWidget(List, 1);
 
-		Hint = new QLabel{ QStringLiteral("Select commits, then open the context menu to show or hide them."), this };
+		Hint = new QLabel{ QStringLiteral("Select commits, then open the context menu to show or hide them, or to ask the agent about them."), this };
 		Hint->setObjectName(QStringLiteral("commitFilterHint"));
 		Hint->setTextFormat(Qt::PlainText);
 		Hint->setWordWrap(true);
@@ -692,6 +694,25 @@ namespace bpr::qt {
 		return commits;
 	}
 
+	void commit_filter_tab::set_agent_asks(std::function<core::commit_asks(const std::vector<std::string>&)> aDecide, std::function<void(const core::commit_ask_row&)> aDispatch)
+	{
+		AgentAsks = std::move(aDecide);
+		AgentAsk  = std::move(aDispatch);
+	}
+
+	auto commit_selection_refusal_text(const core::commit_selection_refusal aRefusal) -> QString
+	{
+		switch (aRefusal) {
+		case core::commit_selection_refusal::none:
+		case core::commit_selection_refusal::nothing_selected: return { };
+		case core::commit_selection_refusal::too_many:
+			return commit_filter_tab::tr("Select at most %1 commits to ask the agent about them.").arg(static_cast<qulonglong>(core::maximum_selected_commits));
+		case core::commit_selection_refusal::not_listed:    return commit_filter_tab::tr("A selected commit is no longer in this pull request.");
+		case core::commit_selection_refusal::no_own_change: return commit_filter_tab::tr("These commits only merge the base branch, so they change nothing of the pull request's own.");
+		}
+		return { };
+	}
+
 	auto commit_filter_tab::make_menu(QWidget* const aParent) -> QMenu*
 	{
 		auto* const menu = new QMenu{ aParent };
@@ -732,6 +753,46 @@ namespace bpr::qt {
 				FileFilter(commits);
 			}
 		});
+		// [[BPR-2248]]. The prompts placed on the Commits selection menu, in
+		// their order: Explain these commits and Review these commits ship
+		// there. A plain click queues the question, as an Ask menu's does.
+		if (AgentAsks && !commits.empty()) {
+			const auto asks = AgentAsks(commits);
+			if (!asks.Rows.empty()) {
+				menu->addSeparator();
+				const auto glyph = agent_glyph(menu->palette());
+				for (const auto& row : asks.Rows) {
+					auto* const action = menu->addAction(glyph, QString::fromStdString(row.Label));
+					action->setObjectName(QStringLiteral("commitAsk_%1").arg(QString::fromStdString(row.Id)));
+					action->setEnabled(row.Enabled && static_cast<bool>(AgentAsk));
+					const auto waits = row.Waits == core::quick_ask_reason::agent_not_set_up ? tr(" It waits until the agent is set up.")
+						: row.Waits == core::quick_ask_reason::agent_busy                    ? tr(" It waits until the agent's current answer finishes.")
+																							 : QString{ };
+					const auto tip   = row.Enabled ? (commits.size() == 1U ? tr("Ask the agent about the selected commit. The answer opens in the Agent tab.")
+																		   : tr("Ask the agent about the %1 selected commits. The answer opens in the Agent tab.").arg(static_cast<qulonglong>(commits.size())))
+							+ waits
+						: row.Condition ? prompt_condition_reason(*row.Condition)
+										: commit_selection_refusal_text(asks.Refusal);
+					action->setToolTip(tip);
+					action->setStatusTip(tip);
+					connect(action, &QAction::triggered, this, [this, row] {
+						if (AgentAsk) {
+							AgentAsk(row);
+						}
+					});
+				}
+				// A native menu may not show a disabled item's tooltip, so a
+				// selection that cannot be asked about says why under its rows.
+				if (const auto why = commit_selection_refusal_text(asks.Refusal); !why.isEmpty()) {
+					auto* const note = menu->addAction(why);
+					note->setObjectName(QStringLiteral("commitAskNote"));
+					note->setEnabled(false);
+					auto font = note->font();
+					font.setItalic(true);
+					note->setFont(font);
+				}
+			}
+		}
 		menu->addSeparator();
 		auto* const clearAction = menu->addAction(QStringLiteral("Clear all filters"));
 		clearAction->setObjectName(QStringLiteral("commitFilterClearAll"));

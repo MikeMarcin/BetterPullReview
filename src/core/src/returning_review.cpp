@@ -432,6 +432,115 @@ namespace bpr::core {
 		return result;
 	}
 
+	auto stable_name(const commit_selection_refusal aRefusal) noexcept -> std::string_view
+	{
+		switch (aRefusal) {
+		case commit_selection_refusal::none:             return "none";
+		case commit_selection_refusal::nothing_selected: return "nothing-selected";
+		case commit_selection_refusal::too_many:         return "too-many";
+		case commit_selection_refusal::not_listed:       return "not-listed";
+		case commit_selection_refusal::no_own_change:    return "no-own-change";
+		}
+		return "unknown";
+	}
+
+	auto plan_commit_selection(const std::vector<std::string>& aSelected, const std::vector<listed_commit>& aCommits, const std::string_view aBase) -> commit_selection_plan
+	{
+		auto plan = commit_selection_plan{ };
+		if (aSelected.empty()) {
+			plan.Refusal = commit_selection_refusal::nothing_selected;
+			return plan;
+		}
+		auto unique = std::vector<std::string>{ };
+		for (const auto& commit : aSelected) {
+			if (std::ranges::find(unique, commit) == unique.end()) {
+				unique.push_back(commit);
+			}
+		}
+		if (unique.size() > maximum_selected_commits) {
+			plan.Refusal = commit_selection_refusal::too_many;
+			return plan;
+		}
+		auto all    = std::vector<std::string>{ };
+		auto oldest = aCommits.size();
+		for (std::size_t index = 0U; index < aCommits.size(); ++index) {
+			all.push_back(aCommits[index].Oid);
+			if (std::ranges::find(unique, aCommits[index].Oid) != unique.end()) {
+				plan.Selected.push_back(aCommits[index]);
+				oldest = std::min(oldest, index);
+			}
+		}
+		if (plan.Selected.size() != unique.size()) {
+			plan.Selected.clear();
+			plan.Refusal = commit_selection_refusal::not_listed;
+			return plan;
+		}
+		for (const auto& commit : plan.Selected) {
+			if (merges_base(commit, aBase, all)) {
+				plan.BaseMerges.push_back(commit.Oid);
+			}
+		}
+		plan.Steps = own_change_steps(plan.Selected, all, aBase);
+		if (plan.Steps.empty()) {
+			plan.Refusal = commit_selection_refusal::no_own_change;
+			return plan;
+		}
+		// Every commit from the oldest selected to the head, and its parent:
+		// the generations a shallow fetch of the head needs.
+		plan.Depth = static_cast<std::uint32_t>(std::min<std::size_t>(aCommits.size() - oldest + 1U, std::size_t{ std::numeric_limits<std::uint32_t>::max() }));
+		return plan;
+	}
+
+	namespace {
+		/// `aText` cut to `aBytes` at a character's boundary.
+		[[nodiscard]] auto cut_text(std::string aText, const std::size_t aBytes) -> std::string
+		{
+			if (aText.size() > aBytes) {
+				aText.resize(aBytes);
+				while (!aText.empty() && (static_cast<unsigned char>(aText.back()) & 0xC0U) == 0x80U) {
+					aText.pop_back();
+				}
+				if (!aText.empty() && static_cast<unsigned char>(aText.back()) >= 0xC0U) {
+					aText.pop_back();
+				}
+			}
+			return aText;
+		}
+
+		[[nodiscard]] auto full_hex(const std::string_view aOid) noexcept -> bool
+		{
+			return aOid.size() == 40U && std::ranges::all_of(aOid, [](const char aByte) { return (aByte >= '0' && aByte <= '9') || (aByte >= 'a' && aByte <= 'f'); });
+		}
+	} // namespace
+
+	auto bound_selected_commits(std::vector<selected_commit> aCommits, returning_changes aChanges) -> std::optional<supplement_commits>
+	{
+		if (aCommits.empty() || aCommits.size() > maximum_selected_commits || !std::ranges::all_of(aCommits, [](const selected_commit& aCommit) { return full_hex(aCommit.Oid); })) {
+			return std::nullopt;
+		}
+		for (auto& commit : aCommits) {
+			if (const auto newline = commit.Headline.find_first_of("\r\n"); newline != std::string::npos) {
+				commit.Headline.resize(newline);
+			}
+			commit.Headline = utf8::valid(commit.Headline) ? cut_text(std::move(commit.Headline), maximum_selected_commit_headline_bytes) : std::string{ };
+			commit.Message  = utf8::valid(commit.Message) ? cut_text(std::move(commit.Message), maximum_selected_commit_message_bytes) : std::string{ };
+		}
+		auto material = supplement_commits{ .Commits = std::move(aCommits), .Changes = std::move(aChanges.Text), .FilesShown = aChanges.FilesShown, .FilesOmitted = aChanges.FilesOmitted };
+		if (!valid(material)) {
+			return std::nullopt;
+		}
+		return material;
+	}
+
+	auto valid(const supplement_commits& aCommits) -> bool
+	{
+		return !aCommits.Commits.empty() && aCommits.Commits.size() <= maximum_selected_commits && aCommits.Changes.size() <= maximum_returning_change_bytes && utf8::valid(aCommits.Changes)
+			&& aCommits.FilesShown <= maximum_returning_files && std::ranges::all_of(aCommits.Commits, [](const selected_commit& aCommit) {
+				   return full_hex(aCommit.Oid) && aCommit.Headline.size() <= maximum_selected_commit_headline_bytes && aCommit.Headline.find_first_of("\r\n") == std::string::npos
+					   && utf8::valid(aCommit.Headline) && aCommit.Message.size() <= maximum_selected_commit_message_bytes && utf8::valid(aCommit.Message);
+			   });
+	}
+
 	auto valid(const supplement_returning& aReturning) -> bool
 	{
 		if (aReturning.EarlierHead.empty() || aReturning.CurrentHead.empty() || aReturning.EarlierHead == aReturning.CurrentHead) {

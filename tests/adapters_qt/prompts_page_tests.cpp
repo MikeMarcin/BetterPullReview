@@ -503,12 +503,14 @@ namespace {
 			{ QStringLiteral("File"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
 			{ QStringLiteral("Thread"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
 			{ QStringLiteral("Tour"), QStringLiteral("Tour stop"), QStringLiteral("Tour part"), QStringLiteral("Whole tour") },
+			// [[BPR-2248]]. The Commits tab's selection menu.
+			{ QStringLiteral("Commits"), QStringLiteral("Selection menu") },
 		};
 		auto seen = QStringList{ };
 		for (const auto& group : groups) {
 			seen << group.join(QStringLiteral(" / "));
 		}
-		expect(groups == expected, "Add to heads Pull request, File, Thread and Tour, in that order: " + seen.join(QStringLiteral(" | ")).toStdString());
+		expect(groups == expected, "Add to heads Pull request, File, Thread, Tour and Commits, in that order: " + seen.join(QStringLiteral(" | ")).toStdString());
 		// Every item and every group is the Surfaces section's own words.
 		for (std::size_t surface = 0U; surface < core::prompt_surface_count; ++surface) {
 			const auto* const action = sub->findChild<QAction*>(QStringLiteral("promptsAddTo-%1").arg(QString::fromLatin1(core::stable_name(static_cast<core::prompt_surface>(surface)))));
@@ -523,7 +525,8 @@ namespace {
 			expect(action != nullptr && !action->isEnabled() && !action->toolTip().isEmpty(), "a tour surface is greyed for this prompt, with its reason as a tooltip");
 			why = action != nullptr ? action->toolTip() : why;
 		}
-		const auto* const note = sub->actions().back();
+		const auto        subActions = sub->actions();
+		const auto* const note       = *std::ranges::find_if(subActions, [](const QAction* aAction) { return aAction->objectName() == QStringLiteral("promptsAddToNote"); });
 		expect(note->objectName() == QStringLiteral("promptsAddToNote") && !note->isEnabled() && note->text() == why && !why.isEmpty(), "the greyed Tour group says why under it: " + note->text().toStdString());
 		const auto notes = std::ranges::count(sub->actions(), QStringLiteral("promptsAddToNote"), &QAction::objectName);
 		expect(notes == 1, "only a group greyed throughout gets a note");

@@ -172,6 +172,7 @@ namespace bpr::qt {
 			case tour_stop:          return prompts_page::tr("Tour stop");
 			case tour_part:          return prompts_page::tr("Tour part");
 			case whole_tour:         return prompts_page::tr("Whole tour");
+			case commits_menu:       return prompts_page::tr("Commits");
 			}
 			return { };
 		}
@@ -181,6 +182,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto surface_list_name(const prompt_surface aSurface) -> QString
 		{
 			using enum prompt_surface;
+			if (aSurface == commits_menu) {
+				return prompts_page::tr("Selection menu");
+			}
 			const auto isMenu = aSurface == pull_request_menu || aSurface == file_menu || aSurface == thread_menu;
 			return isMenu ? prompts_page::tr("Ask menu") : prompts_page::tr("Suggested chips");
 		}
@@ -773,6 +777,19 @@ namespace bpr::qt {
 			tours->addWidget(frame, 1, Qt::AlignTop);
 		}
 		aColumn.addLayout(tours);
+
+		// [[BPR-2248]]. The Commits tab's menu over the selected commits.
+		auto* const commits = new QHBoxLayout{ };
+		commits->setSpacing(12);
+		{
+			auto [frame, layout] = panel(surface_panel_name(prompt_surface::commits_menu));
+			addList(*layout, prompt_surface::commits_menu, surface_list_name(prompt_surface::commits_menu), tr("asks about the selected commits"));
+			layout->addStretch(1);
+			commits->addWidget(frame, 1, Qt::AlignTop);
+			// As wide as one panel of the row above.
+			commits->addStretch(2);
+		}
+		aColumn.addLayout(commits);
 
 		auto* const legend = secondary(tr("◆ Has conditions. Its chip shows only while they hold; its menu row is disabled or hidden while they do not."), this);
 		legend->setObjectName(QStringLiteral("promptsLegend"));
@@ -2406,6 +2423,7 @@ namespace bpr::qt {
 			group(surface_panel_name(scope[0]), scope, surface_list_name);
 		}
 		group(tour_group_name(), tour_surfaces, surface_panel_name);
+		group(surface_panel_name(prompt_surface::commits_menu), std::array{ prompt_surface::commits_menu }, surface_list_name);
 	}
 
 	void prompts_page::fill_library_menu(QMenu& aMenu, const std::string& aId)

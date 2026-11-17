@@ -392,8 +392,58 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2248]]. The Commits selection menu: its two shipped prompts, what
+	/// may be placed there, and the rows a selection lists.
+	void test_commits_menu()
+	{
+		const auto macros   = shipped();
+		const auto surfaces = shipped_surfaces(macros);
+		expect(contains(surfaces, prompt_surface::commits_menu, "commits.explain") && contains(surfaces, prompt_surface::commits_menu, "commits.review"), "both ship on the Commits selection");
+		for (std::size_t index = 0U; index < prompt_surface_count; ++index) {
+			if (static_cast<prompt_surface>(index) != prompt_surface::commits_menu) {
+				expect(!contains(surfaces, static_cast<prompt_surface>(index), "commits.explain"), "a prompt about commits is on no other surface");
+			}
+		}
+		expect(stable_name(prompt_surface::commits_menu) == "commits-menu" && find_prompt_surface("commits-menu") == prompt_surface::commits_menu && is_menu(prompt_surface::commits_menu),
+			   "a menu with a stable name");
+		const auto find = [&macros](const std::string& aId) { return *std::ranges::find(macros, aId, &prompt_macro::Id); };
+		expect(placement_refusal_of(find("agent-tab.what-could-break"), prompt_surface::commits_menu) == placement_refusal::none, "an ordinary prompt may be placed there");
+		expect(placement_refusal_of(find("agent-tab.what-changed"), prompt_surface::commits_menu) == placement_refusal::action_not_commits, "an action row may not");
+		expect(placement_refusal_of(find("agent-tab.review-open-file"), prompt_surface::commits_menu) == placement_refusal::placeholder_unfilled, "the selection fills no {file}");
+		expect(placement_refusal_of(find("commits.explain"), prompt_surface::pull_request_menu) == placement_refusal::commits_only, "a prompt about commits goes nowhere else");
+		auto own          = find("agent-tab.what-could-break");
+		own.Body.Template = "What do {commits} break?";
+		expect(placement_refusal_of(own, prompt_surface::pull_request_chips) == placement_refusal::placeholder_unfilled, "only the selection fills {commits}");
+		const auto placed = placed_on(own, prompt_surface::commits_menu);
+		expect(placed.Place == prompt_place::agent_tab && placed.Body.Subject == prompt_subject::selected_commits && !placed.Body.QuickAsk, "placed there it asks about the selection");
+		expect(placed_on(find("commits.review"), prompt_surface::commits_menu).Body.Kind == prompt_ask::review, "a review stays a review");
+
+		auto facts             = quick_ask_facts{ };
+		facts.Base.PullRequest = prompt_pull_request{ .Number = 7U, .Title = "t" };
+		const auto all         = placed_prompt_macros(macros, surfaces);
+		const auto selection   = std::vector{ std::string(40U, '1'), std::string(40U, '2') };
+		const auto asks        = decide_commit_asks(all, facts, selection, commit_selection_refusal::none);
+		expect(asks.Rows.size() == 2U && asks.Rows[0].Id == "commits.explain" && asks.Rows[0].Label == "Explain these commits" && asks.Rows[1].Kind == prompt_ask::review, "the two rows, in order");
+		expect(asks.Rows[0].Enabled && asks.Rows[0].Offer && asks.Rows[0].Offer->Commits == selection && asks.Rows[0].Offer->Expansion.Text.starts_with("Explain commits 1111111, 2222222:"),
+			   "a press names the commits it asks about");
+		expect(asks.Rows[1].Offer && asks.Rows[1].Offer->Subject == prompt_subject::selected_commits && suggested_subject_of(asks.Rows[1].Offer->Subject) == agent_suggested_subject::pull_request,
+			   "asked as the pull request's question, with the commits beside it");
+		const auto merges = decide_commit_asks(all, facts, selection, commit_selection_refusal::no_own_change);
+		expect(merges.Rows.size() == 2U && !merges.Rows[0].Enabled && !merges.Rows[0].Offer && merges.Refusal == commit_selection_refusal::no_own_change, "a selection of base merges disables them");
+		expect(decide_commit_asks(all, facts, { }, commit_selection_refusal::nothing_selected).Rows.empty(), "nothing selected, nothing listed");
+		facts.Agent = quick_ask_agent::busy;
+		expect(decide_commit_asks(all, facts, selection, commit_selection_refusal::none).Rows[0].Waits == quick_ask_reason::agent_busy, "a busy agent: queued, it waits");
+		auto agentTab = sample_prompt_facts(prompt_place::agent_tab);
+		agentTab.Commits.clear();
+		const auto chips = decide_prompt_offers(all, agentTab);
+		expect(std::ranges::none_of(chips.Chips, [](const prompt_offer& aOffer) { return aOffer.Id.starts_with("commits."); }), "never an Agent tab chip");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_commits_menu();
 	test_shipped_surfaces();
 	test_placing();
 	test_stored_surfaces();
