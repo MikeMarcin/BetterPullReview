@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2220"
 title: "The prompt library always has a prompt selected"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0128"]
 depends_on: ["BPR-2179"]
+acceptance: [{"criterion": "AC-a", "outcome": "pass", "revision": "47cd76bc8", "evidence": {"kind": "command", "detail": "qt_prompts_page; owner Accept BPR-2220-always-selected (look prompt-library-v002, decision 2aa571a0)"}}, {"criterion": "AC-b", "outcome": "pass", "revision": "47cd76bc8", "evidence": {"kind": "command", "detail": "qt_prompts_page; owner Accept BPR-2220-always-selected (look prompt-library-v002, decision 2aa571a0)"}}, {"criterion": "AC-c", "outcome": "pass", "revision": "47cd76bc8", "evidence": {"kind": "command", "detail": "qt_prompts_page; owner Accept BPR-2220-always-selected (look prompt-library-v002, decision 2aa571a0)"}}, {"criterion": "AC-d", "outcome": "pass", "revision": "47cd76bc8", "evidence": {"kind": "command", "detail": "qt_prompts_page; owner Accept BPR-2220-always-selected (look prompt-library-v002, decision 2aa571a0)"}}, {"criterion": "AC-e", "outcome": "pass", "revision": "47cd76bc8", "evidence": {"kind": "command", "detail": "prompts_page.cpp and .hpp only; no core change"}}, {"criterion": "AC-f", "outcome": "pass", "revision": "47cd76bc8", "evidence": {"kind": "command", "detail": "qt_prompts_page at QT_SCALE_FACTOR 1.0, 1.25, 2.0 and native light/dark; owner Accept BPR-2220-tools-on-filter-row (look prompt-library-v002, decision 3fd3d8bb)"}}]
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2220--BPR-2220--ed478f0bfc51.json","origin":"owner, 2026-11-16, Settings › Prompts"}
 ---
 
@@ -50,7 +51,7 @@ one Accept/Reject for each of AC-a to AC-d and AC-f) is filed, not waited on.
 `qt_prompts_page` asserts AC-a to AC-d and AC-f (run at 100, 125 and 200
 percent); native-look renders light and dark, before and after.
 
-## Look prompt-library-v002 (filed 2026-11-16, open)
+## Look prompt-library-v002 (filed 2026-11-16, closed)
 
 Session `1df4dc88417b17eabe9b916084c4b6dc`, state
 `/Users/jaeger/.attended-review-state/prompt-library-v002-2026-11-16/state`
@@ -67,3 +68,9 @@ marker, so `freeze_attended_build.py remove` refuses it.
 Verification at `47cd76bc8`: `qt_prompts_page` passes, and passes run directly
 at `QT_SCALE_FACTOR` 1.0, 1.25 and 2.0 and in the native look, light and dark.
 The old page fails ten of its new checks.
+
+### Look prompt-library-v002 handed back (owner, 2026-11-16)
+
+Accepted, no note: `BPR-2220-always-selected` (decision `2aa571a0`) and
+`BPR-2220-tools-on-filter-row` (decision `3fd3d8bb`), read from the session's
+status at sequence 11. The host is stopped and the frozen root removed.
