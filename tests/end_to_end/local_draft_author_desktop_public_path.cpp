@@ -4,6 +4,7 @@
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/author_git_port.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -251,10 +252,16 @@ try {
 	// Check Again reads the hosted branch through the author's Git.
 	changes->push_button()->click();
 	settle(s.Lanes);
-	std::cout << "TMPDIAG hosted observed=" << page->local_projection().Hosted.Observed << " ahead=" << page->local_projection().Hosted.Ahead << " push_state=[" << changes->push_state()->text().toStdString() << "] tip=" << page->local_projection().Hosted.Tip.has_value() << " tipknown=" << page->local_projection().Hosted.TipKnown << " running=" << static_cast<int>(page->local_projection().Running) << " failure=" << page->local_projection().Failure.has_value() << " worktree=" << page->local_projection().Subject.Worktree << std::endl;
-		if (page->local_projection().Failure) {
-			std::cout << "TMPDIAG failure op=" << static_cast<int>(page->local_projection().Failure->Operation) << " kind=" << static_cast<int>(page->local_projection().Failure->Failure) << " message=" << page->local_projection().Failure->Message << std::endl;
-		}
+#if defined(_WIN32)
+	// [[BPR-2215]]. The author's Git runs on POSIX only
+	// (installed_author_git.cpp refuses `unavailable` elsewhere), so on
+	// Windows Check Again says so and nothing below can run. What is above
+	// ran; the rest of the course is POSIX's.
+	expect(page->local_projection().Failure && page->local_projection().Failure->Failure == application::author_git_failure::unavailable && !page->local_projection().Hosted.Observed,
+		   "on Windows the author's Git is refused as unavailable, not run");
+	std::cout << "local-draft-author-desktop-public-path:skipped (the author's Git runs on POSIX only; the course ran up to Check Again)\n";
+	return EXIT_SUCCESS;
+#endif
 	expect(page->local_projection().Hosted.Observed && page->local_projection().Hosted.Ahead == 2U && changes->push_state()->text() == QStringLiteral("2 ahead of GitHub"),
 		   "2 ahead of GitHub");
 	expect(page->branch_button()->text().contains(QStringLiteral("fix/port-parsing")) && page->branch_button()->text().contains(QStringLiteral("↑2")), "the branch says it is 2 ahead");

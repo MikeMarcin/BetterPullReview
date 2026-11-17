@@ -377,10 +377,20 @@ try {
 	expect(carried->Tour.Stops.size() == 1U && !carried->Tour.Stops[0].Destination && carried->Mapping.Unresolved == 1U && carried->Tour.Stops[0].Title == "Search returns two",
 		   "a head that is not the candidate anchors nothing; the stop comes without lines, not dropped");
 
+	std::cout << "TMPDIAG teardown drafts->shutdown" << std::endl;
 	drafts->shutdown();
+	std::cout << "TMPDIAG teardown cycles->shutdown" << std::endl;
 	cycles->shutdown();
+	std::cout << "TMPDIAG teardown settle" << std::endl;
 	settle(lanes);
-	std::cout << "local-draft-publication-desktop-public-path:pass\n";
+	std::cout << "TMPDIAG teardown drafts.reset" << std::endl;
+	drafts.reset();
+	std::cout << "TMPDIAG teardown cycles.reset" << std::endl;
+	cycles.reset();
+	std::cout << "TMPDIAG teardown window.reset" << std::endl;
+	window.reset();
+	std::cout << "TMPDIAG teardown done" << std::endl;
+	std::cout << "local-draft-publication-desktop-public-path:pass" << std::endl;
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {
 	std::cerr << "local-draft-publication-desktop-public-path:fail " << aError.what() << '\n';

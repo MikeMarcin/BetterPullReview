@@ -494,6 +494,10 @@ auto main(int argc, char** argv) -> int
 			const auto settledTurns = tab->turn_count();
 			ask->refresh_menu();
 			row(*ask->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"))->trigger();
+			// [[BPR-2215]]. What changed runs before the next is queued and the
+			// queue paused: on Windows the fixture agent starts later, and a
+			// pause that came first held What changed itself.
+			wait([&] { return tab->state() == qt::agent_tab_state::working; }, "What changed runs");
 			ask->refresh_menu();
 			row(*ask->menu(), QStringLiteral("agent-tab.explain-file"), QStringLiteral("file"))->trigger();
 			QApplication::processEvents();

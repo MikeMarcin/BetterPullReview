@@ -17,12 +17,14 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QThread>
 #include <QToolButton>
 
 #include <cstdlib>
@@ -58,6 +60,19 @@ namespace {
 			aLanes.drain();
 			QApplication::processEvents();
 		}
+	}
+
+	/// Settles until `aDone`, for work on a real thread (the diff's).
+	template <typename TDone>
+	void settle_until(application::manual_executor& aLanes, TDone aDone)
+	{
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		while (!aDone() && timer.elapsed() < 20'000) {
+			settle(aLanes);
+			QThread::msleep(10);
+		}
+		settle(aLanes);
 	}
 
 	void capture(QWidget& aWidget, const QString& aName)
@@ -228,7 +243,9 @@ try {
 		expect(identity_text(window).contains(QStringLiteral("Local draft")), "AC01: the title row badges it Local draft");
 		expect(page->candidates()->toolTip().contains(QStringLiteral("from merge base")), "AC01: the exact base is disclosed");
 		expect(file_rows(window) == QStringList{ QStringLiteral("src/engine.cpp"), QStringLiteral("src/search.cpp") }, "AC01: only the branch's changes, in the Files drawer; main's later change is not shown");
-		std::cout << "TMPDIAG shown_text=[" << shown_text(window).toStdString() << "] rows=" << file_rows(window).join(QLatin1Char('|')).toStdString() << std::endl;
+		// [[BPR-2215]]. The diff is computed on a real thread: on Windows eight
+		// settled rounds can end before it shows, as the author course waits.
+		settle_until(s.Lanes, [&] { return window.comparison_surface()->current_result() != nullptr; });
 		expect(shown_text(window).contains(QStringLiteral("\treturn 1;")) && shown_text(window).contains(QStringLiteral("\treturn search() + 1;")),
 			   "AC01: the first useful screen is the exact proposed diff, in the pull request's diff viewer");
 		expect(page->working()->count() == 0, "a clean worktree has nothing uncommitted");
