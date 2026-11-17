@@ -27,6 +27,7 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QLineEdit>
 #include <QMenu>
 #include <QTemporaryDir>
 

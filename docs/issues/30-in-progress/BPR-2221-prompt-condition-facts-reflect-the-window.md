@@ -73,3 +73,30 @@ projects the read's over the viewer's own change, the comment authors and
 suggestion context hands in the checks. Every surface (the three Ask menus,
 the Agent tab's and tour chats' chips, a queued press) reads these one set of
 facts.
+
+## Verification, 2026-11-16
+
+On the lane's build/dev (with the other workers' uncommitted files present):
+`core_quick_ask` (new `test_window_facts`: replies and replies since mine from
+authors and the viewer, case-insensitive logins, deleted comments, no viewer;
+checks per end, head only, unread statuses unknown; thread unresolved, file
+unresolved threads incl. unknown and threads unread, file unreviewed, and the
+file menu hiding a prompt once its file is marked reviewed),
+`core_prompt_macro`, `core_prompt_surfaces` pass.
+`application_prompt_facts_public_path` (new, returning-review-v1, viewer
+jiayin) passes: own prompts with Hide while unmet on the pull request's, a
+file's and a thread's Ask menus are listed exactly where author_is_me, draft,
+checks_failing, pushes_since_review, repository, path,
+file_unresolved_threads, file_unreviewed, thread_unresolved, thread_activity
+(replies), replies_since_mine and takes_replies hold (tbutler replied after
+jiayin on PRRT_cc_1/cc_4, jiayin last on cc_3, never on cc_7); Resolve on
+PRRT_cc_7 through its card flips thread_unresolved there and
+file_unresolved_threads on slider.cpp; marking renderer.cpp read flips
+file_unreviewed. `application_ask_menu`, `_ask_addressed`, `_prompt_macros`
+and `_ask_queue_public_path` still pass. Format and documentation gates pass.
+
+Not covered by the course: `selected_lines`, `file_open`'s "is not" and
+`empty_chat` are chip-only or already wired and untouched; a reply arriving
+from another account mid-session is shown by the fixture's static authorship,
+since a re-read of the fixture serves the same threads. Nothing visible
+changes beyond prompts appearing, so no look is filed.
