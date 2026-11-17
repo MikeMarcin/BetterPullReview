@@ -1252,6 +1252,12 @@ namespace bpr::qt {
 	{
 		if (aObject == Column && aEvent->type() == QEvent::Resize) {
 			if (const auto* const resized = static_cast<QResizeEvent*>(aEvent); resized->oldSize().width() != resized->size().width()) {
+				// The column's own layout gives its children the new width
+				// only after its filters: laid out first, the body and the
+				// page take the width they are measured at.
+				if (Column->layout() != nullptr) {
+					Column->layout()->activate();
+				}
 				fit_body();
 			}
 		}

@@ -22022,6 +22022,14 @@ namespace {
 		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent) && agent->isVisible(),
 			   "the Ask agent key opens the Agent tab on Overview");
 		expect(window.showing_overview(), "and stays on Overview");
+		// Owner, look report-keeps-v001: moving to Review with Overview's
+		// Agent tab open keeps the Agent tab open in Review's drawer.
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(window.tray_tabs()->currentIndex() == 2 && !drawer->isAncestorOf(agent) && agent->isVisibleTo(&window), "in Review the drawer is still on the Agent tab");
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->isAncestorOf(agent), "and back on Overview, its Agent tab");
 		// RFC-BPR-0127 ([[BPR-2158]]). N is the window's Local comment.
 		expect(window.local_comment_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note),
 			   "N is the window's Local comment");

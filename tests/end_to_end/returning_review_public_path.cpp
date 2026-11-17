@@ -226,6 +226,9 @@ auto main(int argc, char** argv) -> int
 			// Its file open in Review, as a person reaches the thread beside its code.
 			wait([&] { return window.go_to_file_line(QStringLiteral("src/engine/renderer.cpp"), 12U, false) && std::ranges::any_of(cards->cards(), [&](const auto& aCard) { return aCard.Id == identity; }); },
 				 "the thread's file opens beside its threads");
+			// Owner, look report-keeps-v001: the Agent tab opened on Overview
+			// stays open in Review's drawer; the thread is on Comments.
+			window.tray_tabs()->setCurrentIndex(0);
 			// RFC-BPR-0128: Was this addressed? is the open thread's quick ask.
 			auto* button = static_cast<QAction*>(nullptr);
 			wait([&] {

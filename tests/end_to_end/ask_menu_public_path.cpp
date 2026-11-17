@@ -519,6 +519,10 @@ auto main(int argc, char** argv) -> int
 		}
 		agent_ready(window);
 		wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path && !cards->cards().empty(); }, "the file opens beside its threads");
+		// Owner, look report-keeps-v001: the Agent tab, open on Overview,
+		// stays open in Review's drawer; the threads are on Comments.
+		expect(window.tray_tabs()->currentIndex() == 2, "Review's drawer is still on the Agent tab opened on Overview");
+		window.tray_tabs()->setCurrentIndex(0);
 		if (course == "macros") {
 			// RFC-BPR-0125 milestone 3 ([[BPR-2146]] AC11 to AC13) through the
 			// window: a chip turned off and a new order reach an open window
@@ -860,7 +864,17 @@ auto main(int argc, char** argv) -> int
 			expect(report->document().Turn != 0U && tab->turn_of(report->document().Turn).has_value() && !report->document().Byline.Ending.isEmpty()
 					   && byline->text().contains(report->document().Byline.Ending.toHtmlEscaped()),
 				   "the report names its turn by identity, and its byline is the turn's own ending: " + byline->text().toStdString());
-			expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
+			// The reader shown is as tall as its content: the dressed page, or
+			// the body when the report is shown as written. (A hidden body's
+			// width is no measure: it passed here only while the page was laid
+			// out at a narrow column.)
+			if (report->dressed_shown()) {
+				auto* const page = report->dressed_view();
+				expect(report->body()->in_place() && page->isVisible() && page->height() >= static_cast<int>(page->document()->size().height()),
+					   "the page is in place, as tall as its content (defect 1): " + std::to_string(page->height()) + " for " + std::to_string(page->document()->size().height()));
+			} else {
+				expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
+			}
 			auto* const menuButton = report->menu_button();
 			expect(menuButton != nullptr && menuButton->isVisible() && menuButton->accessibleName() == QStringLiteral("Report menu") && menuButton->width() == 32 && menuButton->height() == 28,
 				   "the floating Report menu button");
