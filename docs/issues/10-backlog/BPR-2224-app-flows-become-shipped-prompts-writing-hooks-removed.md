@@ -18,7 +18,7 @@ RFC-BPR-0129 milestone M2 ([RFC](../../rfcs/RFC-BPR-0129-prompts-declare-a-resul
 
 - **Shipped prompts.** Every row of the RFC's per-ID table marked fixed
   becomes a shipped prompt. That includes the Typed question, Draft tour,
-  the tour chats, the two workshop prompts chosen by the label helper (O3),
+  the tour chats, the two workshop prompts chosen by the label helper (owner, O3),
   and the local discussion. The guidance in each prompt's resource or C++
   text moves into its editable text, and its format rules move into
   contracts. `report-templates.md` and `review.suggested-comment` are
@@ -26,12 +26,12 @@ RFC-BPR-0129 milestone M2 ([RFC](../../rfcs/RFC-BPR-0129-prompts-declare-a-resul
 - **Removed.** The writing-hooks panel, its Built-in prompts list,
   `writing_hook_settings.Overrides` and the review skill's panel.
 - **Dropped edits.** First save each writing-hook override and any edited
-  review skill copy to a file in Downloads, and store their names (O4).
+  review skill copy to a file in Downloads, and store their names (owner, O4).
   Then delete them, and show the one-time notice. If saving fails, nothing
   is deleted. Load `frontend-design:frontend-design` for the notice, and
   file an owner look at it.
 - **Exchange.** Flow prompts are exchanged under `flow.*` IDs in file
-  version 1 (O5). Old purpose IDs are dropped on import and named in the
+  version 1 (owner, O5). Old purpose IDs are dropped on import and named in the
   summary.
 - **Amendments.** Record the RFC-BPR-0092, 0107, 0118 and 0128 amendments.
 
