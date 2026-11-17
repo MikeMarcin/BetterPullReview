@@ -2,7 +2,7 @@
 id: "RFC-BPR-0129"
 title: "Prompts declare a Result and Features; nothing the agent is told is hidden"
 status: "Proposed"
-metadata: {"origin":"owner grill-rfc interview, 2026-11-16, after BPR-2219 (the review report lost its format and Draft comment)","inspected_revision":"51e39545084ece348e80c4af10b7cc086fcb40ad","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 2485c52aa","mandate":"owner, 2026-11-16: the design below confirmed in a grill-rfc interview; cards BPR-2222 to BPR-2226 filed in Backlog, none started"}
+metadata: {"origin":"owner grill-rfc interview, 2026-11-16, after BPR-2219 (the review report lost its format and Draft comment)","inspected_revision":"51e39545084ece348e80c4af10b7cc086fcb40ad","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 2485c52aa","mandate":"owner, 2026-11-16: the design below confirmed in a grill-rfc interview; cards BPR-2222 to BPR-2226 filed in Backlog, none started; Q1, Q3, Q5 and Q6 answered by the owner and Q2 and Q4 defaults accepted by the coordinator the same day"}
 depends_on: ["RFC-BPR-0092", "RFC-BPR-0101", "RFC-BPR-0107", "RFC-BPR-0125", "RFC-BPR-0128"]
 ---
 
@@ -101,15 +101,25 @@ makes that split the rule for every prompt and names its parts.
   Result to one that its current placements do not allow names those
   placements, and the change does not save until they are removed.
 
+- A shipped flow prompt's Result is fixed, because its flow reads that
+  output. The editor shows it read-only.
+- A person's own prompt may choose any Result, and it is placed only where
+  that Result works. For example, a person's second Rewrite text prompt
+  ("Make it formal") appears in the Enhance menu beside the shipped one, and
+  its output replaces the text being written. It is never offered in a chat.
+
 > Decision (owner, 2026-11-16): "I'm okay for the 'main skill' to be
-> separate and required."
+> separate and required." Answering Q3 and Q5 the same day: a shipped flow
+> prompt's Result is fixed and shown read-only; the user's own prompts may
+> choose any Result, placed only where that Result works.
 
 ### Features, inline as `/bpr:<name>`
 
 - A Feature is referenced in the text as `/bpr:<name>`, for example
   `/bpr:suggested-comment`. The completion picker that offers the person's
   and the repository's `/skills` offers Features too, in the prompt editor
-  and in any composer with `/` completion. Each row is marked
+  and in any composer with `/` completion, including a typed chat question,
+  which is an Answer (owner, Q6). Each row is marked
   BetterPullReview, personal or repository, and typing `/bpr:` narrows the
   list to Features. A Feature that the prompt's Result does not accept is
   listed disabled, with the reason as its tooltip and accessible
@@ -141,22 +151,26 @@ their own. People write prompts and choose from the catalog.
 > Decision (owner, 2026-11-16): built-in only, no user-authored Results or
 > Features.
 
-| Result | Opens as / unlocks | Placeable by a person's prompt |
+| Result | Opens as / unlocks | Where a prompt with it is placed |
 |---|---|---|
 | **Answer** | A reply in the chat where it was asked. A long answer becomes a report card and a report tab, decided by its shape (RFC-BPR-0128 Q7). | Any chat place and Ask scope |
 | **Findings report** | A report card and a report tab. The verdict and summary carry Keep summary, and each finding carries its keep action (Draft comment at its lines, otherwise Keep local; RFC-BPR-0127). This is BPR-2219's format contract. | Agent tab and Ask, at the pull request or a file |
-| **Tour outline** | The tour's outline: stops with anchors, reasons and questions | Its flow only |
-| **Tour stop comment** | One stop's text | Its flow only |
-| **Rewrite text** | Replaces the text being written: a comment, reply, note, description field or stop (Enhance) | Its flows only |
-| **Description** | A local draft's title and description | Its flow only |
-| **Commit message** | A local draft's commit message | Its flow only |
-| **Check plan & report** | A local draft's planned check and its report (RFC-BPR-0120) | Its flow only |
+| **Tour outline** | The tour's outline: stops with anchors, reasons and questions | Where the tour's outline is generated |
+| **Tour stop comment** | One stop's text | Where a stop's text is generated |
+| **Rewrite text** | Replaces the text being written: a comment, reply, note, description field or stop | The Enhance menu of the text being written |
+| **Description** | A local draft's title and description | Where a local draft's description is generated |
+| **Commit message** | A local draft's commit message | Where a local draft's commit message is generated |
+| **Check plan & report** | A local draft's planned check and its report (RFC-BPR-0120) | Where a local draft's check is planned |
+
+Where a flow has more than one prompt with its Result (the shipped one and
+the person's own), the flow's control offers each by name, the shipped one
+first.
 
 | Feature | Its block unlocks | Accepted by |
 |---|---|---|
 | **Suggested comment** | A Draft comment button carrying the agent's wording | Answer, Findings report |
 | **Suggested change** | A GitHub suggestion block at its lines, kept as a draft comment's suggestion | Answer, Findings report, Rewrite text |
-| **Proposed fix** | A patch, shown as a diff, with Apply | Answer, Findings report |
+| **Proposed fix** | A patch, shown as a diff, with Apply. Until RFC-BPR-0115's local-draft worktree exists there is no folder the app may write to, so Apply shows disabled with that reason and the patch can be copied (Q4). | Answer, Findings report |
 
 If the output leaves out a Feature's block, or the block does not parse,
 the Result still presents. Only that block's action is missing, and the
@@ -177,8 +191,7 @@ carry both blocks today.
   Guidance (what to look for, tone) moves into the prompt's text, or into
   the text of each shipped prompt that references the Feature. Pressing a
   flow sends its prompt, so an edit changes what the next press sends.
-- The proposed mapping keeps each flow's output opening where it opens
-  today:
+- The mapping keeps each flow's output opening where it opens today (Q2):
 
   | Flow | Result |
   |---|---|
@@ -198,16 +211,21 @@ carry both blocks today.
   RFC-BPR-0107's exchange still names it.
 - **Settings › Writing hooks is removed.** That means the writing-hooks
   panel, its "Built-in prompts" list, and `writing_hook_settings.Overrides`.
+- **The review skill `bpr-pr-review` is no longer separate instructions.**
+  Its guidance becomes the shipped review prompts' text, and its own panel
+  goes with the writing-hooks panel.
 - **Existing overrides are dropped.** On the first start after the upgrade,
-  a profile that held any override discards them all and shows a one-time
-  notice naming each prompt whose edit was dropped. A profile without
-  overrides sees no notice. An exchange file that carries writing-hook
+  a profile that held any writing-hook override or an edited copy of the
+  review skill discards them all. It then shows a one-time notice naming
+  each prompt whose edit was dropped. A profile with neither sees no notice. An exchange file that carries writing-hook
   overrides imports without them, and the import's summary names what was
   dropped.
 
 > Decision (owner, 2026-11-16): every app flow's agent instructions become
 > shipped prompts in Settings › Prompts; Writing hooks is removed; existing
 > overrides are dropped with a one-time notice (owner chose "Drop them").
+> Answering Q1 the same day: an edited `bpr-pr-review` copy is dropped too,
+> with the same notice.
 
 ### A newer built-in version (M3)
 
@@ -290,24 +308,25 @@ not name.
 
 | RFC | What changes |
 |---|---|
-| RFC-BPR-0092 | The review skill `bpr-pr-review` stops being separate instructions; its guidance becomes the review prompts' text. Q1 covers an edited copy. |
+| RFC-BPR-0092 | The review skill `bpr-pr-review` stops being separate instructions; its guidance becomes the review prompts' text, and an edited copy is dropped with the one-time notice (Q1). |
 | RFC-BPR-0107 | Writing-hook overrides in an exchange file are dropped on import and named in its summary. Flow prompts are exchanged as prompts under their purpose IDs. |
 | RFC-BPR-0125 | *Ask as* becomes the **Result** field. Under Q6, `/` now lists skills and Features, not skills only. Built-in revisions gain the newer-built-in flag. |
 | RFC-BPR-0128 | The report-templates guidance becomes prompt text, and the report shape becomes the Findings report contract. |
 
-## Open questions
+## Resolved questions (2026-11-16)
 
-These go to the owner. Each affected part waits for its answer, as the
-last column says. A default is a recommendation, not an answer.
+Six questions arose while drafting. All are now answered and recorded in
+the sections above. The owner answered four; for the other two the owner
+took the drafted default, accepted by the coordinator.
 
-| # | Question | Default | Affects |
-|---|---|---|---|
-| Q1 | An edited copy of the review skill `bpr-pr-review`: keep it as the edited text of Review this pull request (flagged under M3), or drop it with the Writing hooks overrides? | Keep it as the edited text | M2's review-skill part |
-| Q2 | Is the per-flow Result mapping above right? | As listed: each flow's output opens where it opens today | M2, per flow |
-| Q3 | Is a flow prompt's Result fixed and shown read-only, since its flow reads that output? | Fixed | M1 editor, M2 |
-| Q4 | Proposed fix's Apply needs a folder the app may write to. Until RFC-BPR-0115's local-draft worktree exists, should Apply show disabled with its reason, leaving the patch to be copied? | Yes | M1's Proposed fix action |
-| Q5 | May a person's own prompt use a flow-only Result (for example a second Rewrite text, "Make it formal", offered beside Enhance)? | Not in this RFC | The catalog's "Placeable" column |
-| Q6 | Is a typed question's `/` picker offered Features too (a typed question is an Answer), not only the prompt editor? | Yes | M1 picker |
+| # | Question | Answer |
+|---|---|---|
+| Q1 | An edited copy of the review skill `bpr-pr-review`: keep it, or drop it with the Writing hooks overrides? | **Owner: drop it**, with the same one-time notice |
+| Q2 | Is the per-flow Result mapping right? | **Default, accepted by the coordinator:** as listed, so each flow's output opens where it opens today |
+| Q3 | Is a shipped flow prompt's Result fixed? | **Owner: fixed**, shown read-only |
+| Q4 | Until RFC-BPR-0115's local-draft worktree exists, does Proposed fix's Apply show disabled with its reason? | **Default, accepted by the coordinator:** yes, and the patch can still be copied |
+| Q5 | May a person's own prompt use a flow Result? | **Owner: any Result**, placed only where that Result works (a second Rewrite text appears in the Enhance menu) |
+| Q6 | Is the typed chat `/` picker offered Features too? | **Owner: yes** |
 
 ## Grill confirmation (2026-11-16)
 
@@ -328,14 +347,16 @@ The owner confirmed the design in a grill-rfc interview on 2026-11-16.
   - the editor left to the designer (8);
   - the BPR-2219 boundary (9);
   - the three milestones.
-- **Not covered:** these were drafted after the interview and are open or
-  proposed above:
-  - the per-flow mapping beyond `prompt_ask`;
+- **Second round, the same day (relayed by the coordinator):**
+  - the owner answered Q1, Q3, Q5 and Q6;
+  - Q2 and Q4 take the drafted defaults, accepted by the coordinator, not
+    answered by the owner.
+- **Not covered by either round:** these are drafted and stand as proposed:
   - the read-only material section;
   - which Features each Result accepts;
   - the unknown-`/bpr:` rule;
   - the exchange amendment;
-  - Q1 to Q6.
+  - a flow with several prompts offering each by name, shipped first.
 
 ## Milestones
 
@@ -348,9 +369,12 @@ The owner confirmed the design in a grill-rfc interview on 2026-11-16.
   - The editor and the picker, after an owner look.
   - Cards: [[BPR-2222]] (model, expansion and actions; after
     [[BPR-2219]]) and [[BPR-2223]] (editor and picker).
-- **M2: App flows are shipped prompts.** Every flow appears in Settings ›
-  Prompts, Writing hooks is removed, and overrides are dropped with the
-  notice. Card [[BPR-2224]].
+- **M2: App flows are shipped prompts.**
+  - Every flow appears in Settings › Prompts, with its Result fixed.
+  - A person's prompt with a flow Result is offered in that flow.
+  - Writing hooks and the review skill's panel are removed.
+  - Overrides and an edited review skill are dropped with the notice.
+  - Card: [[BPR-2224]].
 - **M3: A newer built-in version.** The flag, Compare and Use built-in.
   Card [[BPR-2225]].
 - **Closeout:** [[BPR-2226]].
@@ -358,15 +382,16 @@ The owner confirmed the design in a grill-rfc interview on 2026-11-16.
 ## Acceptance criteria
 
 - **AC01:** No product text, accessible name or setting calls a Result or Feature a skill; the editor, picker and Settings say Result and Feature, and `/skill-name` references are still called skills.
-- **AC02:** Every prompt has exactly one Result: saving without one is refused, a place or surface its Result cannot open in is not offered, and changing the Result to one its placements do not allow names those placements and does not save.
+- **AC02:** Every prompt has exactly one Result: saving without one is refused, a place or surface its Result cannot open in is not offered, changing the Result to one its placements do not allow names those placements and does not save, and a shipped flow prompt's Result is shown read-only and cannot be changed.
 - **AC03:** With the Fixture agent, Review this pull request whose text is replaced by one sentence with no format guidance still opens a report tab with a verdict, a summary with Keep summary, and a Draft comment on each finding with a place; likewise an Answer prompt with `/bpr:suggested-comment` and no format guidance still shows Draft comment.
 - **AC04:** For every shipped prompt and every flow, each instruction byte of the captured request (the system prompt and the message's instructions, excluding the listed material) appears in that prompt's editor as editable text or a read-only section, including the application contract, every contract and every inlined skill.
-- **AC05:** Typing `/` in the prompt editor lists Features beside the personal and repository skills, each marked by source; `/bpr:` lists Features only; a Feature the Result does not accept is listed disabled with its reason; choosing a row inserts its reference.
+- **AC05:** Typing `/` in the prompt editor and in a typed chat question lists Features beside the personal and repository skills, each marked by source; `/bpr:` lists Features only; a Feature the Result does not accept is listed disabled with its reason; choosing a row inserts its reference, and a typed question sent with one carries that Feature's contract.
 - **AC06:** A prompt naming `/bpr:suggested-change` and a repository `/repo:<name>` skill produces requests for a Claude agent and a Codex agent that each carry the Feature's contract and the skill's text in the same form, with no native skill loading; a fifth `/skill` is noted as today, and Features do not count toward the four.
-- **AC07:** Suggested comment yields Draft comment carrying the agent's wording; Suggested change yields a suggestion block kept at its lines; Proposed fix yields a diff with Apply, or Apply disabled with its reason where nothing can be written; an omitted or malformed block leaves the rest of the Result presented, with a note that the agent gave none.
+- **AC07:** Suggested comment yields Draft comment carrying the agent's wording; Suggested change yields a suggestion block kept at its lines; Proposed fix yields a diff that can be copied, with Apply disabled and naming its reason while no local-draft worktree exists; an omitted or malformed block leaves the rest of the Result presented, with a note that the agent gave none.
 - **AC08:** Stored macros of `prompt_ask::question` and `prompt_ask::review` load as Answer and Findings report with their text unchanged, and the shipped review prompts carry `/bpr:suggested-comment` and `/bpr:suggested-change`.
 - **AC09:** The editor's Result field, read-only sections, `/bpr:` completion, Compare and the dropped-overrides notice are reachable and operable by keyboard and named to assistive technology, and the owner has accepted the editor in a look at a frozen Fixture-agent build.
-- **AC10:** Every flow (each `core::writing_hook`, the report guidance and the suggested-comment format) is a shipped prompt in Settings › Prompts with its Result; editing its text changes what the next press of that flow sends; the writing-hooks panel and its Built-in prompts list are gone.
-- **AC11:** A profile holding writing-hook overrides, started once on the new build, has none left and is shown the notice naming each dropped prompt once, and not on the next start; a profile without overrides sees no notice; an exchange file with overrides imports without them, and its summary names them.
+- **AC10:** Every flow (each `core::writing_hook`, the report guidance, the suggested-comment format and the review skill's guidance) is a shipped prompt in Settings › Prompts with the Result the mapping gives it; editing its text changes what the next press of that flow sends; the writing-hooks panel, its Built-in prompts list and the review skill's panel are gone.
+- **AC11:** A profile holding writing-hook overrides and an edited review skill, started once on the new build, has neither left and is shown the notice naming each dropped prompt once, and not on the next start; a profile with neither sees no notice; an exchange file with overrides imports without them, and its summary names them.
 - **AC12:** Across a built-in revision, an untouched shipped prompt sends the new text with no flag; an edited one keeps and sends its own text and shows A newer built-in version exists, whose Compare shows both texts and whose Use built-in replaces the text only when pressed; a contract change reaches both with no flag.
 - **AC13:** Core decides which Results a place allows, which Features a Result accepts, the instructions a request carries and the actions an output unlocks; the host performs those actions, Qt presents them, and no widget composes instruction text.
+- **AC14:** A person's own prompt with Rewrite text appears in the Enhance menu of a comment being written, after the shipped prompt, and its output replaces that comment's text; the same prompt is offered in no chat, and a person's prompt with any flow Result is offered only in that flow.
