@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2244"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Commits tab shows each commit's age",
+  "created": "2026-11-17T15:41:49.946846+00:00",
+  "base": "55997ce7d60aebdcd06639d8b2c22099dd8efc5e"
+}
