@@ -2,7 +2,7 @@
 id: "RFC-BPR-0129"
 title: "Prompts declare a Result and Features; nothing the agent is told is hidden"
 status: "Proposed"
-metadata: {"origin":"owner grill-rfc interview, 2026-11-16, after BPR-2219 (the review report lost its format and Draft comment)","inspected_revision":"71dbb4fb3","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 671a497ca","mandate":"owner, 2026-11-16: the design confirmed in a grill-rfc interview; Q1, Q3, Q5 and Q6 answered by the owner, Q2 and Q4 defaults accepted by the coordinator; revised the same day for a critical review (B1 to B5, N1 to N10), its product choices coordinator-proposed and put to the owner; cards BPR-2222 to BPR-2227 in Backlog, none started"}
+metadata: {"origin":"owner grill-rfc interview, 2026-11-16, after BPR-2219 (the review report lost its format and Draft comment)","inspected_revision":"71dbb4fb3","inspected_lane":"claude/v0-5-0-prerelease-targets-52265d at 671a497ca","mandate":"owner, 2026-11-16: the design confirmed in a grill-rfc interview; Q1, Q3, Q5 and Q6 answered by the owner, Q2 and Q4 defaults accepted by the coordinator; revised the same day for a critical review (B1 to B5, N1 to N10), its product choices O1 to O5 accepted by the owner as proposed; cards BPR-2222 to BPR-2227 in Backlog, none started"}
 depends_on: ["RFC-BPR-0092", "RFC-BPR-0101", "RFC-BPR-0107", "RFC-BPR-0125", "RFC-BPR-0126", "RFC-BPR-0128"]
 ---
 
@@ -224,8 +224,8 @@ their own.
 > Decision (owner, 2026-11-16): built-in only, no user-authored Results or
 > Features.
 
-The owner named eight Results. Six more, marked †, are coordinator-proposed
-(owner question O1). They cover the shapes the app already parses that
+The owner named eight Results. The owner added six more, marked †, by
+accepting O1. They cover the shapes the app already parses that
 none of the eight can carry:
 
 - a report without findings;
@@ -264,7 +264,7 @@ says that the agent gave none.
 
 **Family contracts.** Each is read-only:
 
-- **Agent tab:** split from the review skill (owner question O2):
+- **Agent tab:** split from the review skill (owner, O2):
   - the data-not-instructions boundary;
   - the `brief.*` legend;
   - the conversation rule;
@@ -294,14 +294,14 @@ flow prompt.
 | `agent-tab.explain-file` | Explain this file | Report (runs `flow.review.explain-file`) | None | As above |
 | `conversation.was-addressed` | Was this addressed? | Thread claims (runs `flow.review.was-addressed`) | None | As above |
 | `tour-stop.*`, `tour-part.*`, `tour.*` | As today | Tour reply | None | Kind `question` at a tour place maps to Tour reply, not Answer |
-| `flow.agent-tab.question` (part of `review.skill`, `review.suggested-comment`) | Typed question | Answer, fixed | SC | Shipped; text is the review skill's method and the comment style (O2) |
+| `flow.agent-tab.question` (part of `review.skill`, `review.suggested-comment`) | Typed question | Answer, fixed | SC | Shipped; text is the review skill's method and the comment style (owner, O2) |
 | `flow.tour.problem`, `flow.tour.solution` (`tour.problem`, `tour.solution`) | Problem; Solution | Rewrite text, fixed | None | Shipped; override dropped |
 | `flow.tour.outline` (`tour.outline`) | Tour outline | Tour outline, fixed | None | As above |
 | `flow.tour.stop-comment` (`tour.stop-comment`) | Stop comment | Tour stop comment, fixed | None | As above |
 | `flow.tour.draft` (none: `tour_agent_drafting.cpp`) | Draft tour | Tour draft, fixed | None | Shipped; tour style moves into its text |
 | `flow.tour.chat-stop`, `flow.tour.chat-part`, `flow.tour.chat-whole` (none: `tour_agent_conversation.cpp`) | Tour chat | Tour reply, fixed | None | Shipped; tour style moves into their text |
 | `flow.enhance.tour-stop`, `flow.enhance.writing` (`enhance.tour-stop`, `enhance.writing`) | Enhance | Rewrite text, fixed | None | Shipped; override dropped |
-| `flow.workshop`, `flow.workshop.labels` (`review.feedback`) | Workshop a comment; …with labels | Answer, fixed | SC | Shipped. The label helper chooses which one runs, so label guidance is still sent only for workshop presses while the helper is on (O3). Override dropped |
+| `flow.workshop`, `flow.workshop.labels` (`review.feedback`) | Workshop a comment; …with labels | Answer, fixed | SC | Shipped. The label helper chooses which one runs, so label guidance is still sent only for workshop presses while the helper is on (owner, O3). Override dropped |
 | `review.suggested-comment` | Retired | None | None | Its format becomes the Suggested comment contract; its style moves into `flow.agent-tab.question` and `flow.workshop*`. Override dropped |
 | `flow.local.description` (`local.description`) | Description | Description, fixed | None | Override dropped |
 | `flow.local.discussion` (`local.discussion`) | Discuss the change | Draft proposals, fixed | None | As above |
@@ -357,7 +357,7 @@ the review prompts' text.
   writing-hook override and any edited review skill copy is dropped:
   1. Before anything is deleted, the app writes each dropped text to a file
      in Downloads, as RFC-BPR-0092 does today before removing an edited
-     skill (owner question O4), and stores the dropped names.
+     skill (owner, O4), and stores the dropped names.
   2. Only then are the edits deleted.
   3. The one-time notice names each dropped prompt and its file.
 
@@ -373,7 +373,7 @@ the review prompts' text.
 ### Sharing (RFC-BPR-0107 exchange)
 
 The file stays `bpr.profile-settings` version 1. A version bump would make
-an older build refuse the whole file, its agents included (owner question
+an older build refuse the whole file, its agents included (owner,
 O5).
 
 - **Export.** Flow prompts are exported as Prompts items under their
@@ -510,15 +510,21 @@ owner amendment, and the amendment keeps every obligation it does not name.
 | Q5 | May a person's prompt use any Result? | **Owner:** yes, placed only where that Result works |
 | Q6 | Features in the typed chat `/` picker? | **Owner:** yes |
 
-### For the owner (coordinator-proposed, built as written unless answered)
+### Accepted by the owner (2026-11-16)
 
-| # | Question |
+The critical review's five product choices were proposed by the
+coordinator. The owner accepted all five as proposed, relayed by the
+coordinator.
+
+| # | Decision |
 |---|---|
-| O1 | Add the six † Results (Report, Thread claims, Line suggestion, Tour reply, Tour draft, Draft proposals) beside your eight, so every shape the app parses has a contract? |
-| O2 | Split the review skill: its method and comment style become the editable Typed question prompt, and its boundary, legend and conversation rule become the read-only Agent tab contract? |
-| O3 | Comment labels: two shipped workshop prompts, with the label helper choosing which runs, rather than folding labels into Enhance? |
-| O4 | Save each dropped edit to a file in Downloads before deleting it, named in the notice? |
-| O5 | Share flow prompts under new `flow.*` IDs in the same file version, so older builds skip them instead of misreading them? |
+| O1 | The six † Results (Report, Thread claims, Line suggestion, Tour reply, Tour draft, Draft proposals) join the owner's eight, so every shape the app parses has a contract. |
+| O2 | The review skill is split. Its method and comment style become the editable Typed question prompt, and its boundary, legend and conversation rule become the read-only Agent tab contract. |
+| O3 | Comment labels are two shipped workshop prompts, and the label helper chooses which runs. Labels are not folded into Enhance. |
+| O4 | Each dropped edit is saved to a file in Downloads before it is deleted, and the notice names the file. |
+| O5 | Flow prompts are shared under new `flow.*` IDs at the same file version, so older builds skip them instead of misreading them. |
+
+> Decision (owner, 2026-11-16): O1 to O5 accepted as proposed.
 
 ## Grill confirmation (2026-11-16)
 
@@ -543,9 +549,11 @@ owner amendment, and the amendment keeps every obligation it does not name.
   - correctness fixes: the full inventory, the byte classes, family
     contracts, the per-ID table, the exchange wire rules, Feature trust,
     the queue, sizes, and saving dropped edits;
-  - product choices, coordinator-proposed: O1 to O5.
-
-  Neither round covered this revision, and it is not owner-confirmed.
+  - product choices O1 to O5, proposed by the coordinator.
+- **Third round, the same day, relayed by the coordinator:**
+  - the owner accepted O1 to O5 as proposed;
+  - this confirms the revised draft at this version, including the
+    critical-review fixes it carries.
 
 ## Milestones
 

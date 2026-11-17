@@ -19,13 +19,13 @@ report Result.
 ## Scope
 
 - **Core catalog.** The fourteen Results, including the six that are
-  coordinator-proposed (O1), and the three Features. Each has its contract,
+  added by the owner (O1), and the three Features. Each has its contract,
   family and revision, along with:
   - which placements each Result allows;
   - which Features each Result carries (none for the JSON Results and the
     tour chats).
 - **Family contracts.** The Agent tab contract is split from
-  `bpr-pr-review` (O2): the boundary, the `brief.*` legend, the
+  `bpr-pr-review` (owner, O2): the boundary, the `brief.*` legend, the
   conversation rule, "always answer in words" and no publishing. The
   Writing contract is reworded per Result.
 - **`/bpr:` references.** `bpr:` is a reserved qualifier in
