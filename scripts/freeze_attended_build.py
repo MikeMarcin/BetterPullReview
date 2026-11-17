@@ -663,7 +663,7 @@ def freeze(options: argparse.Namespace) -> int:
 
     with (root / "configure.log").open("w") as log:
         configured = subprocess.run(
-            ["cmake", "--preset", "app-release", "-B", BUILD, "-DBUILD_TESTING=ON"],
+            ["cmake", "--preset", "app-release", "-B", BUILD, "-DBUILD_TESTING=ON", f"-DCMAKE_MAKE_PROGRAM={source / 'scripts' / 'jobserver_ninja.py'}"],
             cwd=str(source), stdout=log, stderr=subprocess.STDOUT, check=False)
     if configured.returncode != 0:
         return fail(f"configure failed; see {root / 'configure.log'}")
@@ -731,7 +731,7 @@ def freeze_live(options: argparse.Namespace) -> int:
         return fail(f"git archive of {commit} did not extract")
     root, source = exported
     with (root / "configure.log").open("w") as log:
-        configured = subprocess.run(["cmake", "--preset", "app-release", "-B", LIVE_BUILD, "-DBUILD_TESTING=OFF"],
+        configured = subprocess.run(["cmake", "--preset", "app-release", "-B", LIVE_BUILD, "-DBUILD_TESTING=OFF", f"-DCMAKE_MAKE_PROGRAM={source / 'scripts' / 'jobserver_ninja.py'}"],
                                     cwd=str(source), stdout=log, stderr=subprocess.STDOUT, check=False)
     if configured.returncode != 0:
         return fail(f"configure failed; see {root / 'configure.log'}")
