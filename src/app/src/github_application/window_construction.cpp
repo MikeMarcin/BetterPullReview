@@ -696,6 +696,7 @@ namespace bpr::app {
 			EpochEffects,
 			ReviewerDecisions,
 			*this, application::epoch_host_limits{ }, DiagnosticLog);
+		EpochHost->set_history_effects(EpochHistoryEffects);
 
 		PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, ReviewLedgerFile, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
 #if defined(BPR_AGENT_INTEGRATIONS)

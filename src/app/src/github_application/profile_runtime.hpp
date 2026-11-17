@@ -163,8 +163,12 @@ namespace bpr::app {
 		worker_executor                  DeviceBindingEffects;
 		worker_executor                  DeviceTransportEffects;
 		worker_executor                  EpochEffects;
-		worker_executor                  DiffEffects;
-		worker_executor                  SearchEffects;
+		/// [[BPR-2250]]. The change since a review's GitHub reads: off
+		/// `EpochEffects`, which the review's cache actors run on, so a slow
+		/// fetch of the past never holds the current state's reads.
+		worker_executor EpochHistoryEffects;
+		worker_executor DiffEffects;
+		worker_executor SearchEffects;
 		/// [[BPR-1327]]. Prepares the files a reviewer is about to open: tree
 		/// lookups queued on the repository actor and batched blob reads, off
 		/// the actor and off the diff lane.

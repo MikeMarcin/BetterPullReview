@@ -604,10 +604,10 @@ namespace bpr::app {
 		if (context.Private.has_value() && context.Private->LastReviewedHead.has_value()
 			&& context.Head.has_value()
 			&& *context.Head != *context.Private->LastReviewedHead) {
-			auto paths = std::vector<std::filesystem::path>{ };
+			auto paths = std::vector<std::string>{ };
 			paths.reserve(snapshot->Files.size());
 			for (const auto& file : snapshot->Files) {
-				paths.emplace_back(file.Path);
+				paths.push_back(file.Path);
 			}
 			context.ChangedSinceReviewPaths = changed_since_review(
 				*context.Private->LastReviewedHead, *context.Head, std::move(paths));
@@ -836,16 +836,21 @@ namespace bpr::app {
 
 	// [[BPR-0654]]. Answers from the kept resolution when its inputs are
 	// the ones asked about; otherwise asks the epoch host once and answers
-	// "not yet". The host looks each file up at both heads on the review's
-	// cache actor, beside the selected comparison, and the completion
-	// republishes the overview with the exact set. A refusal before
-	// admission and a stale answer (the cache not yet serving the accepted
-	// head) are asked again on the next publish; a failure is not, until an
-	// input moves.
+	// "not yet", which the Overview shows as unknown, never as unchanged.
+	// [[BPR-2250]]. Asked as the change since the review, paths only: the
+	// host diffs the reviewed head's tree against the head's, fetching the
+	// reviewed head's trees when a sparse review lacks them (by its SHA when
+	// a force push left it behind). The host admits it only once the current
+	// state is ingested, reads the cache behind the reviewer's own reads, and
+	// fetches on a lane of its own, so it never delays the review's load.
+	// The completion republishes the overview with the exact set. A refusal
+	// before admission and a stale answer are asked again on the next
+	// publish; a commit that cannot be got, or any other failure, is not,
+	// until an input moves.
 	auto github_application::implementation::changed_since_review(
-		const core::git_commit_oid&        aReviewed,
-		const core::git_commit_oid&        aHead,
-		std::vector<std::filesystem::path> aPaths)
+		const core::git_commit_oid& aReviewed,
+		const core::git_commit_oid& aHead,
+		std::vector<std::string>    aPaths)
 		-> std::optional<std::vector<std::string>>
 	{
 		auto authority = std::optional<application::workbench_pull_request_authority>{ };
@@ -853,38 +858,43 @@ namespace bpr::app {
 			const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 			authority       = ReviewLedgerAuthority;
 		}
-		if (EpochHost == nullptr || !authority.has_value()) {
+		if (EpochHost == nullptr || !authority.has_value() || aPaths.empty()) {
 			return std::nullopt;
 		}
-		auto request = application::changed_paths_request{
-			.WorkbenchAuthority = *authority,
-			.Left               = aReviewed,
-			.Right              = aHead,
-			.Paths              = std::move(aPaths),
-		};
+		auto request               = application::returning_change_request{ };
+		request.WorkbenchAuthority = *authority;
+		request.Head               = aHead;
+		request.Steps              = { { .Parent = aReviewed, .Commit = aHead } };
+		request.Outside            = aReviewed;
+		request.Paths              = std::move(aPaths);
+		request.PathsOnly          = true;
 		if (ChangedSinceReview.has_value() && ChangedSinceReview->Request == request) {
 			return ChangedSinceReview->Changed;
 		}
-		ChangedSinceReview  = changed_since_review_state{ .Request = request };
-		const auto admitted = EpochHost->resolve_changed_paths(
-			request,
-			[this](const application::changed_paths_observation& aObservation) {
+		ChangedSinceReview = changed_since_review_state{ .Request = request };
+#if defined(BPR_BUILD_TESTING)
+		++ChangedSinceReviewReadsForTesting;
+#endif
+		const auto admitted = EpochHost->resolve_returning_change(
+			std::move(request),
+			[this](const application::returning_change_observation& aObservation) {
 				if (Closing || !ChangedSinceReview.has_value()
 					|| ChangedSinceReview->Request != aObservation.Request) {
 					return;
 				}
-				if (aObservation.Status == application::changed_paths_status::stale) {
+				if (aObservation.Status == application::returning_change_status::stale) {
 					ChangedSinceReview.reset();
 					OverviewChangedPathsPending = true;
 					return;
 				}
-				if (aObservation.Status != application::changed_paths_status::resolved) {
+				if (aObservation.Status != application::returning_change_status::resolved) {
 					return;
 				}
 				auto changed = std::vector<std::string>{ };
-				changed.reserve(aObservation.Changed.size());
-				for (const auto& path : aObservation.Changed) {
-					changed.push_back(path.generic_string());
+				for (const auto& step : aObservation.Steps) {
+					for (const auto& file : step.Files) {
+						changed.push_back(file.Path);
+					}
 				}
 				ChangedSinceReview->Changed = std::move(changed);
 				publish_overview();

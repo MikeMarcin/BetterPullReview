@@ -1740,9 +1740,9 @@ namespace bpr::app {
 		void refresh_overview_receipts();
 
 		[[nodiscard]] auto changed_since_review(
-			const core::git_commit_oid&        aReviewed,
-			const core::git_commit_oid&        aHead,
-			std::vector<std::filesystem::path> aPaths)
+			const core::git_commit_oid& aReviewed,
+			const core::git_commit_oid& aHead,
+			std::vector<std::string>    aPaths)
 			-> std::optional<std::vector<std::string>>;
 
 		void publish(const application::receipt_projection& aProjection) override;
@@ -2401,10 +2401,14 @@ namespace bpr::app {
 		// is answering and after it could not answer.
 		struct changed_since_review_state final
 		{
-			application::changed_paths_request      Request;
+			application::returning_change_request   Request;
 			std::optional<std::vector<std::string>> Changed;
 		};
 		std::optional<changed_since_review_state> ChangedSinceReview;
+#if defined(BPR_BUILD_TESTING)
+		/// Testing only ([[BPR-2250]]): the mark's reads asked of the host.
+		std::size_t ChangedSinceReviewReadsForTesting = 0U;
+#endif
 		/// RFC-BPR-0116. What the returning questions know now.
 		struct returning_review_state final
 		{
@@ -2597,6 +2601,7 @@ namespace bpr::app {
 		decltype(github_profile_runtime::EpochEntropy)&                   EpochEntropy                   = Profile->EpochEntropy;
 		decltype(github_profile_runtime::EpochClock)&                     EpochClock                     = Profile->EpochClock;
 		decltype(github_profile_runtime::EpochEffects)&                   EpochEffects                   = Profile->EpochEffects;
+		decltype(github_profile_runtime::EpochHistoryEffects)&            EpochHistoryEffects            = Profile->EpochHistoryEffects;
 		decltype(github_profile_runtime::DiffEffects)&                    DiffEffects                    = Profile->DiffEffects;
 		decltype(github_profile_runtime::PrepareEffects)&                 PrepareEffects                 = Profile->PrepareEffects;
 #if defined(BPR_AGENT_INTEGRATIONS)

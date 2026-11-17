@@ -4803,7 +4803,7 @@ target_compile_definitions(test_returning_review_public_path PRIVATE BPR_BUILD_T
 bpr_enable_hardening(test_returning_review_public_path)
 bpr_enable_warnings(test_returning_review_public_path)
 add_dependencies(test_returning_review_public_path test_scoped_writing_agent)
-foreach(course IN ITEMS latest addressed gone)
+foreach(course IN ITEMS latest addressed gone mark)
     bpr_add_network_isolated_test(NAME application_returning_review_${course}_public_path
         WINDOWS_UNCONTAINED
         COMMAND test_returning_review_public_path ${course} "$<TARGET_FILE:test_scoped_writing_agent>")

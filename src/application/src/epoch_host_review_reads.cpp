@@ -1456,6 +1456,13 @@ namespace bpr::application {
 
 		[[nodiscard]] auto stop() const -> std::stop_token { return Control->Stop.get_token(); }
 
+		/// [[BPR-2250]]. A paths-only read serves a mark nobody pressed for,
+		/// so its cache phases wait behind the reviewer's own reads.
+		[[nodiscard]] auto priority() const -> profile_epoch_actor_priority
+		{
+			return Observation.Request.PathsOnly ? profile_epoch_actor_priority::preparation : profile_epoch_actor_priority::reviewer;
+		}
+
 		[[nodiscard]] auto smart_context(const git_smart_acquisition_mode aMode) const -> git_smart_request_context
 		{
 			auto smart               = git_smart_request_context{ };
@@ -1506,7 +1513,7 @@ namespace bpr::application {
 		}
 		job->Control = std::move(*admitted);
 		try {
-			enqueue_actor_work(job->Actor, [this, job] { returning_change_inspect(job); });
+			enqueue_actor_work(job->Actor, [this, job] { returning_change_inspect(job); }, job->priority());
 		} catch (...) {
 			finish_job(job->Control);
 			return false;
@@ -1531,26 +1538,29 @@ namespace bpr::application {
 	void epoch_application_host::implementation::returning_change_on_actor(const std::shared_ptr<returning_change_job>& aJob,
 																		   void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&))
 	{
+		auto phase = [this, aJob, aPhase] {
+			try {
+				(this->*aPhase)(aJob);
+			} catch (...) {
+				finish_returning_change(aJob, returning_change_status::failure);
+			}
+		};
 		try {
-			enqueue_actor_work(aJob->Actor, [this, aJob, aPhase] {
-				try {
-					(this->*aPhase)(aJob);
-				} catch (...) {
-					finish_returning_change(aJob, returning_change_status::failure);
-				}
-			});
+			enqueue_actor_work(aJob->Actor, std::move(phase), aJob->priority());
 		} catch (...) {
 			finish_returning_change(aJob, returning_change_status::failure);
 		}
 	}
 
 	/// \brief [[BPR-2251]]. The next phase on a worker of its own: GitHub's
-	/// reads, however long they take, hold no actor.
+	/// reads, however long they take, hold no actor. [[BPR-2250]]: nor the
+	/// epoch's own effects, which the actors also run on, when the host was
+	/// given a history executor.
 	void epoch_application_host::implementation::returning_change_off_actor(const std::shared_ptr<returning_change_job>& aJob,
 																			void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&))
 	{
 		try {
-			Effects.post([this, aJob, aPhase] {
+			HistoryEffects->post([this, aJob, aPhase] {
 				try {
 					(this->*aPhase)(aJob);
 				} catch (...) {
@@ -1748,6 +1758,11 @@ namespace bpr::application {
 					|| (entry.Right && entry.Right->Mode == gitlink)) {
 					continue;
 				}
+				if (request.PathsOnly) {
+					// [[BPR-2250]]. Which files changed, and nothing of them read.
+					answered.Files.push_back({ .Path = named->Path });
+					continue;
+				}
 				if (files == maximum_returning_change_files) {
 					++job.Observation.FilesOmitted;
 					continue;
@@ -1762,6 +1777,10 @@ namespace bpr::application {
 					}
 				}
 			}
+		}
+		if (request.PathsOnly) {
+			finish_returning_change(aJob, stop.stop_requested() ? status::cancelled : status::resolved);
+			return;
 		}
 		// The cache first; what it lacks is read exactly through the lease.
 		for (const auto& read : job.Reads) {

@@ -222,6 +222,14 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_returning_change(
 			returning_change_request    aRequest,
 			returning_change_completion aCompletion) -> bool;
+		/// \brief [[BPR-2250]]. Runs the change since a review's GitHub reads
+		/// on `aEffects` rather than the host's effect executor.
+		/// \details The review's cache actors run on the host's executor too,
+		/// so a held fetch posted there would hold the reviewer's own reads
+		/// and the current state's load; the composition gives the host a
+		/// lane of its own. Call before any read; `aEffects` must outlive host
+		/// quiescence.
+		void set_history_effects(effect_executor& aEffects) noexcept;
 		/// \brief RFC-BPR-0089. Answers which paths each first-parent commit
 		/// changes, from local tree diffs of the retained objects.
 		/// \details Never fetches. A step whose commit or parent tree is not

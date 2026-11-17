@@ -7819,6 +7819,120 @@ namespace {
 		expect(value.Host->outstanding_jobs() == 0U && value.Host->queued_actor_work() == 0U, "nothing is left outstanding");
 	}
 
+	// [[BPR-2250]]. The Overview's changed-since-my-review mark asks the
+	// change since the review for its paths only: which files changed, no
+	// blob read and no file bound. On a sparse review the reviewed head's
+	// trees are fetched, and the fetch runs on the host's history lane. The
+	// review's cache actors run on the host's own effect lane, one serial
+	// thread as the composition's `EpochEffects` is; with the fetch held by
+	// GitHub, the reviewer's blob read on that lane completes.
+	void a_held_overview_mark_fetch_leaves_the_epoch_lane_free()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		queued_executor history{ false };
+		value.Host->set_history_effects(history);
+		const auto authority       = workbench_authority_for(value.Host->state());
+		const auto head            = value.Host->state().AcceptedRevision->Head;
+		const auto reviewed        = oid<core::git_commit_oid>(0x42U);
+		value.State.MissingCommits = { reviewed };
+		value.State.ChainEntries   = {
+			{ .Left   = application::git_chain_changed_side{ .Path = "a.cpp", .Object = sha1_blob("old\n"), .Mode = 0100644U },
+			  .Right  = application::git_chain_changed_side{ .Path = "a.cpp", .Object = sha1_blob("new\n"), .Mode = 0100644U },
+			  .Change = 'M' },
+			{ .Left = std::nullopt, .Right = application::git_chain_changed_side{ .Path = "outside.cpp", .Object = sha1_blob("x\n"), .Mode = 0100644U }, .Change = 'A' },
+		};
+		const auto hold            = std::make_shared<shared_state::chain_hold>();
+		value.State.ChainHold      = hold;
+		auto       observations    = std::vector<application::returning_change_observation>{ };
+		const auto record          = [&observations](const application::returning_change_observation& aObservation) { observations.push_back(aObservation); };
+		auto       request         = application::returning_change_request{ };
+		request.WorkbenchAuthority = authority;
+		request.Head               = head;
+		request.Steps              = { { .Parent = reviewed, .Commit = head } };
+		request.Outside            = reviewed;
+		request.Paths              = { "a.cpp", "b.cpp" };
+		request.PathsOnly          = true;
+		expect(value.Host->resolve_returning_change(request, record), "the mark's read is admitted");
+		const auto entered = [&hold] {
+			std::scoped_lock lock{ hold->Mutex };
+			return hold->Entered;
+		};
+		// The epoch lane: one thread running the host's effects in order.
+		auto lane = std::jthread{ [&value](const std::stop_token& aStop) {
+			while (!aStop.stop_requested()) {
+				if (value.Effects.pending() != 0U) {
+					value.Effects.run_next();
+				} else {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+				}
+			}
+		} };
+		for (std::size_t attempt = 0U; attempt < 1'000U && history.pending() == 0U && !entered(); ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		const auto onHistory = history.pending() == 1U;
+		auto       fetcher   = std::jthread{ [&history, onHistory] {
+			if (onHistory) {
+				history.run_next();
+			}
+		} };
+		for (std::size_t attempt = 0U; attempt < 1'000U && !entered(); ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		expect(onHistory && entered(), "the reviewed head's fetch runs on the history lane, and is held");
+		auto read     = std::optional<application::diff_blob_observation>{ };
+		auto readDone = std::atomic_bool{ false };
+		auto reader   = std::jthread{ [&] {
+			read = value.Host->materialize(blob_request_for(value.Host->state()), { });
+			readDone.store(true, std::memory_order_release);
+		} };
+		for (std::size_t attempt = 0U; attempt < 2'000U && !readDone.load(std::memory_order_acquire); ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		const auto readWhileHeld = readDone.load(std::memory_order_acquire);
+		std::cout << "overview-mark-fetch-held: reviewer-read-done=" << readWhileHeld << " answered=" << observations.size() << '\n';
+		{
+			std::scoped_lock lock{ hold->Mutex };
+			hold->Released = true;
+			hold->Changed.notify_all();
+		}
+		reader.join();
+		fetcher.join();
+		lane.request_stop();
+		lane.join();
+		expect(readWhileHeld && observations.empty(), "the reviewer's blob is read on the epoch lane while the mark's fetch is held");
+		expect(read && read->Status == application::diff_blob_status::available, "the reviewer's blob is available");
+		while (history.pending() != 0U || value.Effects.pending() != 0U || value.Decisions.pending() != 0U) {
+			if (history.pending() != 0U) {
+				history.run_next();
+			}
+			drain(value);
+		}
+		expect(observations.size() == 1U && observations.front().Status == application::returning_change_status::resolved && observations.front().Steps.size() == 1U
+				   && observations.front().Steps.front().Files.size() == 1U && observations.front().Steps.front().Files.front().Path == "a.cpp"
+				   && !observations.front().Steps.front().Files.front().Earlier && !observations.front().Steps.front().Files.front().Current,
+			   "once GitHub answers, the mark names the pull request's changed file, and nothing of it is read");
+		expect(value.State.ChainRequests.size() == 1U && value.State.ChainRequests.front().Outside == std::optional{ reviewed } && value.State.ExactBlobBatches.empty(),
+			   "the reviewed head's trees are fetched, by its SHA; no blob is");
+		expect(value.Host->outstanding_jobs() == 0U && value.Host->queued_actor_work() == 0U, "nothing is left outstanding");
+
+		// [[BPR-2250]]:gone. A reviewed head GitHub no longer serves.
+		value.State.ChainHold    = nullptr;
+		value.State.ChainFailure = application::git_smart_transport_failure::unavailable;
+		expect(value.Host->resolve_returning_change(request, record), "a second read is admitted");
+		while (history.pending() != 0U || value.Effects.pending() != 0U || value.Decisions.pending() != 0U) {
+			if (history.pending() != 0U) {
+				history.run_next();
+			}
+			drain(value);
+		}
+		expect(observations.size() == 2U && observations.back().Status == application::returning_change_status::earlier_unavailable && observations.back().Steps.empty(),
+			   "a reviewed head that cannot be fetched is said to be unavailable, with no files");
+	}
+
 	// [[BPR-1212]] v002. Whether a comparison's left document is numbered as
 	// GitHub numbers `LEFT` lines: the unique merge base of GitHub's base and
 	// the accepted head, from the retained objects, holds the same blob at the
@@ -10672,6 +10786,7 @@ int main(int argc, char** argv)
 	returning_change_reads_each_step_from_the_cache();
 	sparse_returning_change_fetches_the_reviewed_head();
 	a_held_returning_fetch_leaves_the_review_actor_free();
+	a_held_overview_mark_fetch_leaves_the_epoch_lane_free();
 	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;
 }

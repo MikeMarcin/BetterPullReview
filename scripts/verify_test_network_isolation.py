@@ -332,6 +332,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_returning_review_latest_public_path": "unmeasured (registered on macOS)",
     "application_returning_review_addressed_public_path": "unmeasured (registered on macOS)",
     "application_returning_review_gone_public_path": "unmeasured (registered on macOS)",
+    "application_returning_review_mark_public_path": "unmeasured (registered on macOS)",
     "application_explain_file_public_path": "unmeasured (registered on macOS)",
     "application_suggest_change_public_path": "unmeasured (registered on macOS)",
     # RFC-BPR-0127 and BPR-2171, registered on this lane without an entry.

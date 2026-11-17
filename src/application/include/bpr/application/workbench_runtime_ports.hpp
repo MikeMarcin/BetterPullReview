@@ -813,6 +813,11 @@ namespace bpr::application {
 	/// commit that may lie outside it (the reviewed head of a rewritten
 	/// branch), by its SHA. Blobs the cache lacks are read exactly. When
 	/// `Paths` is not empty, only those paths are read.
+	///
+	/// [[BPR-2250]]. With `PathsOnly`, only which files changed is answered:
+	/// no blob is read and no file bound applies, and the cache is read at
+	/// the actor's preparation priority, behind the reviewer's own reads.
+	/// The Overview's changed-since-my-review mark asks it this way.
 	struct returning_change_request
 	{
 		workbench_pull_request_authority      WorkbenchAuthority;
@@ -821,6 +826,7 @@ namespace bpr::application {
 		std::uint32_t                         Depth = 2U;
 		std::optional<core::git_commit_oid>   Outside;
 		std::vector<std::string>              Paths;
+		bool                                  PathsOnly = false;
 
 		auto operator<=>(const returning_change_request&) const = default;
 	};

@@ -1334,12 +1334,15 @@ namespace bpr::application {
 		void start_comparison_resolution(
 			const core::resolve_comparison_request& aRequest);
 
-		core::epoch_state                             State;
-		git_cache_port&                               Caches;
-		epoch_catalog_port&                           Catalogs;
-		epoch_entropy_port&                           Entropy;
-		epoch_clock_port&                             Clock;
-		effect_executor&                              Effects;
+		core::epoch_state   State;
+		git_cache_port&     Caches;
+		epoch_catalog_port& Catalogs;
+		epoch_entropy_port& Entropy;
+		epoch_clock_port&   Clock;
+		effect_executor&    Effects;
+		/// [[BPR-2250]]. Where the change since a review's GitHub reads run;
+		/// `Effects` unless the composition gave the host one of its own.
+		effect_executor*                              HistoryEffects = &Effects;
 		decision_executor&                            DecisionLane;
 		epoch_projection_port&                        Projections;
 		epoch_host_limits                             Limits;

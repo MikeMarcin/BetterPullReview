@@ -15,6 +15,7 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_application_host.hpp"
@@ -2294,6 +2295,20 @@ namespace bpr::app::detail {
 		/// function releases it, or thirty seconds pass.
 		[[nodiscard]] static auto hold_review_ledger_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-2250]]. Holds the profile's history lane, where the
+		/// change since a review's GitHub reads run, the way a slow fetch of
+		/// the past does, until the returned function releases it or thirty
+		/// seconds pass.
+		[[nodiscard]] static auto hold_epoch_history_effects(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-2250]]. The published Overview's changed-since-my-review
+		/// mark: each file row's path with its mark, in row order; empty
+		/// before an Overview is published.
+		[[nodiscard]] static auto overview_change_marks(
+			const github_application& aApplication) -> std::vector<std::pair<std::string, application::overview_change_since_review>>;
+		/// \brief [[BPR-2250]]. How many times the Overview's mark asked the
+		/// host for the change since my last review.
+		[[nodiscard]] static auto changed_since_review_reads(const github_application& aApplication) noexcept -> std::size_t;
 		/// \brief [[BPR-1404]]. Holds private draft persistence on its existing
 		/// effect lane until the returned function releases it, or thirty
 		/// seconds pass. Decision delivery and public gestures keep turning.
