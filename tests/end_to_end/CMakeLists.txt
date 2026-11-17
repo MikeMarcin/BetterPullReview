@@ -5705,6 +5705,10 @@ set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERT
 # gesture's turn while GitHub is slow, Return and the Active review on Home
 # while it loads, and the loaded review keeps them.
 bpr_add_executable(test_home_open_responsive_public_path home_open_responsive_public_path_tests.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_home_open_responsive_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(test_home_open_responsive_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_home_open_responsive_public_path PRIVATE BPR_BUILD_TESTING=1)
 target_compile_features(test_home_open_responsive_public_path PRIVATE cxx_std_23)

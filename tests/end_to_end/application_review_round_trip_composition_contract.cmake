@@ -3837,8 +3837,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# joins its tour turn as it is written (pull request tour parts and a local
 	# draft's question), a local draft's question stands in the footer's Tour
 	# chat slot for Stop all. No review mutation or submission path changed.
+	# [[BPR-2216]] reseal: the Home gesture leaves a read opened from a Home row
+	# running (window_navigation.cpp). No review mutation or submission path
+	# changed.
 	set(bpr_expected_production_app_manifest_digest
-        "d90a3eb2eb7f2497d2a72899d94f86d5e33601ba5b9ea774daad7549fa6db05b"
+        "e02e1ee404ef5b716df0756f6c9acc6b2669ffcf7b9dbbe28b6d9919827caee3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
