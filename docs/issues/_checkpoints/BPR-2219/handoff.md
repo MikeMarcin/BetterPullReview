@@ -1,3 +1,96 @@
+# BPR-2219 checkpoint 3 (2026-11-16)
+
+Supersedes checkpoint 2 below where they differ.
+
+## Where the work is
+
+Private worktree `.claude/worktrees/bpr-2219-review-report`, branch
+`claude/bpr-2219-review-report` (the lane merged in, so it holds the
+jobserver commit `51807e1cc`). Its WIP commits, newest last:
+
+- `05f51c9fb` core report model and tests, fixture agent, design round.
+- `629271e6f` the composed course, Qt and script tests, docs; **the Qt, app
+  and prompt changes as patches** under
+  `docs/issues/_checkpoints/BPR-2219/wip/` (`qt-2.patch`,
+  `report-templates.new.md`), held out of the tree so the "before" binary is
+  built without the fix. Apply with `git apply` once the before run is done;
+  delete the `wip/` folder before the final commits.
+- merge of the lane, then WIP (3): the live course walks the agent setup;
+  the composed course is registered in `tests/end_to_end/CMakeLists.txt`;
+  AC-f on the card.
+
+Nothing of this card is uncommitted on the lane. Final commits are to be
+cherry-picked (or merged) onto the lane with explicit paths once they build.
+
+## Built and run so far
+
+- `test_live_second_account_course` builds (output
+  `build/dev/tests/end_to_end/live_second_account_course`). Copy it to a
+  **new file name** before each run: `cp` over a binary that has run is
+  killed by macOS (exit 137).
+- The before run has **not yet reached the agent**: no agent turn has run and
+  nothing has been spent. Attempts stopped in the agent setup, which on a
+  live pull request is a wizard (agent, repository, check): the course now
+  chooses Claude Code's row (its radio has no text; its accessible name is
+  "Claude Code"), waits for Continue with Claude Code, takes Keep a clone
+  for me or This pull request only, then Check. Attempt 7 is running that.
+- A stale run must be stopped by its own pid before the next (two runs once
+  wrote one log). The wrapper `wip/claude-tee.sh` tees the agent's
+  stream-JSON to the scratchpad's `review-report/current.raw.jsonl`; so far
+  it holds only `claude --help` (the app's capability probe).
+- Nothing else is built: not the core tests, the Qt tests, the app or the
+  composed course.
+
+## New scope (owner decision, 2026-11-16), AC-f on the card
+
+The shipped Review this pull request prompt carries its real instructions as
+its visible, editable body in Settings > Prompts (what to review, sections,
+focus, severity scheme, tone); Restore built-ins restores it. The format the
+app parses stays app-owned, always added, and shows read-only under the
+editor, labelled with the owner's wording from the RFC being written:
+**"Result: Findings report"** ("Always added: the report format
+BetterPullReview reads"). The reader tolerates a missing optional section
+(no verdict guidance: the report shows without a verdict). Same for Review
+{file}. The general Result and Feature model is the new RFC's, not this
+card's. One more Accept/Reject question in the look: the Prompts page with
+the review prompt's body and the read-only contract. The after real-agent
+run uses the new visible prompt.
+
+Plan for it (not started):
+1. `prompt_macro_shipped.cpp`: the two `prompt_ask::review` built-ins become
+   `named(plain(id, place, BODY, ...), "Review this pull request")`, the body
+   opening with "Review this pull request" (the fixture agent keys on it);
+   the Agent tab already shows a turn's name over a folded question.
+2. `report-templates.md`: its review part reduced to the format contract
+   (title, the optional `**Verdict:**` line, a finding as a level-three item
+   with its place, suggestion blocks, the findings block).
+3. `core::report_findings`: in a review (title "Review of ..." or a verdict)
+   any item with a place is a finding, so a changed severity scheme still
+   drafts.
+4. `prompts_page`: a read-only box under the editor for a review prompt,
+   fed the contract text by the app composition.
+5. Tests: `core_prompt_macro`, the prompts page test, the fixture agent.
+
+## Next, in order
+
+1. Finish the before run; save answer, report, raw output, renders; diagnose.
+2. `git apply` the held patches; build `test_better_pull_review_agent_report_core_tests`,
+   `test_better_pull_review_agent_report_view_tests`, `bpr_fixture_agent`,
+   `test_review_report_public_path`; run `core_agent_report`,
+   `qt_agent_report_view`, `fixture_agent_answers`,
+   `application_review_report_public_path`, then the ask courses and
+   `application_fixture_agent_every_ask`. One build or test at a time, ctest
+   no wider than `-j4`.
+3. AC-f as planned above.
+4. Format (`coding-format`), documentation gate, final commits on the lane,
+   card and checkpoint mirrored to main.
+5. After run with the real agent (one Sonnet, medium run), using the new
+   visible prompt.
+6. Freeze (no other build of mine running), attended review in a fresh short
+   session: four Accept/Reject questions (reads as a report; Draft comment
+   from a finding; layout; the Prompts page), mockups and before/after as
+   images, SESSION_LINE in each; serve on the tailnet; report the URL.
+
 # BPR-2219 checkpoint 2 (2026-11-16)
 
 A review ask's report reads as a report and drafts comments from its
