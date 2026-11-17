@@ -43,3 +43,47 @@ loaded before the Qt work.
   memory read at start tell the report (`settle_keep`, `refresh_keeps`).
 - **Qt** (`agent_report_view`): the view keeps only what is under way; what
   was made is read from the host's records.
+- **Found while rendering the look** (`9ae980844`): a report opened before
+  the scroll area gave its column a width was laid out at 29 pixels, and its
+  code boxes stayed one pixel wide until the page was drawn again (since
+  [[BPR-2238]] reads the box's width from the cell). The column's resize now
+  lays the page out; the course asserts the boxes' width at first open and
+  after the restart.
+
+## Verification
+
+On the lane at `9ae980844` (dev preset, macOS), with [[BPR-2232]]:
+
+- `core_agent_report` (a finding is the card at its place, a card with the
+  agent's comment first; keys; one memory across a restart; Draft all's
+  candidates), `core_agent_draft_all`, `core_agent_finding_card_memory`.
+- `qt_agent_report_view` (records read from the host; a card's Drafted on the
+  report; Draft all offered, under way, settled, said; a refusal said at its
+  finding and offered again).
+- `application_review_report_public_path` (composed, fixture agent): Draft
+  comment from the report makes the issue's Agent tab card read Drafted; the
+  tonemap card's own Draft makes the report read Drafted there and not draft
+  it twice; Draft all drafts the other two and says "Drafted 2 private drafts.
+  Skipped 2: 2 already drafted."; the report is in front at the end; nothing
+  is published; after a restart on the same profile both cards read Drafted
+  and every finding and the summary still read Drafted or Kept.
+- `application_ask_report_public_path`, `application_ask_menu_public_path`,
+  `application_agent_keep_action_public_path`,
+  `qt_agent_finding_cards_retained`, `qt_agent_finding_cards_restart`,
+  `architecture_boundaries`, `architecture_boundary_contract`, the
+  documentation gate.
+- Not run: the whole suite; `coding-tidy`.
+
+## Owner look (filed, not waited on)
+
+Attended-review session `0be6df2e1b895302d0be6058915b8289`, external state
+directory `~/.attended-review-state/report-keeps-v001-2026-11-16/` (`state/`
+the session, `manifest.json`, `serve.log`, `serve.pid`), served on the
+tailnet. Two Accept/Reject questions on the frozen build `report-keeps-v001`
+(root `~/report-keeps-v001.0rwtd9d6`, frozen from `9ae9808447d8`, Fixture
+agent only, fixture `returning-review-v1`): `report-draft-all` ([[BPR-2232]])
+and `report-marks-shared` ([[BPR-2231]]). Its images are the composed
+course's renders of the same commit; the restart is the course's, since each
+launch of the frozen build starts a fresh profile. Lifecycle: pending. On the
+verdicts: stop the host by its pid, remove the root with
+`scripts/freeze_attended_build.py remove`.

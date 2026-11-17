@@ -38,3 +38,25 @@ loaded before the Qt work.
   published"; while it runs, "Drafting N findings…" and each finding reads
   Drafting…; then the sentence Draft all says ("Drafted 2 private drafts.
   Skipped 2: 2 already drafted."), a refusal named at its finding.
+
+## Verification
+
+As [[BPR-2231]]'s (one change, `fe23e6040` and `9ae980844`): `core_agent_report`
+(Draft all's candidates and plan over the report's states),
+`qt_agent_report_view`, `application_review_report_public_path` (Draft all
+from the report: two drafted in the report's order, two already drafted,
+the sentence, the report in front, nothing published).
+
+## Owner look (filed, not waited on)
+
+Attended-review session `0be6df2e1b895302d0be6058915b8289`, external state
+directory `~/.attended-review-state/report-keeps-v001-2026-11-16/` (`state/`
+the session, `manifest.json`, `serve.log`, `serve.pid`), served on the
+tailnet. Two Accept/Reject questions on the frozen build `report-keeps-v001`
+(root `~/report-keeps-v001.0rwtd9d6`, frozen from `9ae9808447d8`, Fixture
+agent only, fixture `returning-review-v1`): `report-draft-all` ([[BPR-2232]])
+and `report-marks-shared` ([[BPR-2231]]). Its images are the composed
+course's renders of the same commit; the restart is the course's, since each
+launch of the frozen build starts a fresh profile. Lifecycle: pending. On the
+verdicts: stop the host by its pid, remove the root with
+`scripts/freeze_attended_build.py remove`.

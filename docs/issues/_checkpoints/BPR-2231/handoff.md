@@ -69,3 +69,14 @@ agent_tab_view colours: stage only this work's hunks; never the whole-tree
 - Next: freeze `report-keeps-v001` (nested-folders-v1, renderer.cpp, Fixture
   agent), renders from the frozen tree's course, fresh session with one
   Accept/Reject per card, serve, record the session on the cards.
+
+# Checkpoint 4 (2026-11-16): look report-keeps-v001 filed
+
+- `9ae980844`: code boxes take the column's width (found rendering the look).
+- Look: session `0be6df2e1b895302d0be6058915b8289`, state
+  `~/.attended-review-state/report-keeps-v001-2026-11-16/`, host pid in
+  `serve.pid`, root `~/report-keeps-v001.0rwtd9d6` from `9ae9808447d8`.
+- Next: read the verdicts (`status --after 6`), close both cards on Accept
+  (mirror to main), stop the host by pid, remove the root.
+- Seen, not filed: a restored report turn's byline reads "success" in place
+  of how it ended.
