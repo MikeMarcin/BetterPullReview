@@ -585,6 +585,13 @@ namespace {
 		expect(log.contains(QStringLiteral("First line this app couldn't read:\n{\"type\":\"user\"")) && !log.contains(QString(450, QLatin1Char{ 'x' })), "the refused line is shown, bounded");
 		expect(log.contains(QStringLiteral("warning 29")) && log.contains(QStringLiteral("warning 10")) && !log.contains(QStringLiteral("warning 9\n")), "the last twenty lines of errors are shown");
 		expect(!log.contains(QStringLiteral("wrote nothing")), "a run that wrote something never says it wrote nothing");
+		// [[BPR-2242]]. A failed sign-in stops at a line it read: the 401
+		// retry is the line it ended at, not one it couldn't read.
+		result.ProtocolFailure    = application::agent_protocol_failure::not_signed_in;
+		result.RejectedOutputLine = R"({"type":"system","subtype":"api_retry","attempt":1,"error_status":401,"error":"authentication_failed"})";
+		const auto signIn         = qt::agent_launch_panel::failure_log(result);
+		expect(signIn.contains(QStringLiteral("The line it ended at:\n{\"type\":\"system\",\"subtype\":\"api_retry\"")) && !signIn.contains(QStringLiteral("couldn't read")),
+			   "a failed sign-in names the line it ended at");
 	}
 } // namespace
 

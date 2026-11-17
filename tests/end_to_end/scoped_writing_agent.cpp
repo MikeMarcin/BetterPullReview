@@ -54,7 +54,7 @@ namespace {
 		static const std::vector<std::string> restrictions = { "--tools", "Read,Grep,Glob,Bash", "--allowedTools",
 															   "Read,Grep,Glob,Bash(rg:*),Bash(grep:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(nl:*),Bash(find:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git diff:*),Bash(git grep:*),Bash(git ls-files:*)",
 															   "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task", "--permission-mode", "default", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}",
-															   "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--settings", writing_settings };
+															   "--setting-sources", "user", "--disable-slash-commands", "--no-session-persistence", "--settings", writing_settings };
 		return restrictions;
 	}
 	void emit_tool(const std::string& aId, const std::string& aName, const std::string& aInput, const std::string& aResult)
@@ -416,7 +416,7 @@ int main(int argc, char** argv)
 	// [[BPR-1375]]. Print mode on the person's own sign-in: no `--bare`, and
 	// what it skipped held off by settings. An optional `--model NAME` follows
 	// `--verbose` when the profile names a model.
-	const std::vector<std::string> restrictions = { "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--settings",
+	const std::vector<std::string> restrictions = { "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "user", "--disable-slash-commands", "--no-session-persistence", "--settings",
 													R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})" };
 	std::vector<std::string>       expected     = { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
 	std::vector<std::string>       actual;

@@ -125,6 +125,20 @@ def main() -> int:
     findings = claude_answer(run(claude, ["-p"], user("Review this pull request; answer with a ```bpr-findings block")).stdout)
     block = findings.split("```bpr-findings\n", 1)[1].split("\n```", 1)[0]
     expect(len(json.loads(block)["findings"]) == 2, "the findings block is JSON with two findings")
+    # [[BPR-2219]]. A review is answered as a real agent answers one: a few
+    # words beside its tool calls, then the report, which opens with its
+    # title and verdict and whose findings block lists the report's findings.
+    reviewed = run(claude, ["-p"], user("Review this pull request; answer with a ```bpr-findings block")).stdout
+    said = [block["text"] for frame in frames(reviewed) if frame.get("type") == "assistant" for block in frame["message"]["content"] if block.get("type") == "text"]
+    expect(len(said) == 4 and said[0].startswith("I'll start with the brief") and said[-1].startswith("# Review of #21\n\n**Verdict:** Needs changes\n\n"),
+           f"a review is three working notes, then the report: {[text[:40] for text in said]}")
+    result = [frame for frame in frames(reviewed) if frame.get("type") == "result"][-1]["result"]
+    expect(result == said[-1], "the result is the last message, the report")
+    listed = json.loads(block)["findings"]
+    expect([(finding["path"], finding["startLine"], finding["endLine"]) for finding in listed]
+           == [("src/engine/renderer.cpp", 12, 13), ("src/engine/shaders/post/tonemap.frag", 5, 5)]
+           and "`src/engine/renderer.cpp:12-13`" in said[-1] and "`src/engine/shaders/post/tonemap.frag:5`" in said[-1],
+           "the findings block lists the report's own findings at their places")
 
     # Look ask-v004: a tool-free run (What changed since my review) is told
     # `--tools ""`; its init frame lists no tool and it reads no file.

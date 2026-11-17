@@ -2234,6 +2234,14 @@ bpr_enable_hardening(test_agent_finding_cards_retained)
 bpr_enable_warnings(test_agent_finding_cards_retained)
 bpr_add_network_isolated_test(NAME qt_agent_finding_cards_retained COMMAND test_agent_finding_cards_retained)
 set_tests_properties(qt_agent_finding_cards_retained PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-retained:pass" TIMEOUT 60)
+# [[BPR-2236]]. A finding, verdict or label wears one theme role in the Agent
+# tab and on the report page.
+bpr_add_executable(test_agent_tone_colours agent_tone_colours_tests.cpp)
+target_link_libraries(test_agent_tone_colours PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_agent_tone_colours)
+bpr_enable_warnings(test_agent_tone_colours)
+bpr_add_network_isolated_test(NAME qt_agent_tone_colours COMMAND test_agent_tone_colours)
+set_tests_properties(qt_agent_tone_colours PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-tone-colours:pass" TIMEOUT 60)
 # Owner report 2026-11-10, after BPR-2052: a stored answer's finding cards and
 # their states come back after a restart. The restore decoder is an agent
 # integration.
@@ -3001,3 +3009,14 @@ if(WIN32)
         endif()
     endforeach()
 endif()
+
+# Owner, look report-keeps-v001: a document tab's glyph follows the theme.
+bpr_add_executable(test_better_pull_review_document_tab_glyph_tests document_tab_glyph_tests.cpp)
+target_link_libraries(test_better_pull_review_document_tab_glyph_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_document_tab_glyph_tests)
+bpr_enable_warnings(test_better_pull_review_document_tab_glyph_tests)
+bpr_add_network_isolated_test(NAME qt_document_tab_glyph COMMAND test_better_pull_review_document_tab_glyph_tests)
+set_tests_properties(qt_document_tab_glyph PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "DOCUMENT_TAB_GLYPH_OK"
+    TIMEOUT 60)

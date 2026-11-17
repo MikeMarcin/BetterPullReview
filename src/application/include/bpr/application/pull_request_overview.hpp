@@ -267,6 +267,10 @@ namespace bpr::application {
 		const overview_context&             aContext)
 		-> pull_request_overview_projection;
 
+	/// \brief [[BPR-2221]]. The files the overview counts done (read, or
+	/// accepted), in its order: the files I have marked reviewed.
+	[[nodiscard]] auto overview_done_files(const pull_request_overview_projection& aProjection) -> std::vector<std::string>;
+
 	/// \brief [[BPR-1841]]. One thread shown resolved as `aResolved` after
 	/// the overview counted it as `aShownResolved`: its file's unresolved
 	/// count and my unresolved threads move as projecting again with that

@@ -327,6 +327,19 @@ namespace {
 			   "an identifier and its value may be separated by any run of blanks");
 	}
 
+	/// [[BPR-2236]]. The report page's paper, ink and code wash were retired;
+	/// a stored palette or theme written while they existed still reads, as
+	/// the same palette.
+	auto test_a_retired_field_is_read_past() -> void
+	{
+		const auto older = appended(appended(appended(valid_document(), "report_paper #eef1f0ff"), "report_ink #1c2427ff"), "report_code_wash #ffffffff");
+		const auto read  = imported(older);
+		expect(read.Rejections.empty() && read.Palette.has_value() && *read.Palette == sample_palette(), "the retired report roles are read past, and nothing else changes");
+		expect(retired_appearance_role("report_paper") && retired_appearance_role("report_ink") && retired_appearance_role("report_code_wash") && !retired_appearance_role("report_verdict_open")
+				   && !find_appearance_role("report_paper").has_value(),
+			   "exactly those three names are retired, and none is a role");
+	}
+
 	auto test_an_unknown_field_is_refused_by_name() -> void
 	{
 		const auto extra  = appended(valid_document(), "custom_glow #112233");
@@ -378,7 +391,7 @@ namespace {
 			   "a partial document yields no palette instead of a defaulted one");
 
 		const auto headerOnly = imported("bpr-theme 1\n");
-		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 12U,
+		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 9U,
 			   "a document that assigns nothing is missing every role but the additive optional colours");
 	}
 
@@ -687,6 +700,7 @@ int main()
 	test_a_base_fills_only_the_roles_a_document_omits();
 	test_a_document_may_be_written_by_hand();
 	test_an_unknown_field_is_refused_by_name();
+	test_a_retired_field_is_read_past();
 	test_a_partial_document_is_refused_rather_than_defaulted();
 	test_a_document_without_label_tints_leaves_them_unassigned();
 	test_external_references_are_refused_wherever_they_appear();

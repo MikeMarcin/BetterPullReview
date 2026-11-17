@@ -229,14 +229,29 @@ namespace {
 		return *built;
 	}
 
+	/// \brief The fact one canary message carries. The canary writes each
+	/// fact as its own message item, and since [[BPR-2219]] (round 3, the
+	/// owner's look review-report-v002) each later text block of a turn opens
+	/// its own paragraph of the answer: the decoder puts the paragraph break
+	/// before it. [[BPR-2240]]: the fact is what follows that break, compared
+	/// exactly.
+	[[nodiscard]] auto fact(const application::agent_stream_event& aEvent) -> std::string_view
+	{
+		auto text = std::string_view{ aEvent.Text };
+		if (text.starts_with("\n\n")) {
+			text.remove_prefix(2U);
+		}
+		return text;
+	}
+
 	[[nodiscard]] auto event_values(
 		const application::agent_run_result& aResult, const std::string_view aTag)
 		-> std::vector<std::string>
 	{
 		auto values = std::vector<std::string>{ };
 		for (const auto& event : aResult.Events) {
-			if (event.Text.starts_with(std::string{ aTag } + "\t")) {
-				values.push_back(event.Text.substr(aTag.size() + 1U));
+			if (const auto text = fact(event); text.starts_with(std::string{ aTag } + "\t")) {
+				values.emplace_back(text.substr(aTag.size() + 1U));
 			}
 		}
 		return values;
@@ -403,7 +418,7 @@ namespace {
 			const auto complete = std::ranges::find_if(
 				result.Events,
 				[](const application::agent_stream_event& aEvent) {
-					return aEvent.Text == "canary-complete";
+					return fact(aEvent) == "canary-complete";
 				});
 			expect(
 				complete != result.Events.end(),
@@ -917,7 +932,7 @@ namespace {
 			std::cerr << "guarded launch outcome " << static_cast<int>(result.Outcome) << ": " << result.StandardError << '\n';
 		}
 		expect(result.Outcome == application::agent_run_outcome::success && std::filesystem::exists(marker)
-				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-closed"; }),
+				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return fact(aEvent) == "inherited-fd-closed"; }),
 			   "guarded launch succeeds without exposing the guard descriptor to the agent");
 		std::filesystem::remove(marker);
 		const auto lock = ::open((aRoot / "guard").c_str(), O_RDONLY | O_CLOEXEC);
@@ -976,14 +991,14 @@ namespace {
 
 	[[nodiscard]] auto has_event(const application::agent_run_result& aResult, const std::string_view aText) -> bool
 	{
-		return std::ranges::any_of(aResult.Events, [&](const auto& aEvent) { return aEvent.Text == aText; });
+		return std::ranges::any_of(aResult.Events, [&](const auto& aEvent) { return fact(aEvent) == aText; });
 	}
 
 	[[nodiscard]] auto count_event(const application::agent_run_result& aResult, const std::string_view aPrefix) -> std::optional<unsigned long>
 	{
 		for (const auto& event : aResult.Events) {
-			if (event.Text.starts_with(aPrefix)) {
-				return std::stoul(event.Text.substr(aPrefix.size()));
+			if (const auto text = fact(event); text.starts_with(aPrefix)) {
+				return std::stoul(std::string{ text.substr(aPrefix.size()) });
 			}
 		}
 		return std::nullopt;
@@ -1173,21 +1188,21 @@ namespace {
 			// [[BPR-1121]]. The launcher calls this and catches what it throws, so a
 			// failure here still ends the process rather than a launch.
 			const bpr::tests::exit_on_failure insideTheLauncher;
-			if (aEvent.Text.starts_with("supervisor-id\t")) {
+			if (fact(aEvent).starts_with("supervisor-id\t")) {
 				std::ofstream supervisor{ aRoot / "supervisor.pid" };
-				supervisor << aEvent.Text.substr(std::string_view{ "supervisor-id\t" }.size());
+				supervisor << fact(aEvent).substr(std::string_view{ "supervisor-id\t" }.size());
 				supervisor.close();
 				expect(supervisor.good(), "publish supervisor PID");
 			}
-			if (aEvent.Text.starts_with("descendant-id\t")) {
+			if (fact(aEvent).starts_with("descendant-id\t")) {
 				std::ofstream descendant{ aRoot / "descendant.pid" };
-				descendant << aEvent.Text.substr(std::string_view{ "descendant-id\t" }.size());
+				descendant << fact(aEvent).substr(std::string_view{ "descendant-id\t" }.size());
 				descendant.close();
 				expect(descendant.good(), "publish descendant PID");
 			}
-			if (aEvent.Text.starts_with("process-id\t")) {
+			if (fact(aEvent).starts_with("process-id\t")) {
 				std::ofstream pid{ aRoot / "agent.pid" };
-				pid << aEvent.Text.substr(std::string_view{ "process-id\t" }.size());
+				pid << fact(aEvent).substr(std::string_view{ "process-id\t" }.size());
 				pid.close();
 				expect(pid.good(), "publish fixture agent PID");
 				std::ofstream ready{ aRoot / "kill-ready" };
@@ -1214,9 +1229,9 @@ namespace {
 		static_cast<void>(::close(channel[0]));
 		static_cast<void>(::close(channel[1]));
 		expect(result.Outcome == application::agent_run_outcome::success
-				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-closed"; })
-				   && std::ranges::none_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-open" || aEvent.Text == "owner-channel-open"; })
-				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "owner-channel-closed"; }),
+				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return fact(aEvent) == "inherited-fd-closed"; })
+				   && std::ranges::none_of(result.Events, [](const auto& aEvent) { return fact(aEvent) == "inherited-fd-open" || fact(aEvent) == "owner-channel-open"; })
+				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return fact(aEvent) == "owner-channel-closed"; }),
 			   "supervised agent cannot inherit an unrelated application descriptor");
 	}
 #endif

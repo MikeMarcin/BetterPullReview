@@ -152,6 +152,9 @@ namespace bpr::application {
 		/// lent review is still being accepted, it waits for that (`ready`) as
 		/// the session's running turn, rather than being refused. While a
 		/// release awaits its turn, this is that turn and takes its run.
+		/// [[BPR-2243]]. Sent after the running turn finished and before its
+		/// run retired (the window already shows the answer), it is held and
+		/// sent at that retirement, ahead of the queue; one such turn at most.
 		[[nodiscard]] auto dispatch(agent_invocation_request aRequest) -> bool;
 		/// \brief AC03. The release admitted as `aRun`, awaiting its turn, was
 		/// refused before the turn was sent (its material could not be read):
@@ -235,6 +238,9 @@ namespace bpr::application {
 		std::optional<core::queued_finish>     Finished;
 		/// A turn sent before the machinery was authorized, waiting for it.
 		std::optional<agent_invocation_request> Waiting;
+		/// [[BPR-2243]]. A turn sent between the running turn's finish and
+		/// its retirement, sent when it retires.
+		std::optional<agent_invocation_request> Next;
 		/// AC03. Runs are numbered by the runtime; a release reserves one.
 		std::uint64_t LastRun = 0U;
 		std::uint64_t Run     = 0U;

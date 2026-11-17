@@ -16,6 +16,7 @@
 #include "bpr/application/review_queue_notification.hpp"
 #include "bpr/application/staged_review_publication.hpp"
 #include "bpr/application/view_filter_memory_host.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_ignore.hpp"
@@ -1640,6 +1641,9 @@ namespace bpr::app {
 			}
 		});
 		Window->prompts()->set_identity_source([this] { return PromptMacros ? PromptMacros->mint_identity() : std::string{ }; });
+		// [[BPR-2219]]. What a review prompt is always sent with, shown
+		// read-only under its editor: the report format the answer is read by.
+		Window->prompts()->set_review_result(QString::fromStdString(application::report_templates_guidance().Text));
 		QObject::connect(qGuiApp, &QGuiApplication::focusWindowChanged, Window.get(), [this](QWindow* const aFocus) {
 			if (!Closing && PromptMacros && Window && aFocus != nullptr && aFocus == Window->windowHandle()) {
 				PromptMacros->load();
@@ -1692,6 +1696,11 @@ namespace bpr::app {
 			}
 		});
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) {
+			// [[BPR-2235]]. A prompt sent as offered keeps its name, as an
+			// Agent tab turn does.
+			if (!aAsk.Name.isEmpty() && PromptTurnNames) {
+				PromptTurnNames->remember({ .Asked = aAsk.Question.toStdString(), .Name = aAsk.Name.toStdString() });
+			}
 			// RFC-BPR-0126 ([[BPR-2154]]). A follow-up typed while the agent
 			// runs, or while the part's queue holds messages, is queued on
 			// the part's own session (a pull request's tour or a local draft's).

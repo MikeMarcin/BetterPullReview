@@ -255,7 +255,32 @@ namespace bpr::qt {
 		// [[BPR-0651]] [[BPR-0650]]. A pull request chosen from a list
 		// arrives on Overview.
 		OpenOnOverview = true;
+		// [[BPR-2216]]. A row Home lists: the core shows its page and makes it
+		// the window's own from the request on, named as the row names it.
+		ListedOpen        = core::home_open_listed{ .Repository = intent.Repository, .Number = intent.Number };
+		const auto listed = *ListedOpen;
 		GithubDispatch(std::move(intent));
+		name_listed_open(listed, QString::fromStdString(aItem.Facts.Title), aItem.Facts.Draft.value_or(false));
+	}
+
+	void workbench_window::name_listed_open(const core::home_open_listed& aListed, const QString& aTitle, const bool aDraft)
+	{
+		// Only the read the core accepted for that row, before GitHub has
+		// named it and while no review is here.
+		if (HasGithubPullRequest || !IdentityText.isEmpty() || LoadingIdentity.has_value() || !HomeOpen.has_value()
+			|| !core::home_open_in_flight(HomeOpen->State, aListed.Repository, aListed.Number)) {
+			return;
+		}
+		auto name       = loading_identity{ };
+		name.Owner      = QString::fromStdString(aListed.Repository.Owner);
+		name.Repository = QString::fromStdString(aListed.Repository.Name);
+		name.Number     = QString::number(aListed.Number.value());
+		name.Title      = aTitle;
+		name.Text       = QStringLiteral("%1/%2  #%3 %4").arg(name.Owner, name.Repository, name.Number, aTitle);
+		name.Draft      = aDraft;
+		LoadingIdentity = std::move(name);
+		apply_strip_width();
+		update_home_landing();
 	}
 
 	auto workbench_window::home_open_action() const noexcept -> QAction*
@@ -484,11 +509,17 @@ namespace bpr::qt {
 		}
 		// [[BPR-0733]] [[BPR-0651]]. A pull request chosen from a list arrives
 		// on Overview, exactly as a queue row's does.
-		OpenOnOverview = true;
+		OpenOnOverview    = true;
+		const auto& entry = RecentReviews.Entries[index];
+		ListedOpen        = core::home_open_listed{ .Repository = entry.Destination.Repository, .Number = entry.Destination.Number };
+		const auto listed = *ListedOpen;
+		const auto title  = QString::fromStdString(entry.Title);
+		const auto draft  = entry.Draft.value_or(false);
 		RecentReviewDispatch(application::recent_review_intent{
 			.Index  = index,
 			.Resume = aResume,
 		});
+		name_listed_open(listed, title, draft);
 	}
 
 	auto workbench_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
@@ -1336,9 +1367,9 @@ namespace bpr::qt {
 
 	auto workbench_window::home_status_echoes_bar() const -> bool
 	{
-		const auto message = statusBar()->currentMessage();
-		return showing_home() && !message.isEmpty() && HomeStatus != nullptr && HomeStatus->isVisible()
-			&& HomeStatusText != nullptr && HomeStatusText->isVisible() && HomeStatusText->text() == message;
+		// [[BPR-2216]]. The status bar is never hidden for the band: the band
+		// no longer says what the status bar says (update_home_status).
+		return false;
 	}
 
 	auto workbench_window::home_status_line() const noexcept -> qt::home_status_line*
@@ -1571,8 +1602,9 @@ namespace bpr::qt {
 		if (!reading) {
 			RefreshConversationCurrent = false;
 		}
-		const auto stage   = read_stage_words();
-		const auto waiting = stage.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(stage);
+		// [[BPR-2216]]. The status bar says which step the read is on; the
+		// panes beside it do not say it again (the owner, 2026-11-16).
+		const auto waiting = QString{ };
 		const auto apply   = [](pending_veil* const aVeil, const bool aPending, const bool aContent, const pending_words& aWords) {
 			if (aVeil == nullptr) {
 				return;
@@ -1583,14 +1615,14 @@ namespace bpr::qt {
 			}
 			aVeil->present(core::pending_activity::loading, aContent, false, aWords);
 		};
-		// The review's own words are its Refresh control's; the veil only
-		// speaks once the read is slow.
+		// [[BPR-2216]]. The owner, 2026-11-17: "The heck now this double
+		// status came back on the review screen." While the pull request is
+		// read, its panes wait in the shape of their content, without
+		// sentences; the status bar says what the read is on.
 		if (refreshing && RefreshConversationCurrent && PendingPanes.Content != nullptr) {
 			// [[BPR-1851]]. The file on screen and its threads are this
-			// refresh's already: they are not washed over while the rest comes,
-			// which the partial plate says at the review's foot.
-			PendingPanes.Content->present(core::pending_activity::loading, true, true,
-										  { .Waiting = waiting, .Coming = QStringLiteral("Refreshing remaining details…") });
+			// refresh's already: they are not washed over while the rest comes.
+			PendingPanes.Content->present(core::pending_activity::loading, true, true, { });
 		} else {
 			apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
 		}
@@ -1598,14 +1630,15 @@ namespace bpr::qt {
 		// Files drawer lists them too: readable, with what is still coming said
 		// on the plate at its foot rather than over the rows.
 		if (first && LoadingReadiness.FirstRead && LoadingReadiness.Files && !ProvisionalFiles.empty()) {
-			const auto coming = PendingOpenPath.isEmpty() ? QStringLiteral("Files open once the review has loaded…")
+			// Only a file the reviewer chose is said: the gesture's answer.
+			const auto coming = PendingOpenPath.isEmpty() ? QString{ }
 														  : QStringLiteral("Opening %1 once the review has loaded…").arg(PendingOpenPath.section(QLatin1Char('/'), -1));
 			PendingPanes.Files->present(core::pending_activity::loading, true, true, { .Waiting = waiting, .Coming = coming });
 		} else {
-			apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+			apply(PendingPanes.Files, first, false, { });
 		}
-		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
-		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
+		apply(PendingPanes.Conversations, first, false, { });
+		apply(PendingPanes.Threads, first, false, { });
 		// Only a composed queue restores: without one nothing is on its way.
 		const auto queued = static_cast<bool>(QueueDiscoveryDispatch);
 		apply(PendingPanes.Repositories, queued && HomeAccount && QueueProjection.Status == application::queue_landing_status::restoring, false,
@@ -1625,16 +1658,18 @@ namespace bpr::qt {
 		const auto  repositories = discovery.Repositories == 1U ? QStringLiteral("1 saved repository") : QStringLiteral("%1 saved repositories").arg(discovery.Repositories);
 		if (restoring) {
 			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false, { .Loading = QStringLiteral("Loading my pull requests…") });
+		} else if (finding && rows) {
+			// [[BPR-2216]]. Listed rows stay readable and the status bar says
+			// Home refreshes; the list's foot does not say it again.
+			PendingPanes.HomeList->present_ready();
 		} else if (finding) {
 			// [[BPR-1848]]. Rows already listed are the newest there are until
 			// the refresh replaces them row by row, so they are never washed
 			// over: the refresh is said on the partial plate at the list's foot,
 			// and every row stays as readable and usable as before it began.
-			PendingPanes.HomeList->present(core::pending_activity::loading, rows, rows,
-										   { .Loading = QStringLiteral("Finding my pull requests in %1…").arg(repositories),
-											 .Waiting = QStringLiteral("Still waiting for GitHub to search %1.").arg(repositories),
-											 .Coming  = QStringLiteral("Refreshing my pull requests in %1…").arg(repositories),
-											 .Done    = QStringLiteral("My pull requests found.") });
+			// [[BPR-2216]]. An empty list waits in the shape of its rows; the
+			// status bar says Home is refreshing (the owner, 2026-11-16).
+			PendingPanes.HomeList->present(core::pending_activity::loading, false, false, { .Done = QStringLiteral("My pull requests found.") });
 		} else if (HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::stale && !rows) {
 			PendingPanes.HomeList->present(core::pending_activity::failed, false, false,
 										   { .Failure = QStringLiteral("Couldn't find my pull requests. %1").arg(home_discovery_sentence(discovery)) });

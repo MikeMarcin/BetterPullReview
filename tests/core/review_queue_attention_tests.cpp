@@ -439,6 +439,43 @@ namespace {
 		expect(!core::head_seen(facts), "a dismissed approval is never seen away");
 	}
 
+	/// [[BPR-2217]]. The review of the pull request says where my approval
+	/// stands, in the core's words: Seen beside Approve while it stands,
+	/// Approve again once GitHub dismissed it, up to date after Seen.
+	void test_review_followup_words()
+	{
+		const auto reviewed     = core::queue_membership{ .Requested = true, .Reviewed = true };
+		auto       activity     = core::queue_activity_observation{ .ReviewedByMe = true, .HeadMovedSinceMyReview = true };
+		auto       item         = core::queue_item{ .Membership = reviewed, .Bucket = core::bucket_for(reviewed, activity) };
+		item.Facts.Waiting.Head = std::string(40, 'b');
+		item.Facts.MyReview     = { .Verdict = core::my_review_verdict::approved, .NewCommits = true };
+
+		const auto stands = core::review_followup_words_for(item);
+		expect(stands.Followup == core::review_followup::seen && stands.Standing == core::review_standing::new_commits_since_approval, "a standing approval with commits after it");
+		expect(stands.Seen == "Seen" && stands.Approve == "Approve" && stands.ApproveTip.empty(), "offers Seen beside an ordinary Approve");
+		expect(stands.SeenTip.find("Nothing is submitted to GitHub") != std::string_view::npos, "Seen says it submits nothing");
+		expect(stands.Note.find("still stands") != std::string_view::npos, "the review says the approval stands");
+
+		auto dismissed                   = item;
+		dismissed.Facts.MyReview.Verdict = core::my_review_verdict::dismissed;
+		const auto again                 = core::review_followup_words_for(dismissed);
+		expect(again.Standing == core::review_standing::approval_dismissed && again.Approve == "Approve again" && again.Seen.empty(), "a dismissed approval: Approve again, no Seen");
+		expect(again.Note.find("dismissed") != std::string_view::npos && !again.ApproveTip.empty(), "and says GitHub dismissed it");
+
+		auto seen           = item;
+		seen.Facts.SeenHead = seen.Facts.Waiting.Head;
+		seen.Bucket         = core::bucket_for(reviewed, core::seen_activity(activity, seen.Facts));
+		const auto upToDate = core::review_followup_words_for(seen);
+		expect(upToDate.Followup == core::review_followup::none && upToDate.Standing == core::review_standing::up_to_date, "after Seen the review is up to date");
+		expect(upToDate.Seen.empty() && upToDate.Approve == "Approve" && upToDate.Note.starts_with("Up to date"), "it offers no Seen and says up to date");
+
+		auto mine                       = seen;
+		mine.Membership.OwnsPullRequest = true;
+		expect(core::review_followup_words_for(mine) == core::review_followup_words{ }, "nothing on a pull request of mine");
+		expect(core::review_followup_words_for(core::queue_item{ }) == core::review_followup_words{ }, "nothing without an approval");
+		expect(core::review_followup_words_for(item) == core::review_followup_words_for(item), "equal items, equal words");
+	}
+
 	void test_my_standing_review_verdict()
 	{
 		using verdict  = core::my_review_verdict;
@@ -564,6 +601,7 @@ auto main() -> int
 	test_the_reason_travels_with_the_item();
 	test_my_standing_review_verdict();
 	test_seen_and_approve_again();
+	test_review_followup_words();
 
 	std::cout << "review-queue-attention-tests:pass\n";
 	return EXIT_SUCCESS;

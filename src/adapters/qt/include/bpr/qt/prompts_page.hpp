@@ -139,6 +139,15 @@ namespace bpr::qt {
 		/// kept where they are; `aConfirm` asks first, as the button does.
 		auto restore_built_ins(bool aConfirm = false) -> bool;
 		void set_filter(prompt_library_filter aFilter);
+		/// \brief [[BPR-2219]] (owner, 2026-11-16). The report format the
+		/// application always adds to a review prompt and reads the answer
+		/// by, shown read-only under the editor of a prompt that asks for
+		/// findings ("Result: Findings report"), so nothing a review is sent
+		/// with is hidden. It is closed behind a disclosure, under the
+		/// prompt's own Insert row, and drawn as something read, not edited
+		/// (look review-report-v001). Empty: the section is not shown.
+		void               set_review_result(const QString& aFormat);
+		[[nodiscard]] auto review_result_box() const noexcept -> QWidget* { return ResultBox; }
 		/// \brief Undo and Redo, every edit of the layer shown; false with
 		/// nothing to do.
 		auto undo() -> bool;
@@ -157,6 +166,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto name_field() const noexcept -> QLineEdit* { return Name; }
 		[[nodiscard]] auto text_field() const noexcept -> QPlainTextEdit* { return Text; }
 		[[nodiscard]] auto add_to_button() const noexcept -> QPushButton* { return AddTo; }
+		/// \brief [[BPR-2220]]: the editor beside (or under) the library; hidden
+		/// only while the library shows no prompt.
+		[[nodiscard]] auto editor_frame() const noexcept -> QWidget* { return EditorFrame; }
+		[[nodiscard]] auto filter_field() const noexcept -> QLineEdit* { return Search; }
+		[[nodiscard]] auto filter_segments() const noexcept -> QWidget* { return Segments; }
+		[[nodiscard]] auto new_prompt_button() const noexcept -> QPushButton* { return NewPrompt; }
+		[[nodiscard]] auto restore_button() const noexcept -> QPushButton* { return Restore; }
 		[[nodiscard]] auto footer_text() const -> QString;
 		[[nodiscard]] auto saved_text() const -> QString;
 		/// \brief The Add to menu for `aId`, as the editor, a library row and
@@ -180,7 +196,17 @@ namespace bpr::qt {
 		void build_library(QVBoxLayout& aColumn);
 		void build_editor(QWidget& aEditor);
 		void rebuild_surfaces();
-		void rebuild_library();
+		/// \brief Lists the prompts the filter shows. [[BPR-2220]]: a prompt is
+		/// selected while one is shown, the first when the selection is gone
+		/// or (`aFiltered`) the filter just hid it; true when the selection
+		/// moved, so the surfaces and editor follow.
+		auto rebuild_library(bool aFiltered = false) -> bool;
+		/// \brief The library listed again after its filter or rows changed.
+		void refilter();
+		/// \brief [[BPR-2220]] (owner, 2026-11-16): New prompt and Restore
+		/// built-ins on the filter's row; the title, then the filter choices,
+		/// go above it as the page narrows.
+		void arrange_library_tools();
 		void refresh_editor();
 		void rebuild_conditions();
 		void add_group_rows(QVBoxLayout& aColumn, const core::prompt_macro_body& aBody, const core::prompt_condition_path& aPath);
@@ -237,6 +263,10 @@ namespace bpr::qt {
 		QToolButton*    AsQuestion    = nullptr;
 		QToolButton*    AsFindings    = nullptr;
 		QPlainTextEdit* Text          = nullptr;
+		QWidget*        ResultBox     = nullptr;
+		QToolButton*    ResultToggle  = nullptr;
+		QWidget*        ResultBody    = nullptr;
+		QPlainTextEdit* ResultText    = nullptr;
 		QLabel*         ActionNote    = nullptr;
 		QWidget*        InsertRow     = nullptr;
 		QLabel*         Bytes         = nullptr;
@@ -254,6 +284,13 @@ namespace bpr::qt {
 		QLabel*         Status        = nullptr;
 		QTimer*         Typing        = nullptr;
 		QBoxLayout*     ToolsRow      = nullptr;
+		QBoxLayout*     FilterLine    = nullptr;
+		QBoxLayout*     SegmentsLine  = nullptr;
+		QWidget*        Segments      = nullptr;
+		QLabel*         LibraryTitle  = nullptr;
+		QPushButton*    NewPrompt     = nullptr;
+		QPushButton*    Restore       = nullptr;
+		QWidget*        EditorFrame   = nullptr;
 		QBoxLayout*     Body          = nullptr;
 		QBoxLayout*     EditorColumns = nullptr;
 		QWidget*        RightBox      = nullptr;

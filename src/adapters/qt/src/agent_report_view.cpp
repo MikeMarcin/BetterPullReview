@@ -1,6 +1,8 @@
 #include "bpr/qt/agent_report_view.hpp"
 
+#include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "markdown_document.hpp"
@@ -19,6 +21,7 @@
 #include <QPointer>
 #include <QRandomGenerator>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyledItemDelegate>
@@ -26,6 +29,7 @@
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextObjectInterface>
+#include <QTextTable>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -68,18 +72,33 @@ namespace bpr::qt {
 
 			void drawObject(QPainter*, const QRectF&, QTextDocument*, int, const QTextFormat&) override { }
 
-			/// An item's code is in its cell, which is the page less the rule
-			/// and its padding.
+			/// An item's code is in its cell: the page less the box's borders,
+			/// the rule's column and the cell's own padding at both sides.
+			/// [[BPR-2238]]: read from the cell, not assumed; the cards look
+			/// pads both sides of a finding's box, the plain look its left.
 			[[nodiscard]] static auto place_width(QTextDocument* aDocument, const int aPosition) -> int
 			{
 				if (aDocument == nullptr) {
 					return 1;
 				}
-				auto width = static_cast<int>(aDocument->textWidth() - 2.0 * aDocument->documentMargin());
-				if (QTextCursor{ aDocument->findBlock(aPosition) }.currentTable() != nullptr) {
-					width -= 3 + 16;
+				auto        width  = aDocument->textWidth() - 2.0 * aDocument->documentMargin();
+				const auto  cursor = QTextCursor{ aDocument->findBlock(aPosition) };
+				auto* const table  = cursor.currentTable();
+				if (table == nullptr) {
+					return std::max(1, static_cast<int>(width));
 				}
-				return std::max(1, width);
+				const auto shape = table->format();
+				const auto cell  = table->cellAt(aPosition);
+				const auto own   = cell.format().toTableCellFormat();
+				const auto side  = [&](const QTextFormat::Property aSide) { return own.hasProperty(aSide) ? own.doubleProperty(aSide) : shape.cellPadding(); };
+				width -= 2.0 * shape.border() + side(QTextFormat::TableCellLeftPadding) + side(QTextFormat::TableCellRightPadding) + shape.cellSpacing() * (table->columns() + 1);
+				const auto widths = shape.columnWidthConstraints();
+				for (auto column = 0; column < table->columns() && column < widths.size(); ++column) {
+					if (column != cell.column() && widths[column].type() == QTextLength::FixedLength) {
+						width -= widths[column].rawValue() + 2.0 * shape.cellPadding();
+					}
+				}
+				return std::max(1, static_cast<int>(std::floor(width)));
 			}
 
 		private:
@@ -261,6 +280,10 @@ namespace bpr::qt {
 		centre->setContentsMargins(24, title_top, 24 + button_width + button_right, 32);
 		Column = new QWidget{ page };
 		Column->setMaximumWidth(column_width);
+		// The page is laid out at the column's width, which the scroll area
+		// gives it after the view's own resize: a report opened while the
+		// column was still narrow left its code boxes one pixel wide.
+		Column->installEventFilter(this);
 		auto* const column = new QVBoxLayout{ Column };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(6);
@@ -410,7 +433,9 @@ namespace bpr::qt {
 		Byline->setText(QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none\">%1</a>%2")
 							.arg(aDocument.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped()));
 		Byline->setToolTip(tr("Show in conversation"));
-		const auto text = aDocument.Markdown.toStdString();
+		// [[BPR-2219]]. What the agent said while it worked is not the report:
+		// the report starts at its title.
+		const auto text = core::read_report_answer(aDocument.Markdown.toStdString()).Report;
 		if (Dresser) {
 			Dresser(*Body);
 		}
@@ -433,8 +458,11 @@ namespace bpr::qt {
 		dress_headings();
 		Headings.clear();
 		Tail->setFixedHeight(0);
-		Dress = core::dress_report(text, aDocument.Title.toStdString());
-		DraftNotes.clear();
+		Dress    = core::dress_report(text, aDocument.Title.toStdString());
+		Findings = core::report_findings(Dress, aDocument.Suggested);
+		// [[BPR-2231]]. The report's own findings are kept under its text as
+		// the turn holds it.
+		ReportDigest = core::digest_report_findings(aDocument.Answer.isEmpty() ? text : core::read_report_answer(aDocument.Answer.toStdString()).Report);
 		render_dressed();
 		OutlineTitles.clear();
 		for (const auto& section : card.Outline) {
@@ -598,7 +626,16 @@ namespace bpr::qt {
 			auto cursor = QTextCursor{ document };
 			cursor.setPosition(CodePlaces[index]);
 			const auto line  = Dressed->cursorRect(cursor);
-			const auto width = report_code_objects::place_width(document, CodePlaces[index]);
+			auto       width = report_code_objects::place_width(document, CodePlaces[index]);
+			// [[BPR-2238]]. Never past the right of the line its place is
+			// laid out on: the cell as the layout made it.
+			if (const auto block = document->findBlock(CodePlaces[index]); block.isValid()) {
+				const auto laid = document->documentLayout()->blockBoundingRect(block);
+				const auto room = static_cast<int>(std::floor(laid.right())) - Dressed->horizontalScrollBar()->value() - line.left();
+				if (laid.width() > 0.0 && room > 0) {
+					width = std::min(width, room);
+				}
+			}
 			const auto shape = QRect{ line.left(), line.top(), width, view->heightForWidth(width) };
 			if (view->geometry() != shape) {
 				view->setGeometry(shape);
@@ -630,17 +667,26 @@ namespace bpr::qt {
 		const auto shown = dressed_shown();
 		if (!Dress.Sections.empty()) {
 			const auto top = Scroll->verticalScrollBar()->value();
-			Dressed->document()->setDefaultFont(QFont{ QStringLiteral("Charter"), 13 });
+			Dressed->document()->setDefaultFont(font());
 			auto collected = std::vector<report_code_slot>{ };
-			// Add as draft comment's links, minted afresh for this render: a
-			// random token no answer can know, mapped to its item.
-			DraftLinks.clear();
-			const auto mint = std::function<QString(std::uint32_t)>{ [this](const std::uint32_t aOutline) {
+			// The keep actions' links, minted afresh for this render: a
+			// random token no answer can know, mapped to its action.
+			ActionLinks.clear();
+			auto actions = report_page_actions{ .Findings = Findings, .Summary = summary_offered() };
+			// [[BPR-2231]]. Each action's state, as the turn keeps it.
+			actions.States[0U] = keep_state(0U);
+			for (const auto& finding : Findings) {
+				actions.States[finding.Outline] = keep_state(finding.Outline);
+			}
+			actions.DraftAll     = draft_all_offered();
+			actions.DraftAllBusy = DraftAllBusy[Document.Turn];
+			actions.DraftAllSaid = draft_all_said();
+			actions.Link         = [this](const std::uint32_t aOutline, const report_link aLink) {
 				auto token = QStringLiteral("report-action-%1%2").arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' }).arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' });
-				DraftLinks.emplace(token, aOutline);
+				ActionLinks.emplace(token, std::pair{ aOutline, aLink });
 				return token;
-			} };
-			Dressed->setHtml(report_page_html(Dress, Colours, DraftNotes, &collected, mint));
+			};
+			Dressed->setHtml(report_page_html(Dress, native_colours(), actions, &collected, Look));
 			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
 			// Look report-templates-v003: each code block is the Agent tab's
 			// own code box (its syntax colours, the code colours, Wrap and
@@ -713,89 +759,339 @@ namespace bpr::qt {
 	/// the page shows; the pane's own colours otherwise.
 	void agent_report_view::apply_colours()
 	{
+		// [[BPR-2219]], round 2 (owner: "feel more native"): the page stands on
+		// the pane's own ground, in its own ink and font; the report's
+		// theme roles are spent only on verdicts. The title is the app's
+		// font, larger and heavier, with or without the page.
 		auto*      page    = Scroll->widget();
-		auto       colours = palette();
-		const auto shown   = dressed_shown();
-		if (shown) {
-			colours.setColor(QPalette::Base, Colours.Paper);
-			colours.setColor(QPalette::Window, Colours.Paper);
-			colours.setColor(QPalette::Text, Colours.Ink);
-			colours.setColor(QPalette::WindowText, Colours.Ink);
-		}
+		const auto colours = palette();
 		page->setPalette(colours);
 		Scroll->viewport()->setPalette(colours);
 		Title->setPalette(colours);
 		Byline->setPalette(colours);
-		auto big = Title->font();
-		if (shown) {
-			big.setFamilies({ QStringLiteral("Charter"), QStringLiteral("Iowan Old Style"), QStringLiteral("Bitstream Charter"), QStringLiteral("Cambria"), QStringLiteral("Georgia") });
-			big.setPixelSize(28);
-			big.setWeight(QFont::DemiBold);
-		} else {
-			big = font();
-			big.setPointSizeF(22.0);
-			big.setBold(true);
-		}
+		auto big = font();
+		big.setPointSizeF(font().pointSizeF() * 1.55);
+		big.setWeight(QFont::DemiBold);
 		Title->setFont(big);
 	}
 
-	void agent_report_view::set_report_colours(const report_colours& aColours)
+	/// The page's colours: the pane's own ground and ink, the theme's three
+	/// tones, and a wash a little off the ground for code and
+	/// the action's face.
+	auto agent_report_view::native_colours() const -> report_colours
 	{
-		if (Colours == aColours) {
+		auto native  = Colours;
+		native.Paper = palette().color(QPalette::Base);
+		native.Ink   = palette().color(QPalette::Text);
+		// A little off the ground towards the ink, in either theme: a
+		// platform's alternate base can be far from its base.
+		const auto towards = [](const int aGround, const int aInk) { return aGround + (aInk - aGround) * 8 / 100; };
+		native.CodeWash    = QColor{ towards(native.Paper.red(), native.Ink.red()), towards(native.Paper.green(), native.Ink.green()), towards(native.Paper.blue(), native.Ink.blue()) };
+		return native;
+	}
+
+	void agent_report_view::set_look(const report_look aLook)
+	{
+		if (Look == aLook) {
 			return;
 		}
-		Colours = aColours;
+		Look = aLook;
+		render_dressed();
+	}
+
+	void agent_report_view::set_tone_colours(const tone_colours& aColours)
+	{
+		if (Colours.Tones == aColours) {
+			return;
+		}
+		Colours.Tones = aColours;
 		render_dressed();
 	}
 
 	void agent_report_view::set_draft_dispatch(report_draft_dispatch aDispatch) { DraftDispatch = std::move(aDispatch); }
 
-	/// A link of the page: Add as draft comment, or a place or address.
+	void agent_report_view::set_go_dispatch(std::function<void(const report_draft&)> aDispatch) { GoDispatch = std::move(aDispatch); }
+
+	/// Keep summary is offered where the report has findings to sum up.
+	auto agent_report_view::summary_offered() const -> bool { return !Findings.empty() && !core::report_summary_comment(Dress).empty(); }
+
+	auto agent_report_view::keep_state(const std::uint32_t aOutline) const -> report_keep_state
+	{
+		const auto kept  = Keeps.find(Document.Turn);
+		const auto local = [&]() -> report_keep_state {
+			if (kept == Keeps.end()) {
+				return { };
+			}
+			const auto found = kept->second.find(aOutline);
+			return found == kept->second.end() ? report_keep_state{ } : found->second;
+		}();
+		// An action under way is the view's until it settles; what it made is
+		// the turn's one state for the finding ([[BPR-2231]]).
+		if (local.Phase == report_keep_phase::working || !KeepRecords) {
+			return local;
+		}
+		const auto record = KeepRecords(keep_key(aOutline));
+		switch (core::report_finding_standing_of(record.State)) {
+		case core::report_finding_standing::drafted:
+		case core::report_finding_standing::kept_local: return { .Phase = report_keep_phase::kept };
+		case core::report_finding_standing::refused:    return { .Phase = report_keep_phase::refused, .Why = QString::fromStdString(record.Why) };
+		case core::report_finding_standing::open:
+		case core::report_finding_standing::dismissed:  return { };
+		}
+		return { };
+	}
+
+	auto agent_report_view::card_keys() const -> std::vector<core::report_card_key>
+	{
+		auto keys = std::vector<core::report_card_key>{ };
+		keys.reserve(Document.Cards.size());
+		for (const auto& card : Document.Cards) {
+			keys.push_back(card.Key);
+		}
+		return keys;
+	}
+
+	/// [[BPR-2231]]. Where the action at `aOutline` is kept: a finding's card,
+	/// or the report's own record at its row (0: the summary).
+	auto agent_report_view::keep_key(const std::uint32_t aOutline) const -> core::report_finding_key
+	{
+		const auto found = std::ranges::find(Findings, aOutline, &core::report_finding::Outline);
+		if (aOutline == 0U || found == Findings.end()) {
+			return { .Findings = ReportDigest, .Ordinal = aOutline, .Card = false };
+		}
+		const auto keys = card_keys();
+		return core::report_finding_key_of(*found, keys, ReportDigest);
+	}
+
+	void agent_report_view::set_keep_records(report_keep_records aRecords)
+	{
+		KeepRecords = std::move(aRecords);
+		render_dressed();
+	}
+
+	void agent_report_view::settle_keep(const core::report_finding_key& aKey)
+	{
+		auto changed = false;
+		for (const auto& finding : Findings) {
+			const auto key = keep_key(finding.Outline);
+			if (key.Findings == aKey.Findings && key.Ordinal == aKey.Ordinal) {
+				changed = true;
+				if (auto kept = Keeps.find(Document.Turn); kept != Keeps.end()) {
+					kept->second.erase(finding.Outline);
+				}
+			}
+		}
+		if (aKey.Findings == ReportDigest && aKey.Ordinal == 0U) {
+			changed = true;
+		}
+		if (changed) {
+			render_dressed();
+		}
+	}
+
+	void agent_report_view::refresh_keeps() { render_dressed(); }
+
+	void agent_report_view::set_draft_all_dispatch(report_draft_all_dispatch aDispatch)
+	{
+		DraftAllDispatch = std::move(aDispatch);
+		render_dressed();
+	}
+
+	void agent_report_view::set_placeable(std::function<bool(const report_draft&)> aPlaceable)
+	{
+		Placeable = std::move(aPlaceable);
+		render_dressed();
+	}
+
+	/// [[BPR-2232]]. The report's findings as the Agent tab's Draft all reads
+	/// its cards, planned by the core; with each one's row.
+	auto agent_report_view::draft_all_plan() const -> std::pair<core::draft_all_plan, std::vector<std::uint32_t>>
+	{
+		auto facts = std::vector<core::report_draft_all_fact>{ };
+		auto rows  = std::vector<std::uint32_t>{ };
+		facts.reserve(Findings.size());
+		for (const auto& finding : Findings) {
+			const auto state   = keep_state(finding.Outline);
+			const auto request = keep_request(finding.Outline);
+			const auto record  = KeepRecords ? KeepRecords(keep_key(finding.Outline)) : core::agent_finding_card_record{ };
+			auto       fact    = core::report_draft_all_fact{ .Standing  = core::report_finding_standing_of(record.State),
+															  .Working   = state.Phase == report_keep_phase::working,
+															  .Placeable = request && (!Placeable || Placeable(*request)) };
+			if (!KeepRecords && state.Phase == report_keep_phase::kept) {
+				fact.Standing = finding.Keep == core::report_keep::draft_comment ? core::report_finding_standing::drafted : core::report_finding_standing::kept_local;
+			}
+			facts.push_back(fact);
+			rows.push_back(finding.Outline);
+		}
+		const auto candidates = core::report_draft_all_candidates(Findings, facts);
+		return { core::plan_draft_all(candidates), std::move(rows) };
+	}
+
+	auto agent_report_view::draft_all_offered() const -> std::size_t
+	{
+		if (!DraftAllDispatch || !dressed_shown() || Findings.empty()) {
+			return 0U;
+		}
+		// As the Agent tab's: offered with two suggested comments or more and
+		// one to draft.
+		const auto suggested = static_cast<std::size_t>(std::ranges::count(Findings, core::report_keep::draft_comment, &core::report_finding::Keep));
+		return suggested >= core::minimum_draft_all_suggestions ? draft_all_plan().first.Draft.size() : 0U;
+	}
+
+	auto agent_report_view::draft_all_said() const -> QString
+	{
+		const auto found = DraftAllSaid.find(Document.Turn);
+		return found == DraftAllSaid.end() ? QString{ } : found->second;
+	}
+
+	auto agent_report_view::press_draft_all() -> bool
+	{
+		const auto turn = Document.Turn;
+		if (!DraftAllDispatch || DraftAllBusy[turn] || draft_all_offered() == 0U) {
+			return false;
+		}
+		const auto [plan, rows] = draft_all_plan();
+		auto drafts             = std::vector<report_draft>{ };
+		for (const auto position : plan.Draft) {
+			if (auto request = keep_request(rows[position])) {
+				Keeps[turn][rows[position]] = { .Phase = report_keep_phase::working };
+				drafts.push_back(std::move(*request));
+			}
+		}
+		DraftAllBusy[turn] = true;
+		DraftAllSaid[turn] = drafts.size() == 1U ? tr("Drafting 1 finding\u2026") : tr("Drafting %1 findings\u2026").arg(drafts.size());
+		render_dressed();
+		auto rowsDrafted = std::vector<std::uint32_t>{ };
+		for (const auto& draft : drafts) {
+			rowsDrafted.push_back(draft.Outline);
+		}
+		DraftAllDispatch(std::move(drafts), core::start_draft_all(plan), [this, turn, rowsDrafted, alive = QPointer<agent_report_view>{ this }](const core::draft_all_outcome& aOutcome) {
+			if (alive.isNull()) {
+				return;
+			}
+			DraftAllBusy[turn] = false;
+			DraftAllSaid[turn] = draft_all_words(aOutcome);
+			if (auto kept = Keeps.find(turn); kept != Keeps.end()) {
+				for (const auto row : rowsDrafted) {
+					if (const auto found = kept->second.find(row); found != kept->second.end() && found->second.Phase == report_keep_phase::working) {
+						kept->second.erase(found);
+					}
+				}
+			}
+			if (Document.Turn == turn) {
+				render_dressed();
+			}
+		});
+		return true;
+	}
+
+	/// As the Agent tab's Draft all says it, of findings rather than cards.
+	auto agent_report_view::draft_all_words(const core::draft_all_outcome& aOutcome) -> QString
+	{
+		const auto counted = [](const std::size_t aCount, const QString& aOne, const QString& aMany) { return QStringLiteral("%1 %2").arg(aCount).arg(aCount == 1U ? aOne : aMany); };
+		auto       reasons = QStringList{ };
+		if (aOutcome.AlreadyDrafted > 0U) {
+			reasons << tr("%1 already drafted").arg(aOutcome.AlreadyDrafted);
+		}
+		if (aOutcome.NotInDiff > 0U) {
+			reasons << tr("%1 no longer in the diff").arg(aOutcome.NotInDiff);
+		}
+		if (aOutcome.Dismissed > 0U) {
+			reasons << tr("%1 dismissed").arg(aOutcome.Dismissed);
+		}
+		if (aOutcome.Busy > 0U) {
+			reasons << tr("%1 still being drafted or saved").arg(aOutcome.Busy);
+		}
+		if (aOutcome.KeptLocal > 0U) {
+			reasons << tr("%1 kept local").arg(aOutcome.KeptLocal);
+		}
+		if (aOutcome.Refused > 0U) {
+			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its finding says why") : tr("%1 could not be drafted; their findings say why").arg(aOutcome.Refused));
+		}
+		const auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		if (reasons.isEmpty()) {
+			return drafted;
+		}
+		return drafted + QLatin1Char{ ' ' } + tr("Skipped %1: %2.").arg(aOutcome.skipped()).arg(reasons.join(QStringLiteral(", ")));
+	}
+
+	/// The keep action at `aOutline`, as the core read it.
+	auto agent_report_view::keep_request(const std::uint32_t aOutline) const -> std::optional<report_draft>
+	{
+		if (aOutline == 0U) {
+			if (!summary_offered()) {
+				return std::nullopt;
+			}
+			return report_draft{ .Outline = 0U, .Keep = core::report_keep::keep_local, .Comment = QString::fromStdString(core::report_summary_comment(Dress)), .Key = keep_key(0U) };
+		}
+		const auto found = std::ranges::find(Findings, aOutline, &core::report_finding::Outline);
+		if (found == Findings.end() || found->Keep == core::report_keep::none) {
+			return std::nullopt;
+		}
+		auto request = report_draft{ .Outline = aOutline, .Keep = found->Keep, .Path = QString::fromStdString(found->Path), .First = found->First, .Last = found->Last, .Comment = QString::fromStdString(found->Comment), .Key = keep_key(aOutline) };
+		if (found->Card && *found->Card < Document.Cards.size()) {
+			request.Card = Document.Cards[*found->Card];
+		}
+		return request;
+	}
+
+	auto agent_report_view::press(const std::uint32_t aOutline, const report_link aLink) -> bool
+	{
+		const auto request = keep_request(aOutline);
+		if (!request) {
+			return false;
+		}
+		const auto state = keep_state(aOutline);
+		if (aLink == report_link::go) {
+			if (state.Phase != report_keep_phase::kept || !GoDispatch) {
+				return false;
+			}
+			GoDispatch(*request);
+			return true;
+		}
+		if (state.Phase == report_keep_phase::working || state.Phase == report_keep_phase::kept || !DraftDispatch) {
+			return false;
+		}
+		const auto turn       = Document.Turn;
+		Keeps[turn][aOutline] = { .Phase = report_keep_phase::working };
+		render_dressed();
+		DraftDispatch(*request, [this, turn, aOutline, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
+			if (alive.isNull()) {
+				return;
+			}
+			// With the host's records, what was made is the turn's one state
+			// for the finding, kept there ([[BPR-2231]]); the view keeps none.
+			if (KeepRecords) {
+				Keeps[turn].erase(aOutline);
+			} else {
+				Keeps[turn][aOutline] = aDrafted ? report_keep_state{ .Phase = report_keep_phase::kept } : report_keep_state{ .Phase = report_keep_phase::refused, .Why = aWhy };
+			}
+			if (Document.Turn == turn) {
+				render_dressed();
+			}
+		});
+		return true;
+	}
+
+	/// A link of the page: a keep action, or a place or address.
 	void agent_report_view::follow(const QString& aLink)
 	{
 		// Review of 2026-11-14: an action is only a link this render minted;
 		// anything the report's own text links to is a place or an address,
 		// never an action, whatever it is written as.
-		const auto minted = DraftLinks.find(aLink);
-		if (minted == DraftLinks.end()) {
+		const auto minted = ActionLinks.find(aLink);
+		if (minted == ActionLinks.end()) {
 			if (LinkDispatch) {
 				LinkDispatch(aLink);
 			}
 			return;
 		}
-		const auto outline = minted->second;
-		for (const auto& section : Dress.Sections) {
-			for (const auto& item : section.Items) {
-				if (item.Outline != outline) {
-					continue;
-				}
-				const auto place = core::read_report_place(item.Place);
-				const auto it    = std::ranges::find(item.Body, core::dressed_block_kind::suggestion, &core::dressed_block::Kind);
-				if (!place || it == item.Body.end() || !DraftDispatch) {
-					return;
-				}
-				auto words = QString::fromStdString(item.Label.empty() ? item.Heading : item.Label + ": " + item.Heading);
-				if (const auto reason = std::ranges::find(item.Body, core::dressed_block_kind::paragraph, &core::dressed_block::Kind); reason != item.Body.end()) {
-					words += QStringLiteral("\n\n") + QString::fromStdString(reason->Text);
-				}
-				auto lines = QStringList{ };
-				for (const auto& line : it->Lines) {
-					lines << QString::fromStdString(line);
-				}
-				words += QStringLiteral("\n\n```suggestion\n") + lines.join(QLatin1Char{ '\n' }) + QStringLiteral("\n```");
-				DraftNotes[outline] = tr("Adding as a draft comment…");
-				render_dressed();
-				DraftDispatch({ .Path = QString::fromStdString(place->Path), .First = place->First, .Last = place->Last, .Comment = words },
-							  [this, outline, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
-								  if (alive.isNull()) {
-									  return;
-								  }
-								  DraftNotes[outline] = aDrafted ? tr("Added as a draft comment. Nothing is published.") : aWhy;
-								  render_dressed();
-							  });
-				return;
-			}
+		const auto [outline, link] = minted->second;
+		if (link == report_link::draft_all) {
+			static_cast<void>(press_draft_all());
+			return;
 		}
+		static_cast<void>(press(outline, link));
 	}
 
 	void agent_report_view::resizeEvent(QResizeEvent* aEvent)
@@ -954,6 +1250,17 @@ namespace bpr::qt {
 
 	auto agent_report_view::eventFilter(QObject* const aObject, QEvent* const aEvent) -> bool
 	{
+		if (aObject == Column && aEvent->type() == QEvent::Resize) {
+			if (const auto* const resized = static_cast<QResizeEvent*>(aEvent); resized->oldSize().width() != resized->size().width()) {
+				// The column's own layout gives its children the new width
+				// only after its filters: laid out first, the body and the
+				// page take the width they are measured at.
+				if (Column->layout() != nullptr) {
+					Column->layout()->activate();
+				}
+				fit_body();
+			}
+		}
 		// The page's links, by their text: a click on one, or Return on the
 		// one the keyboard reached.
 		if (Dressed != nullptr && aObject == Dressed->viewport()) {

@@ -312,7 +312,12 @@ namespace bpr::qt {
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
-		if (!aPreserveWindowNavigation) {
+		// [[BPR-2216]]. Home chosen while a pull request opened from a Home row
+		// was loading stays: the review arrives behind it, with Return.
+		const auto homeOverOpening = HomeRequested && !HasGithubPullRequest && ListedOpen.has_value()
+			&& ListedOpen->Repository.Owner == aPullRequest.Owner && ListedOpen->Repository.Name == aPullRequest.RepositoryName
+			&& ListedOpen->Number == aPullRequest.Number;
+		if (!aPreserveWindowNavigation && !homeOverOpening) {
 			HomeRequested = false;
 		}
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
@@ -406,9 +411,6 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		HasCachedOverview    = false;
 		update_pull_request_queue_actions();
-		if (PendingApproveAgain) {
-			QTimer::singleShot(0, this, [this] { take_pending_approve_again(); });
-		}
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
 		if (OpenOnOverview && !aPreserveWindowNavigation) {
@@ -417,6 +419,11 @@ namespace bpr::qt {
 			// overview the design opens on, Review, or the one last used here.
 			// [[BPR-1599]]: or the one chosen while it loaded.
 			enter_opening_modality(opening_modality());
+			// [[BPR-2216]]. Entering it behind Home leaves Home where it is.
+			if (homeOverOpening && !HomeRequested) {
+				HomeRequested = true;
+				update_home_landing();
+			}
 		}
 		LoadingChoice.reset();
 		// [[BPR-0661]]. The drawer's first filter and the comparison on return
@@ -814,55 +821,33 @@ namespace bpr::qt {
 		});
 	}
 
-	void workbench_window::dispatch_home_followup(const core::queue_item& aItem)
+	void workbench_window::mark_new_commits_seen(const core::queue_item& aItem)
 	{
-		const auto name = QStringLiteral("%1#%2").arg(QString::fromStdString(aItem.Ref.Repository)).arg(aItem.Ref.Number);
-		switch (core::review_followup_for(aItem)) {
-		case core::review_followup::seen:
-			if (HomeSeenDispatch) {
-				HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
-				statusBar()->showMessage(QStringLiteral("Marked the new commits on %1 seen; it moves to Following. Nothing changed on GitHub.").arg(name), 8000);
-			}
-			return;
-		case core::review_followup::approve_again:
-			// The approval is submitted from the pull request's own review, so
-			// what it holds (a summary, saved comments) is seen before it goes.
-			PendingApproveAgain = aItem.Ref;
-			open_pull_request_item(aItem);
-			return;
-		case core::review_followup::none:
+		if (!HomeSeenDispatch || core::review_followup_for(aItem) != core::review_followup::seen) {
 			return;
 		}
-	}
-
-	void workbench_window::take_pending_approve_again()
-	{
-		if (!PendingApproveAgain || !HasGithubPullRequest || ReviewSubmissionEditor == nullptr) {
-			return;
-		}
-		const auto ref = std::exchange(PendingApproveAgain, std::nullopt);
-		if (QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) != QString::fromStdString(ref->Repository) || IdentityNumber != QString::number(ref->Number)) {
-			return;
-		}
-		open_review_sheet(true);
-		// The review's controls show once its draft is read; Approve takes the
-		// keyboard then, so Return submits it and nothing else.
-		const auto focusApprove = std::make_shared<std::function<void(int)>>();
-		*focusApprove           = [this, editor = QPointer{ ReviewSubmissionEditor }, weak = std::weak_ptr{ focusApprove }](const int aTries) {
-			auto* const approve = editor ? editor->disposition_button(core::review_disposition::approve) : nullptr;
-			if (approve != nullptr && approve->isVisible()) {
-				approve->setFocus(Qt::OtherFocusReason);
-			} else if (const auto again = weak.lock(); again && aTries > 0) {
-				QTimer::singleShot(100, this, [again, aTries] { (*again)(aTries - 1); });
-			}
-		};
-		(*focusApprove)(50);
-		statusBar()->showMessage(QStringLiteral("GitHub dismissed your approval when commits were pushed. Approve submits a new one for the current commits."), 10000);
+		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
+		statusBar()->showMessage(QStringLiteral("Marked the new commits on %1#%2 seen; your approval stands. Nothing changed on GitHub.")
+									 .arg(QString::fromStdString(aItem.Ref.Repository))
+									 .arg(aItem.Ref.Number),
+								 8000);
 	}
 
 	void workbench_window::set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch)
 	{
 		HomeSeenDispatch = std::move(aDispatch);
+		// [[BPR-2217]]. The review's Seen, on the pull request it shows.
+		if (ReviewSubmissionEditor != nullptr) {
+			ReviewSubmissionEditor->set_seen_dispatch(HomeSeenDispatch ? std::function<void()>{ [this] {
+				const auto ref  = open_queue_ref();
+				const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
+				if (item) {
+					mark_new_commits_seen(*item);
+				}
+				update_pull_request_queue_actions();
+			} }
+																	   : std::function<void()>{ });
+		}
 	}
 
 	void workbench_window::set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch)
@@ -1702,6 +1687,28 @@ namespace bpr::qt {
 		};
 	}
 
+	auto workbench_window::reviewing_queue_ref() const -> std::optional<core::pull_request_ref>
+	{
+		if (HasGithubPullRequest) {
+			return open_queue_ref();
+		}
+		// [[BPR-2216]]. A pull request being opened is the review being read
+		// from the request on, as the core decides; Follow, Save and Seen
+		// still wait for the review itself (open_queue_ref).
+		const auto presence = opening_presence();
+		if (!presence.Active || !HomeOpen.has_value() || !HomeOpen->State.has_value() || !QueueReady
+			|| QueueProjection.Session.Host.empty() || QueueProjection.Session.Account.empty()) {
+			return std::nullopt;
+		}
+		const auto& state = *HomeOpen->State;
+		return core::pull_request_ref{
+			.Host       = QueueProjection.Session.Host,
+			.Account    = QueueProjection.Session.Account,
+			.Repository = state.Repository.Owner + "/" + state.Repository.Name,
+			.Number     = static_cast<std::int64_t>(state.Number.value()),
+		};
+	}
+
 	void workbench_window::update_discovery_controls()
 	{
 		const auto& discovery = QueueProjection.Discovery;
@@ -1729,9 +1736,14 @@ namespace bpr::qt {
 			const auto hasSaved = std::ranges::any_of(QueueProjection.SavedRepositories, [this](const auto& aSaved) {
 				return aSaved.Host == QueueProjection.Session.Host && aSaved.Account == QueueProjection.Session.Account;
 			});
-			const auto sentence = !HomeAccount ? QString{ } : !hasSaved ? tr("Add a repository to find my pull requests and review requests.")
-				: session                                               ? home_discovery_sentence(discovery)
-																		: tr("Personal discovery is unavailable. Saved repositories are kept.");
+			// [[BPR-2216]]. The owner, 2026-11-16: "Seems home has a similar
+			// thing." While Home finds my pull requests the status bar says
+			// it is refreshing; this line says only what it last found.
+			const auto refreshing = discovery.State == application::queue_discovery_state::refreshing;
+			const auto sentence   = !HomeAccount ? QString{ } : !hasSaved ? tr("Add a repository to find my pull requests and review requests.")
+				: refreshing                                              ? QString{ }
+				: session                                                 ? home_discovery_sentence(discovery)
+																		  : tr("Personal discovery is unavailable. Saved repositories are kept.");
 			if (HomeDiscoveryStatus->text() != sentence) {
 				HomeDiscoveryStatus->setText(sentence);
 			}
@@ -1774,7 +1786,14 @@ namespace bpr::qt {
 		// [[BPR-1365]]. The queue row of the open pull request says so, by the
 		// same exact identity Follow names.
 		if (QueueLanding != nullptr) {
-			QueueLanding->set_reviewing(open_queue_ref());
+			QueueLanding->set_reviewing(reviewing_queue_ref());
+		}
+		// [[BPR-2217]]. The review says where my approval stands, in the
+		// core's words, and offers Seen beside Approve when the core does.
+		if (ReviewSubmissionEditor != nullptr) {
+			const auto open  = QueueLanding != nullptr ? open_queue_ref() : std::nullopt;
+			const auto shown = open ? QueueLanding->item_for(*open) : std::nullopt;
+			ReviewSubmissionEditor->set_followup(shown ? core::review_followup_words_for(*shown) : core::review_followup_words{ });
 		}
 		if (FollowPullRequest == nullptr || SavePullRequestRepository == nullptr) {
 			return;
@@ -1793,7 +1812,7 @@ namespace bpr::qt {
 		if (SeenPullRequest != nullptr) {
 			const auto seen = item && core::review_followup_for(*item) == core::review_followup::seen && static_cast<bool>(HomeSeenDispatch);
 			SeenPullRequest->setEnabled(seen);
-			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen and moves it to Following on Home. Nothing changes on GitHub.")
+			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen. Nothing changes on GitHub.")
 									  : QStringLiteral("Offered when commits follow my standing approval.");
 			SeenPullRequest->setToolTip(seenTip);
 			SeenPullRequest->setStatusTip(seenTip);

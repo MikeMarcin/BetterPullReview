@@ -900,8 +900,9 @@ namespace bpr::app {
 		}
 		const auto selected     = WorkbenchHost->selected();
 		const auto previousFile = std::exchange(ObservedTabFile, selected);
-		if (const auto* active = activeTab(); selected.has_value()
-			&& (active != nullptr ? active->View.File != selected : previousFile != selected)) {
+		// [[BPR-2233]]. A report's tab opened after the file was chosen keeps
+		// the front while the file's own open settles.
+		if (selected.has_value() && core::takes_selected_file(TabHost->state(), *selected, previousFile)) {
 			TabHost->apply(core::open_in_active_tab_intent{ .File = *selected });
 		}
 		observe_tab_reading();
@@ -1436,6 +1437,12 @@ DefectThreadNames.reset();
 		// toggle then emits false, but the gesture still supersedes restoration.
 		QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
 			if (weak.expired() || Closing) {
+				return;
+			}
+			// [[BPR-2216]]. A pull request opened from a Home row is the
+			// window's own while it loads: Home and its Return go between it
+			// and Home, and neither stops its read.
+			if (Window->listed_opening()) {
 				return;
 			}
 			cancel_restoration(false);

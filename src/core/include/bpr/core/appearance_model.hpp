@@ -195,18 +195,23 @@ namespace bpr::core {
 		agent_accent,
 
 		// RFC-BPR-0128 (docs/design/report-templates-v2; owner, 2026-11-14:
-		// the report's colours are the theme's, overridable per theme). A
-		// report's page: its paper and ink, the three verdict colours (what
-		// still needs work, what is half done or asked, what is done or good)
-		// and the wash code sits on. Appended for durable ordinal
-		// compatibility, so an older palette or theme leaves them unassigned
-		// and reads the built-in values (`defaults_on_import`).
-		report_paper,
-		report_ink,
+		// the report's colours are the theme's, overridable per theme) and
+		// [[BPR-2236]] (owner, 2026-11-16: "colors in the agent tab and the
+		// report which correspond to the same elements but use different
+		// colors"). The three tones of a finding, verdict or label, wherever
+		// it is shown: what still needs work (Major, issue, Needs changes),
+		// what is half done or asked (Minor, suggestion, Ready with
+		// comments), what is done or good. Which tone a thing wears is core's
+		// (`report_tone_of`); the Agent tab and the report page read these
+		// same roles. Words on the code canvas, which is both surfaces'
+		// ground. Appended for durable ordinal compatibility, so an older
+		// palette or theme leaves them unassigned and reads the built-in
+		// values (`defaults_on_import`). The page's own paper, ink and code
+		// wash roles were retired by [[BPR-2236]]: see
+		// `retired_appearance_role`.
 		report_verdict_open,
 		report_verdict_partial,
 		report_verdict_done,
-		report_code_wash,
 	};
 
 	/// \brief The opacity the code panes composite the selection wash at.
@@ -243,10 +248,10 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 71U;
+	inline constexpr std::size_t appearance_role_count = 68U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role::report_code_wash) + 1U == appearance_role_count,
+		static_cast<std::size_t>(appearance_role::report_verdict_done) + 1U == appearance_role_count,
 		"appearance_role_count must cover every declared role");
 
 	/// \brief The first of the twelve label tint roles, in catalog order.
@@ -329,6 +334,15 @@ namespace bpr::core {
 	/// closed vocabulary.
 	[[nodiscard]] auto find_appearance_role(std::string_view aName) noexcept
 		-> std::optional<appearance_role>;
+
+	/// \brief Whether an identifier names a role the vocabulary has retired.
+	///
+	/// \details [[BPR-2236]]. `report_paper`, `report_ink` and
+	/// `report_code_wash` were exchanged by RFC-BPR-0128's prerelease builds
+	/// and are read by nothing now: the report page stands on its view's own
+	/// palette. A stored palette or a theme document that still carries one
+	/// is read without it rather than refused; nothing else about it changes.
+	[[nodiscard]] auto retired_appearance_role(std::string_view aName) noexcept -> bool;
 
 	/// \brief Names the appearance mode a user selected.
 	///

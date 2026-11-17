@@ -27,6 +27,7 @@
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/discuss_preferences.hpp"
 #include "bpr/core/draft_state.hpp"
+#include "bpr/core/home_open.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
@@ -979,8 +980,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1683]]. Where Home's Ignore and Unignore go: the
 		/// profile's queue, never a provider.
 		void set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch);
-		/// \brief [[BPR-2049]]. Where a Home row's Seen goes: the profile's
-		/// queue, never a provider.
+		/// \brief [[BPR-2049]] [[BPR-2217]]. Where the review's Seen goes:
+		/// the profile's queue, never a provider.
 		void set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch);
 		/// \brief [[BPR-1683]]. The row menu's Ignore, named Unignore on an ignored row.
 		[[nodiscard]] auto home_ignore_action() const noexcept -> QAction*;
@@ -1432,6 +1433,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_action() const noexcept -> QAction*;
 		/// \brief True while the Home button is the way back to an open review.
 		[[nodiscard]] auto home_action_returns() const noexcept -> bool;
+		/// \brief [[BPR-2216]]. True while a pull request opened from a Home row
+		/// is loading and the core has made it this window's own: Home shows
+		/// over it with the way back, and its read goes on.
+		[[nodiscard]] auto listed_opening() const -> bool;
 		/// \brief Shows Home, or returns to the review when Home was asked for.
 		void choose_home(bool aHome);
 		/// \brief Home: the whole centre while nothing is open.
@@ -2868,11 +2873,10 @@ namespace bpr::qt {
 		void popup_home_row_menu(const QPoint& aGlobal);
 		/// \brief [[BPR-1683]]. Ignores a queue row, or unignores an ignored one.
 		void dispatch_home_ignore(const core::queue_item& aItem);
-		/// \brief [[BPR-2049]]. A row's Seen or Approve again, as the core offers it.
-		void dispatch_home_followup(const core::queue_item& aItem);
-		/// \brief [[BPR-2049]]. The pull request Approve again opened, once it
-		/// is shown: its review with Approve ready.
-		void take_pending_approve_again();
+		/// \brief [[BPR-2049]] [[BPR-2217]]. Seen on the open pull request's
+		/// new commits, from its review or the Pull Request menu, when the
+		/// core offers it. Nothing is submitted to GitHub.
+		void mark_new_commits_seen(const core::queue_item& aItem);
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
@@ -2901,8 +2905,16 @@ namespace bpr::qt {
 		void               update_discovery_controls();
 		void               update_pull_request_queue_actions();
 		[[nodiscard]] auto open_queue_ref() const -> std::optional<core::pull_request_ref>;
-		void               dispatch_queue_preferences(QComboBox* aSource);
-		void               build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
+		/// \brief [[BPR-2216]]. The queue row the window is reading: the open
+		/// review's, or the one the core makes the window's own while it opens.
+		[[nodiscard]] auto reviewing_queue_ref() const -> std::optional<core::pull_request_ref>;
+		/// \brief [[BPR-2216]]. What the core decides an opening is to this window.
+		[[nodiscard]] auto opening_presence() const -> core::home_open_presence;
+		/// \brief [[BPR-2216]]. Names a pull request opened from a Home row as
+		/// the row names it, until GitHub's first answer does.
+		void name_listed_open(const core::home_open_listed& aListed, const QString& aTitle, bool aDraft);
+		void dispatch_queue_preferences(QComboBox* aSource);
+		void build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
 		// [[BPR-0783]], [[BPR-1580]]. Home's view: the strip's one View menu over
 		// the arrangement and the four surviving typed preferences, and the
 		// window's own view.
@@ -3333,6 +3345,13 @@ namespace bpr::qt {
 			bool Draft = false;
 		};
 		std::optional<loading_identity> LoadingIdentity;
+		/// [[BPR-2216]]. What the status bar says the pull request's read is on;
+		/// the Updates line does not repeat it.
+		QString ReadWording;
+		/// [[BPR-2216]]. The Home row the last open was asked from.
+		std::optional<core::home_open_listed> ListedOpen;
+		/// [[BPR-2216]]. The Active review card stood for an opening, not a review.
+		bool LandingFromOpening = false;
 		/// [[BPR-1852]]. The accepted pull request is an open draft, as the
 		/// title row's chip shows it; its chip and the menu's draft-state action.
 		bool                                          IdentityDraft        = false;
@@ -3744,10 +3763,8 @@ namespace bpr::qt {
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
 		workbench_home_seen_dispatch                       HomeSeenDispatch;
-		/// [[BPR-2049]]. The pull request a row's Approve again is opening.
-		std::optional<core::pull_request_ref> PendingApproveAgain;
-		QAction*                              HomeIgnoreAction = nullptr;
-		workbench_queue_discovery_dispatch    QueueDiscoveryDispatch;
+		QAction*                                           HomeIgnoreAction = nullptr;
+		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
 		/// [[BPR-1867]]. Coming back in front on the pull request shown.
 		std::function<void(std::int64_t)>                  PullRequestReturnDispatch;
 		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;

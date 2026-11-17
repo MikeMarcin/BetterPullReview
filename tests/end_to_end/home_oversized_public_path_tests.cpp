@@ -1,6 +1,6 @@
-// [[BPR-2048]] [[BPR-2049]]. One pull request too large to read, and reviewed
-// pull requests back for new commits, through the composed application on
-// the public-path fixture.
+// [[BPR-2048]] [[BPR-2049]] [[BPR-2217]]. One pull request too large to read,
+// and reviewed pull requests back for new commits, through the composed
+// application on the public-path fixture.
 //
 // The fixture serves four pull requests asking for my review: #17 with more
 // review requests than one page (Home's own read of it is too large) and more
@@ -9,8 +9,14 @@
 // when commits were pushed; #4001 ordinary. The course signs in, saves the
 // repository and reads Home as a person would: every row is listed and the
 // refresh is not failed; #17's row says it is too large; opening #17 shows the
-// card that names what was too large, with Open on GitHub and Retry; #18
-// offers Seen, which moves it to Following at once; #19 offers Approve again.
+// card that names what was too large, with Open on GitHub and Retry. #18 and
+// #19 are in Needs me with their verdict chips and no row action: since
+// [[BPR-2217]] Seen and Approve again are the review's (owner, 2026-11-16:
+// "its dumb to put that on home, I'm going to look at the new commits from
+// within the review"). `--seen` opens #17, approved before commits were
+// pushed: its review offers Seen beside Approve, Seen asks GitHub for nothing
+// and the review then reads up to date. `--approve-again` opens #17 with its
+// approval dismissed: its review's Approve reads Approve again.
 // With `--attended` the window stays open for the owner's look.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
@@ -91,18 +97,20 @@ namespace {
 		QApplication::sendEvent(aRow.View->viewport(), &release);
 	}
 
-	/// The row's labelled action, as a pointer over the row shows it.
-	[[nodiscard]] auto hovered_action(const found_row& aRow) -> QToolButton*
+	/// Every labelled action a pointer over the row shows.
+	[[nodiscard]] auto hovered_actions(const found_row& aRow) -> QStringList
 	{
 		const auto point = QPointF{ aRow.View->visualRect(aRow.Index).center() };
 		auto       move  = QMouseEvent{ QEvent::MouseMove, point, aRow.View->viewport()->mapToGlobal(point), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(aRow.View->viewport(), &move);
-		for (auto* const button : aRow.View->viewport()->findChildren<QToolButton*>(QStringLiteral("homeRowFollowupButton"))) {
-			if (button->isVisible()) {
-				return button;
+		QApplication::processEvents();
+		auto shown = QStringList{ };
+		for (auto* const button : aRow.View->viewport()->findChildren<QToolButton*>()) {
+			if (button->isVisible() && !button->text().isEmpty()) {
+				shown << button->text();
 			}
 		}
-		return nullptr;
+		return shown;
 	}
 } // namespace
 
@@ -121,14 +129,23 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	const auto arguments           = QApplication::arguments();
-	// `--approve-again`: the fixture's own recorded pull request (#17) is the
-	// one whose approval GitHub dismissed, so Approve again can open it.
+	// `--approve-again`: the fixture's own recorded pull request (#17), the
+	// one that opens, is the one whose approval GitHub dismissed. `--seen`:
+	// it is the one I approved before commits were pushed.
 	const auto approveAgain = arguments.contains(QStringLiteral("--approve-again"));
+	const auto seenCourse   = arguments.contains(QStringLiteral("--seen"));
 	// `--attended`: the owner's look. Every check of the rows as listed runs;
-	// the gestures (Seen, Approve again, opening #17) are left to the person.
+	// the gestures (Seen, opening a review, opening #17) are left to the person.
 	const auto attended   = arguments.contains(QStringLiteral("--attended"));
 	auto       discovered = app::detail::github_personal_discovery_fixture{ };
-	if (approveAgain) {
+	if (seenCourse) {
+		discovered.OpenPullRequests = {
+			{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "APPROVED" },
+			{ .Number = 18U, .Author = "contributor-b", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "DISMISSED" },
+			{ .Number = 19U, .Author = "contributor-c", .RequestedUsers = { "octo-reviewer" } },
+			{ .Number = 4001U, .Author = "contributor-d", .RequestedUsers = { "octo-reviewer" } },
+		};
+	} else if (approveAgain) {
 		discovered.OpenPullRequests = {
 			{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "DISMISSED" },
 			{ .Number = 18U, .Author = "contributor-b", .RequestedUsers = { "octo-reviewer" }, .ViewerVerdictBefore = "APPROVED" },
@@ -180,23 +197,57 @@ try {
 	wait_for([&] { return discovery().Status.State == application::queue_discovery_state::refreshing; }, "Refresh starts", 10'000);
 	wait_for([&] { return discovery().Status.State != application::queue_discovery_state::refreshing && discovery().Quiescent; }, "the refresh settles");
 
-	if (approveAgain) {
-		// ---- BPR-2049: Approve again opens the review with Approve ready ----
-		const auto dismissed = row_of(*window, 17);
-		expect(dismissed.Group == qt::home_group::needs_you && dismissed.Index.data(qt::home_row_role::row_action).toString() == QStringLiteral("Approve again"),
-			   "a dismissed approval offers Approve again");
-		auto* const again = hovered_action(dismissed);
+	if (seenCourse || approveAgain) {
+		// ---- BPR-2217: the review offers Seen, or reads Approve again -------
+		const auto row = row_of(*window, 17);
+		expect(row.Group == qt::home_group::needs_you && !row.Index.data(qt::home_row_role::verdict).toString().isEmpty(),
+			   "my reviewed pull request back for new commits is in Needs me with its verdict chip");
+		expect(!hovered_actions(row).contains(QStringLiteral("Seen")) && !hovered_actions(row).contains(QStringLiteral("Approve again")),
+			   "its Home row offers neither Seen nor Approve again");
+		double_click(row);
+		wait_for([&] { return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens");
+		auto* const editor = window->review_submission_editor_view();
 		if (attended) {
 			goto attend;
 		}
-		expect(again != nullptr && again->toolTip().contains(QStringLiteral("dismissed")), "Approve again shows on the row and says GitHub dismissed the approval");
-		again->click();
-		wait_for([&] { return !window->showing_home() && window->review_sheet_open(); }, "Approve again opens the pull request with its review");
-		auto* const approve = window->review_submission_editor_view()->disposition_button(core::review_disposition::approve);
+		window->compose_review_action()->trigger();
+		wait_for([&] { return window->review_sheet_open(); }, "its review opens");
+		auto* const approve = editor->disposition_button(core::review_disposition::approve);
 		wait_for([&] { return approve != nullptr && approve->isVisible(); }, "the review's draft is read and its Approve shows", 20'000);
-		expect(approve != nullptr && approve->isVisible(), "the review shows its Approve, which submits the approval");
-		if (renderAt >= 0) {
-			window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/home-approve-again.png"));
+		const auto settled = [&](const QString& aApprove) { return approve->text() == aApprove && editor->followup_label()->isVisible(); };
+		if (approveAgain) {
+			wait_for([&] { return settled(QStringLiteral("Approve again")); }, "a dismissed approval's review reads Approve again", 20'000);
+			expect(editor->followup_label()->text().contains(QStringLiteral("dismissed")), "the review says GitHub dismissed my approval: " + editor->followup_label()->text().toStdString());
+			expect(!editor->seen_button()->isVisible(), "a dismissed approval cannot be seen away");
+			wait_for([&] { return approve->isEnabled(); }, "Approve again can be submitted once the review's comments are read", 20'000);
+			expect(approve->toolTip().contains(QStringLiteral("new approval")) && approve->accessibleName() == QStringLiteral("Approve again"),
+				   "Approve again says it submits a new approval: " + approve->toolTip().toStdString());
+			if (renderAt >= 0) {
+				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-approve-again.png"));
+			}
+		} else {
+			auto* const seen = editor->seen_button();
+			wait_for([&] { return settled(QStringLiteral("Approve")) && seen->isVisible(); }, "a standing approval's review offers Seen", 20'000);
+			expect(seen->text() == QStringLiteral("Seen") && seen->toolTip().contains(QStringLiteral("Nothing is submitted to GitHub")), "Seen says it submits nothing");
+			expect(seen->geometry().top() == approve->geometry().top() && seen->geometry().left() > approve->geometry().right()
+					   && seen->geometry().left() - approve->geometry().right() < 24,
+				   "Seen sits beside Approve");
+			wait_for([&] { return approve->isEnabled(); }, "the review's comments are read", 20'000);
+			expect(editor->followup_label()->text().contains(QStringLiteral("still stands")), "the review says my approval stands: " + editor->followup_label()->text().toStdString());
+			if (renderAt >= 0) {
+				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-seen.png"));
+			}
+			const auto reads = discovery().Statistics.Submitted;
+			seen->click();
+			wait_for([&] { return editor->followup_label()->text().startsWith(QStringLiteral("Up to date")); }, "after Seen the review reads up to date", 5'000);
+			expect(!seen->isVisible() && approve->text() == QStringLiteral("Approve"), "Seen is no longer offered; Approve is unchanged");
+			expect(discovery().Statistics.Submitted == reads, "Seen asks GitHub for nothing");
+			expect(!window->open_pull_request_seen_head().empty(), "the head I said Seen on is recorded");
+			expect(!editor->shown_draft() || editor->shown_draft()->State == core::review_submission_state::drafting, "Seen submitted no review");
+			expect(row_of(*window, 17).Group == qt::home_group::following, "and Home has it in Following");
+			if (renderAt >= 0) {
+				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-seen-up-to-date.png"));
+			}
 		}
 	} else {
 		// ---- BPR-2048: one oversized pull request fails nothing ---------------
@@ -206,27 +257,21 @@ try {
 			   "the oversized row stays in Needs me and says it is too large: " + oversized.Index.data(qt::home_row_role::why).toString().toStdString());
 		expect(!row_of(*window, 4001).Index.data(qt::home_row_role::why).toString().contains(QStringLiteral("too large"), Qt::CaseInsensitive), "the ordinary row loads as ever");
 
-		// ---- BPR-2049: Seen and Approve again --------------------------------
-		const auto approved = row_of(*window, 18);
-		expect(approved.Group == qt::home_group::needs_you && approved.Index.data(qt::home_row_role::row_action).toString() == QStringLiteral("Seen"),
-			   "my approval with commits after it is in Needs me and offers Seen");
-		const auto dismissed = row_of(*window, 19);
-		expect(dismissed.Group == qt::home_group::needs_you && dismissed.Index.data(qt::home_row_role::row_action).toString() == QStringLiteral("Approve again"),
-			   "a dismissed approval offers Approve again");
-		expect(oversized.Index.data(qt::home_row_role::row_action).toString().isEmpty(), "a row I have not reviewed offers neither");
-		if (renderAt >= 0) {
-			window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/home-oversized-seen.png"));
+		// ---- BPR-2217: Home keeps the verdict chip, not the action ----------
+		for (const auto number : { 18, 19 }) {
+			const auto reviewed = row_of(*window, number);
+			expect(reviewed.Group == qt::home_group::needs_you && !reviewed.Index.data(qt::home_row_role::verdict).toString().isEmpty(),
+				   "a reviewed row back for new commits is in Needs me with its verdict chip");
+			expect(reviewed.Index.data(qt::home_row_role::row_action).toString().isEmpty(), "and offers no row action");
+			const auto hovered = hovered_actions(reviewed);
+			expect(!hovered.contains(QStringLiteral("Seen")) && !hovered.contains(QStringLiteral("Approve again")), "hovering it shows neither Seen nor Approve again");
 		}
-		auto* const seen = hovered_action(approved);
+		if (renderAt >= 0) {
+			window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/home-oversized.png"));
+		}
 		if (attended) {
 			goto attend;
 		}
-		expect(seen != nullptr && seen->text() == QStringLiteral("Seen") && seen->toolTip().contains(QStringLiteral("Nothing changes on GitHub")), "Seen shows on the row under the pointer, saying it writes nothing");
-		const auto reads = discovery().Statistics.Submitted;
-		seen->click();
-		wait_for([&] { return row_of(*window, 18).Group == qt::home_group::following; }, "Seen moves the row to Following at once", 5'000);
-		expect(discovery().Statistics.Submitted == reads, "Seen asks GitHub for nothing");
-		expect(row_of(*window, 18).Index.data(qt::home_row_role::row_action).toString().isEmpty(), "a seen row offers nothing more");
 
 		// ---- BPR-2048: opening the oversized pull request ---------------------
 		double_click(row_of(*window, 17));

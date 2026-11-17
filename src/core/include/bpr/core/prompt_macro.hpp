@@ -959,6 +959,12 @@ namespace bpr::core {
 		auto operator<=>(const prompt_turn_name&) const = default;
 	};
 
+	/// \brief [[BPR-2237]]. Whether a turn sent from a prompt is the
+	/// prompt's own expansion, as offered: then the prompt's name stands for
+	/// it. Text the reviewer changed or added to is theirs and is shown.
+	/// Leading and trailing white space aside.
+	[[nodiscard]] auto prompt_sent_unedited(std::string_view aSent, std::string_view aExpansion) noexcept -> bool;
+
 	/// \brief Whether a record is within its bounds, names something, and
 	/// differs from its question (a name equal to it says nothing).
 	[[nodiscard]] auto valid(const prompt_turn_name& aName) noexcept -> bool;

@@ -334,6 +334,14 @@ namespace bpr::qt {
 			ConversationPanel->set_new_comment_offered(ConversationPanel->parentWidget() != DiscussPage);
 			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
 		} else {
+			// Owner, look report-keeps-v001 ("when you go to review still
+			// have the agent tab open"): Overview's Agent tab, open when the
+			// reviewer moves to Review (or opens a report there), is the
+			// tray's open tab. Within one pull request; a new one opens
+			// fresh ([[BPR-2185]]).
+			if (drawer->current_tab() == overview_drawer_tab::agent && TrayTabs != nullptr) {
+				TrayTabs->setCurrentIndex(tray_findings_tab);
+			}
 			if (ConversationPanel->parentWidget() == drawer->holder(overview_drawer_tab::comments)) {
 				ConversationPanel->set_pull_request_conversation(false);
 				move(ConversationPanel, ConversationHome);

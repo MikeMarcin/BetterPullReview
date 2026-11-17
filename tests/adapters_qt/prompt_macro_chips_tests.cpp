@@ -264,7 +264,10 @@ namespace {
 			expect(aHarness.Sends.size() == sent + 1U, "AC05 a click sends: " + label.toStdString());
 			const auto& send = aHarness.Sends.back();
 			const auto  was  = today(label, subject, review, context, tab.lines_attached());
-			expect(send.Text == was.first && send.Question == was.second && send.Action.entry_point() == was.second->EntryPoint, "AC05 the request equals today's, byte for byte: " + label.toStdString());
+			// [[BPR-2219]]. A review chip is shown by its name and sends its
+			// body: its instructions, which open with the name.
+			const auto text = review ? send.Text.starts_with(label.toStdString() + " as a careful colleague would") && send.Text.find("Sections, in this order") != std::string::npos : send.Text == was.first;
+			expect(text && send.Question == was.second && send.Action.entry_point() == was.second->EntryPoint, "AC05 the request equals today's, byte for byte: " + label.toStdString());
 			expect(send.SkillText == std::optional<std::string>{ "" }, "AC05 a built-in's own text names no skill, as today");
 		}
 
@@ -354,14 +357,31 @@ namespace {
 		expect(tab.turn_name(turn) == QStringLiteral("Long pass on renderer.cpp") && tab.turn_question(turn) == expansion, "AC07 the turn shows the sent text under the macro's name");
 		auto* const showAll = tab.turn_show_all(turn);
 		auto* const shown   = tab.findChildren<QLabel*>(QStringLiteral("agentTurnQuestionText")).back();
-		expect(showAll != nullptr && showAll->text() == QStringLiteral("Show all") && shown->text().count(QLatin1Char{ '\n' }) + shown->text().count(QStringLiteral("<br>")) == 5,
-			   "AC07 folded past six lines, behind Show all");
+		// [[BPR-2219]] (look review-report-v001, owner: "All of this extra
+		// context from a prompt we select should be hidden"): a turn sent
+		// under a prompt's name shows the name alone; what was sent is behind
+		// Show prompt, whole.
+		expect(showAll != nullptr && showAll->text() == QStringLiteral("Show prompt") && !shown->isVisibleTo(&tab), "AC07 the sent text is behind Show prompt, the name alone showing");
+		// Look review-report-v003 (owner: "the little indigo ai symbol next
+		// to anything coming from an app prompt in the transcript"): the
+		// agent glyph stands before the prompt's name, on the name's row
+		// with Show prompt; a turn that was typed has none.
+		{
+			auto* const name   = tab.findChildren<QLabel*>(QStringLiteral("agentTurnName")).back();
+			const auto  glyphs = tab.findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"));
+			expect(!glyphs.isEmpty() && !glyphs.back()->pixmap().isNull() && glyphs.back()->parentWidget() == name->parentWidget() && glyphs.back()->isVisibleTo(&tab)
+					   && glyphs.back()->mapTo(&tab, QPoint{ }).x() < name->mapTo(&tab, QPoint{ }).x() && showAll->mapTo(&tab, QPoint{ }).x() > name->mapTo(&tab, QPoint{ }).x()
+					   && std::abs(showAll->mapTo(&tab, QPoint{ }).y() - name->mapTo(&tab, QPoint{ }).y()) < name->height() + 8,
+				   "AC07 the agent glyph stands before the prompt's name, and Show prompt on the same row");
+			expect(glyphs.size() == tab.findChildren<QLabel*>(QStringLiteral("agentTurnName")).size(), "AC07 only a turn sent under a prompt's name wears the glyph");
+		}
 		if (auto* const box = showAll->parentWidget() != nullptr ? showAll->parentWidget()->parentWidget() : nullptr; box != nullptr) {
 			render(*box, QStringLiteral("rfc0125-m2-sent-turn-folded"));
 		}
 		showAll->click();
 		settle();
-		expect(showAll->text() == QStringLiteral("Show less") && shown->text().count(QLatin1Char{ '\n' }) + shown->text().count(QStringLiteral("<br>")) == 14, "AC07 Show all shows every line");
+		expect(showAll->text() == QStringLiteral("Hide prompt") && shown->isVisibleTo(&tab) && shown->text().count(QLatin1Char{ '\n' }) + shown->text().count(QStringLiteral("<br>")) == 14,
+			   "AC07 Show prompt shows every line of what was sent");
 		showAll->click();
 		settle();
 
@@ -502,12 +522,42 @@ namespace {
 		const auto sent = aHarness.Sends.size();
 		tab.ask_button()->click();
 		settle();
-		expect(aHarness.Sends.size() == sent + 1U && aHarness.Sends.back().Text == "Review this pull request, focusing on the cache" && aHarness.Sends.back().Question
+		expect(aHarness.Sends.size() == sent + 1U && aHarness.Sends.back().Text.starts_with("Review this pull request as a careful colleague would") && aHarness.Sends.back().Text.ends_with(", focusing on the cache") && aHarness.Sends.back().Question
 				   && aHarness.Sends.back().Question->EntryPoint == core::agent_entry_point::run_ai_review && !aHarness.Sends.back().SkillText,
 			   "AC10 edited and sent, it keeps its subject and kind: a review");
 		aHarness.answer(QStringLiteral("Reviewed."));
 		expect(!tab.macro_chip()->isVisibleTo(&tab), "the chip goes with the sent question");
 		expect(tab.turn_name(tab.turn_count() - 1U) == QStringLiteral("Review this pull request"), "the edited turn shows the prompt it was sent as");
+		// [[BPR-2237]]. The reviewer's words are not behind Show prompt: an
+		// edited prompt's turn shows its text as written, under the name.
+		{
+			const auto  edited = tab.turn_count() - 1U;
+			auto* const text   = tab.turn_question_label(edited);
+			auto* const fold   = tab.turn_show_all(edited);
+			expect(text != nullptr && text->isVisibleTo(&tab) && text->text().contains(QStringLiteral("Review this pull request as a careful colleague")) && fold != nullptr && fold->text() == QStringLiteral("Show all"),
+				   "an edited prompt's turn shows what was sent, as written, folded past six lines as a typed question is, with no Show prompt");
+			fold->click();
+			settle();
+			expect(text->text().contains(QStringLiteral("focusing on the cache")) && fold->text() == QStringLiteral("Show less"), "Show all shows the reviewer's own words");
+			expect(!tab.thread_turns().empty() && tab.thread_turns().back().Edited && tab.thread_turns().back().Name == QStringLiteral("Review this pull request"), "the kept turn says it was edited");
+			auto* const box = text->parentWidget();
+			if (box != nullptr) {
+				render(*box, QStringLiteral("bpr-2237-edited-turn"));
+			}
+		}
+		// Put in the field and sent unchanged, it is the prompt's own: the
+		// name alone, with Show prompt.
+		click(*aHarness.chip(QStringLiteral("Review this pull request")), Qt::ShiftModifier);
+		tab.ask_button()->click();
+		settle();
+		aHarness.answer(QStringLiteral("Reviewed again."));
+		{
+			const auto  unedited = tab.turn_count() - 1U;
+			auto* const fold     = tab.turn_show_all(unedited);
+			expect(tab.turn_name(unedited) == QStringLiteral("Review this pull request") && fold != nullptr && fold->text() == QStringLiteral("Show prompt") && !tab.turn_question_label(unedited)->isVisibleTo(&tab)
+					   && !tab.thread_turns().back().Edited,
+				   "a prompt put in the field and sent unchanged shows its name alone, with Show prompt");
+		}
 
 		click(*aHarness.chip(QStringLiteral("Review this pull request")), Qt::ShiftModifier);
 		aHarness.field().moveCursor(QTextCursor::End);
@@ -517,7 +567,7 @@ namespace {
 		expect(!tab.macro_chip()->isVisibleTo(&tab), "AC10 the chip's close removes it");
 		tab.ask_button()->click();
 		settle();
-		expect(aHarness.Sends.back().Text == "Review this pull request, focusing on the cache" && aHarness.Sends.back().Question
+		expect(aHarness.Sends.back().Text.starts_with("Review this pull request as a careful colleague would") && aHarness.Sends.back().Text.ends_with(", focusing on the cache") && aHarness.Sends.back().Question
 				   && aHarness.Sends.back().Question->EntryPoint == core::agent_entry_point::open_full_agent_session && aHarness.Sends.back().Question->Subject == core::agent_question_subject::pull_request,
 			   "AC10 with the chip removed the same text is sent as a typed question");
 		aHarness.answer(QStringLiteral("Answered."));

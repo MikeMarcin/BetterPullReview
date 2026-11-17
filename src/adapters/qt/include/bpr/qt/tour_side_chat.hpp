@@ -62,6 +62,9 @@ namespace bpr::qt {
 		/// only text its skill references are read from; none reads
 		/// `Question`.
 		std::optional<std::string> SkillText;
+		/// [[BPR-2235]]. The prompt's name, for a prompt sent as offered whose
+		/// text is not its name; empty for anything typed or edited.
+		QString Name;
 		/// RFC-BPR-0126 ([[BPR-2154]]). Set for a follow-up typed while the
 		/// tour agent runs or this part's queue holds messages: queued on
 		/// the part's own queue (false) or steered into its running turn
@@ -240,6 +243,10 @@ namespace bpr::qt {
 		/// assembles no facts; with no source it offers none.
 		using prompt_source = std::function<core::chat_prompts(const core::prompt_chat_view&)>;
 		void set_prompt_source(prompt_source aSource);
+		/// \brief [[BPR-2235]]. The name a turn's question was sent under, if
+		/// one is kept, so a chat read back shows it as the Agent tab does.
+		using turn_name_source = std::function<QString(const std::string& aAsked)>;
+		void set_turn_name_source(turn_name_source aSource);
 		/// \brief What the open chat shows that its prompts are decided on;
 		/// none with no chat open.
 		[[nodiscard]] auto prompt_view() const -> std::optional<core::prompt_chat_view>;
@@ -556,6 +563,13 @@ namespace bpr::qt {
 		/// is sent as offered, the only text its skills are read from.
 		std::vector<core::prompt_offer> Offered;
 		std::optional<std::string>      SendingSkillText;
+		/// [[BPR-2235]]. The prompt's name while it is sent as offered, the
+		/// names this chat sent questions under, the source of names kept
+		/// across restarts, and the prompt turns shown whole.
+		QString                         SendingName;
+		std::map<std::string, QString>  SentNames;
+		turn_name_source                TurnNames;
+		std::set<std::string>           PromptsShown;
 		QPointer<agent_suggestion_list> Suggestions;
 		/// [[BPR-1934]] v002. The selected text, the part it is in, and the
 		/// label its prompt has now.

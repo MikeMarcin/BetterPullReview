@@ -2,9 +2,11 @@
 // outline and card, and a commit listing with a merge of the base branch as
 // one line and the rest grouped by area (AC07).
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -176,6 +178,166 @@ namespace {
 		expect(area.Label.empty() && area.Place.empty() && area.Body.at(1U).FirstLine == 12U, "an area's code is numbered from its first row's place");
 		expect(report.Sections.at(1U).Intro.at(0U).Rows.at(0U).Place.empty(), "a row without a place");
 	}
+
+	/// [[BPR-2219]]. What the agent said while it worked is not the report;
+	/// a review's verdict opens its summary; each finding has its keep action
+	/// and the comment it starts from.
+	void test_review_answer_verdict_and_findings()
+	{
+		const auto report_text = std::string{ "# Review of #21\n\n**Verdict:** Needs changes.\n\nOne thing must be fixed before this merges.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\n"
+											  "The height is not clamped.\n\nA minimised window reports zero.\n\n```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n"
+											  "```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n\n"
+											  "## Worth a look\n\n### question: Is the pass a placeholder?\n\n`src/engine/shaders/post/tonemap.frag:5`\n\nIt writes the scene straight through.\n\n"
+											  "### nitpick: The README still names the old folder\n\n`README.md`\n\nIt says `render/`.\n\n### thought: The pass order is implicit\n\nNothing names it.\n\n"
+											  "## Good\n\n### praise: The frame bracket is easy to read\n\n`src/engine/renderer.cpp:3-7`\n\nBegin, draw, present.\n\n## Not reviewed\n\n- `docs/api/reference.md` Prose only.\n" };
+		const auto answer      = "I'll start with the brief and the diff.\n\nNow the callers of `resize`.\n\n```sh\n# not a title\ngit diff\n```\n\nI have what I need; here is the review.\n\n" + report_text;
+		const auto read        = read_report_answer(answer);
+		expect(read.Report == report_text && read.Notes.starts_with("I'll start with the brief") && read.Notes.ends_with("here is the review."), "what the agent said while it worked is cut at the report's title: " + read.Notes);
+		expect(read_report_answer(report_text) == report_answer{ .Notes = { }, .Report = report_text }, "an answer that opens with its report is the report");
+		expect(read_report_answer("Looked around.\n\n# Only a title\n\nNo sections.").Notes.empty() && read_report_answer("No headings at all.").Report == "No headings at all.", "no title a section follows: the answer is the report");
+		expect(read_report_answer("Working.\n\n## Likely\n\nx\n\n## Possible\n\ny").Notes.empty(), "a report that has no level-one title keeps everything: its summary may stand there");
+		expect(read_report_answer(answer) == read, "deterministic");
+		// Look review-report-v002, as the owner saw it: the agent's text
+		// blocks joined with nothing between them, the title mid-line.
+		const auto glued = read_report_answer("I'll start with the brief and the diff, then read the files the change touches.The resize is the change that matters.I have what I need. Now I'll write up the review." + report_text);
+		expect(glued.Report == report_text && glued.Notes.ends_with("Now I'll write up the review.") && dress_report(glued.Report).Title == "Review of #21" && report_card_of(glued.Report).Title == "Review of #21",
+			   "a title glued to the end of the agent's last note is still the report's start: " + glued.Notes);
+		expect(read_report_answer("See issue # 5 and C# code.\n\nNothing more.").Notes.empty() && read_report_answer("Use `x# y` here.\n\n## A\n\nb").Notes.empty()
+				   && read_report_answer("Written in C# for speed.\n\n## A\n\nb").Notes.empty() && read_report_answer("It ends `here.# x` so.\n\n## A\n\nb").Notes.empty(),
+			   "a mark after a space, after a letter or in code is not a title");
+
+		const auto report = dress_report(read.Report);
+		expect(report.Verdict == "Needs changes" && report.VerdictTone == report_tone::open && report.Summary == "One thing must be fixed before this merges.", "the verdict opens the summary and is not part of it: " + report.Summary);
+		expect(dress_report("# R\n\n**Verdict:** Ready with comments\nTwo nits.\n\n## Worth a look\n\n### nitpick: x\n\n`a.cpp:1`\n\ny\n").VerdictTone == report_tone::partial
+				   && dress_report("# R\n\n**Verdict:** Ready to merge\n\nClean.\n\n## Good\n\n### praise: x\n\n`a.cpp:1`\n\ny\n").VerdictTone == report_tone::done
+				   && dress_report("# R\n\nNo verdict here.\n\n## Good\n\n### praise: x\n\n`a.cpp:1`\n\ny\n").Verdict.empty(),
+			   "a verdict's colour; none when the report gives none");
+
+		const auto findings = report_findings(report);
+		expect(findings.size() == 5U, "every item headed with a Conventional Comments label is a finding");
+		expect(findings[0].Keep == report_keep::draft_comment && findings[0].Path == "src/engine/renderer.cpp" && findings[0].First == 12U && findings[0].Last == 13U && findings[0].Outline == 2U,
+			   "a finding at lines offers Draft comment there");
+		expect(findings[0].Comment
+				   == "issue (blocking): A zero height still asserts\n\nThe height is not clamped.\n\nA minimised window reports zero.\n\n```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```",
+			   "its comment: the label and the finding, why, and the change as a suggestion; the quoted code is left out:\n" + findings[0].Comment);
+		expect(findings[1].Keep == report_keep::draft_comment && findings[1].First == 5U && findings[1].Last == 5U && findings[1].Comment == "question: Is the pass a placeholder?\n\nIt writes the scene straight through.",
+			   "a finding without a suggestion drafts too");
+		expect(findings[2].Keep == report_keep::keep_local && findings[2].Path == "README.md" && findings[2].First == 0U, "a finding that names only a file is kept local on it");
+		expect(findings[3].Keep == report_keep::keep_local && findings[3].Path.empty(), "a finding with no place is kept local on the pull request");
+		expect(findings[4].Keep == report_keep::draft_comment && findings[4].Comment.starts_with("praise: "), "praise can be said too");
+		expect(stable_name(report_keep::draft_comment) == "draft_comment" && stable_name(report_keep::keep_local) == "keep_local" && stable_name(report_keep::none) == "none", "stable names");
+
+		// The agent's own comment for the same place is the draft's text; a
+		// comment for another place is not taken.
+		const auto suggested = report_findings(report, { { .Path = "src/engine/renderer.cpp", .First = 13U, .Last = 13U, .Comment = "issue: clamp the height as well as the width." }, { .Path = "src/other.cpp", .First = 5U, .Last = 5U, .Comment = "Not this one." } });
+		expect(suggested[0].Comment == "issue: clamp the height as well as the width.\n\n```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```"
+				   && suggested[1].Comment == findings[1].Comment,
+			   "the agent's suggested comment for an overlapping place, with the report's suggestion; others as the report says them");
+		expect(report_findings(dress_report("# What changed\n\nS.\n\n## Changed\n\n### Rendering\n\n- `src/a.cpp:1` x\n")).empty(), "a report without findings offers nothing");
+
+		expect(report_summary_comment(report)
+				   == "**Verdict:** Needs changes\n\nOne thing must be fixed before this merges.\n\n- issue (blocking): A zero height still asserts (`src/engine/renderer.cpp:12-13`)\n"
+					  "- question: Is the pass a placeholder? (`src/engine/shaders/post/tonemap.frag:5`)\n- nitpick: The README still names the old folder (`README.md`)\n- thought: The pass order is implicit",
+			   "the summary as a comment on the pull request: verdict, summary, a line a finding, praise left out:\n" + report_summary_comment(report));
+		expect(report_summary_comment(dress_report("# R\n\n## Good\n\n### praise: x\n\n`a.cpp:1`\n\ny\n")).empty(), "no summary, nothing to keep");
+
+		// What a real agent wrote (MikeMarcin/BPR-Test#185, 2026-11-16): two
+		// places on the place line, and two lines written with a comma.
+		const auto  real = dress_report("# Review of #185\n\nNot neutral.\n\n## Must fix\n\n### issue (blocking): the cache key ignores query params\n\n`feedsync/client.py:55`, `feedsync/cache.py:21-22`\n\nThe key is the source's URL.\n\n"
+										"## Worth a look\n\n### nitpick: error detail and User-Agent\n\n`feedsync/client.py:30,71`\n\nThe message is dropped.\n");
+		const auto& two  = real.Sections.at(0U).Items.at(0U);
+		expect(two.Place == "feedsync/client.py:55" && two.OtherPlaces == "`feedsync/cache.py:21-22`" && two.Body.size() == 1U, "several places on the line: the first is the item's, the others are kept beside it: " + two.Place);
+		const auto drafted = report_findings(real);
+		expect(drafted.size() == 2U && drafted[0].Keep == report_keep::draft_comment && drafted[0].Path == "feedsync/client.py" && drafted[0].First == 55U && drafted[1].Keep == report_keep::draft_comment
+				   && drafted[1].Path == "feedsync/client.py" && drafted[1].First == 30U && drafted[1].Last == 30U,
+			   "both draft at their first place; lines written with a comma start at the first");
+		// A prompt edited to another severity scheme, or with no verdict:
+		// in a review every item with a place still drafts, and the report
+		// shows without a verdict.
+		const auto own = dress_report("# Review of #7\n\nTwo things.\n\n## Blockers\n\n### P1: The lock is dropped\n\n`src/a.cpp:9`\n\nTake it again.\n\n## Notes\n\n### The name misleads\n\n`src/b.cpp:3`\n\nRename it.\n");
+		expect(own.Verdict.empty() && own.Sections.size() == 2U && report_findings(own).size() == 2U && report_findings(own)[0].Keep == report_keep::draft_comment
+				   && report_findings(own)[0].Comment == "P1: The lock is dropped\n\nTake it again." && report_findings(own)[1].Comment == "The name misleads\n\nRename it.",
+			   "a review's items draft whatever they are headed with, and a missing verdict is no error");
+		expect(report_findings(dress_report("# What `a.cpp` does\n\nS.\n\n## How it works\n\n### resize\n\n`src/a.cpp:9`\n\nIt resizes.\n")).empty(), "a report that is not a review offers no keep action on its items");
+	}
+
+	/// [[BPR-2231]], [[BPR-2232]]. A report's finding is its card when one is
+	/// at its place; its one state is kept where the card's is, or under the
+	/// report's own digest; Draft all from the report plans over those states.
+	void test_report_findings_share_their_cards_state()
+	{
+		const auto report = dress_report("# Review of #9\n\n**Verdict:** Needs changes\n\nTwo things.\n\n## Must fix\n\n### issue: A\n\n`src/a.cpp:3`\n\nWhy A.\n\n"
+										 "### issue: B\n\n`src/b.cpp:7-8`\n\nWhy B.\n\n### nitpick: C\n\n`src/c.cpp:2`\n\nWhy C.\n\n### thought: D\n\n`README.md`\n\nWhy D.\n");
+		// Cards in the answer's order: B's with a comment, a commentless one
+		// at A, and one at a place the report does not name.
+		const auto cards    = std::vector<report_suggested_comment>{ { .Path = "src/b.cpp", .First = 8U, .Last = 8U, .Comment = "issue: B, as the agent put it." },
+																	 { .Path = "src/a.cpp", .First = 3U, .Last = 3U, .Comment = "" },
+																	 { .Path = "src/z.cpp", .First = 1U, .Last = 1U, .Comment = "Elsewhere." } };
+		const auto findings = report_findings(report, cards);
+		expect(findings.size() == 4U && findings[0].Card == std::optional<std::size_t>{ 1U } && findings[0].Comment.starts_with("issue: A") && findings[1].Card == std::optional<std::size_t>{ 0U }
+				   && findings[1].Comment == "issue: B, as the agent put it." && !findings[2].Card && !findings[3].Card,
+			   "a finding is the card at its place, with or without the agent's comment; one with none is no card's");
+		const auto commentFirst = report_findings(report, { { .Path = "src/a.cpp", .First = 3U, .Last = 3U, .Comment = "" }, { .Path = "src/a.cpp", .First = 2U, .Last = 4U, .Comment = "issue: A, said." } });
+		expect(commentFirst[0].Card == std::optional<std::size_t>{ 1U } && commentFirst[0].Comment == "issue: A, said.", "a card with the agent's comment is taken before one without");
+
+		const auto block  = digest_agent_findings("[{\"path\":\"src/b.cpp\"}]");
+		const auto keys   = std::vector<report_card_key>{ { .Findings = block, .Ordinal = 0U }, { .Findings = block, .Ordinal = 1U }, { .Findings = block, .Ordinal = 2U } };
+		const auto own    = digest_report_findings("# Review of #9\n");
+		const auto keyOfA = report_finding_key_of(findings[0], keys, own);
+		const auto keyOfC = report_finding_key_of(findings[2], keys, own);
+		expect(keyOfA == report_finding_key{ .Findings = block, .Ordinal = 1U, .Card = true }, "a card's finding is kept under its card's block and ordinal");
+		expect(keyOfC == report_finding_key{ .Findings = own, .Ordinal = findings[2].Outline, .Card = false } && own != digest_agent_findings("# Review of #9\n") && own == digest_report_findings("# Review of #9\n"),
+			   "a finding no card carries is kept under the report's own digest, which no block's equals, at its row");
+
+		// One memory: drafted from the report is the card's state, and a
+		// restart (the records written and adopted again) keeps both.
+		auto memory = agent_finding_card_memory{ };
+		expect(memory.remember(report_keep_record(keyOfA, report_keep::draft_comment, true)), "Draft comment from the report keeps the card drafted");
+		expect(memory.remember(report_keep_record(keyOfC, report_keep::draft_comment, true)), "and a card-less finding under the report's key");
+		expect(memory.recall(block, 1U).State == agent_finding_card_disposition::drafted, "the card reads Drafted");
+		auto restarted = agent_finding_card_memory{ };
+		restarted.adopt(memory.records());
+		expect(report_finding_standing_of(restarted.recall(keyOfA.Findings, keyOfA.Ordinal).State) == report_finding_standing::drafted
+				   && report_finding_standing_of(restarted.recall(keyOfC.Findings, keyOfC.Ordinal).State) == report_finding_standing::drafted,
+			   "after a restart both read Drafted");
+		const auto kept    = report_keep_record(keyOfC, report_keep::keep_local, true, { }, 41U);
+		const auto refused = report_keep_record(keyOfC, report_keep::draft_comment, false, "Line 2 is gone.");
+		expect(kept.State == agent_finding_card_disposition::noted && kept.Note == 41U && refused.State == agent_finding_card_disposition::refused && refused.Why == "Line 2 is gone."
+				   && report_finding_standing_of(kept.State) == report_finding_standing::kept_local && report_finding_standing_of(agent_finding_card_disposition::dismissed) == report_finding_standing::dismissed,
+			   "Keep local keeps its note; a refusal says why");
+		expect(stable_name(report_finding_standing::kept_local) == "kept_local" && stable_name(report_finding_standing::refused) == "refused", "stable names");
+
+		// Draft all from the report: in the report's order, the drafted one
+		// counted as already drafted, the unplaceable one as not in the diff,
+		// the file-only one neither drafted nor counted.
+		const auto facts      = std::vector<report_draft_all_fact>{ { .Standing = report_finding_standing::drafted, .Placeable = true },
+																	{ .Standing = report_finding_standing::open, .Placeable = true },
+																	{ .Standing = report_finding_standing::refused, .Placeable = false },
+																	{ .Standing = report_finding_standing::open, .Placeable = true } };
+		const auto candidates = report_draft_all_candidates(findings, facts);
+		const auto plan       = plan_draft_all(candidates);
+		expect(candidates.size() == 4U && !candidates[3].Suggested && plan.Draft == std::vector<std::size_t>{ 1U } && plan.AlreadyDrafted == 1U && plan.NotInDiff == 1U && draft_all_offer(candidates) == 1U,
+			   "Draft all drafts what is not yet drafted, in the report's order, and counts the rest");
+		const auto busy = report_draft_all_candidates(findings, std::vector<report_draft_all_fact>{ { .Working = true, .Placeable = true }, { .Standing = report_finding_standing::dismissed, .Placeable = true } });
+		expect(busy[0].State == draft_all_card_state::working && busy[1].State == draft_all_card_state::dismissed && busy[2].State == draft_all_card_state::open && !busy[2].Placeable,
+			   "under way and dismissed as the Agent tab's Draft all reads them; a missing fact is open and not placeable");
+	}
+
+	/// [[BPR-2236]]. The tone a finding's severity wears is core's, as its
+	/// label's is; the card says the verdict apart from its summary.
+	void test_tones_of_severity_and_the_card_verdict()
+	{
+		expect(report_tone_of(defect_severity::critical) == report_tone::open && report_tone_of(defect_severity::major) == report_tone::open
+				   && report_tone_of(defect_severity::minor) == report_tone::partial && report_tone_of(defect_severity::trivial) == report_tone::neutral,
+			   "Major and Critical need work, Minor is half way, Trivial is nothing in particular");
+		expect(report_tone_of(defect_severity::major) == report_tone_of("issue (blocking)") && report_tone_of(defect_severity::minor) == report_tone_of("suggestion (non-blocking)"),
+			   "a Major finding and its issue label wear one tone, a Minor one and its suggestion another");
+		const auto card = report_card_of("# Review of #21\n\n**Verdict:** Needs changes.\n\nOne thing must be fixed.\n\n## Must fix\n\nx\n");
+		expect(card.Verdict == "Needs changes" && card.VerdictTone == report_tone::open && card.Summary == "One thing must be fixed.",
+			   "the card's verdict and tone, and its summary without the verdict line");
+		const auto plain = report_card_of("# What a.cpp does\n\nIt resizes.\n\n## How\n\nx\n");
+		expect(plain.Verdict.empty() && plain.VerdictTone == report_tone::neutral && plain.Summary == "It resizes.", "a report with no verdict keeps its summary whole");
+	}
 } // namespace
 
 auto main() -> int
@@ -185,6 +347,9 @@ auto main() -> int
 	test_dressed_was_addressed();
 	test_dressed_review_and_rows();
 	test_dressed_areas();
+	test_review_answer_verdict_and_findings();
+	test_tones_of_severity_and_the_card_verdict();
+	test_report_findings_share_their_cards_state();
 	std::cout << "agent-report-tests:pass\n";
 	return EXIT_SUCCESS;
 }

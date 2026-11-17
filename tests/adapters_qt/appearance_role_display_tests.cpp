@@ -98,18 +98,19 @@ namespace {
 
 		// The counts the accepted design prints beside each sticky header.
 		const auto accepted = std::array<std::size_t, qt::appearance_role_group_count>{
-			10U, 8U, 7U, 28U, 12U, 6U
+			10U, 8U, 7U, 28U, 12U, 3U
 		};
-		// RFC-BPR-0128: the sixth group, Reports.
-		expect(counted == accepted, "the groups hold 10, 8, 7, 28, 12 and 6 roles");
+		// RFC-BPR-0128: the sixth group, Findings and reports, holds the three
+		// tones since [[BPR-2236]] retired the page's paper, ink and code wash.
+		expect(counted == accepted, "the groups hold 10, 8, 7, 28, 12 and 3 roles");
 
 		auto total = std::size_t{ 0U };
 		for (const auto count : counted) {
 			total += count;
 		}
 		expect(
-			total == core::appearance_role_count && total == 71U,
-			"and together they hold every one of the 71 roles, so no role can be "
+			total == core::appearance_role_count && total == 68U,
+			"and together they hold every one of the 68 roles, so no role can be "
 			"grouped out of the list");
 	}
 
@@ -142,8 +143,8 @@ namespace {
 			"exactly the two hunk-header roles are not offered");
 		expect(
 			offered
-				== std::array<std::size_t, qt::appearance_role_group_count>{ 10U, 6U, 7U, 28U, 12U, 6U },
-			"so the card's groups offer 10, 6, 7, 28, 12 and 6 roles, 69 in all");
+				== std::array<std::size_t, qt::appearance_role_group_count>{ 10U, 6U, 7U, 28U, 12U, 3U },
+			"so the card's groups offer 10, 6, 7, 28, 12 and 3 roles, 66 in all");
 		expect(
 			qt::appearance_role_group_of(core::appearance_role::diff_hunk_header_text)
 					== qt::appearance_role_group::diff

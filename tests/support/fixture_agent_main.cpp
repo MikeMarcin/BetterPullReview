@@ -278,6 +278,41 @@ namespace {
 		return "Fixture agent: read your message (" + question + "). Nothing in the tour changes; nothing was spent.";
 	}
 
+	/// A review: the review skill asks every turn for findings it finds; only
+	/// a review is answered with them.
+	auto reviews(const std::string& aRequest) -> bool
+	{
+		return holds(aRequest, "bpr-findings") && (holds(aRequest, "Review this pull request") || holds(aRequest, "Review src/") || holds(aRequest, "run_ai_review"));
+	}
+
+	/// [[BPR-2219]]. What a real agent says while it reviews, between its
+	/// tool calls: each is a text block of the turn, so the application's
+	/// answer holds them before the report, as a real Claude Code turn's does.
+	constexpr auto review_notes = std::array<std::string_view, 3>{
+		"I'll start with the brief and the diff, then read the files the change touches.",
+		"The resize is the change that matters. Let me check what calls it and what the swap chain does with a zero extent.",
+		"I have what I need. Now I'll write up the review.",
+	};
+
+	/// Writes the notes of a review as Claude Code does: a text block and a
+	/// tool call in one assistant message, then the tool's result.
+	void emit_review_notes(const bool aReads, const int aTurn)
+	{
+		for (auto index = std::size_t{ 0U }; index < review_notes.size(); ++index) {
+			// A kept connection answers several turns: each message's
+			// identity is its turn's own.
+			const auto id = "review-" + std::to_string(aTurn) + "-" + std::to_string(index);
+			std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-)" << id << R"(","role":"assistant","content":[{"type":"text","text":")" << escape(std::string{ review_notes[index] }) << "\"}";
+			if (aReads && index + 1U < review_notes.size()) {
+				std::cout << R"(,{"type":"tool_use","id":")" << id << R"(","name":"Read","input":{"file_path":"src/engine/renderer.cpp"}}]}})" << '\n'
+						  << R"({"type":"user","session_id":"fixture-agent","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" << id << R"(","content":"fixture file"}]}})" << '\n';
+			} else {
+				std::cout << "]}}\n";
+			}
+			std::cout << std::flush;
+		}
+	}
+
 	auto answer_for(const std::string& aRequest) -> std::string
 	{
 		if (holds(aRequest, "bpr-check-report")) {
@@ -410,10 +445,13 @@ namespace {
 		}
 		// A review (the review skill asks every turn for findings it finds;
 		// only a review is answered with them).
-		if (holds(aRequest, "bpr-findings") && (holds(aRequest, "Review this pull request") || holds(aRequest, "Review src/") || holds(aRequest, "run_ai_review"))) {
-			// docs/design/report-templates-v1: a review is a report, its
-			// findings block after it.
+		if (reviews(aRequest)) {
+			// docs/design/report-templates-v1 and [[BPR-2219]]: a review is a
+			// report, its verdict first, and its findings block lists the
+			// report's own findings in its order, each with the comment a
+			// draft starts from.
 			return "# Review of #21\n\n"
+				   "**Verdict:** Needs changes\n\n"
 				   "The move is clean: the files moved without a change in behaviour. One thing must be fixed before this merges: a zero height still asserts. The new tonemap pass raises a question.\n\n"
 				   "## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\n"
 				   "The width is clamped, but the height goes to `Target.resize` as it arrives. A minimised window reports a height of zero, and the swap chain asserts on it.\n\n"
@@ -421,14 +459,16 @@ namespace {
 				   "```suggestion\nconst auto width = std::max(aSize.Width, 1);\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n\n"
 				   "## Worth a look\n\n### question: Is the tonemap pass meant to ignore exposure?\n\n`src/engine/shaders/post/tonemap.frag:5`\n\nIt writes the scene straight through. Either it is a placeholder, or `uExposure` was lost in the move.\n\n"
 				   "### nitpick: The comment says what, not why\n\n`src/engine/renderer.cpp:11`\n\n\"A minimised window reports zero\" would be more use as \"the swap chain asserts on a zero extent\".\n\n"
+				   "### suggestion (non-blocking): Say in the README where the engine moved\n\n`README.md`\n\nIt still points at `render/`. A reader following it finds nothing.\n\n"
 				   "## Good\n\n### praise: The frame bracket is easy to read\n\n`src/engine/renderer.cpp:3-7`\n\nBegin, draw, present, and nothing else. It is hard to get the order wrong.\n\n"
 				   "## Questions for the author\n\n- `src/engine/shaders/post/tonemap.frag:5` Is this pass a placeholder for now?\n\n"
 				   "## Not reviewed\n\n- `docs/api/v2/endpoints.md` and `docs/api/reference.md`. Prose only.\n\n"
 				   "```bpr-findings\n"
-				   R"({"findings": [{"path": "src/engine/renderer.cpp", "startLine": 1, "endLine": 2, "severity": "major", "category": "correctness", "confidence": "medium", )"
-				   R"("claim": "The frame budget resets on every call.", "evidence": "draw_pass checks it after begin_frame restored it.", "suggestedComment": "suggestion: reset the budget once per request, not per frame."}, )"
-				   R"({"path": "src/engine/renderer.h", "startLine": 1, "endLine": 1, "severity": "minor", "category": "documentation", "confidence": "low", )"
-				   R"("claim": "The header does not say which thread calls begin_frame.", "evidence": "No comment or assertion names the render thread."}]})"
+				   R"({"findings": [{"path": "src/engine/renderer.cpp", "startLine": 12, "endLine": 13, "severity": "major", "category": "correctness", "confidence": "high", )"
+				   R"("claim": "A zero height still reaches the swap chain.", "evidence": "resize clamps the width only; Target.resize takes aSize.Height as it arrives.", )"
+				   R"("suggestedComment": "issue (blocking): the width is clamped but the height is not, so a minimised window still asserts in the swap chain. Clamp both."}, )"
+				   R"({"path": "src/engine/shaders/post/tonemap.frag", "startLine": 5, "endLine": 5, "severity": "minor", "category": "correctness", "confidence": "low", )"
+				   R"("claim": "The tonemap pass ignores exposure.", "evidence": "It writes the scene colour straight through; uExposure is not read."}]})"
 				   "\n```\n";
 		}
 		return "Fixture answer: this is a canned reply from the fixture agent, so no real agent ran and nothing was spent.\n\n"
@@ -516,6 +556,9 @@ namespace {
 					  << std::flush;
 		}
 		pause();
+		if (reviews(aRequest)) {
+			emit_review_notes(std::ranges::find(aTools, std::string{ "Read" }) != aTools.end(), 0);
+		}
 		const auto encoded = escape(answer_for(aRequest));
 		std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-answer","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
 		std::cout << R"({"type":"result","subtype":"success","session_id":"fixture-agent","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1},"result":")" << encoded << "\"}\n"
@@ -668,6 +711,9 @@ namespace {
 					// them as the reviewer's own message ([[BPR-2153]]).
 					steered += "\n\nTook your correction after step " + std::to_string(step) + " (" + std::to_string(field(*correction, "text").size()) + " characters).";
 				}
+			}
+			if (reviews(request)) {
+				emit_review_notes(reads, results);
 			}
 			auto answered = answer_for(request);
 			// A tour chat's answer is one JSON object: what it took goes in

@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP
 
+#include "bpr/core/defect_workflow.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -54,6 +56,19 @@ namespace bpr::core {
 		auto operator<=>(const report_section&) const = default;
 	};
 
+	/// \brief docs/design/report-templates-v1 and v2 (owner, 2026-11-14: B,
+	/// Dressed, in Qt's rich text). What a verdict or label means, for its
+	/// colour: what still needs work, what is half done or asked, what is
+	/// done or good, or nothing in particular. [[BPR-2236]]: wherever such a
+	/// thing is shown, the Agent tab or the report page, its tone names one
+	/// of the three theme roles `appearance_role::report_verdict_*`.
+	enum class report_tone : std::uint8_t {
+		neutral,
+		open,
+		partial,
+		done,
+	};
+
 	/// \brief What a report's card and its opened tab show
 	/// (docs/design/report-card-v4/SPEC.md).
 	struct report_card
@@ -65,7 +80,12 @@ namespace bpr::core {
 		std::uint32_t Sections = 0U;
 		/// What stands between the title and the first section, Markdown
 		/// kept; with no prose there, the first paragraph after the title.
+		/// [[BPR-2236]]: without the `**Verdict:**` line, which is `Verdict`.
 		std::string Summary;
+		/// [[BPR-2236]]. The verdict the summary opens with, and its tone, as
+		/// `dressed_report` reads it; empty when there is none.
+		std::string Verdict;
+		report_tone VerdictTone = report_tone::neutral;
 		/// Every heading after the title, in order.
 		std::vector<report_section> Outline;
 
@@ -157,17 +177,6 @@ namespace bpr::core {
 	/// area's commits.
 	[[nodiscard]] auto render_commit_listing(const commit_listing& aListing) -> std::string;
 
-	/// \brief docs/design/report-templates-v1 and v2 (owner, 2026-11-14: B,
-	/// Dressed, in Qt's rich text). What a verdict or label means, for its
-	/// colour: what still needs work, what is half done or asked, what is
-	/// done or good, or nothing in particular.
-	enum class report_tone : std::uint8_t {
-		neutral,
-		open,
-		partial,
-		done,
-	};
-
 	/// \brief A short row: a list item, its bold label first where the
 	/// template gives one, then its place in backticks, then what to know.
 	struct dressed_row
@@ -227,8 +236,12 @@ namespace bpr::core {
 		/// The heading without its label, Markdown kept.
 		std::string Heading;
 		/// The line that is only a place: `path:line` or `path:first-last`.
-		std::string                Place;
-		std::string                PlaceLink;
+		std::string Place;
+		std::string PlaceLink;
+		/// [[BPR-2219]]. What followed the place on its line, when the item
+		/// names more than one ("`a.py:5`, `b.py:21-22`"): the others,
+		/// Markdown kept. The first is the item's place.
+		std::string                OtherPlaces;
 		std::vector<dressed_block> Body;
 		/// Its row in the report's menu, counted from 1 (0 is the summary).
 		std::uint32_t Outline = 0U;
@@ -265,7 +278,12 @@ namespace bpr::core {
 	/// Only what is recognised is dressed; the rest shows as written.
 	struct dressed_report
 	{
-		std::string                  Title;
+		std::string Title;
+		/// [[BPR-2219]]. The review's verdict, the `**Verdict:**` line that
+		/// opens its summary ("Needs changes", "Ready with comments", "Ready
+		/// to merge"), and its colour; empty when the report gives none.
+		std::string                  Verdict;
+		report_tone                  VerdictTone = report_tone::neutral;
 		std::string                  Summary;
 		std::vector<dressed_section> Sections;
 		/// By verdict or label, in the order they first appear; else by the
@@ -279,6 +297,11 @@ namespace bpr::core {
 	/// label means; neutral for anything else.
 	[[nodiscard]] auto report_tone_of(std::string_view aWord) -> report_tone;
 
+	/// \brief [[BPR-2236]]. The tone a finding's severity wears, on its card
+	/// in the Agent tab as its label does on the report page: critical and
+	/// major need work, minor is half way, trivial is nothing in particular.
+	[[nodiscard]] auto report_tone_of(defect_severity aSeverity) noexcept -> report_tone;
+
 	/// \brief Reads `aAnswer` by the report convention: the title (the
 	/// heading it opens with, else `aTitle`), the summary, each section and
 	/// its items, rows, code and suggestions, and the tally. The
@@ -288,7 +311,8 @@ namespace bpr::core {
 	[[nodiscard]] auto dress_report(std::string_view aAnswer, std::string_view aTitle = { }) -> dressed_report;
 
 	/// \brief A place's path and its lines: `src/a.cpp:12` or
-	/// `src/a.cpp:12-14`; none when it is not one.
+	/// `src/a.cpp:12-14`; none when it is not one. Of several lines written
+	/// with commas (`src/a.cpp:30,71`), the first.
 	struct report_place
 	{
 		std::string   Path;
@@ -298,6 +322,96 @@ namespace bpr::core {
 		auto operator<=>(const report_place&) const = default;
 	};
 	[[nodiscard]] auto read_report_place(std::string_view aPlace) -> std::optional<report_place>;
+
+	/// \brief [[BPR-2219]] (owner, 2026-11-16: "it reads much more like an
+	/// agent transcript than an actual report"). An agent's answer is every
+	/// word it said in the turn, so what it said while it worked ("Let me
+	/// read the diff first.") stands before the report it then wrote.
+	struct report_answer
+	{
+		/// What stands before the report's title: what the agent said while
+		/// it worked. Empty when the answer opens with its report.
+		std::string Notes;
+		/// The report: from its title on. The whole answer when it has no
+		/// title to start at.
+		std::string Report;
+
+		auto operator<=>(const report_answer&) const = default;
+	};
+	/// \brief Splits an answer at its report's title: the first level-one
+	/// heading outside fenced code that a section heading follows. With no
+	/// such heading, or nothing before it, the answer is the report. A
+	/// level-one mark glued to a sentence's last mark ("...the review.# Review
+	/// of #21": text blocks joined with nothing between them) that a heading
+	/// follows is the title too. Linear; no effects.
+	[[nodiscard]] auto read_report_answer(std::string_view aAnswer) -> report_answer;
+
+	/// \brief [[BPR-2219]] (owner, 2026-11-16: "we lost the most useful
+	/// feature of the agent integration: it no longer gives the ability to
+	/// draft a comment from the agent response"). What a report's finding
+	/// offers to keep, RFC-BPR-0127's one keep action.
+	enum class report_keep : std::uint8_t {
+		/// Nothing to keep: not a finding.
+		none,
+		/// Draft comment: a private draft at the finding's lines.
+		draft_comment,
+		/// Keep local: a Local comment on the finding's file, or on the pull
+		/// request when it names none. No line takes a draft.
+		keep_local,
+	};
+	[[nodiscard]] auto stable_name(report_keep aKeep) noexcept -> std::string_view;
+
+	/// \brief One finding of a report: an item headed with a Conventional
+	/// Comments label, or one that proposes a change; and, in a review (a
+	/// report titled Review of ..., or one that gives a verdict), every item
+	/// that names a place, so a prompt edited to another severity scheme
+	/// still drafts.
+	struct report_finding
+	{
+		/// The item's row in the report's menu.
+		std::uint32_t Outline = 0U;
+		/// Where it is: empty and zero when the item names no place; zero
+		/// lines when it names only a file.
+		std::string   Path;
+		std::uint32_t First = 0U;
+		std::uint32_t Last  = 0U;
+		report_keep   Keep  = report_keep::none;
+		/// What the draft or the Local comment starts from: the label and the
+		/// finding in a few words, why, and the proposed change as a
+		/// suggestion GitHub can apply.
+		std::string Comment;
+		/// [[BPR-2231]]. The finding card it is: the position in
+		/// `report_findings`' `aSuggested` of the card at the same place.
+		/// None when no card is at its place.
+		std::optional<std::size_t> Card;
+
+		auto operator<=>(const report_finding&) const = default;
+	};
+
+	/// \brief The findings of a report, in its order, each with its keep
+	/// action (`decide_keep`'s rule: a line takes a draft, anything else is
+	/// kept local) and the comment it starts from. `aSuggested` are the
+	/// answer's finding cards, by place (`path`, first line, last line, the
+	/// comment the agent suggested, possibly empty): a finding at the same
+	/// file whose lines overlap is that card ([[BPR-2231]]: `Card`), a card
+	/// with a comment before one without, each card one finding's; and it
+	/// takes the agent's own comment, which follows the reviewer's comment
+	/// format, in place of the one made from the item.
+	struct report_suggested_comment
+	{
+		std::string   Path;
+		std::uint32_t First = 0U;
+		std::uint32_t Last  = 0U;
+		std::string   Comment;
+
+		auto operator<=>(const report_suggested_comment&) const = default;
+	};
+	[[nodiscard]] auto report_findings(const dressed_report& aReport, const std::vector<report_suggested_comment>& aSuggested = { }) -> std::vector<report_finding>;
+
+	/// \brief The report's summary as a comment on the pull request: its
+	/// verdict, its summary and one line a finding with its place. Kept
+	/// local (no line takes it); empty when the report has no summary.
+	[[nodiscard]] auto report_summary_comment(const dressed_report& aReport) -> std::string;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP

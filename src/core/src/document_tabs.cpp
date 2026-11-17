@@ -72,9 +72,11 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			auto& tab = aState.Tabs[*index];
-			// RFC-BPR-0128. A report is shown as it is: nothing loads.
+			// RFC-BPR-0128. A report is shown as it is: nothing loads. A file
+			// chosen while it shows is still to be taken ([[BPR-2233]]).
 			if (tab.report()) {
-				tab.State = document_tab_view_state::ready;
+				aState.Chosen = chosen;
+				tab.State     = document_tab_view_state::ready;
 				return std::nullopt;
 			}
 			if (chosen && tab.View.File != chosen) {
@@ -266,6 +268,9 @@ namespace bpr::core {
 				return refused(unknown_tab);
 			}
 			if (aState.Active == aIntent.Tab) {
+				// [[BPR-2233]]. Still a later gesture than a file chosen
+				// before it: the choice is retired.
+				aState.Chosen.reset();
 				return { };
 			}
 			return activate(aState, *index);
@@ -379,6 +384,7 @@ namespace bpr::core {
 			const auto open = std::ranges::find(aState.Tabs, aIntent.Report, &document_tab::Report);
 			if (open != aState.Tabs.end()) {
 				if (aState.Active == open->Id) {
+					aState.Chosen.reset();
 					return { };
 				}
 				return activate(aState, static_cast<std::size_t>(std::distance(aState.Tabs.begin(), open)));
@@ -492,6 +498,18 @@ namespace bpr::core {
 			aState.Chosen = aFile;
 		}
 		return { };
+	}
+
+	auto takes_selected_file(const document_tabs_state& aState, const file_identity& aSelected, const std::optional<file_identity>& aReflected) noexcept -> bool
+	{
+		const auto* const active = aState.Active ? find_tab(aState, *aState.Active) : nullptr;
+		if (active == nullptr) {
+			return aReflected != aSelected;
+		}
+		if (active->report()) {
+			return aState.Chosen == aSelected;
+		}
+		return active->View.File != aSelected;
 	}
 
 	auto reload_active(document_tabs_state& aState) -> document_tabs_output

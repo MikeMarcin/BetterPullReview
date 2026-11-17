@@ -1353,16 +1353,11 @@ namespace bpr::app {
 		if (auto* const agent = Window->agent_tab(); agent != nullptr) {
 			agent->adopt_appearance(*AppearanceProfile);
 		}
-		// RFC-BPR-0128 (docs/design/report-templates-v2). A report's page in
-		// the theme's report colours.
+		// RFC-BPR-0128 (docs/design/report-templates-v2), [[BPR-2236]]. A
+		// report's page in the theme's three tones, which the Agent tab's
+		// cards read from the same profile (`adopt_appearance`).
 		if (auto* const report = Window->report_view(); report != nullptr) {
-			using role = core::appearance_role;
-			report->set_report_colours({ .Paper    = AppearanceProfile->color(role::report_paper),
-										 .Ink      = AppearanceProfile->color(role::report_ink),
-										 .Open     = AppearanceProfile->color(role::report_verdict_open),
-										 .Partial  = AppearanceProfile->color(role::report_verdict_partial),
-										 .Done     = AppearanceProfile->color(role::report_verdict_done),
-										 .CodeWash = AppearanceProfile->color(role::report_code_wash) });
+			report->set_tone_colours(qt::tone_colours_of(*AppearanceProfile));
 		}
 #endif
 		// [[BPR-1156]]. Suggest change paints its code in the panes' role colours.

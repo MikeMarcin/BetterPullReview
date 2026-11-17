@@ -1,4 +1,5 @@
 #include "bpr/qt/prompts_page.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -20,6 +21,7 @@
 #include <QDropEvent>
 #include <QFontDatabase>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -34,11 +36,14 @@
 #include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QShortcut>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
+#include <QSyntaxHighlighter>
+#include <QTextCharFormat>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -49,6 +54,75 @@
 
 namespace bpr::qt {
 	namespace {
+		/// [[BPR-2219]]. A prompt's text, coloured as it is typed: its
+		/// variables (`{file}`), a line's leading label ("Focus:"), headings,
+		/// list markers, code spans and fences, and strong text. Colours are
+		/// the palette's own roles, read at each block, so a theme change
+		/// shows on the next rehighlight.
+		class prompt_text_highlighter final : public QSyntaxHighlighter
+		{
+		public:
+			explicit prompt_text_highlighter(QTextDocument* aDocument)
+				: QSyntaxHighlighter{ aDocument }
+			{ }
+
+		protected:
+			void highlightBlock(const QString& aText) override
+			{
+				const auto palette = QGuiApplication::palette();
+				auto       quiet   = QTextCharFormat{ };
+				quiet.setForeground(palette.brush(QPalette::PlaceholderText));
+				auto strong = QTextCharFormat{ };
+				strong.setFontWeight(QFont::DemiBold);
+				auto variable = QTextCharFormat{ };
+				variable.setForeground(palette.brush(QPalette::Link));
+				variable.setFontWeight(QFont::DemiBold);
+				auto code = QTextCharFormat{ };
+				code.setBackground(palette.brush(QPalette::AlternateBase));
+				// Inside a fenced block every line is code; the fence is quiet.
+				const auto fence  = aText.trimmed().startsWith(QStringLiteral("```")) || aText.trimmed().startsWith(QStringLiteral("~~~"));
+				const auto inside = previousBlockState() == 1;
+				setCurrentBlockState(fence ? (inside ? 0 : 1) : (inside ? 1 : 0));
+				if (fence) {
+					setFormat(0, static_cast<int>(aText.size()), quiet);
+					return;
+				}
+				if (inside) {
+					setFormat(0, static_cast<int>(aText.size()), code);
+					return;
+				}
+				static const auto heading   = QRegularExpression{ QStringLiteral(R"(^\s{0,3}#{1,6}\s.*$)") };
+				static const auto label     = QRegularExpression{ QStringLiteral(R"(^(?:\s*[-*]\s+)?([A-Z][^:.{}`]{0,38}:)(?=\s|$))") };
+				static const auto marker    = QRegularExpression{ QStringLiteral(R"(^\s*([-*]|\d+\.)\s)") };
+				static const auto spans     = QRegularExpression{ QStringLiteral(R"(`[^`]+`)") };
+				static const auto bold      = QRegularExpression{ QStringLiteral(R"(\*\*[^*]+\*\*)") };
+				static const auto variables = QRegularExpression{ QStringLiteral(R"(\{[a-z][a-z0-9_.]*\})") };
+				if (const auto match = heading.match(aText); match.hasMatch()) {
+					setFormat(0, static_cast<int>(aText.size()), strong);
+				}
+				if (const auto match = label.match(aText); match.hasMatch()) {
+					setFormat(static_cast<int>(match.capturedStart(1)), static_cast<int>(match.capturedLength(1)), strong);
+				}
+				if (const auto match = marker.match(aText); match.hasMatch()) {
+					setFormat(static_cast<int>(match.capturedStart(1)), static_cast<int>(match.capturedLength(1)), quiet);
+				}
+				for (const auto* const each : { &bold }) {
+					for (auto found = each->globalMatch(aText); found.hasNext();) {
+						const auto match = found.next();
+						setFormat(static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), strong);
+					}
+				}
+				for (auto found = spans.globalMatch(aText); found.hasNext();) {
+					const auto match = found.next();
+					setFormat(static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), code);
+				}
+				for (auto found = variables.globalMatch(aText); found.hasNext();) {
+					const auto match = found.next();
+					setFormat(static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), variable);
+				}
+			}
+		};
+
 		using core::prompt_surface;
 
 		constexpr auto mime_type   = "application/x-bpr-prompt-placement";
@@ -553,7 +627,7 @@ namespace bpr::qt {
 	{
 		QWidget::resizeEvent(aEvent);
 		const auto narrow = width() < 880;
-		ToolsRow->setDirection(width() < 940 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+		arrange_library_tools();
 		Body->setDirection(narrow ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
 		if (narrow) {
 			LibraryList->setMinimumWidth(0);
@@ -569,6 +643,28 @@ namespace bpr::qt {
 		const auto editor = narrow ? width() : width() - 284;
 		EditorColumns->setDirection(editor < 640 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
 		RightBox->setMinimumWidth(editor < 640 ? 240 : 300);
+	}
+
+	void prompts_page::arrange_library_tools()
+	{
+		// What each row needs at its controls' own sizes, the filter at a
+		// comfortable width; it takes whatever is left over.
+		constexpr auto gap      = 8;
+		constexpr auto filter   = 160;
+		const auto     buttons  = Restore->sizeHint().width() + gap + NewPrompt->sizeHint().width();
+		const auto     choices  = Segments->sizeHint().width();
+		const auto     line     = filter + gap + choices + gap + buttons;
+		const auto     oneRow   = LibraryTitle->sizeHint().width() + gap + line <= width();
+		const auto     together = line <= width();
+		ToolsRow->setDirection(oneRow ? QBoxLayout::LeftToRight : QBoxLayout::TopToBottom);
+		const auto onFilterLine = FilterLine->indexOf(Segments) >= 0;
+		if (together && !onFilterLine) {
+			SegmentsLine->removeWidget(Segments);
+			FilterLine->insertWidget(1, Segments, 0);
+		} else if (!together && onFilterLine) {
+			FilterLine->removeWidget(Segments);
+			SegmentsLine->addWidget(Segments, 0, Qt::AlignLeft);
+		}
 	}
 
 	void prompts_page::build_surfaces(QVBoxLayout& aColumn)
@@ -686,58 +782,63 @@ namespace bpr::qt {
 	void prompts_page::build_library(QVBoxLayout& aColumn)
 	{
 		aColumn.addSpacing(13);
-		// One row as drawn; two in a narrow window, the filters under the title.
+		// [[BPR-2220]] (owner, 2026-11-16): New prompt and Restore built-ins
+		// sit on the filter's row, at its right; the filter takes the room
+		// left. As drawn the title leads that row; narrower, the title goes
+		// above it, then the filter choices under it
+		// (`arrange_library_tools`).
 		ToolsRow = new QBoxLayout{ QBoxLayout::LeftToRight };
 		ToolsRow->setSpacing(8);
-		auto* const title = new QHBoxLayout{ };
-		title->setSpacing(8);
-		title->addWidget(heading(tr("Prompt library"), this));
-		auto* const tools = new QHBoxLayout{ };
-		tools->setSpacing(8);
+		LibraryTitle = heading(tr("Prompt library"), this);
+		ToolsRow->addWidget(LibraryTitle, 0);
+		FilterLine = new QBoxLayout{ QBoxLayout::LeftToRight };
+		FilterLine->setSpacing(8);
 		Search = new QLineEdit{ this };
 		Search->setObjectName(QStringLiteral("promptsFilter"));
 		Search->setPlaceholderText(tr("Filter prompts"));
 		Search->setAccessibleName(tr("Filter prompts"));
 		Search->setClearButtonEnabled(true);
-		Search->setMaximumWidth(168);
-		Search->setMinimumWidth(96);
-		tools->addWidget(Search);
-		Filters = new QButtonGroup{ this };
+		Search->setMinimumWidth(120);
+		FilterLine->addWidget(Search, 1);
+		Filters  = new QButtonGroup{ this };
+		Segments = new QWidget{ this };
+		Segments->setObjectName(QStringLiteral("promptsFilterChoices"));
 		Filters->setExclusive(true);
-		auto* const segments = new QHBoxLayout{ };
+		auto* const segments = new QHBoxLayout{ Segments };
+		segments->setContentsMargins(0, 0, 0, 0);
 		segments->setSpacing(0);
 		const auto names = std::array{ tr("All"), tr("Built-in"), tr("Yours"), tr("Not on a surface"), tr("System") };
 		for (std::size_t segment = 0U; segment < names.size(); ++segment) {
-			auto* const button = segmented(names.at(segment), this);
+			auto* const button = segmented(names.at(segment), Segments);
 			button->setObjectName(QStringLiteral("promptsFilter-%1").arg(segment));
 			Filters->addButton(button, static_cast<int>(segment));
 			segments->addWidget(button);
 		}
 		Filters->button(0)->setChecked(true);
-		tools->addLayout(segments);
-		ChangedHere = new QCheckBox{ this };
+		segments->addSpacing(8);
+		ChangedHere = new QCheckBox{ Segments };
 		ChangedHere->setObjectName(QStringLiteral("promptsChangedHere"));
 		ChangedHere->hide();
 		connect(ChangedHere, &QCheckBox::toggled, this, [this](const bool aOn) { set_changed_here(aOn); });
-		tools->addWidget(ChangedHere);
-		tools->addStretch(1);
-		auto* const restore = new quiet_push_button{ tr("Restore built-ins\u2026"), this };
-		restore->setObjectName(QStringLiteral("promptsRestore"));
-		connect(restore, &QPushButton::clicked, this, [this] { static_cast<void>(restore_built_ins(true)); });
-		auto* const add = new QPushButton{ tr("New prompt"), this };
-		add->setObjectName(QStringLiteral("promptsNew"));
-		ToolsRow->addLayout(title, 0);
-		ToolsRow->addLayout(tools, 1);
-		auto* const buttons = new QHBoxLayout{ };
-		buttons->addStretch(1);
-		buttons->addWidget(restore);
-		buttons->addWidget(add);
-		ToolsRow->addLayout(buttons, 0);
+		segments->addWidget(ChangedHere);
+		FilterLine->addWidget(Segments, 0);
+		Restore = new quiet_push_button{ tr("Restore built-ins\u2026"), this };
+		Restore->setObjectName(QStringLiteral("promptsRestore"));
+		connect(Restore, &QPushButton::clicked, this, [this] { static_cast<void>(restore_built_ins(true)); });
+		NewPrompt = new QPushButton{ tr("New prompt"), this };
+		NewPrompt->setObjectName(QStringLiteral("promptsNew"));
+		FilterLine->addWidget(Restore, 0);
+		FilterLine->addWidget(NewPrompt, 0);
+		ToolsRow->addLayout(FilterLine, 1);
 		aColumn.addLayout(ToolsRow);
+		// The filter choices when they don't fit on the filter's row.
+		SegmentsLine = new QHBoxLayout{ };
+		SegmentsLine->setSpacing(0);
+		aColumn.addLayout(SegmentsLine);
 		aColumn.addSpacing(9 - 7);
-		connect(Search, &QLineEdit::textChanged, this, [this] { rebuild_library(); });
+		connect(Search, &QLineEdit::textChanged, this, [this] { refilter(); });
 		connect(Filters, &QButtonGroup::idClicked, this, [this](const int aId) { set_filter(static_cast<prompt_library_filter>(aId)); });
-		connect(add, &QPushButton::clicked, this, [this] { static_cast<void>(new_prompt()); });
+		connect(NewPrompt, &QPushButton::clicked, this, [this] { static_cast<void>(new_prompt()); });
 
 		// The body keeps its full height in every window; the page scrolls
 		// (owner, look v004).
@@ -792,6 +893,7 @@ namespace bpr::qt {
 		});
 
 		auto* const editor = new QFrame{ this };
+		EditorFrame        = editor;
 		editor->setObjectName(QStringLiteral("promptsEditor"));
 		editor->setFrameShape(QFrame::StyledPanel);
 		editor->setAutoFillBackground(true);
@@ -871,12 +973,67 @@ namespace bpr::qt {
 		Text->setAccessibleName(tr("Prompt text"));
 		Text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 		Text->setTabChangesFocus(true);
+		// Look review-report-v001 (owner: "needs syntax highlighting"): the
+		// body's Markdown and its variables are coloured as they are typed.
+		new prompt_text_highlighter{ Text->document() };
 		left->addWidget(Text, 1);
-		InsertRow                = new QWidget{ page };
+		InsertRow = new QWidget{ page };
+		InsertRow->setObjectName(QStringLiteral("promptsInsertRow"));
 		auto* const insertLayout = new QHBoxLayout{ InsertRow };
 		insertLayout->setContentsMargins(0, 0, 0, 0);
 		insertLayout->setSpacing(4);
 		left->addWidget(InsertRow);
+		// [[BPR-2219]]. What a review prompt is always sent with: the report
+		// format the application reads the answer by. Look review-report-v001
+		// (owner, 2026-11-16: "the result needs to look non-editable ... we
+		// shouldn't show the result prompt by default it should require an
+		// extra click. And then those controls at the bottom look like
+		// they're attached to the result but they're really for modifying
+		// the prompt"): under the prompt's own controls, closed behind a
+		// disclosure, and drawn as something read, not edited (the pane's
+		// ground, no frame of a field, no caret).
+		ResultBox = new QWidget{ page };
+		ResultBox->setObjectName(QStringLiteral("promptsResultBox"));
+		auto* const resultLayout = new QVBoxLayout{ ResultBox };
+		resultLayout->setContentsMargins(0, 8, 0, 0);
+		resultLayout->setSpacing(4);
+		ResultToggle = new disclosure_button{ ResultBox };
+		ResultToggle->setObjectName(QStringLiteral("promptsResultToggle"));
+		ResultToggle->setCheckable(true);
+		ResultToggle->setText(tr("Result: Findings report \u2014 show format"));
+		ResultToggle->setToolTip(tr("Always added to this prompt: the report format BetterPullReview reads. It is not edited here."));
+		resultLayout->addWidget(ResultToggle);
+		ResultBody = new QWidget{ ResultBox };
+		ResultBody->setObjectName(QStringLiteral("promptsResultBody"));
+		auto* const resultBody = new QVBoxLayout{ ResultBody };
+		resultBody->setContentsMargins(0, 0, 0, 0);
+		resultBody->setSpacing(4);
+		auto* const resultNote = new QLabel{ tr("Read-only. Always added: the report format BetterPullReview reads. It shows each finding at its place and makes Draft comment work, so it is not edited here."), ResultBody };
+		resultNote->setObjectName(QStringLiteral("promptsResultNote"));
+		resultNote->setWordWrap(true);
+		resultNote->setForegroundRole(QPalette::PlaceholderText);
+		resultBody->addWidget(resultNote);
+		ResultText = new QPlainTextEdit{ ResultBody };
+		ResultText->setObjectName(QStringLiteral("promptsResultText"));
+		ResultText->setAccessibleName(tr("Result: Findings report, always added, read-only"));
+		ResultText->setReadOnly(true);
+		ResultText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		ResultText->setFocusPolicy(Qt::ClickFocus);
+		ResultText->setFrameShape(QFrame::NoFrame);
+		ResultText->viewport()->setBackgroundRole(QPalette::Window);
+		ResultText->setForegroundRole(QPalette::PlaceholderText);
+		ResultText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+		ResultText->setMaximumHeight(170);
+		new prompt_text_highlighter{ ResultText->document() };
+		resultBody->addWidget(ResultText);
+		ResultBody->hide();
+		resultLayout->addWidget(ResultBody);
+		connect(ResultToggle, &QToolButton::toggled, this, [this](const bool aOpen) {
+			ResultBody->setVisible(aOpen);
+			ResultToggle->setText(aOpen ? tr("Result: Findings report \u2014 hide format") : tr("Result: Findings report \u2014 show format"));
+		});
+		ResultBox->hide();
+		left->addWidget(ResultBox);
 		columns->addLayout(left, 1);
 
 		auto* const right = new QVBoxLayout{ };
@@ -1064,10 +1221,10 @@ namespace bpr::qt {
 		EditorPages->addWidget(System);
 		System->set_rows_changed([this] {
 			if (!Filling) {
-				rebuild_library();
+				refilter();
 			}
 		});
-		rebuild_library();
+		refilter();
 	}
 
 	void prompts_page::present(const application::prompt_macro_projection& aProjection)
@@ -1164,6 +1321,7 @@ namespace bpr::qt {
 		Caption->setText(aRepository.empty() ? tr("Where prompts appear, in order. Drag a prompt up from the library, or right-click it and choose Add to.")
 											 : tr("%1 starts from your prompts for all repositories. Changes here apply to its pull requests only.").arg(QString::fromStdString(aRepository)));
 		ChangedHere->setVisible(!aRepository.empty());
+		arrange_library_tools();
 		refresh_all();
 	}
 
@@ -1192,7 +1350,7 @@ namespace bpr::qt {
 			const auto blocker = QSignalBlocker{ ChangedHere };
 			ChangedHere->setChecked(aOnly);
 		}
-		rebuild_library();
+		refilter();
 	}
 
 	void prompts_page::reveal()
@@ -1246,8 +1404,18 @@ namespace bpr::qt {
 	void prompts_page::refresh_all()
 	{
 		rebuild_surfaces();
-		rebuild_library();
+		if (rebuild_library()) {
+			rebuild_surfaces();
+		}
 		refresh_editor();
+	}
+
+	void prompts_page::refilter()
+	{
+		if (rebuild_library(true)) {
+			rebuild_surfaces();
+			refresh_editor();
+		}
 	}
 
 	void prompts_page::flush()
@@ -1386,9 +1554,28 @@ namespace bpr::qt {
 				return false;
 			}
 		}
+		// [[BPR-2220]]: deleting the selected prompt selects its neighbour in
+		// the list, the next row or else the one before.
+		auto neighbour = std::optional<std::string>{ };
+		if (Selected && *Selected == aId) {
+			const auto prompt_at = [this](const int aRow) -> std::optional<std::string> {
+				const auto id = LibraryList->item(aRow)->data(id_role);
+				return id.isValid() ? std::optional{ id.toString().toStdString() } : std::nullopt;
+			};
+			auto row = -1;
+			for (int at = 0; at < LibraryList->count() && row < 0; ++at) {
+				row = prompt_at(at) == aId ? at : -1;
+			}
+			for (int at = row + 1; row >= 0 && at < LibraryList->count() && !neighbour; ++at) {
+				neighbour = prompt_at(at);
+			}
+			for (int at = row - 1; at >= 0 && !neighbour; --at) {
+				neighbour = prompt_at(at);
+			}
+		}
 		const auto outcome = core::delete_prompt(Editor, aId);
-		if (outcome.Changed) {
-			Selected.reset();
+		if (outcome.Changed && Selected && *Selected == aId) {
+			Selected = neighbour;
 			SelectedPlacement.reset();
 		}
 		return applied(outcome);
@@ -1411,13 +1598,20 @@ namespace bpr::qt {
 		return outcome.Refusal == core::prompt_edit_refusal::none;
 	}
 
+	void prompts_page::set_review_result(const QString& aFormat)
+	{
+		ResultText->setPlainText(aFormat);
+		const auto* const macro = Selected ? find(*Selected) : nullptr;
+		ResultBox->setVisible(macro != nullptr && macro->Body.Kind == core::prompt_ask::review && !aFormat.isEmpty());
+	}
+
 	void prompts_page::set_filter(const prompt_library_filter aFilter)
 	{
 		Filter = aFilter;
 		if (auto* const button = Filters->button(static_cast<int>(aFilter)); button != nullptr) {
 			button->setChecked(true);
 		}
-		rebuild_library();
+		refilter();
 	}
 
 	void prompts_page::edit_selected(const std::function<void(core::prompt_macro&)>& aEdit)
@@ -1503,7 +1697,7 @@ namespace bpr::qt {
 		return true;
 	}
 
-	void prompts_page::rebuild_library()
+	auto prompts_page::rebuild_library(const bool aFiltered) -> bool
 	{
 		Filling = true;
 		LibraryList->clear();
@@ -1584,10 +1778,48 @@ namespace bpr::qt {
 				any = true;
 			}
 		}
+		// [[BPR-2220]] (owner, 2026-11-16: "the bottom of prompt library looks
+		// like a broken menu when no prompt is selected"): while the list
+		// shows a prompt, one is selected. When the selection is gone, or a
+		// filter hides it, the first prompt shown is; a placement chosen on a
+		// surface stays chosen though the library's filter hides it. A list
+		// showing none says so and hides the editor, keeping the selection
+		// for when the filter shows it again.
+		const auto lost  = !(Selected && find(*Selected) != nullptr) && !(SelectedSystem && System != nullptr);
+		auto       moved = false;
+		if (current == nullptr && any && (aFiltered || lost)) {
+			for (int row = 0; row < LibraryList->count() && current == nullptr; ++row) {
+				auto* const item = LibraryList->item(row);
+				if ((item->flags() & Qt::ItemIsSelectable) == 0) {
+					continue;
+				}
+				current = item;
+				SelectedPlacement.reset();
+				if (const auto system = item->data(system_role); system.isValid()) {
+					Selected.reset();
+					SelectedSystem = system.toInt();
+					if (System != nullptr) {
+						System->select_system(*SelectedSystem);
+					}
+				} else {
+					Selected = item->data(id_role).toString().toStdString();
+					SelectedSystem.reset();
+				}
+				moved = true;
+			}
+		}
 		if (!any) {
-			auto* const item = new QListWidgetItem{ tr("No prompts match."), LibraryList };
+			const auto searched = !Search->text().trimmed().isEmpty();
+			auto       words    = tr("No prompts match.");
+			if (!searched && Filter == prompt_library_filter::yours) {
+				words = tr("None of your own yet. New prompt writes one.");
+			} else if (!searched && Filter == prompt_library_filter::not_on_a_surface) {
+				words = tr("Every prompt is on a surface.");
+			}
+			auto* const item = new QListWidgetItem{ words, LibraryList };
 			item->setFlags(Qt::NoItemFlags);
 		}
+		EditorFrame->setVisible(any || (SelectedPlacement.has_value() && !lost));
 		ChangedHere->setText(tr("Changed here (%1)").arg(here_count()));
 		if (current != nullptr) {
 			LibraryList->setCurrentItem(current);
@@ -1595,6 +1827,7 @@ namespace bpr::qt {
 			LibraryList->setCurrentRow(-1);
 		}
 		Filling = false;
+		return moved;
 	}
 
 	void prompts_page::rebuild_surfaces()
@@ -1734,6 +1967,7 @@ namespace bpr::qt {
 		BuiltInTag->setText(macro->BuiltIn ? (standing.Edited ? tr("Built-in, edited") : tr("Built-in")) : tr("Yours"));
 		AsQuestion->setChecked(macro->Body.Kind == core::prompt_ask::question);
 		AsFindings->setChecked(macro->Body.Kind == core::prompt_ask::review);
+		ResultBox->setVisible(macro->Body.Kind == core::prompt_ask::review && !ResultText->toPlainText().isEmpty());
 		MatchAll->setChecked(macro->Body.Match == core::prompt_match::all);
 		MatchAny->setChecked(macro->Body.Match == core::prompt_match::any);
 		MatchNone->setChecked(macro->Body.Match == core::prompt_match::none);

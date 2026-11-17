@@ -64,6 +64,70 @@ namespace bpr::core {
 		auto operator<=>(const quick_ask_thread&) const = default;
 	};
 
+	/// \brief [[BPR-2221]]. One comment of a thread, in the thread's order, as
+	/// its replies facts read it.
+	struct quick_ask_comment
+	{
+		/// The author's login; empty when the read names none (a deleted
+		/// account), which is someone other than me.
+		std::string Author;
+		bool        Deleted = false;
+
+		auto operator<=>(const quick_ask_comment&) const = default;
+	};
+
+	/// \brief [[BPR-2221]]. A thread's replies facts (`quick_ask_thread`'s
+	/// `Replied` and `RepliesSinceMine`).
+	struct quick_ask_replies
+	{
+		std::optional<bool> Replied;
+		std::optional<bool> RepliesSinceMine;
+
+		auto operator<=>(const quick_ask_replies&) const = default;
+	};
+
+	/// \brief [[BPR-2221]]. Decides a thread's replies facts from its comments
+	/// and the signed-in account's login (`aViewer`, empty when the read names
+	/// none).
+	///
+	/// \details A deleted comment counts for neither. Replied: a comment
+	/// follows the thread's first. Replies since mine: someone else commented
+	/// after my last comment; false when I never commented, unknown with no
+	/// viewer. Logins compare without case, as GitHub's do.
+	[[nodiscard]] auto decide_thread_replies(std::span<const quick_ask_comment> aComments, std::string_view aViewer) -> quick_ask_replies;
+
+	/// \brief [[BPR-2221]]. How a check on a commit ended, as the read says.
+	enum class quick_ask_check_end : std::uint8_t {
+		/// Queued, running or waiting; not ended.
+		unfinished,
+		success,
+		failure,
+		neutral,
+		cancelled,
+		skipped,
+		timed_out,
+		action_required,
+		stale,
+		/// A commit status that errored.
+		errored,
+	};
+
+	/// \brief [[BPR-2221]]. One check or status of the pull request.
+	struct quick_ask_check
+	{
+		/// The commit it ran on; empty when the read does not name it.
+		std::string         Commit;
+		quick_ask_check_end End = quick_ask_check_end::unfinished;
+
+		auto operator<=>(const quick_ask_check&) const = default;
+	};
+
+	/// \brief [[BPR-2221]]. Whether a check on the head commit (`aHead`)
+	/// ended in failure, timeout, cancellation, action required or an
+	/// errored status. A failure is known from any read; no failure is known
+	/// only when the checks and statuses were both read (`aComplete`).
+	[[nodiscard]] auto decide_checks_failing(std::span<const quick_ask_check> aChecks, std::string_view aHead, bool aComplete) -> std::optional<bool>;
+
 	/// \brief Whether the agent can take a question now.
 	enum class quick_ask_agent : std::uint8_t {
 		ready,
@@ -94,6 +158,9 @@ namespace bpr::core {
 		std::vector<std::string> Files;
 		/// [[BPR-2179]]. The files I have marked reviewed; none when unknown.
 		std::optional<std::vector<std::string>> ReviewedFiles;
+		/// [[BPR-2221]]. The read holds the pull request's review threads; off,
+		/// whether a file has unresolved threads is unknown.
+		bool ThreadsRead = true;
 
 		auto operator<=>(const quick_ask_facts&) const = default;
 	};

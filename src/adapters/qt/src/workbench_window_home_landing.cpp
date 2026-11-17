@@ -369,6 +369,22 @@ namespace bpr::qt {
 		return std::nullopt;
 	}
 
+	auto workbench_window::opening_presence() const -> core::home_open_presence
+	{
+		// [[BPR-2216]]. The core decides from the read's request on; the
+		// window supplies only the row the open was asked from and whether
+		// GitHub has answered ([[BPR-1200]]).
+		const auto answered = LoadingOverviewShown || (ReadProgress.has_value() && ReadProgress->PagesReceived >= minimum_answered_pages);
+		return core::decide_home_open_presence(HomeOpen.has_value() ? HomeOpen->State : std::nullopt,
+											   core::home_open_facts{ .Listed = ListedOpen, .Answered = answered });
+	}
+
+	auto workbench_window::listed_opening() const -> bool
+	{
+		return !HasGithubPullRequest && ListedOpen.has_value() && HomeOpen.has_value()
+			&& core::home_open_in_flight(HomeOpen->State, ListedOpen->Repository, ListedOpen->Number) && opening_presence().Active;
+	}
+
 	void workbench_window::update_home_landing()
 	{
 		if (HomeLanding == nullptr || SessionPanel == nullptr) {
@@ -386,20 +402,32 @@ namespace bpr::qt {
 		const auto comparing = ComparisonSurface != nullptr
 			&& ComparisonSurface->current_result() != nullptr;
 		const auto loading = status == core::github_status::loading_pull_request;
+		// [[BPR-2216]]. A pull request being opened is the window's own from
+		// the request on when the core says so: its page, Home's Active review
+		// card and Return, before its read has finished.
+		const auto presence = opening_presence();
+		const auto opened   = HasGithubPullRequest || HasCachedOverview || presence.Active;
 		// [[BPR-1843]]. The Active review card names the pull request as a
-		// link does, with its literal title beside it.
-		HomeLanding->set_review_identity(
-			IdentityOwner.isEmpty() || IdentityRepository.isEmpty() || IdentityNumber.isEmpty()
-				? IdentityText
-				: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber));
-		HomeLanding->set_review_title(
-			IdentityOwner.isEmpty() ? QString{ } : QString::fromStdString(OpenQueueTitle));
+		// link does, with its literal title beside it. While it is being
+		// opened, by the name its Home row or GitHub's first answer gave.
+		const auto named = !IdentityText.isEmpty() || !LoadingIdentity.has_value();
+		if (named) {
+			HomeLanding->set_review_identity(
+				IdentityOwner.isEmpty() || IdentityRepository.isEmpty() || IdentityNumber.isEmpty()
+					? IdentityText
+					: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber));
+			HomeLanding->set_review_title(
+				IdentityOwner.isEmpty() ? QString{ } : QString::fromStdString(OpenQueueTitle));
+		} else {
+			HomeLanding->set_review_identity(QStringLiteral("%1/%2#%3").arg(LoadingIdentity->Owner, LoadingIdentity->Repository, LoadingIdentity->Number));
+			HomeLanding->set_review_title(LoadingIdentity->Title);
+		}
 		HomeLanding->set_review_position(
 			Cursor && Cursor->Ordinal > 0U
 				? QStringLiteral("file %1 of %2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: QString{ });
 		const auto landing = status == core::github_status::establishing_session ? landing_state::connecting
-			: (HasGithubPullRequest || HasCachedOverview)                        ? landing_state::back_to_review
+			: opened                                                             ? landing_state::back_to_review
 			: account                                                            ? landing_state::choose_pull_request
 																				 : landing_state::sign_in;
 		// [[BPR-1843]]. Opening another pull request from Home lets the open
@@ -409,8 +437,12 @@ namespace bpr::qt {
 		// let go, in the same turn, so the hold is checked once that turn is
 		// over. Close review holds nothing.
 		const auto opening = HomeOpen.has_value() && HomeOpen->State.has_value();
+		// [[BPR-2216]]. An opening that stood as the Active review and ended
+		// without its review (failed or cancelled) lets its card go: nothing
+		// arrives to take the held place.
+		const auto openingCard = std::exchange(LandingFromOpening, !HasGithubPullRequest && !HasCachedOverview && presence.Active);
 		if (HomeLanding->state() == landing_state::back_to_review && landing == landing_state::choose_pull_request && !ReleasingReview
-			&& showing_home() && HomeLanding->isVisible()) {
+			&& !openingCard && showing_home() && HomeLanding->isVisible()) {
 			HomeLandingHold = HomeLanding->height();
 			if (!opening) {
 				QTimer::singleShot(0, this, [this] {
@@ -477,7 +509,7 @@ namespace bpr::qt {
 		// Overview on its way back; a long read still shows its progress on
 		// Overview from its first answers ([[BPR-0795]]).
 		const auto answered    = ReadProgress.has_value() && ReadProgress->PagesReceived >= minimum_answered_pages;
-		const auto unconfirmed = loading && !LoadingOverviewShown && !answered;
+		const auto unconfirmed = loading && !LoadingOverviewShown && !answered && !presence.Page;
 		const auto nothing     = !HasGithubPullRequest && !HasCachedOverview && !comparing
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
 		// RFC-BPR-0032 amendment r1. The account setup is Home's; while it is

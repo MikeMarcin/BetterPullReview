@@ -96,6 +96,9 @@ namespace bpr::qt {
 		/// RFC-BPR-0125 (AC07). The suggested prompt it was sent as, when
 		/// that is not its question; empty for a typed question.
 		QString Name;
+		/// [[BPR-2237]]. Sent from a prompt with its text changed: the text is
+		/// shown as written, under the name.
+		bool    Edited = false;
 		QString Answer;
 		QString Footer;
 		/// When it was asked and answered; invalid when not known.
@@ -468,6 +471,13 @@ namespace bpr::qt {
 		/// question and answer for the next question here.
 		void               set_ask_more_dispatch(std::function<void(const QString& aQuestion, const QString& aAnswer)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
 		[[nodiscard]] auto turn_claim(std::size_t aTurn) const -> QLabel*;
+		/// \brief [[BPR-2236]]. A report's verdict, above its summary, in its
+		/// tone's colour; hidden when the report gives none.
+		[[nodiscard]] auto turn_verdict(std::size_t aTurn) const -> QLabel*;
+		/// \brief [[BPR-2236]]. The three tones the finding cards and the
+		/// verdict wear: the theme's (`adopt_appearance`), or the built-in
+		/// Light's or Dark's by the palette until a theme reaches the tab.
+		[[nodiscard]] auto tones() const -> tone_colours;
 		[[nodiscard]] auto turn_ask_more_button(std::size_t aTurn) const -> QPushButton*;
 		/// Whether a turn's question was a returning one, and which.
 		[[nodiscard]] auto turn_returning(std::size_t aTurn) const -> std::optional<core::returning_operation>;
@@ -852,9 +862,11 @@ namespace bpr::qt {
 			QString               Name;
 			QPointer<QPushButton> ShowAll;
 			bool                  Unfolded = false;
-			bool                  Review   = false;
-			bool                  Done     = false;
-			QPointer<QWidget>     Widget;
+			/// [[BPR-2237]]. The prompt's text was changed before sending.
+			bool              Edited = false;
+			bool              Review = false;
+			bool              Done   = false;
+			QPointer<QWidget> Widget;
 			/// The answer as written, shown as Markdown.
 			QPointer<markdown_body_view> Answer;
 			QString                      AnswerText;
@@ -906,6 +918,10 @@ namespace bpr::qt {
 			/// for every other turn.
 			QString          SuggestChange;
 			QPointer<QLabel> Claim;
+			/// [[BPR-2236]]. A report's verdict and its tone.
+			QPointer<QLabel>  Verdict;
+			std::string       VerdictWord;
+			core::report_tone VerdictTone = core::report_tone::neutral;
 			/// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report card
 			/// here, opened as a file tab.
 			QPointer<QWidget>     ReportCard;
@@ -984,15 +1000,21 @@ namespace bpr::qt {
 		/// from the thread, and keeps the thread without it.
 		void delete_turn(std::size_t aTurn);
 		/// [[BPR-1847]]. Why the suggestions are not shown now, if not.
-		[[nodiscard]] auto                                                          suggestions_verdict() const -> core::agent_suggestions_verdict;
-		void                                                                        refresh_times();
-		void                                                                        dress_answer(markdown_body_view& aAnswer) const;
-		void                                                                        fit_run_settings();
-		QLabel*                                                                     SessionTitle = nullptr;
-		QWidget*                                                                    EmptyIntro   = nullptr;
-		QWidget*                                                                    Field        = nullptr;
-		std::optional<QFont>                                                        CodeFont;
-		std::optional<markdown_code_theme>                                          CodeTheme;
+		[[nodiscard]] auto                 suggestions_verdict() const -> core::agent_suggestions_verdict;
+		void                               refresh_times();
+		void                               dress_answer(markdown_body_view& aAnswer) const;
+		void                               fit_run_settings();
+		QLabel*                            SessionTitle = nullptr;
+		QWidget*                           EmptyIntro   = nullptr;
+		QWidget*                           Field        = nullptr;
+		std::optional<QFont>               CodeFont;
+		std::optional<markdown_code_theme> CodeTheme;
+		/// [[BPR-2236]]. The theme's three tones, once one reached the tab.
+		std::optional<tone_colours> Tones;
+		/// [[BPR-2236]]. Draws a turn's verdict, and a card's severity and
+		/// label, in the current tones.
+		void                                                                        show_verdict(const turn& aTurn) const;
+		void                                                                        colour_card(const card_entry& aEntry) const;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
 		std::uint64_t                                                               NextSerial = 1U;
 		/// The answer is as tall as its text at the thread's width.
@@ -1081,6 +1103,8 @@ namespace bpr::qt {
 			std::optional<core::agent_suggested_subject> Subject;
 			bool                                         Review = false;
 			std::optional<std::string>                   SkillText;
+			/// [[BPR-2237]]. The text the prompt put in the field.
+			QString Expansion;
 		};
 		/// The suggestion being sent, while it is.
 		std::optional<macro_send> SendingMacro;
@@ -1093,6 +1117,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto        offered(const QString& aKeyOrLabel) const -> const core::prompt_offer*;
 		/// The name the next admitted turn was sent under.
 		QString PendingName;
+		bool    PendingEdited = false;
 		/// RFC-BPR-0116. The returning prompts by their keys, the one being
 		/// sent, the one a sent question was, and what the host offers.
 		std::map<QString, core::returning_operation> ReturningPrompts;

@@ -3742,10 +3742,11 @@ namespace bpr::application {
 			// `.mcp.json`: a pull request's hooks, MCP servers, API key
 			// helper, skills, agents and commands ran on the first turn
 			// (live, 2026-11-11). Only the user's settings are read there.
-			// A restricted run already reads no settings source at all.
+			// A restricted run names the same source in its restrictions
+			// ([[BPR-2242]]: the person's sign-in can live there).
 			if (!aOptions.PullRequestCheckout.empty() && !aOptions.WritingOnly && !aOptions.ReadOnlyTools) {
 				arguments.emplace_back("--setting-sources");
-				arguments.emplace_back("user");
+				arguments.emplace_back(claude_user_setting_source);
 			}
 			break;
 		case core::agent_protocol::external_terminal:
@@ -4635,6 +4636,13 @@ namespace bpr::application {
 				return false;
 			}
 			auto found = std::ranges::find(AssistantIds, it->Item);
+			// [[BPR-2219]] (look review-report-v002: a report's title read
+			// "...Now I'll write up the review.# Review of #21"). Each text
+			// block of a turn is its own paragraph of the answer: an agent's
+			// words between its tool calls and the report it then writes
+			// are separate blocks, and joined with nothing between them the
+			// report's title was no longer at the start of a line.
+			const auto opens = found == AssistantIds.end() && AssistantBytes != 0U;
 			if (found == AssistantIds.end()) {
 				if (AssistantIds.size() >= 256) {
 					return false;
@@ -4659,6 +4667,11 @@ namespace bpr::application {
 			AssistantItems[index] += it->Text;
 			AssistantBytes += it->Text.size();
 			AssistantComplete[index] = it->CompleteItem;
+			// The item is kept as it was written (a repeated complete item
+			// must equal it); what goes on to the answer opens a paragraph.
+			if (opens && !it->Text.empty() && it->Text.front() != '\n') {
+				it->Text.insert(0U, "\n\n");
+			}
 			++it;
 		}
 		return true;

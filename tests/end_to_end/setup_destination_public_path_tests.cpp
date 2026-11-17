@@ -183,7 +183,10 @@ namespace {
 			const auto expected = QFontMetricsF{ pane->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * aWidth;
 			expect(qAbs(pane->tabStopDistance() - expected) < 0.01
 					   && qAbs(pane->document()->defaultTextOption().tabStopDistance() - expected) < 0.01,
-				   "composed source layout uses the selected code-font tab width, not Qt's default");
+				   "composed source layout uses the selected code-font tab width, not Qt's default: " + pane->objectName().toStdString() + " width "
+					   + std::to_string(aWidth) + " tab " + std::to_string(pane->tabStopDistance()) + " document "
+					   + std::to_string(pane->document()->defaultTextOption().tabStopDistance()) + " expected " + std::to_string(expected)
+					   + " font " + pane->font().family().toStdString() + " " + std::to_string(pane->font().pointSizeF()));
 		}
 	}
 

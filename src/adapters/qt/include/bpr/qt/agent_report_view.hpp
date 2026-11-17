@@ -2,7 +2,9 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_REPORT_VIEW_HPP
 
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 #include "bpr/qt/report_page.hpp"
 
 #include <QString>
@@ -12,6 +14,8 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
+#include <utility>
 #include <vector>
 
 class QFrame;
@@ -42,6 +46,17 @@ namespace bpr::qt {
 		auto operator==(const agent_report_byline&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-2231]]. One finding card of the report's answer, in the
+	/// order of `agent_report_document::Suggested`: the card's delivery and
+	/// place, the finding it carries, and where its state is kept.
+	struct agent_report_card
+	{
+		std::uint64_t         Session = 0U;
+		std::size_t           Ordinal = 0U;
+		core::agent_finding   Finding;
+		core::report_card_key Key;
+	};
+
 	struct agent_report_document
 	{
 		/// [[BPR-2184]] (review N5). The turn's stable identity in its Agent
@@ -51,6 +66,17 @@ namespace bpr::qt {
 		QString             Markdown;
 		QString             Question;
 		agent_report_byline Byline;
+		/// [[BPR-2219]]. The comments the agent suggested for the answer's
+		/// findings in its findings block, by place: a report finding at the
+		/// same place drafts from the agent's own words.
+		std::vector<core::report_suggested_comment> Suggested;
+		/// [[BPR-2231]]. The cards `Suggested` lists, in its order: a report
+		/// finding at a card's place is that card, and shares its state.
+		std::vector<agent_report_card> Cards;
+		/// [[BPR-2231]]. The answer as its turn holds it: what the report's
+		/// findings no card carries are kept under (`digest_report_findings`
+		/// of its report).
+		QString Answer;
 	};
 
 	/// \brief RFC-BPR-0128 ([[BPR-2166]], owner Q8: "file tab is more
@@ -61,19 +87,40 @@ namespace bpr::qt {
 	/// report's sections (the one being read marked) and its other actions
 	/// (Show in conversation, View source, Copy source). It reads only what
 	/// it is given.
-	/// \brief A report item's Add as draft comment: where and what.
+	/// \brief [[BPR-2219]]. One keep action of a report, as the core read
+	/// it: a finding's Draft comment or Keep local, or the summary kept as a
+	/// Local comment on the pull request.
 	struct report_draft
 	{
-		QString       Path;
-		std::uint32_t First = 0U;
-		std::uint32_t Last  = 0U;
-		/// The comment: the item's label and heading, its reasons and the
-		/// suggestion block.
+		/// The finding's row in the report's menu; 0 for the summary.
+		std::uint32_t Outline = 0U;
+		/// Draft comment at the lines, or Keep local (on `Path`, or on the
+		/// pull request when it is empty).
+		core::report_keep Keep = core::report_keep::draft_comment;
+		QString           Path;
+		std::uint32_t     First = 0U;
+		std::uint32_t     Last  = 0U;
+		/// What the draft or the Local comment starts from.
 		QString Comment;
+		/// [[BPR-2231]]. Where what it makes is kept: its card's state, or
+		/// the report's own record for it.
+		core::report_finding_key Key;
+		/// [[BPR-2231]]. The finding card it is, when one is at its place:
+		/// the keep goes through the card's delivery, so the card says so too.
+		std::optional<agent_report_card> Card;
 	};
-	/// \brief How a draft went: made, or why not.
+	/// \brief How it went: made, or why not.
 	using report_draft_done     = std::function<void(bool aDrafted, const QString& aWhy)>;
 	using report_draft_dispatch = std::function<void(const report_draft& aDraft, report_draft_done aDone)>;
+	/// \brief [[BPR-2231]]. The one kept state of a finding (or the summary),
+	/// as the host keeps it; `open` when nothing is.
+	using report_keep_records = std::function<core::agent_finding_card_record(const core::report_finding_key& aKey)>;
+	/// \brief [[BPR-2232]]. Draft all from the report: the findings to draft,
+	/// in the report's order, drafted by the Agent tab's Draft all path;
+	/// `aPlanned` counts those passed over before drafting. `aDone` says how
+	/// the batch ended. Each finding's state goes through the records.
+	using report_draft_all_done     = std::function<void(const core::draft_all_outcome& aOutcome)>;
+	using report_draft_all_dispatch = std::function<void(std::vector<report_draft> aDrafts, const core::draft_all_outcome& aPlanned, report_draft_all_done aDone)>;
 
 	class agent_report_view final : public QWidget
 	{
@@ -100,12 +147,53 @@ namespace bpr::qt {
 		/// the top of what shows; -1 when the report has no such heading.
 		[[nodiscard]] auto section_top(int aIndex) const -> int;
 
-		/// \brief docs/design/report-templates-v2. The report's colours, the
-		/// theme's roles; the page is drawn again in them.
-		void               set_report_colours(const report_colours& aColours);
+		/// \brief docs/design/report-templates-v2, [[BPR-2236]]. The theme's
+		/// three tones (`tone_colours_of`, as the Agent tab reads them); the
+		/// page is drawn again in them.
+		void               set_tone_colours(const tone_colours& aColours);
 		[[nodiscard]] auto colours() const noexcept -> const report_colours& { return Colours; }
-		/// \brief Where a suggestion's Add as draft comment goes.
+		/// \brief [[BPR-2219]], round 2. Which of the page's looks is drawn
+		/// (`cards` is the product's; the others are for the design round's
+		/// renders).
+		void set_look(report_look aLook);
+		/// \brief Where a keep action goes: a finding's Draft comment or Keep
+		/// local, and Keep summary.
 		void set_draft_dispatch(report_draft_dispatch aDispatch);
+		/// \brief Where Go to draft and Go to comment go: what the keep made.
+		void set_go_dispatch(std::function<void(const report_draft&)> aDispatch);
+		/// \brief [[BPR-2231]]. Where each keep action's state is read: the
+		/// turn's one state for that finding. Without it the view remembers
+		/// what was kept for the session only.
+		void set_keep_records(report_keep_records aRecords);
+		/// \brief [[BPR-2231]]. The state kept at `aKey` changed (from the
+		/// report, its finding card or Draft all): the page says it now.
+		void settle_keep(const core::report_finding_key& aKey);
+		/// \brief [[BPR-2231]]. The kept states were read back: the page says them.
+		void refresh_keeps();
+		/// \brief [[BPR-2232]]. Draft all from the report, and whether a
+		/// finding's lines can take a draft now, as the host knows.
+		void set_draft_all_dispatch(report_draft_all_dispatch aDispatch);
+		void set_placeable(std::function<bool(const report_draft&)> aPlaceable);
+		/// \brief [[BPR-2232]]. How many findings Draft all would draft (the
+		/// count its link shows); 0 when it is not offered.
+		[[nodiscard]] auto draft_all_offered() const -> std::size_t;
+		/// \brief [[BPR-2232]]. Presses Draft all; false when it is not offered.
+		auto press_draft_all() -> bool;
+		/// \brief [[BPR-2232]]. What the report says of its last Draft all:
+		/// under way, or how many were drafted and which were not.
+		[[nodiscard]] auto        draft_all_said() const -> QString;
+		[[nodiscard]] static auto draft_all_words(const core::draft_all_outcome& aOutcome) -> QString;
+		/// \brief [[BPR-2219]]. The report's findings, as the core read them,
+		/// each with its keep action.
+		[[nodiscard]] auto findings() const noexcept -> const std::vector<core::report_finding>& { return Findings; }
+		/// \brief Whether the page offers Keep summary.
+		[[nodiscard]] auto summary_offered() const -> bool;
+		/// \brief What became of the keep action at `aOutline` (0: the
+		/// summary's) of the report shown.
+		[[nodiscard]] auto keep_state(std::uint32_t aOutline) const -> report_keep_state;
+		/// \brief Presses the keep action at `aOutline`, or its Go to, as
+		/// following its link does; false when the page offers none there.
+		auto press(std::uint32_t aOutline, report_link aLink) -> bool;
 		/// \brief The report as read by the convention; its page shows when it
 		/// has sections (`dressed_shown`), else the Markdown as written.
 		[[nodiscard]] auto dressed() const noexcept -> const core::dressed_report& { return Dress; }
@@ -145,6 +233,11 @@ namespace bpr::qt {
 		void               apply_colours();
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
+		[[nodiscard]] auto native_colours() const -> report_colours;
+		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;
+		[[nodiscard]] auto keep_key(std::uint32_t aOutline) const -> core::report_finding_key;
+		[[nodiscard]] auto card_keys() const -> std::vector<core::report_card_key>;
+		[[nodiscard]] auto draft_all_plan() const -> std::pair<core::draft_all_plan, std::vector<std::uint32_t>>;
 
 		agent_report_document Document;
 		std::vector<QString>  Headings;
@@ -162,20 +255,35 @@ namespace bpr::qt {
 		QObject*                         CodeObjects = nullptr;
 		core::dressed_report             Dress;
 		report_colours                   Colours;
-		std::map<std::uint32_t, QString> DraftNotes;
-		/// This render's Add as draft comment links, by token.
-		std::map<QString, std::uint32_t>         DraftLinks;
-		report_draft_dispatch                    DraftDispatch;
-		QLabel*                                  Title      = nullptr;
-		QLabel*                                  Byline     = nullptr;
-		QScrollArea*                             Scroll     = nullptr;
-		markdown_body_view*                      Body       = nullptr;
-		QToolButton*                             MenuButton = nullptr;
-		QFrame*                                  Popover    = nullptr;
-		QListWidget*                             Sections   = nullptr;
-		std::function<void(const QString&)>      LinkDispatch;
-		std::function<void(markdown_body_view&)> Dresser;
-		std::function<void(std::uint64_t)>       ConversationDispatch;
+		report_look                      Look = report_look::cards;
+		/// The report's findings, and what became of each keep action, by
+		/// the report's turn and the action's row (0: the summary), so a
+		/// report opened again says what was already kept.
+		std::vector<core::report_finding>                                   Findings;
+		std::map<std::uint64_t, std::map<std::uint32_t, report_keep_state>> Keeps;
+		/// [[BPR-2231]]. The digest the report's own records are kept under.
+		core::agent_findings_digest ReportDigest{ };
+		report_keep_records         KeepRecords;
+		/// [[BPR-2232]]. Draft all, by the report's turn: under way, and what
+		/// its last press said.
+		std::map<std::uint64_t, bool>            DraftAllBusy;
+		std::map<std::uint64_t, QString>         DraftAllSaid;
+		report_draft_all_dispatch                DraftAllDispatch;
+		std::function<bool(const report_draft&)> Placeable;
+		/// This render's keep links, by token.
+		std::map<QString, std::pair<std::uint32_t, report_link>> ActionLinks;
+		report_draft_dispatch                                    DraftDispatch;
+		std::function<void(const report_draft&)>                 GoDispatch;
+		QLabel*                                                  Title      = nullptr;
+		QLabel*                                                  Byline     = nullptr;
+		QScrollArea*                                             Scroll     = nullptr;
+		markdown_body_view*                                      Body       = nullptr;
+		QToolButton*                                             MenuButton = nullptr;
+		QFrame*                                                  Popover    = nullptr;
+		QListWidget*                                             Sections   = nullptr;
+		std::function<void(const QString&)>                      LinkDispatch;
+		std::function<void(markdown_body_view&)>                 Dresser;
+		std::function<void(std::uint64_t)>                       ConversationDispatch;
 	};
 } // namespace bpr::qt
 

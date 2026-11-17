@@ -520,6 +520,47 @@ namespace bpr::core {
 
 	[[nodiscard]] auto review_followup_for(const queue_item& aItem) noexcept -> review_followup;
 
+	/// \brief [[BPR-2217]]. Where my approval stands against the commits of
+	/// the pull request, as the review of it says.
+	enum class review_standing : std::uint8_t {
+		/// Nothing to say: not approved by me, or nothing moved since.
+		none,
+		/// My approval still stands on GitHub and commits followed it.
+		new_commits_since_approval,
+		/// GitHub dismissed my approval when commits were pushed.
+		approval_dismissed,
+		/// I said Seen on every commit since my approval.
+		up_to_date,
+	};
+
+	/// \brief [[BPR-2217]]. What the review of a pull request says and
+	/// offers about my approval and the commits since it.
+	///
+	/// \details The owner, 2026-11-16, about [[BPR-2049]]: "Oh well its dumb
+	/// to put that on home, I'm going to look at the new commits from within
+	/// the review." The review offers Seen beside Approve while my approval
+	/// stands, names its Approve "Approve again" once GitHub dismissed it, and
+	/// reads as up to date after Seen. Every word here is the core's; the
+	/// presentation shows them as given. An empty word is nothing to show.
+	struct review_followup_words
+	{
+		review_followup Followup = review_followup::none;
+		review_standing Standing = review_standing::none;
+		/// The approving verdict's name: "Approve", or "Approve again".
+		std::string_view Approve = "Approve";
+		/// What an enabled Approve says it does; empty keeps the review's own.
+		std::string_view ApproveTip;
+		/// Seen's name and what it does; empty when it is not offered.
+		std::string_view Seen;
+		std::string_view SeenTip;
+		/// The one line the review says about my approval; empty for none.
+		std::string_view Note;
+
+		auto operator<=>(const review_followup_words&) const = default;
+	};
+
+	[[nodiscard]] auto review_followup_words_for(const queue_item& aItem) noexcept -> review_followup_words;
+
 	/// \brief The deterministic priority relation used by complete and incremental projections.
 	///
 	/// \details [[BPR-1683]]. Ignored items follow every other item; within

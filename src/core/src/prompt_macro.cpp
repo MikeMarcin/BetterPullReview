@@ -845,6 +845,19 @@ namespace bpr::core {
 		}
 	}
 
+	auto prompt_sent_unedited(const std::string_view aSent, const std::string_view aExpansion) noexcept -> bool
+	{
+		const auto trimmed = [](std::string_view aText) {
+			constexpr auto blank = std::string_view{ " \t\r\n" };
+			const auto     first = aText.find_first_not_of(blank);
+			if (first == std::string_view::npos) {
+				return std::string_view{ };
+			}
+			return aText.substr(first, aText.find_last_not_of(blank) - first + 1U);
+		};
+		return trimmed(aSent) == trimmed(aExpansion);
+	}
+
 	auto prompt_turn_names::recall(const std::string_view aAsked) const -> std::optional<std::string>
 	{
 		const auto found = std::ranges::find(Names, aAsked, &prompt_turn_name::Asked);

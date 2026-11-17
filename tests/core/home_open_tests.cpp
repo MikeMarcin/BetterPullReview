@@ -256,6 +256,42 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	// [[BPR-2216]]. A pull request a Home row named is the window's page and
+	// active pull request from the request on; a name with no row waits for
+	// GitHub's first answers; a failure or nothing is neither.
+	void test_an_opening_is_the_window_s_from_the_request_on()
+	{
+		auto       state  = ready_state();
+		const auto opened = transition(state, open_pull_request_intent{ .Repository = locator(), .Number = pull_request_number{ 42 } });
+		const auto read   = fetch_of(opened);
+		auto       home   = apply_home_open(std::nullopt, opened);
+		const auto row    = home_open_listed{ .Repository = locator(), .Number = pull_request_number{ 42 } };
+
+		expect(decide_home_open_presence(std::nullopt, home_open_facts{ .Listed = row, .Answered = true }) == home_open_presence{ },
+			   "nothing being opened is neither shown nor active");
+		expect(decide_home_open_presence(home, home_open_facts{ .Listed = row }) == home_open_presence{ .Page = true, .Active = true },
+			   "a listed pull request's page shows, active, in the gesture's own turn");
+		expect(decide_home_open_presence(home, home_open_facts{ }) == home_open_presence{ },
+			   "a name with no row waits on Home for GitHub's first answers");
+		expect(decide_home_open_presence(home, home_open_facts{ .Answered = true }) == home_open_presence{ .Page = true, .Active = true },
+			   "and is shown and active once GitHub has answered");
+		expect(decide_home_open_presence(home, home_open_facts{ .Listed = home_open_listed{ .Repository = locator(), .Number = pull_request_number{ 43 } } }) == home_open_presence{ },
+			   "a row naming another pull request says nothing of this one");
+		expect(decide_home_open_presence(home, home_open_facts{ .Listed = home_open_listed{ .Repository = locator("other"), .Number = pull_request_number{ 42 } } }) == home_open_presence{ },
+			   "nor does a row of another repository");
+
+		home = apply_home_open(home, home_open_waited{ .Request = read.Request });
+		expect(decide_home_open_presence(home, home_open_facts{ .Listed = row }) == home_open_presence{ .Page = true, .Active = true },
+			   "a read still waiting stays the window's");
+
+		const auto failed = transition(state, pull_request_load_failed_event{ .Context = read, .Failure = github_failure::network });
+		home              = apply_home_open(home, failed);
+		expect(decide_home_open_presence(home, home_open_facts{ .Listed = row, .Answered = true }) == home_open_presence{ },
+			   "a failed read is neither shown nor active");
+	}
+} // namespace
+
 auto main() -> int
 {
 	test_the_transition_names_each_read_stage();
@@ -264,6 +300,7 @@ auto main() -> int
 	test_cancel_refresh_and_foreign_reads();
 	test_home_loading_yields_to_a_window_read();
 	test_a_return_to_home_reads_what_the_core_decides();
+	test_an_opening_is_the_window_s_from_the_request_on();
 	std::cout << "core home open tests passed\n";
 	return EXIT_SUCCESS;
 }

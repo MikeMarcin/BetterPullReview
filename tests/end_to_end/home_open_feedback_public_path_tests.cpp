@@ -385,10 +385,10 @@ try {
 	QApplication::processEvents();
 	std::cerr << "after saving: band=" << !window->home_status_line()->isHidden() << " status=" << window->home_status_text()->text().toStdString()
 			  << " notice=" << window->home_open_notice()->text().toStdString() << " bar=" << window->statusBar()->currentMessage().toStdString() << '\n';
-	// Saving said what it did, in the status bar and so in the band, for as
-	// long as the status bar says it.
-	expect(window->statusBar()->currentMessage().isEmpty() || window->home_status_text()->text() == window->statusBar()->currentMessage(),
-		   "what was just done is said in the band while the status bar says it");
+	// [[BPR-2216]]. Saving said what it did in the status bar only: Home has
+	// one status place.
+	expect(window->home_status_line()->isHidden() && !window->home_status_echoes_bar(),
+		   "what was just done is said by the status bar alone");
 	window->statusBar()->clearMessage();
 	QApplication::processEvents();
 	expect(window->showing_home() && window->home_status_line()->isHidden(), "a quiet Home shows no status band");
@@ -411,6 +411,12 @@ try {
 		const auto cancelledBefore  = delay->Cancelled.load();
 		delay->RetainedMilliseconds = retained_hold_ms;
 		const auto refresh          = [&] {
+			// [[BPR-2216]]. The open shows its page at once; the reviewer goes
+			// back to Home to refresh it.
+			if (!window->showing_home()) {
+				window->choose_home(true);
+				QApplication::processEvents();
+			}
 			expect(window->queue_refresh_action()->isEnabled(), "Home can refresh");
 			window->queue_refresh_action()->trigger();
 			wait_for([&] { return discovery().Status.State == application::queue_discovery_state::refreshing; }, "the refresh begins");
@@ -430,9 +436,11 @@ try {
 			pause(200);
 			refresh();
 		}
+		// [[BPR-2216]]. Home chosen to refresh while it opened: the review
+		// arrives behind Home, with Return.
 		wait_for([&] {
 			cancelledSeen = cancelledSeen || window->session_panel()->status() == core::github_status::pull_request_cancelled;
-			return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; },
+			return window->session_panel()->status() == core::github_status::pull_request_ready && (!window->showing_home() || window->home_action_returns()); },
 				 "the pull request opens", [&] { std::cerr << "status=" << static_cast<int>(window->session_panel()->status()) << " cancelled=" << delay->Cancelled.load() - cancelledBefore << '\n'; },
 				 static_cast<int>(2U * retained_hold_ms));
 		std::cerr << "opened " << aName << (aRefreshFirst ? " after" : " before") << " a refresh in " << opening.elapsed() << " ms; refreshing="
@@ -617,12 +625,24 @@ try {
 		expect(window->home_list()->row_delegate()->open().Identity == QString::fromUtf8(served_name)
 				   && window->home_list()->row_delegate()->open().Phase == qt::home_row_open_phase::opening,
 			   "in the same turn as the double-click, the double-clicked row is the open row");
-		expect(row_lines(*window, servedRow()).contains(QStringLiteral("Opening #17…")), "in the same turn as the double-click, the row says Opening #17…");
+		// [[BPR-2216]]. A row Home lists opens its page at once; Home pressed
+		// while it loads shows the row still saying so.
+		expect(!window->showing_home(), "in the same turn as the double-click, the pull request's page is shown");
+		window->choose_home(true);
+		QApplication::processEvents();
+		expect(row_lines(*window, servedRow()).contains(QStringLiteral("Opening #17…")), "Home over the opening, the row says Opening #17…");
 		expect(window->home_list()->open_view() == servedRow().View, "the double-clicked row's own list carries it");
 		expect(window->showing_home() && window->home_status_line()->isHidden(), "the row says it, so the band adds nothing");
 		wait_for([&] { return delay->Delayed.load() > delayedFirst; }, "the read reaches the slow transport");
 		QApplication::processEvents();
-		expect(listTop() == quietList && barTop() == quietBar, "a row opening moves neither the bar nor the list; list " + std::to_string(quietList) + " -> " + std::to_string(listTop()) + " landing state " + std::to_string(static_cast<int>(window->home_landing()->state())) + " visible " + std::to_string(window->home_landing()->isVisible()));
+		// [[BPR-1843]] [[BPR-2216]]. The opening is the Active review, the card
+		// under the bar, and the list follows it.
+		{
+			auto* const landing    = window->home_landing();
+			const auto  cardBottom = landing->mapTo(window->home_page(), QPoint{ }).y() + landing->height();
+			expect(barTop() == quietBar && landing->state() == qt::landing_state::back_to_review && listTop() >= cardBottom,
+				   "a row opening keeps the bar, and the Active review card names it above the list; list " + std::to_string(quietList) + " -> " + std::to_string(listTop()) + " landing state " + std::to_string(static_cast<int>(window->home_landing()->state())) + " visible " + std::to_string(window->home_landing()->isVisible()));
+		}
 		expect(factsAligned(), "opening keeps the Home row's facts aligned");
 		renders(QStringLiteral("row-opening"));
 
@@ -656,7 +676,7 @@ try {
 		// ---- a failure on its row, and Retry -------------------------------
 		const auto failingFacts = rowFacts(failing_name);
 		double_click(row_of(*window, failing_name));
-		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->open_view() == row_of(*window, failing_name).View, "the failing row is opening at once");
+		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->row_delegate()->open().Identity == QString::fromUtf8(failing_name), "the failing row is opening at once");
 		wait_for([&] { return phase(*window) == core::home_open_phase::failed; }, "the failing read fails after its wait", { }, 15000);
 		QApplication::processEvents();
 		expect(window->showing_home() && action->isVisible() && action->text() == QStringLiteral("Retry"), "the failed row offers Retry");
@@ -675,6 +695,10 @@ try {
 		wait_for([&] { return phase(*window) == core::home_open_phase::failed; }, "the retried read fails again", { }, 15000);
 
 		// ---- the Home bar: said in the status band --------------------------
+		// [[BPR-2216]]. Measured from where Home stands now: a review let go
+		// for the failed opening has taken its card with it.
+		QApplication::processEvents();
+		const auto bandList = listTop();
 		window->home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/18"));
 		window->home_open_action()->trigger();
 		expect(phase(*window) == core::home_open_phase::opening, "the bar's opening is decided in the same turn");
@@ -684,7 +708,7 @@ try {
 		QApplication::processEvents();
 		auto* const activity = window->home_open_frame()->findChild<QWidget*>(QStringLiteral("homeOpenActivity"));
 		expect(activity != nullptr && activity->isVisible(), "the bar says in the bar that what it was given is opening");
-		expect(listTop() == quietList && barTop() == quietBar, "the band docked at Home's foot moves neither the bar nor the list");
+		expect(listTop() == bandList && barTop() == quietBar, "the band docked at Home's foot moves neither the bar nor the list; list " + std::to_string(bandList) + " -> " + std::to_string(listTop()) + " bar " + std::to_string(quietBar) + " -> " + std::to_string(barTop()) + " landing " + std::to_string(static_cast<int>(window->home_landing()->state())) + " visible " + std::to_string(window->home_landing()->isVisible()));
 		expect(window->home_status_line()->mapTo(window->home_page(), QPoint{ }).y() > listTop(), "the band stands under the list");
 		wait_for([&] { return phase(*window) == core::home_open_phase::waiting; }, "the bar's opening waits", { }, 3000);
 		QApplication::processEvents();
@@ -697,26 +721,31 @@ try {
 		expect(window->home_status_line()->isHidden(), "a cancelled opening leaves the band quiet");
 		expect(activity->isHidden(), "and the bar quiet");
 
-		// ---- Home's general status, in the band ----------------------------
+		// ---- Home's general status: the status bar's alone ([[BPR-2216]]) ----
+		// The owner, 2026-11-16: "there are still 2 differnet places status
+		// messages appear. They just toggle back and forth now which is
+		// terrible." What was just done, a hovered action's help and a problem
+		// are the status bar's; the band shows none of them and never hides
+		// the status bar.
 		window->statusBar()->showMessage(QStringLiteral("Added octo-org/review-repository."), 0);
 		QApplication::processEvents();
-		expect(!window->home_status_line()->isHidden() && window->home_status_text()->text() == QStringLiteral("Added octo-org/review-repository.")
-				   && window->home_status_line()->tone() == qt::home_status_tone::notice,
-			   "what was just done is said in the band under the bar");
-		expect(listTop() == quietList && barTop() == quietBar, "a notice moves neither the bar nor the list");
-		expect(window->home_status_echoes_bar(), "the status bar beneath leaves the band's sentence to the band");
+		expect(window->home_status_line()->isHidden() && window->statusBar()->currentMessage() == QStringLiteral("Added octo-org/review-repository.")
+				   && !window->home_status_echoes_bar() && window->statusBar()->isVisible(),
+			   "what was just done is said by the status bar, which stays shown");
+		expect(listTop() == bandList && barTop() == quietBar, "a notice moves neither the bar nor the list");
 		renders(QStringLiteral("status-notice"));
-		window->set_agent_workspaces_unavailable(true);
+		window->statusBar()->showMessage(window->queue_refresh_action()->statusTip(), 0);
 		QApplication::processEvents();
-		expect(window->home_status_line()->tone() == qt::home_status_tone::problem && window->home_status_text()->text().startsWith(QStringLiteral("Disposable agent workspaces are unavailable")),
-			   "a problem the window has is said in the band, with the failure mark");
-		expect(std::ranges::find(announcements, window->home_status_text()->text()) != announcements.end(), "the band's status is announced politely");
-		expect(!window->home_status_echoes_bar(), "a problem in the band is not the status bar's message");
-		renders(QStringLiteral("status-problem"));
-		window->set_agent_workspaces_unavailable(false);
+		expect(window->home_status_line()->isHidden() && window->statusBar()->isVisible(), "a hovered action's help is the status bar's, not a box on Home");
+		window->set_agent_workspaces_unavailable(true);
 		window->statusBar()->clearMessage();
 		QApplication::processEvents();
-		expect(window->home_status_line()->isHidden(), "a quiet Home hides the band again");
+		expect(window->home_status_line()->isHidden() && window->status_label()->text().contains(QStringLiteral("Disposable agent workspaces are unavailable")),
+			   "a problem the window has is said in the status bar");
+		renders(QStringLiteral("status-problem"));
+		window->set_agent_workspaces_unavailable(false);
+		QApplication::processEvents();
+		expect(window->home_status_line()->isHidden(), "a quiet Home shows no band");
 		renders(QStringLiteral("idle"));
 
 		// ---- Return opens in the same turn, and the pull request opens -----
@@ -731,8 +760,9 @@ try {
 			auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 			QApplication::sendEvent(keyedView, &key);
 		}
-		expect(phase(*window) == core::home_open_phase::opening && row_lines(*window, servedRow()).contains(QStringLiteral("Opening #17…")),
-			   "in the same turn as Return, the row says Opening #17…");
+		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->row_delegate()->open().Identity == QString::fromUtf8(served_name)
+				   && window->home_list()->row_delegate()->open().Phase == qt::home_row_open_phase::opening && !window->showing_home(),
+			   "in the same turn as Return, the row is opening and its page is shown ([[BPR-2216]])");
 		wait_for([&] { return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; }, "the slow read opens the pull request", { }, 20000);
 		expect(!window->home_open().has_value(), "a loaded read leaves nothing for Home to say");
 		window->home_action()->trigger();
@@ -788,9 +818,9 @@ try {
 		pause(300);
 		expect(discovery().Status.State == application::queue_discovery_state::refreshing && discovery().Statistics.Answered == before.Answered + 1U,
 			   "Home is still loading, its searches held on the wire");
-		// [[BPR-1848]]. Its rows are no longer greyed while it loads: the
-		// plate at the list's foot says so.
-		wait_for([&] { return window->pending_veils().HomeList->look() == core::pending_look::partial; }, "and its list says it is refreshing, at its foot", { }, 3000);
+		// [[BPR-1848]]. Its rows are no longer greyed while it loads.
+		// [[BPR-2216]]: the status bar alone says Home refreshes.
+		wait_for([&] { return !window->pending_veils().HomeList->busy() && (window->refresh_freshness_label()->text().startsWith(QStringLiteral("Refreshing")) || window->refresh_freshness_label()->text().startsWith(QStringLiteral("Updating"))); }, "and only the status bar says it is refreshing", { }, 3000);
 		QElapsedTimer opening;
 		opening.start();
 		double_click(row_of(*window, failing_name));

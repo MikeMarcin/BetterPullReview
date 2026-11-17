@@ -25,6 +25,42 @@ The functional core decides whether an explicit AI action is legal, what local c
   tab's code boxes and Suggested change with Add as draft comment, in the
   theme's report colours (Settings › Appearance › Reports). A floating menu
   lists its sections; View source and Copy source keep the Markdown.
+- A review as a report ([[BPR-2219]], docs/design/review-report-v1): Review
+  this pull request and Review {file} answer as a report that opens with a
+  verdict (Needs changes, Ready with comments, Ready to merge) over its
+  summary, then its findings under Must fix, Worth a look and Good, each at
+  its place in the code. What the agent said while it worked (the words
+  between its tool calls) is not part of the report: the report starts at
+  its title. Every finding has one keep action at its foot, the core's
+  choice (`core::report_findings`, by `core::decide_keep`'s rule): **Draft
+  comment** where it names lines, a private draft there that starts from
+  the finding's label, its reasons and its suggested change (or from the
+  comment the agent suggested for that place); **Keep local** where it
+  names only a file or nothing. Once made it reads Drafted, or Kept, with
+  **Go to draft** or **Go to comment**, and a report opened again still
+  says so. **Keep summary**, under the summary, keeps the verdict, the
+  summary and a line a finding as a Local comment on the pull request.
+  Nothing is published until the reviewer publishes.
+- The report is drawn in the app's own hand (look review-report-v001's
+  hand-back; docs/design/review-report-v2, Cards): the application's font
+  and the pane's own ground and ink, the opening on a bordered band with the
+  verdict as a filled mark, each finding a bordered box as a conversation
+  card is. The theme's report roles colour only verdicts.
+- A turn sent from a prompt shows the prompt's name as the user's turn, with
+  **Show prompt** to see what was sent (look review-report-v001: "All of
+  this extra context from a prompt we select should be hidden").
+- A review prompt says what it asks ([[BPR-2219]], owner 2026-11-16): the
+  shipped Review this pull request and Review {file} carry their real
+  instructions as their body in Settings › Prompts, where they are edited
+  like any prompt: what to review, the focus, the sections, the severity
+  scheme, the verdict, the tone. Restore built-ins… restores them. Under
+  the editor of any prompt that asks for findings, **Result: Findings
+  report** shows, read-only, what is always added: the report format
+  BetterPullReview reads (the title, the verdict line, a finding's place,
+  the suggestion block, the findings block). It is the application's, so an
+  edited prompt cannot break Draft comment; a report without an optional
+  part (no verdict, other section names, another severity scheme) still
+  shows and still drafts.
 - Ask about selection
 - Analyze current file: **Explain this file** (RFC-BPR-0117, [[BPR-2076]]).
   Its subject is the file open in Review, never a selection: the control at

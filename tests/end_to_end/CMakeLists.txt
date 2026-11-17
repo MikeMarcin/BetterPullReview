@@ -2889,9 +2889,9 @@ bpr_add_network_isolated_test(
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-theme-customization-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
-        # RFC-BPR-0128. The theme predates the report colours, so the import
+        # RFC-BPR-0128. The theme predates the three tones, so the import
         # fills them from its base's (Dark's) built-ins.
-        "-DBPR_THEME_FILLED_ROLES=report_paper #20272bff,report_ink #ebe6daff,report_verdict_open #e5a093ff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff,report_code_wash #192024ff"
+        "-DBPR_THEME_FILLED_ROLES=report_verdict_open #ec7f6eff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
@@ -2921,7 +2921,7 @@ bpr_add_network_isolated_test(
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-older-theme-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
-        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff,report_paper #20272bff,report_ink #ebe6daff,report_verdict_open #e5a093ff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff,report_code_wash #192024ff"
+        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff,report_verdict_open #ec7f6eff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
@@ -5303,9 +5303,14 @@ set_tests_properties(application_home_next_move_public_path PROPERTIES
     PASS_REGULAR_EXPRESSION "home-next-move-public-path:pass")
 
 # [[BPR-2048]] [[BPR-2049]]. One pull request too large to read fails no
-# refresh and opens to a card naming what was too large; an approval with
-# new commits after it offers Seen, which moves it to Following at once.
+# refresh and opens to a card naming what was too large; a reviewed row back
+# for new commits keeps its verdict chip and offers no Seen or Approve again
+# ([[BPR-2217]]); with --approve-again the review's Approve reads Approve again.
 bpr_add_executable(test_home_oversized_public_path home_oversized_public_path_tests.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_home_oversized_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(test_home_oversized_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_home_oversized_public_path PRIVATE BPR_BUILD_TESTING=1)
 target_compile_features(test_home_oversized_public_path PRIVATE cxx_std_23)
@@ -5317,6 +5322,13 @@ set_tests_properties(application_home_oversized_public_path PROPERTIES
     PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
 bpr_add_network_isolated_test(NAME application_home_approve_again_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --approve-again)
 set_tests_properties(application_home_approve_again_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
+# [[BPR-2217]]. Seen and Approve again are the review's: the review of an
+# approval with new commits offers Seen beside Approve, which submits nothing
+# and leaves the review up to date.
+bpr_add_network_isolated_test(NAME application_review_seen_public_path WINDOWS_UNCONTAINED COMMAND test_home_oversized_public_path --seen)
+set_tests_properties(application_review_seen_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-oversized-public-path:pass")
 
@@ -5551,6 +5563,28 @@ bpr_add_network_isolated_test(NAME application_ask_report_public_path
     COMMAND test_ask_menu_public_path report "$<TARGET_FILE:test_scoped_writing_agent>")
 set_tests_properties(application_ask_report_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "ask-menu-report:pass")
+# [[BPR-2219]]. Review this pull request with the fixture agent, which answers
+# as a real agent does (a few words between its tool calls, then the report):
+# the report has its verdict and sections and none of those words, every
+# finding has its keep action, and Draft comment makes a private draft at the
+# finding's lines.
+bpr_add_executable(test_review_report_public_path review_report_public_path.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_review_report_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_review_report_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_review_report_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_review_report_public_path)
+bpr_enable_warnings(test_review_report_public_path)
+add_dependencies(test_review_report_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_review_report_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_review_report_public_path)
+    set_tests_properties(application_review_report_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "review-report:pass")
+endif()
 # [[BPR-2153]], RFC-BPR-0126 AC05. Steer through the window on the session
 # queue host: a follow-up steered into the steerable fixture agent's running
 # turn, and a queued message's Steer on an agent that can't be steered.
@@ -5688,3 +5722,33 @@ bpr_add_network_isolated_test(NAME application_tour_chat_queue_local_draft_publi
     COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --local-draft "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_worktree.sh")
 set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-local-draft:pass")
+
+# [[BPR-2216]]. Opening a pull request from Home is responsive: its page in the
+# gesture's turn while GitHub is slow, Return and the Active review on Home
+# while it loads, and the loaded review keeps them.
+bpr_add_executable(test_home_open_responsive_public_path home_open_responsive_public_path_tests.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_home_open_responsive_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_home_open_responsive_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_home_open_responsive_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_home_open_responsive_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_home_open_responsive_public_path)
+bpr_enable_warnings(test_home_open_responsive_public_path)
+bpr_add_network_isolated_test(NAME application_home_open_responsive_public_path WINDOWS_UNCONTAINED COMMAND test_home_open_responsive_public_path)
+set_tests_properties(application_home_open_responsive_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "home-open-responsive-public-path:pass")
+
+# [[BPR-2221]]. Every prompt condition reads the window's real state: own
+# prompts conditioned on each fact are listed in the Ask menus exactly where
+# it holds, and follow a resolve and a file marked reviewed.
+bpr_add_executable(test_prompt_facts_public_path prompt_facts_public_path.cpp)
+target_link_libraries(test_prompt_facts_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_prompt_facts_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_prompt_facts_public_path)
+bpr_enable_warnings(test_prompt_facts_public_path)
+bpr_add_network_isolated_test(NAME application_prompt_facts_public_path WINDOWS_UNCONTAINED COMMAND test_prompt_facts_public_path)
+set_tests_properties(application_prompt_facts_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "prompt-facts:pass")

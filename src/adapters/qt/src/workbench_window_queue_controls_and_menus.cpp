@@ -280,8 +280,12 @@ namespace bpr::qt {
 		if (RefreshNote != nullptr && shown) {
 			switch (state.Phase) {
 			case core::refresh_phase::refreshing:
-				if (state.Trigger == core::refresh_trigger::reviewer && (before.Phase != core::refresh_phase::refreshing || before.Trigger != core::refresh_trigger::reviewer)) {
-					RefreshNote->present(refresh_note_tone::busy, aHome ? QStringLiteral("Finding my pull requests…") : QStringLiteral("Refreshing the pull request…"), button);
+				// [[BPR-2216]]. On Home the status bar alone says it refreshes
+				// (the owner, 2026-11-16: "Seems home has a similar thing").
+				if (aHome) {
+					RefreshNote->dismiss();
+				} else if (state.Trigger == core::refresh_trigger::reviewer && (before.Phase != core::refresh_phase::refreshing || before.Trigger != core::refresh_trigger::reviewer)) {
+					RefreshNote->present(refresh_note_tone::busy, QStringLiteral("Refreshing the pull request…"), button);
 				}
 				break;
 			case core::refresh_phase::updated:
@@ -419,11 +423,16 @@ namespace bpr::qt {
 
 	void workbench_window::present(const application::home_open_projection& aProjection)
 	{
-		HomeOpen = aProjection.State.has_value() ? std::optional{ aProjection } : std::nullopt;
+		const auto before = opening_presence();
+		HomeOpen          = aProjection.State.has_value() ? std::optional{ aProjection } : std::nullopt;
 		refresh_home_open();
-		// [[BPR-1843]]. The open is over: the held place goes.
-		if (!HomeOpen.has_value() && HomeLandingHold > 0) {
+		// [[BPR-1843]]. The open is over: the held place goes. [[BPR-2216]]: an
+		// opening the core makes the window's own takes its page, Home's
+		// Active review and Return from the request on, and gives them up when
+		// it fails or ends.
+		if ((!HomeOpen.has_value() && HomeLandingHold > 0) || opening_presence() != before) {
 			update_home_landing();
+			update_pull_request_queue_actions();
 		}
 	}
 
@@ -536,51 +545,20 @@ namespace bpr::qt {
 
 	void workbench_window::update_home_status()
 	{
-		if (HomeStatusText == nullptr || HomeOpenNotice == nullptr || SessionPanel == nullptr) {
+		if (HomeStatusText == nullptr) {
 			return;
 		}
-		// [[BPR-1357]]. Home's general status, said in the band when the bar's
-		// own line is not: a problem the window has, a connection under way, or
-		// what was just done. The session line is idle and stays in the status
-		// bar, so a quiet Home adds nothing.
-		auto text = QString{ };
-		auto tone = home_status_tone::notice;
-		if (Failure) {
-			text = failure_text(*Failure, EpochSelectors);
-			tone = home_status_tone::problem;
-		} else if (ProfileFailure) {
-			text = profile_management_failure_text(*ProfileFailure);
-			tone = home_status_tone::problem;
-		} else if (AgentWorkspacesUnavailable) {
-			text = agent_workspaces_problem_text();
-			tone = home_status_tone::problem;
-		} else if (SavedLayoutUnavailable) {
-			text = failure_text(application::workbench_host_failure::settings_unavailable);
-			tone = home_status_tone::problem;
-		} else if (SessionPanel->status() == core::github_status::establishing_session) {
-			const auto host = QString::fromStdString(SessionPanel->active_host_text());
-			text            = host.isEmpty() ? QStringLiteral("Connecting to GitHub…") : QStringLiteral("Connecting to %1…").arg(host);
-			tone            = home_status_tone::busy;
-		} else if (const auto message = statusBar() != nullptr ? statusBar()->currentMessage() : QString{ }; !message.isEmpty()) {
-			text = message;
-		}
-		const auto shown = !text.isEmpty() && HomeOpenNotice->isHidden();
-		HomeStatusText->setText(shown ? text : QString{ });
-		if (shown && HomeStatus != nullptr) {
-			HomeStatus->set_tone(tone);
-		}
-		HomeStatusText->setVisible(shown);
+		// [[BPR-2216]]. The owner, 2026-11-16, of [[BPR-1357]]'s band repeating
+		// the status bar: "there are still 2 differnet places status messages
+		// appear. They just toggle back and forth now which is terrible." Home
+		// has one status place, the status bar, which already says the session,
+		// a connection under way, every problem and what was just done. The
+		// band under the bar keeps only an opening from Home's bar, with its
+		// Cancel and Retry (update_home_open_notice).
+		HomeStatusText->clear();
+		HomeStatusText->setVisible(false);
+		LastHomeStatusAnnouncement.clear();
 		statusBar()->update();
-		const auto announcement = shown && showing_home() ? text : QString{ };
-		if (!announcement.isEmpty() && announcement != LastHomeStatusAnnouncement && HomeStatus != nullptr) {
-			LastHomeStatusAnnouncement = announcement;
-			QAccessibleAnnouncementEvent event{ HomeStatus, announcement };
-			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
-			QAccessible::updateAccessibility(&event);
-		}
-		if (announcement.isEmpty()) {
-			LastHomeStatusAnnouncement.clear();
-		}
 	}
 
 	auto workbench_window::select_queue_item(
@@ -1525,7 +1503,7 @@ namespace bpr::qt {
 			const auto ref  = open_queue_ref();
 			const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
 			if (item) {
-				dispatch_home_followup(*item);
+				mark_new_commits_seen(*item);
 			}
 			update_pull_request_queue_actions();
 		});

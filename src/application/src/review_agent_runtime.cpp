@@ -113,7 +113,7 @@ namespace bpr::application {
 		if (Turns == nullptr) {
 			return core::queue_agent::not_set_up;
 		}
-		if (Running || Awaiting || !Turns->is_quiescent()) {
+		if (Running || Awaiting || Next || !Turns->is_quiescent()) {
 			return core::queue_agent::busy;
 		}
 		if (!Turns->authorized()) {
@@ -193,6 +193,14 @@ namespace bpr::application {
 
 	auto review_agent_runtime::dispatch(agent_invocation_request aRequest) -> bool
 	{
+		// [[BPR-2243]]. The running turn has finished and the window shows
+		// its answer, but its run has not retired yet (its process and folder
+		// are still going): the next turn waits for that, rather than being
+		// refused as if the agent were still answering.
+		if (Turns != nullptr && Running && Finished && !Waiting && !Next) {
+			Next = std::move(aRequest);
+			return true;
+		}
 		if (Turns == nullptr || Running || !Turns->is_quiescent() || (!Turns->authorized() && !Turns->accepting())) {
 			return false;
 		}
@@ -239,6 +247,11 @@ namespace bpr::application {
 
 	void review_agent_runtime::cancel()
 	{
+		if (Next) {
+			// A turn held for the last one's retirement never starts.
+			Next.reset();
+			refuse("Stopped. Nothing was sent.");
+		}
 		if (Awaiting) {
 			// A release whose turn was never sent stops here, as stopped.
 			settle_awaiting(core::queued_finish::stopped);
@@ -266,8 +279,17 @@ namespace bpr::application {
 			return;
 		}
 		Running = false;
+		// The queue is told while a held turn still makes the runtime busy:
+		// it sends nothing ahead of that turn.
 		if (Done) {
 			Done();
+		}
+		if (Next) {
+			auto held = std::move(*Next);
+			Next.reset();
+			if (!dispatch(std::move(held))) {
+				refuse("The agent is still answering. Nothing was sent.");
+			}
 		}
 	}
 
@@ -277,11 +299,12 @@ namespace bpr::application {
 
 	auto review_agent_runtime::last_finish() const -> core::queued_finish { return Finished.value_or(core::queued_finish::failed); }
 
-	auto review_agent_runtime::is_quiescent() const -> bool { return !Running && !Awaiting && (Turns == nullptr || Turns->is_quiescent()); }
+	auto review_agent_runtime::is_quiescent() const -> bool { return !Running && !Awaiting && !Next && (Turns == nullptr || Turns->is_quiescent()); }
 
 	void review_agent_runtime::shutdown()
 	{
 		Waiting.reset();
+		Next.reset();
 		Awaiting.reset();
 		AwaitingPresenter.reset();
 		if (Turns != nullptr) {

@@ -152,12 +152,24 @@ namespace {
 		return *built;
 	}
 
+	/// \brief The fact one canary message carries: what follows the paragraph
+	/// break the decoder opens each later text block of a turn with since
+	/// [[BPR-2219]] round 3 ([[BPR-2240]]).
+	[[nodiscard]] auto fact(const application::agent_stream_event& aEvent) -> std::string_view
+	{
+		auto text = std::string_view{ aEvent.Text };
+		if (text.starts_with("\n\n")) {
+			text.remove_prefix(2U);
+		}
+		return text;
+	}
+
 	[[nodiscard]] auto event_values(const application::agent_run_result& aResult, const std::string_view aTag) -> std::vector<std::string>
 	{
 		auto values = std::vector<std::string>{ };
 		for (const auto& event : aResult.Events) {
-			if (event.Text.starts_with(std::string{ aTag } + "\t")) {
-				values.push_back(event.Text.substr(aTag.size() + 1U));
+			if (const auto text = fact(event); text.starts_with(std::string{ aTag } + "\t")) {
+				values.emplace_back(text.substr(aTag.size() + 1U));
 			}
 		}
 		return values;
@@ -277,11 +289,11 @@ namespace {
 			// Today: the profile names the program that runs.
 			const auto inspectWritingFolder = [&](const application::agent_stream_event& aEvent) {
 #if defined(Q_OS_WIN)
-				if (kind == entry::writing && aEvent.Text.starts_with("cwd\t")) {
+				if (kind == entry::writing && fact(aEvent).starts_with("cwd\t")) {
 					namespace private_folder = adapters::agent::detail;
 					const auto principals    = private_folder::windows_private_principals::load();
 					expect(principals.has_value(), "writing folder token principals are available");
-					const auto path      = QDir::toNativeSeparators(QString::fromStdString(aEvent.Text.substr(4U))).toStdWString();
+					const auto path      = QDir::toNativeSeparators(QString::fromStdString(std::string{ fact(aEvent).substr(4U) })).toStdWString();
 					const auto directory = private_folder::windows_handle{ ::CreateFileW(
 						path.c_str(), FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 						nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };

@@ -1420,7 +1420,19 @@ namespace bpr::qt {
 		WorkshopHeader->hide();
 		centre->insertWidget(centre->indexOf(CentreStack), WorkshopHeader);
 		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
-		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
+		ReviewSubmissionEditor->set_presentation_observer([this] {
+			update_compose_mark();
+			// [[BPR-2217]]. The lightbox is as tall as its content: a review
+			// read after it opened (its draft, the line about my approval)
+			// grows it, so it fits again once the layout settles.
+			if (ReviewSheetOpen) {
+				QTimer::singleShot(0, ReviewSheet, [this] {
+					if (ReviewSheetOpen) {
+						place_review_sheet();
+					}
+				});
+			}
+		});
 		// [[BPR-1085]]. A preflight row links back to its exact item: my unsent
 		// draft opens its page; a conversation is revealed in Discuss.
 		// [[BPR-1345]] v002. A pending row goes to its comment; its Delete,

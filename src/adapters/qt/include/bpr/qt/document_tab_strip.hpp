@@ -121,6 +121,7 @@ namespace bpr::qt {
 	private:
 		void               rebuild();
 		void               layout_tabs();
+		void               repaint_glyphs();
 		void               reveal_active();
 		[[nodiscard]] auto active() const -> const document_tab_presentation*;
 		void               send(const core::document_tab_intent& aIntent) const;

@@ -519,6 +519,10 @@ auto main(int argc, char** argv) -> int
 		}
 		agent_ready(window);
 		wait([&] { return window.go_to_file_line(path, 12U, false) && window.active_document_path() == path && !cards->cards().empty(); }, "the file opens beside its threads");
+		// Owner, look report-keeps-v001: the Agent tab, open on Overview,
+		// stays open in Review's drawer; the threads are on Comments.
+		expect(window.tray_tabs()->currentIndex() == 2, "Review's drawer is still on the Agent tab opened on Overview");
+		window.tray_tabs()->setCurrentIndex(0);
 		if (course == "macros") {
 			// RFC-BPR-0125 milestone 3 ([[BPR-2146]] AC11 to AC13) through the
 			// window: a chip turned off and a new order reach an open window
@@ -860,7 +864,17 @@ auto main(int argc, char** argv) -> int
 			expect(report->document().Turn != 0U && tab->turn_of(report->document().Turn).has_value() && !report->document().Byline.Ending.isEmpty()
 					   && byline->text().contains(report->document().Byline.Ending.toHtmlEscaped()),
 				   "the report names its turn by identity, and its byline is the turn's own ending: " + byline->text().toStdString());
-			expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
+			// The reader shown is as tall as its content: the dressed page, or
+			// the body when the report is shown as written. (A hidden body's
+			// width is no measure: it passed here only while the page was laid
+			// out at a narrow column.)
+			if (report->dressed_shown()) {
+				auto* const page = report->dressed_view();
+				expect(report->body()->in_place() && page->isVisible() && page->height() >= static_cast<int>(page->document()->size().height()),
+					   "the page is in place, as tall as its content (defect 1): " + std::to_string(page->height()) + " for " + std::to_string(page->document()->size().height()));
+			} else {
+				expect(report->body()->in_place() && report->body()->height() >= report->body()->heightForWidth(report->body()->width()) - 2, "the body is in place, as tall as its content (defect 1)");
+			}
 			auto* const menuButton = report->menu_button();
 			expect(menuButton != nullptr && menuButton->isVisible() && menuButton->accessibleName() == QStringLiteral("Report menu") && menuButton->width() == 32 && menuButton->height() == 28,
 				   "the floating Report menu button");
@@ -918,6 +932,29 @@ auto main(int argc, char** argv) -> int
 			auto* const bar      = strip->findChild<QTabBar*>(QStringLiteral("documentTabBar"));
 			bar->setCurrentIndex(static_cast<int>(std::distance(strip->tabs().begin(), reportAt)));
 			wait([&] { return window.report_shown() && window.report_view()->isVisible(); }, "the report's tab returns to the report");
+			// [[BPR-2218]], owner 2026-11-16: "Opening that attachment should
+			// bring it to the front, like how opening a file on overview
+			// switches to it." With the file's tab in front, the row opened
+			// from a mode without the files' strip enters Review on the
+			// report; from Review it only comes to the front.
+			const auto fileInFront = [&] {
+				const auto fileAt = std::ranges::find_if(strip->tabs(), [&](const qt::document_tab_presentation& aTab) { return !aTab.Report && aTab.Path == path; });
+				expect(fileAt != strip->tabs().end(), "the file's tab is still open");
+				bar->setCurrentIndex(static_cast<int>(std::distance(strip->tabs().begin(), fileAt)));
+				wait([&] { return !window.report_shown() && window.active_document_path() == path; }, "the file's tab is in front");
+			};
+			for (const auto from : { qt::review_modality::overview, qt::review_modality::discuss, qt::review_modality::threads, qt::review_modality::review }) {
+				fileInFront();
+				window.choose_modality(from, core::workbench_modality_entry::choose);
+				QApplication::processEvents();
+				const auto name = qt::review_modality_title(from).toStdString();
+				expect(window.current_modality() == from, "the window is in " + name);
+				rowButton->click();
+				wait([&] { return window.current_modality() == qt::review_modality::review && window.report_shown() && window.report_view()->isVisible() && !window.comparison_surface()->isVisible(); },
+					 "opening the report from " + name + " shows it in Review");
+				expect(active() != strip->tabs().end() && active()->Report && strip->tabs().size() == files + 1U && rowButton->property("bprReportSelected").toBool(),
+					   "from " + name + " the report's own tab is in front, not a second one");
+			}
 			std::cout << "ask-menu-report: link=" << link << '\n';
 			if (!attended) {
 				shutdown(*application);

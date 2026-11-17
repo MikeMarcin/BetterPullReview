@@ -290,10 +290,11 @@ namespace {
 			.Title = "Keep review snapshots deterministic", .Body = "A description.", .AuthorLogin = "octo-author", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 2U, .ReportedCommits = 1U });
 		settle(20);
 		expect(!veils.Header->busy() && !veils.Description->busy(), "the title and description show as soon as GitHub names them");
-		expect(veils.Files->busy() && veils.Files->words().Loading.contains(QStringLiteral("2 files reported")), "the file list says how many files are coming");
+		// [[BPR-2216]]. As many placeholder rows as files, and no sentence.
+		expect(veils.Files->busy() && veils.Files->words().Loading.isEmpty(), "the file list waits without a sentence");
 		expect(veils.Side->busy(), "reviewers, checks and progress still wait");
-		page.set_read_waiting(QStringLiteral("the changed files, 3 pages so far"));
-		expect(veils.Files->words().Waiting == QStringLiteral("Still waiting for GitHub: the changed files, 3 pages so far."), "a slow wait names the read's step");
+		// [[BPR-2216]]. The status bar says the read's step; no section repeats it.
+		expect(veils.Files->words().Waiting.isEmpty() && veils.Side->words().Waiting.isEmpty(), "no section says the read's step the status bar says");
 		page.present(application::pull_request_overview_projection{ .Owner = "octo", .RepositoryName = "repo", .Number = core::pull_request_number{ 7U }, .Title = "Ready" });
 		page.present_loading_readiness({ });
 		settle(20);

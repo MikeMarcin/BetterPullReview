@@ -421,7 +421,8 @@ namespace bpr::qt {
 		QWidget::changeEvent(aEvent);
 		// The Agent accent is set on a control, not inherited: a trailing run
 		// control (Explain this file) wears a changed accent again here.
-		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange) {
+		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange || aEvent->type() == QEvent::ThemeChange) {
+			repaint_glyphs();
 			for (auto* const control : findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
 				if (agent_run_control(*control)) {
 					wear_agent_accent(*control, palette());
@@ -431,6 +432,19 @@ namespace bpr::qt {
 		if (Bar != nullptr && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange)) {
 			setMinimumWidth(minimumSizeHint().width());
 			rebuild();
+		}
+	}
+
+	void document_tab_strip::repaint_glyphs()
+	{
+		if (Bar == nullptr) {
+			return;
+		}
+		const auto glyph = report_glyph(palette());
+		for (auto index = 0; index < Bar->count(); ++index) {
+			if (Bar->tabData(index).toString() == QStringLiteral("report")) {
+				Bar->setTabIcon(index, glyph);
+			}
 		}
 	}
 
@@ -478,6 +492,17 @@ namespace bpr::qt {
 		if (aObject == Scroll->viewport() && aEvent->type() == QEvent::Resize) {
 			layout_tabs();
 		}
+		// Owner, look report-keeps-v001 ("the report glyph is unreadable on
+		// dark theme"): the glyph is a picture drawn in the tab's ink, so it
+		// is drawn again whenever the tabs' palette or theme changes; drawn
+		// once, it kept the light theme's near-black on the dark strip. Its
+		// ink is the strip's: on macOS the style gives the tab bar a palette
+		// of its own that a theme change does not reach.
+		if (aObject == Bar
+			&& (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange || aEvent->type() == QEvent::StyleChange
+				|| aEvent->type() == QEvent::ThemeChange)) {
+			repaint_glyphs();
+		}
 		return QWidget::eventFilter(aObject, aEvent);
 	}
 
@@ -523,7 +548,7 @@ namespace bpr::qt {
 				// docs/design/report-card-v4, defect 4: a report's title is cut
 				// at its end, its glyph kept; a path keeps its end (its name).
 				const auto shownLabel = tab.Report ? Bar->fontMetrics().elidedText(label, Qt::ElideRight, std::max(40, MinimumTab - 72)) : label;
-				const auto index      = tab.Report ? Bar->addTab(report_glyph(Bar->palette()), shownLabel) : Bar->addTab(shownLabel);
+				const auto index      = tab.Report ? Bar->addTab(report_glyph(palette()), shownLabel) : Bar->addTab(shownLabel);
 				if (tab.Report) {
 					Bar->setTabData(index, QStringLiteral("report"));
 				}

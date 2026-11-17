@@ -44,7 +44,11 @@ namespace {
 	{
 		auto result = std::vector<today_offer>{ };
 		for (const auto& offer : all_offers(aOffers)) {
-			result.emplace_back(offer.Label, offer.Expansion.Text, offer.Subject, offer.Kind, offer.finish());
+			// [[BPR-2219]]. A review prompt is shown by its name and sends
+			// its body, which opens with that name; the body's own content
+			// is checked in `test_review_prompts_carry_their_instructions`.
+			const auto opens = offer.Label + " as a careful colleague would";
+			result.emplace_back(offer.Label, offer.Kind == prompt_ask::review && offer.Expansion.Text.starts_with(opens) ? offer.Label : offer.Expansion.Text, offer.Subject, offer.Kind, offer.finish());
 		}
 		return result;
 	}
@@ -496,10 +500,46 @@ namespace {
 		}
 		expect(restarted.records().size() == maximum_prompt_turn_names && !restarted.recall("q1") && restarted.recall("q" + std::to_string(maximum_prompt_turn_names + 12U)), "the least recently sent go first");
 	}
+	/// [[BPR-2219]] (owner, 2026-11-16: "How is 1 sentence useful to anyone
+	/// trying to tweak the review request to their particular
+	/// circumstances?"). The review built-ins keep their names and send
+	/// their instructions: what to review, the focus, the sections, the
+	/// severity scheme, the verdict and the tone. The form the application
+	/// reads is not in them.
+	void test_review_prompts_carry_their_instructions()
+	{
+		const auto set = shipped_set();
+		for (const auto& [id, name, opens] : { std::tuple{ "agent-tab.review-pull-request", "Review this pull request", "Review this pull request as a careful colleague would" },
+											   std::tuple{ "agent-tab.review-open-file", "Review {file}", "Review {file} as a careful colleague would" } }) {
+			const auto found = std::ranges::find(set, std::string{ id }, &prompt_macro::Id);
+			expect(found != set.end() && found->Body.Name == name && found->Body.Kind == prompt_ask::review && found->Body.Template.starts_with(opens), std::string{ id } + " keeps its name and opens its body with it");
+			for (const auto* const part : { "What to review:", "Focus:", "Sections, in this order", "- Must fix:", "- Not reviewed:", "Severity:", "Conventional Comments", "Verdict:", "Tone:" }) {
+				expect(found->Body.Template.find(part) != std::string::npos, std::string{ id } + " says " + part);
+			}
+			// [[BPR-2234]]: what was not reviewed is asked for as the thing,
+			// then why, in no first person, as the report format asks.
+			expect(found->Body.Template.find("you did not") == std::string::npos && found->Body.Template.find("each thing not read or not checked, named, then why") != std::string::npos,
+				   std::string{ id } + " asks for what was not reviewed by the thing, then why");
+			expect(found->Body.Template.find("**Verdict:**") == std::string::npos && found->Body.Template.find("bpr-findings") == std::string::npos && found->Body.Template.find("level-one") == std::string::npos,
+				   std::string{ id } + " leaves the form the application reads to the application");
+			expect(found->Body.Template.size() <= maximum_prompt_template_bytes && prompt_macro_valid(*found), std::string{ id } + " is a valid prompt");
+		}
+	}
+	/// [[BPR-2237]]. A prompt's text sent as it was put in the field is the
+	/// prompt's own; any change to it is the reviewer's.
+	void test_a_prompt_sent_unedited()
+	{
+		expect(prompt_sent_unedited("Review this pull request.\n\nFocus: x.", "  Review this pull request.\n\nFocus: x.\n"), "white space at the ends aside, the expansion is unedited");
+		expect(!prompt_sent_unedited("Review this pull request.\n\nFocus: x., focusing on the cache", "Review this pull request.\n\nFocus: x."), "words added are an edit");
+		expect(!prompt_sent_unedited("Review this pull request.", "Review this pull request.\n\nFocus: x."), "words taken out are an edit");
+		expect(prompt_sent_unedited("", " \n"), "empty is empty");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_a_prompt_sent_unedited();
+	test_review_prompts_carry_their_instructions();
 	test_shipped_equals_today();
 	test_scan_and_expansion();
 	test_conditions();

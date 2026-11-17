@@ -70,6 +70,20 @@ namespace {
 			Running = false;
 			Retired();
 		}
+		/// [[BPR-2243]]. The turn's answer and finish, its run still going
+		/// (its process and folder not yet gone); `retire` ends it.
+		void finish_only(const std::string& aText)
+		{
+			const auto identity = application::agent_invocation_projection_identity{ };
+			Projection->admit(identity);
+			Projection->stream(identity, application::agent_stream_event{ .Text = aText });
+			Projection->finish(identity, application::agent_run_result{ .Outcome = application::agent_run_outcome::success });
+		}
+		void retire()
+		{
+			Running = false;
+			Retired();
+		}
 		/// The machinery refused the turn before it started: no finish.
 		void refuse()
 		{
@@ -104,15 +118,16 @@ namespace {
 	{
 	public:
 		void offer(std::span<const core::agent_profile>) override { }
-		void refuse(std::string_view) override { }
+		void refuse(std::string_view aReason) override { Refused.emplace_back(aReason); }
 		void admit(const application::agent_invocation_projection_identity&) override { }
 		void start(const application::agent_invocation_projection_identity&, const application::prepared_workspace&) override { }
 		void stream(const application::agent_invocation_projection_identity&, const application::agent_stream_event& aEvent) override { Text += aEvent.Text; }
 		void finish(const application::agent_invocation_projection_identity&, const application::agent_run_result&) override { ++Finished; }
 		void present_session_catalog(const application::agent_session_catalog_projection&) override { }
 
-		std::string Text;
-		std::size_t Finished = 0U;
+		std::string              Text;
+		std::size_t              Finished = 0U;
+		std::vector<std::string> Refused;
 	};
 
 	/// The workbench lane the profile writes conversations on.
@@ -366,6 +381,50 @@ namespace {
 		expect(runtime->dispatch(early), "another waits while the review is accepted");
 		runtime->cancel();
 		expect(!runtime->running() && runtime->last_finish() == core::queued_finish::stopped && app.Machinery[session].Requests.size() == 1U, "stopped while it waits, it never starts");
+		app.Lane.drain();
+	}
+
+	/// [[BPR-2243]]. A window sends its next turn once the last one's
+	/// answer is shown, which can be before that run retires: the turn is
+	/// held, not refused, and goes at the retirement ahead of the queue. A
+	/// turn sent while the last one still answers is refused as before, and
+	/// one held is dropped, said, by Stop.
+	void test_a_turn_sent_while_the_last_retires_goes_at_its_retirement()
+	{
+		auto       app       = profile{ };
+		const auto session   = std::string{ "agent-tab:github.com/o/r#7" };
+		auto*      runtime   = app.Runtimes->open(session);
+		auto       window    = shown_turns{ };
+		auto&      machinery = app.Machinery[session];
+		const auto presenter = runtime->attach(application::review_agent_presenter{ .Projection = &window });
+		const auto turn      = [](const std::string& aText) {
+			auto request                = review_snapshot().Request;
+			request.Context.ChatMessage = aText;
+			return request;
+		};
+		runtime->adopt(review_snapshot());
+		expect(runtime->dispatch(turn("first")) && machinery.Requests.size() == 1U, "the first turn runs");
+		expect(!runtime->dispatch(turn("too early")), "a turn sent while the last one still answers is refused");
+		machinery.finish_only("first answered");
+		expect(window.Finished == 1U && runtime->running(), "the window shows the answer while the run has not retired");
+		expect(runtime->dispatch(turn("second")) && machinery.Requests.size() == 1U && window.Refused.empty(), "the next turn sent now is held, not refused");
+		expect(!runtime->dispatch(turn("third")), "one held turn at most");
+		expect(app.Queue.enqueue(session, typed("queued")) == core::queue_refusal::none, "a message is queued meanwhile");
+		expect(!runtime->is_quiescent() && runtime->state(nullptr) == core::queue_agent::busy, "the held turn keeps the runtime busy");
+		machinery.retire();
+		app.Lane.drain();
+		expect(machinery.Requests.size() == 2U && machinery.Requests.back().Context.ChatMessage == "second" && runtime->running(), "at the retirement the held turn goes");
+		expect(app.Queue.queue(session)->Entries.size() == 1U && !app.Queue.sending(session), "ahead of the queue, which waits");
+		machinery.answer("second answered");
+		app.Lane.drain();
+		expect(machinery.Requests.size() == 3U && machinery.Requests.back().Context.ChatMessage == "queued", "the queued message goes after it");
+		machinery.finish_only("queued answered");
+		expect(runtime->dispatch(turn("stopped")), "another is held");
+		runtime->cancel();
+		machinery.retire();
+		app.Lane.drain();
+		expect(machinery.Requests.size() == 3U && window.Refused.size() == 1U && window.Refused.front() == "Stopped. Nothing was sent.", "Stop drops the held turn and says so");
+		runtime->detach(presenter);
 		app.Lane.drain();
 	}
 
@@ -641,6 +700,7 @@ auto main() -> int
 	test_unshown_turns_are_written_to_the_conversation();
 	test_a_run_finish_pauses_the_queue_with_its_reason();
 	test_a_turn_sent_before_ready_waits_for_it();
+	test_a_turn_sent_while_the_last_retires_goes_at_its_retirement();
 	test_window_releases_and_runtime_stays_while_work_waits();
 	test_shutdown_stops_every_runtime();
 	test_a_lost_authority_pauses_the_queue_and_starts_nothing();

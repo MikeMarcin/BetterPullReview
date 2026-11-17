@@ -893,20 +893,6 @@ namespace bpr::qt {
 				PageDispatch(*item);
 			}
 		});
-		// [[BPR-2049]]. Seen or Approve again on a reviewed row back for new
-		// commits; the ignored list's own action is its Unignore.
-		if (&aView != IgnoredView) {
-			auto* const followup = new home_row_action{ aView, QString{ } };
-			followup->setObjectName(QStringLiteral("homeRowFollowupButton"));
-			followup->set_trigger([this, view = &aView](const int aRow) {
-				if (!FollowupDispatch || view->model() == nullptr) {
-					return;
-				}
-				if (const auto item = item_of(*view, view->model()->index(aRow, 0, view->rootIndex())); item.has_value()) {
-					FollowupDispatch(*item);
-				}
-			});
-		}
 		aView.setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(&aView, &QWidget::customContextMenuRequested, this, [this, view = &aView](const QPoint& aPosition) {
 			const auto index = view->indexAt(aPosition);
@@ -933,11 +919,6 @@ namespace bpr::qt {
 	auto home_list::selection_shown() const noexcept -> bool
 	{
 		return SelectionShown;
-	}
-
-	void home_list::set_followup_dispatch(std::function<void(const core::queue_item&)> aDispatch)
-	{
-		FollowupDispatch = std::move(aDispatch);
 	}
 
 	void home_list::set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch)

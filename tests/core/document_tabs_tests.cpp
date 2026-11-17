@@ -552,6 +552,43 @@ void test_a_report_is_a_tab_beside_the_files()
 	expect(closed.Load && state.Tabs.size() == 1U && !active(state).report(), "closing the report shows the file again");
 }
 
+/// [[BPR-2233]]. Go to draft from a report chooses a file; the report's row
+/// pressed straight after opens the report again. Whichever order the file's
+/// own open then settles in, the later gesture keeps the front.
+void test_the_later_of_a_file_choice_and_a_report_keeps_the_front()
+{
+	auto state = document_tabs_state{ };
+	static_cast<void>(open(state, set_window_comparison_intent{ pair(1, 2) }));
+	present(state, open(state, open_in_active_tab_intent{ file(1) }));
+	static_cast<void>(open(state, open_report_tab_intent{ "turn:4" }));
+	const auto report = *state.Active;
+	// The file is chosen, then the report's row is pressed before the
+	// file's open settles: the report stays in front.
+	static_cast<void>(observe_file_choice(state, file(2)));
+	expect(takes_selected_file(state, file(2), file(1)), "a file chosen while the report shows is taken");
+	static_cast<void>(open(state, activate_tab_intent{ report }));
+	expect(!takes_selected_file(state, file(2), file(1)) && !takes_selected_file(state, file(2), file(2)), "after the report's row, the file's late open does not take the front back");
+	// The file is chosen and taken, then the report's row: a second settling
+	// of the same file leaves the report in front.
+	static_cast<void>(observe_file_choice(state, file(2)));
+	const auto taken = open(state, open_in_active_tab_intent{ file(2) });
+	expect(taken.Load && active(state).View.File == file(2), "the chosen file is shown");
+	present(state, taken);
+	static_cast<void>(open(state, open_report_tab_intent{ "turn:4" }));
+	expect(active(state).Id == report && !takes_selected_file(state, file(2), file(2)), "the report opened after the file keeps the front");
+	// The report, then a file chosen: the file takes the front.
+	static_cast<void>(observe_file_choice(state, file(3)));
+	expect(takes_selected_file(state, file(3), file(2)), "a file chosen after the report is taken");
+	// A refresh while the report shows keeps the choice to be taken.
+	static_cast<void>(reload_active(state));
+	expect(takes_selected_file(state, file(3), file(2)), "a refresh under the report keeps the choice");
+	// File tabs and no tab keep their rule.
+	present(state, open(state, open_in_active_tab_intent{ file(3) }));
+	expect(!takes_selected_file(state, file(3), file(3)) && takes_selected_file(state, file(1), file(3)), "a file tab takes a selection it does not show");
+	auto none = document_tabs_state{ };
+	expect(takes_selected_file(none, file(1), std::nullopt) && !takes_selected_file(none, file(1), file(1)), "with no tab, a selection not yet reflected opens");
+}
+
 auto main() -> int
 {
 	test_completion_and_reading_are_one_transition();
@@ -573,6 +610,7 @@ auto main() -> int
 	test_the_collection_is_bounded();
 	test_restoration_keeps_order_active_pairs_positions_and_the_window();
 	test_a_report_is_a_tab_beside_the_files();
+	test_the_later_of_a_file_choice_and_a_report_keeps_the_front();
 	std::cout << "All document tab core tests passed\n";
 	return 0;
 }

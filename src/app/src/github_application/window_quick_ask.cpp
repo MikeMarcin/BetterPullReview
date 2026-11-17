@@ -38,6 +38,28 @@ namespace bpr::app {
 			}
 			return static_cast<std::uint32_t>(std::distance(found, aCommits.end()) - 1);
 		}
+
+		/// [[BPR-2231]]. A report's keep action as a finding card's request:
+		/// its card's delivery and finding when it is a card, with the
+		/// report's comment; else the report's own, under its record.
+		[[nodiscard]] auto report_card_request(const qt::report_draft& aDraft) -> qt::agent_finding_card_request
+		{
+			auto request   = qt::agent_finding_card_request{ };
+			request.Action = aDraft.Keep == core::report_keep::draft_comment ? qt::agent_finding_card_action::draft_comment : qt::agent_finding_card_action::keep_local;
+			if (aDraft.Card) {
+				request.Session                  = aDraft.Card->Session;
+				request.Ordinal                  = aDraft.Card->Ordinal;
+				request.Finding                  = aDraft.Card->Finding;
+				request.Finding.SuggestedComment = aDraft.Comment.toStdString();
+				return request;
+			}
+			request.Session       = core::restored_finding_session(aDraft.Key.Findings);
+			request.Ordinal       = aDraft.Key.Ordinal;
+			request.Finding.Path  = aDraft.Path.toStdString();
+			request.Finding.Lines = { .Begin = aDraft.First > 0U ? aDraft.First - 1U : 0U, .End = aDraft.Last };
+			request.Finding.Claim = aDraft.Comment.toStdString();
+			return request;
+		}
 	} // namespace
 
 	auto github_application::implementation::steer_shown() -> application::agent_queue_steer_done
@@ -160,23 +182,66 @@ namespace bpr::app {
 				tab->open_reference(aLink);
 			});
 			report->set_dresser([tab](qt::markdown_body_view& aView) { tab->dress_answer_view(aView); });
-			// docs/design/report-templates-v2: a suggestion's Add as draft
-			// comment drafts it at its lines as a finding card's does. Nothing
-			// is published.
-			report->set_draft_dispatch([this](const qt::report_draft& aDraft, qt::report_draft_done aDone) {
-				auto request                     = qt::agent_finding_card_request{ };
-				request.Finding.Path             = aDraft.Path.toStdString();
-				request.Finding.Lines            = { .Begin = aDraft.First > 0U ? aDraft.First - 1U : 0U, .End = aDraft.Last };
-				request.Finding.Claim            = aDraft.Comment.toStdString();
-				request.Finding.SuggestedComment = aDraft.Comment.toStdString();
-				request.Action                   = qt::agent_finding_card_action::draft_comment;
-				act_on_agent_card(request, [aDone](const qt::agent_finding_card_state aState, const QString& aWhy, std::uint64_t) {
-					if (aState == qt::agent_finding_card_state::drafted) {
+			// [[BPR-2219]] (docs/design/review-report-v1). A finding's keep
+			// action, as the core chose it, goes where a finding card's goes:
+			// Draft comment drafts at its lines, Keep local keeps a Local
+			// comment on its file or, with no file (the summary), on the pull
+			// request. Nothing is published.
+			// [[BPR-2231]]: a finding at a finding card's place goes through
+			// that card's delivery, so the card says Drafted too; what either
+			// made is the turn's one state for the finding, kept past a
+			// restart where the card's is.
+			report->set_keep_records([this](const core::report_finding_key& aKey) {
+				return AgentFindingCards ? AgentFindingCards->memory().recall(aKey.Findings, aKey.Ordinal) : core::agent_finding_card_record{ };
+			});
+			report->set_draft_dispatch([this, tab](const qt::report_draft& aDraft, qt::report_draft_done aDone) {
+				const auto request = report_card_request(aDraft);
+				act_on_agent_card(request, [this, tab, aDraft, aDone, request](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+					if (Closing || aState == qt::agent_finding_card_state::working) {
+						return;
+					}
+					if (aDraft.Card) {
+						tab->present_finding_card_state(request.Session, request.Ordinal, aState, aWhy, aNote);
+					}
+					settle_report_finding(aDraft.Key, aState, aWhy, aNote);
+					if (aState == qt::agent_finding_card_state::drafted || aState == qt::agent_finding_card_state::noted) {
 						aDone(true, { });
 					} else if (aState == qt::agent_finding_card_state::refused) {
 						aDone(false, aWhy);
 					}
 				});
+			});
+			// [[BPR-2232]]. Draft all from the report: the Agent tab's Draft
+			// all path, in the report's order, each finding's state kept as
+			// one; the report stays in front. Nothing is published.
+			report->set_placeable([this](const qt::report_draft& aDraft) { return aDraft.Keep == core::report_keep::draft_comment && agent_finding_placeable(report_card_request(aDraft).Finding); });
+			report->set_draft_all_dispatch([this, report](std::vector<qt::report_draft> aDrafts, const core::draft_all_outcome& aPlanned, qt::report_draft_all_done aDone) {
+				// A batch the Agent tab never numbers, so never its to undo.
+				auto request = qt::agent_draft_all_request{ .Batch = (std::uint64_t{ 1U } << 63U) | ++ReportDraftAllBatch, .Cards = { }, .Planned = aPlanned };
+				auto keys    = std::vector<core::report_finding_key>{ };
+				for (const auto& draft : aDrafts) {
+					request.Cards.push_back(report_card_request(draft));
+					keys.push_back(draft.Key);
+				}
+				draft_all_agent_cards(
+					std::move(request),
+					[aDone](const core::draft_all_outcome& aOutcome, bool) {
+						if (aDone) {
+							aDone(aOutcome);
+						}
+					},
+					std::move(keys), report->document().Turn);
+			});
+			// Go to draft, Go to comment: the file, at the finding's lines.
+			report->set_go_dispatch([this](const qt::report_draft& aDraft) {
+				if (Closing || Window == nullptr || aDraft.Path.isEmpty()) {
+					return;
+				}
+				if (aDraft.First != 0U) {
+					static_cast<void>(Window->go_to_file_line(aDraft.Path, aDraft.First, false));
+				} else {
+					static_cast<void>(Window->open_file_in_review(aDraft.Path));
+				}
 			});
 			// docs/design/report-card-v4: the question under the title and
 			// Show in conversation: the Agent tab at the turn, the report's tab
@@ -252,7 +317,24 @@ namespace bpr::app {
 			const auto progress = core::thread_progress_since(core::thread_baseline(said), head, commits);
 			entry.Changed       = progress.Changed;
 			entry.CommitsSince  = progress.CommitsSince;
+			// [[BPR-2221]]. Resolved as the viewer's own resolve or reopen
+			// projects the read's; the replies facts are core's, from the
+			// authors and the signed-in account.
+			entry.Resolved = core::project_thread_resolution(thread.Resolved, ConversationOverlay, thread_identity(thread)).Resolved;
+			auto authors   = std::vector<core::quick_ask_comment>{ };
+			for (const auto& comment : thread.Comments) {
+				authors.push_back({ .Author = comment.Author ? comment.Author->Login : std::string{ }, .Deleted = comment.Deleted });
+			}
+			const auto replies     = core::decide_thread_replies(authors, snapshot->Viewer.Login);
+			entry.Replied          = replies.Replied;
+			entry.RepliesSinceMine = replies.RepliesSinceMine;
 			facts.Threads.push_back(std::move(entry));
+		}
+		facts.ThreadsRead = snapshot->ReviewThreadsAvailability == application::github_collection_availability::available;
+		// [[BPR-2221]]. The files the review's own marks count done, once the
+		// Overview has read every receipt.
+		if (PublishedOverview && OverviewReceiptRevision) {
+			facts.ReviewedFiles = application::overview_done_files(*PublishedOverview);
 		}
 		return facts;
 	}

@@ -813,33 +813,11 @@ namespace bpr::qt {
 			return home_verdict_sentence(item->Facts.MyReview);
 		case home_row_role::row_action:
 			// [[BPR-1683]]. An ignored row's own action, on hover and focus.
-			// [[BPR-2049]]. A reviewed row back for new commits: Seen while my
-			// approval stands, Approve again once GitHub dismissed it.
-			if (item->Ignored) {
-				return home_unignore_text();
-			}
-			switch (core::review_followup_for(*item)) {
-			case core::review_followup::seen:          return QStringLiteral("Seen");
-			case core::review_followup::approve_again: return QStringLiteral("Approve again");
-			case core::review_followup::none:          break;
-			}
-			return QString{ };
+			// [[BPR-2217]]. Seen and Approve again are the review's, not the
+			// row's (owner, 2026-11-16).
+			return item->Ignored ? home_unignore_text() : QString{ };
 		case home_row_role::row_action_tip:
-			if (item->Ignored) {
-				return QStringLiteral("Puts this pull request back in its section; nothing changes on GitHub");
-			}
-			switch (core::review_followup_for(*item)) {
-			case core::review_followup::seen:
-				return QStringLiteral("My approval still stands: marks the new commits seen here and moves it to Following. Nothing changes on GitHub.");
-			case core::review_followup::approve_again:
-				return QStringLiteral("GitHub dismissed my approval when commits were pushed: opens it to approve the current commits on GitHub.");
-			case core::review_followup::none: break;
-			}
-			return QString{ };
-		case home_row_role::followup: {
-			const auto followup = core::review_followup_for(*item);
-			return item->Ignored || followup == core::review_followup::none ? QVariant{ } : QVariant{ static_cast<int>(followup) };
-		}
+			return item->Ignored ? QStringLiteral("Puts this pull request back in its section; nothing changes on GitHub") : QString{ };
 		case home_row_role::time:
 		case home_row_role::progress:
 			return QString{ };

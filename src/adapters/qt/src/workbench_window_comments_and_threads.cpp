@@ -1395,6 +1395,18 @@ namespace bpr::qt {
 	void workbench_window::open_report(const std::string& aKey, const agent_report_document& aReport)
 	{
 		Reports[aKey] = aReport;
+		// [[BPR-2218]], owner 2026-11-16: "Opening that attachment should
+		// bring it to the front, like how opening a file on overview switches
+		// to it." The files' strip and the report's place stand in Review
+		// and Author only, so from anywhere else Review is entered first and
+		// then the tab, as enter_review_at does for a file.
+		const auto documentHidden = CompositionPage != nullptr
+			|| (Modality != nullptr
+				&& (Modality->current() == review_modality::overview || Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads));
+		if (documentHidden && !showing_home()) {
+			ReviewEnteredFor = overview_review_key();
+			choose_modality(review_modality::review);
+		}
 		if (DocumentTabDispatch) {
 			DocumentTabDispatch(core::open_report_tab_intent{ .Report = aKey });
 		}

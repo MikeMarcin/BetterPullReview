@@ -75,6 +75,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -422,18 +423,6 @@ namespace bpr::qt {
 			chip->setMargin(3);
 			chip->setForegroundRole(QPalette::WindowText);
 			return chip;
-		}
-
-		[[nodiscard]] auto severity_colour(const core::defect_severity aSeverity, const QPalette& aPalette) -> QColor
-		{
-			const auto night = dark(aPalette);
-			switch (aSeverity) {
-			case core::defect_severity::critical:
-			case core::defect_severity::major:    return night ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
-			case core::defect_severity::minor:    return night ? QColor{ 0xE3, 0xB3, 0x41 } : QColor{ 0xC3, 0x8A, 0x10 };
-			case core::defect_severity::trivial:  return aPalette.color(QPalette::Active, QPalette::PlaceholderText);
-			}
-			return aPalette.color(QPalette::Active, QPalette::PlaceholderText);
 		}
 
 		[[nodiscard]] auto confidence_words(const core::agent_finding_confidence aConfidence) -> QString
@@ -991,6 +980,7 @@ namespace bpr::qt {
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
 			PendingName       = SendingMacro && SendingMacro->Name != *PendingQuestion ? SendingMacro->Name : QString{ };
+			PendingEdited     = !PendingName.isEmpty() && !core::prompt_sent_unedited(PendingQuestion->toStdString(), SendingMacro->Expansion.toStdString());
 			PendingReview     = false;
 			PendingKeepsField = KeepingDraft;
 			PendingAbout      = ConversationShown;
@@ -1348,6 +1338,7 @@ namespace bpr::qt {
 		} else {
 			next.Question    = *PendingQuestion;
 			next.Name        = PendingName;
+			next.Edited      = PendingEdited;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
 			next.Returning   = PendingReturning;
@@ -1369,6 +1360,7 @@ namespace bpr::qt {
 		PendingQuestion.reset();
 		PendingAbout.reset();
 		PendingName.clear();
+		PendingEdited = false;
 		PendingDraftTarget.reset();
 		PendingReturning.reset();
 		PendingExplain.clear();
@@ -1426,6 +1418,10 @@ namespace bpr::qt {
 		}
 		// RFC-BPR-0125 (AC07). A suggested prompt's turn shows what was sent
 		// under the prompt's name, in the weight About uses.
+		// Look review-report-v002 (owner: "I wish the option when it's
+		// collapsed took a little less space"): the name and its Show prompt
+		// share one row.
+		auto* nameRow = static_cast<QHBoxLayout*>(nullptr);
 		if (!aTurn.Name.isEmpty()) {
 			auto* const name = new QLabel{ aTurn.Name, asked };
 			name->setObjectName(QStringLiteral("agentTurnName"));
@@ -1434,7 +1430,20 @@ namespace bpr::qt {
 			auto strong = name->font();
 			strong.setWeight(QFont::DemiBold);
 			name->setFont(strong);
-			askedColumn->addWidget(name);
+			nameRow = new QHBoxLayout{ };
+			nameRow->setContentsMargins(0, 0, 0, 0);
+			nameRow->setSpacing(6);
+			// Look review-report-v003 (owner, 2026-11-16: "I would add the
+			// little indigo ai symbol next to anything coming from an app
+			// prompt in the transcript"): the agent glyph in the Agent
+			// accent, before the prompt's name.
+			auto* const glyph = new QLabel{ asked };
+			glyph->setObjectName(QStringLiteral("agentTurnPromptGlyph"));
+			glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
+			glyph->setToolTip(tr("Sent from a prompt"));
+			nameRow->addWidget(glyph, 0, Qt::AlignVCenter);
+			nameRow->addWidget(name, 1);
+			askedColumn->addLayout(nameRow);
 		}
 		const auto spoken = aTurn.Name.isEmpty() ? aTurn.Question : tr("%1: %2").arg(aTurn.Name, aTurn.Question);
 		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, spoken) : spoken);
@@ -1445,9 +1454,17 @@ namespace bpr::qt {
 		// Owner look v004: a file and line the question names is a link to it.
 		connect(question, &QLabel::linkActivated, this, [this](const QString& aLink) { follow_link(aLink); });
 		aTurn.QuestionLabel = question;
-		if (aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
+		// [[BPR-2219]], look review-report-v001 (owner, 2026-11-16: "All of
+		// this extra context from a prompt we select should be hidden.. it's
+		// just noise. Maybe you can see it with a click or disclosure"): a
+		// turn sent under a prompt's name shows the name; what was sent is
+		// behind Show prompt.
+		// [[BPR-2237]]. Unless the reviewer changed the prompt's text: then it
+		// is theirs, shown as written under the name.
+		const auto named = !aTurn.Name.isEmpty() && !aTurn.Edited;
+		if (named || aTurn.Question.count(QLatin1Char{ '\n' }) >= folded_question_lines) {
 			// RFC-BPR-0125 (AC07). Text past six lines folds behind Show all.
-			auto* const showAll = new quiet_push_button{ tr("Show all"), asked };
+			auto* const showAll = new quiet_push_button{ named ? tr("Show prompt") : tr("Show all"), asked };
 			showAll->setObjectName(QStringLiteral("agentTurnShowAll"));
 			showAll->setFlat(true);
 			connect(showAll, &QPushButton::clicked, this, [this, serial = aTurn.Serial] {
@@ -1456,7 +1473,8 @@ namespace bpr::qt {
 					return;
 				}
 				found->Unfolded = !found->Unfolded;
-				found->ShowAll->setText(found->Unfolded ? tr("Show less") : tr("Show all"));
+				found->ShowAll->setText(!found->Name.isEmpty() && !found->Edited ? (found->Unfolded ? tr("Hide prompt") : tr("Show prompt")) : found->Unfolded ? tr("Show less")
+																																							   : tr("Show all"));
 				show_question(*found);
 			});
 			aTurn.ShowAll = showAll;
@@ -1468,7 +1486,9 @@ namespace bpr::qt {
 			question->setFont(italic);
 		}
 		askedColumn->addWidget(question);
-		if (aTurn.ShowAll != nullptr) {
+		if (aTurn.ShowAll != nullptr && nameRow != nullptr) {
+			nameRow->addWidget(aTurn.ShowAll, 0, Qt::AlignRight | Qt::AlignTop);
+		} else if (aTurn.ShowAll != nullptr) {
 			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
 		}
 		column->addWidget(asked);
@@ -1524,6 +1544,14 @@ namespace bpr::qt {
 		claim->hide();
 		replyColumn->addWidget(claim);
 		aTurn.Claim = claim;
+		// [[BPR-2236]]. A report's verdict, over its summary, as the page
+		// shows it.
+		auto* const verdict = new QLabel{ reply };
+		verdict->setObjectName(QStringLiteral("agentTurnReportVerdict"));
+		verdict->setTextFormat(Qt::RichText);
+		verdict->hide();
+		replyColumn->addWidget(verdict);
+		aTurn.Verdict = verdict;
 		replyColumn->addWidget(answer);
 		// RFC-BPR-0128 ([[BPR-2166]]) as the owner chose it on 2026-11-14
 		// (docs/design/report-card-v4, round 1's C, Attachment): the reply
@@ -1949,7 +1977,9 @@ namespace bpr::qt {
 					: many                     ? aTurn.Question
 					: !aTurn.Explain.isEmpty() ? tr("Explain %1").arg(aTurn.Explain)
 											   : tr("What changed since your review");
-				const auto card  = core::report_card_of(answer, named.toStdString());
+				// [[BPR-2219]]. The card reads the report, not what the agent
+				// said while it worked.
+				const auto card = core::report_card_of(core::read_report_answer(answer).Report, named.toStdString());
 				aTurn.ReportTitle->setText(QString::fromStdString(card.Title));
 				// Round 1's wording; defect 2: "1 section", counted without
 				// the title.
@@ -1959,8 +1989,14 @@ namespace bpr::qt {
 				aTurn.ReportOpen->setAccessibleName(tr("Open report: %1").arg(aTurn.ReportTitle->text()));
 				aTurn.ReportOpen->setToolTip(tr("Open report"));
 				aTurn.ReportOpen->updateGeometry();
-				summary = QString::fromStdString(card.Summary);
+				summary           = QString::fromStdString(card.Summary);
+				aTurn.VerdictWord = card.Verdict;
+				aTurn.VerdictTone = card.VerdictTone;
+			} else {
+				aTurn.VerdictWord.clear();
+				aTurn.VerdictTone = core::report_tone::neutral;
 			}
+			show_verdict(aTurn);
 			aTurn.ReportCard->setVisible(report);
 		}
 
@@ -2060,8 +2096,12 @@ namespace bpr::qt {
 		}
 		// RFC-BPR-0125 (AC07). Folded, the first six lines show, and only
 		// the references within them are links.
+		// [[BPR-2219]]. A named turn's text shows whole, or not at all.
+		if (aTurn.QuestionLabel != nullptr) {
+			aTurn.QuestionLabel->setVisible(aTurn.Name.isEmpty() || aTurn.Edited || aTurn.Unfolded);
+		}
 		auto shown = aTurn.Question;
-		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded) {
+		if (aTurn.ShowAll != nullptr && !aTurn.Unfolded && (aTurn.Name.isEmpty() || aTurn.Edited)) {
 			shown = aTurn.Question.section(QLatin1Char{ '\n' }, 0, folded_question_lines - 1) + QStringLiteral("…");
 			std::erase_if(refs, [cut = shown.size() - 1](const shown_reference& aRef) { return aRef.Begin + aRef.Length > cut; });
 		}
@@ -2187,6 +2227,7 @@ namespace bpr::qt {
 			}
 			next.Question   = shown.Question;
 			next.Name       = shown.Name;
+			next.Edited     = shown.Edited;
 			next.Done       = true;
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
@@ -2362,6 +2403,7 @@ namespace bpr::qt {
 				}
 				result.push_back({ .Question   = kept.Question,
 								   .Name       = kept.Name,
+								   .Edited     = kept.Edited,
 								   .Answer     = answer,
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
@@ -2555,10 +2597,11 @@ namespace bpr::qt {
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
 		auto       carried  = macro_send{
-			.Key     = QString::fromStdString(offer.Id),
-			.Name    = QString::fromStdString(offer.Label),
-			.Subject = core::suggested_subject_of(offer.Subject),
-			.Review  = offer.Kind == core::prompt_ask::review,
+			.Key       = QString::fromStdString(offer.Id),
+			.Name      = QString::fromStdString(offer.Label),
+			.Subject   = core::suggested_subject_of(offer.Subject),
+			.Review    = offer.Kind == core::prompt_ask::review,
+			.Expansion = text,
 		};
 		const auto toEnd = [composer] {
 			auto cursor = composer->textCursor();
@@ -2947,14 +2990,35 @@ namespace bpr::qt {
 		const auto& turn = Turns[aTurn];
 		// References are links in the report as they are in the answer.
 		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+		// [[BPR-2219]]. The comments the agent suggested for this turn's
+		// findings, by place: the report's findings draft from them.
+		// [[BPR-2231]]: every card of the turn, so a report finding at a
+		// card's place is that card and shares its one state.
+		auto       suggested = std::vector<core::report_suggested_comment>{ };
+		auto       cards     = std::vector<agent_report_card>{ };
+		const auto block     = core::digest_agent_findings(turn.FindingsBlock);
+		for (const auto& entry : CardEntries) {
+			if (entry.Turn == std::optional{ aTurn } && entry.Ordinal <= std::numeric_limits<std::uint32_t>::max()) {
+				suggested.push_back({ .Path    = entry.Finding.Path,
+									  .First   = entry.Finding.Lines.Begin + 1U,
+									  .Last    = std::max(entry.Finding.Lines.End, entry.Finding.Lines.Begin + 1U),
+									  .Comment = entry.Finding.SuggestedComment ? *entry.Finding.SuggestedComment : std::string{ } });
+				cards.push_back({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Key = { .Findings = block, .Ordinal = static_cast<std::uint32_t>(entry.Ordinal) } });
+			}
+		}
 		// [[BPR-2184]] (review N5): keyed by the turn's stable identity, its
 		// byline handed over as data.
 		ReportDispatch(agent_report_document{
 			.Turn     = turn.Serial,
 			.Title    = turn.ReportTitle != nullptr ? turn.ReportTitle->text() : QString{ },
 			.Markdown = shown,
-			.Question = turn.Question,
-			.Byline   = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
+			// [[BPR-2219]]. A turn sent under a name (a review prompt, whose
+			// question is its whole body) is said by that name.
+			.Question  = turn.Name.isEmpty() ? turn.Question : turn.Name,
+			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
+			.Suggested = std::move(suggested),
+			.Cards     = std::move(cards),
+			.Answer    = turn.AnswerText.trimmed(),
 		});
 	}
 
@@ -2976,6 +3040,8 @@ namespace bpr::qt {
 	auto agent_tab_view::turn_report_card(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].ReportCard.data() : nullptr; }
 
 	auto agent_tab_view::turn_claim(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Claim.data() : nullptr; }
+
+	auto agent_tab_view::turn_verdict(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].Verdict.data() : nullptr; }
 
 	auto agent_tab_view::turn_ask_more_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].AskMore.data() : nullptr; }
 
@@ -3420,11 +3486,72 @@ namespace bpr::qt {
 	{
 		CodeFont  = aProfile.code_font();
 		CodeTheme = markdown_code_theme{ .Colors = code_role_colors_of(aProfile.palette()), .Variant = aProfile.variant() };
+		Tones     = tone_colours_of(aProfile);
 		for (const auto& kept : Turns) {
 			if (kept.Answer != nullptr) {
 				dress_answer(*kept.Answer);
 			}
+			show_verdict(kept);
 		}
+		for (const auto& entry : CardEntries) {
+			colour_card(entry);
+		}
+	}
+
+	auto agent_tab_view::tones() const -> tone_colours { return Tones.value_or(builtin_tone_colours(dark(palette()))); }
+
+	void agent_tab_view::colour_card(const card_entry& aEntry) const
+	{
+		// A card's widget is always its `rounded` frame (`make_card`).
+		auto* const card = static_cast<rounded*>(aEntry.Widget.data());
+		if (card == nullptr) {
+			return;
+		}
+		const auto colours = tones();
+		const auto quiet   = palette().color(QPalette::Active, QPalette::PlaceholderText);
+		const auto tone    = tone_colour(core::report_tone_of(aEntry.Finding.Severity), colours);
+		card->Edge         = tone.value_or(quiet);
+		card->update();
+		const auto paint = [](QLabel* aLabel, const std::optional<QColor>& aColour) {
+			if (aLabel == nullptr) {
+				return;
+			}
+			if (aColour) {
+				auto coloured = aLabel->palette();
+				coloured.setColor(QPalette::WindowText, *aColour);
+				aLabel->setForegroundRole(QPalette::WindowText);
+				aLabel->setPalette(coloured);
+			} else {
+				aLabel->setForegroundRole(QPalette::PlaceholderText);
+			}
+		};
+		paint(card->findChild<QLabel*>(QStringLiteral("agentFindingSeverity")), tone.value_or(quiet));
+		if (auto* const label = card->findChild<QLabel*>(QStringLiteral("agentFindingSuggestionLabel")); label != nullptr) {
+			paint(label, tone_colour(core::report_tone_of(label->property("bprToneLabel").toString().toStdString()), colours));
+		}
+	}
+
+	void agent_tab_view::show_verdict(const turn& aTurn) const
+	{
+		if (aTurn.Verdict == nullptr) {
+			return;
+		}
+		if (aTurn.VerdictWord.empty()) {
+			aTurn.Verdict->clear();
+			aTurn.Verdict->hide();
+			return;
+		}
+		// The report page's mark: "Verdict", quiet, then the verdict filled
+		// with its tone and lettered in the ground.
+		const auto ground = palette().color(QPalette::Active, QPalette::Base);
+		const auto quiet  = palette().color(QPalette::Active, QPalette::PlaceholderText);
+		const auto words  = QString::fromStdString(aTurn.VerdictWord).toHtmlEscaped();
+		const auto tone   = tone_colour(aTurn.VerdictTone, tones());
+		aTurn.Verdict->setText(tone ? QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp;&nbsp;<span style=\"background-color:%3;color:%4;font-weight:600\">&nbsp;%5&nbsp;</span>")
+										  .arg(quiet.name(), tr("Verdict").toHtmlEscaped(), tone->name(), ground.name(), words)
+									: QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp;&nbsp;<b>%3</b>").arg(quiet.name(), tr("Verdict").toHtmlEscaped(), words));
+		aTurn.Verdict->setAccessibleName(tr("Verdict: %1").arg(QString::fromStdString(aTurn.VerdictWord)));
+		aTurn.Verdict->show();
 	}
 
 	auto agent_tab_view::turn_answer(const std::size_t aTurn) const -> QString
@@ -3773,7 +3900,6 @@ namespace bpr::qt {
 		const auto& finding = aEntry.Finding;
 		auto* const card    = new rounded{ rounded::look::card, aParent };
 		card->setObjectName(QStringLiteral("agentFindingCard"));
-		card->Edge      = severity_colour(finding.Severity, palette());
 		auto* const col = new QVBoxLayout{ card };
 		col->setContentsMargins(14, 10, 12, 10);
 		col->setSpacing(5);
@@ -3783,9 +3909,9 @@ namespace bpr::qt {
 		auto        sevFont  = severity->font();
 		sevFont.setWeight(QFont::DemiBold);
 		severity->setFont(sevFont);
-		auto sevPalette = severity->palette();
-		sevPalette.setColor(QPalette::WindowText, severity_colour(finding.Severity, palette()));
-		severity->setPalette(sevPalette);
+		// [[BPR-2236]]. Its colour, and the card's edge, are its tone's
+		// (`colour_card`), as the report page draws the same finding.
+		severity->setObjectName(QStringLiteral("agentFindingSeverity"));
 		meta->addWidget(severity);
 		auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
 		kind->setObjectName(QStringLiteral("agentFindingKind"));
@@ -3889,7 +4015,9 @@ namespace bpr::qt {
 			if (!label.isEmpty()) {
 				auto* const labelled = new QLabel{ label, inset };
 				labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
+				// [[BPR-2236]]. In its tone, as the report page draws the label.
 				labelled->setForegroundRole(QPalette::PlaceholderText);
+				labelled->setProperty("bprToneLabel", label);
 				labelled->setFont(small);
 				labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
 				captionRow->addWidget(labelled);
@@ -3950,6 +4078,7 @@ namespace bpr::qt {
 		card->setProperty("agentFindingCard", QVariant::fromValue<qulonglong>(index));
 		card->setCursor(Qt::PointingHandCursor);
 		aEntry.Widget = card;
+		colour_card(aEntry);
 		show_card_state(aEntry);
 		return card;
 	}
@@ -4819,6 +4948,10 @@ namespace bpr::qt {
 		// instead, in the ordinary roles.
 		if (Ask->text().isEmpty()) {
 			wear_agent_accent(*Ask, palette());
+			// The prompt turns' glyphs follow the palette too.
+			for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
+				glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
+			}
 			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
 		}
 		for (const auto& kept : Turns) {

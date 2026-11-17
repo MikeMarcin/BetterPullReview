@@ -741,9 +741,6 @@ namespace bpr::qt {
 
 		/// \brief [[BPR-1576]]. The sections' veils, for courses.
 		[[nodiscard]] auto pending_veils() const noexcept -> overview_pending_veils;
-		/// \brief [[BPR-1576]]. What the read still waits on, said by a section
-		/// whose wait has become slow: "the changed files, page 3".
-		void set_read_waiting(const QString& aWaiting);
 		/// \brief [[BPR-1576]]. Motion, contrast and failure ink for the veils.
 		void set_pending_appearance(bool aFullMotion, bool aHighContrast, const QColor& aFailureInk);
 
@@ -1065,7 +1062,6 @@ namespace bpr::qt {
 		std::optional<application::overview_checks_projection> ObservedChecks;
 		std::optional<application::overview_people_projection> ObservedPeople;
 		std::optional<application::overview_merge_projection>  ObservedMerge;
-		QString                                                ReadWaiting;
 		overview_pending_veils                                 Veils;
 
 		/// RFC-BPR-0089. The chip above the files, and the gestures it shares

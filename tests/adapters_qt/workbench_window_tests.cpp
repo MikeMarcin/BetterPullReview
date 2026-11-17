@@ -16821,17 +16821,28 @@ namespace {
 				auto* button = chosen();
 				expect(button != nullptr && button->isEnabled(), "a suggested prompt can be pressed");
 				const auto prompt = button->property("agentPrompt").toString();
-				expect(button->toolTip() == prompt + QStringLiteral("\nClick to send. Shift-click to edit before sending.") && button->accessibleName() == prompt
-						   && button->accessibleDescription().startsWith(prompt + QStringLiteral("\nClick to send. Shift-click or "))
+				// [[BPR-2219]]. A prompt shown by its name says what it sends
+				// (a review's body) between its name and how to press it.
+				expect(button->toolTip().startsWith(prompt) && button->toolTip().endsWith(QStringLiteral("\nClick to send. Shift-click to edit before sending.")) && button->accessibleName() == prompt
+						   && button->accessibleDescription().startsWith(prompt) && button->accessibleDescription().contains(QStringLiteral("\nClick to send. Shift-click or "))
 						   && button->accessibleDescription().endsWith(QStringLiteral(" puts it in the question field to edit before sending.")),
 					   "the prompt says a click sends and Shift-click edits, to the pointer and to a screen reader");
+				// What it sends: its text, which for a prompt shown by its name
+				// (a review) is its body, said under the name.
+				auto sends = button->toolTip();
+				sends.chop(QStringLiteral("\nClick to send. Shift-click to edit before sending.").size());
+				if (sends.startsWith(prompt + QLatin1Char{ '\n' })) {
+					sends = sends.mid(prompt.size() + 1);
+				}
+				// A long body is cut in the tooltip: what is asked opens with it.
+				sends = sends.left(400);
 
 				// A plain click sends it: the next turn asks it, exactly.
 				const auto before = agent->turn_count();
 				mouse(*button, Qt::NoModifier);
 				answer(5U);
-				expect(agent->turn_count() == before + 1U && agent->turn_question(before) == prompt && field->toPlainText().isEmpty() && agent->state() == qt::agent_tab_state::working,
-					   "a click sends the prompt as the next turn's question, as if typed and sent");
+				expect(agent->turn_count() == before + 1U && agent->turn_question(before).startsWith(sends) && field->toPlainText().isEmpty() && agent->state() == qt::agent_tab_state::working,
+					   ("a click sends the prompt as the next turn's question, as if typed and sent: asked [" + agent->turn_question(before).left(60) + QStringLiteral("] %1 chars, sends [").arg(agent->turn_question(before).size()) + sends.left(60) + QStringLiteral("] %1 chars, name [").arg(sends.size()) + agent->turn_name(before) + QStringLiteral("], field [") + field->toPlainText().left(30) + QStringLiteral("]")).toStdString());
 				// Busy: nothing a prompt does while a turn runs.
 				expect(!button->isEnabled() && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isHidden(), "while the agent works the prompts are neither shown nor pressable");
 				field->setPlainText(QStringLiteral("typed while it works"));
@@ -16846,7 +16857,7 @@ namespace {
 				field->clear();
 				button = chosen();
 				mouse(*button, Qt::ShiftModifier);
-				expect(field->toPlainText() == prompt && field->hasFocus() && atEnd() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
+				expect(field->toPlainText().startsWith(sends) && field->hasFocus() && atEnd() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
 					   "Shift-click puts the prompt in the question field to edit, focused and at its end, and sends nothing");
 
 				// Words already typed are kept: a click sends the prompt alone
@@ -16857,13 +16868,13 @@ namespace {
 				mouse(*button, Qt::NoModifier);
 				expect(field->toPlainText() == typed, "a click with words in the field leaves them there");
 				answer(6U);
-				expect(agent->turn_count() == before + 2U && agent->turn_question(before + 1U) == prompt && field->toPlainText() == typed,
+				expect(agent->turn_count() == before + 2U && agent->turn_question(before + 1U).startsWith(sends) && field->toPlainText() == typed,
 					   "the prompt alone is sent, and the reviewer's words are still in the field once its turn begins");
 				finish();
 				// Shift-Return adds it after the words, on its own line.
 				button = chosen();
 				keys(*button, Qt::Key_Return, Qt::ShiftModifier);
-				expect(field->toPlainText() == typed + QStringLiteral("\n") + prompt && field->hasFocus() && atEnd() && agent->turn_count() == before + 2U,
+				expect(field->toPlainText().startsWith(typed + QStringLiteral("\n") + sends) && field->hasFocus() && atEnd() && agent->turn_count() == before + 2U,
 					   "Shift-Return adds the prompt after the words in the field, never replacing them, and sends nothing");
 
 				// Return and Space send, as a click does; Shift-Space edits.
@@ -16871,18 +16882,18 @@ namespace {
 				button = chosen();
 				keys(*button, Qt::Key_Return, Qt::NoModifier);
 				answer(7U);
-				expect(agent->turn_count() == before + 3U && agent->turn_question(before + 2U) == prompt, "Return on a focused prompt sends it");
+				expect(agent->turn_count() == before + 3U && agent->turn_question(before + 2U).startsWith(sends), "Return on a focused prompt sends it");
 				finish();
 				field->clear();
 				button = chosen();
 				keys(*button, Qt::Key_Space, Qt::NoModifier);
 				answer(8U);
-				expect(agent->turn_count() == before + 4U && agent->turn_question(before + 3U) == prompt, "Space on a focused prompt sends it");
+				expect(agent->turn_count() == before + 4U && agent->turn_question(before + 3U).startsWith(sends), "Space on a focused prompt sends it");
 				finish();
 				field->clear();
 				button = chosen();
 				keys(*button, Qt::Key_Space, Qt::ShiftModifier);
-				expect(field->toPlainText() == prompt && agent->turn_count() == before + 4U, "Shift-Space puts it in the field to edit");
+				expect(field->toPlainText().startsWith(sends) && agent->turn_count() == before + 4U, "Shift-Space puts it in the field to edit");
 				field->clear();
 				agent->present_thread({ });
 			}
@@ -22011,6 +22022,14 @@ namespace {
 		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent) && agent->isVisible(),
 			   "the Ask agent key opens the Agent tab on Overview");
 		expect(window.showing_overview(), "and stays on Overview");
+		// Owner, look report-keeps-v001: moving to Review with Overview's
+		// Agent tab open keeps the Agent tab open in Review's drawer.
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(window.tray_tabs()->currentIndex() == 2 && !drawer->isAncestorOf(agent) && agent->isVisibleTo(&window), "in Review the drawer is still on the Agent tab");
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->isAncestorOf(agent), "and back on Overview, its Agent tab");
 		// RFC-BPR-0127 ([[BPR-2158]]). N is the window's Local comment.
 		expect(window.local_comment_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note),
 			   "N is the window's Local comment");
@@ -22318,20 +22337,20 @@ namespace {
 			window.resize(window.minimumWidth(), 820);
 			fold_updates_line(window);
 			process_events();
+			// [[BPR-2216]]. The status bar alone says what the read is on.
 			expect(window.findChild<QWidget*>(QStringLiteral("reviewReadiness")) == nullptr
-					   && epochs->comparing_button()->text().contains(QStringLiteral("Loading"))
-					   && epochs->comparing_button()->toolTip().contains(epochs->readiness_text())
+					   && epochs->readiness_text().isEmpty() && !epochs->comparing_button()->text().contains(QStringLiteral("Loading"))
+					   && window.status_label()->text().startsWith(QStringLiteral("Loading"))
 					   && panesTop() == barBottom(),
-				   "loading in every folded modality uses the review summary and adds no row");
+				   "loading in every folded modality leaves the read to the status bar and adds no row");
 			save_render(window, QStringLiteral("readiness-folded-floor-%1").arg(static_cast<int>(modality)));
 			open_updates_line(window);
 			process_events();
 			auto* const readiness = window.findChild<QLabel*>(QStringLiteral("epochReadiness"));
-			expect(spans() && readiness != nullptr && readiness->isVisible() && !epochs->line()->isVisible()
-					   && readiness->text() == epochs->readiness_text()
-					   && readiness->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+			expect(spans() && readiness != nullptr && !readiness->isVisible()
+					   && window.status_label()->text().startsWith(QStringLiteral("Loading"))
 					   && epochs->height() == qt::epoch_line::height_pixels,
-				   "loading occupies the existing 34-pixel track with copyable complete words");
+				   "open, the line keeps its 34-pixel track and leaves the read to the status bar");
 			save_render(window, QStringLiteral("readiness-open-%1").arg(static_cast<int>(modality)));
 			auto* const oldRow = new QWidget{ epochs->parentWidget() };
 			oldRow->setObjectName(QStringLiteral("reviewReadiness"));
@@ -23633,8 +23652,8 @@ namespace {
 		auto* const glyph   = qobject_cast<QToolButton*>(toolbar->widgetForAction(window.queue_refresh_action()));
 		auto* const label   = window.home_discovery_status();
 		expect(window.showing_home() && glyph != nullptr && glyph->isVisible() && !window.queue_refresh_action()->isEnabled()
-				   && label->isVisible() && label->text() == QStringLiteral("Finding my pull requests in 1 saved repository…"),
-			   "while a refresh runs the glyph waits and Home says what is being searched");
+				   && !label->isVisible() && label->text().isEmpty(),
+			   "while a refresh runs the glyph waits and Home leaves saying so to the status bar ([[BPR-2216]])");
 		expect(glyph->focusPolicy() == Qt::StrongFocus && !glyph->accessibleName().isEmpty() && !glyph->accessibleDescription().isEmpty()
 				   && window.focus_order().contains(glyph)
 				   && window.focus_order().indexOf(glyph) > window.focus_order().indexOf(window.home_view_button()),
@@ -25262,7 +25281,7 @@ namespace {
 		auto* const note = window.refresh_note_widget();
 		expect(window.home_refresh().Phase == core::refresh_phase::refreshing && window.home_refresh().Trigger == core::refresh_trigger::reviewer,
 			   "the refresh it started is the reviewer's");
-		expect(note->isVisible() && note->text() == QStringLiteral("Finding my pull requests…"), "and says so under the button");
+		expect(!note->isVisible(), "and leaves saying so to the status bar ([[BPR-2216]])");
 		press(window);
 		expect(refreshes() == 1 && homeTriggers == 1, "while it runs a second press starts nothing");
 		status.State             = state::stale;
