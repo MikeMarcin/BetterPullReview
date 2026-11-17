@@ -207,6 +207,16 @@ def main() -> int:
                                "--fixture", "conventional-comments-v1"], capture_output=True, text=True, check=False, timeout=60)
     expect(unopened.returncode == 1 and "FREEZE_FAILED:a fixture look needs" in unopened.stdout,
            f"a fixture look still needs what it opens: {unopened.stdout!r}")
+    # [[BPR-2216]]. A look at Home opens nothing itself: the application's own
+    # --attended-home-look fills Home, so --open-home needs it.
+    homeless = subprocess.run([sys.executable, str(repository / "scripts/freeze_attended_build.py"), "freeze", "--name", "x",
+                               "--fixture", "github-com", "--open-home"], capture_output=True, text=True, check=False, timeout=60)
+    expect(homeless.returncode == 1 and "FREEZE_FAILED:--open-home needs --argument --attended-home-look" in homeless.stdout,
+           f"a Home look needs the application's home look: {homeless.stdout!r}")
+    home_launcher = freeze.render_launcher(root=repository, title="", commit="Frozen from x", fixture="github-com", open_file=None,
+                                           required=[], next_push=False, extra=["--attended-home-look"], ready="ATTENDED_HOME_SHOWN", open_home=True)
+    expect("OPEN_HOME = True" in home_launcher and "on Home" in home_launcher and "opening = [] if OPEN_HOME" in home_launcher,
+           "a Home launcher starts on Home and asks the application to open nothing")
     # bpr-live-v002 was frozen from a commit the lane had left behind. A freeze
     # takes only this checkout's clean HEAD unless it says why, before it
     # exports anything, and names the commit it froze.
