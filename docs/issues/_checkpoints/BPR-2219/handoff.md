@@ -1,3 +1,52 @@
+# BPR-2219 checkpoint 5 (2026-11-16): built, tested, look filed
+
+Supersedes the checkpoints below.
+
+## Lane commits
+
+- `b3569ae3b` the change (core, host, Qt, prompts, fixture agent, course,
+  tests, design, docs).
+- `6053ee021` a report says a named turn by its name, not its body.
+- `cf4702b54` the course checks Settings › Prompts; **the frozen commit**.
+- `3438cb2f5` verification, the look and known gaps on the card.
+- Checkpoints: `eba9fbf31`, `ec2db966e`, `f9eff000f`, `310cae9cc`, this one.
+
+Main: `dc745af3b` (claim), `c1670e986` (card), `e0260d9c5` (the design
+folder the card links), then the card's last mirror. Both documentation
+gates print `DOCUMENTATION_OK`.
+
+## Real agent
+
+Claude Code 2.1.319, Sonnet, medium effort, MikeMarcin/BPR-Test#185. Before:
+one turn, 35 s, $0.16. After: one turn, 31 s, $0.17. Two turns in all; the
+setup's Check ran no model turn. Artifacts in the session scratchpad's
+`review-report/before/` and `review-report/after/` (`run/review-answer.md`,
+`run/review-report.md`, `run/agent-review.json`, renders,
+`raw-agent-output.jsonl`); the look's images in its `look/`.
+
+## The look
+
+Session `61844d36f1e7580e88fb7552e98de6b6`, state directory
+`~/.attended-review-state/review-report-v001-2026-11-16/`, served on the
+tailnet (host pid in its `serve.pid`); the URL is in its `serve.log` only.
+Frozen build `review-report-v001`, root `~/review-report-v001.d9f1mwjz`,
+from `cf4702b541f6`, `returning-review-v1` at its next push, Fixture agent
+only. Four questions, all pending: `review-reads-as-a-report`,
+`draft-comment-from-a-finding`, `review-report-layout`,
+`review-prompt-visible-body`.
+
+## Left for the integrator
+
+- The card is still In Progress; parking it on human-review is the
+  integrator's move.
+- On the verdicts: reconcile from the session's cursor; remove the frozen
+  root with `scripts/freeze_attended_build.py remove`; close
+  MikeMarcin/BPR-Test#185 and delete its two branches when the card is done.
+- The private worktree `.claude/worktrees/bpr-2219-review-report` (branch
+  `claude/bpr-2219-review-report`, level with the lane at `3438cb2f5`) and
+  its `build/dev` can be removed; nothing in it is uncommitted.
+- Known gaps are on the card.
+
 # BPR-2219 checkpoint 4 (2026-11-16)
 
 Supersedes the checkpoints below where they differ.
