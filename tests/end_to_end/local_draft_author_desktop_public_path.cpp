@@ -1,4 +1,5 @@
 #include "../sqlite_contract/scratch_root.hpp"
+#include "../support/fixture_shell.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
@@ -181,8 +182,8 @@ try {
 	auto       profileRoot   = tests::sqlite_contract::scratch_root{ "local-draft-author-profile" };
 	auto       scratchRoot   = tests::sqlite_contract::scratch_root{ "local-draft-author-worktrees" };
 	const auto scratch       = std::filesystem::canonical(scratchRoot.path());
-	const auto made          = std::system(("/bin/sh '" + script.string() + "' '" + scratch.string() + "'").c_str());
-	expect(made == 0, "the author-state fixture is made");
+	const auto refused       = bpr::tests::run_fixture_script(script, scratch);
+	expect(!refused, "the author-state fixture is made: " + refused.value_or(std::string{ }));
 	const auto worktree = scratch / "engine";
 	const auto hosted   = scratch / "hosted.git";
 

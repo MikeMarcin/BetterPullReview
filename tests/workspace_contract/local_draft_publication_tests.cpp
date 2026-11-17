@@ -273,6 +273,9 @@ namespace {
 			   "AC01: signed out, preparation stops at the named push");
 
 		auto missing = application::check_local_publication(*aFixture.Store, draft, &account, false, 1'200, { });
+		if (missing.Push) {
+			std::cout << "LOCAL_PUBLICATION_PUSH " << missing.Push->Command << '\n';
+		}
 		expect(missing.Branch == core::hosted_branch_state::missing && missing.Refusal == core::local_publication_refusal::branch_missing && missing.Push
 				   && missing.Push->Command.starts_with("git -C " + primary.string() + " push https://github.com/acme/engine.git " + aFixture.rev(primary, "HEAD") + ":refs/heads/feature/search"),
 			   "AC01: an unpushed branch names the exact push to the hosted repository");

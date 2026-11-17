@@ -9,6 +9,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
+#include "local_draft_open_diagnostic.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>
@@ -212,6 +213,9 @@ try {
 		auto* const page = window.local_draft();
 		expect(window.showing_local_draft() && page != nullptr && window.comparison_surface()->isVisible(), "AC01: the draft is shown in the pull request window's own review surface");
 		const auto& view = page->projection();
+		if (!view.Draft || view.Outcome != application::local_draft_open_outcome::created) {
+			bpr::tests::end_to_end::print_local_draft_open(view);
+		}
 		expect(view.Draft && view.Outcome == application::local_draft_open_outcome::created, "AC01: a new local draft");
 		draftId = view.Draft->Id;
 		expect(page->identity()->text() == QStringLiteral("feature/search-results into acme/engine main"), "AC01: source and target identity");

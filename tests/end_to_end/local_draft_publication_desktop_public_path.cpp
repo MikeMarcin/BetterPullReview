@@ -10,6 +10,7 @@
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
+#include "local_draft_open_diagnostic.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>
@@ -240,6 +241,9 @@ try {
 	window->home_prepare_button()->click();
 	settle(lanes);
 	auto* const page = window->local_draft();
+	if (page != nullptr && !page->projection().Draft) {
+		bpr::tests::end_to_end::print_local_draft_open(page->projection());
+	}
 	expect(page != nullptr && page->projection().Draft, "the worktree opens as a local draft");
 	expect(window->current_modality() == qt::review_modality::author, "[[BPR-2196]]: a local draft opens in Author");
 	// The tour goes with the pull request: one accepted stop on the pushed file.

@@ -556,6 +556,9 @@ int main(int aArgc, char** aArgv)
 	static_cast<void>(mutations);
 	const auto& locals = cards->local_comments();
 	const auto  still  = [&locals](const char* aBody) { return std::ranges::any_of(locals, [aBody](const qt::local_comment_card& aCard) { return aCard.Body == QString::fromUtf8(aBody); }); };
+	for (const auto& card : locals) {
+		std::cout << "LOCAL_COMMENTS_STILL " << card.Body.toStdString() << '\n';
+	}
 	expect(still("LOCAL-ONLY: a reply kept here.") && still("LOCAL-ONLY: on the whole file.") && still("LOCAL-ONLY: on the pull request.") && still("LOCAL-ONLY: a second thought."),
 		   "AC03: the Local reply, the file's, the pull request's and the line's Local comments are all still Local after every send");
 	application->begin_shutdown();

@@ -12,6 +12,7 @@
 #include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
+#include "local_draft_open_diagnostic.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QApplication>
@@ -314,6 +315,9 @@ try {
 		window.home_prepare_button()->click();
 		settle(s.Lanes);
 		auto* const page = window.local_draft();
+		if (page != nullptr && !page->projection().Draft) {
+			bpr::tests::end_to_end::print_local_draft_open(page->projection());
+		}
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		settle(s.Lanes);

@@ -1243,6 +1243,22 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 set(bpr_public_path_fixture_environment "QT_QPA_PLATFORM=offscreen")
+# [[BPR-2215]]. A course that makes its worktree with a tests/fixtures .sh
+# script runs it with Git for Windows' own sh.exe on Windows, which has no
+# /bin/sh (tests/support/fixture_shell.hpp).
+set(bpr_fixture_shell_environment "")
+if(WIN32 AND GIT_EXECUTABLE)
+    get_filename_component(bpr_fixture_git_directory "${GIT_EXECUTABLE}" DIRECTORY)
+    find_program(
+        BPR_TEST_POSIX_SH
+        NAMES sh.exe
+        HINTS "${bpr_fixture_git_directory}/../../bin" "${bpr_fixture_git_directory}/../bin" "${bpr_fixture_git_directory}"
+        NO_DEFAULT_PATH
+    )
+    if(BPR_TEST_POSIX_SH)
+        set(bpr_fixture_shell_environment "BPR_TEST_POSIX_SH=${BPR_TEST_POSIX_SH}")
+    endif()
+endif()
 if(UNIX AND NOT APPLE)
     list(APPEND
         bpr_public_path_fixture_environment
@@ -5466,6 +5482,9 @@ if(TARGET Git::Git)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_LOCAL_DRAFT_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/local-draft-author"
         PASS_REGULAR_EXPRESSION "local-draft-author-desktop-public-path:(pass|skipped)"
         TIMEOUT 240)
+    if(bpr_fixture_shell_environment)
+        set_property(TEST application_local_draft_author_desktop_public_path APPEND PROPERTY ENVIRONMENT "${bpr_fixture_shell_environment}")
+    endif()
     # RFC-BPR-0110 ([[BPR-2026]], [[BPR-2027]]). The Description and Tour
     # areas through the same window and composition, with a scripted agent.
     bpr_add_executable(test_local_draft_tour_desktop_public_path local_draft_tour_desktop_public_path.cpp "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
@@ -5729,6 +5748,9 @@ bpr_add_network_isolated_test(NAME application_tour_chat_queue_local_draft_publi
     COMMAND test_tour_chat_queue_public_path "$<TARGET_FILE:bpr_fixture_agent>" --local-draft "${PROJECT_SOURCE_DIR}/tests/fixtures/local-draft/make_worktree.sh")
 set_tests_properties(application_tour_chat_queue_local_draft_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "tour-chat-queue-local-draft:pass")
+if(bpr_fixture_shell_environment)
+    set_property(TEST application_tour_chat_queue_local_draft_public_path APPEND PROPERTY ENVIRONMENT "${bpr_fixture_shell_environment}")
+endif()
 
 # [[BPR-2216]]. Opening a pull request from Home is responsive: its page in the
 # gesture's turn while GitHub is slow, Return and the Active review on Home

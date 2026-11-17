@@ -516,7 +516,10 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-2153]]: no turn runs, so there is nothing to steer; the
 			// message is kept, goes next, and the panel says why (Q17).
 			// [[BPR-2152]]: said once its claim is stored.
-			wait([&] { return window.agent_panel()->status_text().contains(QStringLiteral("goes next")); }, "the panel says what became of the steered message");
+			if (!e2e::wait_until_plain([&] { return window.agent_panel()->status_text().contains(QStringLiteral("goes next")); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "the panel says what became of the steered message: [" + window.agent_panel()->status_text().toStdString() + "] queued: "
+										  + rowsOf().join(QLatin1Char('|')).toStdString() };
+			}
 			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("goes next")),
 				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
 			render_showing(window, *list(), QStringLiteral("queue-pending-list"));

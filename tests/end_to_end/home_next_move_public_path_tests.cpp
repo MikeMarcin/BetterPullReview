@@ -145,6 +145,18 @@ try {
 		}
 		return static_cast<int>(count);
 	};
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (shown() != listed && elapsed.elapsed() < 60000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		if (shown() != listed) {
+			std::cout << "HOME_NEXT_MOVE_LISTED shown=" << shown() << " listed=" << listed << " state=" << static_cast<int>(discovery().Status.State)
+					  << " quiescent=" << discovery().Quiescent << " elapsed_ms=" << elapsed.elapsed() << '\n';
+		}
+	}
 	wait_for([&] { return shown() == listed; }, "Home lists every discovered pull request");
 	wait_for([&] { return discovery().Status.State != application::queue_discovery_state::refreshing && discovery().Quiescent; }, "Home's first refresh settles");
 
