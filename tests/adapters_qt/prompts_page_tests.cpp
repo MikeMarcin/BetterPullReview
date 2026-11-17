@@ -197,12 +197,15 @@ namespace {
 		expect(!neighbour.empty() && page.delete_prompt(a), "the selected prompt is deleted");
 		settle();
 		expect(page.selected() == neighbour && current_prompt(page) == neighbour && page.name_field()->isEnabled(), "deleting the selected prompt selects its neighbour");
-		// The last one gone, the one before it.
+		// Again from the other new prompt: the next row, else the one before.
 		page.select(b);
 		settle();
 		shown            = shown_prompts(page);
-		const auto other = shown.back() == b && shown.size() > 1U ? shown.at(shown.size() - 2U) : std::string{ };
-		expect(page.delete_prompt(b) && !other.empty() && page.selected() == other, "deleting the last row selects the one before");
+		const auto atB   = std::ranges::find(shown, b);
+		const auto other = atB == shown.end() ? std::string{ } : std::next(atB) != shown.end() ? *std::next(atB)
+			: atB != shown.begin()                                                             ? *std::prev(atB)
+																							   : std::string{ };
+		expect(page.delete_prompt(b) && !other.empty() && page.selected() == other, "deleting it selects the next row, else the one before");
 		settle();
 
 		// A filter that still shows the selection keeps it.
@@ -266,7 +269,7 @@ namespace {
 			const auto here  = "at " + std::to_string(width) + ": ";
 			const auto right = page.width();
 			expect(aHarness.Scroll.horizontalScrollBar()->maximum() == 0, here + "the page does not scroll sideways");
-			for (const auto* const widget : { static_cast<const QWidget*>(filter), static_cast<const QWidget*>(restore), static_cast<const QWidget*>(create), segment, segment0 }) {
+			for (const auto* const widget : { static_cast<const QWidget*>(filter), static_cast<const QWidget*>(restore), static_cast<const QWidget*>(create), static_cast<const QWidget*>(segment), static_cast<const QWidget*>(segment0) }) {
 				expect(box(widget).left() >= 0 && box(widget).right() < right && widget->width() >= widget->minimumSizeHint().width(), here + widget->objectName().toStdString() + " fits unclipped");
 			}
 			expect(same_row(restore, filter) && same_row(create, filter), here + "New prompt and Restore built-ins are on the filter's row");
