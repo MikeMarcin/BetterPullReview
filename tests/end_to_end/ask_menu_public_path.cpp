@@ -511,7 +511,8 @@ auto main(int argc, char** argv) -> int
 			typeAndReturn(QStringLiteral("First follow-up"));
 			typeAndReturn(QStringLiteral("Second follow-up"));
 			expect(composer->toPlainText().isEmpty() && rowsOf().contains(QStringLiteral("First follow-up")) && rowsOf().contains(QStringLiteral("Second follow-up")),
-				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString());
+				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString() + " composer: [" + composer->toPlainText().toStdString() + "] status: ["
+					   + window.agent_panel()->status_text().toStdString() + "] last refusal: [" + window.agent_panel()->last_refusal().toStdString() + "]");
 			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
 			// [[BPR-2153]]: no turn runs, so there is nothing to steer; the
 			// message is kept, goes next, and the panel says why (Q17).

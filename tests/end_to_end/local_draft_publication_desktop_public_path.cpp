@@ -55,7 +55,12 @@
 
 namespace {
 	using namespace bpr;
-	using tests::expect;
+	// TEMPORARY DIAGNOSTIC (BPR-2215): every expectation, flushed, before it is checked.
+	inline void expect(const bool aCondition, const std::string& aMessage)
+	{
+		std::cout << "CHECK " << aMessage << std::endl;
+		tests::expect(aCondition, aMessage);
+	}
 	using tests::workspace_contract::git_runner;
 	using tests::workspace_contract::write_file;
 

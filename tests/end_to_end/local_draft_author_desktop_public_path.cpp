@@ -65,7 +65,12 @@
 
 namespace {
 	using namespace bpr;
-	using tests::expect;
+	// TEMPORARY DIAGNOSTIC (BPR-2215): every expectation, flushed, before it is checked.
+	inline void expect(const bool aCondition, const std::string& aMessage)
+	{
+		std::cout << "CHECK " << aMessage << std::endl;
+		tests::expect(aCondition, aMessage);
+	}
 	using tests::workspace_contract::git_runner;
 	using tests::workspace_contract::read_file;
 	using tests::workspace_contract::write_file;
@@ -246,6 +251,10 @@ try {
 	// Check Again reads the hosted branch through the author's Git.
 	changes->push_button()->click();
 	settle(s.Lanes);
+	std::cout << "TMPDIAG hosted observed=" << page->local_projection().Hosted.Observed << " ahead=" << page->local_projection().Hosted.Ahead << " push_state=[" << changes->push_state()->text().toStdString() << "] tip=" << page->local_projection().Hosted.Tip.has_value() << " tipknown=" << page->local_projection().Hosted.TipKnown << " running=" << static_cast<int>(page->local_projection().Running) << " failure=" << page->local_projection().Failure.has_value() << " worktree=" << page->local_projection().Subject.Worktree << std::endl;
+		if (page->local_projection().Failure) {
+			std::cout << "TMPDIAG failure op=" << static_cast<int>(page->local_projection().Failure->Operation) << " kind=" << static_cast<int>(page->local_projection().Failure->Failure) << " message=" << page->local_projection().Failure->Message << std::endl;
+		}
 	expect(page->local_projection().Hosted.Observed && page->local_projection().Hosted.Ahead == 2U && changes->push_state()->text() == QStringLiteral("2 ahead of GitHub"),
 		   "2 ahead of GitHub");
 	expect(page->branch_button()->text().contains(QStringLiteral("fix/port-parsing")) && page->branch_button()->text().contains(QStringLiteral("↑2")), "the branch says it is 2 ahead");

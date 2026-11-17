@@ -42,7 +42,12 @@
 
 namespace {
 	using namespace bpr;
-	using tests::expect;
+	// TEMPORARY DIAGNOSTIC (BPR-2215): every expectation, flushed, before it is checked.
+	inline void expect(const bool aCondition, const std::string& aMessage)
+	{
+		std::cout << "CHECK " << aMessage << std::endl;
+		tests::expect(aCondition, aMessage);
+	}
 	using tests::workspace_contract::git_runner;
 	using tests::workspace_contract::read_file;
 	using tests::workspace_contract::write_file;
@@ -223,6 +228,7 @@ try {
 		expect(identity_text(window).contains(QStringLiteral("Local draft")), "AC01: the title row badges it Local draft");
 		expect(page->candidates()->toolTip().contains(QStringLiteral("from merge base")), "AC01: the exact base is disclosed");
 		expect(file_rows(window) == QStringList{ QStringLiteral("src/engine.cpp"), QStringLiteral("src/search.cpp") }, "AC01: only the branch's changes, in the Files drawer; main's later change is not shown");
+		std::cout << "TMPDIAG shown_text=[" << shown_text(window).toStdString() << "] rows=" << file_rows(window).join(QLatin1Char('|')).toStdString() << std::endl;
 		expect(shown_text(window).contains(QStringLiteral("\treturn 1;")) && shown_text(window).contains(QStringLiteral("\treturn search() + 1;")),
 			   "AC01: the first useful screen is the exact proposed diff, in the pull request's diff viewer");
 		expect(page->working()->count() == 0, "a clean worktree has nothing uncommitted");
