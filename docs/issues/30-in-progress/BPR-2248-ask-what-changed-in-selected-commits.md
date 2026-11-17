@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-2248--BPR-2248--f74f9df334a2.json","origin":"owner request, 2026-11-17","mandate_revision":"v0-5-0-prerelease-targets-r1","related":["BPR-2247","BPR-2179"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-2248--BPR-2248--f74f9df334a2.json","origin":"owner request, 2026-11-17","mandate_revision":"v0-5-0-prerelease-targets-r1","related":["BPR-2247","BPR-2179","BPR-2250"],"acceptance":["BPR-2248:offered","BPR-2248:base-merges","BPR-2248:shallow","BPR-2248:look"]}
 ---
 
 # Agent actions on selected commits in the Commits tab
@@ -61,3 +61,51 @@ Rejected options:
 - The action works on a shallow clone.
 - The UI work loads frontend-design and gets an attended look with the
   Fixture agent.
+
+## Implementation (lane commit `21294f741`, 2026-11-17)
+
+- Core: a new prompt surface, `commits_menu` (Settings › Prompts: Commits,
+  Selection menu), a subject `selected_commits` and a `{commits}` placeholder
+  (the short IDs). The two built-ins, `commits.explain` (Answer) and
+  `commits.review` (Findings report), ship there; any ordinary prompt may be
+  placed there, and a prompt about commits goes nowhere else.
+  `plan_commit_selection` (`returning_review.hpp`) orders a selection by the
+  pull request, takes each commit's own change through `own_change_steps`,
+  names merges of the base, and refuses a selection with no own change.
+  `decide_commit_asks` (`quick_ask.hpp`) lists the menu's rows.
+  `supplement_commits` carries the commits, their message bodies and their
+  changes (`bound_returning_commits`) beside the question only.
+- Host: the press is queued on the Agent tab's session (the offer carries its
+  commits; queued prompt encoding `p2;`). Its release reads the steps through
+  `resolve_returning_change`, which fetches what a sparse review lacks, then
+  sends the offer with the material (`window_commit_asks.cpp`). GitHub
+  commit records now keep the message body (`github_commit_body`, 4 KiB).
+- Qt: the Commits tab's context menu lists the rows after the filter actions,
+  with the agent glyph; a selection that only merges the base disables them
+  and says why under them. The empty-state hint names the new use. The
+  frontend-design skill was loaded for the menu and wording.
+- Fixture: `commit-selection-v1` (`build_commit_filter_fixture.py --merges`),
+  four commits with a merge of main.
+
+## Evidence
+
+| Criterion | Check | Result |
+|---|---|---|
+| `BPR-2248:offered` | `application_commit_asks_public_path` (both rows offered, each run names exactly its commits, Explain answers in the Agent tab, Review is a report with Draft comment); `core_prompt_surfaces` (`test_commits_menu`) | Pass |
+| `BPR-2248:base-merges` | `core_returning_review` (`a_selection_of_commits_is_planned_around_base_merges`); course: the merge is named, its change absent, a merge alone is disabled with a note | Pass |
+| `BPR-2248:shallow` | the release reads through `resolve_returning_change`, whose sparse fetch is BPR-2247's `application_epoch_host` evidence | Pass (reused) |
+| `BPR-2248:look` | attended look with the Fixture agent | Pending |
+
+Also passed: `core_agent_context_supplement`, `core_agent_queue`,
+`core_prompt_macro`, `core_quick_ask`, `application_agent_launch_policy`,
+`github_paged_read`, `qt_prompts_page`, `commit_filter_fixture_contract`,
+`fixture_agent_answers` and 229 focused tests in one pass; format check on
+every changed file; clang-tidy on the changed translation units (no finding on
+a line this card added that remains); `verify_documentation.py`.
+
+## Remaining risks
+
+- A Review finding's lines are read at the head; a finding on a line a later
+  unselected commit moved drafts where the head has it.
+- A rebased branch whose selected commits are no longer listed refuses the
+  press (the queued question says so).
