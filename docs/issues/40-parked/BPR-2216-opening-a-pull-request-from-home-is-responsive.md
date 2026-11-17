@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2216"
 title: "Opening a pull request from Home is responsive: its page at once, Return and the Active review while it loads"
-status: "Ready"
+status: "Parked"
 rfcs: []
 depends_on: []
+parked_on: "human-review"
 priority: "P1"
 platforms: ["mac","win","linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-11-16","reservation":"docs/issues/_reservations/BPR-2216--BPR-2216--0ff5959e3c1a.json","related_cards":["BPR-1200","BPR-1357","BPR-1365","BPR-1599","BPR-1842","BPR-1843","BPR-2180"],"related_rfcs":["RFC-BPR-0032","RFC-BPR-0026"]}
@@ -151,3 +152,24 @@ permanently nongating (AGENTS.md, "Debug timings").
   review card required `HasGithubPullRequest`, and the page waited on
   `unconfirmed`; each criterion of the new course asserts the opposite.
   A separate failing-before run was not taken (the machine's build load).
+
+## Owner look — prepared 2026-11-16
+
+Frozen build `/Users/jaeger/bpr2216-home-open-v002.s_29sqy1` from `648aa4f30`
+(fixture `github-com`, `--attended-home-look --fixture-read-delay-ms 4000
+--fixture-page-delay-ms 700 --fixture-discovery-delay-ms 3000`; Fixture agent
+only; the launcher's `--check` reached `ATTENDED_HOME_SHOWN:rows=3:delay=4000ms`;
+executable SHA-256 `edf58a8ab8282fcd08f00df14920d473d78fd6a051e26c0371b64853d1d7122c`).
+The look starts on Home with #17 open behind it: its steps close #17 first.
+Native Cocoa dark renders from the course in `/Users/jaeger/bpr2216-look-renders-v002`.
+
+Attended session `b18827b241a9a4112cfdc8e81bdaa3b2`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261116-bpr2216-home-open-v002/state`,
+served on the tailnet; ready at cursor 15 with five protected Accept/Reject
+questions: `BPR-2216-page-at-once`, `BPR-2216-return-while-loading`,
+`BPR-2216-active-while-loading`, `BPR-2216-overview-said-once`,
+`BPR-2216-home-said-once`. The URL stays in the session state.
+
+Next: read `status --after 15`. Accept on all five closes `BPR-2216:owner-look`;
+a Reject's note is the next round's change. The Release timing assertions
+(`NDEBUG`) still await a Release run of the course.
