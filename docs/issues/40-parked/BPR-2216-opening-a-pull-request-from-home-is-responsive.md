@@ -215,3 +215,31 @@ of the read and an empty Home's "Finding my pull requests…" sentence.
 - `application_setup_destination_public_path`'s tab-width failure is not
   this lane's: it passed alone with BPR-2216's product changes reversed and
   four times out of four with them in place. Carded as [[BPR-2228]].
+
+## Release timing (2026-11-17)
+
+`application_home_open_responsive_public_path` in an optimized Release tree
+(`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON`,
+jobserver), three runs at `5d809b68d`, all passing with the `NDEBUG` 100 ms
+assertions active: the double-click's turn took 14, 16 and 16 ms; the page's
+first frame was painted 20, 19 and 19 ms after the double-click; the longest
+turn on the way was 14, 16 and 16 ms. `BPR-2216:page-at-once`'s measure holds.
+
+## Owner look v003 — prepared 2026-11-17
+
+Look v002's host stopped and its root removed with the freeze tool. Frozen
+build `/Users/jaeger/bpr2216-home-open-v003.ytamgwof` from `85111070d` (the
+lane's HEAD, containing round 3 at `5d809b68d`; same fixture and delays as
+v002; `--check` reached `ATTENDED_HOME_SHOWN:rows=3:delay=4000ms`; executable
+SHA-256 `56e17aaf794efef4b50563cb676a7df5e0771cd1cc12926c999561473440c0e3`).
+Native renders in `/Users/jaeger/bpr2216-look-renders-v003`.
+
+Attended session `147392b2f24dd26b6a3d12da049825d3`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261117-bpr2216-home-open-v003/state`,
+served on the tailnet, ready at cursor 9 with three protected Accept/Reject
+questions: `BPR-2216-regression` (the four criteria accepted in v002, one
+check), `BPR-2216-updates-line` (the owner's added ask) and
+`BPR-2216-home-one-status` (the v002 Reject, re-asked). The URL stays in the
+session state.
+
+Next: read `status --after 9`. Accept on all three closes `BPR-2216:owner-look`.
