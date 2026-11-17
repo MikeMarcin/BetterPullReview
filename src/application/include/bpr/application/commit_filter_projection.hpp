@@ -55,9 +55,13 @@ namespace bpr::application {
 		std::string ShortCommit;
 		std::string Headline;
 		/// The author's login, or empty when GitHub named none.
-		std::string               Author;
-		core::filter_commit_role  Role  = core::filter_commit_role::chain;
-		core::filter_commit_state State = core::filter_commit_state::shown;
+		std::string Author;
+		/// [[BPR-2244]]. When it was committed, in seconds since the epoch, or
+		/// none when GitHub did not say. Presentation measures its age to the
+		/// host's clock.
+		std::optional<std::int64_t> CommittedAt;
+		core::filter_commit_role    Role  = core::filter_commit_role::chain;
+		core::filter_commit_state   State = core::filter_commit_state::shown;
 		/// Files the commit's first-parent diff changes, once the trees are
 		/// read. A side commit is filtered through its merge and has none.
 		std::optional<std::size_t> Files;

@@ -41,8 +41,11 @@ namespace bpr::qt {
 				return QStringLiteral("The retained workspace check reached its output limit. Its transcript and files are kept.");
 			case reason::inspection_timed_out:
 				return QStringLiteral("The retained workspace check reached its time limit. Its transcript and files are kept.");
+			// [[BPR-2246]]. History the linked clone lacks is no longer a
+			// cause: the copy ends its history where the clone's does. What
+			// is left is told as it is; reopening repaired none of it.
 			case reason::copy_failed:
-				return QStringLiteral("The agent's copy of this pull request could not be made. Reopen the pull request, then resend.");
+				return QStringLiteral("The agent's copy of this pull request could not be made. Resend to try again, or show the log for the cause.");
 			// [[BPR-1873]]. The agent's workspace borrows the linked clone and
 			// fetches only what the clone lacks; no step is asked of the
 			// reviewer's clone.

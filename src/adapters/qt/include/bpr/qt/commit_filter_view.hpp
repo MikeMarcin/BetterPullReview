@@ -9,6 +9,7 @@
 #include <QWidget>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -75,11 +76,18 @@ namespace bpr::qt {
 			merge_role,
 			/// RFC-BPR-0089 M2. True when the commit is labelled bulk.
 			bulk_role,
+			/// [[BPR-2244]]. How old the commit is ("2 days ago"), or empty
+			/// without its date or a clock.
+			age_role,
 		};
 
 		explicit commit_filter_list_model(QObject* aParent = nullptr);
 
-		void               apply(const std::vector<application::commit_filter_row>& aRows);
+		void apply(const std::vector<application::commit_filter_row>& aRows);
+		/// \brief [[BPR-2244]]. The host's clock, in seconds since the epoch,
+		/// that ages are measured to. Rows whose words change are updated in
+		/// place; nothing is reset.
+		void               set_now(std::optional<std::int64_t> aNow);
 		[[nodiscard]] auto row_at(int aRow) const -> const application::commit_filter_row*;
 		[[nodiscard]] auto row_of(const std::string& aCommit) const -> int;
 		[[nodiscard]] auto rowCount(const QModelIndex& aParent = { }) const -> int override;
@@ -89,12 +97,14 @@ namespace bpr::qt {
 
 	private:
 		std::vector<application::commit_filter_row> Rows;
+		std::optional<std::int64_t>                 Now;
 		int                                         Resets = 0;
 	};
 
 	/// \brief One commit as two lines: the headline, wrapped and never elided,
-	/// over the short ID in the code font, the author and the file count; a
-	/// tag at the right says merge, hidden or not in this comparison.
+	/// over the short ID in the code font, the author and the file count, with
+	/// the commit's age at the right ([[BPR-2244]]); a tag at the headline's
+	/// right says merge, hidden or not in this comparison.
 	class commit_filter_delegate final : public QStyledItemDelegate
 	{
 	public:
@@ -117,6 +127,9 @@ namespace bpr::qt {
 		explicit commit_filter_tab(QWidget* aParent = nullptr);
 
 		void present(const application::commit_filter_projection& aProjection);
+		/// \brief [[BPR-2244]]. The host's clock the rows' ages are measured
+		/// to, read as a projection arrives and as the tab shows.
+		void set_clock(std::function<std::optional<std::int64_t>()> aClock);
 		/// \brief Context-menu and Clear all filters gestures.
 		void set_gesture_dispatch(gesture_dispatch aDispatch);
 		/// \brief The tab first became visible: the host may read the trees.
@@ -155,6 +168,7 @@ namespace bpr::qt {
 		QToolButton*                                         Clear  = nullptr;
 		gesture_dispatch                                     Gestures;
 		std::function<void()>                                Shown;
+		std::function<std::optional<std::int64_t>()>         Clock;
 		commit_dispatch                                      Open;
 		commits_dispatch                                     FileFilter;
 		rematch_dispatch                                     Rematch;

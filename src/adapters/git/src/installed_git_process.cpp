@@ -1317,6 +1317,43 @@ namespace bpr::adapters::git {
 					   });
 		}
 
+		/// \brief [[BPR-2246]]. A linked clone's shallow list (its `shallow`
+		/// file: one boundary commit per line), checked line by line; empty when
+		/// the clone is not shallow, nothing when the list cannot be read or is
+		/// not one.
+		[[nodiscard]] auto shallow_boundary(const std::filesystem::path& aList, const std::size_t aHashBytes) -> std::optional<std::string>
+		{
+			constexpr auto maximumShallowListBytes = std::uintmax_t{ 4U } * 1024U * 1024U;
+			try {
+				std::error_code error;
+				const auto      status = std::filesystem::status(aList, error);
+				if (error == std::errc::no_such_file_or_directory || (!error && status.type() == std::filesystem::file_type::not_found)) {
+					return std::string{ };
+				}
+				if (error || status.type() != std::filesystem::file_type::regular || std::filesystem::file_size(aList, error) > maximumShallowListBytes || error) {
+					return std::nullopt;
+				}
+				std::ifstream input{ aList, std::ios::binary };
+				if (!input.is_open()) {
+					return std::nullopt;
+				}
+				auto text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+				if (input.bad() || text.size() > maximumShallowListBytes) {
+					return std::nullopt;
+				}
+				for (auto rest = std::string_view{ text }; !rest.empty();) {
+					const auto end = rest.find('\n');
+					if (end == std::string_view::npos || !valid_fixed_hex(rest.substr(0U, end), aHashBytes)) {
+						return std::nullopt;
+					}
+					rest.remove_prefix(end + 1U);
+				}
+				return text;
+			} catch (...) {
+				return std::nullopt;
+			}
+		}
+
 		// Git supplies only object IDs here (--no-object-names), never path text.
 		[[nodiscard]] auto workspace_missing_objects(std::string_view aOutput, std::size_t aHashBytes) -> std::optional<std::set<std::string>>
 		{
@@ -5015,6 +5052,16 @@ namespace bpr::adapters::git {
 					if (!write_private_file(destination / ".git" / "objects" / "info" / "alternates", *borrowed)) {
 						return fail(git_process_failure::invalid_repository);
 					}
+					// [[BPR-2246]]. Alternates lend objects, not the clone's
+					// shallow list: a shallow clone's history ends where its
+					// boundary commits are, and a walk past them reads parents
+					// it never fetched. The workspace ends its history where the
+					// clone's ends, so Git in it, and the retained copy below,
+					// stop there too.
+					const auto cloneShallow = shallow_boundary(objects->parent_path() / "shallow", algorithm == git_hash_algorithm::sha1 ? 40U : 64U);
+					if (cloneShallow && !cloneShallow->empty() && !write_private_file(destination / ".git" / "shallow", *cloneShallow)) {
+						return fail(git_process_failure::invalid_repository);
+					}
 				}
 				// Whether the workspace already reads an object, through its
 				// borrowed history or its own packs.
@@ -5294,14 +5341,29 @@ namespace bpr::adapters::git {
 				}
 
 				if (materialization.RetainForSession && borrowed) {
-					auto retain = workspace_git_arguments(destination, HooksRoot);
-					append_arguments(retain, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--",
-									 path_text(destination / ".git" / "objects" / "pack" / "pack"));
 					auto tips = headText + "\n";
 					if (baseText != headText && present(baseText)) {
 						tips += baseText + "\n";
 					}
-					const auto packed = submitWorkspace(process_request{ .Arguments = std::move(retain), .Input = memory_input{ std::move(tips) }, .Timeout = pack_process_timeout }, aStop);
+					const auto retain = [&] {
+						auto retained = workspace_git_arguments(destination, HooksRoot);
+						append_arguments(retained, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--",
+										 path_text(destination / ".git" / "objects" / "pack" / "pack"));
+						return submitWorkspace(process_request{ .Arguments = std::move(retained), .Input = memory_input{ tips }, .Timeout = pack_process_timeout }, aStop);
+					};
+					auto packed = retain();
+					// [[BPR-2246]]. Git could not walk the head's history
+					// through the clone: an ancestor is missing (a borrowed
+					// store that has gone, a fetch that never brought it). The
+					// head and the base the clone does hold are kept, and the
+					// copy's history ends at them, instead of the run stopping
+					// on history it does not need.
+					if (!packed && packed.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
+						if (!write_private_file(destination / ".git" / "shallow", tips)) {
+							return fail(git_process_failure::invalid_repository);
+						}
+						packed = retain();
+					}
 					if (!packed) {
 						return fail(packed.error());
 					}
@@ -5336,7 +5398,10 @@ namespace bpr::adapters::git {
 					return fail(git_process_failure::invalid_repository);
 				}
 
-				auto sparseMissing = std::optional<std::string>{ };
+				// [[BPR-2246]]. A resumed session asks for the base only when
+				// this copy holds it: a shallow clone may lend the head alone.
+				const auto baseHeld      = materialization.RetainForSession && !shallow && present(baseText);
+				auto       sparseMissing = std::optional<std::string>{ };
 				if (materialization.RetainForSession && shallow) {
 					arguments = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", headText);
@@ -5378,7 +5443,7 @@ namespace bpr::adapters::git {
 					.LifetimeGuard      = workspaceOwner ? std::optional{ workspaceOwner->layout().Guard } : std::nullopt,
 				};
 				owned.SparseMissingObjects = std::move(sparseMissing);
-				if (materialization.RetainForSession && !shallow) {
+				if (baseHeld) {
 					owned.RequiredBase = materialization.Session.Binding.BaseOid;
 				}
 				if (workspaceOwner) {

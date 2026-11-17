@@ -343,6 +343,11 @@ namespace bpr::qt {
 		StatusDrawer->commits()->set_open_dispatch(std::move(aDispatch));
 	}
 
+	void pull_request_overview_page::set_commit_clock(std::function<std::optional<std::int64_t>()> aClock)
+	{
+		StatusDrawer->commits()->set_clock(std::move(aClock));
+	}
+
 	auto pull_request_overview_page::commit_chip() const noexcept -> commit_filter_chip*
 	{
 		return CommitChip;

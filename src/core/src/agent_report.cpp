@@ -145,6 +145,14 @@ namespace bpr::core {
 		return report_outline(aAnswer).size() >= report_minimum_headings || lines_of(aAnswer).size() > report_minimum_lines;
 	}
 
+	auto shows_report_attachment(const report_attachment_facts& aFacts, const std::string_view aAnswer) -> bool
+	{
+		if (aFacts.Ended && !aFacts.Answered) {
+			return false;
+		}
+		return is_report_answer(aAnswer) || (aFacts.AlwaysReport && aAnswer.find_first_not_of(" \t\r\n\f\v") != std::string_view::npos);
+	}
+
 	auto report_card_of(const std::string_view aAnswer, const std::string_view aTitle) -> report_card
 	{
 		auto       card    = report_card{ };

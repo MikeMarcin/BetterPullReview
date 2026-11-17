@@ -631,7 +631,10 @@ namespace bpr::qt {
 		/// \brief The Commits tab first showed.
 		void set_commit_filter_shown_dispatch(std::function<void()> aDispatch);
 		/// \brief Open on GitHub for one commit.
-		void               set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		void set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-2244]]. The host's clock the Commits tab's ages are
+		/// measured to.
+		void               set_commit_clock(std::function<std::optional<std::int64_t>()> aClock);
 		[[nodiscard]] auto commit_chip() const noexcept -> commit_filter_chip*;
 		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed" from the
 		/// Commits tab.

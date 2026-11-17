@@ -2,15 +2,18 @@
 
 #include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "refresh_age_words.hpp"
 
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QDateTime>
 #include <QFontMetrics>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLocale>
 #include <QMenu>
 #include <QPainter>
 #include <QResizeEvent>
@@ -66,11 +69,36 @@ namespace bpr::qt {
 			return *aFiles == 1U ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(*aFiles);
 		}
 
-		[[nodiscard]] auto accessible_text(const application::commit_filter_row& aRow) -> QString
+		/// [[BPR-2244]]. "2 days ago" to the host's clock; empty without the
+		/// commit's date or a clock.
+		[[nodiscard]] auto age_text(const application::commit_filter_row& aRow, const std::optional<std::int64_t>& aNow) -> QString
+		{
+			if (!aRow.CommittedAt || !aNow) {
+				return { };
+			}
+			return refresh_age_words(core::refresh_age_at(*aRow.CommittedAt, *aNow));
+		}
+
+		/// [[BPR-2244]]. The exact local date and time, the month named so no
+		/// locale reads it as another day.
+		[[nodiscard]] auto committed_text(const application::commit_filter_row& aRow) -> QString
+		{
+			if (!aRow.CommittedAt) {
+				return { };
+			}
+			const auto when   = QDateTime::fromSecsSinceEpoch(*aRow.CommittedAt);
+			const auto locale = QLocale{ };
+			return QStringLiteral("Committed %1, %2").arg(locale.toString(when.date(), QStringLiteral("d MMM yyyy")), locale.toString(when.time(), QLocale::ShortFormat));
+		}
+
+		[[nodiscard]] auto accessible_text(const application::commit_filter_row& aRow, const std::optional<std::int64_t>& aNow) -> QString
 		{
 			auto parts = QStringList{ text(aRow.Headline), QStringLiteral("commit %1").arg(text(aRow.ShortCommit)) };
 			if (!aRow.Author.empty()) {
 				parts << QStringLiteral("by %1").arg(text(aRow.Author));
+			}
+			if (const auto age = age_text(aRow, aNow); !age.isEmpty()) {
+				parts << QStringLiteral("committed %1").arg(age);
 			}
 			if (const auto files = files_text(aRow.Files); !files.isEmpty()) {
 				parts << files;
@@ -274,6 +302,20 @@ namespace bpr::qt {
 		}
 	}
 
+	void commit_filter_list_model::set_now(const std::optional<std::int64_t> aNow)
+	{
+		if (Now == aNow) {
+			return;
+		}
+		const auto prior = std::exchange(Now, aNow);
+		for (std::size_t position = 0U; position < Rows.size(); ++position) {
+			if (age_text(Rows[position], prior) != age_text(Rows[position], Now)) {
+				const auto at = static_cast<int>(position);
+				emit       dataChanged(index(at), index(at), { age_role, Qt::AccessibleTextRole });
+			}
+		}
+	}
+
 	auto commit_filter_list_model::row_at(const int aRow) const -> const application::commit_filter_row*
 	{
 		return aRow >= 0 && static_cast<std::size_t>(aRow) < Rows.size() ? &Rows[static_cast<std::size_t>(aRow)] : nullptr;
@@ -298,17 +340,22 @@ namespace bpr::qt {
 		}
 		switch (aRole) {
 		case Qt::DisplayRole:        return text(row->Headline);
-		case Qt::AccessibleTextRole: return accessible_text(*row);
-		case Qt::ToolTipRole:        return QStringLiteral("%1\n%2").arg(text(row->Headline), text(row->Commit));
-		case commit_role:            return text(row->Commit);
-		case short_commit_role:      return text(row->ShortCommit);
-		case author_role:            return text(row->Author);
-		case files_role:             return row->Files ? static_cast<qlonglong>(*row->Files) : qlonglong{ -1 };
-		case commit_kind_role:       return static_cast<int>(row->Role);
-		case state_role:             return static_cast<int>(row->State);
-		case merge_role:             return text(row->Merge);
-		case bulk_role:              return row->Bulk;
-		default:                     return { };
+		case Qt::AccessibleTextRole: return accessible_text(*row, Now);
+		case Qt::ToolTipRole:
+			if (const auto committed = committed_text(*row); !committed.isEmpty()) {
+				return QStringLiteral("%1\n%2\n%3").arg(text(row->Headline), text(row->Commit), committed);
+			}
+			return QStringLiteral("%1\n%2").arg(text(row->Headline), text(row->Commit));
+		case commit_role:       return text(row->Commit);
+		case short_commit_role: return text(row->ShortCommit);
+		case author_role:       return text(row->Author);
+		case files_role:        return row->Files ? static_cast<qlonglong>(*row->Files) : qlonglong{ -1 };
+		case commit_kind_role:  return static_cast<int>(row->Role);
+		case state_role:        return static_cast<int>(row->State);
+		case merge_role:        return text(row->Merge);
+		case bulk_role:         return row->Bulk;
+		case age_role:          return age_text(*row, Now);
+		default:                return { };
 		}
 	}
 
@@ -392,14 +439,23 @@ namespace bpr::qt {
 			aPainter->drawText(QRect{ box.right() - tagWidth, box.top(), tagWidth, QFontMetrics{ small }.height() }, Qt::AlignRight | Qt::AlignTop, tagText);
 		}
 
-		// The short ID, the author and the file count, left to right.
+		// [[BPR-2244]]. The age at the right, so ages read down the list as a
+		// column; the short ID, the author and the file count, left to right,
+		// stop short of it.
+		const auto top      = drawn.bottom() + 1 + line_gap;
+		const auto age      = aIndex.data(commit_filter_list_model::age_role).toString();
+		const auto ageWidth = age.isEmpty() ? 0 : QFontMetrics{ small }.horizontalAdvance(age);
+		const auto right    = box.right() - (ageWidth > 0 ? ageWidth + detail_column_gap : 0);
+		aPainter->setPen(quiet);
+		if (ageWidth > 0) {
+			aPainter->setFont(small);
+			aPainter->drawText(QRect{ box.right() - ageWidth, top, ageWidth + 1, QFontMetrics{ small }.height() }, Qt::AlignRight | Qt::AlignTop, age);
+		}
 		auto       x      = box.left();
-		const auto top    = drawn.bottom() + 1 + line_gap;
 		const auto shortC = aIndex.data(commit_filter_list_model::short_commit_role).toString();
 		const auto code   = code_font(option.font);
 		aPainter->setFont(code);
-		aPainter->setPen(quiet);
-		aPainter->drawText(QRect{ x, top, box.right() - x, QFontMetrics{ code }.height() }, Qt::AlignLeft | Qt::AlignTop, shortC);
+		aPainter->drawText(QRect{ x, top, std::max(0, right - x), QFontMetrics{ code }.height() }, Qt::AlignLeft | Qt::AlignTop, shortC);
 		x += QFontMetrics{ code }.horizontalAdvance(shortC) + detail_column_gap;
 		aPainter->setFont(small);
 		auto details = QStringList{ };
@@ -409,12 +465,19 @@ namespace bpr::qt {
 		if (const auto files = aIndex.data(commit_filter_list_model::files_role).toLongLong(); files >= 0) {
 			details << files_text(static_cast<std::size_t>(files));
 		}
+		// A part that no longer fits ends with an ellipsis, not cut mid-letter,
+		// and nothing follows it; the accessible name keeps every part.
+		const auto metrics = QFontMetrics{ small };
 		for (const auto& part : details) {
-			if (x >= box.right()) {
+			if (x >= right) {
 				break;
 			}
-			aPainter->drawText(QRect{ x, top, box.right() - x, QFontMetrics{ small }.height() }, Qt::AlignLeft | Qt::AlignTop, part);
-			x += QFontMetrics{ small }.horizontalAdvance(part) + detail_column_gap;
+			const auto shown = metrics.elidedText(part, Qt::ElideRight, right - x);
+			aPainter->drawText(QRect{ x, top, right - x, metrics.height() }, Qt::AlignLeft | Qt::AlignTop, shown);
+			if (shown != part) {
+				break;
+			}
+			x += metrics.horizontalAdvance(part) + detail_column_gap;
 		}
 		aPainter->restore();
 	}
@@ -496,6 +559,10 @@ namespace bpr::qt {
 	{
 		Projection = aProjection;
 		Model->apply(aProjection.Rows);
+		// [[BPR-2244]]. Ages are measured to the host's clock as the commits arrive.
+		if (Clock) {
+			Model->set_now(Clock());
+		}
 		auto sentences = QStringList{ };
 		if (aProjection.Unavailable) {
 			sentences << commit_filter_unavailable_text(*aProjection.Unavailable);
@@ -570,6 +637,12 @@ namespace bpr::qt {
 		Rematches->setVisible(!offers.empty());
 		List->setVisible(!aProjection.Rows.empty());
 		Hint->setVisible(!aProjection.Rows.empty() && !aProjection.Unavailable);
+	}
+
+	void commit_filter_tab::set_clock(std::function<std::optional<std::int64_t>()> aClock)
+	{
+		Clock = std::move(aClock);
+		Model->set_now(Clock ? Clock() : std::nullopt);
 	}
 
 	void commit_filter_tab::set_gesture_dispatch(gesture_dispatch aDispatch)
@@ -716,6 +789,10 @@ namespace bpr::qt {
 	void commit_filter_tab::showEvent(QShowEvent* const aEvent)
 	{
 		QWidget::showEvent(aEvent);
+		// [[BPR-2244]]. And again as the tab shows, so an open tab's ages are fresh.
+		if (Clock) {
+			Model->set_now(Clock());
+		}
 		if (Shown && !Announced) {
 			Announced = true;
 			Shown();

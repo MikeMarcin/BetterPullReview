@@ -473,12 +473,23 @@ namespace bpr::adapters::github::detail {
 					parents->emplace_back(text(json_member(json_object(value), "sha")));
 				}
 			}
+			// [[BPR-2244]]. The committer's date, for the Commits tab's age. It
+			// only describes the commit, so one missing or in another shape
+			// leaves the age unknown rather than refusing the page.
+			auto       committedAt = std::optional<std::int64_t>{ };
+			const auto committer   = json_member(json_object(commit), "committer");
+			if (json_is_object(committer)) {
+				if (const auto date = json_member(json_object(committer), "date"); json_is_string(date)) {
+					committedAt = parse_timeline_timestamp(text(date)).transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; });
+				}
+			}
 			return application::github_commit_record{
-				.Oid      = application::commit_oid{ text(json_member(object, "sha")) },
-				.Node     = application::github_node_id{ text(json_member(object, "node_id")) },
-				.Author   = author.Actor,
-				.Headline = std::move(headline),
-				.Parents  = std::move(parents),
+				.Oid         = application::commit_oid{ text(json_member(object, "sha")) },
+				.Node        = application::github_node_id{ text(json_member(object, "node_id")) },
+				.Author      = author.Actor,
+				.Headline    = std::move(headline),
+				.Parents     = std::move(parents),
+				.CommittedAt = committedAt,
 			};
 		}
 

@@ -4,6 +4,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "drawer_tab_bar.hpp"
+#include "refresh_age_words.hpp"
 
 #include <QAction>
 #include <QFlags>
@@ -212,8 +213,5 @@ namespace bpr::qt {
 		const QString& aDisabledText);
 
 	[[nodiscard]] auto counted(const std::uint32_t aCount, const QString& aOne, const QString& aMany) -> QString;
-
-	/// [[BPR-1575]]. "just now", "2 min ago", "3 hr ago", "2 days ago".
-	[[nodiscard]] auto refresh_age_words(const core::refresh_age aAge) -> QString;
 }
 #endif

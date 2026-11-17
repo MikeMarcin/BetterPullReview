@@ -4317,6 +4317,118 @@ namespace {
 		return at == std::string::npos ? std::string{ } : counted.substr(at + 9U, counted.find('\n', at) - at - 9U);
 	}
 
+#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
+	/// [[BPR-2246]]. A native session's workspace borrows a linked clone that
+	/// holds the head but not all of its history. The owner's 0.5.0 report:
+	/// "fatal: Failed to traverse parents of commit <head>" and no copy. A
+	/// shallow clone's history ends where the clone's does; a clone that has
+	/// simply lost an ancestor lends the head and base it holds. Either way the
+	/// copy is made, keeps no borrowed store, and resumes.
+	auto run_incomplete_clone_history_workspace_contract() -> void
+	{
+		temporary_root root{ "git-incomplete-clone-history" };
+		const auto     cacheIsolation = root.Path / "cache";
+		require(std::filesystem::create_directory(cacheIsolation), "create the cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		const auto registry = root.Path / "registry";
+		auto       adapter  = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+		// The review's cache: base, then mid, then head, each with its own file.
+		const auto cache = repository_path(cacheIsolation, '1');
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		const auto commit = [&](const std::string& aText, const std::optional<std::string>& aParent) {
+			const auto blob = run_fixture_git(cache, { "hash-object", "-w", "--stdin" }, aText + "\n");
+			const auto tree = run_fixture_git(cache, { "mktree" }, "100644 blob " + blob + "\tREADME.md\n");
+			auto       made = std::vector<std::string>{ "commit-tree", tree };
+			if (aParent) {
+				made.insert(made.end(), { "-p", *aParent });
+			}
+			return std::array{ run_fixture_git(cache, made, aText + "\n"), tree, blob };
+		};
+		const auto base = commit("base", std::nullopt);
+		const auto mid  = commit("mid", base[0]);
+		const auto head = commit("head", mid[0]);
+		const auto oid  = [](const std::string& aHex) {
+			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
+		};
+		const auto authority = workspace_authority();
+		auto       session   = std::uint64_t{ 20U };
+		// A clone whose .git holds exactly `aObjects`, with `aShallow` as its
+		// shallow list when there is one.
+		const auto clone = [&](const std::string& aName, const std::string& aObjects, const std::optional<std::string>& aShallow) {
+			const auto path = root.Path / aName;
+			std::filesystem::create_directories(path);
+			static_cast<void>(run_fixture_git(path / ".git", { "init", "--quiet" }, { }, false));
+			static_cast<void>(run_fixture_git(cache, { "pack-objects", (path / ".git" / "objects" / "pack" / "pack").string() }, aObjects));
+			if (aShallow) {
+				write_text(path / ".git" / "shallow", *aShallow);
+			}
+			return path;
+		};
+		const auto materialize = [&](const std::filesystem::path& aClone) {
+			const auto parent = root.Path / ("neighbourhood-" + std::to_string(session));
+			std::filesystem::create_directory(parent);
+			std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto made                                        = application::git_agent_workspace_request{ };
+			made.Repository                                  = cache;
+			made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+			made.Materialization.Authority                   = authority;
+			made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+			made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+			made.Materialization.Session.Binding.Host        = authority.Host;
+			made.Materialization.Session.Binding.Repository  = authority.Repository;
+			made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+			made.Materialization.Session.Binding.BaseOid     = oid(base[0]);
+			made.Materialization.Session.Binding.HeadOid     = oid(head[0]);
+			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+			made.Materialization.ParentDirectory             = parent;
+			made.Materialization.HistoryClone                = aClone;
+			made.Materialization.RetainForSession            = true;
+			auto owned                                       = adapter->materialize_agent_workspace(made, { });
+			if (!owned) {
+				std::cerr << "incomplete-clone:failure=" << static_cast<unsigned>(owned.error().Code) << ":detail=" << owned.error().Detail << '\n';
+			}
+			return owned;
+		};
+		const auto objects = [](const std::array<std::string, 3U>& aCommit) { return aCommit[0] + "\n" + aCommit[1] + "\n" + aCommit[2] + "\n"; };
+
+		// Shallow at mid: the clone holds head and mid, and says mid's parent
+		// was never fetched.
+		{
+			const auto shallowClone = clone("shallow-clone", objects(head) + objects(mid), mid[0] + "\n");
+			const auto owned        = materialize(shallowClone);
+			require(owned.has_value() && !owned->Workspace.Shallow, "a retained workspace borrowing a shallow clone is made");
+			const auto tree = std::filesystem::path{ owned->Workspace.Path };
+			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the copy keeps no borrowed store");
+			require(read_text(tree / ".git" / "shallow") == mid[0] + "\n", "the copy's history ends where the clone's does");
+			require(run_fixture_git(tree / ".git", { "rev-list", "--count", "HEAD" }) == "2", "the copy walks the history the clone holds");
+			require(read_text(tree / "README.md") == "head\n", "the head's files are checked out");
+			require(!owned->RequiredBase, "a base the clone did not lend is not required to resume");
+			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "the copy resumes");
+		}
+		// The owner's case: shallow at the head itself, as `--depth 1` makes.
+		{
+			const auto shallowClone = clone("depth-one-clone", objects(head), head[0] + "\n");
+			const auto owned        = materialize(shallowClone);
+			require(owned.has_value(), "a retained workspace borrowing a depth-one clone is made");
+			const auto tree = std::filesystem::path{ owned->Workspace.Path };
+			require(run_fixture_git(tree / ".git", { "rev-list", "--count", "HEAD" }) == "1", "the depth-one copy holds the head");
+		}
+		// No shallow list, and mid is gone: Git cannot walk past the head.
+		{
+			const auto brokenClone = clone("missing-ancestor-clone", objects(head) + objects(base), std::nullopt);
+			const auto owned       = materialize(brokenClone);
+			require(owned.has_value(), "a retained workspace borrowing a clone that lost an ancestor is still made");
+			const auto tree = std::filesystem::path{ owned->Workspace.Path };
+			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the repaired copy keeps no borrowed store");
+			require(read_text(tree / ".git" / "shallow") == head[0] + "\n" + base[0] + "\n", "the repaired copy's history ends at the head and the base");
+			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base[0] }) == "commit", "the base the clone held is kept");
+			require(owned->RequiredBase == std::optional{ oid(base[0]) }, "a base the copy holds is required to resume");
+			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "the repaired copy resumes");
+		}
+	}
+#endif
+
 	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false, const bool aRetained = false) -> void
 	{
 		temporary_root root{ "git-borrowed-history-workspace" };
@@ -5063,6 +5175,7 @@ try {
 	run_borrowed_history_workspace_contract();
 #ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 	run_borrowed_history_workspace_contract(false, true);
+	run_incomplete_clone_history_workspace_contract();
 #endif
 #if defined(_WIN32)
 	run_windows_inherited_handle_contract();

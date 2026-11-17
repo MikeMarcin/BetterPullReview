@@ -357,6 +357,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_ask_addressed_public_path": "private-data-root-refused",
     "application_ask_report_public_path": "private-data-root-refused",
     "application_ask_queue_public_path": "private-data-root-refused",
+    "application_ask_setup_review_public_path": "unmeasured (registered on macOS)",
     "application_prompt_macros_public_path": "private-data-root-refused",
     "application_fixture_agent_guard_public_path": "unmeasured (registered on macOS)",
     # [[BPR-2215]]. Registered WINDOWS_UNCONTAINED on macOS without an entry

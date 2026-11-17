@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -1898,6 +1899,26 @@ namespace {
 		}
 		expect(!normalize_github_read(normalization_context(server_contract::github_com), withParents(R"([{ "sha": "not-an-object-id" }])").Responses).has_value(),
 			   "a parent that is not an object id is refused");
+
+		// [[BPR-2244]]. A recorded commit may keep its committer's date, for the
+		// Commits tab's age; one in another shape leaves the age unknown.
+		expect(!emptyMessage.has_value() || !emptyMessage->PullRequest.Commits.front().CommittedAt.has_value(), "a commit without a committer has no date");
+		const auto withCommitter = [](const std::string_view aCommitter) {
+			auto committerRecording = load_recording("github-com", server_contract::github_com);
+			replace_once(committerRecording.Responses[4].Response.Body, "\"message\": \"Keep review snapshots deterministic\"",
+						 std::string{ "\"message\": \"Keep review snapshots deterministic\", \"committer\": " } + std::string{ aCommitter });
+			return committerRecording;
+		};
+		const auto dated = withCommitter(R"({ "date": "2026-11-14T15:02:07Z" })");
+		expect(validate_strict_fixture_response(read_operation::list_pull_request_commits, dated.Responses[4].Response).has_value(),
+			   "a recorded commit may keep its committer's date");
+		const auto datedRead = normalize_github_read(normalization_context(server_contract::github_com), dated.Responses);
+		expect(datedRead.has_value() && datedRead->PullRequest.Commits.front().CommittedAt == std::optional{ std::int64_t{ 1'794'668'527 } },
+			   "the committer's date is normalized to seconds");
+		const auto undated = normalize_github_read(normalization_context(server_contract::github_com), withCommitter(R"({ "date": "last Tuesday" })").Responses);
+		expect(undated.has_value() && !undated->PullRequest.Commits.front().CommittedAt.has_value(), "a date in another shape leaves the age unknown");
+		expect(!validate_strict_fixture_response(read_operation::list_pull_request_commits, withCommitter(R"({ "date": "2026-11-14T15:02:07Z", "email": "a@example.com" })").Responses[4].Response).has_value(),
+			   "a recorded committer keeps only its date");
 
 		auto  fileThreadRecording = load_recording("github-com", server_contract::github_com);
 		auto& fileThread          = fileThreadRecording.Responses[6].Response.Body;
