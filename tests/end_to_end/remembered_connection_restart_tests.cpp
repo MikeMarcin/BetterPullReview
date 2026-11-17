@@ -182,8 +182,8 @@ namespace {
 		if (aPhase == "unavailable") {
 			fixtureOptions.GithubCliDiscoveryAccounts.reset();
 		}
-		unsigned readAsks = 0;
-		QTimer   consent;
+		std::size_t readAsks = 0;
+		QTimer      consent;
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			const tests::exit_on_failure inTheEventLoop;
 			// RFC-BPR-0032 amendment r1. Read consent is the account setup's

@@ -3390,7 +3390,11 @@ namespace {
 		};
 		const auto original = QApplication::style()->name();
 		const auto macOS    = original.compare(QStringLiteral("macOS"), Qt::CaseInsensitive) == 0;
-		auto       looks    = macOS ? std::vector<look>{ } : std::vector<look>{ look{ .Style = original, .Key = original.toLower() } };
+		// Appended, not a ?: of braced vectors, which GCC 15 misreads as dangling (BPR-2215).
+		auto looks = std::vector<look>{ };
+		if (!macOS) {
+			looks.push_back(look{ .Style = original, .Key = original.toLower() });
+		}
 		if (macOS || QStyleFactory::keys().contains(QStringLiteral("macOS"), Qt::CaseInsensitive)) {
 			// The macOS style paints in the system's appearance, not the
 			// profile's, so a dark profile meets a light system and the

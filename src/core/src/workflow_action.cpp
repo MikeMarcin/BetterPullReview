@@ -887,50 +887,75 @@ namespace bpr::core {
 		}
 		const auto& workflow = *aDraft.Workflow;
 		const auto& target   = aDraft.Target.Target;
-		auto        wire     = detail::wire_request{
-			.Format       = std::string{ workflow_request_format },
-			.Version      = workflow_exchange_version,
-			.Invocation   = record->Invocation,
-			.Draft        = aDraft.Id.Value,
-			.DraftVersion = aDraft.Version,
-			.Action       = { .Id = action->Id, .Slot = std::string{ stable_name(action->Slot) }, .Task = action->Task, .Workflow = workflow.Workflow.PortableId, .WorkflowName = workflow.Workflow.Name, .Revision = workflow.Revision, .Effects = { } },
-			.Candidate    = { .Ordinal = candidate->Ordinal, .Head = hex(candidate->Head), .Base = hex(candidate->Base), .TargetTip = hex(candidate->TargetTip), .Paths = { } },
-			.Destination  = { .Host = target.Repository.Host, .Owner = target.Repository.Owner, .Name = target.Repository.Name, .BaseBranch = target.Branch, .HeadBranch = aDraft.Branch },
-			.Context      = { .Title       = aDraft.Title,
-							  .Description = aDraft.Preparation.Description.Body,
-							  .Problem     = aDraft.Preparation.Tour.Problem,
-							  .Solution    = aDraft.Preparation.Tour.Solution,
-							  .Notes       = { } },
-			.Guidance     = workflow.Workflow.Guidance,
-			.Answer       = record->Answer.empty() ? std::nullopt : std::optional{ record->Answer },
-			.Question     = record->Question.empty() ? std::nullopt : std::optional{ record->Question },
-			.Plan         = std::nullopt,
-			.PullRequest  = std::nullopt,
-			.Previous     = { },
-		};
+		// GCC 15 at -O3 reports the defaulted strings of a designated-initializer
+		// temporary as maybe-uninitialized, so each wire record is a named local
+		// built from its defaults and filled field by field.
+		auto wire         = detail::wire_request{ };
+		wire.Format       = std::string{ workflow_request_format };
+		wire.Version      = workflow_exchange_version;
+		wire.Invocation   = record->Invocation;
+		wire.Draft        = aDraft.Id.Value;
+		wire.DraftVersion = aDraft.Version;
+
+		wire.Action.Id           = action->Id;
+		wire.Action.Slot         = std::string{ stable_name(action->Slot) };
+		wire.Action.Task         = action->Task;
+		wire.Action.Workflow     = workflow.Workflow.PortableId;
+		wire.Action.WorkflowName = workflow.Workflow.Name;
+		wire.Action.Revision     = workflow.Revision;
 		std::ranges::transform(action->Effects, std::back_inserter(wire.Action.Effects), [](const workflow_effect aEffect) { return std::string{ stable_name(aEffect) }; });
+
+		wire.Candidate.Ordinal   = candidate->Ordinal;
+		wire.Candidate.Head      = hex(candidate->Head);
+		wire.Candidate.Base      = hex(candidate->Base);
+		wire.Candidate.TargetTip = hex(candidate->TargetTip);
 		std::ranges::transform(candidate->Changes, std::back_inserter(wire.Candidate.Paths), &draft_path_change::Path);
+
+		wire.Destination.Host       = target.Repository.Host;
+		wire.Destination.Owner      = target.Repository.Owner;
+		wire.Destination.Name       = target.Repository.Name;
+		wire.Destination.BaseBranch = target.Branch;
+		wire.Destination.HeadBranch = aDraft.Branch;
+
+		wire.Context.Title       = aDraft.Title;
+		wire.Context.Description = aDraft.Preparation.Description.Body;
+		wire.Context.Problem     = aDraft.Preparation.Tour.Problem;
+		wire.Context.Solution    = aDraft.Preparation.Tour.Solution;
 		std::ranges::transform(aDraft.Notes, std::back_inserter(wire.Context.Notes), &local_draft_note::Text);
+
+		wire.Guidance = workflow.Workflow.Guidance;
+		if (!record->Answer.empty()) {
+			wire.Answer = record->Answer;
+		}
+		if (!record->Question.empty()) {
+			wire.Question = record->Question;
+		}
 		if (effectful(action->Slot)) {
 			if (!aDraft.Publication) {
 				return std::nullopt;
 			}
-			const auto& plan = aDraft.Publication->Plan;
-			const auto& to   = plan.Destination;
-			wire.Plan        = detail::wire_request_plan{ .Digest     = aDraft.Publication->Journal.Digest,
-														  .Host       = to.Host,
-														  .Account    = to.Login,
-														  .Owner      = to.Owner,
-														  .Repository = to.Repository,
-														  .BaseBranch = to.BaseBranch,
-														  .HeadBranch = to.HeadBranch,
-														  .Head       = hex(plan.Head),
-														  .Title      = plan.Title,
-														  .Body       = plan.Body,
-														  .Draft      = plan.Draft };
+			const auto& plan    = aDraft.Publication->Plan;
+			const auto& to      = plan.Destination;
+			auto        request = detail::wire_request_plan{ };
+			request.Digest      = aDraft.Publication->Journal.Digest;
+			request.Host        = to.Host;
+			request.Account     = to.Login;
+			request.Owner       = to.Owner;
+			request.Repository  = to.Repository;
+			request.BaseBranch  = to.BaseBranch;
+			request.HeadBranch  = to.HeadBranch;
+			request.Head        = hex(plan.Head);
+			request.Title       = plan.Title;
+			request.Body        = plan.Body;
+			request.Draft       = plan.Draft;
+			wire.Plan           = std::move(request);
 			if (linked(aDraft)) {
 				const auto& link = *aDraft.Publication->Journal.Link;
-				wire.PullRequest = detail::wire_request_pull_request{ .Number = link.Number, .Url = link.Url, .Head = hex(link.Head) };
+				auto        pull = detail::wire_request_pull_request{ };
+				pull.Number      = link.Number;
+				pull.Url         = link.Url;
+				pull.Head        = hex(link.Head);
+				wire.PullRequest = std::move(pull);
 			}
 			std::ranges::transform(record->References, std::back_inserter(wire.Previous), wire_reference_of);
 		}

@@ -231,8 +231,8 @@ namespace bpr::app {
                 if (Closing || Window == nullptr || !AgentQueue || key.empty()) {
                     return;
                 }
-                const auto seen = ChatQueueSeen.contains(key) ? std::optional{ ChatQueueSeen[key] } : std::nullopt;
-                if (AgentQueue->steer(key, aId, seen, [this, weak = std::weak_ptr<const int>{ WindowLifetime }](const application::agent_queue_steer_result& aResult) {
+                const auto lastSeen = ChatQueueSeen.contains(key) ? std::optional{ ChatQueueSeen[key] } : std::nullopt;
+                if (AgentQueue->steer(key, aId, lastSeen, [this, weak = std::weak_ptr<const int>{ WindowLifetime }](const application::agent_queue_steer_result& aResult) {
                         if (!weak.expired() && !Closing && Window != nullptr) {
                             Window->tour_editor()->show_writing_notice(QString::fromStdString(aResult.Sent ? std::string{ application::agent_steered_words } : aResult.Why));
                         }

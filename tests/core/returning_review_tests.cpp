@@ -207,7 +207,9 @@ namespace {
 	{
 		expect(core::thread_baseline({ { .Deleted = true, .OriginalCommit = "aaa", .Commit = "aaa" }, { .OriginalCommit = "bbb", .Commit = "ccc" } }) == "bbb", "the first comment not deleted, at the commit it was written on");
 		expect(core::thread_baseline({ { .OriginalCommit = "", .Commit = "ccc" } }) == "ccc", "else the commit GitHub places it on");
-		expect(core::thread_baseline({ }).empty() && core::thread_baseline({ { .Deleted = true, .OriginalCommit = "a", .Commit = "a" } }).empty(), "none when nothing is left");
+		// Named: GCC 15 misreads a braced temporary inside a && chain as dangling (BPR-2215).
+		const auto deletedOnly = std::vector<core::thread_baseline_comment>{ { .Deleted = true, .OriginalCommit = "a", .Commit = "a" } };
+		expect(core::thread_baseline({ }).empty() && core::thread_baseline(deletedOnly).empty(), "none when nothing is left");
 		const auto commits = std::vector<std::string>{ "c1", "c2", "c3", "c4" };
 		const auto since   = core::thread_progress_since("c2", "c4", commits);
 		expect(since.Changed == true && since.CommitsSince == 2U, "two commits after c2, the head past it");

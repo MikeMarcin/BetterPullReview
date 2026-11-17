@@ -85,7 +85,11 @@ namespace bpr::tests::button_faces {
 	{
 		static const auto original = QApplication::style()->name();
 		const auto        macOS    = original.compare(QStringLiteral("macOS"), Qt::CaseInsensitive) == 0;
-		auto              result   = macOS ? std::vector<look>{ } : std::vector<look>{ look{ .Style = original, .Key = original.toLower() } };
+		// Appended, not a ?: of braced vectors, which GCC 15 misreads as dangling (BPR-2215).
+		auto result = std::vector<look>{ };
+		if (!macOS) {
+			result.push_back(look{ .Style = original, .Key = original.toLower() });
+		}
 		if (macOS || QStyleFactory::keys().contains(QStringLiteral("macOS"), Qt::CaseInsensitive)) {
 			result.push_back(look{ .Style = QStringLiteral("macOS"), .Scheme = Qt::ColorScheme::Light, .Key = QStringLiteral("macos-system-light") });
 			result.push_back(look{ .Style = QStringLiteral("macOS"), .Scheme = Qt::ColorScheme::Dark, .Key = QStringLiteral("macos-system-dark") });

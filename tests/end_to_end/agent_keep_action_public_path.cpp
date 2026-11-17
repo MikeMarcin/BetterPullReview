@@ -270,7 +270,7 @@ auto main(int argc, char** argv) -> int
 		auto* const draftOptIn = chat->findChild<QCheckBox*>(QStringLiteral("sideChatDraftOptIn"));
 		expect(localOptIn != nullptr && draftOptIn != nullptr && localOptIn->text() == QStringLiteral("Include my local comments") && draftOptIn->text() == QStringLiteral("Include my drafts"),
 			   "the two opt-ins name local comments and drafts");
-		for (const auto [local, drafts] : { std::pair{ false, false }, std::pair{ true, false }, std::pair{ false, true }, std::pair{ true, true } }) {
+		for (const auto& [local, drafts] : { std::pair{ false, false }, std::pair{ true, false }, std::pair{ false, true }, std::pair{ true, true } }) {
 			// Each toggle says both, for the chat's session now.
 			localOptIn->setChecked(!local);
 			localOptIn->setChecked(local);
