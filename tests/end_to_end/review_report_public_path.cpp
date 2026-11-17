@@ -192,6 +192,7 @@ auto main(int argc, char** argv) -> int
 		expect(findings[3].Keep == core::report_keep::keep_local && findings[3].Path == "README.md" && findings[3].First == 0U, "a finding that names only a file is kept local");
 		expect(findings[4].Keep == core::report_keep::draft_comment && findings[4].Comment.starts_with("praise: "), "praise can be drafted");
 		expect(page.count(QStringLiteral("Draft comment")) == 4 && page.count(QStringLiteral("Keep local")) == 1, "the page offers each: " + std::to_string(page.count(QStringLiteral("Draft comment"))) + " Draft comment, " + std::to_string(page.count(QStringLiteral("Keep local"))) + " Keep local");
+		expect(report->code_views().size() == 2U && std::ranges::all_of(report->code_views(), [](const qt::markdown_body_view* aView) { return aView->width() > 200; }), "opened at once, the report's code boxes are as wide as its column");
 		render(*report, QStringLiteral("review-report-offered"));
 
 		// Draft comment: a private draft at the finding's lines.
@@ -248,6 +249,9 @@ auto main(int argc, char** argv) -> int
 		expect(tonemapDraft != nullptr && tonemapDraft->isEnabled(), "the tonemap card offers Draft");
 		tonemapDraft->click();
 		wait([&] { return cardState(1U).startsWith(QStringLiteral("Drafted")); }, "the tonemap card is drafted: " + cardState(1U).toStdString());
+		window.open_agent_question();
+		tab->reveal_turn(before);
+		render(window, QStringLiteral("review-report-cards-drafted"));
 		row->click();
 		wait([&] { return window.report_shown() && report->isVisible(); }, "the report opens again");
 		expect(report->keep_state(findings[1].Outline).Phase == qt::report_keep_phase::kept && !report->press(findings[1].Outline, qt::report_link::keep), "drafted on its card, the finding reads Drafted on the report and is not drafted twice");
@@ -388,6 +392,16 @@ auto main(int argc, char** argv) -> int
 				 "every finding still reads Drafted or Kept after the restart");
 			expect(back->keep_state(0U).Phase == qt::report_keep_phase::kept && back->draft_all_offered() == 0U && !back->dressed_view()->toPlainText().contains(QStringLiteral("Keep summary")),
 				   "and the summary still reads Kept");
+			{
+				auto settle = QElapsedTimer{ };
+				settle.start();
+				while (settle.elapsed() < 1500) {
+					QApplication::processEvents(QEventLoop::AllEvents, 50);
+				}
+			}
+			// A report opened before its column had its width: the code
+			// boxes take the column's width when it comes.
+			expect(back->code_views().size() == 2U && std::ranges::all_of(back->code_views(), [](const qt::markdown_body_view* aView) { return aView->width() > 200; }), "the report's code boxes are as wide as its column");
 			render(*back, QStringLiteral("review-report-after-restart"));
 			application->begin_shutdown();
 			wait([&] { return application->status().ShutdownComplete; }, "shutdown after the restart");

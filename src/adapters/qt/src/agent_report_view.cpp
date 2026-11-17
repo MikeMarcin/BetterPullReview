@@ -21,6 +21,7 @@
 #include <QPointer>
 #include <QRandomGenerator>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyledItemDelegate>
@@ -279,6 +280,10 @@ namespace bpr::qt {
 		centre->setContentsMargins(24, title_top, 24 + button_width + button_right, 32);
 		Column = new QWidget{ page };
 		Column->setMaximumWidth(column_width);
+		// The page is laid out at the column's width, which the scroll area
+		// gives it after the view's own resize: a report opened while the
+		// column was still narrow left its code boxes one pixel wide.
+		Column->installEventFilter(this);
 		auto* const column = new QVBoxLayout{ Column };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(6);
@@ -1245,6 +1250,11 @@ namespace bpr::qt {
 
 	auto agent_report_view::eventFilter(QObject* const aObject, QEvent* const aEvent) -> bool
 	{
+		if (aObject == Column && aEvent->type() == QEvent::Resize) {
+			if (const auto* const resized = static_cast<QResizeEvent*>(aEvent); resized->oldSize().width() != resized->size().width()) {
+				fit_body();
+			}
+		}
 		// The page's links, by their text: a click on one, or Return on the
 		// one the keyboard reached.
 		if (Dressed != nullptr && aObject == Dressed->viewport()) {
