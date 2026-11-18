@@ -94,10 +94,13 @@ Candidate 4d2988649 (product), 2f10dbc70 (the course's render only).
   pre-existing findings outside the changed lines (`press_offer`,
   `agent_tab_view.cpp:2595`, `local_draft_workflow_area.hpp:72`, the
   fixture's `atoi` and line 370). `verify_documentation.py`: DOCUMENTATION_OK.
-- AC-e: accepted by the owner, no note, 2026-11-18T02:44:53Z (decision
-  `9985bce7-a234-49de-beb1-bcfc883e83cf`, candidate `running-turn-cost`,
-  fingerprint b96d1e4f215c…, handed back at sequence 6) in attended session
-  `883c8ac8fb83c0dfd3b3184810e11d6b`, state
-  `/Users/jaeger/bpr-2252-running-cost-review-state`, on the build frozen
-  from 4d2988649 (executable 10783ec1b843…). Session closed; frozen root
-  removed.
+- AC-e pending: attended session `883c8ac8fb83c0dfd3b3184810e11d6b`, state
+  `/Users/jaeger/bpr-2252-running-cost-review-state`, candidate
+  `running-turn-cost` (fingerprint b96d1e4f215c…), cursor 3, host served
+  over Tailscale. Frozen root `/Users/jaeger/bpr-2252-running-cost-v001.49i51f51`
+  from 4d2988649 (executable 10783ec1b843…). Remove the root with
+  `scripts/freeze_attended_build.py remove` once answered.
+
+## Owner decision (2026-11-17)
+
+The owner accepted look bpr-2252-running-cost-v001 (session 883c8ac8…).
