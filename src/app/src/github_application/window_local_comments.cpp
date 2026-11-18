@@ -66,10 +66,13 @@ namespace bpr::app {
 
 	auto github_application::implementation::shown_alignment() const -> const core::file_alignment*
 	{
-		if (!AcceptedDiff || !SelectedDiffPublication || AcceptedDiff->Alignment.Key != SelectedDiffPublication->Key) {
+		// Only while the surface still shows it, which keeps it alive.
+		const auto accepted = AcceptedDiff.lock();
+		if (!accepted || !SelectedDiffPublication || accepted->Alignment.Key != SelectedDiffPublication->Key || Window == nullptr
+			|| Window->comparison_surface()->current_result() != accepted) {
 			return nullptr;
 		}
-		return &AcceptedDiff->Alignment;
+		return &accepted->Alignment;
 	}
 
 	auto github_application::implementation::make_draft_input_of(const application::local_comment_record& aComment) const -> core::make_draft_input

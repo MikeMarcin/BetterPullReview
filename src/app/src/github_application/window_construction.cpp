@@ -1241,7 +1241,7 @@ namespace bpr::app {
 			*Window->comparison_surface(),
 			[this](const application::diff_publication& aPublication) {
 				ReviewSourceMaterial.reset();
-				AcceptedDiff = aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key ? aPublication.Result : nullptr;
+				AcceptedDiff = aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key ? aPublication.Result : std::shared_ptr<const core::computed_file_diff>{ };
 				if (aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key) {
 					ReviewSourceMaterial = application::review_mutation_source_material{
 						.Key        = aPublication.Context.Key,

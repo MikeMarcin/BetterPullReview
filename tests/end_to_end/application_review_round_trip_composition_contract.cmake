@@ -3858,8 +3858,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# panel's destroyed handler in its destructor, and a running tour turn
 	# shows its cost so far (window_tours.cpp). No review mutation or
 	# submission path changed.
+	# [[BPR-2215]] reseal: the composition's accepted diff is no longer an
+	# owner of the comparison (window_composition.hpp, window_construction.cpp,
+	# window_local_comments.cpp), and BPR-2149's prompt packs in
+	# window_agent_setup.cpp, merged from main. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "92fd8c7260b5018a8b85502eebb02d740fa5bbf696310fd3ec70517c8e799fa9"
+        "4a254f85d8920cb334d7c98d9031ba6e14f2836183ae86642ba937982fc22c24"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
