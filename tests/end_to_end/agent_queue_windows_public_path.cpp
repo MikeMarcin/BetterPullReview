@@ -284,12 +284,19 @@ auto main(int argc, char** argv) -> int
 			if (!e2e::wait_until_plain([&] { return pausedAs(core::queue_pause::failed, 2U); }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "a failed run pauses the queue as failed, both messages still queued:" + describe() };
 			}
-			expect(tab->queue_list()->findChild<QPushButton*>(QStringLiteral("agentQueuePauseResume"))->text() == QStringLiteral("Resume queue"), "the paused queue offers Resume");
+			// The host pauses first; the list shows its Resume on the next
+			// projection, so the course waits for the button it presses.
+			const auto resumeShown = [&] {
+				const auto buttons = tab->queue_list()->findChildren<QPushButton*>(QStringLiteral("agentQueuePauseResume"));
+				return std::ranges::any_of(buttons, [&](const QPushButton* aButton) { return aButton->isVisibleTo(tab->queue_list()) && aButton->text() == QStringLiteral("Resume queue"); });
+			};
+			expect(e2e::wait_until_plain(resumeShown, e2e::extended_agent_budget), "the paused queue offers Resume");
 			expect(press_in(*first, QStringLiteral("agentQueuePauseResume")), "Resume after the failure");
 			if (!e2e::wait_until_plain([&] { return pausedAs(core::queue_pause::usage_limit, 1U); }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "a run past the usage limit pauses the queue as usage limit, the last message still queued:" + describe() };
 			}
 			expect(rows_of(*first) == QStringList{ QStringLiteral("Last message") }, "the last message waits:" + describe());
+			expect(e2e::wait_until_plain(resumeShown, e2e::extended_agent_budget), "the queue paused at the usage limit offers Resume");
 			expect(press_in(*first, QStringLiteral("agentQueuePauseResume")), "Resume after the usage limit");
 			if (!e2e::wait_until_plain([&] { return pausedAs(core::queue_pause::none, 0U) && tab->turn_count() >= 4U && tab->turn_outcome(tab->turn_count() - 1U) == core::agent_turn_outcome::answered; }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "resumed, the last message is answered:" + describe() };
