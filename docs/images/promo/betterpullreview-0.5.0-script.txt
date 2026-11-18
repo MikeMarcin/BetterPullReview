@@ -8,7 +8,7 @@ Picture   Open on the app mark, then cut to the Lantern pull request.
 
 0:09–0:28   Review surface
 Open the pull request and explore the changes.
-Comments sit alongside so they don’t interfere with reading the code.
+Comments appear beside the code, so you can read both.
 Track what you’ve read and accepted as you go.
 Leave a comment or suggest a fix, then tidy it up and publish when it’s ready.
 
