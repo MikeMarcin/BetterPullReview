@@ -277,6 +277,9 @@ try {
 		authoredRow->RequestedTeams        = 3;
 		authoredRow->RequiredReviewPresent = std::make_shared<std::atomic<bool>>(true);
 		authoredRow->CheckFailed           = std::make_shared<std::atomic<bool>>(true);
+		// [[BPR-2196]]. Ready for review, as its Home row says: an owned
+		// draft would open in Author, not on the Overview read below.
+		options.ReviewSubmissionServer->DraftPullRequest = false;
 	}
 	options.Offline = std::make_shared<app::detail::github_offline_fixture>();
 	// [[BPR-1680]]. Holds the explicit Refresh's searches, to show whether
@@ -622,7 +625,9 @@ try {
 		expect(windowA->home_list()->select(identity, true), "exact waiting identity selected");
 		auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(windowA->home_list()->current_view(), &open);
-		wait_for([&] { return windowA->showing_overview() && windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "Home opens the exact accepted Overview", diagnose);
+		wait_for([&] { return windowA->showing_overview() && windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "Home opens the exact accepted Overview", [&] {
+			std::cerr << "home-open: home=" << windowA->showing_home() << " overview=" << windowA->showing_overview() << " status=" << static_cast<int>(windowA->session_panel()->status()) << " modality=" << static_cast<int>(windowA->current_modality()) << '\n';
+			diagnose(); });
 		const auto rows  = windowA->overview_page()->request_rows();
 		const auto teams = std::ranges::count_if(rows, [](const auto* aRow) { return aRow->request().Team && aRow->request().Name.starts_with("octo-org/team-"); });
 		expect(teams == 3, "Overview preserves the same three accepted code-owner teams");
