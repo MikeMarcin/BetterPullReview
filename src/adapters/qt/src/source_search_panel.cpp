@@ -554,6 +554,22 @@ namespace bpr::qt {
 			},
 									  aPalette.color(QPalette::Active, QPalette::ButtonText), aPalette.color(QPalette::Disabled, QPalette::ButtonText));
 		}
+
+		/// The Details toggle: three dots drawn at the button's ink. The font's
+		/// "…" was a few antialiased pixels that, on Linux, drew as colour
+		/// fringes at about 4.2:1.
+		auto details_icon(const QPalette& aPalette) -> QIcon
+		{
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				const auto radius = aSide * 0.08;
+				for (const auto x : { 0.26, 0.5, 0.74 }) {
+					aPainter.drawEllipse(QPointF{ aSide * x, aSide * 0.5 }, radius, radius);
+				}
+			},
+									  aPalette.color(QPalette::Active, QPalette::ButtonText), aPalette.color(QPalette::Disabled, QPalette::ButtonText));
+		}
 	}
 
 	source_search_panel::source_search_panel(QWidget* aParent)
@@ -599,7 +615,7 @@ namespace bpr::qt {
 		controls->addSpacing(2);
 		Details = new quiet_tool_button{ this };
 		Details->setObjectName(QStringLiteral("sourceSearchDetailsToggle"));
-		Details->setText(QStringLiteral("…"));
+		Details->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		Details->setAccessibleName(tr("Toggle search details"));
 		Details->setToolTip(tr("Files to include and exclude, and the exact commits"));
 		Details->setCheckable(true);
@@ -777,7 +793,11 @@ namespace bpr::qt {
 			refresh_icons();
 		}
 	}
-	void source_search_panel::refresh_icons() { CollapseAll->setIcon(collapse_icon(palette())); }
+	void source_search_panel::refresh_icons()
+	{
+		CollapseAll->setIcon(collapse_icon(palette()));
+		Details->setIcon(details_icon(palette()));
+	}
 	void source_search_panel::adopt_appearance(const appearance_profile& aProfile)
 	{
 		using role = core::appearance_role;

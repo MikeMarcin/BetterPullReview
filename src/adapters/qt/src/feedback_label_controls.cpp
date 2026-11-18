@@ -174,9 +174,13 @@ namespace bpr::qt {
 
 	auto readable_link_colour(const QPalette& aPalette) -> QColor
 	{
-		auto       link   = aPalette.color(QPalette::Active, QPalette::Link);
-		const auto ground = aPalette.color(QPalette::Active, QPalette::Window);
-		const auto reads  = [&ground](const QColor& aLink) { return contrast_ratio(to_appearance_color(aLink), to_appearance_color(ground)) >= 4.5; };
+		// The colour is chosen at 4.8:1, not 4.5: a link's words are thin, and
+		// under grayscale antialiasing (Linux) no pixel of a stem reaches the
+		// colour itself, so a link chosen at exactly 4.5:1 drew at 4.36:1.
+		constexpr auto chosen = 4.8;
+		auto           link   = aPalette.color(QPalette::Active, QPalette::Link);
+		const auto     ground = aPalette.color(QPalette::Active, QPalette::Window);
+		const auto     reads  = [&ground](const QColor& aLink) { return contrast_ratio(to_appearance_color(aLink), to_appearance_color(ground)) >= chosen; };
 		if (ground.lightness() >= 128) {
 			// A light profile on a dark system inherits the system's light
 			// link blue, about 3.3:1 on the light ground: darker until it reads.
@@ -186,17 +190,17 @@ namespace bpr::qt {
 			}
 			return link;
 		}
-		if (link.lightness() >= 165) {
+		if (link.lightness() >= 165 && reads(link)) {
 			return link;
 		}
 		// The Markdown reader's lightness first, then lighter until the link
-		// reads at 4.5:1 on the ground: a palette's default blue is about
+		// reads on the ground: a palette's default blue is about
 		// 4.2:1 there at 175.
 		const auto hue        = link.hslHue() < 0 ? 210 : link.hslHue();
 		const auto saturation = std::min(link.hslSaturation(), 200);
 		for (auto lightness = 175; lightness <= 235; lightness += 5) {
 			link = QColor::fromHsl(hue, saturation, lightness);
-			if (contrast_ratio(to_appearance_color(link), to_appearance_color(ground)) >= 4.5) {
+			if (reads(link)) {
 				break;
 			}
 		}
