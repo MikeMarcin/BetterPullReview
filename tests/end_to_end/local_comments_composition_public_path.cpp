@@ -554,13 +554,21 @@ int main(int aArgc, char** aArgv)
 		std::cout << "LOCAL_COMMENTS_REVIEW_CARRIED_DRAFT " << carried << '\n';
 	}
 	static_cast<void>(mutations);
-	const auto& locals = cards->local_comments();
-	const auto  still  = [&locals](const char* aBody) { return std::ranges::any_of(locals, [aBody](const qt::local_comment_card& aCard) { return aCard.Body == QString::fromUtf8(aBody); }); };
-	for (const auto& card : locals) {
+	// The cards present the local comments again after the last send's
+	// projection; the course reads them once they are back, whatever the
+	// event loop's order.
+	const auto still    = [&cards](const char* aBody) { return std::ranges::any_of(cards->local_comments(), [aBody](const qt::local_comment_card& aCard) { return aCard.Body == QString::fromUtf8(aBody); }); };
+	const auto allStill = [&] { return still("LOCAL-ONLY: a reply kept here.") && still("LOCAL-ONLY: on the whole file.") && still("LOCAL-ONLY: on the pull request.") && still("LOCAL-ONLY: a second thought."); };
+	const auto settled  = [&] {
+		for (auto turn = 0; turn < 500 && !allStill(); ++turn) {
+			QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+		}
+		return allStill();
+	}();
+	for (const auto& card : cards->local_comments()) {
 		std::cout << "LOCAL_COMMENTS_STILL " << card.Body.toStdString() << '\n';
 	}
-	expect(still("LOCAL-ONLY: a reply kept here.") && still("LOCAL-ONLY: on the whole file.") && still("LOCAL-ONLY: on the pull request.") && still("LOCAL-ONLY: a second thought."),
-		   "AC03: the Local reply, the file's, the pull request's and the line's Local comments are all still Local after every send");
+	expect(settled, "AC03: the Local reply, the file's, the pull request's and the line's Local comments are all still Local after every send");
 	application->begin_shutdown();
 	wait_for([&] { return application->status().ShutdownComplete; }, "shutdown completes");
 	application.reset();
