@@ -69,6 +69,9 @@
 
 namespace bpr::qt {
 	namespace {
+		/// The draft action row's gap between its parts, where it has room.
+		constexpr int draft_action_spacing = 6;
+
 		/// The prototype's measures: the rail's right edge, the avatar column,
 		/// where a post's text starts, and its padding.
 		constexpr int rail_right   = 8;
@@ -3001,7 +3004,7 @@ namespace bpr::qt {
 		// Where the two do not fit, the main action keeps the row and its
 		// split arrow carries Add single comment.
 		DraftActions = new QBoxLayout{ QBoxLayout::LeftToRight };
-		DraftActions->setSpacing(6);
+		DraftActions->setSpacing(draft_action_spacing);
 		// RFC-BPR-0127 ([[BPR-2158]]). Where "Private until you publish"
 		// stood, the comment's state: Local or Draft, two segments joined.
 		// Local is only on this computer; Draft is meant to be sent.
@@ -3548,13 +3551,22 @@ namespace bpr::qt {
 		}
 		// Room for the lock, Delete and both pills side by side, or the
 		// main pill and its arrow; never a second row.
-		const auto margins   = Foot->layout() != nullptr ? Foot->layout()->contentsMargins() : QMargins{ };
-		const auto available = Foot->width() - margins.left() - margins.right();
-		const auto lock      = Privacy != nullptr ? Privacy->minimumSizeHint().width() : 0;
-		auto*      trash     = Foot->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
-		const auto fixed     = lock + (trash != nullptr ? trash->sizeHint().width() : 0) + 3 * DraftActions->spacing() + 2;
-		const auto needed    = fixed + Publish->sizeHint().width() + ReviewAction->sizeHint().width();
-		const auto split     = available > 0 && needed > available;
+		const auto margins      = Foot->layout() != nullptr ? Foot->layout()->contentsMargins() : QMargins{ };
+		const auto available    = Foot->width() - margins.left() - margins.right();
+		const auto lock         = Privacy != nullptr ? Privacy->minimumSizeHint().width() : 0;
+		auto*      trash        = Foot->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
+		const auto discardWidth = trash != nullptr ? trash->sizeHint().width() : 0;
+		const auto fixed        = lock + discardWidth + 3 * draft_action_spacing + 2;
+		const auto needed       = fixed + Publish->sizeHint().width() + ReviewAction->sizeHint().width();
+		const auto split        = available > 0 && needed > available;
+		// Split, the row closes its two gaps (down to 2 px) before it would
+		// squeeze the main pill below its words: with Linux's wider type a
+		// 260 px drawer was two pixels short.
+		const auto pair    = lock + discardWidth + ReviewAction->sizeHint().width() + SplitAction->sizeHint().width();
+		const auto spacing = split && available > 0 ? std::clamp((available - pair) / 2, 2, draft_action_spacing) : draft_action_spacing;
+		if (DraftActions->spacing() != spacing) {
+			DraftActions->setSpacing(spacing);
+		}
 		if (split == !SplitAction->isHidden()) {
 			return;
 		}
