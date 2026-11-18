@@ -117,6 +117,15 @@ On the lane with main merged (`f8df1e84d`):
 | `d8768775b` Windows Release risk preflight | 9 | 9 passed |
 | `d8768775b` Windows Debug risk preflight | 9 | 9 passed |
 | `2d8b2a9d8` Ubuntu Release, full suite | 1062 | 1021 passed, 41 failed; none on tmpfs |
+| `d8768775b` Ubuntu Release and Debug risk preflight | 9 each | 9 passed each |
+| `d8768775b` Ubuntu Release, full suite | 1062 | 1020 passed, 42 failed; none on tmpfs |
+
+In the `d8768775b` suite `application_epoch_host` hung: one thread waiting
+on a futex for 46 minutes with no output (it passed in 1.36 s at
+`2d8b2a9d8`, and 150 runs on macOS were clean). It was aborted by PID so the
+suite could finish, and stays an open failure.
+`application_review_tour_publication_reconciliation` failed there and not
+before.
 
 Also fixed on the way, each failing on macOS as well as Ubuntu:
 `coding_format_check` (an unformatted `github_window_read_host.cpp` on main),
