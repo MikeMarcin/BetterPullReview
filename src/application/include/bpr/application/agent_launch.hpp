@@ -1196,6 +1196,10 @@ namespace bpr::application {
 		/// [[BPR-2153]]. The reviewer's message was steered into the turn,
 		/// in `Steered`: their words, shown as theirs where it went in.
 		steered,
+		/// [[BPR-2252]]. The runtime reported what the run has cost so far:
+		/// its own figure in `Text` (empty once a figure went down and the
+		/// run's cost is unknown); the host puts the turn's share in `Cost`.
+		cost,
 	};
 
 	/// \brief [[BPR-2153]]. One message steered into a run: its input
@@ -1223,6 +1227,9 @@ namespace bpr::application {
 		std::optional<core::agent_activity_update> Activity;
 		/// For `steered`.
 		std::optional<agent_steered_input> Steered;
+		/// For `cost`: what this turn has cost so far, accounted as its end
+		/// accounts it; none when not known.
+		std::optional<core::agent_cost> Cost;
 
 		auto operator<=>(const agent_stream_event&) const = default;
 	};

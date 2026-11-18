@@ -16,7 +16,9 @@
 // its connection and can be steered ([[BPR-2153]]);
 // `BPR_FIXTURE_AGENT_STEERABLE=0` makes it the one-shot agent with no version,
 // and `FIXTURE_UNVERSIONED` in a question makes that turn name no version
-// (an agent BPR can't steer, reachable through the app).
+// (an agent BPR can't steer, reachable through the app). `FIXTURE_HELPER` in a
+// question makes that turn run a helper for about twenty seconds and report a
+// scripted cost mid-turn ([[BPR-2252]]).
 //
 // RFC-BPR-0120 ([[BPR-2189]]). A local draft's check: a request that asks
 // for a `bpr-check-plan` block is answered with a plan (the author's words
@@ -703,6 +705,41 @@ namespace {
 	/// A stream-JSON user message, written compactly or not.
 	auto user_line(const std::string& aLine) -> bool { return holds(aLine, "\"type\":\"user\"") || holds(aLine, "\"type\": \"user\""); }
 
+	/// [[BPR-2252]]. A question holding `FIXTURE_HELPER` is a turn with one
+	/// helper, as Claude Code 2.1.319 was recorded running one
+	/// (`tests/fixtures/agent/traces/claude-2.1.319-helpers-stdin-open.jsonl`):
+	/// the message starts it and ends with a result while it is out, which
+	/// reports a figure mid-turn; the helper works for `slow_steps` steps and
+	/// reports back; a further part answers. The figures are scripted
+	/// ($0.0412, then $0.0587); the fixture still costs nothing.
+	auto helper_turn(const std::string& aRequest) -> bool
+	{
+		const auto& asked = aRequest.find("this_turn") != std::string::npos ? tour_question(aRequest) : aRequest;
+		return holds(asked, "FIXTURE_HELPER");
+	}
+
+	void emit_helper_part(const int aResults)
+	{
+		const auto turn = std::to_string(aResults);
+		pause();
+		std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-helper-)" << turn << R"(","role":"assistant","content":[{"type":"tool_use","id":"helper-use-)" << turn
+				  << R"(","name":"Agent","input":{"description":"Read the renderer","prompt":"Read src/engine/renderer.cpp","run_in_background":true}}]}})" << '\n'
+				  << R"({"type":"system","subtype":"task_started","session_id":"fixture-agent","task_id":"fixture-helper-)" << turn << R"(","tool_use_id":"helper-use-)" << turn << R"(","description":"Read the renderer"})" << '\n'
+				  << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-helper-said-)" << turn << R"(","role":"assistant","content":[{"type":"text","text":"I asked a helper to read the renderer."}]}})" << '\n'
+				  << R"({"type":"result","subtype":"success","session_id":"fixture-agent","is_error":false,"total_cost_usd":0.0412,"usage":{"input_tokens":1,"output_tokens":1},"uuid":"fixture-helper-result-)" << turn
+				  << R"(","user_message_uuids":[],"queued_turn_count":0,"result":"I asked a helper to read the renderer."})" << '\n'
+				  << std::flush;
+		for (int step = 1; step <= slow_steps; ++step) {
+			slow_step();
+			std::cout << R"({"type":"system","subtype":"task_progress","session_id":"fixture-agent","task_id":"fixture-helper-)" << turn << R"(","description":"Reading step )" << step << R"( of 20","last_tool_name":"Read"})" << '\n'
+					  << std::flush;
+		}
+		std::cout << R"({"type":"system","subtype":"task_notification","session_id":"fixture-agent","task_id":"fixture-helper-)" << turn << R"(","tool_use_id":"helper-use-)" << turn
+				  << R"(","status":"completed","summary":"renderer.cpp read"})" << '\n'
+				  << R"({"type":"system","subtype":"init","session_id":"fixture-agent","tools":[],"mcp_servers":[],"plugins":[],"model":"fixture","claude_code_version":"2.1.319"})" << '\n'
+				  << std::flush;
+	}
+
 	/// [[BPR-2153]], RFC-BPR-0126 Q14. Claude Code 2.1.319 as a kept
 	/// stream-JSON connection was observed to behave (the default as
 	/// `claude`; `BPR_FIXTURE_AGENT_STEERABLE=0` restores the one-shot agent
@@ -750,6 +787,10 @@ namespace {
 			if (holds(request, "bpr-check-report")) {
 				emit_check_run(check_run_steps(request));
 			}
+			const auto helped = helper_turn(request);
+			if (helped) {
+				emit_helper_part(results);
+			}
 			const auto steps = slow(request) ? slow_steps : 1;
 			for (int step = 1; step <= steps; ++step) {
 				slow(request) ? slow_step() : pause();
@@ -788,7 +829,7 @@ namespace {
 			}
 			++results;
 			std::cout << R"({"type":"assistant","session_id":"fixture-agent","message":{"id":"msg-answer-)" << results << R"(","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
-			std::cout << R"({"type":"result","subtype":"success","session_id":"fixture-agent","is_error":false,"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1},"uuid":"fixture-result-)" << results
+			std::cout << R"({"type":"result","subtype":"success","session_id":"fixture-agent","is_error":false,"total_cost_usd":)" << (helped ? "0.0587" : "0") << R"(,"usage":{"input_tokens":1,"output_tokens":1},"uuid":"fixture-result-)" << results
 					  << R"(","user_message_uuids":[)" << named << R"(],"queued_turn_count":0,"result":")" << encoded << "\"}\n"
 					  << std::flush;
 		}

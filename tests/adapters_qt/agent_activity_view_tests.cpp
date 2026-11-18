@@ -59,6 +59,23 @@ auto main(int argc, char** argv) -> int
 	turn          = core::apply_agent_activity(turn, update(kind::doing, { }, "git diff --stat", core::agent_doing::running), 5'000U);
 	live.Activity = turn;
 	expect(qt::agent_run_status_words(live, 5).contains(QStringLiteral("is running git diff --stat")), "the command being run");
+	// [[BPR-2252]]. The turn's cost so far follows its time once reported;
+	// none is said before, nor while the workspace is made.
+	live.Cost = core::agent_cost{ 4'000'000U };
+	expect(qt::agent_run_status_words(live, 5) == QStringLiteral("● Claude is running git diff --stat, 0:05 · < $0.01 · last activity 0 s ago."), "a sub-cent cost after the time: " + qt::agent_run_status_words(live, 5).toStdString());
+	{
+		auto bare     = qt::agent_run_status{ };
+		bare.Agent    = QStringLiteral("Claude");
+		bare.Cost     = core::agent_cost{ 1'840'000'000U };
+		const auto at = qt::agent_run_status_words(bare, 72);
+		expect(at == QStringLiteral("● Claude is thinking, 1:12 · $1.84."), "the thinking line with its cost: " + at.toStdString());
+		bare.Stage = qt::agent_run_stage::preparing;
+		expect(!qt::agent_run_status_words(bare, 3).contains(QLatin1Char{ '$' }), "no cost while the workspace is made");
+		bare.Cost.reset();
+		bare.Stage = qt::agent_run_stage::thinking;
+		expect(qt::agent_run_status_words(bare, 72) == QStringLiteral("● Claude is thinking, 1:12."), "no cost reported, none said");
+	}
+	live.Cost.reset();
 
 	// AC02's rows: three helpers, one running, one finished, one failed.
 	turn         = core::apply_agent_activity(turn, update(kind::helper_started, "a", "Rendering path"), 6'000U);

@@ -1158,9 +1158,20 @@ namespace bpr::application {
 					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
 						watch_scratch(*aInvocation);
-						if (auto self = weak.lock()) {
-							self->post_stream(aInvocation, aEvent);
+						auto self = weak.lock();
+						if (!self) {
+							return;
 						}
+						if (aEvent.Kind != agent_stream_kind::cost) {
+							self->post_stream(aInvocation, aEvent);
+							return;
+						}
+						// [[BPR-2252]]. The turn's cost so far, accounted as
+						// its end accounts it: on this thread, which alone
+						// touches the native session until the run returns.
+						auto event = aEvent;
+						event.Cost = running_turn_cost(*aInvocation, event.Text);
+						self->post_stream(aInvocation, std::move(event));
 					},
 					aInvocation->Stop->get_token());
 				{
@@ -1324,6 +1335,19 @@ namespace bpr::application {
 		/// half second; the turn is stopped once the folder reaches its limit.
 		/// A step that writes past the limit finishes before the stop, so the
 		/// folder can end above it by what that step wrote.
+		/// [[BPR-2252]]. What a running turn has cost so far, from the run's
+		/// figure: a native session's turn is its share of the session's
+		/// running total, as `account_agent_turn_cost` settles it at the end;
+		/// any other run's figure is its own. None for no figure.
+		[[nodiscard]] static auto running_turn_cost(const invocation& aInvocation, const std::string_view aFigure) -> std::optional<core::agent_cost>
+		{
+			const auto reported = aFigure.empty() ? std::nullopt : core::parse_agent_cost(aFigure);
+			if (!reported || !aInvocation.Native) {
+				return reported;
+			}
+			return core::account_agent_turn_cost(aInvocation.Native->Cost, reported, aInvocation.ResumedNative).Turn;
+		}
+
 		static void watch_scratch(invocation& aInvocation)
 		{
 			if (aInvocation.ScratchLimit == 0U || aInvocation.ScratchOverflowed.load(std::memory_order_acquire)) {

@@ -131,8 +131,13 @@ namespace bpr::qt {
 
 	auto agent_run_status_words(const agent_run_status& aStatus, const qint64 aSeconds) -> QString
 	{
-		const auto elapsed = agent_elapsed_words(aSeconds);
-		auto       line    = QString{ };
+		// [[BPR-2252]]. The turn's cost so far follows its time, as the
+		// settled line's does: "3:12 · $0.41".
+		auto elapsed = agent_elapsed_words(aSeconds);
+		if (aStatus.Cost && aStatus.Stage != agent_run_stage::preparing) {
+			elapsed += QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*aStatus.Cost));
+		}
+		auto line = QString{ };
 		// [[BPR-2005]]. The runtime's own events say what it is doing, and
 		// when it last sent anything.
 		if (aStatus.Activity && aStatus.Stage != agent_run_stage::preparing) {

@@ -480,6 +480,7 @@ namespace bpr::qt {
 		KeptText.clear();
 		LastFailure.reset();
 		LastUnfinished.clear();
+		RunningTurnCost.reset();
 		Activity          = { };
 		ActivityReported  = false;
 		ActivityStartedMs = agent_activity_clock_ms();
@@ -554,6 +555,10 @@ namespace bpr::qt {
 		if (aEvent.Kind == application::agent_stream_kind::text) {
 			Output->appendPlainText(QString::fromStdString(aEvent.Text));
 		}
+		// [[BPR-2252]]. The turn's cost so far, said on its running line.
+		if (aEvent.Kind == application::agent_stream_kind::cost) {
+			RunningTurnCost = aEvent.Cost;
+		}
 		// [[BPR-2153]]. The reviewer's steered message, where it went in.
 		if (aEvent.Kind == application::agent_stream_kind::steered && aEvent.Steered && Steered.size() < core::maximum_steers_per_run) {
 			Steered.push_back({ .Text = aEvent.Steered->Text, .At = static_cast<std::size_t>(Output->toPlainText().trimmed().size()), .AfterSteps = aEvent.Steered->AfterSteps });
@@ -603,6 +608,7 @@ namespace bpr::qt {
 		LastCost        = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
 		LastTurnCost    = aResult.TurnCost;
 		LastSessionCost = aResult.SessionCost;
+		RunningTurnCost.reset();
 		StopReason.clear();
 		if (!aResult.RefusalReason.empty()) {
 			StopReason = QString::fromStdString(aResult.RefusalReason);

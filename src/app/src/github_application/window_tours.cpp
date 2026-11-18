@@ -1364,6 +1364,10 @@ namespace bpr::app {
 		if (aEvent.Kind == application::agent_stream_kind::text) {
 			live.Stage = qt::agent_run_stage::writing;
 		}
+		// [[BPR-2252]]. The turn's cost so far, on its running line.
+		if (aEvent.Kind == application::agent_stream_kind::cost) {
+			live.Cost = aEvent.Cost;
+		}
 		present_tour_live(std::move(live));
 		// [[BPR-2154]] (look queue-tour-v002). A message steered into the
 		// part's running turn is the author's in its chat at once, where it
