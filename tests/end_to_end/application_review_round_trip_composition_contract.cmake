@@ -3862,8 +3862,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# owner of the comparison (window_composition.hpp, window_construction.cpp,
 	# window_local_comments.cpp), and BPR-2149's prompt packs in
 	# window_agent_setup.cpp, merged from main. No review mutation or submission path changed.
+	# [[BPR-2254]] reseal: Settings says when the agent store cannot be read
+	# (window_agent_setup.cpp, window_construction.cpp), merged from main. No
+	# review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "4a254f85d8920cb334d7c98d9031ba6e14f2836183ae86642ba937982fc22c24"
+        "2cd77abc541463acbbbe01b18ce2bd40884be7df272fae67a644c700fbb39cca"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
