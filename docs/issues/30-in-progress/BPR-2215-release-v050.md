@@ -135,3 +135,87 @@ the longer `/var/tmp` paths). Still failing at main on macOS and Ubuntu, not
 addressed here: `application_composition_source_contract`,
 `freeze_attended_build_contract`, `github_contract_fixture_security` and
 `qualification_case_inventory_contract`.
+
+## Main's new rows, main's red contracts and the Ubuntu full suite (2026-11-18)
+
+Third round on `claude/release-0-5-0-windows-preflight`, from main at
+`36a45ba49`.
+
+- **Main's four Windows rows.** Measured contained at `b9a0915ec` in the
+  Interactive Limited context and pinned (see
+  `docs/verification/release-v050-windows-containment.md`):
+  `returning_review_mark` `private-data-root-refused`, `review_seen_stays` and
+  `review_seen_fails` `private-desktop-root-refused`. `commit_asks` is
+  registered only off Windows and stays unmeasured, as `review_report` does.
+- **Main's four red contracts.** `qualification_case_inventory_contract` and
+  `application_composition_source_contract` were resealed;
+  `freeze_attended_build_contract` failed on Linux only, where the launcher
+  could not see the first start's helpers (it read macOS libproc only; it now
+  reads `/proc`); `github_contract_fixture_security` passes at the lane.
+  `composed_host_verifier_contract` also failed on Ubuntu: its stripped
+  `python3` is rightly refused, and the course now expects that.
+- **`application_epoch_host` hang.** gdb on the Ubuntu guest caught three
+  hangs in about 30 parallel runs, each in
+  `exact_historical_corpus_uses_its_pair_and_host_path`: the course counted
+  three and then two effects, but the profile actor drains work queued while
+  its effect runs inside that same effect, so a fast search worker needed
+  fewer and the course waited forever. It now drives effects until the search
+  ends; 400 parallel runs afterwards were clean.
+- **A crash.** `application_tour_chat_queue_stop` and `_whole_tour` died with
+  SIGSEGV on Ubuntu: Save on a held message re-presented the queue, which
+  replaced the pending list's dispatch while its `std::function` ran, and the
+  app read `this` from the freed closure. Each control now calls a copy.
+- **Fixed failures that were on every platform:** the `discuss_top` pill
+  (BPR-2171's centred column wrapped the band; the pill now gives up width
+  and its caption elides), `thread_words` (newer agent-chat strings, each
+  exempted where it appears), `source_pr_find` (Author's hidden tab),
+  `review_cycle_publish` (an open account setup held Home over a local cycle),
+  `home_waiting` (the fixture served the PR as a draft, which opens in
+  Author), and the large-review `launch`, `responsiveness` and
+  `provider_cancel` courses (they waited 90 s for the "Provisional metadata"
+  sentence BPR-2216 removed).
+- **Ubuntu-only fixes:** the GCC 15 `-Werror=dangling-pointer` build stop in
+  `returning_review_tests.cpp`, the agent footer growing the status bar from
+  19 to 21 px (which also cost the UIforETW capture its two pixels), the
+  painted-wash measurement, and AC03 of `local_comments_composition` reading
+  the cards before they were presented again.
+- **Fonts are not the cause.** With `fonts-ubuntu` installed on the guest the
+  Qt failures were unchanged; the package was removed again.
+
+| Candidate, platform, config | Rows | Result |
+| --- | --- | --- |
+| `b9a0915ec` Windows Release, three new rows | 3 | direct pass, contained refused as pinned |
+| `c2fda611c` Ubuntu, `application_epoch_host` 4 × 100 parallel | 400 | 400 passed (3 hangs at `36a45ba49`) |
+| `7c13c2dd8` Ubuntu Release, full suite | 1064 | 1048 passed, 16 failed |
+| `d3ff568b7` Windows Release, full suite (Interactive) | 1048 | 1015 passed, 33 failed |
+
+Still failing on Ubuntu at `7c13c2dd8`:
+
+- Eleven large-review courses miss Release timing budgets on the Lima guest
+  (6 vCPUs on an Intel Mac): for example `accepted_metadata_render` 379 ms
+  against 250 and an input gap of 107 ms against 100. The budgets are
+  calibrated on the WSL2 i9-10900KF qualification host; they need a run
+  there, on an idle PC, before they count as passed or missed.
+- `qt_button_faces`: under `QT_STYLE_OVERRIDE=Windows` the Source search
+  Details toggle's words are drawn in blue (`#2f72bc`, 4.19 to 4.6:1;
+  6.3:1 in high-contrast light) and the About link reads 4.36:1 in dark.
+  Fusion on macOS draws the toggle grey (9 to 11:1).
+- `qt_conversation_cards_view`: at 260 px the draft's main action gets 116 px
+  of its 118 px hint.
+- `application_profile_window_layout_public_path` (all platforms): since
+  BPR-2180 v004 a late layout restore opens no drawer over Review, and the
+  course enters Review before the restore, so Repositories stays closed.
+  The course's restore expectations need rewriting against that rule.
+- `application_label_publication_recovery` and
+  `application_agent_queue_finish_pauses_public_path` passed alone earlier
+  and failed once in the suite.
+
+The Windows suite ran at `d3ff568b7`, before the large-review and footer fixes.
+Its 33 failures: the three large-review timeouts and `qt_agent_footer` (23
+against 22 px) are fixed later on the lane; three contracts that configure
+nested CMake trees stopped in `AitoCpm.cmake` or
+`BprSyntaxHighlightingProvider.cmake`; four failed on access to the contained
+temporary tree (`test_suite_runner_contract`, the RFC-0017 recorder,
+`agent_scratch_folder`, `review_tour_writing_wrapper`); the rest are agent,
+store-restart and review-flow courses not yet diagnosed. The external record
+is `/Users/jaeger/.codex/release-runs/v0.5.0-20261116/windows-preflight-fix-r1/`.
