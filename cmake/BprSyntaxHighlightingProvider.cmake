@@ -364,6 +364,22 @@ function(bpr_acquire_syntax_highlighting)
         bpr_syntax_forward(forwarded "${name}")
     endforeach()
 
+    # KSyntaxHighlighting generates its sources with Perl. On Windows the one
+    # a developer has is Git for Windows', under usr/bin, which is not on PATH
+    # where only Git's cmd directory is (a scheduled task, a test's nested
+    # configure): the nested configure then stopped at "Could NOT find Perl".
+    # Found beside Git and handed down, it does not depend on PATH.
+    if(WIN32)
+        if(NOT PERL_EXECUTABLE)
+            find_package(Git QUIET)
+            if(GIT_EXECUTABLE)
+                get_filename_component(bpr_syntax_git_root "${GIT_EXECUTABLE}/../.." ABSOLUTE)
+                find_program(PERL_EXECUTABLE perl HINTS "${bpr_syntax_git_root}/usr/bin" "${bpr_syntax_git_root}/../usr/bin")
+            endif()
+        endif()
+        bpr_syntax_forward(forwarded PERL_EXECUTABLE)
+    endif()
+
     # [[BPR-1904]]. The parent re-stages this pinned dependency whenever its
     # source or forwarded inputs change. Visual Studio's per-project CMake
     # checks otherwise race on data/CMakeFiles/generate.stamp during parallel
