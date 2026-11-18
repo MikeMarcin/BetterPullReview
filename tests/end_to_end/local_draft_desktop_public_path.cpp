@@ -246,6 +246,12 @@ try {
 		// [[BPR-2215]]. The diff is computed on a real thread: on Windows eight
 		// settled rounds can end before it shows, as the author course waits.
 		settle_until(s.Lanes, [&] { return window.comparison_surface()->current_result() != nullptr; });
+		{
+			const auto& file = page->projection().File;
+			std::cout << "TMPDIAG file=" << file.has_value() << " path=" << (file ? file->Path : std::string{ }) << " status=" << (file ? static_cast<int>(file->Status) : -1)
+					  << " reason=" << (file ? static_cast<int>(file->Reason) : -1) << " presented=" << (file && file->Presented) << " local_comparison=" << (window.local_comparison() != nullptr)
+					  << " result=" << (window.comparison_surface()->current_result() != nullptr) << " visible=" << window.comparison_surface()->isVisible() << std::endl;
+		}
 		expect(shown_text(window).contains(QStringLiteral("\treturn 1;")) && shown_text(window).contains(QStringLiteral("\treturn search() + 1;")),
 			   "AC01: the first useful screen is the exact proposed diff, in the pull request's diff viewer");
 		expect(page->working()->count() == 0, "a clean worktree has nothing uncommitted");

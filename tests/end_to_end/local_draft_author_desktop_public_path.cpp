@@ -261,7 +261,7 @@ try {
 		   "on Windows the author's Git is refused as unavailable, not run");
 	std::cout << "local-draft-author-desktop-public-path:skipped (the author's Git runs on POSIX only; the course ran up to Check Again)\n";
 	return EXIT_SUCCESS;
-#endif
+#else
 	expect(page->local_projection().Hosted.Observed && page->local_projection().Hosted.Ahead == 2U && changes->push_state()->text() == QStringLiteral("2 ahead of GitHub"),
 		   "2 ahead of GitHub");
 	expect(page->branch_button()->text().contains(QStringLiteral("fix/port-parsing")) && page->branch_button()->text().contains(QStringLiteral("↑2")), "the branch says it is 2 ahead");
@@ -413,6 +413,7 @@ try {
 	capture(window, QStringLiteral("home-1"));
 	std::cout << "local-draft-author-desktop-public-path:pass\n";
 	return EXIT_SUCCESS;
+#endif
 } catch (const std::exception& aError) {
 	std::cerr << "local-draft-author-desktop-public-path:fail " << aError.what() << '\n';
 	return EXIT_FAILURE;
