@@ -12,6 +12,7 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QKeyEvent>
@@ -19,13 +20,13 @@
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextTable>
 #include <QUrl>
+#include <QUuid>
 
 #include <algorithm>
 #include <cstdlib>
@@ -107,8 +108,19 @@ namespace {
 
 int main(int aArgc, char** aArgv)
 try {
-	QApplication  application{ aArgc, aArgv };
-	QTemporaryDir folder;
+	QApplication application{ aArgc, aArgv };
+	// A folder made without a mode inherits the temporary folder's entries:
+	// QTemporaryDir's owner-only mode gives a Windows AppContainer a folder
+	// it may not write in ("Access is denied").
+	struct scratch_folder
+	{
+		QString Path = QDir::temp().filePath(QStringLiteral("bpr-agent-report-view-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+		scratch_folder() { static_cast<void>(QDir{ }.mkpath(Path)); }
+		~scratch_folder() { static_cast<void>(QDir{ Path }.removeRecursively()); }
+		[[nodiscard]] auto isValid() const -> bool { return QDir{ Path }.exists(); }
+		[[nodiscard]] auto path() const -> const QString& { return Path; }
+		[[nodiscard]] auto filePath(const QString& aName) const -> QString { return QDir{ Path }.filePath(aName); }
+	} folder;
 	expect(folder.isValid(), "a scratch folder");
 	const auto picture = folder.filePath(QStringLiteral("secret.png"));
 	{
