@@ -113,6 +113,9 @@ namespace bpr::qt {
 		/// [[BPR-2153]]. What the reviewer steered into it, shown as their own
 		/// messages where they went in.
 		std::vector<application::agent_steered_message> Steered;
+		/// [[BPR-2241]]. How long its run took, when `Footer` is the stored
+		/// outcome rather than the line it settled with.
+		std::optional<qint64> Seconds;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
@@ -459,11 +462,13 @@ namespace bpr::qt {
 		/// callback; nothing else removes it.
 		void set_conversation_chip(std::optional<agent_conversation_chip> aChip);
 		/// RFC-BPR-0116 ([[BPR-2073]]). What What changed since my review
-		/// offers now: a suggestion while offered, a quiet line saying why
-		/// while unavailable, nothing otherwise.
+		/// offers now: a suggestion while offered, nothing otherwise.
 		void               present_latest_upload(const core::latest_upload_offer& aOffer);
 		[[nodiscard]] auto latest_upload_offer() const noexcept -> const core::latest_upload_offer& { return LatestUpload; }
-		[[nodiscard]] auto latest_upload_note() const noexcept -> QLabel* { return LatestUploadNote; }
+		/// [[BPR-2251]]. Its suggestion's press: the host reads the change
+		/// since the review, then asks through `ask_returning`. Unset, the
+		/// press asks at once.
+		void set_latest_upload_dispatch(std::function<void()> aDispatch) { LatestUploadDispatch = std::move(aDispatch); }
 		/// RFC-BPR-0116. Asks a returning question, as its suggestion does.
 		/// \brief `aThreads`: how many threads an `addressed_threads` ask carries.
 		void ask_returning(core::returning_operation aOperation, std::size_t aThreads = 0U);
@@ -1147,7 +1152,7 @@ namespace bpr::qt {
 		std::function<void(const suggest_change_turn&)>     SuggestObserver;
 		void                                                publish_explain(std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, bool aAnswered, qint64 aSeconds);
 		core::latest_upload_offer                           LatestUpload;
-		QLabel*                                             LatestUploadNote = nullptr;
+		std::function<void()>                               LatestUploadDispatch;
 		std::function<void(const QString&, const QString&)> AskMoreDispatch;
 		std::optional<core::agent_question>                 LastQuestion;
 		[[nodiscard]] auto                                  current_suggestion_context() const -> agent_suggestion_context;

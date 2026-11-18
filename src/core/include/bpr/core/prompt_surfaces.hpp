@@ -24,7 +24,8 @@ namespace bpr::core {
 	/// \brief `pull-request-menu`, `file-chips`, `tour-stop` and so on.
 	[[nodiscard]] auto stable_name(prompt_surface aSurface) noexcept -> std::string_view;
 	[[nodiscard]] auto find_prompt_surface(std::string_view aName) noexcept -> std::optional<prompt_surface>;
-	/// \brief An Ask menu (as opposed to suggested chips).
+	/// \brief A menu (as opposed to suggested chips): an Ask menu, or the
+	/// Commits selection menu ([[BPR-2248]]).
 	[[nodiscard]] auto is_menu(prompt_surface aSurface) noexcept -> bool;
 	/// \brief The scope an Ask menu or chip surface asks at; none for a tour chat.
 	[[nodiscard]] auto surface_scope(prompt_surface aSurface) noexcept -> std::optional<prompt_scope>;
@@ -48,6 +49,11 @@ namespace bpr::core {
 		/// An action on a menu narrower than what it asks about (What
 		/// changed since my review on a file's menu).
 		action_too_narrow,
+		/// [[BPR-2248]]. An action row on the Commits selection menu.
+		action_not_commits,
+		/// [[BPR-2248]]. A prompt about selected commits anywhere but the
+		/// Commits selection menu.
+		commits_only,
 	};
 	/// \brief The refusal in words, for a drop or an Add to item.
 	[[nodiscard]] auto placement_reason(placement_refusal aRefusal) -> std::string_view;

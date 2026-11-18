@@ -544,6 +544,9 @@ namespace bpr::core {
 		/// RFC-BPR-0118. Suggest the change's material up front, only with
 		/// its operation; outside its bounds the request is refused whole.
 		std::optional<supplement_suggest_change> SuggestChange;
+		/// [[BPR-2248]]. The Commits selection's material up front, only
+		/// beside a question; outside its bounds the request is refused whole.
+		std::optional<supplement_commits> Commits;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -611,6 +614,9 @@ namespace bpr::core {
 		/// RFC-BPR-0118. Carried through unchanged; absent for every launch
 		/// that is not Suggest the change.
 		std::optional<supplement_suggest_change> SuggestChange;
+		/// [[BPR-2248]]. Carried through unchanged; absent for every launch
+		/// that does not ask about selected commits.
+		std::optional<supplement_commits> Commits;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

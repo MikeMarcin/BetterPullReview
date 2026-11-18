@@ -282,7 +282,7 @@ namespace {
 	/// a review is answered with them.
 	auto reviews(const std::string& aRequest) -> bool
 	{
-		return holds(aRequest, "bpr-findings") && (holds(aRequest, "Review this pull request") || holds(aRequest, "Review src/") || holds(aRequest, "run_ai_review"));
+		return holds(aRequest, "bpr-findings") && (holds(aRequest, "Review this pull request") || holds(aRequest, "Review src/") || holds(aRequest, "Review commits") || holds(aRequest, "run_ai_review"));
 	}
 
 	/// [[BPR-2219]]. What a real agent says while it reviews, between its
@@ -399,6 +399,45 @@ namespace {
 				   "- **Unchanged** `src/ui/widgets/button.cpp:5` nitpick: name the magic number.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
+		// [[BPR-2248]]. Explain these commits: a section a commit, by the
+		// headlines the request carries, a merge of the base named and not
+		// explained, and one commit whose change does more than its message.
+		if (holds(aRequest, "commits.scope") && !reviews(aRequest)) {
+			const auto value = [&aRequest](const std::size_t aFrom, const std::string& aField) {
+				const auto found = aRequest.find(aField, aFrom);
+				if (found == std::string::npos) {
+					return std::string{ };
+				}
+				auto start = found + aField.size();
+				start += aRequest.compare(start, 2U, "\\t") == 0 ? 2U : 1U;
+				const auto end = aRequest.find_first_of("\\\n\"", start);
+				return aRequest.substr(start, end - start);
+			};
+			auto own    = std::string{ };
+			auto merges = std::string{ };
+			auto count  = 0;
+			for (auto index = 0; index < 50; ++index) {
+				const auto prefix = "commits." + std::to_string(index);
+				const auto found  = aRequest.find(prefix + ".oid");
+				if (found == std::string::npos) {
+					break;
+				}
+				const auto oid      = value(found, prefix + ".oid").substr(0U, 7U);
+				const auto headline = value(found, prefix + ".headline");
+				if (value(found, prefix + ".merges_base") == "1") {
+					merges.append("- `").append(oid).append("` ").append(headline).append(". It brings in the base branch; its changes are not this pull request's.\n");
+					continue;
+				}
+				++count;
+				own.append("### `").append(oid).append("` ").append(headline).append("\n\n");
+				own += count == 2 ? std::string{ "**Does more than its message says.** Besides what the message names, it also edits `src/app.cpp:40`, which the message does not mention.\n\n" }
+								  : std::string{ "The change matches its message: it does what the message says and nothing else.\n\n" };
+			}
+			// A course checks the base branch's own change never rode along.
+			const auto based = holds(aRequest, "release-notes") ? std::string{ "present" } : std::string{ "none" };
+			return "# What these commits change\n\n" + std::to_string(count) + " commits of the pull request's own were read against their messages. One does more than its message says.\n\n## By commit\n\n" + own
+				+ (merges.empty() ? std::string{ } : "## Merges of the base branch\n\n" + merges + "\n") + "_Fixture agent: a canned answer, nothing was spent. Base branch changes in the request: " + based + "._";
+		}
 		// Look ask-v002: an explanation and a what-could-break answer are long
 		// enough to be reports (two headings or more), so a look sees the
 		// report card and its tab.
@@ -445,6 +484,26 @@ namespace {
 		}
 		// A review (the review skill asks every turn for findings it finds;
 		// only a review is answered with them).
+		// [[BPR-2248]]. Review these commits: a review of the selected
+		// commits' own changes, its findings on the commit-selection course's
+		// files.
+		if (reviews(aRequest) && holds(aRequest, "commits.scope")) {
+			return "# Review of the selected commits\n\n"
+				   "**Verdict:** Ready with comments\n\n"
+				   "The input change and the regeneration agree. The follow-up commit edits two generated files by hand, which the next regeneration will undo.\n\n"
+				   "## Worth a look\n\n### issue (non-blocking): A generated file is edited by hand\n\n`gen/item_007.txt:2`\n\n"
+				   "The follow-up adjusts this file directly. The generator does not know about the change, so the next run puts the old line back.\n\n"
+				   "### question: Is line 40 part of the follow-up's purpose?\n\n`src/app.cpp:40`\n\nThe message says it tidies the app after the regeneration; this line changes what it prints.\n\n"
+				   "## Not reviewed\n\n- The merge of main: it is the base branch's own work.\n\n"
+				   "```bpr-findings\n"
+				   R"({"findings": [{"path": "gen/item_007.txt", "startLine": 2, "endLine": 2, "severity": "minor", "category": "maintainability", "confidence": "high", )"
+				   R"("claim": "A generated file is edited by hand.", "evidence": "The follow-up commit changes gen/item_007.txt, which the generator writes.", )"
+				   R"("suggestedComment": "issue (non-blocking): this file is generated, so the next regeneration undoes this edit. Could the change go in the generator's input?"}, )"
+				   R"({"path": "src/app.cpp", "startLine": 40, "endLine": 40, "severity": "minor", "category": "correctness", "confidence": "medium", )"
+				   R"("claim": "Line 40 changes behaviour in a tidy-up commit.", "evidence": "The message says tidy; the line changes what the app prints.", )"
+				   R"("suggestedComment": "question: is this change to line 40 meant to be part of the follow-up?"}]})"
+				   "\n```\n";
+		}
 		if (reviews(aRequest)) {
 			// docs/design/report-templates-v1 and [[BPR-2219]]: a review is a
 			// report, its verdict first, and its findings block lists the

@@ -369,7 +369,8 @@ try {
 																   .Answered = "Late original answer",
 																   .Ending   = "Answered",
 																   .Steered  = { { .Text = "Look at b.cpp instead", .At = 0U, .AfterSteps = 7U, .Disposition = core::agent_steer_disposition::consumed },
-																				 { .Text = "And the tests", .At = 4U, .AfterSteps = 9U, .Disposition = core::agent_steer_disposition::unknown } } };
+																				 { .Text = "And the tests", .At = 4U, .AfterSteps = 9U, .Disposition = core::agent_steer_disposition::unknown } },
+																   .Seconds  = 72U };
 	expect(natives->append(restored->Id, steeredTurn), "late output records only its originating history");
 	const auto list = natives->history(scope, "claude");
 	expect(list && list->Selected == newSession->Id && list->Turns.empty() && list->Entries.size() == 3U, "new generation empty while all scoped history retained");
@@ -383,6 +384,8 @@ try {
 
 	expect(durableHistory && durableHistory->Selected == restored->Id && durableHistory->Turns.size() == 2U && durableHistory->Turns.back().Answered == "Late original answer", "restart preserves selected generation and originating late transcript");
 	expect(durableHistory->Turns.back().Steered == steeredTurn.Steered && durableHistory->Turns.front().Steered.empty(), "restart keeps each turn's steered messages, in order, with their steps and states");
+	// [[BPR-2241]]. How long each run took, where the host kept it.
+	expect(durableHistory->Turns.back().Seconds == std::optional<std::uint32_t>{ 72U } && !durableHistory->Turns.front().Seconds, "restart keeps how long a turn's run took, and none where none was kept");
 	expect(!natives->append(restored->Id, { .Asked = "Bad", .Answered = "Too short", .Ending = "Answered", .Steered = { { .Text = "Past the answer", .At = 400U } } }), "a steered message placed past its answer is refused");
 
 	auto replayed = natives->replay(scope, "claude", changedBinding, restored->Id);
@@ -390,6 +393,7 @@ try {
 	natives            = adapters::sqlite::make_native_agent_session_store(scratch.path());
 	auto replayHistory = natives->history(scope, "claude");
 	expect(replayHistory && replayHistory->Replay && replayHistory->Turns.size() == 2U && replayHistory->ReplaySource == restored->Id, "restart preserves replay mode, source link and retained prose");
+	expect(replayHistory->Turns.back().Seconds == std::optional<std::uint32_t>{ 72U }, "a replay keeps how long each turn took");
 	expect(!natives->replay("authority:agent-b:agent-tab", "claude", binding, restored->Id), "replay source cannot cross agent authority");
 	expect(talks->store(pull, thread), "seed explicit legacy source after earlier clear");
 	const auto legacyHistory = natives->history(scope, "claude", "", pull);

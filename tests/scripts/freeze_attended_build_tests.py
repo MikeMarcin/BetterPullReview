@@ -31,7 +31,35 @@ for argument in "$@"; do
 done
 echo "ATTENDED_HEAD:$head"
 echo "ATTENDED_FILE_SHOWN:src/engine/renderer.cpp"
-if [ "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" = 1 ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent · Default model:report=1"; fi
+# [[BPR-2239]]. At the next push (`1`) every ask is answered; on a file with no
+# push (`file`) What changed since my review is not offered and is skipped.
+if [ "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" = 1 ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent · Default model:asks=9:skipped=:report=1:menus=5"; fi
+if [ "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" = file ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent · Default model:asks=8:skipped=review bar: What changed since my review:report=1:menus=5"; fi
+exec sleep 30
+"""
+
+# [[BPR-2239]]. The first start leaves a helper in a session of its own that
+# outlives it by two seconds and then writes `first-done` into the review
+# data; the next push refuses to start while that helper may still write.
+LINGERING_STAND_IN = """#!/bin/sh
+data=
+phase=
+previous=
+for argument in "$@"; do
+  if [ "$previous" = --epoch-fixture-root ]; then data="$argument"; fi
+  if [ "$previous" = --epoch-fixture-phase ]; then phase="$argument"; fi
+  previous="$argument"
+done
+if [ "$phase" = reuse ]; then
+  if [ ! -f "$data/first-done" ]; then echo "ATTENDED_FILE_FAILED:raced the first start's helper"; exec sleep 30; fi
+  echo "ATTENDED_HEAD:2222222222222222222222222222222222222222"
+else
+  mkdir -p "$data"
+  python3 -c 'import os, sys, time; os.setsid(); time.sleep(2); open(sys.argv[1], "w").write("done")' "$data/first-done" &
+  echo "ATTENDED_HEAD:1111111111111111111111111111111111111111"
+fi
+echo "ATTENDED_FILE_SHOWN:src/engine/renderer.cpp"
+if [ -n "$BPR_ATTENDED_FIXTURE_AGENT_CHECK" ]; then echo "ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent · Default model:asks=9:skipped=:report=1:menus=5"; fi
 exec sleep 30
 """
 
@@ -169,11 +197,24 @@ def main() -> int:
                and "CHECK_OK (fixture agent answers): ATTENDED_FIXTURE_AGENT_ANSWERED:Fixture agent:footer=Fixture agent" in checked.stdout,
                f"a launcher whose fixture is present opens the file and gets the fixture agent's answer: {checked.stdout!r}")
         expect(launch(plain, "--next-push").returncode == 2, "a launcher frozen without a push refuses --next-push")
+        # [[BPR-2239]] AC-d. A look on a file with no push asks at its file and
+        # says why What changed since my review is absent rather than failing.
+        expect("CHECK_OK (What changed since my review): not offered, rightly: this look has no next push" in checked.stdout,
+               f"a look on a file with no push says why What changed is absent: {checked.stdout!r}")
+        expect(not list(plain.glob("check.*")), "a passed check leaves no scratch")
 
         pushed = frozen_root(directory, "pushed", required=["tests/fixtures/github/contracts/v1/conventional-comments-v1"], next_push=True)
         checked = launch(pushed, "--check")
-        expect(checked.returncode == 0 and "CHECK_OK (next push)" in checked.stdout and "head 2222" in checked.stdout,
-               f"the check opens the pushed head too: {checked.stdout!r}")
+        expect(checked.returncode == 0 and "CHECK_OK (next push)" in checked.stdout and "head 2222" in checked.stdout
+               and "What changed since my review" not in checked.stdout,
+               f"the check opens the pushed head too, where What changed is asked: {checked.stdout!r}")
+
+        # [[BPR-2239]] AC-b. The next push starts only once everything the
+        # first start started has exited, a helper in its own session too.
+        lingering = frozen_root(directory, "lingering", required=[], next_push=True, stand_in=LINGERING_STAND_IN)
+        checked = launch(lingering, "--check")
+        expect(checked.returncode == 0 and "CHECK_OK (next push)" in checked.stdout and "raced" not in checked.stdout,
+               f"the next push waits for the first start's helper: {checked.stdout!r}")
 
         same_head = frozen_root(directory, "same", required=[], next_push=True, stand_in=STAND_IN.replace("head=" + "2" * 40, "head=" + "1" * 40))
         checked = launch(same_head, "--check")
@@ -184,6 +225,12 @@ def main() -> int:
         checked = launch(exits, "--check")
         expect(checked.returncode == 1 and "EXITED 3 within seconds" in checked.stdout and "STARTUP_FAILED" in checked.stdout,
                f"an application that exits is reported within seconds: {checked.stdout!r}")
+        # [[BPR-2239]] AC-a. A failed check keeps its scratch and prints the
+        # failing start's log and its last lines.
+        kept = [line.split(": ", 1)[1] for line in checked.stdout.splitlines() if line.startswith("CHECK_KEPT: ")]
+        expect(len(kept) == 1 and Path(kept[0]).is_dir() and (Path(kept[0]) / "single.log").is_file()
+               and f"CHECK_LOG: {kept[0]}/single.log" in checked.stdout and "CHECK_LOG| STARTUP_FAILED" in checked.stdout,
+               f"a failed check keeps its scratch and prints its log: {checked.stdout!r}")
 
         workshop = frozen_root(directory, "workshop", required=[], next_push=False, stand_in=WORKSHOP_STAND_IN,
                                extra=["--attended-workshop-agent", "{build}/helper"], ready="ATTENDED_WORKSHOP_SHOWN")

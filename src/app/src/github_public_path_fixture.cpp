@@ -944,6 +944,31 @@ namespace bpr::app::detail {
 					.Packs               = { .File = "commit-filter-comment-v1/objects.pack" },
 					.Commits             = 3U,
 				};
+			// [[BPR-2248]]. The same chain with a merge of the base branch
+			// between C2 and C3: main gained B1 (release notes), and X merges it
+			// in. B1 is the base's tip and the merge base, so Files changed is
+			// the plain 98 files; the commit list serves four commits.
+			case github_public_path_fixture::commit_selection_v1:
+				return {
+					.ContractDirectory   = "commit-selection-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 2248U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "commit-selection",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "425f67544842aa15b1306225cbdf21a0d790b698",
+					.HeadOneOid          = "993ba24588474c6d7c00f57a1b86b00aac62c46b",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "commit-selection-v1/objects.pack" },
+					.Commits             = 4U,
+				};
 			}
 			return { };
 		}

@@ -29,9 +29,9 @@ namespace {
 	auto commit(const char aDigit) -> std::string { return std::string(40U, aDigit); }
 	auto bytes(const std::string_view aText) -> std::vector<std::uint8_t> { return { aText.begin(), aText.end() }; }
 
-	auto facts(std::string aReviewed, std::string aSeen, std::string aCurrent, core::returning_material aMaterial) -> core::latest_upload_facts
+	auto facts(std::string aReviewed, std::string aSeen, std::string aCurrent) -> core::latest_upload_facts
 	{
-		return { .ReviewedHead = std::move(aReviewed), .SeenHead = std::move(aSeen), .CurrentHead = std::move(aCurrent), .Commits = { commit('1'), commit('2'), commit('3') }, .Material = aMaterial };
+		return { .ReviewedHead = std::move(aReviewed), .SeenHead = std::move(aSeen), .CurrentHead = std::move(aCurrent), .Commits = { commit('1'), commit('2'), commit('3') } };
 	}
 
 	/// AC01. Offered only with commits newer than the review or the Seen,
@@ -39,31 +39,31 @@ namespace {
 	void latest_upload_is_offered_only_for_newer_commits()
 	{
 		using state = core::latest_upload_state;
-		expect(core::decide_latest_upload(facts({ }, { }, commit('3'), core::returning_material::readable)).State == state::hidden, "no review and no Seen: not offered");
-		expect(core::decide_latest_upload(facts(commit('3'), { }, commit('3'), core::returning_material::readable)).State == state::hidden, "reviewed at the head: not offered");
-		const auto offered = core::decide_latest_upload(facts(commit('1'), { }, commit('3'), core::returning_material::readable));
+		expect(core::decide_latest_upload(facts({ }, { }, commit('3'))).State == state::hidden, "no review and no Seen: not offered");
+		expect(core::decide_latest_upload(facts(commit('3'), { }, commit('3'))).State == state::hidden, "reviewed at the head: not offered");
+		const auto offered = core::decide_latest_upload(facts(commit('1'), { }, commit('3')));
 		expect(offered.State == state::offered && offered.Earlier && offered.Earlier->Head == commit('1') && offered.Earlier->Basis == core::returning_basis::review,
 			   "reviewed earlier: offered on the reviewed head");
-		const auto seen = core::decide_latest_upload(facts(commit('1'), commit('2'), commit('3'), core::returning_material::readable));
+		const auto seen = core::decide_latest_upload(facts(commit('1'), commit('2'), commit('3')));
 		expect(seen.State == state::offered && seen.Earlier && seen.Earlier->Head == commit('2') && seen.Earlier->Basis == core::returning_basis::seen, "a later Seen is the earlier revision");
-		const auto reviewedAfterSeen = core::decide_latest_upload(facts(commit('2'), commit('1'), commit('3'), core::returning_material::readable));
+		const auto reviewedAfterSeen = core::decide_latest_upload(facts(commit('2'), commit('1'), commit('3')));
 		expect(reviewedAfterSeen.Earlier && reviewedAfterSeen.Earlier->Head == commit('2'), "a review after the Seen is the earlier revision");
-		expect(core::decide_latest_upload(facts(commit('1'), commit('3'), commit('3'), core::returning_material::readable)).State == state::hidden, "Seen at the head: not offered");
-		const auto gone = core::decide_latest_upload(facts(commit('9'), { }, commit('3'), core::returning_material::readable));
+		expect(core::decide_latest_upload(facts(commit('1'), commit('3'), commit('3'))).State == state::hidden, "Seen at the head: not offered");
+		const auto gone = core::decide_latest_upload(facts(commit('9'), { }, commit('3')));
 		expect(gone.State == state::offered && gone.Earlier->Head == commit('9'), "a review on a commit no longer listed still names it");
-		auto authored     = facts(commit('1'), { }, commit('3'), core::returning_material::readable);
+		auto authored     = facts(commit('1'), { }, commit('3'));
 		authored.Authored = true;
 		expect(core::decide_latest_upload(authored).State == state::hidden, "never on the reviewer's own pull request");
-		expect(core::decide_latest_upload(facts(commit('1'), { }, commit('3'), core::returning_material::reading)).State == state::reading, "reading while the material is read");
 	}
 
-	/// AC02. The earlier revision cannot be read: unavailable, and it still
-	/// says which revision that is.
-	void unreadable_earlier_revision_is_unavailable()
+	/// [[BPR-2251]]. Whether the earlier revision can be read is not asked
+	/// before a press: offered on the heads alone, a review on a commit the
+	/// pull request no longer lists included.
+	void latest_upload_is_offered_before_anything_is_read()
 	{
-		const auto offer = core::decide_latest_upload(facts(commit('1'), { }, commit('3'), core::returning_material::unreadable));
-		expect(offer.State == core::latest_upload_state::unavailable && offer.Earlier && offer.Earlier->Head == commit('1'), "unavailable, naming the unreadable revision");
-		expect(core::stable_name(offer.State) == "unavailable", "named");
+		const auto offer = core::decide_latest_upload(facts(commit('9'), { }, commit('3')));
+		expect(offer.State == core::latest_upload_state::offered && offer.Earlier && offer.Earlier->Head == commit('9'), "offered, naming the revision a press reads");
+		expect(core::stable_name(offer.State) == "offered", "named");
 	}
 
 	/// AC03. Was this addressed? is offered only on a thread the reviewer
@@ -219,12 +219,153 @@ namespace {
 	}
 }
 
+namespace {
+	auto listed(const char aDigit, std::vector<char> aParents, std::string aHeadline) -> core::listed_commit
+	{
+		auto parents = std::vector<std::string>{ };
+		for (const auto parent : aParents) {
+			parents.push_back(commit(parent));
+		}
+		return { .Oid = commit(aDigit), .Headline = std::move(aHeadline), .Parents = std::move(parents), .Paths = std::nullopt };
+	}
+
+	/// [[BPR-2247]]. The rule for what of a selection of commits is the pull
+	/// request's own work: every commit but a merge of the base branch, each
+	/// as its first parent to it, in the selection's order. Any selection.
+	void own_changes_leave_out_merges_of_the_base()
+	{
+		const auto all       = std::vector{ commit('1'), commit('2'), commit('4'), commit('5') };
+		const auto selection = std::vector{
+			listed('2', { '1' }, "Fix the parser"),
+			listed('4', { '2', 'b' }, "Merge branch 'main' into feature"),
+			listed('5', { '4' }, "Handle the empty case"),
+		};
+		const auto steps = core::own_change_steps(selection, all, "main");
+		expect(steps
+				   == std::vector<core::commit_change_step>{ { .Parent = commit('1'), .Commit = commit('2'), .Headline = "Fix the parser" },
+															 { .Parent = commit('4'), .Commit = commit('5'), .Headline = "Handle the empty case" } },
+			   "the merge of main is left out whole; the real commits are each their first parent to them, in order");
+		const auto chosen = core::own_change_steps({ selection[1] }, all, "main");
+		expect(chosen.empty(), "a selection of only a base merge carries nothing of the pull request's own");
+		auto other = listed('6', { '5', '2' }, "Merge feature-part into feature");
+		expect(core::own_change_steps({ other }, all, "main").size() == 1U, "a merge of the pull request's own branch keeps its first-parent change");
+		expect(core::own_change_steps({ listed('7', { }, "Root") }, all, "main").empty(), "a commit with no parent has nothing to compare");
+	}
+
+	/// [[BPR-2247]]. The change since a review is read as one comparison
+	/// unless merges of the base are among the commits since; then by commit.
+	void the_change_since_a_review_is_planned_around_base_merges()
+	{
+		const auto plain = std::vector{ listed('1', { 'a' }, "Start"), listed('2', { '1' }, "Reviewed"), listed('3', { '2' }, "More"), listed('4', { '3' }, "Even more") };
+		const auto net   = core::plan_returning_change(commit('2'), commit('4'), plain, "main");
+		expect(net.Listed && !net.ByCommit && net.Depth == 3U && net.Steps.size() == 1U && net.Steps.front().Parent == commit('2') && net.Steps.front().Commit == commit('4'),
+			   "without merges, the reviewed head to the head, with the generations that reach it");
+
+		const auto merged = std::vector{ listed('1', { 'a' }, "Start"), listed('2', { '1' }, "Reviewed"), listed('3', { '2', 'b' }, "Merge branch 'main' into feature"),
+										 listed('4', { '3' }, "Real fix"), listed('5', { '4', 'c' }, "Merge remote-tracking branch 'origin/main' into feature"),
+										 listed('6', { '5' }, "Second fix") };
+		const auto split  = core::plan_returning_change(commit('2'), commit('6'), merged, "main");
+		expect(split.Listed && split.ByCommit && split.Depth == 5U
+				   && split.Steps
+					   == std::vector<core::commit_change_step>{ { .Parent = commit('3'), .Commit = commit('4'), .Headline = "Real fix" },
+																 { .Parent = commit('5'), .Commit = commit('6'), .Headline = "Second fix" } },
+			   "with merges of main since the review, each real commit's own change, and no merge's");
+
+		const auto rewritten = core::plan_returning_change(commit('9'), commit('6'), merged, "main");
+		expect(!rewritten.Listed && !rewritten.ByCommit && rewritten.Steps.size() == 1U && rewritten.Steps.front().Parent == commit('9'),
+			   "a reviewed head that is not one of the commits (a rewritten branch) is compared whole");
+		auto broken    = merged;
+		broken[3]      = listed('4', { 'z' }, "Real fix");
+		const auto cut = core::plan_returning_change(commit('2'), commit('6'), broken, "main");
+		expect(cut.Listed && !cut.ByCommit && cut.Steps.size() == 1U && cut.Depth == 5U, "a first-parent chain that does not reach the reviewed head is compared whole");
+	}
+
+	/// [[BPR-2247]]. A change read by commit keeps commit order, a line for
+	/// each commit that changed something, and the same bounds.
+	void a_change_by_commit_keeps_its_commits_in_order()
+	{
+		const auto changes = core::bound_returning_commits({
+			{ .Commit = commit('4'), .Headline = "Real fix", .Files = { { .Path = "b.cpp", .Text = "B\n" }, { .Path = "a.cpp", .Text = "A\n" } } },
+			{ .Commit = commit('5'), .Headline = "Nothing", .Files = { { .Path = "c.cpp", .Text = "" } } },
+			{ .Commit = commit('6'), .Headline = "bad\xff", .Files = { { .Path = "a.cpp", .Text = "A2\n" } } },
+		});
+		expect(changes.Text == "Commit 4444444: Real fix\nA\nB\nCommit 6666666\nA2\n" && changes.FilesShown == 3U && changes.FilesOmitted == 0U,
+			   "each commit's files in path order under its line; a commit that changed nothing has none, and a headline that is not UTF-8 is left out");
+		auto many = std::vector<core::returning_commit_files>{ { .Commit = commit('4'), .Headline = "Many", .Files = { } } };
+		for (std::size_t index = 0U; index < core::maximum_returning_files + 2U; ++index) {
+			many.front().Files.push_back({ .Path = "f" + std::to_string(1000U + index), .Text = "x\n" });
+		}
+		const auto bounded = core::bound_returning_commits(std::move(many));
+		expect(bounded.FilesShown == core::maximum_returning_files && bounded.FilesOmitted == 2U, "past the file bound the rest are counted, not shown");
+	}
+
+	/// [[BPR-2248]]. A selection of commits, contiguous or not, is read in the
+	/// pull request's order as each real commit's own change; a merge of the
+	/// base is named and left out; the depth reaches the oldest selected.
+	void a_selection_of_commits_is_planned_around_base_merges()
+	{
+		const auto commits = std::vector{ listed('1', { 'a' }, "Start"), listed('2', { '1' }, "Fix the parser"), listed('3', { '2', 'b' }, "Merge branch 'main' into feature"),
+										  listed('4', { '3' }, "Handle the empty case"), listed('5', { '4' }, "Tidy") };
+		const auto plan    = core::plan_commit_selection({ commit('4'), commit('3'), commit('2') }, commits, "main");
+		expect(plan.Refusal == core::commit_selection_refusal::none, "a selection of the pull request's commits is planned");
+		expect(plan.Selected.size() == 3U && plan.Selected[0].Oid == commit('2') && plan.Selected[1].Oid == commit('3') && plan.Selected[2].Oid == commit('4'),
+			   "in the pull request's order, whatever order they were selected in");
+		expect(plan.Steps
+				   == std::vector<core::commit_change_step>{ { .Parent = commit('1'), .Commit = commit('2'), .Headline = "Fix the parser" },
+															 { .Parent = commit('3'), .Commit = commit('4'), .Headline = "Handle the empty case" } },
+			   "each real commit's own change; the merge of main carries none");
+		expect(plan.BaseMerges == std::vector{ commit('3') }, "the merge of main is named");
+		expect(plan.Depth == 5U, "four commits from the oldest selected to the head, and its parent");
+
+		const auto apart = core::plan_commit_selection({ commit('5'), commit('2') }, commits, "main");
+		expect(apart.Refusal == core::commit_selection_refusal::none && apart.Steps.size() == 2U && apart.Steps[0].Commit == commit('2') && apart.Steps[1].Commit == commit('5'),
+			   "commits that are not contiguous are each their own change");
+
+		expect(core::plan_commit_selection({ commit('3') }, commits, "main").Refusal == core::commit_selection_refusal::no_own_change,
+			   "a merge of main alone changes nothing of the pull request's own");
+		expect(core::plan_commit_selection({ }, commits, "main").Refusal == core::commit_selection_refusal::nothing_selected, "nothing selected");
+		expect(core::plan_commit_selection({ commit('9') }, commits, "main").Refusal == core::commit_selection_refusal::not_listed, "a commit no longer listed");
+		auto many = std::vector<core::listed_commit>{ };
+		auto ids  = std::vector<std::string>{ };
+		for (std::size_t index = 0U; index <= core::maximum_selected_commits; ++index) {
+			auto oid = std::string(38U, '0') + (index < 10U ? "0" : "") + std::to_string(index);
+			many.push_back({ .Oid = oid, .Headline = "c", .Parents = { many.empty() ? std::string(40U, 'f') : many.back().Oid } });
+			ids.push_back(oid);
+		}
+		expect(core::plan_commit_selection(ids, many, "main").Refusal == core::commit_selection_refusal::too_many, "past the bound, refused");
+	}
+
+	/// [[BPR-2248]]. The material keeps its bounds: one-line headlines, cut
+	/// messages, full commit IDs.
+	void the_selected_commits_keep_their_bounds()
+	{
+		auto changes = core::returning_changes{ .Text = "Commit 2222222: Fix\n", .FilesShown = 1U };
+		auto long_   = std::string(core::maximum_selected_commit_message_bytes + 10U, 'm');
+		long_.replace(core::maximum_selected_commit_message_bytes - 1U, 2U, "\xC3\xA9");
+		const auto material = core::bound_selected_commits({ { .Oid = commit('2'), .Headline = "Fix\nsecond line", .Message = long_ }, { .Oid = commit('3'), .Headline = "Merge", .MergesBase = true } }, changes);
+		expect(material && core::valid(*material), "a selection within bounds is material");
+		expect(material->Commits[0].Headline == "Fix" && material->Commits[0].Message.size() == core::maximum_selected_commit_message_bytes - 1U && material->Commits[1].MergesBase,
+			   "a headline is one line and a message is cut at a character's boundary");
+		expect(material->Changes == changes.Text && material->FilesShown == 1U, "the changes are carried as read");
+		expect(!core::bound_selected_commits({ }, changes), "no commit, no material");
+		expect(!core::bound_selected_commits({ { .Oid = "abc1234" } }, changes), "a short ID is refused");
+		auto bad               = *material;
+		bad.Commits[0].Message = "\xff";
+		expect(!core::valid(bad), "a message that is not UTF-8 is not valid");
+	}
+}
+
 auto main() -> int
 {
+	a_selection_of_commits_is_planned_around_base_merges();
+	the_selected_commits_keep_their_bounds();
 	thread_baseline_is_decided_in_core();
+	own_changes_leave_out_merges_of_the_base();
+	the_change_since_a_review_is_planned_around_base_merges();
+	a_change_by_commit_keeps_its_commits_in_order();
 	one_ask_reads_every_threads_claim();
 	latest_upload_is_offered_only_for_newer_commits();
-	unreadable_earlier_revision_is_unavailable();
+	latest_upload_is_offered_before_anything_is_read();
 	proposed_fix_is_offered_on_my_threads_after_new_commits();
 	the_answer_leads_with_one_of_four_words();
 	the_change_is_unified_text_within_its_bound();

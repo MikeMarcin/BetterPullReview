@@ -150,8 +150,9 @@ namespace {
 	{
 		const auto set = shipped_set();
 		// RFC-BPR-0128 added three action rows (What changed, Explain this file,
-		// Was this addressed?), which are never chips.
-		expect(set.size() == 25U, "25 built-ins");
+		// Was this addressed?), which are never chips. [[BPR-2248]] added the
+		// Commits selection's two, which are never chips either.
+		expect(set.size() == 27U, "27 built-ins");
 		expect(std::ranges::all_of(set, [](const prompt_macro& aMacro) { return aMacro.BuiltIn && aMacro.On && prompt_macro_valid(aMacro); }), "every built-in is on and valid");
 		const auto lineChoices = std::vector<std::optional<prompt_line_range>>{ std::nullopt, prompt_line_range{ 34U, 34U }, prompt_line_range{ 34U, 36U } };
 		for (const auto& file : { std::optional<std::string>{ }, std::optional<std::string>{ "src/render/renderer.cpp" }, std::optional<std::string>{ "README.md" } }) {
@@ -231,7 +232,7 @@ namespace {
 		facts.PullRequest->Title = std::string(maximum_prompt_expansion_bytes - 6U, 'x');
 		expect(decide_prompt_offers(std::vector{ macro }, facts).Chips.size() == 1U, "exactly 16 KiB is offered");
 
-		expect(prompt_variables(prompt_place::conversation).size() == 9U && prompt_variables(prompt_place::agent_tab).size() == 13U && prompt_variables(prompt_place::tour_stop).size() == 11U,
+		expect(prompt_variables(prompt_place::conversation).size() == 9U && prompt_variables(prompt_place::agent_tab).size() == 14U && prompt_variables(prompt_place::tour_stop).size() == 11U,
 			   "each place's variables");
 		for (auto index = std::size_t{ 0 }; index < prompt_variable_count; ++index) {
 			const auto variable = static_cast<prompt_variable>(index);
@@ -420,7 +421,7 @@ namespace {
 				agentTab.push_back(entry.Macro.Id);
 			}
 		}
-		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block", "agent-tab.what-changed", "agent-tab.explain-file" },
+		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block", "agent-tab.what-changed", "agent-tab.explain-file", "commits.explain", "commits.review" },
 			   "the stored order, then the built-ins it does not name after the place's last built-in");
 		const auto entry = [&merged](const std::string_view aId) {
 			return *std::ranges::find_if(merged.Entries, [aId](const prompt_set_entry& aEntry) { return aEntry.Macro.Id == aId; });
@@ -442,7 +443,7 @@ namespace {
 				newPlace.push_back(item.Macro.Id);
 			}
 		}
-		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new", "agent-tab.what-changed", "agent-tab.explain-file" },
+		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new", "agent-tab.what-changed", "agent-tab.explain-file", "commits.explain", "commits.review" },
 			   "a new built-in appears on, after its place's other built-ins");
 
 		// The profile bound.

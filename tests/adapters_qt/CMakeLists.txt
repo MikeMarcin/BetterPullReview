@@ -2253,6 +2253,13 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_agent_finding_cards_restart)
     bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
     set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
+    # [[BPR-2241]]. A restored report's byline says how its turn ended.
+    bpr_add_executable(test_agent_restored_byline agent_restored_byline_tests.cpp)
+    target_link_libraries(test_agent_restored_byline PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_agent_restored_byline)
+    bpr_enable_warnings(test_agent_restored_byline)
+    bpr_add_network_isolated_test(NAME qt_agent_restored_byline COMMAND test_agent_restored_byline)
+    set_tests_properties(qt_agent_restored_byline PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-restored-byline:pass" TIMEOUT 60)
     # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
     bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
     # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).

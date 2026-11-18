@@ -15,6 +15,7 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_application_host.hpp"
@@ -156,6 +157,10 @@ namespace bpr::app::detail {
 		/// as BPR-Test #116 for comments on a filtered diff; see
 		/// `scripts/build_commit_filter_fixture.py --comment`.
 		commit_filter_comment_v1,
+		/// [[BPR-2248]]. commit_filter_v1's chain with a merge of the base
+		/// branch between C2 and C3, and messages with bodies: four commits;
+		/// see `scripts/build_commit_filter_fixture.py --merges`.
+		commit_selection_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -2186,7 +2191,13 @@ namespace bpr::app::detail {
 		/// not hold stands for a rewritten branch whose earlier commits are
 		/// gone. (The fixture GitHub refuses to load a review on a commit it
 		/// cannot serve, so the read cannot carry one.)
-		static void               force_returning_review_head(github_application& aApplication, std::string aHead);
+		static void force_returning_review_head(github_application& aApplication, std::string aHead);
+		/// \brief [[BPR-2251]]. How many times What changed since my review
+		/// has asked the host for the change since the review.
+		[[nodiscard]] static auto returning_change_reads(const github_application& aApplication) noexcept -> std::size_t;
+		/// [[BPR-2249]]. Makes the profile's queue store refuse (or keep again)
+		/// one-record writes, as a Seen's.
+		static void               refuse_queue_store_writes(github_application& aApplication, bool aRefuse);
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;
@@ -2284,6 +2295,20 @@ namespace bpr::app::detail {
 		/// function releases it, or thirty seconds pass.
 		[[nodiscard]] static auto hold_review_ledger_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-2250]]. Holds the profile's history lane, where the
+		/// change since a review's GitHub reads run, the way a slow fetch of
+		/// the past does, until the returned function releases it or thirty
+		/// seconds pass.
+		[[nodiscard]] static auto hold_epoch_history_effects(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-2250]]. The published Overview's changed-since-my-review
+		/// mark: each file row's path with its mark, in row order; empty
+		/// before an Overview is published.
+		[[nodiscard]] static auto overview_change_marks(
+			const github_application& aApplication) -> std::vector<std::pair<std::string, application::overview_change_since_review>>;
+		/// \brief [[BPR-2250]]. How many times the Overview's mark asked the
+		/// host for the change since my last review.
+		[[nodiscard]] static auto changed_since_review_reads(const github_application& aApplication) noexcept -> std::size_t;
 		/// \brief [[BPR-1404]]. Holds private draft persistence on its existing
 		/// effect lane until the returned function releases it, or thirty
 		/// seconds pass. Decision delivery and public gestures keep turning.

@@ -16,8 +16,20 @@
 ///   its press asks about that conversation with its lines then and now; the
 ///   answer's claim is shown; the thread is not resolved and nothing is posted.
 /// - `gone STUB`: with my review taken to be on a commit the review's objects
-///   do not hold (a rewritten branch), the menu item and the Agent tab say
-///   the earlier code can't be read, and nothing is sent.
+///   do not hold and the repository no longer serves (a rewritten branch
+///   whose earlier commits are gone), the question is still offered; a press
+///   on the Agent tab's suggestion says the code could not be fetched
+///   ([[BPR-2247]], [[BPR-2251]]), and nothing is sent.
+///
+/// - `mark STUB` ([[BPR-2250]]): with the lane the past is fetched on held
+///   from startup, as a slow GitHub holds it, the pull request loads and a
+///   file's diff opens. My last review recorded on the first head, the
+///   Overview marks exactly the files that changed since it; recorded on a
+///   commit the review does not hold and GitHub does not serve, every file
+///   is unknown, never unchanged, and nothing is asked again.
+///
+/// [[BPR-2251]]: in every course, opening the pull request and reading its
+/// current state asks nothing of its past; only a press reads it.
 /// - `latest STUB --attended` / `addressed STUB --attended`: the same, then
 ///   the window stays open for a person to look; closing it ends the course.
 
@@ -46,11 +58,14 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -119,7 +134,7 @@ auto main(int argc, char** argv) -> int
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication qtApplication{ argc, argv };
 	if (argc < 3) {
-		std::cerr << "usage: returning_review_public_path latest|addressed|gone STUB [--attended]\n";
+		std::cerr << "usage: returning_review_public_path latest|addressed|gone|mark STUB [--attended]\n";
 		return EXIT_FAILURE;
 	}
 	const auto    course   = std::string_view{ argv[1] };
@@ -150,8 +165,10 @@ auto main(int argc, char** argv) -> int
 		// AC02. The reviewed head is a commit the review's objects do not
 		// hold: a rewritten branch whose earlier commits are gone.
 		if (course == "gone") {
-			access::force_returning_review_head(*application, "0badc0de0badc0de0badc0de0badc0de0badc0d");
+			access::force_returning_review_head(*application, "0badc0de0badc0de0badc0de0badc0de0badc0de");
 		}
+		// [[BPR-2250]]. GitHub holds the fetch of the past from the start.
+		auto releaseHistory = course == "mark" ? access::hold_epoch_history_effects(*application) : std::function<void()>{ };
 		application->show();
 		auto& window = application->window();
 		window.resize(1440, 960);
@@ -164,26 +181,84 @@ auto main(int argc, char** argv) -> int
 		expect(whatChanged != nullptr, "the Pull Request menu has What Changed Since My Review");
 		const auto launchesAt = [&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations; };
 
+		// [[BPR-2251]]. Offered on the heads alone, and the current state
+		// loads with nothing of the past read: a file's diff opens.
+		wait([&] { return whatChanged->isEnabled(); }, "What Changed Since My Review is offered");
+		wait([&] { return window.go_to_file_line(QStringLiteral("src/engine/renderer.cpp"), 12U, false); }, "the current state loads: a file's diff opens");
+		expect(access::returning_change_reads(*application) == 0U, "opening the pull request read nothing of its past");
+		expect(whatChanged->text() == QStringLiteral("What &Changed Since My Review"), "the menu item says only what it asks");
+
+		if (course == "mark") {
+			using mark       = application::overview_change_since_review;
+			const auto marks = [&] { return access::overview_change_marks(*application); };
+			const auto all   = [&](const mark aMark) { return !marks().empty() && std::ranges::all_of(marks(), [aMark](const auto& aRow) { return aRow.second == aMark; }); };
+			expect(all(mark::unchanged), "with no review of mine recorded, nothing is marked");
+			// The head jiayin (the viewer) reviewed, and the one file that
+			// changed between it and the pull request's head.
+			const auto reviewedHead    = std::string_view{ "b20cb443428212543f5911e091a0ffeb407d23cf" };
+			const auto expectedChanged = std::vector<std::string>{ "src/engine/renderer.cpp" };
+
+			// My review on the first head, which the review holds: exactly the
+			// files that changed since it are marked.
+			expect(access::mark_head_reviewed(*application, reviewedHead), "my last review is recorded on the first head");
+			wait([&] { return !marks().empty() && std::ranges::none_of(marks(), [](const auto& aRow) { return aRow.second == mark::unknown; }); }, "the mark resolves");
+			auto changed = std::vector<std::string>{ };
+			auto said    = std::string{ };
+			for (const auto& [path, state] : marks()) {
+				if (state == mark::changed || state == mark::added) {
+					changed.push_back(path);
+					said += path + ' ';
+				}
+			}
+			std::cout << "returning-review-mark: changed=" << said << '\n';
+			expect(changed == expectedChanged, "exactly the files that changed since the first head are marked: " + said);
+
+			// Nothing of the current state waits on the lane the past is
+			// fetched on, held since startup: another file's diff opens, well
+			// inside the thirty seconds the hold lasts. (This fixture's
+			// transport fetches no trees; the host course
+			// `a_held_overview_mark_fetch_leaves_the_epoch_lane_free` holds a
+			// real fetch.)
+			expect(e2e::wait_until_plain([&] { return window.go_to_file_line(QStringLiteral("src/ui/widgets/button.cpp"), 1U, false); }, std::chrono::milliseconds{ 10'000 }),
+				   "another file's diff opens while the history lane is held");
+			releaseHistory();
+
+			// BPR-2250:gone. My review on a commit the review does not hold
+			// and GitHub does not serve: nothing is marked changed or
+			// unchanged, and nothing is asked again.
+			const auto before = access::changed_since_review_reads(*application);
+			expect(access::mark_head_reviewed(*application, "0badc0de0badc0de0badc0de0badc0de0badc0de"), "my last review is recorded on a commit that cannot be got");
+			wait([&] { return all(mark::unknown) && access::changed_since_review_reads(*application) == before + 1U; }, "every file is unknown, and the change since that commit is asked once");
+			// Opening another file and reading its receipts republishes the
+			// Overview; the mark's answer is kept, not asked again.
+			expect(e2e::wait_until_plain([&] { return window.go_to_file_line(QStringLiteral("src/main.cpp"), 1U, false); }, std::chrono::milliseconds{ 10'000 }), "a third file's diff opens");
+			const auto asked = access::changed_since_review_reads(*application);
+			expect(!e2e::wait_until_plain([&] { return access::changed_since_review_reads(*application) != asked || !all(mark::unknown); }, std::chrono::milliseconds{ 2'000 }),
+				   "a reviewed commit that cannot be got leaves every file unknown, and is not asked again");
+			shutdown(*application);
+			std::cout << "returning-review-mark:pass\n";
+			return EXIT_SUCCESS;
+		}
+
 		if (course == "gone") {
-			wait([&] { return whatChanged->text().contains(QStringLiteral("can't be read here")); }, "the menu says the earlier code can't be read");
 			agent_ready(window);
-			const auto before = launchesAt();
-			expect(!whatChanged->isEnabled() && whatChanged->text().contains(QStringLiteral("0badc0d")), "unavailable, naming the reviewed commit");
-			expect(tab->latest_upload_offer().State == core::latest_upload_state::unavailable && tab->latest_upload_note() != nullptr && tab->latest_upload_note()->isVisible()
-					   && tab->latest_upload_note()->text().contains(QStringLiteral("can't be read here")),
-				   "the Agent tab says why, where the suggestion would be");
-			expect(!tab->suggestions().contains(QStringLiteral("What changed since my review")), "no suggestion is offered in its place");
-			tab->ask_returning(core::returning_operation::latest_upload);
+			const auto before   = launchesAt();
+			const auto refusals = window.agent_panel()->refusal_count();
+			expect(tab->latest_upload_offer().State == core::latest_upload_state::offered && tab->suggestions().contains(QStringLiteral("What changed since my review")),
+				   "the Agent tab suggests it before anything is read");
+			tab->choose_prompt(QStringLiteral("What changed since my review"), false);
+			wait([&] { return window.agent_panel()->refusal_count() > refusals; }, "the press is refused once the read answers");
+			const auto refusal = window.agent_panel()->last_refusal();
+			expect(access::returning_change_reads(*application) == 1U, "the press read the change since the review");
+			expect(refusal.contains(QStringLiteral("could not be fetched from GitHub")) && refusal.contains(QStringLiteral("0badc0d")), "the run says why, naming the reviewed commit: " + refusal.toStdString());
 			QApplication::processEvents();
-			expect(launchesAt() == before, "a press when unavailable launches nothing");
+			expect(launchesAt() == before, "a press whose change cannot be read launches nothing");
 			shutdown(*application);
 			std::cout << "returning-review-gone:pass\n";
 			return EXIT_SUCCESS;
 		}
 
-		// AC01, AC06. Offered once the earlier revision is read; opening and
-		// reading launched no agent.
-		wait([&] { return whatChanged->isEnabled(); }, "What Changed Since My Review is offered");
+		// AC01, AC06. Opening launched no agent.
 		expect(launchesAt() == 0U, "opening a returning pull request launches no agent");
 		agent_ready(window);
 		expect(tab->suggestions().contains(QStringLiteral("What changed since my review")), "the Agent tab suggests it");
@@ -195,6 +270,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return answer_of(*tab).find("RETURNING_ECHO") != std::string::npos && access::agent_invocation_evidence(*application).Quiescent; }, "the answer arrives");
 			const auto answer = answer_of(*tab);
 			const auto last   = tab->turn_count() - 1U;
+			expect(access::returning_change_reads(*application) == 1U, "the press read the change since the review, once");
 			expect(launchesAt() == setupLaunches + 1U, "one press, one call");
 			expect(answer.find("system=1") != std::string::npos, "its own prompt was the system prompt:\n" + answer);
 			expect(answer.find("changes=1") != std::string::npos, "the change between the revisions was in the request:\n" + answer);

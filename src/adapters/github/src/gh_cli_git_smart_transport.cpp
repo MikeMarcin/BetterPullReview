@@ -1078,7 +1078,9 @@ namespace bpr::adapters::github::detail {
 				if (!credential) {
 					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 				}
-				{
+				// One clone of `aCommit` to `aDepth` generations, trees only, into
+				// store `aIndex`, between two observations of the same account.
+				const auto cloneTrees = [&](const core::git_commit_oid& aCommit, const std::size_t aIndex, const std::uint32_t aDepth) -> git_smart_transport_result<void> {
 					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
 					identity.set_insights_channel(Insights);
 					aStep             = git_smart_transport_step::identity_before;
@@ -1091,7 +1093,7 @@ namespace bpr::adapters::github::detail {
 						return std::unexpected{ git_smart_transport_error{ *error } };
 					}
 					aStep                 = git_smart_transport_step::clone;
-					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aRequest.Head, Git, root, 0U, aRequest.Depth);
+					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aCommit, Git, root, aIndex, aDepth);
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
@@ -1116,36 +1118,78 @@ namespace bpr::adapters::github::detail {
 						revoke();
 						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
 					}
+					return { };
+				};
+				if (auto cloned = cloneTrees(aRequest.Head, 0U, aRequest.Depth); !cloned) {
+					return std::unexpected{ cloned.error() };
 				}
-				// Every commit the host will read must be held, with its tree.
-				aStep      = git_smart_transport_step::object_check;
-				auto names = std::string{ };
-				for (const auto& commit : aRequest.Commits) {
-					const auto hex = std::string{ core::canonical_hex(commit).view() };
-					names.append(hex).append("\n").append(hex).append("^{tree}\n");
-				}
-				auto       check   = compile_gh_cli_local_git_request(Configuration, Git, root, { "--git-dir=" + git_path_text(gh_cli_git_clone_store(root, 0U)), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
-																	  names, chain_output_limit);
-				const auto checked = process->run(check, aStop);
-				if (!checked) {
-					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(checked.error()) } };
-				}
-				auto lines = std::vector<std::string_view>{ };
-				for (auto rest = std::string_view{ checked->StandardOutput }; !rest.empty();) {
-					const auto end = rest.find('\n');
-					lines.push_back(rest.substr(0U, end));
-					rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
-				}
-				if (checked->ExitCode != 0 || lines.size() != 2U * aRequest.Commits.size()) {
-					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
-				}
-				for (std::size_t index = 0U; index < aRequest.Commits.size(); ++index) {
-					const auto hex = std::string{ core::canonical_hex(aRequest.Commits[index]).view() };
-					if (lines[2U * index] != hex + " commit" || !lines[2U * index + 1U].ends_with(" tree")) {
-						// Not within the depth asked for, or absent: the store holds
-						// less than the chain, which the host reports as such.
-						return std::unexpected{ git_smart_transport_error{ failure::response_limit } };
+				// Every commit the host will read must be held, with its tree:
+				// the commits the check finds absent.
+				const auto absent = [&]() -> git_smart_transport_result<std::vector<core::git_commit_oid>> {
+					aStep      = git_smart_transport_step::object_check;
+					auto names = std::string{ };
+					for (const auto& commit : aRequest.Commits) {
+						const auto hex = std::string{ core::canonical_hex(commit).view() };
+						names.append(hex).append("\n").append(hex).append("^{tree}\n");
 					}
+					auto       check   = compile_gh_cli_local_git_request(Configuration, Git, root, { "--git-dir=" + git_path_text(gh_cli_git_clone_store(root, 0U)), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
+																		  names, chain_output_limit);
+					const auto checked = process->run(check, aStop);
+					if (!checked) {
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(checked.error()) } };
+					}
+					auto lines = std::vector<std::string_view>{ };
+					for (auto rest = std::string_view{ checked->StandardOutput }; !rest.empty();) {
+						const auto end = rest.find('\n');
+						lines.push_back(rest.substr(0U, end));
+						rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+					}
+					if (checked->ExitCode != 0 || lines.size() != 2U * aRequest.Commits.size()) {
+						return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+					}
+					auto missing = std::vector<core::git_commit_oid>{ };
+					for (std::size_t index = 0U; index < aRequest.Commits.size(); ++index) {
+						const auto hex = std::string{ core::canonical_hex(aRequest.Commits[index]).view() };
+						if (lines[2U * index] != hex + " commit" || !lines[2U * index + 1U].ends_with(" tree")) {
+							missing.push_back(aRequest.Commits[index]);
+						}
+					}
+					return missing;
+				};
+				auto missing = absent();
+				if (!missing) {
+					return std::unexpected{ missing.error() };
+				}
+				if (aRequest.Outside && missing->size() == 1U && missing->front() == *aRequest.Outside) {
+					// [[BPR-2247]]. A commit outside the head's history, or past
+					// the depth, is fetched by its SHA, as GitHub serves a commit
+					// a force push left behind, into a second store the first
+					// borrows; it is a boundary there, its parents left out.
+					if (auto cloned = cloneTrees(*aRequest.Outside, 1U, 1U); !cloned) {
+						return std::unexpected{ cloned.error().Failure == failure::cancelled ? cloned.error() : git_smart_transport_error{ failure::response_limit } };
+					}
+					aStep             = git_smart_transport_step::local_store;
+					const auto first  = gh_cli_git_clone_store(root, 0U);
+					const auto append = [](const std::filesystem::path& aPath, const std::string& aLine) {
+						std::ofstream stream{ aPath, std::ios::binary | std::ios::app };
+						stream.write(aLine.data(), static_cast<std::streamsize>(aLine.size()));
+						stream.close();
+						return static_cast<bool>(stream);
+					};
+					std::filesystem::create_directories(first / "objects/info");
+					if (!append(first / "objects/info/alternates", git_path_text(gh_cli_git_clone_store(root, 1U) / "objects") + "\n")
+						|| !append(first / "shallow", std::string{ core::canonical_hex(*aRequest.Outside).view() } + "\n")) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					missing = absent();
+					if (!missing) {
+						return std::unexpected{ missing.error() };
+					}
+				}
+				if (!missing->empty()) {
+					// Not within the depth asked for, or absent: the store holds
+					// less than the chain, which the host reports as such.
+					return std::unexpected{ git_smart_transport_error{ failure::response_limit } };
 				}
 				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Configuration, Git, std::move(process), aRequest.Commits);
 			}

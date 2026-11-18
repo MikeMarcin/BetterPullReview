@@ -78,6 +78,11 @@ namespace bpr::qt {
 	/// it: the product, without its "Code" ("Claude Code" is "Claude").
 	/// Any other name is said as it is.
 	[[nodiscard]] auto agent_short_name(const QString& aAgent) -> QString;
+	/// \brief [[BPR-2241]]. A settled turn's ending, the first part of its
+	/// line: `agent_run_answered_words` with the agent's short name when it
+	/// answered, else `agent_run_stopped_words`. A turn restored without its
+	/// duration says "Claude answered" or "Stopped".
+	[[nodiscard]] auto agent_turn_ending_words(const QString& aAgent, bool aAnswered, std::optional<qint64> aSeconds) -> QString;
 
 	/// \brief [[BPR-1941]], owner 2026-11-08: "the '<agent> is thinking
 	/// <elapsed time>' ... is much better than the tour side chat's little

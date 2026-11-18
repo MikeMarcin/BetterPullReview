@@ -153,8 +153,6 @@ namespace bpr::qt {
 		case agent_busy:               return QObject::tr("The agent is answering another question.");
 		case not_reviewed:             return QObject::tr("You haven't reviewed this pull request yet.");
 		case no_commits_since_review:  return QObject::tr("No commits since your review.");
-		case reading_commits:          return QObject::tr("Reading the commits since your review.");
-		case earlier_unreadable:       return QObject::tr("The code you reviewed can't be read here.");
 		case no_threads:               return aScope == core::prompt_scope::file ? QObject::tr("No review threads on this file.") : QObject::tr("No review threads on this pull request.");
 		case no_commits_since_threads: return QObject::tr("No commits since these threads started.");
 		case no_commits_since_thread:  return QObject::tr("No commits since this thread started.");

@@ -169,10 +169,8 @@ namespace bpr::core {
 				return greyed(std::move(aRow), quick_ask_reason::not_reviewed);
 			}
 			switch (aFacts.LatestUpload) {
-			case latest_upload_state::hidden:      return greyed(std::move(aRow), quick_ask_reason::no_commits_since_review);
-			case latest_upload_state::reading:     return greyed(std::move(aRow), quick_ask_reason::reading_commits);
-			case latest_upload_state::unavailable: return greyed(std::move(aRow), quick_ask_reason::earlier_unreadable);
-			case latest_upload_state::offered:     return aRow;
+			case latest_upload_state::hidden:  return greyed(std::move(aRow), quick_ask_reason::no_commits_since_review);
+			case latest_upload_state::offered: return aRow;
 			}
 			return aRow;
 		}
@@ -355,8 +353,6 @@ namespace bpr::core {
 		case quick_ask_reason::agent_busy:               return "agent-busy";
 		case quick_ask_reason::not_reviewed:             return "not-reviewed";
 		case quick_ask_reason::no_commits_since_review:  return "no-commits-since-review";
-		case quick_ask_reason::reading_commits:          return "reading-commits";
-		case quick_ask_reason::earlier_unreadable:       return "earlier-unreadable";
 		case quick_ask_reason::no_threads:               return "no-threads";
 		case quick_ask_reason::no_commits_since_threads: return "no-commits-since-threads";
 		case quick_ask_reason::no_commits_since_thread:  return "no-commits-since-thread";
@@ -541,5 +537,45 @@ namespace bpr::core {
 			}
 		}
 		return evaluate_prompt_macro(aMacro, facts).Offer;
+	}
+
+	auto decide_commit_asks(const std::span<const prompt_macro> aPlaced, const quick_ask_facts& aFacts, const std::vector<std::string>& aCommits, const commit_selection_refusal aRefusal)
+		-> commit_asks
+	{
+		auto asks        = commit_asks{ .Refusal = aRefusal };
+		auto facts       = pull_request_facts(aFacts);
+		facts.Commits    = aCommits;
+		const auto waits = aFacts.Agent == quick_ask_agent::not_set_up ? quick_ask_reason::agent_not_set_up
+			: aFacts.Agent == quick_ask_agent::busy                    ? quick_ask_reason::agent_busy
+																	   : quick_ask_reason::none;
+		for (const auto& macro : aPlaced) {
+			if (macro.Surface != std::optional{ prompt_surface::commits_menu } || std::ranges::find(asks.Rows, macro.Id, &commit_ask_row::Id) != asks.Rows.end()) {
+				continue;
+			}
+			auto evaluation = evaluate_prompt_macro(macro, facts);
+			auto row        = commit_ask_row{ .Id = macro.Id, .Kind = macro.Body.Kind };
+			if (evaluation.Offer) {
+				row.Label = evaluation.Offer->Label;
+				if (aRefusal == commit_selection_refusal::none) {
+					row.Waits = waits;
+					row.Offer = std::move(evaluation.Offer);
+				} else {
+					row.Enabled = false;
+				}
+			} else if (evaluation.Unmet == prompt_unmet::condition) {
+				const auto decided = decide_prompt_conditions(macro.Body, facts);
+				if (decided.Hides) {
+					continue;
+				}
+				const auto name = expand_prompt_template(scan_prompt_template(macro.Body.Name, macro.Place), facts);
+				row.Label       = name ? name->Text : macro.Body.Name;
+				row.Enabled     = false;
+				row.Condition   = aRefusal == commit_selection_refusal::none ? decided.Reason : std::nullopt;
+			} else {
+				continue;
+			}
+			asks.Rows.push_back(std::move(row));
+		}
+		return asks;
 	}
 } // namespace bpr::core

@@ -163,8 +163,12 @@ namespace bpr::app {
 		worker_executor                  DeviceBindingEffects;
 		worker_executor                  DeviceTransportEffects;
 		worker_executor                  EpochEffects;
-		worker_executor                  DiffEffects;
-		worker_executor                  SearchEffects;
+		/// [[BPR-2250]]. The change since a review's GitHub reads: off
+		/// `EpochEffects`, which the review's cache actors run on, so a slow
+		/// fetch of the past never holds the current state's reads.
+		worker_executor EpochHistoryEffects;
+		worker_executor DiffEffects;
+		worker_executor SearchEffects;
 		/// [[BPR-1327]]. Prepares the files a reviewer is about to open: tree
 		/// lookups queued on the repository actor and batched blob reads, off
 		/// the actor and off the diff lane.
@@ -647,7 +651,11 @@ namespace bpr::app {
 		std::unique_ptr<application::device_authorization_clock_port>
 																  DeviceClock;
 		std::unique_ptr<application::queue_enrollment_store_port> QueueStore;
-		std::unique_ptr<composition_queue_refresh>                QueueRefresh;
+#if defined(BPR_BUILD_TESTING)
+		/// [[BPR-2249]]. Set, the queue store refuses one-record writes.
+		std::shared_ptr<std::atomic<bool>> QueueStoreRefusesForTesting = std::make_shared<std::atomic<bool>>(false);
+#endif
+		std::unique_ptr<composition_queue_refresh> QueueRefresh;
 		// [[BPR-0990]]. The profile's one discovery scheduler and its clock.
 		// Constructed after the queue host and destroyed before it.
 		std::unique_ptr<application::personal_discovery_clock_port> DiscoveryClock;

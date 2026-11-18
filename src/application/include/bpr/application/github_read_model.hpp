@@ -259,6 +259,34 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_github_commit_parents = 16U;
 
 	/// \brief Describes the github commit record record.
+	/// \brief [[BPR-2248]]. The most of a commit message's body a read keeps.
+	inline constexpr std::size_t maximum_github_commit_body_bytes = 4U * 1024U;
+
+	/// \brief [[BPR-2248]]. A commit message's body: what follows its
+	/// headline, without the blank lines leading it, cut to
+	/// `maximum_github_commit_body_bytes` at a character's boundary.
+	[[nodiscard]] inline auto github_commit_body(const std::string_view aMessage) -> std::string
+	{
+		const auto newline = aMessage.find('\n');
+		if (newline == std::string_view::npos) {
+			return { };
+		}
+		auto body = aMessage.substr(newline + 1U);
+		while (!body.empty() && (body.front() == '\n' || body.front() == '\r')) {
+			body.remove_prefix(1U);
+		}
+		auto kept = std::string{ body.substr(0U, std::min(body.size(), maximum_github_commit_body_bytes)) };
+		if (body.size() > maximum_github_commit_body_bytes) {
+			while (!kept.empty() && (static_cast<unsigned char>(kept.back()) & 0xC0U) == 0x80U) {
+				kept.pop_back();
+			}
+			if (!kept.empty() && static_cast<unsigned char>(kept.back()) >= 0xC0U) {
+				kept.pop_back();
+			}
+		}
+		return kept;
+	}
+
 	struct github_commit_record
 	{
 		commit_oid                         Oid;
@@ -274,6 +302,10 @@ namespace bpr::application {
 		/// in seconds since the epoch. Absent when the record named none or
 		/// named it in another shape; the Commits tab then shows no age.
 		std::optional<std::int64_t> CommittedAt;
+		/// [[BPR-2248]]. The commit message after its headline and the blank
+		/// line under it, cut to `maximum_github_commit_body_bytes` at a
+		/// character's boundary; empty for a one-line message.
+		std::string Body;
 
 		auto operator<=>(const github_commit_record&) const = default;
 	};

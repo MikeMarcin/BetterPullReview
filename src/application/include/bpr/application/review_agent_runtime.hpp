@@ -7,6 +7,7 @@
 #include "bpr/application/agent_session_runner.hpp"
 #include "bpr/application/port.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -234,8 +235,10 @@ namespace bpr::application {
 		bool                                            Running       = false;
 		/// The running turn's question and its answer so far.
 		std::optional<agent_conversation_turn> Turn;
-		bool                                   TurnShown = false;
-		std::optional<core::queued_finish>     Finished;
+		/// [[BPR-2241]]. When the running turn was sent.
+		std::chrono::steady_clock::time_point TurnStarted;
+		bool                                  TurnShown = false;
+		std::optional<core::queued_finish>    Finished;
 		/// A turn sent before the machinery was authorized, waiting for it.
 		std::optional<agent_invocation_request> Waiting;
 		/// [[BPR-2243]]. A turn sent between the running turn's finish and

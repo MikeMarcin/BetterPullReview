@@ -299,7 +299,13 @@ namespace bpr::qt {
 	using workbench_queue_follow_dispatch = std::function<void(application::queue_follow_intent)>;
 	/// \brief [[BPR-1683]]. Home's Ignore or Unignore of one queue row.
 	using workbench_home_ignore_dispatch = std::function<void(core::home_ignore_intent)>;
-	using workbench_home_seen_dispatch   = std::function<void(application::queue_seen_intent)>;
+	/// \brief [[BPR-2249]]. Where the review's Seen leaves the reviewer, as
+	/// the core decided once the queue answered; `keep_review` when Seen was
+	/// not recorded.
+	using workbench_seen_answer = std::function<void(core::review_finish_transition)>;
+	/// \brief [[BPR-2049]] [[BPR-2249]]. One Seen. The review's Seen passes an
+	/// answer; the Pull Request menu's passes none.
+	using workbench_home_seen_dispatch = std::function<void(application::queue_seen_intent, workbench_seen_answer)>;
 	/// \brief [[BPR-0990]]. Home's activation and its explicit Refresh.
 	using workbench_queue_discovery_dispatch = std::function<void(application::queue_discovery_intent)>;
 	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
@@ -2878,6 +2884,17 @@ namespace bpr::qt {
 		/// new commits, from its review or the Pull Request menu, when the
 		/// core offers it. Nothing is submitted to GitHub.
 		void mark_new_commits_seen(const core::queue_item& aItem);
+		/// \brief [[BPR-2249]]. The review's Seen: once the queue has recorded
+		/// it, the review leaves exactly as a confirmed Approve does.
+		void see_new_commits_from_review(const core::queue_item& aItem);
+		/// \brief [[BPR-2249]]. What Seen's answer does to the review it was
+		/// pressed in, named by its identity line.
+		void finish_seen(const QString& aIdentity, const QString& aSaid, core::review_finish_transition aTransition);
+		/// \brief [[BPR-1345]] v003 [[BPR-1816]] [[BPR-2249]]. Closes the
+		/// review page after a confirmed finish (a submitted review, or Seen)
+		/// and says `aSaid`; with `close_review_and_go_home` the review closes
+		/// and Home shows on the next turn.
+		void leave_review_page(const QString& aSaid, core::review_finish_transition aTransition);
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();

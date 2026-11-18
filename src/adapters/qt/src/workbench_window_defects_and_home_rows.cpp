@@ -48,6 +48,7 @@
 #include <QStatusBar>
 #include <QString>
 #include <QTabBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVariant>
@@ -1437,6 +1438,26 @@ namespace bpr::qt {
 		if (showing_home() && HomeOpenBar != nullptr) {
 			HomeOpenBar->setFocus(Qt::OtherFocusReason);
 		}
+	}
+
+	void workbench_window::leave_review_page(const QString& aSaid, const core::review_finish_transition aTransition)
+	{
+		if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
+			close_review_composition(false);
+		}
+		close_review_sheet();
+		statusBar()->showMessage(aSaid, 8000);
+		if (aTransition == core::review_finish_transition::close_review_and_go_home && CloseReviewDispatch) {
+			// The workflow that confirmed the review is still on the
+			// stack; closing the review retires its host, so the close
+			// waits for the next turn and is said there.
+			FinishingAtHome = IdentityText;
+			QTimer::singleShot(0, this, [this, said = aSaid] { finish_review_at_home(said); });
+			return;
+		}
+		QAccessibleAnnouncementEvent event{ this, aSaid };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
 	}
 
 	void workbench_window::finish_review_at_home(QString aSaid)

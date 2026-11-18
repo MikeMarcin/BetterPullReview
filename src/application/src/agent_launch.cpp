@@ -2604,6 +2604,7 @@ namespace bpr::application {
 			.Returning          = aObservation.Returning,
 			.Explain            = aObservation.Explain,
 			.SuggestChange      = aObservation.SuggestChange,
+			.Commits            = aObservation.Commits,
 		};
 		if (tourRun) {
 			request.TourPrompt = core::agent_tour_prompt{ .Session = aSession.Id, .Text = aObservation.TourPrompt };
@@ -2888,6 +2889,26 @@ namespace bpr::application {
 			append_field(aResult, "suggest.lines", aSuggest.Lines);
 			append_field(aResult, "suggest.before", aSuggest.Before);
 			append_field(aResult, "suggest.after", aSuggest.After);
+		}
+
+		/// [[BPR-2248]]. What a Commits selection prompt carries up front.
+		template <typename TSink>
+		void encode_commits_into(TSink& aResult, const core::supplement_commits& aCommits)
+		{
+			append_field(aResult, "commits.scope",
+						 "This question is about exactly the commits listed here, not the whole pull request. Their own changes are given commit by commit below; a merge of the base branch is listed with merges_base 1 and its change is left out.");
+			append_number(aResult, "commits.count", aCommits.Commits.size());
+			for (std::size_t index = 0U; index < aCommits.Commits.size(); ++index) {
+				const auto& commit = aCommits.Commits[index];
+				const auto  prefix = "commits." + std::to_string(index);
+				append_field(aResult, prefix + ".oid", commit.Oid);
+				append_field(aResult, prefix + ".headline", commit.Headline);
+				append_field(aResult, prefix + ".message", commit.Message);
+				append_number(aResult, prefix + ".merges_base", commit.MergesBase ? 1 : 0);
+			}
+			append_number(aResult, "commits.files.shown", aCommits.FilesShown);
+			append_number(aResult, "commits.files.omitted", aCommits.FilesOmitted);
+			append_field(aResult, "commits.changes", aCommits.Changes);
 		}
 
 		template <typename TSink>
@@ -3301,6 +3322,11 @@ namespace bpr::application {
 			// present.
 			if (aSupplement.SuggestChange) {
 				encode_suggest_change_into(aResult, *aSupplement.SuggestChange);
+			}
+			// [[BPR-2248]]. A Commits selection's material, written only when
+			// present.
+			if (aSupplement.Commits) {
+				encode_commits_into(aResult, *aSupplement.Commits);
 			}
 		}
 

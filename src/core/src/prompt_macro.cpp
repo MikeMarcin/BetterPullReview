@@ -35,6 +35,7 @@ namespace bpr::core {
 			"stop.number",
 			"stop.title",
 			"part",
+			"commits",
 			"cursor",
 		};
 
@@ -133,6 +134,7 @@ namespace bpr::core {
 			case prompt_variable::stop_number:
 			case prompt_variable::stop_title:        return prompt_unmet::needs_stop;
 			case prompt_variable::part:              return prompt_unmet::needs_part;
+			case prompt_variable::commits:           return prompt_unmet::needs_commits;
 			case prompt_variable::cursor:            return std::nullopt;
 			}
 			return std::nullopt;
@@ -141,14 +143,15 @@ namespace bpr::core {
 		auto subject_need(const prompt_subject aSubject) noexcept -> std::optional<prompt_unmet>
 		{
 			switch (aSubject) {
-			case prompt_subject::open_file:      return prompt_unmet::needs_file;
-			case prompt_subject::selected_lines: return prompt_unmet::needs_lines;
-			case prompt_subject::selected_text:  return prompt_unmet::needs_selected_text;
+			case prompt_subject::open_file:        return prompt_unmet::needs_file;
+			case prompt_subject::selected_lines:   return prompt_unmet::needs_lines;
+			case prompt_subject::selected_text:    return prompt_unmet::needs_selected_text;
+			case prompt_subject::selected_commits: return prompt_unmet::needs_commits;
 			case prompt_subject::pull_request:
 			case prompt_subject::conversation:
 			case prompt_subject::stop:
 			case prompt_subject::part:
-			case prompt_subject::tour:           return std::nullopt;
+			case prompt_subject::tour:             return std::nullopt;
 			}
 			return std::nullopt;
 		}
@@ -164,6 +167,7 @@ namespace bpr::core {
 			case prompt_unmet::needs_part:              return part_known(aFacts);
 			case prompt_unmet::needs_pull_request:      return aFacts.PullRequest.has_value();
 			case prompt_unmet::needs_repository:        return aFacts.Repository.has_value();
+			case prompt_unmet::needs_commits:           return !aFacts.Commits.empty();
 			case prompt_unmet::off:
 			case prompt_unmet::invalid:
 			case prompt_unmet::condition:
@@ -206,7 +210,17 @@ namespace bpr::core {
 			case prompt_variable::stop_number:       return stop_known(aFacts) ? std::optional{ decimal(*aFacts.Thread->StopNumber) } : std::nullopt;
 			case prompt_variable::stop_title:        return stop_known(aFacts) ? std::optional{ aFacts.Thread->StopTitle } : std::nullopt;
 			case prompt_variable::part:              return part_known(aFacts) ? std::optional{ aFacts.Thread->Part } : std::nullopt;
-			case prompt_variable::cursor:            return std::string{ };
+			case prompt_variable::commits:           {
+				if (aFacts.Commits.empty()) {
+					return std::nullopt;
+				}
+				auto named = std::string{ };
+				for (const auto& commit : aFacts.Commits) {
+					named += (named.empty() ? "" : ", ") + commit.substr(0U, 7U);
+				}
+				return named;
+			}
+			case prompt_variable::cursor: return std::string{ };
 			}
 			return std::nullopt;
 		}
@@ -461,14 +475,15 @@ namespace bpr::core {
 	auto stable_name(const prompt_subject aSubject) noexcept -> std::string_view
 	{
 		switch (aSubject) {
-		case prompt_subject::pull_request:   return "pull-request";
-		case prompt_subject::open_file:      return "open-file";
-		case prompt_subject::selected_lines: return "selected-lines";
-		case prompt_subject::conversation:   return "conversation";
-		case prompt_subject::stop:           return "stop";
-		case prompt_subject::part:           return "part";
-		case prompt_subject::selected_text:  return "selected-text";
-		case prompt_subject::tour:           return "tour";
+		case prompt_subject::pull_request:     return "pull-request";
+		case prompt_subject::open_file:        return "open-file";
+		case prompt_subject::selected_lines:   return "selected-lines";
+		case prompt_subject::conversation:     return "conversation";
+		case prompt_subject::stop:             return "stop";
+		case prompt_subject::part:             return "part";
+		case prompt_subject::selected_text:    return "selected-text";
+		case prompt_subject::tour:             return "tour";
+		case prompt_subject::selected_commits: return "selected-commits";
 		}
 		return "unknown";
 	}
@@ -525,14 +540,15 @@ namespace bpr::core {
 	auto subject_scope(const prompt_subject aSubject) noexcept -> std::optional<prompt_scope>
 	{
 		switch (aSubject) {
-		case prompt_subject::conversation:   return prompt_scope::thread;
-		case prompt_subject::open_file:      return prompt_scope::file;
-		case prompt_subject::pull_request:   return prompt_scope::pull_request;
+		case prompt_subject::conversation:     return prompt_scope::thread;
+		case prompt_subject::open_file:        return prompt_scope::file;
+		case prompt_subject::pull_request:     return prompt_scope::pull_request;
 		case prompt_subject::selected_lines:
 		case prompt_subject::stop:
 		case prompt_subject::part:
 		case prompt_subject::selected_text:
-		case prompt_subject::tour:           return std::nullopt;
+		case prompt_subject::tour:
+		case prompt_subject::selected_commits: return std::nullopt;
 		}
 		return std::nullopt;
 	}
@@ -549,7 +565,8 @@ namespace bpr::core {
 	auto prompt_subject_allowed(const prompt_place aPlace, const prompt_subject aSubject) noexcept -> bool
 	{
 		switch (aPlace) {
-		case prompt_place::agent_tab:    return aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file || aSubject == prompt_subject::selected_lines;
+		case prompt_place::agent_tab:
+			return aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file || aSubject == prompt_subject::selected_lines || aSubject == prompt_subject::selected_commits;
 		case prompt_place::conversation: return aSubject == prompt_subject::conversation;
 		case prompt_place::tour_stop:    return aSubject == prompt_subject::stop || aSubject == prompt_subject::selected_text;
 		case prompt_place::tour_part:    return aSubject == prompt_subject::part || aSubject == prompt_subject::selected_text;
@@ -563,7 +580,8 @@ namespace bpr::core {
 		if (!prompt_subject_allowed(aPlace, aSubject)) {
 			return false;
 		}
-		return aKind == prompt_ask::question || (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file));
+		return aKind == prompt_ask::question
+			|| (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file || aSubject == prompt_subject::selected_commits));
 	}
 
 	auto stable_name(const prompt_fact aFact) noexcept -> std::string_view
@@ -669,7 +687,8 @@ namespace bpr::core {
 		case prompt_variable::file_name:
 		case prompt_variable::lines:
 		case prompt_variable::lines_first:
-		case prompt_variable::lines_last:        return aPlace == prompt_place::agent_tab;
+		case prompt_variable::lines_last:
+		case prompt_variable::commits:           return aPlace == prompt_place::agent_tab;
 		case prompt_variable::conversation_file: return aPlace == prompt_place::conversation;
 		case prompt_variable::stop_number:
 		case prompt_variable::stop_title:
@@ -802,6 +821,9 @@ namespace bpr::core {
 		case prompt_subject::part:
 		case prompt_subject::selected_text:
 		case prompt_subject::tour:           break;
+		// [[BPR-2248]]. Asked as the pull request's question; the commits
+		// ride beside it.
+		case prompt_subject::selected_commits: return agent_suggested_subject::pull_request;
 		}
 		return std::nullopt;
 	}
@@ -879,6 +901,7 @@ namespace bpr::core {
 		case prompt_unmet::needs_repository:        return "needs-repository";
 		case prompt_unmet::condition:               return "condition";
 		case prompt_unmet::expansion_too_long:      return "expansion-too-long";
+		case prompt_unmet::needs_commits:           return "needs-commits";
 		}
 		return "unknown";
 	}
@@ -1083,7 +1106,11 @@ namespace bpr::core {
 		if (expansion->Text.size() > maximum_prompt_expansion_bytes) {
 			return { .Unmet = prompt_unmet::expansion_too_long };
 		}
-		return { .Offer = offer_of(aMacro, std::move(label->Text), std::move(*expansion)) };
+		auto offer = offer_of(aMacro, std::move(label->Text), std::move(*expansion));
+		if (offer.Subject == prompt_subject::selected_commits) {
+			offer.Commits = aFacts.Commits;
+		}
+		return { .Offer = std::move(offer) };
 	}
 
 	auto decide_prompt_offers(const std::span<const prompt_macro> aOrdered, const prompt_facts& aFacts) -> prompt_offers
@@ -1106,7 +1133,8 @@ namespace bpr::core {
 		// A copy placed on an Ask menu is never a chip.
 		const auto chip = [](const prompt_macro& aMacro) {
 			return !aMacro.Surface
-				|| !(*aMacro.Surface == prompt_surface::pull_request_menu || *aMacro.Surface == prompt_surface::file_menu || *aMacro.Surface == prompt_surface::thread_menu);
+				|| !(*aMacro.Surface == prompt_surface::pull_request_menu || *aMacro.Surface == prompt_surface::file_menu || *aMacro.Surface == prompt_surface::thread_menu
+					 || *aMacro.Surface == prompt_surface::commits_menu);
 		};
 		// Text selected in a tour part: that part's place's macros about it
 		// lead, with that part's names.

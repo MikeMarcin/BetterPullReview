@@ -10,6 +10,7 @@
 
 #include "bpr/application/review_agent_runtime.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
@@ -248,6 +249,8 @@ namespace {
 		expect(kept.size() == 3U && kept[0].Asked == "typed in the tab" && kept[0].Answered == "answer zero" && kept[1].Asked == "first" && kept[1].Answered == "answer one"
 				   && kept[2].Asked == "second" && kept[2].Answered == "answer two" && kept[2].Outcome == core::agent_turn_outcome::answered,
 			   "every turn no window saw end is kept in the session's transcript");
+		// [[BPR-2241]]. Each with how long it took, to be said as a live one says it.
+		expect(std::ranges::all_of(kept, [](const application::agent_conversation_turn& aTurn) { return aTurn.Seconds.has_value() && *aTurn.Seconds < 60U; }), "every kept turn says how long its run took");
 
 		// [[BPR-2181]]. The turns no window has seen keep the runtime until a
 		// window takes them into the session's conversation.

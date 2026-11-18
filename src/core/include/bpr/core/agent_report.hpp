@@ -178,6 +178,28 @@ namespace bpr::core {
 										   const std::vector<std::string>&                           aPullRequestFiles,
 										   const std::vector<std::pair<std::string, std::uint32_t>>& aBrought = { }) -> commit_listing;
 
+	/// \brief One commit's own change: from its first parent to it.
+	struct commit_change_step
+	{
+		std::string Parent;
+		std::string Commit;
+		std::string Headline;
+
+		auto operator<=>(const commit_change_step&) const = default;
+	};
+
+	/// \brief [[BPR-2247]]. The changes a selection of commits carries as
+	/// the pull request's own work: each commit of `aSelection` that is not a
+	/// merge of the base branch (`merges_base`), as its first parent to it, in
+	/// the selection's order.
+	///
+	/// \details A merge of the base is left out whole: its first-parent change
+	/// is the base's changes. A merge of anything else keeps its first-parent
+	/// change, and a commit with no parent is left out. Any selection may be
+	/// asked: the commits since a review, or commits the reviewer chose.
+	[[nodiscard]] auto own_change_steps(const std::vector<listed_commit>& aSelection, const std::vector<std::string>& aPullRequestCommits, std::string_view aBase)
+		-> std::vector<commit_change_step>;
+
 	/// \brief [[BPR-2184]] (review N3). The merges of the base branch in the
 	/// slice whose brought-in commits are worth a compare each: the newest
 	/// first, at most `maximum_counted_merges`, each with its two parents.

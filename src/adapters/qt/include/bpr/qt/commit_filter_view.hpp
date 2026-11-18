@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_COMMIT_FILTER_VIEW_HPP
 
 #include "bpr/application/commit_filter_projection.hpp"
+#include "bpr/core/quick_ask.hpp"
 
 #include <QAbstractListModel>
 #include <QListView>
@@ -54,6 +55,10 @@ namespace bpr::qt {
 	[[nodiscard]] auto commit_filter_rematch_action_text(const application::commit_filter_rematch_row& aOffer) -> QString;
 
 	using rematch_dispatch = std::function<void(const application::commit_filter_rematch_gesture&)>;
+
+	/// \brief [[BPR-2248]]. Why a selection of commits cannot be asked
+	/// about, in a sentence; empty for `none`.
+	[[nodiscard]] auto commit_selection_refusal_text(core::commit_selection_refusal aRefusal) -> QString;
 
 	/// \brief The listed commits, in GitHub's order, reconciled by commit ID.
 	///
@@ -141,6 +146,10 @@ namespace bpr::qt {
 		void set_file_filter_dispatch(commits_dispatch aDispatch);
 		/// \brief RFC-BPR-0089 M3. A rematch offer the reviewer chose.
 		void set_rematch_dispatch(rematch_dispatch aDispatch);
+		/// \brief [[BPR-2248]]. The agent rows the menu lists for a selection
+		/// (the host's decision, full IDs in list order), and a press on one.
+		/// Without them the menu lists no agent rows.
+		void set_agent_asks(std::function<core::commit_asks(const std::vector<std::string>&)> aDecide, std::function<void(const core::commit_ask_row&)> aDispatch);
 		/// \brief The offers' buttons, one per offer, in the projection's order.
 		[[nodiscard]] auto rematch_buttons() const -> std::vector<QToolButton*>;
 
@@ -161,22 +170,24 @@ namespace bpr::qt {
 	private:
 		void dispatch(core::commit_filter_operation_kind aKind, std::vector<std::string> aCommits);
 
-		commit_filter_list_model*                            Model  = nullptr;
-		QListView*                                           List   = nullptr;
-		QLabel*                                              Status = nullptr;
-		QLabel*                                              Hint   = nullptr;
-		QToolButton*                                         Clear  = nullptr;
-		gesture_dispatch                                     Gestures;
-		std::function<void()>                                Shown;
-		std::function<std::optional<std::int64_t>()>         Clock;
-		commit_dispatch                                      Open;
-		commits_dispatch                                     FileFilter;
-		rematch_dispatch                                     Rematch;
-		QWidget*                                             Rematches = nullptr;
-		std::vector<application::commit_filter_rematch_row>  ShownOffers;
-		std::vector<QToolButton*>                            OfferButtons;
-		std::optional<application::commit_filter_projection> Projection;
-		bool                                                 Announced = false;
+		commit_filter_list_model*                                         Model  = nullptr;
+		QListView*                                                        List   = nullptr;
+		QLabel*                                                           Status = nullptr;
+		QLabel*                                                           Hint   = nullptr;
+		QToolButton*                                                      Clear  = nullptr;
+		gesture_dispatch                                                  Gestures;
+		std::function<void()>                                             Shown;
+		std::function<std::optional<std::int64_t>()>                      Clock;
+		commit_dispatch                                                   Open;
+		commits_dispatch                                                  FileFilter;
+		rematch_dispatch                                                  Rematch;
+		std::function<core::commit_asks(const std::vector<std::string>&)> AgentAsks;
+		std::function<void(const core::commit_ask_row&)>                  AgentAsk;
+		QWidget*                                                          Rematches = nullptr;
+		std::vector<application::commit_filter_rematch_row>               ShownOffers;
+		std::vector<QToolButton*>                                         OfferButtons;
+		std::optional<application::commit_filter_projection>              Projection;
+		bool                                                              Announced = false;
 	};
 
 	/// \brief The filter chip: what the filter shows and Clear all filters,

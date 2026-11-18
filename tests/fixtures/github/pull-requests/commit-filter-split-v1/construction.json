@@ -5,6 +5,9 @@
 				"date": "2020-01-01T00:00:00Z",
 				"name": "fixture-author"
 			},
+			"committer": {
+				"date": "2026-11-03T09:12:00Z"
+			},
 			"message": "Change the generator input",
 			"parents": [
 				"89a0ac4b6ba40b04017fdb11affbcd596ee5d851"
@@ -16,6 +19,9 @@
 				"date": "2020-01-01T00:00:00Z",
 				"name": "fixture-author"
 			},
+			"committer": {
+				"date": "2026-11-14T10:05:00Z"
+			},
 			"message": "Regenerate",
 			"parents": [
 				"91bd0b26750f6a959d63131fbcb86826c744dfef"
@@ -26,6 +32,9 @@
 			"author": {
 				"date": "2020-01-01T00:00:00Z",
 				"name": "fixture-author"
+			},
+			"committer": {
+				"date": "2026-11-17T07:42:00Z"
 			},
 			"message": "Follow-ups",
 			"parents": [

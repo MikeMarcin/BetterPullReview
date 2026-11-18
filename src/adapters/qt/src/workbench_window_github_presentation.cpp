@@ -826,11 +826,50 @@ namespace bpr::qt {
 		if (!HomeSeenDispatch || core::review_followup_for(aItem) != core::review_followup::seen) {
 			return;
 		}
-		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head });
+		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head }, { });
 		statusBar()->showMessage(QStringLiteral("Marked the new commits on %1#%2 seen; your approval stands. Nothing changed on GitHub.")
 									 .arg(QString::fromStdString(aItem.Ref.Repository))
 									 .arg(aItem.Ref.Number),
 								 8000);
+	}
+
+	void workbench_window::see_new_commits_from_review(const core::queue_item& aItem)
+	{
+		if (!HomeSeenDispatch || core::review_followup_for(aItem) != core::review_followup::seen) {
+			return;
+		}
+		// [[BPR-2249]]. The owner, 2026-11-17: "Seen in the compose review
+		// menu should close the PR same way approve does". Nothing is said
+		// or closed until the queue has kept it.
+		const auto said = QStringLiteral("Marked the new commits on %1#%2 seen; your approval stands. Nothing changed on GitHub.")
+							  .arg(QString::fromStdString(aItem.Ref.Repository))
+							  .arg(aItem.Ref.Number);
+		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head },
+						 [window = QPointer<workbench_window>{ this }, identity = IdentityText, said](const core::review_finish_transition aTransition) {
+							 if (window != nullptr) {
+								 window->finish_seen(identity, said, aTransition);
+							 }
+						 });
+	}
+
+	void workbench_window::finish_seen(const QString& aIdentity, const QString& aSaid, const core::review_finish_transition aTransition)
+	{
+		if (aTransition == core::review_finish_transition::keep_review) {
+			// As an Approve GitHub refused: the review stays, and says so.
+			const auto said = tr("The new commits were not marked seen. The review stays open; try Seen again.");
+			statusBar()->showMessage(said, 8000);
+			QAccessibleAnnouncementEvent event{ this, said };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+			return;
+		}
+		if (aIdentity != IdentityText) {
+			// Another pull request opened meanwhile: the answer closes
+			// nothing it was not pressed in.
+			statusBar()->showMessage(aSaid, 8000);
+			return;
+		}
+		leave_review_page(aSaid, aTransition);
 	}
 
 	void workbench_window::set_home_seen_dispatch(workbench_home_seen_dispatch aDispatch)
@@ -842,7 +881,7 @@ namespace bpr::qt {
 				const auto ref  = open_queue_ref();
 				const auto item = ref ? QueueLanding->item_for(*ref) : std::nullopt;
 				if (item) {
-					mark_new_commits_seen(*item);
+					see_new_commits_from_review(*item);
 				}
 				update_pull_request_queue_actions();
 			} }

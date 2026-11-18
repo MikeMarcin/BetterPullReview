@@ -603,9 +603,18 @@ namespace bpr::app {
 		auto shown = std::vector<qt::agent_thread_turn>{ };
 		shown.reserve(view.Turns.size());
 		for (const auto& turn : view.Turns) {
-			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered), .Steered = turn.Steered });
+			shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome, .Cards = restored_finding_cards(turn.Answered), .Steered = turn.Steered, .Seconds = turn.Seconds ? std::optional<qint64>{ *turn.Seconds } : std::nullopt });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
+		// [[BPR-2241]]. The conversation keeps the line each turn is shown
+		// with: this store keeps no duration to say it from again.
+		if (const auto worded = Window->agent_tab()->thread_turns(); worded.size() == view.Turns.size()) {
+			for (std::size_t index = 0U; index < worded.size(); ++index) {
+				if (view.Turns[index].Ending.find(' ') == std::string::npos) {
+					view.Turns[index].Ending = worded[index].Footer.toStdString();
+				}
+			}
+		}
 		AgentConversation->record(std::move(view.Turns));
 	}
 
@@ -910,6 +919,10 @@ namespace bpr::app {
 		// decides what it asks about.
 		const auto set   = placed_prompts();
 		auto       macro = std::ranges::find_if(set, [&aEntry](const core::prompt_macro& aMacro) {
+			// [[BPR-2248]]. The Commits selection's copy is queued as `commits`.
+			if (aEntry.Input.Scope == "commits") {
+				return aMacro.Id == aEntry.Input.QuickAsk && aMacro.Surface == std::optional{ core::prompt_surface::commits_menu };
+			}
 			return aMacro.Id == aEntry.Input.QuickAsk && aMacro.Surface && core::is_menu(*aMacro.Surface) && core::surface_scope(*aMacro.Surface)
 				&& core::stable_name(*core::surface_scope(*aMacro.Surface)) == aEntry.Input.Scope;
 		});
@@ -934,6 +947,16 @@ namespace bpr::app {
 			}
 			break;
 		case core::prompt_action::none:
+			// [[BPR-2248]]. About selected commits: their changes are read
+			// first, then the offer decided at the press is sent with them.
+			if (macro->Body.Subject == core::prompt_subject::selected_commits) {
+				if (aEntry.Input.Prompt && !aEntry.Input.Prompt->Commits.empty()) {
+					ask_about_commits(*aEntry.Input.Prompt);
+				} else {
+					refuse_commit_ask(macro->Body.Name, "the queued question no longer names its commits.");
+				}
+				break;
+			}
 			if (macro->Body.Subject == core::prompt_subject::conversation) {
 				ask_agent_about_thread(aEntry.Input.Threads.empty() ? std::string{ } : aEntry.Input.Threads.front());
 			} else {

@@ -448,6 +448,7 @@ namespace bpr::adapters::github::detail {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			auto headline = text(json_member(json_object(commit), "message"));
+			auto body     = application::github_commit_body(headline);
 			if (const auto newline = headline.find('\n'); newline != std::string::npos) {
 				headline.resize(newline);
 			}
@@ -490,6 +491,7 @@ namespace bpr::adapters::github::detail {
 				.Headline    = std::move(headline),
 				.Parents     = std::move(parents),
 				.CommittedAt = committedAt,
+				.Body        = std::move(body),
 			};
 		}
 

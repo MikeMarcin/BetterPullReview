@@ -734,15 +734,6 @@ namespace bpr::qt {
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
 		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
 		contentCol->addWidget(Suggestions);
-		// RFC-BPR-0116 ([[BPR-2073]]). Why What changed since my review is not
-		// offered when the earlier revision cannot be read, said where the
-		// suggestion would stand.
-		LatestUploadNote = new QLabel{ content };
-		LatestUploadNote->setObjectName(QStringLiteral("agentLatestUploadUnavailable"));
-		LatestUploadNote->setWordWrap(true);
-		LatestUploadNote->setForegroundRole(QPalette::PlaceholderText);
-		LatestUploadNote->hide();
-		contentCol->addWidget(LatestUploadNote);
 		// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a plain
 		// click queues it"). What waits its turn, in words.
 		QueueNote = new QLabel{ content };
@@ -2220,11 +2211,18 @@ namespace bpr::qt {
 		std::erase_if(CardEntries, [](const card_entry& aEntry) { return aEntry.Turn.has_value(); });
 		for (const auto& shown : aTurns) {
 			auto next = turn{ };
+			// [[BPR-2241]]. A turn kept with how it ended as an outcome
+			// rather than the line it settled with (a native session's, or
+			// one no window saw end) is said as the live turn said it.
+			const auto worded = shown.Footer.contains(QLatin1Char{ ' ' });
+			const auto ending = worded ? shown.Footer.section(QStringLiteral(" · "), 0, 0)
+									   : agent_turn_ending_words(Launch.profile_selector()->currentText(), shown.Outcome == core::agent_turn_outcome::answered, shown.Seconds);
+			const auto footer = worded ? shown.Footer : ending + QLatin1Char{ '.' };
 			if (const auto at = Turns.size(); at < before.size() && std::get<0>(before[at]) == shown.Question) {
 				next.Serial = std::get<1>(before[at]);
 				next.Ending = std::get<2>(before[at]);
 			} else {
-				next.Ending = shown.Footer.section(QStringLiteral(" · "), 0, 0);
+				next.Ending = ending;
 			}
 			next.Question   = shown.Question;
 			next.Name       = shown.Name;
@@ -2242,7 +2240,7 @@ namespace bpr::qt {
 			Turns.push_back(std::move(next));
 			auto& kept = Turns.back();
 			set_answer(kept, shown.Answer);
-			kept.Footer->setText(shown.Footer);
+			kept.Footer->setText(footer);
 			// [[BPR-2005]]. A turn this window saw end keeps its line and its
 			// folded block when the thread is drawn again.
 			// The same question in the same order: the latest such turn not
@@ -2256,7 +2254,7 @@ namespace bpr::qt {
 				}
 			}
 			if (seen != EndedTurns.end()) {
-				if (!shown.Footer.contains(QLatin1Char{ ' ' })) {
+				if (!worded) {
 					kept.Footer->setText(seen->Footer);
 				}
 				if (!seen->Ending.isEmpty()) {
@@ -2561,7 +2559,13 @@ namespace bpr::qt {
 		});
 		if (const auto chosen = returning != ReturningPrompts.end() ? returning : byLabel; chosen != ReturningPrompts.end()) {
 			if (!aEditFirst) {
-				ask_returning(chosen->second);
+				// [[BPR-2251]]. What changed since my review reads the change
+				// at the press; the host asks once it has.
+				if (chosen->second == core::returning_operation::latest_upload && LatestUploadDispatch) {
+					LatestUploadDispatch();
+				} else {
+					ask_returning(chosen->second);
+				}
 			}
 			return;
 		}
@@ -2721,11 +2725,6 @@ namespace bpr::qt {
 		// check's Ready line does not hold them back ([[BPR-1877]]).
 		const auto verdict = suggestions_verdict();
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
-		if (LatestUploadNote != nullptr) {
-			const auto unavailable = LatestUpload.State == core::latest_upload_state::unavailable && LatestUpload.Earlier && !ConversationShown;
-			LatestUploadNote->setText(unavailable ? tr("What changed since my review: the code at %1 can't be read here.").arg(QString::fromStdString(LatestUpload.Earlier->Head.substr(0U, 7U))) : QString{ });
-			LatestUploadNote->setVisible(unavailable && verdict == core::agent_suggestions_verdict::shown);
-		}
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
 		// The setup's way in, unless the setup is on screen. Only once the
 		// setup knows what is missing: not while agents are still being
@@ -3177,7 +3176,7 @@ namespace bpr::qt {
 		const auto cost      = Launch.last_turn_cost();
 		const auto spent     = cost ? QString::fromStdString(core::agent_cost_words(*cost)) : QString{ };
 		const auto delivered = succeeded && findings > 0U && FindingsPresented != FindingsAtTurn;
-		auto       parts     = QStringList{ succeeded ? agent_run_answered_words(agent_short_name(agent), seconds) : agent_run_stopped_words(seconds) };
+		auto       parts     = QStringList{ agent_turn_ending_words(agent, succeeded, seconds) };
 		auto       tip       = QStringList{ succeeded ? agent_run_answered_words(ran, seconds) : parts.front() };
 		if (cost) {
 			parts << spent;

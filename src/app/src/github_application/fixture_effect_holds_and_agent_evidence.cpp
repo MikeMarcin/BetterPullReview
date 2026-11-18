@@ -142,6 +142,30 @@ namespace bpr::app {
 		return hold_fixture_effects(aApplication.Implementation->ReviewLedgerEffects);
 	}
 
+	auto detail::github_application_fixture_access::hold_epoch_history_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+		return hold_fixture_effects(aApplication.Implementation->EpochHistoryEffects);
+	}
+
+	auto detail::github_application_fixture_access::overview_change_marks(
+		const github_application& aApplication) -> std::vector<std::pair<std::string, application::overview_change_since_review>>
+	{
+		auto        marks     = std::vector<std::pair<std::string, application::overview_change_since_review>>{ };
+		const auto& published = aApplication.Implementation->PublishedOverview;
+		if (published.has_value()) {
+			for (const auto& row : published->Files) {
+				marks.emplace_back(row.Path, row.Changed);
+			}
+		}
+		return marks;
+	}
+
+	auto detail::github_application_fixture_access::changed_since_review_reads(const github_application& aApplication) noexcept -> std::size_t
+	{
+		return aApplication.Implementation->ChangedSinceReviewReadsForTesting;
+	}
+
 	auto detail::github_application_fixture_access::hold_private_review_effects(
 		github_application& aApplication) -> std::function<void()>
 	{

@@ -73,6 +73,7 @@ namespace bpr::core {
 		facts.AuthorIsMe       = false;
 		facts.ChecksFailing    = false;
 		facts.ChatEmpty        = true;
+		facts.Commits          = { "9fceb02d0ae598e95dc970b74767f19372d61af8", "e83c5163316f89bfbde7d9ab23ca2e25604af290" };
 		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole) {
 			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : aPlace == prompt_place::tour_part ? "the Problem"
 																																					   : "",
@@ -135,6 +136,20 @@ namespace bpr::core {
 			// chips are as before.
 			action("agent-tab.what-changed", prompt_place::agent_tab, "What changed since my review", pull_request, prompt_action::what_changed, at_pull_request),
 			action("agent-tab.explain-file", prompt_place::agent_tab, "Explain this file", open_file, prompt_action::explain_file, at_file),
+			// [[BPR-2248]]. The Commits tab's selection: what the selected
+			// commits change and why, read against their messages, and a
+			// review of their changes alone. The commits' own changes and
+			// messages ride beside the question.
+			named(plain("commits.explain", prompt_place::agent_tab,
+						"Explain commits {commits}: what each one changes and why, one commit at a time, read against its commit message. "
+						"Say plainly where a commit's change does not match its message: it does less than the message says, more, or something else. "
+						"Merges of the base branch are named, not explained.",
+						selected_commits),
+				  "Explain these commits"),
+			named(plain("commits.review", prompt_place::agent_tab,
+						review_body("commits {commits}", "only the changes these commits make, given commit by commit; the rest of the pull request is context, not under review. Merges of the base branch are left out."),
+						selected_commits, { }, prompt_ask::review),
+				  "Review these commits"),
 			// [[BPR-1773]]: a reply only where one can be written.
 			quick(plain("conversation.summarize", prompt_place::conversation, "Summarize this conversation", prompt_subject::conversation), at_thread),
 			quick(plain("conversation.concern-right", prompt_place::conversation, "Is the concern raised here right?", prompt_subject::conversation), at_thread),

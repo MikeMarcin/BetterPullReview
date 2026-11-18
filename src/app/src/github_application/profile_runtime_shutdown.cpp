@@ -150,7 +150,7 @@ namespace bpr::app {
 			return;
 		}
 		if (!ConnectionEffects.idle() || !ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
-			|| !EpochEffects.idle() || !DiffEffects.idle() || !SearchEffects.idle() || !PrepareEffects.idle()
+			|| !EpochEffects.idle() || !EpochHistoryEffects.idle() || !DiffEffects.idle() || !SearchEffects.idle() || !PrepareEffects.idle()
 			|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
 			|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
 			return;
@@ -216,6 +216,7 @@ namespace bpr::app {
 		SearchEffects.close_and_drain();
 		DiffEffects.close_and_drain();
 		PrepareEffects.close_and_drain();
+		EpochHistoryEffects.close_and_drain();
 		EpochEffects.close_and_drain();
 #if defined(BPR_AGENT_INTEGRATIONS)
 		AgentEffects.close_and_drain();

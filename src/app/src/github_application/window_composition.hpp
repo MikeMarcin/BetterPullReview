@@ -785,10 +785,13 @@ namespace bpr::app {
 		/// questions: what each offers now, the material they carry up front,
 		/// and the two presses. Defined in `window_returning_review.cpp`.
 		void refresh_returning_review();
-		void read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead);
-		void retry_returning_material();
-		void finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges);
+		/// [[BPR-2251]]. The change since the review, read at the press and
+		/// then asked; a read that fails is refused on the Agent tab.
+		void read_returning_material();
+		void send_what_changed();
+		void refuse_what_changed(const std::string& aWhy);
 		void read_addressed_lines(const std::string& aIdentity, bool aThen);
+		void retry_addressed_lines();
 		void ask_what_changed();
 		void ask_was_addressed(const std::string& aIdentity);
 		/// RFC-BPR-0128 as amended (look ask-v005): a file's or the pull
@@ -988,6 +991,17 @@ namespace bpr::app {
 		void               ask_explain_file(const std::string& aPath);
 		void               refuse_explain_file(const std::string& aPath, const QString& aWords);
 		[[nodiscard]] auto compose_explain(application::agent_context_observation& aObservation) -> bool;
+		/// [[BPR-2248]]. The Commits tab's agent prompts: the rows a
+		/// selection lists, a press queued, and its release reading the
+		/// commits' own changes. `window_commit_asks.cpp`.
+		void               bind_commit_asks();
+		[[nodiscard]] auto commit_asks_for(const std::vector<std::string>& aCommits) const -> core::commit_asks;
+		void               queue_commit_ask(const core::commit_ask_row& aRow);
+		void               ask_about_commits(const core::prompt_offer& aOffer);
+		void               refuse_commit_ask(const std::string& aLabel, const std::string& aWhy);
+		/// [[BPR-2247]], [[BPR-2248]]. One changed file of a read change, as
+		/// the agent reads it. `window_returning_review.cpp`.
+		[[nodiscard]] auto compare_change_file(const application::returning_change_file& aFile) -> core::returning_change_file;
 		/// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change: the press on the
 		/// drawer draft, its material, and the answer handed to the window,
 		/// whose core decides. `window_suggest_change.cpp`.
@@ -1726,9 +1740,9 @@ namespace bpr::app {
 		void refresh_overview_receipts();
 
 		[[nodiscard]] auto changed_since_review(
-			const core::git_commit_oid&        aReviewed,
-			const core::git_commit_oid&        aHead,
-			std::vector<std::filesystem::path> aPaths)
+			const core::git_commit_oid& aReviewed,
+			const core::git_commit_oid& aHead,
+			std::vector<std::string>    aPaths)
 			-> std::optional<std::vector<std::string>>;
 
 		void publish(const application::receipt_projection& aProjection) override;
@@ -2387,23 +2401,30 @@ namespace bpr::app {
 		// is answering and after it could not answer.
 		struct changed_since_review_state final
 		{
-			application::changed_paths_request      Request;
+			application::returning_change_request   Request;
 			std::optional<std::vector<std::string>> Changed;
 		};
 		std::optional<changed_since_review_state> ChangedSinceReview;
+#if defined(BPR_BUILD_TESTING)
+		/// Testing only ([[BPR-2250]]): the mark's reads asked of the host.
+		std::size_t ChangedSinceReviewReadsForTesting = 0U;
+#endif
 		/// RFC-BPR-0116. What the returning questions know now.
 		struct returning_review_state final
 		{
 			/// Earlier and current head, joined: which material this is.
-			std::string                               Key;
-			std::optional<core::returning_point>      Earlier;
-			std::string                               CurrentHead;
-			core::latest_upload_offer                 Offer;
+			std::string                          Key;
+			std::optional<core::returning_point> Earlier;
+			std::string                          CurrentHead;
+			core::latest_upload_offer            Offer;
+			/// [[BPR-2251]]. Read at the first press for these heads, kept
+			/// for the next; `Reading` while a press's read is under way.
 			std::optional<core::supplement_returning> Material;
-			bool                                      Reading  = false;
-			bool                                      Readable = false;
-			/// Asks made before the cache served the head; bounded.
-			std::uint32_t Retries = 0U;
+			bool                                      Reading = false;
+			/// [[BPR-2251]]. Thread lines asked again after a refusal (the
+			/// cache not yet serving the head); bounded.
+			std::uint32_t LineRetries        = 0U;
+			bool          LineRetryScheduled = false;
 			/// [[BPR-2184]] (review N3). What each merge since the review
 			/// brought in, asked when What changed's material is read, for the
 			/// head it was asked at.
@@ -2439,11 +2460,21 @@ namespace bpr::app {
 			std::size_t Shown = 0U;
 		};
 		explain_file_state ExplainFile;
+		/// [[BPR-2248]]. The Commits selection prompt being read, by head and
+		/// prompt, and its material while its turn is sent.
+		struct commit_ask_state final
+		{
+			std::string                             Key;
+			std::optional<core::supplement_commits> Material;
+		};
+		commit_ask_state CommitAsk;
 		/// RFC-BPR-0118. The material of the press under way, sent with it.
 		std::optional<core::supplement_suggest_change> SuggestChangeMaterial;
 #if defined(BPR_BUILD_TESTING)
 		/// Testing only: the head my last review is taken to be on.
 		std::string ReturningReviewHeadForTesting;
+		/// Testing only ([[BPR-2251]]): the change-since-review reads asked.
+		std::size_t ReturningReadsForTesting = 0U;
 #endif
 		/// [[BPR-2138]]. Ask more on a returning answer: the question and the
 		/// answer the next Agent tab turn opens with.
@@ -2570,6 +2601,7 @@ namespace bpr::app {
 		decltype(github_profile_runtime::EpochEntropy)&                   EpochEntropy                   = Profile->EpochEntropy;
 		decltype(github_profile_runtime::EpochClock)&                     EpochClock                     = Profile->EpochClock;
 		decltype(github_profile_runtime::EpochEffects)&                   EpochEffects                   = Profile->EpochEffects;
+		decltype(github_profile_runtime::EpochHistoryEffects)&            EpochHistoryEffects            = Profile->EpochHistoryEffects;
 		decltype(github_profile_runtime::DiffEffects)&                    DiffEffects                    = Profile->DiffEffects;
 		decltype(github_profile_runtime::PrepareEffects)&                 PrepareEffects                 = Profile->PrepareEffects;
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -2944,14 +2976,17 @@ namespace bpr::app {
 		/// [[BPR-1562]]. The readers' fenced code: its own texts, classifier
 		/// and host over the shared definitions and the appearance effect
 		/// lane, so it never waits behind or reorders the panes' work.
-		application::markdown_code_texts                                MarkdownCodeTexts;
-		std::unique_ptr<markdown_code_blob_source>                      MarkdownCodeBlobs;
-		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>   MarkdownCodeClassifier;
-		std::unique_ptr<application::markdown_code_syntax_host>         MarkdownCode;
-		std::unique_ptr<permalink_snippet_source>                       MarkdownSnippetSource;
-		std::unique_ptr<application::markdown_blob_snippet_host>        MarkdownSnippets;
-		std::uint64_t                                                   MotionSubscription       = 0U;
-		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
+		application::markdown_code_texts                              MarkdownCodeTexts;
+		std::unique_ptr<markdown_code_blob_source>                    MarkdownCodeBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier> MarkdownCodeClassifier;
+		std::unique_ptr<application::markdown_code_syntax_host>       MarkdownCode;
+		std::unique_ptr<permalink_snippet_source>                     MarkdownSnippetSource;
+		std::unique_ptr<application::markdown_blob_snippet_host>      MarkdownSnippets;
+		std::uint64_t                                                 MotionSubscription = 0U;
+		decltype(github_profile_runtime::QueueStore)&                 QueueStore         = Profile->QueueStore;
+#if defined(BPR_BUILD_TESTING)
+		decltype(github_profile_runtime::QueueStoreRefusesForTesting)& QueueStoreRefusesForTesting = Profile->QueueStoreRefusesForTesting;
+#endif
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
 		decltype(github_profile_runtime::QueueHost)&                    QueueHost                = Profile->QueueHost;
 		decltype(github_profile_runtime::Discovery)&                    Discovery                = Profile->Discovery;

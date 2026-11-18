@@ -221,6 +221,27 @@ namespace {
 		expect(none && none->InstructionsRoute == application::agent_instructions_route::none && !has(none->Arguments, "--append-system-prompt"), "a launch without instructions carries none");
 	}
 
+	/// [[BPR-2248]]. A Commits selection question carries exactly its
+	/// commits: their IDs, headlines, messages, which merge the base, and
+	/// their own changes, beside the question.
+	void test_selected_commits_ride_beside_the_question()
+	{
+		const auto changes  = core::returning_changes{ .Text = "Commit aaaaaaa: Fix the parser\n--- a/src/a.cpp\n+++ b/src/a.cpp\n@@ -1,1 +1,1 @@\n-old\n+new\n", .FilesShown = 1U };
+		const auto material = core::bound_selected_commits(
+			{ { .Oid = std::string(40U, 'a'), .Headline = "Fix the parser", .Message = "The parser read past the end." }, { .Oid = std::string(40U, 'b'), .Headline = "Merge branch 'main' into feature", .MergesBase = true } },
+			changes);
+		expect(material.has_value(), "the selection is within its bounds");
+		auto value        = supplement("Explain commits aaaaaaa, bbbbbbb");
+		value.Commits     = material;
+		const auto launch = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), value, reader(), { .Path = core::agent_run_path::agent_tab });
+		expect(launch.has_value(), "the question launches");
+		const auto& input = launch ? launch->Input : std::string{ };
+		expect(input.find("commits.scope") != std::string::npos && input.find("commits.count") != std::string::npos, "it says the question is about exactly these commits");
+		expect(input.find(std::string(40U, 'a')) != std::string::npos && input.find(std::string(40U, 'b')) != std::string::npos && input.find("The parser read past the end.") != std::string::npos,
+			   "it names each commit and carries its message");
+		expect(input.find("commits.1.merges_base") != std::string::npos && input.find("+new") != std::string::npos, "the merge of main is flagged and the real commit's change is carried");
+	}
+
 	/// RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]), RFC-BPR-0101 AC13. A
 	/// returning question's first answer: a fresh, tool-free Claude call with
 	/// its own prompt in the system prompt and its material, both revisions
@@ -606,6 +627,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_every_harness_run_reads_the_users_sign_in();
 	test_a_returning_question_is_one_fresh_tool_free_call();
+	test_selected_commits_ride_beside_the_question();
 	test_explain_this_file_is_one_fresh_tool_free_call();
 	test_suggest_the_change_is_one_fresh_tool_free_call();
 	std::cout << "agent-launch-policy-tests:pass\n";

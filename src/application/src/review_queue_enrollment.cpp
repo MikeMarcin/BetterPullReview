@@ -1494,31 +1494,69 @@ namespace bpr::application {
 			persist_ignores({ *delta }, std::move(prior));
 		}
 
-		void apply(const queue_seen_intent& aIntent)
+		void apply(const queue_seen_intent& aIntent, const queue_seen_answer& aAnswered)
 		{
+			const auto answer = [&aAnswered](const queue_seen_outcome aOutcome) {
+				if (aAnswered) {
+					aAnswered(aOutcome);
+				}
+			};
 			++Statistics.SeenIntents;
 			if (Closing || !Restored) {
 				++Statistics.Failures;
+				answer(queue_seen_outcome::refused);
 				return;
 			}
 			const auto existing = Enrollments.record_for(aIntent.Ref);
 			const auto position = ActivityIndex.find(aIntent.Ref);
 			if (!existing || !existing->present() || position == ActivityIndex.end()) {
+				answer(queue_seen_outcome::refused);
 				return;
 			}
 			auto& report = Activity[position->second];
 			if (aIntent.Head.empty() || report.Facts.Waiting.Head != aIntent.Head
 				|| core::review_followup_for(observed_item(*existing, report)) != core::review_followup::seen) {
+				answer(queue_seen_outcome::refused);
 				return;
 			}
 			auto prior              = Enrollments;
+			auto priorSeen          = report.Facts.SeenHead;
 			report.Facts.SeenHead   = aIntent.Head;
 			const auto factsChanged = Enrollments.observe_facts(aIntent.Ref, report.Facts, Scheduler.session().ViewerAccount);
-			if (factsChanged) {
-				persist_record(aIntent.Ref, std::move(prior), true);
-			} else {
+			if (!factsChanged) {
 				publish();
+				answer(queue_seen_outcome::recorded);
+				return;
 			}
+			// [[BPR-2249]]. The review closes on this answer, so it is given
+			// only once the store has kept the seen head. One the store did
+			// not keep is withdrawn: the row offers Seen again.
+			persist_record(aIntent.Ref, std::move(prior), true,
+						   [this, ref = aIntent.Ref, head = aIntent.Head, seen = std::move(priorSeen), aAnswered](const bool aKept) {
+							   if (!aKept) {
+								   withdraw_seen(ref, head, seen);
+							   }
+							   if (aAnswered) {
+								   aAnswered(aKept ? queue_seen_outcome::recorded : queue_seen_outcome::not_kept);
+							   }
+						   });
+		}
+
+		/// \brief [[BPR-2249]]. Restores the seen head a failed store did not
+		/// keep, unless a later Seen or read has replaced it since.
+		void withdraw_seen(const core::pull_request_ref& aRef, const std::string& aHead, const std::string& aPrior)
+		{
+			const auto position = ActivityIndex.find(aRef);
+			if (Closing || position == ActivityIndex.end()) {
+				return;
+			}
+			auto& report = Activity[position->second];
+			if (report.Facts.SeenHead != aHead) {
+				return;
+			}
+			report.Facts.SeenHead = aPrior;
+			static_cast<void>(Enrollments.observe_facts(aRef, report.Facts, Scheduler.session().ViewerAccount));
+			publish();
 		}
 
 		/// \brief [[BPR-1683]]. Prunes ignores whose pull request the queue
@@ -2006,11 +2044,14 @@ namespace bpr::application {
 
 		void persist_record(
 			const core::pull_request_ref& aRef,
-			queue_enrollment_register aPrior, const bool aKeepProviderFacts = false)
+			queue_enrollment_register aPrior, const bool aKeepProviderFacts = false, std::function<void(bool)> aStored = { })
 		{
 			const auto record = Enrollments.record_for(aRef);
 			if (!record.has_value()) {
 				publish();
+				if (aStored) {
+					aStored(false);
+				}
 				return;
 			}
 			++Statistics.PersistenceRequests;
@@ -2023,13 +2064,13 @@ namespace bpr::application {
 			const auto rollback = std::make_shared<queue_enrollment_register>(
 				std::move(aPrior));
 			try {
-				Effects.post([this, gate, id, stop, enrollmentRecord = *record, rollback, delta, keepProviderFacts = aKeepProviderFacts] {
+				Effects.post([this, gate, id, stop, enrollmentRecord = *record, rollback, delta, keepProviderFacts = aKeepProviderFacts, stored = aStored] {
 					auto result = Store.store_enrollment(enrollmentRecord, stop);
 					DecisionLane.post(
-						[gate, id, rollback, delta, keepProviderFacts, storeResult = std::move(result)]() mutable {
+						[gate, id, rollback, delta, keepProviderFacts, stored, storeResult = std::move(result)]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
 								host->finish_store_enrollment(
-									id, rollback, std::move(storeResult), delta, keepProviderFacts);
+									id, rollback, std::move(storeResult), delta, keepProviderFacts, stored);
 							}
 						});
 				});
@@ -2039,15 +2080,23 @@ namespace bpr::application {
 					Enrollments = *rollback;
 				}
 				report_unavailable();
+				if (aStored) {
+					aStored(false);
+				}
 			}
 		}
 
 		void finish_store_enrollment(
 			const std::uint64_t                               aId,
 			const std::shared_ptr<queue_enrollment_register>& aRollback,
-			const std::expected<void, queue_store_failure>& aResult, const std::optional<core::pull_request_ref>& aDelta, const bool aKeepProviderFacts)
+			const std::expected<void, queue_store_failure>& aResult, const std::optional<core::pull_request_ref>& aDelta, const bool aKeepProviderFacts,
+			const std::function<void(bool)>& aStored)
 		{
 			if (!retire(aId, request_kind::store_enrollment) || Closing) {
+				// [[BPR-2249]]. A stale or closing answer is not a store that kept it.
+				if (aStored) {
+					aStored(false);
+				}
 				return;
 			}
 			if (!aResult) {
@@ -2057,6 +2106,9 @@ namespace bpr::application {
 					Enrollments = *aRollback;
 				}
 				report_unavailable(aResult.error());
+				if (aStored) {
+					aStored(false);
+				}
 				return;
 			}
 			Failure.reset();
@@ -2069,10 +2121,16 @@ namespace bpr::application {
 				const auto& report = Activity[ActivityIndex.at(*aDelta)];
 				if (record && record->present()) {
 					publish(observed_item(*record, report));
+					if (aStored) {
+						aStored(true);
+					}
 					return;
 				}
 			}
 			publish();
+			if (aStored) {
+				aStored(true);
+			}
 		}
 
 		void cancel_refreshes()
@@ -2225,9 +2283,9 @@ namespace bpr::application {
 		Implementation->apply(std::move(aIntent));
 	}
 
-	void review_queue_application_host::apply(queue_seen_intent aIntent)
+	void review_queue_application_host::apply(queue_seen_intent aIntent, queue_seen_answer aAnswered)
 	{
-		Implementation->apply(aIntent);
+		Implementation->apply(aIntent, aAnswered);
 	}
 
 	auto review_queue_application_host::ignored() const noexcept -> const core::home_ignore_list&

@@ -170,6 +170,14 @@ namespace bpr::qt {
 
 	auto agent_run_stopped_words(const qint64 aSeconds) -> QString { return QObject::tr("Stopped after %1").arg(agent_elapsed_words(aSeconds)); }
 
+	auto agent_turn_ending_words(const QString& aAgent, const bool aAnswered, const std::optional<qint64> aSeconds) -> QString
+	{
+		if (aAnswered) {
+			return aSeconds ? agent_run_answered_words(agent_short_name(aAgent), *aSeconds) : QObject::tr("%1 answered").arg(agent_short_name(aAgent));
+		}
+		return aSeconds ? agent_run_stopped_words(*aSeconds) : QObject::tr("Stopped");
+	}
+
 	agent_run_status_line::agent_run_status_line(QWidget* aParent)
 		: QLabel{ aParent }
 	{

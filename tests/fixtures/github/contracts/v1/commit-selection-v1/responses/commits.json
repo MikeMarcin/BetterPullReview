@@ -1,0 +1,81 @@
+[
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"committer": {
+				"date": "2026-11-03T09:12:00Z"
+			},
+			"message": "Change the generator input\n\nThe generator reads value 2 now, and the app's fifth line names the change."
+		},
+		"node_id": "C_60ee4c66",
+		"parents": [
+			{
+				"sha": "bd83187f4e5b01d458e7fa1670d8e5acc1ca10de"
+			}
+		],
+		"sha": "60ee4c6633db1e342135344dca8faa1219bb11a1"
+	},
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"committer": {
+				"date": "2026-11-14T10:05:00Z"
+			},
+			"message": "Regenerate\n\nRun the generator over gen/. Nothing here is edited by hand."
+		},
+		"node_id": "C_14d19077",
+		"parents": [
+			{
+				"sha": "60ee4c6633db1e342135344dca8faa1219bb11a1"
+			}
+		],
+		"sha": "14d1907771adc37bcf6e56399b34be30a125485c"
+	},
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"committer": {
+				"date": "2026-11-16T15:20:00Z"
+			},
+			"message": "Merge branch 'main' into commit-selection"
+		},
+		"node_id": "C_5cc62132",
+		"parents": [
+			{
+				"sha": "14d1907771adc37bcf6e56399b34be30a125485c"
+			},
+			{
+				"sha": "1111111111111111111111111111111111111111"
+			}
+		],
+		"sha": "5cc6213265c44a7c44dd8f8203af52c4b9ad3c81"
+	},
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"committer": {
+				"date": "2026-11-17T07:42:00Z"
+			},
+			"message": "Follow-ups\n\nTidy src/app.cpp after the regeneration."
+		},
+		"node_id": "C_22222222",
+		"parents": [
+			{
+				"sha": "5cc6213265c44a7c44dd8f8203af52c4b9ad3c81"
+			}
+		],
+		"sha": "2222222222222222222222222222222222222222"
+	}
+]

@@ -858,6 +858,23 @@ namespace bpr::application {
 													  const std::stop_token aStop)
 			-> std::expected<std::shared_ptr<git_chain_tree_store>, commit_filter_touches_status>;
 
+		[[nodiscard]] auto resolve_returning_change(
+			returning_change_request    aRequest,
+			returning_change_completion aCompletion) -> bool;
+
+		/// [[BPR-2247]], [[BPR-2251]]. One change since a review, across its
+		/// phases: the cache's parts on the review's actor, GitHub's parts on a
+		/// worker of their own, so a slow fetch never holds the actor the
+		/// reviewer's own reads run on.
+		struct returning_change_job;
+		void        returning_change_inspect(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_fetch_trees(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_diff(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_fetch_blobs(const std::shared_ptr<returning_change_job>& aJob);
+		void        returning_change_on_actor(const std::shared_ptr<returning_change_job>& aJob, void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&));
+		void        returning_change_off_actor(const std::shared_ptr<returning_change_job>& aJob, void (implementation::*aPhase)(const std::shared_ptr<returning_change_job>&));
+		static void finish_returning_change(const std::shared_ptr<returning_change_job>& aJob, returning_change_status aStatus) noexcept;
+
 		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool;
 
 		[[nodiscard]] static auto delta_failure(const git_smart_transport_error& aError) -> agent_workspace_error;
@@ -1317,12 +1334,15 @@ namespace bpr::application {
 		void start_comparison_resolution(
 			const core::resolve_comparison_request& aRequest);
 
-		core::epoch_state                             State;
-		git_cache_port&                               Caches;
-		epoch_catalog_port&                           Catalogs;
-		epoch_entropy_port&                           Entropy;
-		epoch_clock_port&                             Clock;
-		effect_executor&                              Effects;
+		core::epoch_state   State;
+		git_cache_port&     Caches;
+		epoch_catalog_port& Catalogs;
+		epoch_entropy_port& Entropy;
+		epoch_clock_port&   Clock;
+		effect_executor&    Effects;
+		/// [[BPR-2250]]. Where the change since a review's GitHub reads run;
+		/// `Effects` unless the composition gave the host one of its own.
+		effect_executor*                              HistoryEffects = &Effects;
 		decision_executor&                            DecisionLane;
 		epoch_projection_port&                        Projections;
 		epoch_host_limits                             Limits;

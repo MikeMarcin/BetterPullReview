@@ -275,6 +275,18 @@ namespace bpr::core {
 		return listing;
 	}
 
+	auto own_change_steps(const std::vector<listed_commit>& aSelection, const std::vector<std::string>& aPullRequestCommits, const std::string_view aBase)
+		-> std::vector<commit_change_step>
+	{
+		auto steps = std::vector<commit_change_step>{ };
+		for (const auto& commit : aSelection) {
+			if (!commit.Parents.empty() && !merges_base(commit, aBase, aPullRequestCommits)) {
+				steps.push_back({ .Parent = commit.Parents.front(), .Commit = commit.Oid, .Headline = commit.Headline });
+			}
+		}
+		return steps;
+	}
+
 	auto merges_to_count(const std::vector<listed_commit>& aCommits, const std::vector<std::string>& aPullRequestCommits, const std::string_view aBase) -> std::vector<merge_to_count>
 	{
 		auto merges = std::vector<merge_to_count>{ };

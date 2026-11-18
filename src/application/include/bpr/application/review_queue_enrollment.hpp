@@ -13,6 +13,7 @@
 #include <compare>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -365,6 +366,19 @@ namespace bpr::application {
 
 		auto operator<=>(const queue_seen_intent&) const = default;
 	};
+
+	/// \brief [[BPR-2249]]. What became of one Seen.
+	enum class queue_seen_outcome : std::uint8_t {
+		/// The seen head is recorded and the store kept it.
+		recorded,
+		/// Not applied: the queue is closing or not restored, the row is
+		/// gone, its head moved, or Seen is no longer offered for it.
+		refused,
+		/// Applied, but the store did not keep it; the seen head is withdrawn.
+		not_kept,
+	};
+	/// \brief [[BPR-2249]]. Told once, on the decision lane, what became of a Seen.
+	using queue_seen_answer = std::function<void(queue_seen_outcome)>;
 
 	/// \brief [[BPR-0989]]. The reviewer's local follow or unfollow of one pull request.
 	struct queue_follow_intent
@@ -789,7 +803,8 @@ namespace bpr::application {
 		/// \brief [[BPR-2049]]. Records new commits as seen on a row whose
 		/// approval still stands; the row moves at once. Refused unless the
 		/// core offers Seen for it and the head is still the one shown.
-		void apply(queue_seen_intent aIntent);
+		/// [[BPR-2249]]. `aAnswered`, if given, is told once what became of it.
+		void apply(queue_seen_intent aIntent, queue_seen_answer aAnswered = { });
 		/// \brief [[BPR-0989]]. Publishes the discovery status with the queue.
 		void present_discovery(queue_discovery_status aStatus);
 		void adopt(queue_session_id aSession);

@@ -66,6 +66,21 @@ namespace {
 		};
 	}
 
+	/// [[BPR-2248]]. Selected commits ride only beside a question, within
+	/// their bounds.
+	void test_selected_commits_ride_only_beside_a_question()
+	{
+		const auto material = core::bound_selected_commits({ { .Oid = std::string(40U, 'a'), .Headline = "Fix" } }, core::returning_changes{ .Text = "Commit aaaaaaa: Fix\n" });
+		auto       request  = minimal_request();
+		request.Commits     = material;
+		expect(!core::build_agent_supplement(request), "commits with no question are refused whole");
+		request.Message  = core::agent_chat_message{ .Session = request.Session.Id, .Text = "Explain these commits" };
+		const auto built = core::build_agent_supplement(request);
+		expect(built && built->Commits == material, "beside a question they are carried unchanged");
+		request.Commits->Commits.front().Oid = "abc1234";
+		expect(!core::build_agent_supplement(request), "a commit that is not a full ID is refused whole");
+	}
+
 	[[nodiscard]] auto defect() -> core::supplement_defect
 	{
 		const auto anchor = core::source_line_ref{
@@ -219,8 +234,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement                                                                        = core::agent_context_supplement;
-		const auto whole                                                                        = supplement{ };
+		using supplement                                                                                 = core::agent_context_supplement;
+		const auto whole                                                                                 = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -238,13 +253,19 @@ namespace {
 					 brief,
 					 conversation,
 					 skills,
-					 tourPrompt, replay, subject, lookingAt, returning, explain, suggestChange] = whole;
+					 tourPrompt, replay, subject, lookingAt, returning, explain, suggestChange, commits] = whole;
 		// RFC-BPR-0116 to 0118. Each assistance action's material, up front:
 		// text the review already holds, no argv, environment or token.
 		static_assert(std::is_same_v<decltype(returning), const std::optional<core::supplement_returning>>);
 		static_assert(std::is_same_v<decltype(explain), const std::optional<core::supplement_explain>>);
 		static_assert(std::is_same_v<decltype(suggestChange), const std::optional<core::supplement_suggest_change>>);
 		[[maybe_unused]] const auto& [suggestPath, suggestHead, suggestFirst, suggestLast, suggestComment, suggestLines, suggestBefore, suggestAfter] = core::supplement_suggest_change{ };
+		// [[BPR-2248]]. The selected commits: IDs, headlines, messages and
+		// their own changes as text; no argv, environment or token.
+		static_assert(std::is_same_v<decltype(commits), const std::optional<core::supplement_commits>>);
+		[[maybe_unused]] const auto& [commitsList, commitsChanges, commitsShown, commitsOmitted]  = core::supplement_commits{ };
+		[[maybe_unused]] const auto& [commitOid, commitHeadline, commitMessage, commitMergesBase] = core::selected_commit{ };
+		static_assert(std::is_same_v<decltype(commitMessage), const std::string>);
 		// [[BPR-2002]]. A question's subject and where the reviewer is
 		// looking: paths, lines and the lines' text; no argv, environment or
 		// token.
@@ -320,7 +341,7 @@ namespace {
 				&& url.empty() && message.empty() && !previous && !lastReviewed
 				&& files.empty() && defects.empty() && !selection && notes.empty()
 				&& drafts.empty() && !operation && !guidance && !brief
-				&& !conversation && skills.empty() && tourPrompt.empty(),
+				&& !conversation && skills.empty() && tourPrompt.empty() && !commits,
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 
@@ -885,6 +906,7 @@ namespace {
 auto main() -> int
 {
 	test_replay_bounds_and_omissions();
+	test_selected_commits_ride_only_beside_a_question();
 	test_a_minimal_supplement_preserves_absence();
 	test_every_required_local_and_semantic_field_travels_exactly();
 	test_absent_and_present_empty_source_text_are_different();

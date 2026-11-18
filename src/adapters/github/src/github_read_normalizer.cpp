@@ -1252,6 +1252,7 @@ namespace bpr::adapters::github::detail {
 			for (const auto& value : commits) {
 				const auto& object   = value;
 				auto        headline = object.Commit.Message;
+				auto        body     = application::github_commit_body(headline);
 				if (const auto newline = headline.find('\n');
 					newline != std::string::npos) {
 					headline.resize(newline);
@@ -1274,6 +1275,7 @@ namespace bpr::adapters::github::detail {
 						.Parents  = std::move(parents),
 						// [[BPR-2244]]. A date in another shape leaves the age unknown.
 						.CommittedAt = object.Commit.Committer && object.Commit.Committer->Date ? parse_timeline_timestamp(*object.Commit.Committer->Date).transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; }) : std::nullopt,
+						.Body        = std::move(body),
 					});
 			}
 			if (

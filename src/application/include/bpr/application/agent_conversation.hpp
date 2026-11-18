@@ -6,6 +6,8 @@
 #include "bpr/core/agent_steering.hpp"
 #include "bpr/core/agent_turn.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -51,6 +53,11 @@ namespace bpr::application {
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 		/// [[BPR-2153]]. What the reviewer steered into it, in the order sent.
 		std::vector<agent_steered_message> Steered = { };
+		/// [[BPR-2241]]. How long the run took, in whole seconds, where the
+		/// host kept it with a turn whose `Ending` is not yet worded (a native
+		/// session's, or one no window saw end), so the turn restored says how
+		/// it ended as the live one did. Absent when not known.
+		std::optional<std::uint32_t> Seconds = std::nullopt;
 
 		auto operator<=>(const agent_conversation_turn&) const = default;
 	};
@@ -99,6 +106,14 @@ namespace bpr::application {
 		constexpr auto bound = std::size_t{ 1024U };
 		return !aKey.Host.empty() && !aKey.Owner.empty() && !aKey.Name.empty() && aKey.Number > 0U && aKey.Host.size() <= bound && aKey.Owner.size() <= bound
 			&& aKey.Name.size() <= bound && aKey.Agent <= 64U;
+	}
+
+	/// \brief [[BPR-2241]]. A turn's `Seconds`: the whole seconds since
+	/// `aStarted`, as the Agent tab counts a live turn's.
+	[[nodiscard]] inline auto agent_turn_seconds(const std::chrono::steady_clock::time_point aStarted) noexcept -> std::uint32_t
+	{
+		const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - aStarted).count();
+		return static_cast<std::uint32_t>(std::clamp<std::chrono::seconds::rep>(seconds, 0, UINT32_MAX));
 	}
 
 	[[nodiscard]] inline auto valid(const std::vector<agent_conversation_turn>& aTurns) noexcept -> bool

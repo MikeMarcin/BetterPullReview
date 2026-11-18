@@ -13,6 +13,7 @@
 
 #include <algorithm>
 
+#include <QScopeGuard>
 #include <QTimer>
 #include <memory>
 #include <set>
@@ -24,36 +25,13 @@
 namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 	namespace {
-		/// A file larger than this on either side is left out of the change
-		/// rather than compared on the window's lane.
-		constexpr std::size_t maximum_returning_side_bytes = 256U * 1024U;
-
 		[[nodiscard]] auto hex(const core::git_commit_oid& aOid) -> std::string { return std::string{ core::canonical_hex(aOid).view() }; }
-
-		[[nodiscard]] auto short_hex(const std::string& aHex) -> QString { return QString::fromStdString(aHex.substr(0U, 7U)); }
-
-		/// One file's two sides as they arrive.
-		struct returning_read final
-		{
-			std::string                Path;
-			std::optional<std::string> Earlier;
-			std::optional<std::string> Current;
-			bool                       TooLarge = false;
-		};
-		struct returning_gather final
-		{
-			std::string                 Key;
-			std::vector<returning_read> Files;
-			std::size_t                 Waiting = 0U;
-			bool                        Failed  = false;
-			std::size_t                 Omitted = 0U;
-		};
 	}
 
 	/// What the returning questions offer for the pull request as accepted
 	/// now: the Pull Request menu and the Agent tab are told, and the threads
-	/// Was this addressed? is offered on. Starts reading the earlier
-	/// revision's material once per pair of heads; launches nothing.
+	/// Was this addressed? is offered on. Reads nothing of the earlier
+	/// revision ([[BPR-2251]]) and launches nothing.
 	void github_application::implementation::refresh_returning_review()
 	{
 		if (Closing || Window == nullptr || EpochHost == nullptr) {
@@ -89,20 +67,14 @@ namespace bpr::app {
 		const auto earlier = core::returning_point_of(facts);
 		const auto key     = earlier && earlier->Head != headHex ? earlier->Head + ".." + headHex : std::string{ };
 		if (key != ReturningReview.Key) {
+			// [[BPR-2251]]. Nothing of the past is read here: a press reads it.
 			ReturningReview.Key         = key;
 			ReturningReview.Earlier     = earlier;
 			ReturningReview.CurrentHead = headHex;
 			ReturningReview.Material.reset();
-			ReturningReview.Retries  = key.empty() ? 0U : ReturningReview.Retries;
-			ReturningReview.Readable = false;
-			ReturningReview.Reading  = false;
-			if (!key.empty()) {
-				read_returning_material(*earlier, head);
-			}
+			ReturningReview.Reading     = false;
+			ReturningReview.LineRetries = 0U;
 		}
-		facts.Material        = ReturningReview.Reading ? core::returning_material::reading
-			: ReturningReview.Readable                  ? core::returning_material::readable
-														: core::returning_material::unreadable;
 		ReturningReview.Offer = core::decide_latest_upload(facts);
 		Window->present_latest_upload(ReturningReview.Offer);
 
@@ -173,138 +145,165 @@ namespace bpr::app {
 		Window->set_addressed_threads(std::move(offered));
 	}
 
-	/// Reads the change between the earlier revision and the head from the
-	/// review's own objects: which files differ, then each at both commits.
-	/// A commit the objects do not hold makes the question unavailable.
-	void github_application::implementation::read_returning_material(const core::returning_point& aEarlier, const core::git_commit_oid& aHead)
+	/// [[BPR-2247]], [[BPR-2251]]. Reads the change since the review as core
+	/// plans it, at the press: the earlier revision to the head, or, with
+	/// merges of the base among the commits since, each real commit's own
+	/// change, so none of the base's changes ride in it. The host fetches what
+	/// the review's objects lack, off the actor the review's own reads use;
+	/// the question is asked once the change is read, or refused saying why.
+	void github_application::implementation::read_returning_material()
 	{
 		const auto  key      = ReturningReview.Key;
-		const auto  earlier  = core::parse_git_commit_oid(aEarlier.Head);
 		const auto& snapshot = WindowRead->accepted_snapshot();
-		if (!earlier || !LastAcceptedHandoff || !snapshot) {
-			finish_returning_material(key, std::nullopt);
+		const auto& state    = EpochHost->state();
+		const auto  earlier  = ReturningReview.Earlier ? core::parse_git_commit_oid(ReturningReview.Earlier->Head) : std::nullopt;
+		if (!snapshot || !state.AcceptedRevision || !LastAcceptedHandoff) {
+			refuse_what_changed("the pull request has not been read yet.");
 			return;
 		}
-		ReturningReview.Reading = true;
-		auto paths              = std::vector<std::filesystem::path>{ };
-		for (const auto& file : snapshot->Files) {
-			paths.emplace_back(file.Path);
-			if (file.PreviousPath) {
-				paths.emplace_back(*file.PreviousPath);
+		if (!earlier) {
+			refuse_what_changed("the commit you reviewed is not a commit ID.");
+			return;
+		}
+		const auto head    = state.AcceptedRevision->Head;
+		auto       commits = std::vector<core::listed_commit>{ };
+		for (const auto& commit : snapshot->Commits) {
+			auto listed = core::listed_commit{ .Oid = std::string{ commit.Oid.value() }, .Headline = commit.Headline };
+			if (commit.Parents) {
+				for (const auto& parent : *commit.Parents) {
+					listed.Parents.emplace_back(parent.value());
+				}
+			}
+			commits.push_back(std::move(listed));
+		}
+		const auto plan    = core::plan_returning_change(ReturningReview.Earlier->Head, hex(head), commits, snapshot->PullRequest.BaseRef);
+		auto       request = application::returning_change_request{ .WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff), .Head = head, .Depth = plan.Depth, .Outside = earlier };
+		auto       heads   = std::vector<std::pair<std::string, std::string>>{ };
+		for (const auto& step : plan.Steps) {
+			const auto parent = core::parse_git_commit_oid(step.Parent);
+			const auto commit = core::parse_git_commit_oid(step.Commit);
+			if (!parent || !commit) {
+				refuse_what_changed("a commit since your review is not a commit ID.");
+				return;
+			}
+			request.Steps.push_back({ .Parent = *parent, .Commit = *commit });
+			heads.emplace_back(step.Commit, step.Headline);
+		}
+		const auto keep = [this](core::returning_changes aChanges) {
+			ReturningReview.Material = core::supplement_returning{
+				.Operation    = core::returning_operation::latest_upload,
+				.EarlierHead  = ReturningReview.Earlier->Head,
+				.CurrentHead  = ReturningReview.CurrentHead,
+				.Basis        = ReturningReview.Earlier->Basis,
+				.Changes      = std::move(aChanges.Text),
+				.Commits      = returning_commit_listing(),
+				.FilesShown   = aChanges.FilesShown,
+				.FilesOmitted = aChanges.FilesOmitted,
+			};
+		};
+		if (request.Steps.empty()) {
+			// Only merges of the base since the review: nothing of the pull
+			// request's own changed; the commit listing says what merged.
+			keep(core::returning_changes{ });
+			send_what_changed();
+			return;
+		}
+		if (!plan.Listed) {
+			// A rewritten branch: the earlier revision is not one of the pull
+			// request's commits, so only its files are compared.
+			for (const auto& file : snapshot->Files) {
+				request.Paths.push_back(file.Path);
+				if (file.PreviousPath) {
+					request.Paths.push_back(*file.PreviousPath);
+				}
 			}
 		}
-		const auto authority = workbench_authority(*LastAcceptedHandoff);
-		auto       request   = application::changed_paths_request{ .WorkbenchAuthority = authority, .Left = *earlier, .Right = aHead, .Paths = std::move(paths) };
-		const auto admitted  = EpochHost->resolve_changed_paths(std::move(request), [this, key, authority, earlierOid = *earlier, head = aHead](const application::changed_paths_observation& aChanged) {
+	#if defined(BPR_BUILD_TESTING)
+		++ReturningReadsForTesting;
+	#endif
+		ReturningReview.Reading = true;
+		const auto answered     = std::make_shared<bool>(false);
+		const auto admitted     = EpochHost->resolve_returning_change(std::move(request), [this, key, answered, keep, byCommit = plan.ByCommit, heads](const application::returning_change_observation& aRead) {
+			*answered = true;
 			if (Closing || ReturningReview.Key != key) {
 				return;
 			}
-			if (aChanged.Status == application::changed_paths_status::stale || aChanged.Status == application::changed_paths_status::cancelled) {
-				// Asked again shortly, once the cache serves the head.
-				retry_returning_material();
-				return;
+			ReturningReview.Reading = false;
+			// A release this pass did not send was refused.
+			const auto settled = qScopeGuard([this] { settle_pending_release(); });
+			using status       = application::returning_change_status;
+			switch (aRead.Status) {
+			case status::resolved:            break;
+			case status::earlier_unavailable: refuse_what_changed("the code you reviewed (" + ReturningReview.Earlier->Head.substr(0U, 7U) + ") could not be fetched from GitHub."); return;
+			case status::limit_exceeded:      refuse_what_changed("the change since your review is too large to read here."); return;
+			case status::stale:               refuse_what_changed("the review changed while the change since it was read. Ask again."); return;
+			case status::cancelled:           refuse_what_changed("reading the change since your review was cancelled. Ask again."); return;
+			case status::failure:             refuse_what_changed("the change since your review could not be read."); return;
 			}
-			if (aChanged.Status != application::changed_paths_status::resolved) {
-				finish_returning_material(key, std::nullopt);
-				return;
-			}
-			auto gather = std::make_shared<returning_gather>();
-			gather->Key = key;
-			for (const auto& path : aChanged.Changed) {
-				if (gather->Files.size() == core::maximum_returning_files) {
-					++gather->Omitted;
-					continue;
-				}
-				gather->Files.push_back({ .Path = path.generic_string() });
-			}
-			if (gather->Files.empty()) {
-				finish_returning_material(key, core::returning_changes{ });
-				return;
-			}
-			gather->Waiting = gather->Files.size() * 2U;
-			const auto done = [this, gather] {
-				if (gather->Waiting != 0U || Closing || ReturningReview.Key != gather->Key) {
-					return;
-				}
-				if (gather->Failed) {
-					finish_returning_material(gather->Key, std::nullopt);
-					return;
-				}
-				// The comparisons are bounded by `maximum_returning_side_bytes`
-				// a side and `maximum_returning_files`, so they run here.
-				auto files = std::vector<core::returning_change_file>{ };
-				for (const auto& read : gather->Files) {
-					if (read.TooLarge) {
-						files.push_back({ .Path = read.Path, .Text = "File " + read.Path + " is too large to compare here\n" });
-						continue;
-					}
-					const auto as_span = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
-						return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
-					};
-					const auto options = core::diff_options{ };
-					const auto left    = as_span(read.Earlier);
-					const auto right   = as_span(read.Current);
-					const auto mkey    = core::returning_comparison(read.Path, left, right, options);
-					if (!mkey || !LineMatcher) {
-						continue;
-					}
-					auto       matching = application::diff_line_matching{ *LineMatcher };
-					const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);
-					files.push_back({ .Path = read.Path, .Text = outcome.Result ? core::render_returning_change(read.Path, *outcome.Result) : "File " + read.Path + " changed and could not be compared\n" });
-				}
-				auto changes = core::bound_returning_changes(std::move(files));
-				changes.FilesOmitted += gather->Omitted;
-				finish_returning_material(gather->Key, std::move(changes));
-			};
-			for (auto index = std::size_t{ 0U }; index < gather->Files.size(); ++index) {
-				for (const auto earlierSide : { true, false }) {
-					auto       read         = application::permalink_source_request{ .WorkbenchAuthority = authority, .Head = head, .Commit = earlierSide ? earlierOid : head, .Path = gather->Files[index].Path };
-					const auto admittedRead = EpochHost->resolve_permalink_source(std::move(read), [gather, index, earlierSide, done](const application::permalink_source_observation& aRead) {
-						auto& file   = gather->Files[index];
-						using status = application::permalink_source_status;
-						if (aRead.Status == status::resolved) {
-							(earlierSide ? file.Earlier : file.Current) = aRead.Bytes;
-							if (aRead.Bytes && aRead.Bytes->size() > maximum_returning_side_bytes) {
-								file.TooLarge = true;
-							}
-						} else if (aRead.Status == status::too_large) {
-							file.TooLarge = true;
-						} else {
-							gather->Failed = true;
-						}
-						--gather->Waiting;
-						done();
-					});
-					if (!admittedRead) {
-						gather->Failed = true;
-						--gather->Waiting;
-					}
+			// The comparisons are bounded by the host's side and file bounds,
+			// so they run here.
+			auto steps = std::vector<core::returning_commit_files>{ };
+			for (std::size_t index = 0U; index < aRead.Steps.size() && index < heads.size(); ++index) {
+				auto& step = steps.emplace_back(core::returning_commit_files{ .Commit = heads[index].first, .Headline = heads[index].second });
+				for (const auto& file : aRead.Steps[index].Files) {
+					step.Files.push_back(compare_change_file(file));
 				}
 			}
-			done();
+			auto changes = byCommit ? core::bound_returning_commits(std::move(steps)) : core::bound_returning_changes(steps.empty() ? std::vector<core::returning_change_file>{ } : std::move(steps.front().Files));
+			changes.FilesOmitted += aRead.FilesOmitted;
+			keep(std::move(changes));
+			send_what_changed();
 		});
 		if (!admitted) {
-			// Not admitted now (ingestion in flight); asked again shortly.
-			retry_returning_material();
+			ReturningReview.Reading = false;
+			refuse_what_changed("the review is still loading. Ask again in a moment.");
+			return;
+		}
+		// The turn is sent once the change is read.
+		if (!*answered) {
+			note_release_deferred();
 		}
 	}
 
-	/// The earlier material could not be asked for yet (the cache not yet
-	/// serving the accepted head): asked again shortly, a bounded number of
-	/// times, and reading meanwhile. Past the bound it is unavailable.
-	void github_application::implementation::retry_returning_material()
+	/// [[BPR-2251]]. The question, its change read.
+	void github_application::implementation::send_what_changed()
 	{
-		ReturningReview.Key.clear();
-		if (++ReturningReview.Retries > 120U) {
-			ReturningReview.Reading = false;
+		if (Closing || Window == nullptr || Window->agent_tab() == nullptr) {
 			return;
 		}
-		ReturningReview.Reading = true;
-		QTimer::singleShot(250, Window.get(), [this] {
-			if (!Closing) {
-				refresh_returning_review();
-			}
-		});
+		Window->open_agent_question();
+		Window->agent_tab()->ask_returning(core::returning_operation::latest_upload);
+	}
+
+	/// [[BPR-2251]]. A press whose change could not be read, said on the run.
+	void github_application::implementation::refuse_what_changed(const std::string& aWhy)
+	{
+		if (Window != nullptr) {
+			Window->open_agent_question();
+			Window->agent_panel()->refuse("What changed since my review: " + aWhy + " Nothing was sent.");
+		}
+	}
+
+	/// [[BPR-2247]], [[BPR-2248]]. One changed file of a read change as the
+	/// agent reads it: its diff, or why there is none.
+	auto github_application::implementation::compare_change_file(const application::returning_change_file& aFile) -> core::returning_change_file
+	{
+		if (aFile.TooLarge) {
+			return { .Path = aFile.Path, .Text = "File " + aFile.Path + " is too large to compare here\n" };
+		}
+		const auto asSpan = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
+			return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
+		};
+		const auto options = core::diff_options{ };
+		const auto left    = asSpan(aFile.Earlier);
+		const auto right   = asSpan(aFile.Current);
+		const auto mkey    = core::returning_comparison(aFile.Path, left, right, options);
+		if (!mkey || !LineMatcher) {
+			return { .Path = aFile.Path };
+		}
+		auto       matching = application::diff_line_matching{ *LineMatcher };
+		const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);
+		return { .Path = aFile.Path, .Text = outcome.Result ? core::render_returning_change(aFile.Path, *outcome.Result) : "File " + aFile.Path + " changed and could not be compared\n" };
 	}
 
 	/// RFC-BPR-0128 ([[BPR-2167]]). The commits since the review as the
@@ -383,28 +382,6 @@ namespace bpr::app {
 		return text;
 	}
 
-	void github_application::implementation::finish_returning_material(const std::string& aKey, std::optional<core::returning_changes> aChanges)
-	{
-		if (Closing || ReturningReview.Key != aKey) {
-			return;
-		}
-		ReturningReview.Reading  = false;
-		ReturningReview.Readable = aChanges.has_value();
-		if (aChanges && ReturningReview.Earlier) {
-			ReturningReview.Material = core::supplement_returning{
-				.Operation    = core::returning_operation::latest_upload,
-				.EarlierHead  = ReturningReview.Earlier->Head,
-				.CurrentHead  = ReturningReview.CurrentHead,
-				.Basis        = ReturningReview.Earlier->Basis,
-				.Changes      = std::move(aChanges->Text),
-				.Commits      = returning_commit_listing(),
-				.FilesShown   = aChanges->FilesShown,
-				.FilesOmitted = aChanges->FilesOmitted,
-			};
-		}
-		refresh_returning_review();
-	}
-
 	/// A thread's lines as they were when I last commented there (`aThen`),
 	/// or as they are at the head, from the review's own objects.
 	void github_application::implementation::read_addressed_lines(const std::string& aIdentity, const bool aThen)
@@ -429,6 +406,7 @@ namespace bpr::app {
 			(aThen ? kept.ThenAsking : kept.NowAsking) = false;
 			using status                               = application::permalink_source_status;
 			if (aRead.Status == status::stale || aRead.Status == status::cancelled) {
+				retry_addressed_lines();
 				return;
 			}
 			(aThen ? kept.ThenSettled : kept.NowSettled) = true;
@@ -438,18 +416,46 @@ namespace bpr::app {
 		});
 		if (!admitted) {
 			(aThen ? offer.ThenAsking : offer.NowAsking) = false;
+			retry_addressed_lines();
 		}
 	}
 
-	/// The Pull Request menu's What changed since my review: the Agent tab
-	/// asks it, as its suggestion would.
-	void github_application::implementation::ask_what_changed()
+	/// [[BPR-2251]]. A thread's lines not admitted yet (ingestion in flight)
+	/// or answered stale are asked again shortly, a bounded number of times;
+	/// past the bound they are asked at the next refresh.
+	void github_application::implementation::retry_addressed_lines()
 	{
-		if (Closing || Window == nullptr || ReturningReview.Offer.State != core::latest_upload_state::offered) {
+		if (ReturningReview.LineRetryScheduled || ReturningReview.LineRetries >= 120U || Window == nullptr) {
 			return;
 		}
-		Window->open_agent_question();
-		Window->agent_tab()->ask_returning(core::returning_operation::latest_upload);
+		++ReturningReview.LineRetries;
+		ReturningReview.LineRetryScheduled = true;
+		QTimer::singleShot(250, Window.get(), [this] {
+			ReturningReview.LineRetryScheduled = false;
+			if (!Closing) {
+				refresh_returning_review();
+			}
+		});
+	}
+
+	/// What changed since my review, from the Pull Request menu, its Agent
+	/// tab suggestion or a queued Ask: [[BPR-2251]], the change since the
+	/// review is read now, once for these heads, and then asked.
+	void github_application::implementation::ask_what_changed()
+	{
+		if (Closing || Window == nullptr || EpochHost == nullptr || ReturningReview.Offer.State != core::latest_upload_state::offered || !ReturningReview.Earlier) {
+			return;
+		}
+		if (ReturningReview.Material) {
+			send_what_changed();
+			return;
+		}
+		if (ReturningReview.Reading) {
+			// The press under way asks once it has read the change.
+			note_release_deferred();
+			return;
+		}
+		read_returning_material();
 	}
 
 	/// A thread's Was this addressed?: the conversation is attached, as Ask
@@ -516,12 +522,12 @@ namespace bpr::app {
 	{
 		switch (aEntryPoint) {
 		case core::agent_entry_point::analyze_latest_upload: {
-			if (ReturningReview.Offer.State != core::latest_upload_state::offered || !ReturningReview.Material) {
-				const auto earlier = ReturningReview.Offer.Earlier ? short_hex(ReturningReview.Offer.Earlier->Head) : QString{ };
-				Window->agent_panel()->refuse(ReturningReview.Offer.State == core::latest_upload_state::unavailable
-												  ? QStringLiteral("What changed since my review: the code at %1 can't be read here. Nothing was sent.").arg(earlier).toStdString()
-												  : QStringLiteral("What changed since my review: there are no commits since your review. Nothing was sent.")
-														.toStdString());
+			if (ReturningReview.Offer.State != core::latest_upload_state::offered) {
+				Window->agent_panel()->refuse("What changed since my review: there are no commits since your review. Nothing was sent.");
+				return false;
+			}
+			if (!ReturningReview.Material) {
+				Window->agent_panel()->refuse("What changed since my review: the change since your review was not read. Nothing was sent.");
 				return false;
 			}
 			aObservation.Returning = ReturningReview.Material;

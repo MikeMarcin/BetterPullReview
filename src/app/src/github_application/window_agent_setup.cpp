@@ -765,7 +765,8 @@ namespace bpr::app {
 							  .Footer   = QString::fromStdString(turn.Ending),
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered),
-							  .Steered  = turn.Steered });
+							  .Steered  = turn.Steered,
+							  .Seconds  = turn.Seconds ? std::optional<qint64>{ *turn.Seconds } : std::nullopt });
 		}
 		tab->present_thread(named_turns(std::move(turns)));
 		// [[BPR-1999]]. The conversation's cost, kept with its history.
@@ -1220,7 +1221,8 @@ namespace bpr::app {
 							  .Footer   = QString::fromStdString(turn.Ending),
 							  .Outcome  = turn.Outcome,
 							  .Cards    = restored_finding_cards(turn.Answered),
-							  .Steered  = turn.Steered });
+							  .Steered  = turn.Steered,
+							  .Seconds  = turn.Seconds ? std::optional<qint64>{ *turn.Seconds } : std::nullopt });
 		}
 		Window->agent_tab()->present_thread(named_turns(std::move(shown)));
 		if (aView.Loaded) {
@@ -1555,10 +1557,14 @@ namespace bpr::app {
 		// changed since my review, and Ask more on either's answer.
 		Window->set_conversation_addressed_dispatch([this](const std::string& aIdentity) { ask_was_addressed(aIdentity); });
 		Window->set_what_changed_dispatch([this] { ask_what_changed(); });
+		// [[BPR-2251]]. Its Agent tab suggestion reads at the press too.
+		Window->agent_tab()->set_latest_upload_dispatch([this] { ask_what_changed(); });
 		// RFC-BPR-0117 ([[BPR-2076]]). Explain this file and its card.
 		bind_explain_file();
 		// RFC-BPR-0128 ([[BPR-2164]]). The Ask controls and menus.
 		bind_quick_ask();
+		// [[BPR-2248]]. The Commits tab's agent prompts.
+		bind_commit_asks();
 		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change on a draft comment.
 		bind_suggest_change();
 		tab->set_ask_more_dispatch([this](const QString& aQuestion, const QString& aAnswer) {

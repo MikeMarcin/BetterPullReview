@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_RETURNING_REVIEW_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_RETURNING_REVIEW_HPP
 
+#include "bpr/core/agent_report.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_model.hpp"
 
@@ -29,17 +30,6 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto stable_name(returning_basis aBasis) noexcept -> std::string_view;
 
-	/// \brief Whether the earlier revision's material can be read here.
-	enum class returning_material : std::uint8_t {
-		/// Not asked yet, or asked and not answered.
-		reading,
-		/// Every changed file was read at both revisions.
-		readable,
-		/// The earlier revision, or a file at it, cannot be read (a rewritten
-		/// branch whose earlier commits are gone, objects never retained).
-		unreadable,
-	};
-
 	/// \brief What the pull request says about the reviewer's return.
 	///
 	/// \details Commits are full lowercase hexadecimal names; empty means
@@ -51,7 +41,6 @@ namespace bpr::core {
 		std::string              SeenHead;
 		std::string              CurrentHead;
 		std::vector<std::string> Commits;
-		returning_material       Material = returning_material::reading;
 		/// The reviewer authored the pull request: the commits are their own.
 		bool Authored = false;
 
@@ -75,16 +64,15 @@ namespace bpr::core {
 	/// review). None on a pull request the reviewer authored, or with neither.
 	[[nodiscard]] auto returning_point_of(const latest_upload_facts& aFacts) -> std::optional<returning_point>;
 
+	/// \details [[BPR-2251]] (owner, 2026-11-17: "Put it off until you need
+	/// it is probably the right lazy approach"). Whether the earlier revision
+	/// can be read is not known until a press reads it, so the question is
+	/// offered on the heads alone; a press that cannot read it says why.
 	enum class latest_upload_state : std::uint8_t {
 		/// Not offered: no review or Seen, or nothing newer than it.
 		hidden,
-		/// Newer commits; the earlier material is still being read.
-		reading,
-		/// Newer commits and both revisions read.
+		/// Newer commits than the review or Seen.
 		offered,
-		/// Newer commits, but the earlier revision cannot be read: the control
-		/// says so and sends nothing.
-		unavailable,
 	};
 	[[nodiscard]] auto stable_name(latest_upload_state aState) noexcept -> std::string_view;
 
@@ -198,6 +186,51 @@ namespace bpr::core {
 	/// `maximum_returning_change_bytes` and `maximum_returning_files`, and
 	/// counts the files left out. A file that did not change is not counted.
 	[[nodiscard]] auto bound_returning_changes(std::vector<returning_change_file> aFiles) -> returning_changes;
+
+	/// \brief [[BPR-2247]]. What the change since a review is read as.
+	struct returning_plan
+	{
+		/// The comparisons to read, oldest first: the earlier revision to the
+		/// head as one, or, with `ByCommit`, each real commit's own change.
+		std::vector<commit_change_step> Steps;
+		/// Merges of the base branch are among the commits since the review:
+		/// the change is the other commits' own changes (`own_change_steps`),
+		/// so none of the base's changes ride in it.
+		bool ByCommit = false;
+		/// The earlier revision is one of the pull request's commits. When it
+		/// is not (a rewritten branch), only the pull request's files are read.
+		bool Listed = false;
+		/// Generations from the head that hold every commit a step reads.
+		std::uint32_t Depth = 2U;
+
+		auto operator<=>(const returning_plan&) const = default;
+	};
+
+	/// \brief How the change from `aEarlier` to `aCurrent` is read.
+	///
+	/// \details `aCommits` is the pull request's commits, oldest first, with
+	/// their parents. The commits since the review are the head's first-parent
+	/// chain back to `aEarlier`. With a merge of the base `aBase` among them,
+	/// the plan is by commit; otherwise it is the one comparison. When the
+	/// chain does not reach `aEarlier` it is the one comparison too.
+	[[nodiscard]] auto plan_returning_change(std::string_view aEarlier, std::string_view aCurrent, const std::vector<listed_commit>& aCommits, std::string_view aBase)
+		-> returning_plan;
+
+	/// \brief One commit's files, for a change read by commit.
+	struct returning_commit_files
+	{
+		std::string                        Commit;
+		std::string                        Headline;
+		std::vector<returning_change_file> Files;
+
+		auto operator<=>(const returning_commit_files&) const = default;
+	};
+
+	/// \brief Joins each commit's changes in commit order, files in path
+	/// order under a `Commit abc1234: headline` line, within the same bounds
+	/// as `bound_returning_changes`. A commit that changed nothing shown has
+	/// no line.
+	[[nodiscard]] auto bound_returning_commits(std::vector<returning_commit_files> aCommits) -> returning_changes;
 
 	/// \brief Which question a returning run answers.
 	enum class returning_operation : std::uint8_t {
@@ -313,6 +346,85 @@ namespace bpr::core {
 
 		auto operator<=>(const supplement_returning&) const = default;
 	};
+
+	/// \brief [[BPR-2248]]. The most commits one Commits selection asks about.
+	inline constexpr std::size_t maximum_selected_commits = 50U;
+	/// \brief [[BPR-2248]]. The longest headline and message body sent for one
+	/// selected commit; a longer one is cut at a character's boundary.
+	inline constexpr std::size_t maximum_selected_commit_headline_bytes = 512U;
+	inline constexpr std::size_t maximum_selected_commit_message_bytes  = 4U * 1024U;
+
+	/// \brief [[BPR-2248]]. Why a selection of commits cannot be asked about.
+	enum class commit_selection_refusal : std::uint8_t {
+		none,
+		/// No commit is selected.
+		nothing_selected,
+		/// More than `maximum_selected_commits` are selected.
+		too_many,
+		/// A selected commit is no longer one of the pull request's.
+		not_listed,
+		/// Every selected commit is a merge of the base branch (or has no
+		/// parent): there is no change of the pull request's own to ask about.
+		no_own_change,
+	};
+	[[nodiscard]] auto stable_name(commit_selection_refusal aRefusal) noexcept -> std::string_view;
+
+	/// \brief [[BPR-2248]]. What a selection of commits is read as.
+	struct commit_selection_plan
+	{
+		/// The selected commits in the pull request's order, oldest first.
+		std::vector<listed_commit> Selected;
+		/// Each selected commit's own change (`own_change_steps`): merges of
+		/// the base branch are left out.
+		std::vector<commit_change_step> Steps;
+		/// The selected merges of the base branch, by ID, in order.
+		std::vector<std::string> BaseMerges;
+		/// Generations from the head that hold every commit a step reads.
+		std::uint32_t            Depth   = 2U;
+		commit_selection_refusal Refusal = commit_selection_refusal::none;
+
+		auto operator<=>(const commit_selection_plan&) const = default;
+	};
+
+	/// \brief How the commits `aSelected` (full IDs, any order, contiguous or
+	/// not) are read. `aCommits` is the pull request's commits, oldest first,
+	/// with their parents; `aBase` the base branch's name.
+	[[nodiscard]] auto plan_commit_selection(const std::vector<std::string>& aSelected, const std::vector<listed_commit>& aCommits, std::string_view aBase) -> commit_selection_plan;
+
+	/// \brief [[BPR-2248]]. One selected commit as the agent reads it.
+	struct selected_commit
+	{
+		std::string Oid;
+		std::string Headline;
+		/// The message after its headline; empty when there is none.
+		std::string Message;
+		/// A merge of the base branch: named, its change left out.
+		bool MergesBase = false;
+
+		auto operator<=>(const selected_commit&) const = default;
+	};
+
+	/// \brief [[BPR-2248]]. A Commits selection's material, up front: the
+	/// commits asked about, in order, with their messages, and their own
+	/// changes commit by commit (`bound_returning_commits`).
+	struct supplement_commits
+	{
+		std::vector<selected_commit> Commits;
+		std::string                  Changes;
+		std::size_t                  FilesShown   = 0U;
+		std::size_t                  FilesOmitted = 0U;
+
+		auto operator<=>(const supplement_commits&) const = default;
+	};
+
+	/// \brief [[BPR-2248]]. The material within its bounds: each headline one
+	/// line and each headline and message cut at a character's boundary.
+	/// Nothing when there is no commit, more than `maximum_selected_commits`,
+	/// or a commit ID that is not a full lowercase hex ID.
+	[[nodiscard]] auto bound_selected_commits(std::vector<selected_commit> aCommits, returning_changes aChanges) -> std::optional<supplement_commits>;
+	/// \brief Whether a Commits selection's material is within every bound
+	/// `bound_selected_commits` keeps.
+	[[nodiscard]] auto valid(const supplement_commits& aCommits) -> bool;
 
 	/// \brief Whether a returning supplement is within every bound: both
 	/// heads named and different, changes only on a latest-upload run and
