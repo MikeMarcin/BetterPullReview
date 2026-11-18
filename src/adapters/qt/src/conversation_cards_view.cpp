@@ -3585,7 +3585,7 @@ namespace bpr::qt {
 				&& !aDraft.shared() && !aDraft.ReplyToThread.has_value() && (!aDraft.Body.empty() || aWriting);
 		};
 		auto drafts = std::vector<std::pair<std::string, const core::review_comment_draft*>>{ };
-		if (Draft.has_value() && noted(*Draft, Writing)) {
+		if (Draft.has_value() && noted(*Draft, writing_draft())) {
 			drafts.emplace_back(std::string{ draft_card_id }, &*Draft);
 		}
 		for (const auto& saved : SavedDrafts) {
@@ -3600,7 +3600,7 @@ namespace bpr::qt {
 			card.Draft = true;
 			// [[BPR-1212]]. Written in the drawer, the draft is its composer
 			// and carries no post.
-			const auto writing = Writing && id == draft_card_id;
+			const auto writing = writing_draft() && id == draft_card_id;
 			card.Writing       = writing;
 			// [[BPR-1345]]. Pending in my review, or held by its submission.
 			card.Pending = core::pending_in_review(*draft) || core::held_by_review(*draft);
@@ -4924,6 +4924,7 @@ namespace bpr::qt {
 			const auto chosen = Cards[aCard].Id;
 			Current           = chosen;
 			if (aOpen && Open != chosen) {
+				leave_draft();
 				Open = chosen;
 				Picked.clear();
 				Replying.clear();
@@ -4951,6 +4952,7 @@ namespace bpr::qt {
 		// [[BPR-1293]]. A pick names its post; any other opening drops it.
 		auto picked = std::exchange(PickedNext, std::string{ });
 		if (aOpen && (Open != chosen || picked != Picked)) {
+			leave_draft();
 			Open   = chosen;
 			Picked = std::move(picked);
 			if (Replying != chosen) {
@@ -5107,7 +5109,7 @@ namespace bpr::qt {
 		if (Open.empty()) {
 			return;
 		}
-		Writing = Writing && Open != draft_card_id;
+		leave_draft();
 		Open.clear();
 		Picked.clear();
 		RevealPicked = false;
@@ -5120,6 +5122,7 @@ namespace bpr::qt {
 	{
 		if (Open != aThread) {
 			if (const auto index = card_index(aThread); index.has_value()) {
+				leave_draft();
 				Open    = aThread;
 				Current = aThread;
 				relayout();
@@ -5180,6 +5183,15 @@ namespace bpr::qt {
 		}
 		forget_measurements_if([](const std::string& aId) { return aId == draft_card_id; });
 		relayout();
+	}
+
+	void conversation_cards_view::leave_draft() noexcept
+	{
+		// The draft is written in the drawer only while its card is open:
+		// opening or closing anything else leaves it a closed note with its
+		// words, never an empty composer's frame (the owner: "a draft
+		// comment sometimes not rendering when I click away from it").
+		Writing = Writing && Open != draft_card_id;
 	}
 
 	auto conversation_cards_view::writing_draft() const noexcept -> bool

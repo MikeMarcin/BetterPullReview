@@ -1176,6 +1176,9 @@ namespace bpr::qt {
 	private:
 		/// [[BPR-1566]]. Gives an open card's label menu this view's reference dispatch.
 		void bind_reference(feedback_label_controls& aLabels);
+		/// \brief Ends writing the draft in the drawer when its card is the
+		/// open one: called before the open card changes.
+		void leave_draft() noexcept;
 
 		struct closed_measure
 		{
