@@ -56,9 +56,9 @@ Left in Backlog: neither acceptance item is met.
   `qt_composed_github` was in [[BPR-2240]].
 - Reproduced by running the course binary directly eight (or four) at a
   time beside `ctest -j4` loops of other composed GUI courses (load averages
-  13 to 86). Across about 330 such runs: the tab check failed 7 times and a
+  13 to 86). Across 256 untraced runs: the tab check failed 6 times and a
   second check, "accepted exact setup opens the recorded pull request",
-  failed 9 times. `ctest -j4` of the course itself, 20 runs beside that
+  failed 12 times (once more in a serial `ctest` repeat of 20). `ctest -j4` of the course itself, 20 runs beside that
   load, passed 20 of 20, which is the original acceptance wording but not
   evidence of a fix.
 - **Tab width.** Every miss is the third start in the course (the remounted
