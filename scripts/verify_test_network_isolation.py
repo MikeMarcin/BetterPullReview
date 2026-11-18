@@ -347,7 +347,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_returning_review_gone_public_path": "private-data-root-refused",
     "application_explain_file_public_path": "private-data-root-refused",
     "application_suggest_change_public_path": "private-data-root-refused",
-    "application_returning_review_mark_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2215]], measured at b9a0915ec: "private data root refused".
+    "application_returning_review_mark_public_path": "private-data-root-refused",
     # RFC-BPR-0127 and BPR-2171, registered on this lane without an entry.
     "sqlite_discuss_preferences_store": "fresh-discuss-preferences-store-predicate-failed",
     "application_agent_keep_action_public_path": "private-data-root-refused",
@@ -372,8 +373,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_home_open_responsive_public_path": "private-desktop-root-refused",
     "application_prompt_facts_public_path": "private-data-root-refused",
     "application_review_report_public_path": "unmeasured (registered on macOS)",
-    "application_review_seen_stays_public_path": "unmeasured (registered on macOS)",
-    "application_review_seen_fails_public_path": "unmeasured (registered on macOS)",
+    # Measured at b9a0915ec: "private desktop root under the canonical storage
+    # policy". The commit-asks course, like the report course, is registered
+    # only off Windows.
+    "application_review_seen_stays_public_path": "private-desktop-root-refused",
+    "application_review_seen_fails_public_path": "private-desktop-root-refused",
     "application_commit_asks_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",

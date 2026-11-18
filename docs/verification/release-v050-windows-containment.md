@@ -144,3 +144,26 @@ the same Interactive Limited context with a freshly built Release graph.
 The direct course passes in 14.39 seconds. Its receipt is
 `measure-release-2-receipt.json` beside the first one (SHA-256
 `8c1a8621839240a13450efeb2d5b81d366d845231febb2dec0b8ba2bea5cf8ab`).
+
+## The rows main added after the first merge
+
+Main registered four more `WINDOWS_UNCONTAINED` rows after the lane's first
+merge. Three were measured the same way at
+`b9a0915ec87f7a533abc2d5f490ebac519b26d88`, in the same Interactive Limited
+context with a freshly built Release graph. The fourth,
+`application_commit_asks_public_path`, is registered only off Windows
+(`if(APPLE OR UNIX)`), so Windows never configures it; its pin stays
+unmeasured, as the report course's does.
+
+| Course | Direct exit | Contained exit | First contained observation |
+| --- | --- | --- | --- |
+| `application_returning_review_mark_public_path` | 0 | 8 | `private data root refused` |
+| `application_review_seen_stays_public_path` | 0 | 8 | `FAILED: private desktop root under the canonical storage policy` |
+| `application_review_seen_fails_public_path` | 0 | 8 | `FAILED: private desktop root under the canonical storage policy` |
+
+The direct courses pass in 7.81, 9.08 and 8.59 seconds. The receipt is
+`measure-release-3-receipt.json` beside the others (SHA-256
+`1d81c5ef0eb09c2c7e328047cd54397c11e4c550a83e280f57a1514858b82235`); the
+stdout/stderr pairs and generated CTest files are in `measure-release-3.zip`
+(SHA-256
+`6a8ec7a06e1addd3190e809c6398918377710874955037f612cb0fa070cf3dd7`).
