@@ -514,8 +514,9 @@ namespace bpr::qt {
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
 		// RFC-BPR-0032 amendment r1. The account setup is Home's; while it is
 		// open Home stays, unless a pull request is opening or open, or its
-		// cached overview is shown.
-		const auto setupHolds = account_setup_shown() && !HasGithubPullRequest && !HasCachedOverview && !loading;
+		// cached overview is shown. A local cycle or draft the reviewer opened
+		// needs no account, and shows over it.
+		const auto setupHolds = account_setup_shown() && !HasGithubPullRequest && !HasCachedOverview && !loading && !LocalCycleShown && !LocalDraftShown;
 		const auto home       = (nothing && !LocalCycleShown && !LocalDraftShown) || HomeRequested || SetupDestinationNeedsHome || setupHolds;
 		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
 		// title row keeps only what Home keeps plus the cycle's name. A local

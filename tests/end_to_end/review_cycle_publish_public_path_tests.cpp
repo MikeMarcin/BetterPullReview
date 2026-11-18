@@ -319,8 +319,12 @@ namespace {
 		window.open_project_action()->trigger();
 		require(answered, "File > Open Project… asked for a folder");
 		reactivate(window);
-		require(wait_for([&] { return window.showing_local_cycle() && page.projection().Cycle && !page.projection().Revisions.empty() && idle(page) && !page.projection().Files.empty(); }),
-				"the folder opens as a cycle with its first capture");
+		const auto opened = wait_for([&] { return window.showing_local_cycle() && page.projection().Cycle && !page.projection().Revisions.empty() && idle(page) && !page.projection().Files.empty(); });
+		if (!opened) {
+			std::cerr << "cycle-open: shown=" << window.showing_local_cycle() << " home=" << window.showing_home() << " draft=" << window.showing_local_draft() << " cycle=" << page.projection().Cycle.has_value() << " revisions=" << page.projection().Revisions.size() << " idle=" << idle(page)
+					  << " files=" << page.projection().Files.size() << '\n';
+		}
+		require(opened, "the folder opens as a cycle with its first capture");
 		click(*page.findChild<QToolButton*>(QStringLiteral("cycleWholeNote")));
 		require(page.comment_editor()->isVisible(), "Note on the cycle opens the note");
 		type(*page.comment_editor(), QString::fromUtf8(private_note));
