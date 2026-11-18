@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2254"
 title: "A profile from build 63 or earlier loses every saved agent in build 66, because the agent store's ADD COLUMN migration always fails on the hardened connection"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P0"
@@ -226,3 +226,72 @@ columns the same way, using the definitions in `add_queue_prompt_column` and
 - A general schema-version framework for the agent store, which today detects
   each migration by looking for text in `sqlite_schema`. That is worth doing,
   but it is not needed for this fix.
+
+## Evidence (2026-11-18, macOS, Debug dev tree)
+
+Commits `83bcfe9f4` (the rebuild, the gate, the connection-policy comment)
+and `0c3a02f26` (the unreadable-settings state, its words, the tests, the
+docs) on `claude/release-0-5-0-agent-store-migration`.
+
+- AC1. `sqlite_agent_setup_storage` seeds a file through the real stores
+  (a custom agent, preferred; a native conversation of two turns; a queued
+  entry), puts back build 63's `native_agent_turns` without `seconds` and
+  drops `prompt_macro_packs`, then opens it through the store's own open:
+  every entry and the preferred one read back equal, the turns keep their
+  rows with `seconds` null, the queue entry reads back, and the setup host
+  over that store checks the saved custom agent by inspecting its own
+  program and passes (not `agent_not_found`). With the store file reverted
+  to `HEAD~1` the same test fails at "a store build 63 wrote opens".
+  The dev app (`app_better_pull_review` at `0c3a02f26`) run offscreen in a
+  scratch home (`HOME`/`CFFIXED_USER_HOME` under the worktree's build tree)
+  opened such a store: its session log has
+  `storage.database.succeeded action=storage_open … store=agent_setup` and no
+  agent_setup failure; afterwards the file has `seconds` (null for both
+  turns), `prompt_macro_packs`, the entry, `agent_list` preferred 1 and the
+  queued entry, and no `rebuilt_` table. The app's Check button was not
+  pressed in that run (no UI driving); the check path is the contract
+  test's.
+- AC2. The same contract opens a part-migrated file (build 63's turns, and
+  `prompt_surface_lists`, `prompt_repository_prompts`,
+  `prompt_macro_revision` and `prompt_macro_packs` missing): it opens and
+  makes all four.
+- AC3. No `ADD COLUMN` remains under `src/adapters/sqlite/src/`;
+  `architecture_boundaries` refuses `ADD COLUMN` and `ALTER TABLE … ADD`
+  there (comments excepted) with the reason, and
+  `architecture_boundary_contract`'s
+  `test_sqlite_stores_never_add_a_column` proves four refusals and three
+  allowed texts. A connection-level row shows `ADD COLUMN` on a `STRICT`
+  table fails on the hardened connection and succeeds on the same
+  connection without the prepare flag.
+- AC4. A queue table from before `prompt` holding a row the current
+  `held` check refuses: the rebuild's `INSERT` fails, the store does not
+  open, and every table's definition and rows are identical before and
+  after; the dev app over a store with another store's `application_id`
+  left the file byte-identical (SHA-1 before and after).
+- AC5. `application_agent_setup_host` (`test_unreadable_settings`): a load
+  that fails sets `SettingsUnreadable` with the file; add and edit answer
+  `settings_unreadable`, every other change is refused, nothing is written;
+  a check runs nothing, fails `settings_unreadable` with the file as its
+  detail, and logs `store_unreadable`, never `agent_not_found`.
+  `qt_agent_setup_view` (`test_settings_unreadable`): Settings › Agents
+  shows the failure in the list's place, naming the file, with Open
+  Troubleshooting… (Storage & privacy, [[BPR-1602]]); Add agent…, Reset
+  agents… and the other settings are disabled; Add agent… is refused with
+  the reason before the editor opens; the footer reads "Saved agents
+  couldn't be read…" instead of Set up an agent…. The UI work loaded the
+  frontend-design skill; it inherits the platform palette and style.
+- AC6. Passed: `sqlite_agent_setup_storage`,
+  `sqlite_appearance_settings_storage`, `application_agent_setup_host`,
+  `core_agent_setup`, `core_agent_entry`, `core_operation_diagnosis`,
+  `qt_agent_setup_view`, `qt_agent_footer`, `qt_settings_window` (and its
+  125/150/200 scales), `qt_settings_effect_boundary`,
+  `qt_review_tour_agent_setup_call`, `architecture_boundaries`,
+  `architecture_boundary_contract`; clang-format 22 check on the 23 changed
+  C++ files; clang-tidy (LLVM 22) clean on the changed translation units
+  apart from two pre-existing `performance-inefficient-string-concatenation`
+  findings in the older `narrow_` rebuild; `python3
+  scripts/verify_documentation.py --root .` passes.
+  `test_network_isolation_manifest` fails on this tree for
+  `sqlite_prompt_pack_storage`'s missing `WINDOWS_UNCONTAINED_TESTS` entry,
+  which predates this card and is added on
+  `claude/release-0-5-0-windows-preflight`.
