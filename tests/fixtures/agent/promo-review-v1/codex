@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Replay the recorded Codex review of the Lantern promo pull request."""
+
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+EXPECTED_CONTEXT = {
+    "pull_request_url": "https://github.com/bpr-demo/lantern/pull/512",
+    "base": "c8d078714e30667585ceffdf7f4c20d9131cd4a2",
+    "head": "069cbf66992b253bf0bd73ed3e46e4a8019a0dc8",
+    "private.count": "0",
+}
+PROMPT_SHA256 = "d4fa220c2497d5b5d8700b322e0ce627294e9ee8d49245d7f2e3250f9d7163c8"
+
+
+def emit(event):
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+
+
+def main(arguments):
+    if arguments == ["--version"]:
+        print("codex-cli 0.167.0 (recorded promo fixture)")
+        return 0
+    if arguments == ["login", "status"]:
+        print("Logged in using the recorded promo fixture")
+        return 0
+    if not arguments or arguments[0] != "exec" or "--json" not in arguments:
+        return 64
+
+    lines = sys.stdin.read().splitlines()
+    if not lines or lines[0] != "BPR-CONTEXT/2 CODEX-EXEC":
+        return 65
+    fields = dict(line.split("\t", 1) for line in lines[1:] if "\t" in line)
+    prompt = fields.get("chat_message", "").encode("utf-8")
+    matches_context = all(fields.get(key) == value for key, value in EXPECTED_CONTEXT.items())
+    if not matches_context or hashlib.sha256(prompt).hexdigest() != PROMPT_SHA256:
+        print("This fixture replays only the recorded review of promo-v1.", file=sys.stderr)
+        return 65
+
+    answer = Path(__file__).with_name("review.md").read_text(encoding="utf-8")
+    emit({"type": "thread.started", "thread_id": "00000000-0000-4000-8000-000000000512"})
+    emit({"type": "turn.started"})
+    emit({"type": "item.completed", "item": {"type": "agent_message", "id": "review", "text": answer}})
+    emit({
+        "type": "turn.completed",
+        "usage": {
+            "input_tokens": 114824,
+            "cached_input_tokens": 90368,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 1612,
+            "reasoning_output_tokens": 111,
+        },
+    })
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
