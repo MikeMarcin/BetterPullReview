@@ -6,7 +6,7 @@ On each section card, give the title half a second to register. Start the narrat
 0:00.00–0:07.46   Opening
 BetterPullReview gives you a workbench for understanding pull requests, with powerful agent integration under your control.
 
-Picture   Open on Home in Dark mode. Hold on the four Lantern pull requests so the Draft, approval and change request can be read. Select the frame-pacing pull request under Needs me and open it.
+Picture   Open on the BetterPullReview 0.5.0 title card as Marin says the name. Dissolve to Home on “workbench” at 0:02. Give the four Lantern PRs time to read, including the draft and the approval, then open the frame-pacing PR under Needs me.
 
 0:07.46–0:26.54   For reviewers
 Open the pull request and explore the changes.
