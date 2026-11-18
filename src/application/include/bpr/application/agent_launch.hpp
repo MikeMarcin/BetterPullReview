@@ -503,6 +503,9 @@ namespace bpr::application {
 	/// its own drops all of this one (hooks, auto-memory and the plugins come
 	/// back on). The init check enforces only tools and MCP servers; an
 	/// auto-memory folder is reported as `memory=on`, not refused.
+	/// [[BPR-2259]]. A custom agent is never given these: its own settings,
+	/// which can carry its sign-in, would be the ones replaced
+	/// (`agent_entry_process`). Claude Code added as itself still is.
 	inline constexpr std::string_view claude_writing_settings
 		= R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
 

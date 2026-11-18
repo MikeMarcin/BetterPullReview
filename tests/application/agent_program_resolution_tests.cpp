@@ -6,12 +6,16 @@
 
 #include "bpr/application/agent_program_resolution.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -235,6 +239,82 @@ namespace {
 		static_cast<void>(port.run(builtIn, 1));
 		expect(others.Requests.size() == 1U && others.Requests.back() == builtIn, "a built-in profile's launch goes to its own resolution unchanged");
 	}
+
+	/// \brief [[BPR-2259]] (owner, 2026-11-18: "Enhance hit this failure even
+	/// though my custom agent just drafted the comment it's trying to
+	/// enhance"). Enhance on a comment launches the custom agent chosen in the
+	/// picker, its own program and arguments, through nothing that looks for
+	/// the stock `claude`. Its own `--settings`, where its sign-in can ride,
+	/// is the one Claude keeps: this app's writing settings do not replace it.
+	void test_enhance_runs_the_custom_agent_on_its_own_sign_in()
+	{
+		recording_port direct;
+		recording_port others;
+		auto           source       = std::make_shared<application::agent_entry_source>();
+		auto           claudeLooked = 0;
+		auto           port         = application::agent_entry_process{ direct, others, source, [](const std::string_view) { return std::optional<agent_wrapper_refusal>{ }; },
+																		[&claudeLooked] {
+														  ++claudeLooked;
+														  return std::optional{ core::claude_search_candidate{ .Path = "/usr/local/bin/claude" } };
+													  },
+													  [](core::agent_program) { return std::optional<core::agent_search_candidate>{ }; } };
+		auto           list         = *core::add_agent_entry({ }, { .Name = "Fixture custom agent", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/fixture-agent", .Arguments = { "--settings", "/opt/work/sign-in.json" } });
+		list                        = *core::add_agent_entry(list, { .Name = "Fixture wrapper", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/fixture-wrapper" });
+		list                        = *core::add_agent_entry(list, core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }));
+		source->set(list);
+		const auto enhance = [](const core::agent_profile_id aProfile) {
+			auto supplement    = core::agent_context_supplement{ };
+			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = aProfile };
+			supplement.Message = "nit: this could maybe be simpler";
+			const auto launch  = application::build_agent_launch({ .Id = aProfile, .DisplayName = "Picked", .Executable = "claude", .Protocol = core::agent_protocol::claude_stream_json }, supplement,
+																 [](const std::string&) -> std::optional<std::string> { return std::nullopt; },
+																 { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Enhance the comment." });
+			expect(launch.has_value(), "the Enhance launch builds");
+			return *launch;
+		};
+		const auto lastSettings = [](const std::vector<std::string>& aArguments) {
+			auto value = std::string{ };
+			for (auto at = std::ranges::find(aArguments, "--settings"); at != aArguments.end() && std::next(at) != aArguments.end(); at = std::ranges::find(std::next(at), aArguments.end(), "--settings")) {
+				value = *std::next(at);
+			}
+			return value;
+		};
+
+		// The custom agent with its sign-in in its own arguments.
+		const auto custom = enhance(core::entry_profile_id(list[0]));
+		expect(lastSettings(custom.Arguments) == application::claude_writing_settings, "before the agent's process: the launch carries this app's writing settings");
+		static_cast<void>(port.run(custom, 1));
+		expect(direct.Requests.size() == 1U && others.Requests.empty() && claudeLooked == 0, "Enhance runs the custom agent straight; the stock claude is never looked for or run");
+		const auto& ran = direct.Requests.back();
+		expect(ran.Executable == "/opt/work/bin/fixture-agent" && ran.Arguments.size() >= 2U && ran.Arguments[0] == "--settings" && ran.Arguments[1] == "/opt/work/sign-in.json",
+			   "the custom agent's own program, its arguments first");
+		expect(lastSettings(ran.Arguments) == "/opt/work/sign-in.json" && std::ranges::count(ran.Arguments, std::string{ "--settings" }) == 1,
+			   "Claude keeps the agent's own settings, where its sign-in is; this app's do not replace them");
+		expect(std::ranges::search(ran.Arguments, std::array<std::string_view, 2>{ "--tools", "" }).begin() != ran.Arguments.end()
+				   && std::ranges::search(ran.Arguments, std::array<std::string_view, 2>{ "--setting-sources", "user" }).begin() != ran.Arguments.end()
+				   && std::ranges::find(ran.Environment, std::pair<std::string, std::string>{ application::claude_writing_environment }) != ran.Environment.end(),
+			   "the run stays tool-free on the user's settings, with auto-memory off");
+		// A stand-in that signs in only through the settings Claude kept.
+		const auto signsIn = lastSettings(ran.Arguments) == "/opt/work/sign-in.json";
+		auto       decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true, application::agent_launch_purpose::conversation, false };
+		const auto output  = std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[]})" } + "\n"
+			+ (signsIn ? std::string{ R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"answered"}]}})" } + "\n"
+					   + R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"answered"})" + "\n"
+					   : std::string{ R"({"type":"system","subtype":"api_retry","attempt":1,"error_status":401,"error":"authentication_failed","session_id":"s"})" } + "\n");
+		const auto pushed = decoder.push(output);
+		expect(pushed.has_value() && decoder.finish().has_value(), "the custom agent signs in and answers Enhance");
+
+		// A wrapper that adds its own settings before what it passes on.
+		static_cast<void>(port.run(enhance(core::entry_profile_id(list[1])), 1));
+		expect(direct.Requests.back().Executable == "/opt/work/bin/fixture-wrapper" && std::ranges::count(direct.Requests.back().Arguments, std::string{ "--settings" }) == 0 && claudeLooked == 0,
+			   "a custom wrapper is given no settings to replace its own with");
+
+		// Claude Code added as itself keeps this app's writing settings.
+		static_cast<void>(port.run(enhance(core::entry_profile_id(list[2])), 1));
+		expect(direct.Requests.back().Executable == "/usr/local/bin/claude" && lastSettings(direct.Requests.back().Arguments) == application::claude_writing_settings && claudeLooked == 1,
+			   "the stock Claude Code keeps this app's writing settings");
+		expect(others.Requests.empty(), "no launch reached the built-in profiles' resolution");
+	}
 }
 
 auto main() -> int
@@ -244,6 +324,7 @@ auto main() -> int
 	test_refused_program_keeps_the_current_run();
 	test_pass_through();
 	test_added_agents_run_as_their_entries();
+	test_enhance_runs_the_custom_agent_on_its_own_sign_in();
 	std::cout << "agent-program-resolution-tests:pass\n";
 	return EXIT_SUCCESS;
 }
