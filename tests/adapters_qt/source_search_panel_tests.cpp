@@ -228,18 +228,23 @@ namespace {
 		const auto washy = [&aWash](const QColor& aPixel) {
 			return std::abs(aPixel.red() - aWash.red()) <= 3 && std::abs(aPixel.green() - aWash.green()) <= 3 && std::abs(aPixel.blue() - aWash.blue()) <= 3;
 		};
+		// The wash is the longest unbroken run of its colour on any pixel row:
+		// its rows above and below the glyphs are whole, while a stray pixel
+		// elsewhere that happens to blend to the same colour (a glyph's
+		// antialiased edge, under Linux's grayscale rendering) is a run of one.
 		auto widest = std::pair{ -1, -1 };
 		for (int y = static_cast<int>(rect.top() * ratio); y <= static_cast<int>(rect.bottom() * ratio) && y < image.height(); ++y) {
 			auto first = -1;
-			auto last  = -1;
-			for (int x = static_cast<int>(rect.left() * ratio); x < static_cast<int>(rect.right() * ratio); ++x) {
-				if (washy(image.pixelColor(x, y))) {
+			for (int x = static_cast<int>(rect.left() * ratio); x <= static_cast<int>(rect.right() * ratio); ++x) {
+				const auto inside = x < static_cast<int>(rect.right() * ratio) && washy(image.pixelColor(x, y));
+				if (inside) {
 					first = first < 0 ? x : first;
-					last  = x;
+					continue;
 				}
-			}
-			if (first >= 0 && (widest.first < 0 || last - first > widest.second - widest.first)) {
-				widest = { first, last };
+				if (first >= 0 && (widest.first < 0 || (x - 1) - first > widest.second - widest.first)) {
+					widest = { first, x - 1 };
+				}
+				first = -1;
 			}
 		}
 		return widest.first < 0 ? std::pair{ -1, -1 } : std::pair{ static_cast<int>(widest.first / ratio), static_cast<int>(widest.second / ratio) };
