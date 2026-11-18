@@ -114,7 +114,7 @@ namespace bpr::app {
 				[this]() -> std::optional<core::document_tab_id> { return Window.showing_local_draft() ? std::optional{ local_search_tab } : std::nullopt; });
 			Find->set_scope_name(QStringLiteral("Local draft"));
 			// The panel is the window's; a desktop outliving it leaves it alone.
-			QObject::connect(Window.pr_search(), &QObject::destroyed, [find = Find.get()] { find->abandon_panel(); });
+			FindPanelGone = QObject::connect(Window.pr_search(), &QObject::destroyed, [find = Find.get()] { find->abandon_panel(); });
 		}
 		Window.set_local_change_dispatch([this](const std::string& aPath, const core::local_change_hunk aChange, const bool aStage) {
 			if (aStage) {
@@ -230,6 +230,10 @@ namespace bpr::app {
 
 	local_draft_desktop::~local_draft_desktop()
 	{
+		// [[BPR-2215]]. A window destroyed after the desktop (as a course's
+		// session does) would otherwise run the panel's destroyed handler on
+		// Find once it is gone: an access violation on Windows.
+		QObject::disconnect(FindPanelGone);
 		shutdown();
 	}
 

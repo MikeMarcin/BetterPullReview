@@ -1,4 +1,3 @@
-#include "../support/windows_crash_trace.hpp"
 #include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
@@ -56,12 +55,7 @@
 
 namespace {
 	using namespace bpr;
-	// TEMPORARY DIAGNOSTIC (BPR-2215): every expectation, flushed, before it is checked.
-	inline void expect(const bool aCondition, const std::string& aMessage)
-	{
-		std::cout << "CHECK " << aMessage << std::endl;
-		tests::expect(aCondition, aMessage);
-	}
+	using tests::expect;
 	using tests::workspace_contract::git_runner;
 	using tests::workspace_contract::write_file;
 
@@ -209,7 +203,6 @@ namespace {
 
 auto main(int aArgc, char** aArgv) -> int
 try {
-	bpr::tests::crash_trace::install();
 	QApplication app{ aArgc, aArgv };
 	const auto   git = tests::workspace_contract::git_from(aArgc, aArgv);
 	if (!git) {
@@ -379,20 +372,10 @@ try {
 	expect(carried->Tour.Stops.size() == 1U && !carried->Tour.Stops[0].Destination && carried->Mapping.Unresolved == 1U && carried->Tour.Stops[0].Title == "Search returns two",
 		   "a head that is not the candidate anchors nothing; the stop comes without lines, not dropped");
 
-	std::cout << "TMPDIAG teardown drafts->shutdown" << std::endl;
 	drafts->shutdown();
-	std::cout << "TMPDIAG teardown cycles->shutdown" << std::endl;
 	cycles->shutdown();
-	std::cout << "TMPDIAG teardown settle" << std::endl;
 	settle(lanes);
-	std::cout << "TMPDIAG teardown drafts.reset" << std::endl;
-	drafts.reset();
-	std::cout << "TMPDIAG teardown cycles.reset" << std::endl;
-	cycles.reset();
-	std::cout << "TMPDIAG teardown window.reset" << std::endl;
-	window.reset();
-	std::cout << "TMPDIAG teardown done" << std::endl;
-	std::cout << "local-draft-publication-desktop-public-path:pass" << std::endl;
+	std::cout << "local-draft-publication-desktop-public-path:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {
 	std::cerr << "local-draft-publication-desktop-public-path:fail " << aError.what() << '\n';

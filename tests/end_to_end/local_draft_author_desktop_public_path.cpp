@@ -1,4 +1,3 @@
-#include "../support/windows_crash_trace.hpp"
 #include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/fixture_shell.hpp"
@@ -67,12 +66,7 @@
 
 namespace {
 	using namespace bpr;
-	// TEMPORARY DIAGNOSTIC (BPR-2215): every expectation, flushed, before it is checked.
-	inline void expect(const bool aCondition, const std::string& aMessage)
-	{
-		std::cout << "CHECK " << aMessage << std::endl;
-		tests::expect(aCondition, aMessage);
-	}
+	using tests::expect;
 	using tests::workspace_contract::git_runner;
 	using tests::workspace_contract::read_file;
 	using tests::workspace_contract::write_file;
@@ -179,7 +173,6 @@ namespace {
 
 auto main(int aArgc, char** aArgv) -> int
 try {
-	bpr::tests::crash_trace::install();
 	QApplication app{ aArgc, aArgv };
 	const auto   git = tests::workspace_contract::git_from(aArgc, aArgv);
 	if (!git || aArgc < 5) {
