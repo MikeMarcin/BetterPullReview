@@ -199,6 +199,28 @@ namespace {
 			run(0U);
 		}
 
+		// Runs posted tasks until aFinished holds and none is left. An actor
+		// drains work queued while its effect still runs inside that same
+		// effect, so how many effects a caller's work takes depends on timing.
+		void run_until(const std::atomic_bool& aFinished)
+		{
+			while (true) {
+				{
+					std::unique_lock lock{ Mutex };
+					Changed.wait_for(lock, std::chrono::milliseconds{ 1 }, [&] {
+						return !Tasks.empty() || aFinished.load();
+					});
+					if (Tasks.empty()) {
+						if (aFinished.load()) {
+							return;
+						}
+						continue;
+					}
+				}
+				run_next();
+			}
+		}
+
 		[[nodiscard]] auto is_running() const -> bool
 		{
 			std::scoped_lock lock{ Mutex };
@@ -10607,11 +10629,12 @@ namespace {
 		application::source_pr_search_execution execution{ *value.Host, bpr::tests::search_engine() };
 		application::source_search_host         search{ value.Decisions, searchEffects, execution, published };
 		expect(search.set_scope(scope) && search.set_query("needle"), "historical query admitted through public host");
-		auto worker = std::jthread{ [&] { searchEffects.run_next(); } };
-		for (auto i = 0U; i < 3U; ++i) {
-			value.Effects.wait_for_pending();
-			value.Effects.run_next();
-		}
+		auto searched = std::atomic_bool{ false };
+		auto worker   = std::jthread{ [&] {
+			searchEffects.run_next();
+			searched = true;
+		} };
+		value.Effects.run_until(searched);
 		worker.join();
 		while (value.Decisions.pending() != 0U) {
 			value.Decisions.run_next();
@@ -10621,11 +10644,12 @@ namespace {
 		expect(published.Last.Corpus && published.Last.Corpus->Entries[0].path() == "historical-only.cpp" && value.Host->state().AcceptedComparison == latest, "search preserves latest comparison while scanning historical-only path");
 		const auto reads = value.State.BlobRequests.size();
 		expect(search.set_query("context"), "replacement query admitted");
-		worker = std::jthread{ [&] { searchEffects.run_next(); } };
-		for (auto i = 0U; i < 2U; ++i) {
-			value.Effects.wait_for_pending();
-			value.Effects.run_next();
-		}
+		searched = false;
+		worker   = std::jthread{ [&] {
+			searchEffects.run_next();
+			searched = true;
+		} };
+		value.Effects.run_until(searched);
 		worker.join();
 		while (value.Decisions.pending() != 0U) {
 			value.Decisions.run_next();
