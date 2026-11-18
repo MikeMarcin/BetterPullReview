@@ -483,11 +483,16 @@ class configure_finds_clang_format_22(unittest.TestCase):
             ]
             self.assertEqual(len(reported), 1, completed.stdout)
             found = reported[0]
+            # CMake wraps a warning's words at its own width, so where a line
+            # breaks moves with the temporary root's length ([[BPR-2215]]:
+            # TMPDIR=/var/tmp split "reports version 23.1.1"). The words are
+            # compared, not the breaks.
+            words = " ".join(completed.stdout.split())
             if found == "BPR_CLANG_FORMAT_EXECUTABLE-NOTFOUND":
-                return None, completed.stdout
+                return None, words
             for index, stub in enumerate(stubs):
                 if os.path.realpath(found) == os.path.realpath(stub):
-                    return index, completed.stdout
+                    return index, words
             self.fail(f"discovery chose {found}, which is none of the stubs: {completed.stdout}")
 
     def test_an_older_tool_first_on_the_path_is_passed_over(self) -> None:
