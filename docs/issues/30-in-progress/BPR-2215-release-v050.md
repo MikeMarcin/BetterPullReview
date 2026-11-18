@@ -369,3 +369,32 @@ These are still open on Windows:
 - Native workspace creation in the uncontained courses.
 - The RFC-0017 recorder's `git init` inside the AppContainer.
 - `review_tour_writing_wrapper`.
+
+## Sixth round: new startup and close basis, and the Windows store courses (2026-11-18)
+
+- **Budget basis (owner option (a)).** The Linux startup and close budgets
+  were measured again on the WSL2 i9 with the data root on disk: 1500 ms and
+  160 ms. Evidence and margins are in
+  `docs/verification/BPR-0967-station-budgets-2026-10-01.md`. The 100 ms
+  input target is unchanged. `paged_review_and_git_load` exceeded it in 9 of
+  30 on-disk runs (104–134 ms, mostly the GUI thread's own CPU time), which is
+  a real miss still to locate.
+- **Main merged** through `3314a7eb2` (BPR-2254, BPR-2255, build 68,
+  BPR-2256), with the production app digest resealed for each app change.
+- **Windows registrations.** `qt_prompt_macro_chips`,
+  `qt_agent_finding_cards_restart` and the RFC-0017 recorder are now
+  `WINDOWS_UNCONTAINED`, with their measured observations pinned (see the
+  containment record). `sqlite_prompt_pack_storage` is still to be measured.
+- **Windows review recovery.** The intermittent "Review recovery is
+  unavailable" is the review-mutation-recovery store refusing its open with
+  `invalid_permissions` (the app's own log). Which course fails varies from
+  run to run (`scale_125` passes and `scale_200` fails; `review_seen` passes
+  and `_stays` fails), which points to a race in the Windows private-store
+  open, not to test order.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `744b0e7fb` WSL2 i9, startup/close courses ×10 | 30 | basis recorded (see above) |
+| `cb200dfa9` Ubuntu (Lima) Release, full suite | 1066 | 1054 passed, 12 failed (10 large-review timing judged on WSL2; `review_submission_scale_125`, `review_tour_publication_reconciliation`) |
+| `cb200dfa9` Windows Release, full suite | 1050 | 1030 passed, 20 failed |
+| `6afbf3268` Windows Release, 21 review and agent rows | 21 | 10 passed, 11 failed |
