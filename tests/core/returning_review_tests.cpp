@@ -265,10 +265,11 @@ namespace {
 										 listed('4', { '3' }, "Real fix"), listed('5', { '4', 'c' }, "Merge remote-tracking branch 'origin/main' into feature"),
 										 listed('6', { '5' }, "Second fix") };
 		const auto split  = core::plan_returning_change(commit('2'), commit('6'), merged, "main");
-		expect(split.Listed && split.ByCommit && split.Depth == 5U
-				   && split.Steps
-					   == std::vector<core::commit_change_step>{ { .Parent = commit('3'), .Commit = commit('4'), .Headline = "Real fix" },
-																 { .Parent = commit('5'), .Commit = commit('6'), .Headline = "Second fix" } },
+		// A named vector, not a temporary inside the comparison: GCC 15's
+		// -Wdangling-pointer misreads the temporary's lifetime there.
+		const auto realCommits = std::vector<core::commit_change_step>{ { .Parent = commit('3'), .Commit = commit('4'), .Headline = "Real fix" },
+																		{ .Parent = commit('5'), .Commit = commit('6'), .Headline = "Second fix" } };
+		expect(split.Listed && split.ByCommit && split.Depth == 5U && split.Steps == realCommits,
 			   "with merges of main since the review, each real commit's own change, and no merge's");
 
 		const auto rewritten = core::plan_returning_change(commit('9'), commit('6'), merged, "main");
