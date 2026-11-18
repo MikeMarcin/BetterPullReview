@@ -1449,8 +1449,12 @@ namespace bpr::app {
 		AgentSetupLauncher = std::make_unique<adapters::agent::agent_process_launcher>();
 		AgentSetupLane     = std::make_unique<worker_executor>();
 		{
-			auto dependencies          = application::agent_setup_dependencies{ };
-			dependencies.Store         = AgentSetupStore.get();
+			auto dependencies  = application::agent_setup_dependencies{ };
+			dependencies.Store = AgentSetupStore.get();
+			{
+				const auto file        = adapters::sqlite::agent_setup_store_file(ApplicationDataRoot).u8string();
+				dependencies.StoreFile = std::string{ file.begin(), file.end() };
+			}
 			dependencies.Process       = AgentSetupLauncher.get();
 			dependencies.Locate        = locate_agent_program();
 			dependencies.Inspect       = &adapters::agent::inspect_claude_process_wrapper;

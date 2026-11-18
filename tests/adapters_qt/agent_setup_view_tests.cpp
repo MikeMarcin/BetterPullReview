@@ -8,6 +8,9 @@
 /// a dark PNG for review.
 
 #include "bpr/qt/agent_entry_dialog.hpp"
+#include "bpr/qt/agent_footer.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/folder_list_editor.hpp"
@@ -38,6 +41,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -904,6 +908,75 @@ namespace {
 		expect(!programs.check_button()->isEnabled() && programs.check_note()->text().contains(QStringLiteral("doesn't allow Claude Code")), "a forbidden agent says so");
 		programs.hide();
 	}
+
+	/// \brief [[BPR-2254]]. Saved agents that could not be read are never
+	/// shown as an empty list: Settings › Agents says so in the list's place,
+	/// naming the file and offering Troubleshooting; Add agent… is refused
+	/// with that reason before anything is asked; and the footer says so in
+	/// place of Set up an agent….
+	void test_settings_unreadable()
+	{
+		const auto file     = QStringLiteral("/Users/me/Library/Application Support/BetterPullReview/state/v1/agent-setup.sqlite3");
+		auto       programs = qt::agent_programs_panel{ };
+		programs.resize(560, 420);
+		auto pressed = std::vector<std::string>{ };
+		programs.set_dispatch({ .Add =
+									[&pressed](core::agent_entry, qt::agent_programs_panel::answer aAnswer) {
+										pressed.emplace_back("add");
+										aAnswer(core::agent_entry_refusal::settings_unreadable);
+									},
+								.OpenTroubleshooting = [&pressed] { pressed.emplace_back("troubleshooting"); } });
+		auto asked = 0;
+		programs.set_editor([&asked](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			++asked;
+			return aStart;
+		});
+		programs.present(application::agent_setup_preferences{ }, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+		programs.show();
+		QApplication::processEvents();
+		expect(programs.agent_list()->isVisibleTo(&programs) && !programs.unreadable_notice()->isVisibleTo(&programs) && programs.add_button()->isEnabled(),
+			   "read settings show the list and offer Add agent…");
+
+		programs.present_settings_unreadable(file);
+		QApplication::processEvents();
+		expect(programs.unreadable_notice()->isVisibleTo(&programs) && !programs.agent_list()->isVisibleTo(&programs), "unreadable settings show the failure in the list's place, never an empty list");
+		expect(programs.unreadable_text()->text().contains(QDir::toNativeSeparators(file)) && programs.unreadable_text()->text().contains(QStringLiteral("Nothing in the file was changed"))
+				   && programs.unreadable_text()->text().contains(QStringLiteral("Troubleshooting")),
+			   "the notice names the file, says nothing was changed and where to recover");
+		expect(!programs.add_button()->isEnabled() && !programs.run_limit_toggle()->isEnabled() && !programs.scratch_limit()->isEnabled() && !programs.check_button()->isEnabled()
+				   && !programs.findChild<QPushButton*>(QStringLiteral("settingsResetAgents"))->isEnabled(),
+			   "no change is offered while nothing could be kept, Reset agents… included");
+		programs.add_agent(std::nullopt);
+		expect(asked == 0 && pressed.empty() && programs.status()->text() == QString::fromUtf8(core::describe(core::agent_entry_refusal::settings_unreadable).data()),
+			   "Add agent… is refused with the reason before anything is asked");
+		click(*programs.troubleshooting_button());
+		expect(pressed == std::vector<std::string>{ "troubleshooting" }, "Open Troubleshooting… leads to the existing recovery");
+		// A publication of the same defaults keeps the notice in place.
+		programs.present(application::agent_setup_preferences{ }, { });
+		expect(programs.unreadable_notice()->isVisibleTo(&programs) && !programs.agent_list()->isVisibleTo(&programs) && !programs.add_button()->isEnabled(), "and every later presentation keeps it");
+		render(programs, QStringLiteral("settings-agents-unreadable"));
+		programs.present_settings_unreadable({ });
+		expect(programs.agent_list()->isVisibleTo(&programs) && !programs.unreadable_notice()->isVisibleTo(&programs) && programs.add_button()->isEnabled(), "settings that read again show the list again");
+
+		const auto words = qt::setup_failure_words(core::agent_setup_failure::settings_unreadable, QStringLiteral("Claude Code"), file);
+		expect(words.contains(QDir::toNativeSeparators(file)) && words.contains(QStringLiteral("couldn't be read")) && !words.contains(QStringLiteral("isn't where it was found")),
+			   "a refused check names the file, never an agent that was not found");
+
+		auto launch = qt::agent_launch_panel{ };
+		auto footer = qt::agent_footer{ std::make_shared<qt::agent_run_settings_source>(launch) };
+		footer.resize(640, 40);
+		footer.show();
+		QApplication::processEvents();
+		footer.present_settings_unreadable(file);
+		QApplication::processEvents();
+		expect(footer.settings_button()->isVisibleTo(&footer) && footer.settings_button()->text() == QStringLiteral("Saved agents couldn't be read…")
+				   && footer.settings_button()->toolTip().contains(QDir::toNativeSeparators(file)),
+			   "the footer says the saved agents couldn't be read, not Set up an agent…");
+		footer.present_settings_unreadable({ });
+		QApplication::processEvents();
+		expect(footer.settings_button()->text() == QStringLiteral("Set up an agent…"), "and goes back to Set up an agent… when they read");
+		programs.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -919,6 +992,7 @@ auto main(int argc, char** argv) -> int
 	test_check_and_ready();
 	test_settings_rows();
 	test_settings_check_agent();
+	test_settings_unreadable();
 	std::cout << "agent-setup-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

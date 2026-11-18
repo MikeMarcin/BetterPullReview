@@ -139,11 +139,12 @@ namespace {
 		auto failureNames = std::set<std::string_view>{ };
 		for (const auto failure :
 			 { agent_setup_failure::agent_not_found, agent_setup_failure::program_refused, agent_setup_failure::no_program_chosen, agent_setup_failure::not_signed_in,
-			   agent_setup_failure::failed_to_start, agent_setup_failure::status_unreadable, agent_setup_failure::timed_out, agent_setup_failure::workspace_unavailable }) {
+			   agent_setup_failure::failed_to_start, agent_setup_failure::status_unreadable, agent_setup_failure::timed_out, agent_setup_failure::workspace_unavailable,
+			   agent_setup_failure::settings_unreadable }) {
 			failureNames.insert(core::stable_name(failure));
 			expect(core::fail_check(failure).State == setup_check_state::failed && core::fail_check(failure).Failure == failure, "a failure is kept with its reason");
 		}
-		expect(failureNames.size() == 8U, "each failure has its own stable name");
+		expect(failureNames.size() == 9U, "each failure has its own stable name");
 
 		const auto profiles = core::built_in_agent_profiles();
 		auto       state    = core::agent_setup_state{ };

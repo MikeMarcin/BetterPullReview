@@ -26,6 +26,9 @@ namespace bpr::adapters::sqlite {
 	/// does not read back as valid is reported as defaults rather than
 	/// trusted. Settings resets clear it with the other settings stores.
 	[[nodiscard]] auto make_agent_setup_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_setup_store_port>;
+	/// \brief [[BPR-2254]]. Where that file is under `aRoot`, to name it when
+	/// it cannot be read. Opens nothing.
+	[[nodiscard]] auto agent_setup_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path;
 
 	/// \brief [[BPR-1750]], RFC-BPR-0092 D2. The same file's clone
 	/// folders (at most `core::maximum_clone_folders`, in order) and repository

@@ -231,6 +231,39 @@ namespace bpr::qt {
 			}
 		});
 		column->addWidget(List);
+		// [[BPR-2254]]. In the list's place while the saved agents cannot be
+		// read: what happened, that nothing was changed, and what to do.
+		Unreadable = new QWidget{ this };
+		Unreadable->setObjectName(QStringLiteral("settingsAgentsUnreadable"));
+		{
+			auto* const notice = new QVBoxLayout{ Unreadable };
+			notice->setContentsMargins(0, 4, 0, 4);
+			notice->setSpacing(4);
+			auto* const title = heading(tr("Your saved agents couldn't be read"), Unreadable);
+			title->setObjectName(QStringLiteral("settingsAgentsUnreadableTitle"));
+			title->setWordWrap(true);
+			notice->addWidget(title);
+			UnreadableText = new QLabel{ Unreadable };
+			UnreadableText->setObjectName(QStringLiteral("settingsAgentsUnreadableText"));
+			UnreadableText->setWordWrap(true);
+			UnreadableText->setTextFormat(Qt::PlainText);
+			UnreadableText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			notice->addWidget(UnreadableText);
+			auto* const actions = new QHBoxLayout{ };
+			Troubleshooting     = new quiet_push_button{ tr("Open Troubleshooting…"), Unreadable };
+			Troubleshooting->setObjectName(QStringLiteral("settingsAgentsTroubleshooting"));
+			Troubleshooting->setToolTip(tr("Open Settings › Storage & privacy, where Reset settings starts the agent settings over."));
+			connect(Troubleshooting, &QPushButton::clicked, this, [this] {
+				if (Dispatch.OpenTroubleshooting) {
+					Dispatch.OpenTroubleshooting();
+				}
+			});
+			actions->addWidget(Troubleshooting);
+			actions->addStretch(1);
+			notice->addLayout(actions);
+		}
+		Unreadable->hide();
+		column->addWidget(Unreadable);
 		auto* const row = new QHBoxLayout{ };
 		row->setSpacing(8);
 		row->addStretch(1);
@@ -265,6 +298,9 @@ namespace bpr::qt {
 		connect(EditButton, &QPushButton::clicked, this, [this] {
 			const auto* const entry = selected();
 			if (entry == nullptr || !Editor || !Dispatch.Update) {
+				return;
+			}
+			if (!UnreadableFile.isEmpty()) {
 				return;
 			}
 			if (auto edited = Editor(*entry, this)) {
@@ -442,6 +478,7 @@ namespace bpr::qt {
 			}
 		});
 		resetRow->addWidget(reset);
+		ResetButton = reset;
 		column->addLayout(resetRow);
 		settle_buttons();
 	}
@@ -482,6 +519,11 @@ namespace bpr::qt {
 
 	void agent_programs_panel::add_agent(const std::optional<core::setup_agent> aPreset)
 	{
+		if (!UnreadableFile.isEmpty()) {
+			// [[BPR-2254]]. Refused before anything is asked: it could not be kept.
+			say(text_of(core::describe(core::agent_entry_refusal::settings_unreadable)));
+			return;
+		}
 		if (!Editor || !Dispatch.Add) {
 			return;
 		}
@@ -562,6 +604,40 @@ namespace bpr::qt {
 		Kept = aPreferences.EntryChecks;
 		present_roster();
 		settle_buttons();
+		settle_unreadable();
+	}
+
+	void agent_programs_panel::present_settings_unreadable(const QString& aFile)
+	{
+		UnreadableFile = aFile;
+		settle_unreadable();
+	}
+
+	void agent_programs_panel::settle_unreadable()
+	{
+		const auto unreadable = !UnreadableFile.isEmpty();
+		if (unreadable) {
+			UnreadableText->setText(tr("BetterPullReview couldn't open %1, so your agents can't be shown and nothing you change here can be saved. "
+									   "Nothing in the file was changed. Quit BetterPullReview and open it again to try once more. "
+									   "If the file still can't be read, Reset settings in Storage & privacy › Troubleshooting starts the agent settings over.")
+										.arg(QDir::toNativeSeparators(UnreadableFile)));
+			Unreadable->setAccessibleName(tr("Your saved agents couldn't be read"));
+			Unreadable->setAccessibleDescription(UnreadableText->text());
+		}
+		Unreadable->setVisible(unreadable);
+		List->setVisible(!unreadable);
+		// No change can be kept: none is offered.
+		for (QWidget* const control : { static_cast<QWidget*>(AddButton), static_cast<QWidget*>(RunLimitOn), static_cast<QWidget*>(ScratchLimit), static_cast<QWidget*>(ScratchKeepOn),
+										static_cast<QWidget*>(ScratchClear), static_cast<QWidget*>(FollowUpQueue), static_cast<QWidget*>(FollowUpSteer), static_cast<QWidget*>(ResetButton) }) {
+			if (control != nullptr) {
+				control->setEnabled(!unreadable);
+			}
+		}
+		if (unreadable) {
+			RunLimit->setEnabled(false);
+			ScratchKeepDays->setEnabled(false);
+			CheckButton->setEnabled(false);
+		}
 	}
 
 	void agent_programs_panel::say(const QString& aText)

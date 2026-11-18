@@ -84,6 +84,9 @@ namespace bpr::qt {
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
+			/// [[BPR-2254]]. Opens Settings › Storage & privacy, whose
+			/// Troubleshooting resets settings ([[BPR-1602]]).
+			std::function<void()> OpenTroubleshooting;
 		};
 
 		explicit agent_programs_panel(QWidget* aParent = nullptr);
@@ -91,6 +94,14 @@ namespace bpr::qt {
 		/// \brief The list, and which popular agents were found on this
 		/// computer (offered by Add agent… until they are added).
 		void present(const application::agent_setup_preferences& aPreferences, std::vector<core::agent_detection> aFound = { });
+		/// \brief [[BPR-2254]]. The saved agents could not be read from
+		/// `aFile` (empty: they were read). The page says so where the list
+		/// would be, offers Troubleshooting, and takes no change; it never
+		/// shows the empty list a fresh profile has.
+		void               present_settings_unreadable(const QString& aFile);
+		[[nodiscard]] auto unreadable_notice() const noexcept -> QWidget* { return Unreadable; }
+		[[nodiscard]] auto unreadable_text() const noexcept -> QLabel* { return UnreadableText; }
+		[[nodiscard]] auto troubleshooting_button() const noexcept -> QPushButton* { return Troubleshooting; }
 		/// The answer to a SetProgram: nothing when it was saved.
 		void show_answer(core::setup_agent aAgent, const std::optional<core::agent_wrapper_refusal>& aRefusal);
 		/// \brief How Add and Edit ask for the entry; a test answers itself.
@@ -189,6 +200,13 @@ namespace bpr::qt {
 		QPushButton*                                       ScratchClear    = nullptr;
 		void                                               send_scratch_policy();
 		void                                               send_run_limit();
+		/// [[BPR-2254]]. The file the saved agents could not be read from.
+		QString      UnreadableFile;
+		QWidget*     Unreadable      = nullptr;
+		QLabel*      UnreadableText  = nullptr;
+		QPushButton* Troubleshooting = nullptr;
+		QPushButton* ResetButton     = nullptr;
+		void         settle_unreadable();
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D2). Settings ›

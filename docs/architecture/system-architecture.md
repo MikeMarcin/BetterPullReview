@@ -2046,6 +2046,16 @@ surfaces.
 - Whole-application model resets for routine changes.
 - Full-state copies or full-PR scans for ordinary navigation and receipt updates.
 - Fake `IWidget`/`IButton` abstractions that hide Qt instead of containing it at the adapter boundary.
+- `ALTER TABLE … ADD COLUMN` in a SQLite store. Every store statement is
+  prepared with `SQLITE_PREPARE_NO_VTAB`, and SQLite checks a `STRICT` table's
+  new column through the `pragma_quick_check` table-valued function, so the
+  statement always fails on the hardened connection. A store rebuilds the
+  table in one transaction instead: the current-format table under another
+  name, the old rows copied by name, the old table dropped and the new one
+  renamed into place, rolled back whole on any failure. `detail::prepare` in
+  `src/adapters/sqlite/src/sqlite_connection.cpp` says why, and
+  `architecture_boundaries` refuses the statement in
+  `src/adapters/sqlite/src/` ([[BPR-2254]]).
 
 ## Anonymous public-preview allocation
 

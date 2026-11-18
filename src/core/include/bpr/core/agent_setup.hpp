@@ -151,6 +151,9 @@ namespace bpr::core {
 		timed_out,
 		/// The agent's workspace could not be made; no agent ran.
 		workspace_unavailable,
+		/// [[BPR-2254]]. The saved agent settings could not be read, so no
+		/// saved agent is known to check; nothing ran.
+		settings_unreadable,
 	};
 
 	[[nodiscard]] auto stable_name(agent_setup_failure aFailure) noexcept -> std::string_view;

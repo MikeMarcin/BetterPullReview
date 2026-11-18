@@ -99,6 +99,9 @@ namespace bpr::core {
 		unknown_entry,
 		/// [[BPR-1918]]. A popular agent keeps strict run checks.
 		relaxed_popular_agent,
+		/// [[BPR-2254]]. The saved agents could not be read, so no change to
+		/// them can be kept.
+		settings_unreadable,
 	};
 	[[nodiscard]] auto stable_name(agent_entry_refusal aRefusal) noexcept -> std::string_view;
 	/// \brief One line for the reviewer.

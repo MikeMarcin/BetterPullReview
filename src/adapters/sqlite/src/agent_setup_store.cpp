@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <map>
 #include <memory>
@@ -160,12 +161,16 @@ namespace bpr::adapters::sqlite {
 		/// it references as it is inserted.
 		[[nodiscard]] auto rebuild_table(sqlite3* const aDatabase, const std::string_view aTable, const std::string_view aColumns, const std::string_view aCopied) -> bool
 		{
-			const auto table   = std::string{ aTable };
-			const auto rebuilt = "rebuilt_" + table;
-			const auto copied  = std::string{ aCopied };
-			for (const auto& step : { std::string{ "BEGIN IMMEDIATE" }, "CREATE TABLE " + rebuilt + "(" + std::string{ aColumns } + ") STRICT",
-									  "INSERT INTO " + rebuilt + "(" + copied + ") SELECT " + copied + " FROM " + table, "DROP TABLE " + table,
-									  "ALTER TABLE " + rebuilt + " RENAME TO " + table, std::string{ "COMMIT" } }) {
+			const auto statement = [](const std::initializer_list<std::string_view> aParts) {
+				auto text = std::string{ };
+				for (const auto part : aParts) {
+					text += part;
+				}
+				return text;
+			};
+			for (const auto& step : { std::string{ "BEGIN IMMEDIATE" }, statement({ "CREATE TABLE rebuilt_", aTable, "(", aColumns, ") STRICT" }),
+									  statement({ "INSERT INTO rebuilt_", aTable, "(", aCopied, ") SELECT ", aCopied, " FROM ", aTable }), statement({ "DROP TABLE ", aTable }),
+									  statement({ "ALTER TABLE rebuilt_", aTable, " RENAME TO ", aTable }), std::string{ "COMMIT" } }) {
 				if (!detail::execute(aDatabase, step)) {
 					static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
 					return false;
@@ -794,8 +799,14 @@ namespace bpr::adapters::sqlite {
 			}
 			for (std::size_t index = 0U; committed && index < aPreferences.EntryChecks.size(); ++index) {
 				const auto& record = aPreferences.EntryChecks[index];
-				auto        row    = detail::prepare(aDatabase, "INSERT INTO agent_entry_checks VALUES(?1,?2,?3,?4)");
-				committed          = row.has_value();
+				// [[BPR-2254]]. A check refused because the settings could not
+				// be read says nothing about the agent; the column's check
+				// stops at the failures before it.
+				if (record.Check.Failure == core::agent_setup_failure::settings_unreadable) {
+					continue;
+				}
+				auto row  = detail::prepare(aDatabase, "INSERT INTO agent_entry_checks VALUES(?1,?2,?3,?4)");
+				committed = row.has_value();
 				if (committed) {
 					sqlite3_bind_int64(row->Value, 1, record.Id);
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(record.Check.State));
@@ -3885,6 +3896,8 @@ namespace bpr::adapters::sqlite {
 	{
 		return std::make_unique<agent_conversation_store>(aRoot);
 	}
+
+	auto agent_setup_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path { return aRoot / "state" / "v1" / std::filesystem::path{ agent_setup_file }; }
 
 	auto make_agent_setup_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_setup_store_port>
 	{

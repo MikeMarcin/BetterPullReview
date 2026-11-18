@@ -171,6 +171,9 @@ namespace bpr::qt {
 		case failure::status_unreadable:     return QObject::tr("%1 answered, but not in a way BetterPullReview can read. Check again, or show the details.").arg(aAgent);
 		case failure::timed_out:             return QObject::tr("%1 didn't answer within 15 seconds. Check again.").arg(aAgent);
 		case failure::workspace_unavailable: return QObject::tr("The agent's workspace could not be made.");
+		case failure::settings_unreadable:
+			return QObject::tr("Your saved agents couldn't be read from %1, so no agent was checked. Open Settings › Agents for what to do.")
+				.arg(aDetail.isEmpty() ? QObject::tr("this profile's agent settings file") : QDir::toNativeSeparators(aDetail));
 		}
 		return { };
 	}

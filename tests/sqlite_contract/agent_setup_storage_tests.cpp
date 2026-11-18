@@ -4,6 +4,8 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/application/agent_setup_host.hpp"
+#include "bpr/application/manual_executor.hpp"
 #include "scratch_root.hpp"
 
 #include <sqlite3.h>
@@ -150,7 +152,11 @@ namespace {
 		entry.Input.Text    = "waiting";
 		entry.Input.Threads = { "thread-a" };
 		if (aPromptedEntry) {
-			entry.Input.Prompt = core::prompt_offer{ .Id = "own.look-again", .Label = "Ready to look again?", .Expansion = { .Text = "Has it changed?" } };
+			auto offer           = core::prompt_offer{ };
+			offer.Id             = "own.look-again";
+			offer.Label          = "Ready to look again?";
+			offer.Expansion.Text = "Has it changed?";
+			entry.Input.Prompt   = std::move(offer);
 		}
 		auto queue   = core::agent_queue{ };
 		queue.LastId = 1U;
@@ -176,6 +182,70 @@ namespace {
 			   "the conversation keeps its turns, with no time kept for them");
 		const auto queues = adapters::sqlite::make_agent_queue_store(aRoot)->load();
 		expect(queues == std::optional{ aSeeded.Queues }, "the queued entry reads back");
+	}
+
+	/// A process port that runs nothing and records what it was asked.
+	class recording_process final : public application::agent_process_port
+	{
+	public:
+		[[nodiscard]] auto run(const application::agent_launch_request& aRequest, int, const application::agent_output_sink& = { }, std::stop_token = { }) -> application::agent_run_result override
+		{
+			Requests.push_back(aRequest);
+			auto result    = application::agent_run_result{ };
+			result.Outcome = application::agent_run_outcome::success;
+			result.Session = aRequest.Session;
+			return result;
+		}
+		void cancel() noexcept override { }
+
+		std::vector<application::agent_launch_request> Requests;
+	};
+
+	/// [[BPR-2254]] AC1. The setup host over the store's real open: the
+	/// saved custom agent is the one setup checks, and its check inspects its
+	/// program, as build 63's did, instead of failing as not found.
+	void expect_custom_check(const std::filesystem::path& aRoot, const std::string& aProgram)
+	{
+		auto       store     = adapters::sqlite::make_agent_setup_store(aRoot);
+		auto       effects   = application::manual_executor{ };
+		auto       checks    = application::manual_executor{ };
+		auto       decision  = application::manual_executor{ };
+		auto       process   = recording_process{ };
+		auto       inspected = std::vector<std::string>{ };
+		auto       host      = application::agent_setup_host{ application::agent_setup_dependencies{
+			.Store   = store.get(),
+			.Process = &process,
+			.Locate  = [](core::agent_program) { return std::optional<core::agent_search_candidate>{ }; },
+			.Inspect =
+				[&inspected](const std::string_view aPath) {
+					inspected.emplace_back(aPath);
+					return std::optional<core::agent_wrapper_refusal>{ };
+				},
+			.ClaudeWrapper = std::make_shared<application::claude_process_wrapper_source>(),
+			.Programs      = std::make_shared<application::agent_program_source>(),
+			.Parent        = [](const std::string&) { return std::optional<std::string>{ }; },
+			.Profiles = core::built_in_agent_profiles(),
+			.Effects  = &effects,
+			.Checks   = &checks,
+			.Decision = &decision,
+		} };
+		const auto settle    = [&] {
+			for (auto turns = 0; turns < 32 && (effects.pending() != 0U || checks.pending() != 0U || decision.pending() != 0U); ++turns) {
+				effects.drain();
+				checks.drain();
+				decision.drain();
+			}
+		};
+		host.observe_policy(core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com));
+		host.load();
+		settle();
+		expect(!host.projection().SettingsUnreadable && host.projection().Preferences.Agents.size() == 2U, "the setup host reads the saved agents");
+		host.check();
+		settle();
+		const auto check = host.projection().State.AgentCheck;
+		expect(check.Failure != core::agent_setup_failure::agent_not_found && check.Failure != core::agent_setup_failure::settings_unreadable, "the saved custom agent is found");
+		expect(check.State == core::setup_check_state::passed && std::ranges::find(inspected, aProgram) != inspected.end(), "its check inspects its own program and passes");
+		host.shutdown();
 	}
 
 	void earlier_builds_open()
@@ -215,6 +285,7 @@ namespace {
 			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE sql LIKE '%REFERENCES native_agent_turns%' OR sql LIKE '%REFERENCES agent_queue_entries%' OR sql LIKE '%REFERENCES \"native_agent_turns\"%' OR sql LIKE '%REFERENCES \"agent_queue_entries\"%'") == 0,
 				   "no table references a rebuilt table, so foreign keys stay on through the rebuild");
 			expect_profile(root.path(), seeded, "and opens again as it is");
+			expect_custom_check(root.path(), seeded.Preferences.Agents[0].Program);
 		}
 		// Builds 64 to 66 left such a store part-migrated: every table made
 		// before the failing step, none after it.

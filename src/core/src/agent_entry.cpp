@@ -72,6 +72,7 @@ namespace bpr::core {
 		case agent_entry_refusal::too_many_entries:      return "too_many_entries";
 		case agent_entry_refusal::unknown_entry:         return "unknown_entry";
 		case agent_entry_refusal::relaxed_popular_agent: return "relaxed_popular_agent";
+		case agent_entry_refusal::settings_unreadable:   return "settings_unreadable";
 		}
 		return "invalid_name";
 	}
@@ -90,6 +91,7 @@ namespace bpr::core {
 		case agent_entry_refusal::too_many_entries:      return "A profile keeps at most 16 agents.";
 		case agent_entry_refusal::unknown_entry:         return "That agent is no longer in the list.";
 		case agent_entry_refusal::relaxed_popular_agent: return "Only a custom agent can turn off strict run checks.";
+		case agent_entry_refusal::settings_unreadable:   return "Your saved agents couldn't be read, so this change can't be saved.";
 		}
 		return "That agent cannot be kept.";
 	}
