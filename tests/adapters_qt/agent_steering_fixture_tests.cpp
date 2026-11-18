@@ -27,6 +27,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -131,6 +132,45 @@ namespace {
 		expect(run.Result.ReportedCostUsd == "0", "the run reports one figure for all its parts");
 	}
 
+	/// [[BPR-2252]]. A turn with a helper reports a figure before it ends:
+	/// the real launcher streams it while the helper is still out, and the
+	/// run's last figure settles the turn.
+	void test_a_helper_turn_streams_its_cost_while_it_runs(const std::filesystem::path& aClaude)
+	{
+		auto workspace = QTemporaryDir{ };
+		expect(workspace.isValid(), "a scratch workspace");
+		auto profiles      = core::built_in_agent_profiles();
+		auto profile       = *std::ranges::find(profiles, core::agent_protocol::claude_stream_json, &core::agent_profile::Protocol);
+		profile.Executable = aClaude.string();
+		auto launch        = application::build_round_launch(profile, "FIXTURE_HELPER then say what you read.", { }, workspace.path().toStdString(), [](const std::string&) { return std::optional<std::string>{ }; });
+		expect(launch.has_value(), "the fixture's launch is built as Claude's");
+		launch->NativeConversation = "helper-fixture";
+		launch->Run                = core::agent_run_id{ 8U };
+		launch->Path               = core::agent_run_path::agent_tab;
+		launch->ReportActivity     = true;
+		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_SLOW_STEP_MS", "20");
+		launch->Environment.emplace_back("BPR_FIXTURE_AGENT_PAUSE_MS", "1");
+		auto seen    = std::vector<std::pair<std::string, bool>>{ };
+		auto helpers = 0;
+		auto mutex   = std::mutex{ };
+		auto sink    = [&seen, &helpers, &mutex](const application::agent_stream_event& aEvent) {
+			const auto lock = std::scoped_lock{ mutex };
+			if (aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity) {
+				helpers += aEvent.Activity->Kind == core::agent_activity_kind::helper_started ? 1 : aEvent.Activity->Kind == core::agent_activity_kind::helper_ended ? -1
+																																									 : 0;
+			}
+			if (aEvent.Kind == application::agent_stream_kind::cost) {
+				seen.emplace_back(aEvent.Text, helpers > 0);
+			}
+		};
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto result   = launcher.run(*launch, 60000, sink);
+		launcher.cancel();
+		expect(result.Outcome == application::agent_run_outcome::success && result.ReportedCostUsd == "0.0587", "the turn ends once, at the run's last figure");
+		expect(seen.size() == 2U && seen[0] == std::pair<std::string, bool>{ "0.0412", true } && seen[1] == std::pair<std::string, bool>{ "0.0587", false },
+			   "the first figure is streamed while the helper is out, the last as the turn ends");
+	}
+
 	void test_an_unqualified_agent_keeps_queue(const std::filesystem::path& aClaude)
 	{
 		const auto run = run_and_steer(aClaude, false);
@@ -156,6 +196,7 @@ auto main(int argc, char** argv) -> int
 	expect(std::filesystem::is_regular_file(claude), "the fixture agent is built as claude");
 	test_the_fixture_takes_a_correction_after_its_tool_call(claude);
 	test_an_unqualified_agent_keeps_queue(claude);
+	test_a_helper_turn_streams_its_cost_while_it_runs(claude);
 	std::cout << "agent-steering-fixture-tests:pass\n";
 	return EXIT_SUCCESS;
 }

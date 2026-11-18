@@ -3098,6 +3098,8 @@ namespace bpr::qt {
 			status.Stage     = written.isEmpty() ? agent_run_stage::thinking : agent_run_stage::writing;
 			status.Latest    = written.isEmpty() ? Launch.latest_output_line() : QString{ };
 			status.FilesOnly = Launch.pull_request_files_only();
+			// [[BPR-2252]]. What the turn has cost so far, once the agent said.
+			status.Cost = Launch.running_turn_cost();
 			// [[BPR-2005]]. What the runtime says it is doing, when it says.
 			if (Launch.activity_reported()) {
 				status.Activity          = Launch.activity();

@@ -176,6 +176,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1999]]. The last run's cost, as the core accounted
 		/// it, and its conversation's total once known.
 		[[nodiscard]] auto last_turn_cost() const noexcept -> std::optional<core::agent_cost> { return LastTurnCost; }
+		/// \brief [[BPR-2252]]. What the running turn has cost so far, as the
+		/// runtime last reported it mid-turn; none until it reports a figure,
+		/// and none again once the run ends or the figure became unknown.
+		[[nodiscard]] auto running_turn_cost() const noexcept -> std::optional<core::agent_cost> { return RunningTurnCost; }
 		/// \brief [[BPR-2005]]. What the running (or last) turn did, as its
 		/// runtime reported it, timed from `activity_started_ms`.
 		[[nodiscard]] auto activity() const noexcept -> const core::agent_turn_activity& { return Activity; }
@@ -258,6 +262,7 @@ namespace bpr::qt {
 		QString                                                 LastModel;
 		QString                                                 LastCost;
 		std::optional<core::agent_cost>                         LastTurnCost;
+		std::optional<core::agent_cost>                         RunningTurnCost;
 		core::agent_turn_activity                               Activity;
 		qint64                                                  ActivityStartedMs = 0;
 		bool                                                    ActivityReported  = false;

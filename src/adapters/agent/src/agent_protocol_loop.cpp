@@ -393,9 +393,9 @@ namespace bpr::adapters::agent::detail {
 				}
 			}
 
-			/// [[BPR-2004]]. An activity or a heartbeat goes to the sink only:
+			/// [[BPR-2004]]. An activity, a heartbeat or a cost ([[BPR-2252]]) goes to the sink only:
 			/// it is never part of the turn's answer.
-			[[nodiscard]] auto signal(const application::agent_stream_kind aKind, std::optional<core::agent_activity_update> aActivity = std::nullopt) -> bool
+			[[nodiscard]] auto signal(const application::agent_stream_kind aKind, std::optional<core::agent_activity_update> aActivity = std::nullopt, std::string aText = { }) -> bool
 			{
 				Signalled = true;
 				if (!Sink) {
@@ -407,6 +407,7 @@ namespace bpr::adapters::agent::detail {
 				event.Run      = Request.Run;
 				event.Kind     = aKind;
 				event.Activity = std::move(aActivity);
+				event.Text     = std::move(aText);
 				try {
 					Sink(event);
 				} catch (...) {
@@ -536,6 +537,13 @@ namespace bpr::adapters::agent::detail {
 							Result.ReportedCostUsd.reset();
 						} else {
 							Result.ReportedCostUsd = message.Text;
+						}
+						// [[BPR-2252]]. The running line says the figure while
+						// the turn goes on (a part with helpers out, a steered
+						// part); the run's end still settles it.
+						if (Request.ReportActivity && !signal(application::agent_stream_kind::cost, std::nullopt, Result.ReportedCostUsd.value_or(std::string{ }))) {
+							record_protocol_failure(application::agent_protocol_failure::malformed_frame);
+							return;
 						}
 					} else if (message.Kind == application::agent_protocol_event_kind::plugins_reported) {
 						// [[BPR-1891]]. Named in diagnostics, never refused.

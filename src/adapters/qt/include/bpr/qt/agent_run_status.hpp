@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_RUN_STATUS_HPP
 
 #include "bpr/core/agent_activity.hpp"
+#include "bpr/core/agent_cost.hpp"
 
 #include <QElapsedTimer>
 #include <QLabel>
@@ -47,6 +48,10 @@ namespace bpr::qt {
 		/// When the run started, on `agent_activity_clock_ms`; the
 		/// activity's times count from it.
 		qint64 ActivityStartedMs = 0;
+		/// [[BPR-2252]]. What the turn has cost so far, as the agent reported
+		/// it mid-turn; none until it reports a figure, and none for an
+		/// agent that reports none.
+		std::optional<core::agent_cost> Cost;
 
 		auto operator==(const agent_run_status&) const -> bool = default;
 	};
@@ -69,6 +74,8 @@ namespace bpr::qt {
 	[[nodiscard]] auto agent_elapsed_words(qint64 aSeconds) -> QString;
 	/// \brief The live line: "● Claude is thinking, 0:12." The Agent tab's
 	/// turns and every tour chat say a running request with these words.
+	/// Once the agent has reported a cost it follows the time: "● Claude is
+	/// waiting on 2 helpers, 3:12 · $0.41 · last activity 4 s ago." ([[BPR-2252]]).
 	[[nodiscard]] auto agent_run_status_words(const agent_run_status& aStatus, qint64 aSeconds) -> QString;
 	/// \brief How a run ended, without its full stop: "Claude answered in
 	/// 0:12", or "Stopped after 0:12".

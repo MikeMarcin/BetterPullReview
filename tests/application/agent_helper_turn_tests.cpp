@@ -179,6 +179,19 @@ namespace {
 		const auto seen             = run(launched, trace("claude-2.1.319-helpers-stdin-open.jsonl"));
 		expect_three_helpers_one_turn(seen, "stdin-open");
 		expect(seen.Result.ReportedCostUsd == "0.016330895", "the cost is the runtime's last figure, covering all of it");
+		// [[BPR-2252]]. Each figure reaches the running line as it is said:
+		// the first while two helpers are still out, long before the end.
+		auto costs = std::vector<std::string>{ };
+		auto first = seen.Stream.end();
+		for (auto at = seen.Stream.begin(); at != seen.Stream.end(); ++at) {
+			if (at->Kind == application::agent_stream_kind::cost) {
+				costs.push_back(at->Text);
+				first = first == seen.Stream.end() ? at : first;
+			}
+		}
+		expect(costs == std::vector<std::string>{ "0.012086645", "0.014288390000000002", "0.015761495", "0.016330895" }, "every figure the turn reported is streamed, in order");
+		expect(first != seen.Stream.end() && std::ranges::count_if(first, seen.Stream.end(), [](const auto& aEvent) { return aEvent.Kind == application::agent_stream_kind::activity && aEvent.Activity && aEvent.Activity->Kind == core::agent_activity_kind::helper_ended; }) >= 2,
+			   "the first figure arrives while helpers are still out");
 		expect(seen.Result.ReadPast.find("system/post_turn_summary") != std::string::npos, "the frame types read past are named for the diagnosis");
 	}
 

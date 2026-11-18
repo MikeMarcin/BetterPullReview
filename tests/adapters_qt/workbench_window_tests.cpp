@@ -16153,6 +16153,20 @@ namespace {
 			expect(agent->turn_count() == 2U && agent->turn_question(1U) == QStringLiteral("Does this work?") && window.side_chat()->composer()->toPlainText().isEmpty(),
 				   "the sent question is the next turn and leaves the field empty");
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			process_events();
+			// [[BPR-2252]], owner 2026-11-17: "I thought we had per turn cost
+			// with the agent is thinking timer in the transcript window". The
+			// running line says what the turn has cost once the agent reports
+			// a figure mid-turn, and nothing before.
+			expect(agent->turn_footer(1U).startsWith(QStringLiteral("● ")) && !agent->turn_footer(1U).contains(QLatin1Char{ '$' }), "no cost on the running line before the agent reports one");
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Kind = application::agent_stream_kind::cost, .Cost = core::agent_cost{ 410'000'000U } });
+			// The running turn is redrawn at the Agent tab's answer pace.
+			wait_for([agent] { return agent->turn_footer(1U).contains(QLatin1Char{ '$' }); }, 2000);
+			expect(agent->turn_footer(1U).startsWith(QStringLiteral("● ")) && agent->turn_footer(1U).contains(QStringLiteral("is thinking, 0:0")) && agent->turn_footer(1U).contains(QStringLiteral(" · $0.41.")),
+				   "while the turn runs, its cost so far follows its time: " + agent->turn_footer(1U).toStdString());
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 2U, .Kind = application::agent_stream_kind::cost });
+			wait_for([agent] { return !agent->turn_footer(1U).contains(QLatin1Char{ '$' }); }, 2000);
+			expect(!agent->turn_footer(1U).contains(QLatin1Char{ '$' }), "a cost that became unknown is no longer said");
 			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Yes. The retry budget is reset once per frame." });
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();

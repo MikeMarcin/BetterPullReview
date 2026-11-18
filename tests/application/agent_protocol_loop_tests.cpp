@@ -1164,10 +1164,11 @@ namespace {
 
 	/// The first native turn: the agent reads a file, a correction is
 	/// waiting, then whatever `aAfter` says Claude wrote.
-	[[nodiscard]] auto run_steered_claude(steering_connection& aPort, fake_transport& aWire, const std::string_view aVersion, const std::string& aAfter, const core::agent_run_id aSteeredRun = core::agent_run_id{ 9U })
+	[[nodiscard]] auto run_steered_claude(steering_connection& aPort, fake_transport& aWire, const std::string_view aVersion, const std::string& aAfter, const core::agent_run_id aSteeredRun = core::agent_run_id{ 9U }, application::agent_output_sink aSink = { })
 		-> application::agent_run_result
 	{
 		auto launched               = request(core::agent_protocol::claude_stream_json);
+		launched.ReportActivity     = static_cast<bool>(aSink);
 		launched.Run                = core::agent_run_id{ 9U };
 		launched.NativeConversation = "steered";
 		launched.NativeConnection   = &aPort;
@@ -1178,7 +1179,7 @@ namespace {
 		aWire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = aAfter });
 		aWire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
 		aWire.Waits.push_back({ .Status = agent_protocol_wait_status::running });
-		return run_agent_protocol_loop(launched, { }, aWire);
+		return run_agent_protocol_loop(launched, std::move(aSink), aWire);
 	}
 
 	void test_claude_takes_a_correction_after_its_tool_call()
@@ -1218,6 +1219,24 @@ namespace {
 		auto       resetWire = fake_transport{ };
 		const auto down      = run_steered_claude(reset, resetWire, "2.1.319", claude_answer("m2", "First.") + claude_result("r1", "\"first\"", "1", "0.0040") + claude_init("2.1.319") + claude_answer("m3", "Second.") + claude_result("r2", "\"" + identity + "\"", "0", "0.0010"));
 		expect(down.Outcome == application::agent_run_outcome::success && !down.ReportedCostUsd, "a figure that went down mid-run leaves the run's cost unknown");
+
+		// [[BPR-2252]]. A running line hears each figure as the run reads it,
+		// and an empty one once the run's cost became unknown.
+		auto heard = std::vector<std::string>{ };
+		auto sink  = [&heard](const application::agent_stream_event& aEvent) {
+			if (aEvent.Kind == application::agent_stream_kind::cost) {
+				heard.push_back(aEvent.Text);
+			}
+		};
+		auto       streamed     = steering_connection{ };
+		auto       streamedWire = fake_transport{ };
+		const auto live         = run_steered_claude(streamed, streamedWire, "2.1.319", after, core::agent_run_id{ 9U }, sink);
+		expect(live.ReportedCostUsd == "0.0065" && heard == std::vector<std::string>{ "0.0040", "0.0065" }, "each part's figure is streamed while the run goes on");
+		heard.clear();
+		auto       fell     = steering_connection{ };
+		auto       fellWire = fake_transport{ };
+		const auto unknown  = run_steered_claude(fell, fellWire, "2.1.319", claude_answer("m2", "First.") + claude_result("r1", "\"first\"", "1", "0.0040") + claude_init("2.1.319") + claude_answer("m3", "Second.") + claude_result("r2", "\"" + identity + "\"", "0", "0.0010"), core::agent_run_id{ 9U }, sink);
+		expect(!unknown.ReportedCostUsd && heard == std::vector<std::string>{ "0.0040", "" }, "a figure that went down streams as unknown, never as the lower figure");
 	}
 
 	void test_an_unreconciled_correction_is_unknown_and_retires()
