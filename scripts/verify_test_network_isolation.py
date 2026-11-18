@@ -387,6 +387,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # restart"; "the fresh host reads the one kept card back").
     "qt_prompt_macro_chips": "prompt-turn-name-store-predicate-failed",
     "qt_agent_finding_cards_restart": "agent-finding-card-store-predicate-failed",
+    # Measured contained at f5343b1e1 and cb200dfa9: "scratch git ['init',
+    # '--quiet'] failed: cannot lock ref 'HEAD'".
+    "record_rfc0017_anonymous_contracts_recorder": "scratch-git-init-failed",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.

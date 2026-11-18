@@ -180,3 +180,9 @@ fresh host reads the one kept card back" (loaded, nothing kept). Both are now
 registered `WINDOWS_UNCONTAINED`, pinned
 `prompt-turn-name-store-predicate-failed` and
 `agent-finding-card-store-predicate-failed`.
+
+`record_rfc0017_anonymous_contracts_recorder` failed contained in both full
+suites (`f5343b1e1`, `cb200dfa9`): Git for Windows' `git init --quiet` could
+not create `.git/HEAD` in the AppContainer's temporary folder ("cannot lock
+ref 'HEAD'"). It is registered `WINDOWS_UNCONTAINED`, pinned
+`scratch-git-init-failed`.
