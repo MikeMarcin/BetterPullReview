@@ -350,7 +350,11 @@ namespace bpr::qt {
 		// height whether the footer shows the picker, a run with Stop all,
 		// several runs, Agent settings… or the cost. Each control draws its
 		// chip or pill in that line.
-		const auto line = QFontMetrics{ Picker->font() }.height() + 2;
+		// The footer's own font is the status bar's, the review line's; where
+		// the picker's words are as tall as that line (Linux), the chips draw
+		// in the line itself rather than a pixel either side of it.
+		const auto words = QFontMetrics{ Picker->font() }.height();
+		const auto line  = std::min(words + 2, std::max(words, fontMetrics().height()));
 		for (QWidget* const control : { static_cast<QWidget*>(Picker), static_cast<QWidget*>(StopButton), static_cast<QWidget*>(RunsButton), static_cast<QWidget*>(SettingsButton) }) {
 			control->setFixedHeight(line);
 		}
