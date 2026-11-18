@@ -100,7 +100,13 @@ auto main() -> int
 	const auto perms = std::filesystem::status(*folder).permissions();
 	expect((perms & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) == std::filesystem::perms::none, "and only its owner can reach it");
 #endif
+#if defined(_WIN32)
+	// A grant names a POSIX path (agent_launch.hpp): on Windows no rule can
+	// name the folder, and the window grants none.
+	expect(!application::valid_agent_grant_path(folder->string()), "a Windows path is never named in a rule");
+#else
 	expect(application::valid_agent_grant_path(folder->string()) == (folder->string().find(' ') == std::string::npos), "a rule can name it when its path has no space");
+#endif
 
 	const auto before = application::list_agent_scratch_folder(*folder);
 	write(*folder / "count.py", "print(3)\n");
