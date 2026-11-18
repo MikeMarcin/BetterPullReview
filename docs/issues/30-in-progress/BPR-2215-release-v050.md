@@ -301,3 +301,71 @@ Still failing at `f5343b1e1`:
 Evidence: `windows-release-full-f5343b1e1-junit.xml` and
 `ubuntu-release-full-f5343b1e1-junit.xml` in
 `/Users/jaeger/.codex/release-runs/v0.5.0-20261116/windows-preflight-fix-r1/`.
+
+## Fifth round: WSL2 i9 timing, prompt packs and the Windows tail (2026-11-18)
+
+Lane recreated from main `9304efc4b` (BPR-2149 prompt packs), later merged
+with main `975ebff1e` (build 66).
+
+**WSL2 i9 timing (owner: "On the WSL2 i9").** Own tree
+`~/bpr-v050-timing-r1` on the PC's WSL2 Ubuntu 26.04, Release at `-j8`, PC
+otherwise idle, three runs of the eleven courses at `9304efc4b`:
+
+| Course | Runs passed | Miss |
+| --- | --- | --- |
+| benchmark, unavailable, approximate, first tab, pathological, prepared open, history | 3 of 3 each | none |
+| `application_large_review_responsiveness` | 0 of 3 | `composition_startup_render` / `main_to_home_render` 1083–1263 ms (5803 ms cold) against 1000 |
+| `application_large_review_launch` | 0 of 3 | the same, 1127–1266 ms |
+| `application_large_review_active_work` | 1 of 3 | `active_close_quiescence` 117.9 ms against 100 |
+| `application_large_review_resources` | 0 of 3 | functional: maintenance kept the raw diff (fixed, below) |
+
+The startup misses come from where the course's data root lives, not from a
+change in the application. `/tmp` on the WSL2 host is tmpfs (fsync about
+0.002 ms) and `/var/tmp` is the ext4 VHD (fsync about 2.5 ms). Since this
+lane's BPR-2095 repair, isolated Linux rows set `TMPDIR=/var/tmp`, because
+the Git cache refuses tmpfs. Run directly, the launch course's
+`MainToHomeRenderMs` was 323 and 327 ms with the data root on `/tmp`, and 722
+and 671 ms on `/var/tmp`. The budgets' basis (`e257b236a`) was measured with
+the data root on tmpfs. **Owner decision needed:** re-base the startup and
+close budgets on a disk-backed data root, or put only the Git cache on a
+generation-answering filesystem (a product change) so the course's data root
+can stay on tmpfs.
+
+Fixed this round:
+
+- `application_large_review_resources` (every platform): the composition kept
+  the last accepted diff as a shared owner (BPR-2183), so prune and delete
+  never released it; it is now a weak reference, read only while the surface
+  shows that comparison. Production app digest resealed.
+- `test_network_isolation_manifest`: BPR-2149's `sqlite_prompt_pack_storage`
+  had no pin; it is pinned unmeasured until Windows measures it.
+- `qt_agent_report_view` on Windows: QTemporaryDir's owner-only mode left the
+  AppContainer unable to write; the course makes a folder that inherits.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `9304efc4b` WSL2 i9 Release, the eleven ×3 | 33 | 22 passed, 11 failed |
+| `9304efc4b` Ubuntu (Lima) Release, full suite | 1066 | 1051 passed, 15 failed |
+| `bd4134653` Windows Release, the 23 failing | 23 | 6 passed, 17 failed |
+| `1d6f85283` Windows Release, five of them | 5 | 3 passed, 2 failed |
+
+At `9304efc4b` on Ubuntu, `test_network_isolation_manifest`, both composition
+digests and `large_review_resources` are fixed on the lane. The ten other
+large-review courses are judged on the WSL2 i9. `local_comments_composition`
+AC03 fails every time on Ubuntu and is not yet diagnosed.
+
+On Windows, the review-flow courses (`label_publication_recovery`,
+`review_seen` and its variants, `review_submission_composition`,
+`local_comments_composition`) all stop at "Review recovery is unavailable" in
+the full suite, but `label_publication_recovery` and `review_seen_stays`
+pass in a five-row round, so the cause depends on what ran before them.
+These are still open on Windows:
+
+- The contained store restarts (`qt_prompt_macro_chips`,
+  `qt_agent_finding_cards_restart`: loaded, nothing read back).
+- The contained native agent host (`agent_invocation_host`: workspace made,
+  then `failed_to_start`, most likely `agent_checkout_spellings`'
+  `canonical` refused inside the AppContainer).
+- Native workspace creation in the uncontained courses.
+- The RFC-0017 recorder's `git init` inside the AppContainer.
+- `review_tour_writing_wrapper`.
