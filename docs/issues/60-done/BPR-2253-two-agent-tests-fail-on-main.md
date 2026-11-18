@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2253"
 title: "qt_workbench_agent_send_refusal and application_native_agent_sessions fail on main"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -70,3 +70,11 @@ building each test at the commit and at its parent in a separate tree.
   (`tests/end_to_end/agent_invocation_composition_public_path.cpp:1407`).
 
 [[BPR-2252]] is unchanged.
+
+## Evidence
+
+- Lane 26bd84fb5, `cmake --build --preset dev`: both tests pass at -j4, and
+  the 13 tests matching
+  `^qt_workbench_agent|^application_native|agent_invocation` pass at -j4.
+- Format check and clang-tidy on the two changed files pass;
+  `python3 scripts/verify_documentation.py --root .` prints DOCUMENTATION_OK.
