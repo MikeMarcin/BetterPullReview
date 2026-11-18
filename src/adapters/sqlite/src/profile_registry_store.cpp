@@ -96,7 +96,7 @@ namespace bpr::adapters::sqlite {
 			explicit registry_transaction(sqlite3* aDatabase)
 				: Database{ aDatabase }
 			{ }
-			~registry_transaction() { static_cast<void>(sqlite3_exec(Database, "ROLLBACK", nullptr, nullptr, nullptr)); }
+			~registry_transaction() { detail::rollback_open_transaction(Database); }
 			registry_transaction(const registry_transaction&)                    = delete;
 			auto operator=(const registry_transaction&) -> registry_transaction& = delete;
 

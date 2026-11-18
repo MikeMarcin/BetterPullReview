@@ -115,6 +115,15 @@ namespace bpr::adapters::sqlite::detail {
 		std::string_view aSql,
 		std::stop_token  aStop = { }) -> std::expected<void, failure>;
 
+	/// \brief [[BPR-2255]]. Rolls back the connection's transaction, if one
+	/// is open; does nothing otherwise.
+	///
+	/// \details For a scope guard that rolls back whatever its scope did not
+	/// commit. A `ROLLBACK` with no transaction open fails, and SQLite logs the
+	/// failure, so a guard that ran it after every committed scope put a
+	/// failure line in the storage diagnostics on every launch.
+	void rollback_open_transaction(::sqlite3* aDatabase) noexcept;
+
 	/// \brief Reads one integer scalar.
 	[[nodiscard]] auto scalar_integer(::sqlite3* aDatabase, std::string_view aSql)
 		-> std::expected<std::int64_t, failure>;

@@ -222,6 +222,19 @@ namespace bpr::adapters::sqlite::detail {
 		return result;
 	}
 
+	void rollback_open_transaction(::sqlite3* const aDatabase) noexcept
+	{
+		if (aDatabase == nullptr || ::sqlite3_get_autocommit(aDatabase) != 0) {
+			return;
+		}
+		try {
+			static_cast<void>(execute(aDatabase, "ROLLBACK"));
+		} catch (...) {
+			// A guard's destructor must not throw; the transaction stays
+			// open and the connection's close ends it.
+		}
+	}
+
 	[[nodiscard]] auto scalar_integer(
 		::sqlite3* aDatabase, std::string_view aSql)
 		-> std::expected<std::int64_t, failure>

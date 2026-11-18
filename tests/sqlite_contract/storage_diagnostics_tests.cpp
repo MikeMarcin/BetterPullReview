@@ -6,7 +6,10 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
 #include "bpr/adapters/sqlite/markdown_image_disk_cache.hpp"
+#include "bpr/adapters/sqlite/profile_registry_store.hpp"
+#include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/storage_diagnostics.hpp"
+#include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 #include "scratch_root.hpp"
 
@@ -145,6 +148,42 @@ try {
 	expect(adapters::sqlite::storage_store_of("review-ledger.sqlite3") == operation_store::review_ledger && adapters::sqlite::storage_store_of("ledger.db") == operation_store::clone_ledger
 			   && adapters::sqlite::storage_store_of("PRIVATE.sqlite3") == operation_store::other,
 		   "a store is told by its file's fixed name alone");
+	// [[BPR-2255]]. A launch's stores, opened, read and written as a launch
+	// does, record no failure: a transaction guard rolls back only what its
+	// scope did not commit. Before, each guard ran ROLLBACK after every
+	// committed scope, and every launch logged a storage_statement sql_error.
+	{
+		tests::sqlite_contract::scratch_root quiet{ "storage-diagnostics-guards" };
+		const auto                           guarded = std::make_shared<recording_log>();
+		{
+			auto       guardScope = adapters::sqlite::storage_diagnostics_scope{ guarded, std::chrono::minutes{ 1 } };
+			auto       registry   = adapters::sqlite::make_profile_registry_store(quiet.path());
+			const auto first      = registry->load({ });
+			expect(first.has_value(), "the profile registry is made and read");
+			const auto added = [](application::profile_registry_snapshot aBefore, const std::string& aLabel) {
+				++aBefore.Revision;
+				++aBefore.LastProfileId;
+				const auto id = core::bpr_profile_id{ aBefore.LastProfileId };
+				aBefore.Profiles.push_back({ { id, aLabel }, application::profile_root_mode::isolated, application::profile_root_identity(id) });
+				return aBefore;
+			};
+			const auto work = added(*first, "Work");
+			expect(registry->save(work, first->Revision, { }) == work, "a profile is saved");
+			// AC2: a scope that does not commit is still rolled back, so the
+			// next write can begin.
+			expect(!registry->save(added(*first, "Stale"), first->Revision, { }).has_value(), "a stale save is refused inside its transaction");
+			const auto home = added(work, "Home");
+			expect(registry->save(home, work.Revision, { }) == home, "and the next save begins and commits: the refused one was rolled back");
+			expect(registry->load({ }) == home, "the registry reads back the committed profiles");
+			expect(adapters::sqlite::make_window_review_restoration_store(quiet.path())->load({ }).has_value(), "window restoration is made and read");
+			expect(adapters::sqlite::make_remembered_connection_store(quiet.path(), core::default_bpr_profile_id)->load({ }).has_value(), "remembered connections are made and read");
+			guardScope.flush();
+		}
+		const auto lines = guarded->lines();
+		expect(!lines.empty(), "the stores' opens are recorded");
+		expect(std::ranges::none_of(lines, [](const core::operation_diagnosis& aLine) { return aLine.Failure != operation_failure::none; }),
+			   "and a launch's reads and writes record no failure, a refused stale save included");
+	}
 	std::cout << "storage-diagnostics:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {
