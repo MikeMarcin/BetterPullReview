@@ -484,6 +484,41 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
     )
     set(BPR_AUTOMATED_TEST_ISOLATION_BACKEND "linux-network-namespace")
+    # [[BPR-2215]]. On Linux the installed Git cache refuses durable artifacts
+    # on a filesystem without inode generations, by design ([[BPR-2095]]), and
+    # Ubuntu 26.04 mounts /tmp as tmpfs. Every course that roots a data
+    # directory or a cache in the temporary directory then failed at its first
+    # pack. When the temporary directory configure sees lacks generations and
+    # /var/tmp has them, every isolated row gets TMPDIR=/var/tmp: the system's
+    # other shared, sticky temporary directory, on disk. A course that is about
+    # tmpfs (the cache contract's /dev/shm control) names its directory itself.
+    # Empty, as everywhere /tmp answers, changes nothing.
+    if(NOT DEFINED BPR_TEST_TEMPORARY_DIRECTORY)
+        find_package(Python3 3.10 COMPONENTS Interpreter QUIET)
+        set(bpr_temporary_directory "")
+        if(Python3_EXECUTABLE)
+            execute_process(
+                COMMAND
+                    "${Python3_EXECUTABLE}" -I
+                    "${PROJECT_SOURCE_DIR}/scripts/test_temporary_directory.py"
+                OUTPUT_VARIABLE bpr_temporary_directory
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE bpr_temporary_directory_result
+            )
+            if(NOT bpr_temporary_directory_result EQUAL 0)
+                set(bpr_temporary_directory "")
+            endif()
+        endif()
+        set(
+            BPR_TEST_TEMPORARY_DIRECTORY
+            "${bpr_temporary_directory}"
+            CACHE STRING
+            "TMPDIR for isolated Linux test rows when the system temporary directory lacks inode generations; empty leaves it"
+        )
+    endif()
+    if(BPR_TEST_TEMPORARY_DIRECTORY)
+        message(STATUS "Linux test rows use TMPDIR=${BPR_TEST_TEMPORARY_DIRECTORY}: the system temporary directory lacks inode generations")
+    endif()
 elseif(WIN32)
     include("${PROJECT_SOURCE_DIR}/cmake/WindowsTestIsolationSetup.cmake")
     set(
@@ -573,6 +608,13 @@ function(bpr_apply_automated_test_environment bpr_test_name)
         APPEND
         PROPERTY ENVIRONMENT_MODIFICATION "BPR_AUTOMATED_TEST_BOUNDARY=set:1"
     )
+    if(BPR_TEST_TEMPORARY_DIRECTORY)
+        set_property(
+            TEST "${bpr_test_name}"
+            APPEND
+            PROPERTY ENVIRONMENT_MODIFICATION "TMPDIR=set:${BPR_TEST_TEMPORARY_DIRECTORY}"
+        )
+    endif()
 
     set_property(
         TEST "${bpr_test_name}"
