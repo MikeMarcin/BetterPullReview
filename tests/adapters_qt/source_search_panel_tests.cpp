@@ -302,6 +302,18 @@ int main(int aArgc, char** aArgv)
 	const auto [left, right] = painted_wash(*tree, first, wash);
 	const auto advance       = QFontMetrics{ QFontDatabase::systemFont(QFontDatabase::FixedFont) }.horizontalAdvance(QStringLiteral("needle"));
 	std::cout << "PAINTED_WASH left=" << left << " right=" << right << " advance=" << advance << '\n';
+	if (left >= 0 && std::abs((right - left + 1) - (advance + 2)) > 3) {
+		// Which pixels read as the wash: the row's colours from the wash's
+		// left edge to its right, every eighth pixel.
+		const auto rect  = tree->visualRect(first);
+		const auto image = tree->viewport()->grab().toImage();
+		const auto y     = static_cast<int>(rect.center().y() * image.devicePixelRatio());
+		std::cout << "PAINTED_WASH_ROW wash=" << wash.name().toStdString() << " rect=" << rect.left() << ',' << rect.top() << ' ' << rect.width() << 'x' << rect.height() << " colours=";
+		for (auto x = left; x <= right; x += 8) {
+			std::cout << x << ':' << image.pixelColor(static_cast<int>(x * image.devicePixelRatio()), y).name().toStdString() << ' ';
+		}
+		std::cout << '\n';
+	}
 	expect(left >= 0 && std::abs((right - left + 1) - (advance + 2)) <= 3, "painted wash spans the match text");
 	// [[BPR-1504]]. On the selected row the match keeps the same amber rather than greying over the accent.
 	tree->setCurrentIndex(first);

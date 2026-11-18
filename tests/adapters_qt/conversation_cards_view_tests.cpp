@@ -1715,6 +1715,9 @@ namespace {
 		view.resize(260, 640);
 		QApplication::processEvents();
 		QApplication::processEvents();
+		std::cout << "narrow-draft-row: card=" << view.open_card()->width() << " single=" << singleButton->isVisible() << " more=" << more->isVisible() << " review=" << review->geometry().left() << ".." << review->geometry().right()
+				  << '@' << middle(review) << " hint=" << review->sizeHint().width() << " width=" << review->width() << " more_at=" << more->geometry().left() << ".." << more->geometry().right() << '@' << middle(more)
+				  << " trash@" << middle(trash) << '\n';
 		expect(!singleButton->isVisible() && more->isVisible() && std::abs(middle(more) - middle(review)) <= 1
 				   && std::abs(middle(trash) - middle(review)) <= 2 && more->geometry().left() - review->geometry().right() <= 1
 				   && review->width() >= review->sizeHint().width() && view.open_card()->rect().contains(more->geometry().translated(more->parentWidget()->mapTo(view.open_card(), QPoint{ }))),
