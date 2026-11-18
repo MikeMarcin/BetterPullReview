@@ -6,6 +6,6 @@ The PR compares `c8d078714e30667585ceffdf7f4c20d9131cd4a2` with `069cbf66992b253
 
 ## Film the report
 
-Run the test-enabled application with `--github-fixture promo-v1 --attended-launch --attended-open-file src/render/frame_pacer.cpp --attended-agent-look /absolute/path/to/this/codex`. Keep the executable beside `review.md`. Select the suggested **Review this pull request** prompt. Open the report attachment, choose **Draft comment** under the finding about the rounded target rate, then **Go to draft**. This takes you to line 40 of `tests/render/frame_pacer_tests.cpp`.
+Run the test-enabled application with `--github-fixture promo-v1 --attended-launch --attended-open-file src/app/game_loop.cpp --attended-agent-look /absolute/path/to/this/codex`. Keep the executable beside `review.md`. Select the suggested **Review this pull request** prompt and open the report attachment. Choose **Draft comment** under the finding about the rounded target rate. The app opens a local draft on line 40 of `tests/render/frame_pacer_tests.cpp`. Reopen the report and choose **Go to draft** to return to that comment.
 
 The local replay executable returns the recorded answer and token counts. It checks the PR, revisions and prompt before answering. Retakes use the fixture and the application's report and draft controls. Only the final message and usage are retained from the recording. The JSONL envelope uses a fixed session ID.
