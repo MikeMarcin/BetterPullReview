@@ -193,7 +193,7 @@ class ReleaseBuildTests(unittest.TestCase):
         build = Path(self.temporary.name) / "production-build"
         command = ["cmake", "-S", str(ROOT), "-B", str(build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
                    "-DBPR_BUILD_QT=OFF", "-DBUILD_TESTING=OFF", "-DBPR_ENABLE_CODING_TARGETS=OFF",
-                   "-DBPR_DEPENDENCY_OFFLINE=ON", "-DCPM_SOURCE_CACHE=" + str(ROOT / "build/.cpm-cache")]
+                   "-DBPR_DEPENDENCY_OFFLINE=ON", "-DCPM_SOURCE_CACHE=" + os.environ.get("BPR_TEST_CPM_SOURCE_CACHE", str(ROOT / "build/.cpm-cache"))]
         for attempt in ("cold", "warm"):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

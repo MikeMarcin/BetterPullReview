@@ -427,6 +427,9 @@ bpr_add_network_isolated_test(
     WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/native_release_tests.py"
 )
+# [[BPR-2215]]. The production configure it runs offline reads the build's
+# own dependency cache, which need not be the checkout's build/.cpm-cache.
+set_property(TEST native_release_contract APPEND PROPERTY ENVIRONMENT "BPR_TEST_CPM_SOURCE_CACHE=${CPM_SOURCE_CACHE}")
 
 # [[BPR-1020]]. Both audit contracts pass inside the Windows AppContainer (6 and
 # 9 tests, measured on the Windows station 2026-09-23), so they run contained on

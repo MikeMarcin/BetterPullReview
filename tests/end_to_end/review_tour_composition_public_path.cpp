@@ -871,7 +871,10 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-1894]]. The setup finished on the course's stub claude;
 			// it now goes from PATH, as a claude uninstalled after setup does,
 			// so the request below finds none.
-			std::filesystem::remove(claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string()));
+			// Renamed rather than deleted: Windows refuses to delete a program
+			// one of the setup's processes still runs, and a claude under
+			// another name is as gone from PATH as an uninstalled one.
+			std::filesystem::rename(claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string()), claudeSearch / "uninstalled-claude.bin");
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
 			editor.request_field_writing(core::writing_hook::problem);

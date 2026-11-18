@@ -53,7 +53,7 @@ def main() -> int:
         return 2
     output = Path(sys.argv[1])
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(construction(), indent="\t", sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(json.dumps(construction(), indent="\t", sort_keys=True) + "\n", encoding="utf-8", newline="")
     print("CONSTRUCTION_OK:1")
     return 0
 

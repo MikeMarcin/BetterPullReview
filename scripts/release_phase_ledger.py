@@ -207,7 +207,10 @@ def run(path: Path, phase: str, context: dict, command: list[str], log_dir: Path
             code = child.wait()
         else:
             directory = log_dir.resolve() / identity
-            directory.mkdir(parents=True, exist_ok=False, mode=0o700)
+            # On Windows a 0o700 mode stamps a protected owner-only descriptor
+            # that an AppContainer cannot enter (see contained_temporary_support);
+            # there the directory inherits its per-user parent's entries.
+            directory.mkdir(parents=True, exist_ok=False, **({} if os.name == "nt" else {"mode": 0o700}))
             logs = {name: str(directory / (name + ".log")) for name in ("stdout", "stderr")}
             # Drain both pipes concurrently. Keep raw bytes and normal human output;
             # never parse compiler-specific prose to decide success.

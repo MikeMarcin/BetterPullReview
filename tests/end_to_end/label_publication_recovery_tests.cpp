@@ -452,8 +452,14 @@ namespace {
 		review->click();
 		wait_for([&] { return editor->shown_draft() && core::pending_in_review(*editor->shown_draft()); }, "comment is held in the local review");
 		window.open_review_composition();
-		auto* summary = window.review_submission_editor_view();
-		wait_for([&] { return summary->shown_draft() && summary->shown_draft()->Comments.size() == 1 && summary->submit_action()->isEnabled(); }, "review carries the exact inline draft");
+		auto*      summary = window.review_submission_editor_view();
+		const auto carried = [&] { return summary->shown_draft() && summary->shown_draft()->Comments.size() == 1 && summary->submit_action()->isEnabled(); };
+		if (!wait_until(carried, 20000)) {
+			std::cerr << "label-publication-recovery: review summary shown=" << (summary->shown_draft() ? 1 : 0)
+					  << " comments=" << (summary->shown_draft() ? summary->shown_draft()->Comments.size() : 0U) << " submit=" << summary->submit_action()->isEnabled()
+					  << " submit_tip=" << summary->submit_action()->toolTip().toStdString() << " visible=" << summary->isVisible() << '\n';
+		}
+		expect(carried(), "review carries the exact inline draft");
 		{
 			const auto lock                   = std::scoped_lock{ composed.Server->Mutex };
 			composed.Server->RefuseNextReview = !aUnknown;

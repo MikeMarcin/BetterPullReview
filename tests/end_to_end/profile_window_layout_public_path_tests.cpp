@@ -291,6 +291,16 @@ auto main(int aArgc, char** aArgv) -> int
 		saved[2] = static_cast<std::uint64_t>(drag_files(*a, 370));
 		saved[3] = static_cast<std::uint64_t>(drag_files(*b, 430));
 		expect(saved[2] != saved[3], "windows have distinct chosen drawer widths");
+		// [[BPR-2180]] v004. Review opens on its preset (Files and Comments,
+		// Repositories as they were), and a layout restore that arrives after
+		// Review is entered opens no drawer over it. Each window therefore
+		// starts this check from Repositories the reviewer opened in it.
+		for (auto* const window : { a, b }) {
+			if (!window->repositories_drawer_toggle_action()->isChecked()) {
+				window->repositories_drawer_toggle_action()->trigger();
+			}
+			wait_for([window] { return window->repositories_drawer_toggle_action()->isChecked() && window->conversations_drawer_toggle_action()->isChecked(); }, "the window shows Repositories and Comments");
+		}
 		a->conversations_drawer_toggle_action()->trigger();
 		b->repositories_drawer_toggle_action()->trigger();
 		expect(!a->conversations_drawer_toggle_action()->isChecked() && b->conversations_drawer_toggle_action()->isChecked(), "drawer state remains independent");
@@ -375,7 +385,7 @@ auto main(int aArgc, char** aArgv) -> int
 		wait_for([&] { return b->overview_page()->status_drawer()->drawer().State == core::workbench_drawer_state::collapsed; },
 				 "B restores its collapsed Status drawer");
 		expect(!b->status_text().contains(layoutUnavailable), "a readable layout store reports no unavailable layout");
-		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
+		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B opens on Review's preset, Repositories as they were");
 		expect(b->conversations_drawer_toggle_action()->isChecked() && b->line_numbers_action()->isChecked(), "B preserves independent source and conversation state");
 		// [[BPR-1334]]. The profile's Line details choice survives the restart.
 		wait_for([&] { return !b->line_details_action()->isChecked() && !b->comparison_surface()->line_details_visible(); },
@@ -398,13 +408,18 @@ auto main(int aArgc, char** aArgv) -> int
 			wait_for([&] { return a->comparison_surface()->line_details_height() == std::optional{ static_cast<std::uint32_t>(saved[6]) }; },
 					 "A restores its own Line details height");
 			expect(!b->comparison_surface()->line_details_height().has_value(), "B never had A's Line details height");
-			wait_for([&] { return !a->line_numbers_action()->isChecked() && !a->conversations_drawer_toggle_action()->isChecked() && a->one_pane_action()->isChecked(); }, "immediate-Quit final layout restored");
+			// [[BPR-2180]] v004. Which drawers are open is Review's preset on
+			// the review's first entry (Files and Comments open, Repositories
+			// as they were): a restore that arrives after it opens none, and
+			// Overview, where a review opens, refuses to open any. The
+			// window's own choices that are not drawers come back.
+			wait_for([&] { return !a->line_numbers_action()->isChecked() && a->one_pane_action()->isChecked() && a->conversations_drawer_toggle_action()->isChecked(); }, "immediate-Quit final layout restored");
 			wait_for([&] { return a->home_view().Grouping == application::home_grouping::organization; },
 					 "A restores the grouping it chose",
 					 [&] { std::cerr << "a grouping=" << static_cast<unsigned>(a->home_view().Grouping) << '\n'; });
 			expect(!a->home_view().StateHeaders && a->home_view().Collapsed == 0U && !a->home_view().FilterOwned,
 				   "A copied neither B's collapse nor B's filter");
-			expect(a->repositories_drawer_toggle_action()->isChecked(), "A did not copy sibling repositories state");
+			expect(!a->repositories_drawer_toggle_action()->isChecked(), "A opens on Review's preset, Repositories as they were");
 			expect(static_cast<std::uint64_t>(a->files_drawer()->width()) == saved[2], "A restores chosen files width");
 			const auto artifact = qEnvironmentVariable("BPR_PROFILE_LAYOUT_ARTIFACT_ROOT");
 			if (!artifact.isEmpty()) {
@@ -427,7 +442,9 @@ auto main(int aArgc, char** aArgv) -> int
 					}
 					wait_for([&] { return fresh->showing_home(); }, "fresh window starts Home");
 					open_review(*owner, *fresh, 17, false);
-					expect(fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked() && !fresh->one_pane_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
+					// [[BPR-2180]] v004. Review's preset: Files and Comments
+					// open, Repositories as they were (closed), not A's open one.
+					expect(!fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked() && !fresh->one_pane_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
 					expect(!fresh->overview_page()->summary_fraction(), "new windows do not inherit a sibling summary preference");
 					// [[BPR-1334]]. Shown or hidden is the profile's; the height is the window's.
 					expect(!fresh->line_details_action()->isChecked() && !fresh->comparison_surface()->line_details_height().has_value(),

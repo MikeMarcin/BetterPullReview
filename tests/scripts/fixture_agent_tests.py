@@ -87,8 +87,10 @@ def check_steerable(claude: Path) -> None:
 
 def main() -> int:
     folder = Path(sys.argv[1])
-    claude = folder / "claude"
-    codex = folder / "codex"
+    # The build copies the agent as claude.exe and codex.exe on Windows.
+    suffix = ".exe" if sys.platform == "win32" else ""
+    claude = folder / f"claude{suffix}"
+    codex = folder / f"codex{suffix}"
     expect(claude.is_file() and codex.is_file(), "the fixture agent is built as claude and codex")
     expect("Claude Code" in run(claude, ["--version"], "").stdout, "claude --version")
     expect(json.loads(run(claude, ["auth", "status", "--json"], "").stdout)["loggedIn"], "claude auth status")
