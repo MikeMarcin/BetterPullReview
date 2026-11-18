@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2258"
 title: "Draft comment from a report stays on the report"
-status: "In progress"
+status: "In Progress"
 rfcs: ["RFC-BPR-0128"]
 depends_on: []
 metadata: {"mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2258--BPR-2258--c3a513113ed6.json","origin":"owner, 2026-11-18"}
