@@ -2927,6 +2927,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_chat_queues.cpp"
+        "src/github_application/window_commit_asks.cpp"
         "src/github_application/window_commit_filter.cpp"
         "src/github_application/window_composition.cpp"
         "src/github_application/window_composition.hpp"
@@ -3117,6 +3118,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_chat_queues.cpp"
+        "src/github_application/window_commit_asks.cpp"
         "src/github_application/window_commit_filter.cpp"
         "src/github_application/window_composition.cpp"
         "src/github_application/window_composition.hpp"
@@ -3845,8 +3847,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# What changed since my review. Also seals the lane's unsealed BPR-2245,
 	# BPR-2247, BPR-2248, BPR-2249 and BPR-2251 app changes. No review
 	# mutation or submission path changed.
+	# [[BPR-2250]], [[BPR-2241]] reseal: the Overview's mark asks the change
+	# since my review on the profile's EpochHistoryEffects
+	# (window_read_state.cpp, profile_runtime, window_construction), and a
+	# restored turn keeps its run's seconds (window_agent_setup.cpp,
+	# window_quick_ask.cpp). Also inventories and seals BPR-2248's
+	# window_commit_asks.cpp, missing from both source lists. No review
+	# mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "afd2a0f1b0d7a9861356ff7639e9e08d93a4d683fe87e84749237774b1b564ca"
+        "d91b79ab09f7128305276566b94f668a271e36fc604e5fffaa7d670a96305978"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

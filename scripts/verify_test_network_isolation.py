@@ -349,6 +349,18 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_ask_setup_review_public_path": "unmeasured (registered on macOS)",
     "application_prompt_macros_public_path": "unmeasured (registered on macOS)",
     "application_fixture_agent_guard_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2217]], [[BPR-2249]]. Seen in the review, on the Home oversized
+    # course's fixture desktop root.
+    "application_review_seen_public_path": "unmeasured (registered on macOS)",
+    "application_review_seen_stays_public_path": "unmeasured (registered on macOS)",
+    "application_review_seen_fails_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2189]], [[BPR-2219]], [[BPR-2248]], [[BPR-2216]], [[BPR-2221]].
+    # Registered on this lane without an entry, same private test roots.
+    "application_local_draft_check_desktop_public_path": "unmeasured (registered on macOS)",
+    "application_review_report_public_path": "unmeasured (registered on macOS)",
+    "application_commit_asks_public_path": "unmeasured (registered on macOS)",
+    "application_home_open_responsive_public_path": "unmeasured (registered on macOS)",
+    "application_prompt_facts_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
