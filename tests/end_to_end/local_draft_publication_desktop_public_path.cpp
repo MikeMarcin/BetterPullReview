@@ -1,3 +1,4 @@
+#include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
@@ -10,6 +11,7 @@
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
+#include "local_draft_open_diagnostic.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>
@@ -228,7 +230,7 @@ try {
 	window->resize(1280, 860);
 	window->show();
 	auto cycles = std::make_unique<app::review_cycle_desktop>(*window, profileRoot.path(), core::bpr_profile_id{ 1 }, lanes, lanes, app::review_cycle_syntax{ }, &lanes);
-	auto drafts = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, std::nullopt, lanes, lanes, app::local_draft_syntax{ }, &lanes);
+	auto drafts = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, bpr::tests::git_contract::windows_system_root(), lanes, lanes, app::local_draft_syntax{ }, &lanes);
 	auto github = std::make_shared<scripted_github>();
 	auto copied = std::string{ };
 	drafts->set_folder_chooser([&worktree] { return QString::fromStdString(worktree.string()); });
@@ -240,6 +242,9 @@ try {
 	window->home_prepare_button()->click();
 	settle(lanes);
 	auto* const page = window->local_draft();
+	if (page != nullptr && !page->projection().Draft) {
+		bpr::tests::end_to_end::print_local_draft_open(page->projection());
+	}
 	expect(page != nullptr && page->projection().Draft, "the worktree opens as a local draft");
 	expect(window->current_modality() == qt::review_modality::author, "[[BPR-2196]]: a local draft opens in Author");
 	// The tour goes with the pull request: one accepted stop on the pushed file.

@@ -25,6 +25,7 @@
 /// is a saved entry, so a tour turn runs on a kept native session.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/fixture_shell.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_pending_list.hpp"
@@ -47,7 +48,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
-#include <QProcess>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QWindow>
@@ -414,10 +414,9 @@ auto main(int argc, char** argv) -> int
 			std::cout << "tour-chat-queue-whole:steered:pass\n";
 		} else if (mode == "--local-draft") {
 			expect(argc > 3, "the worktree script is named");
-			const auto root   = std::filesystem::path{ data.path().toStdString() } / "worktree";
-			auto       script = QProcess{ };
-			script.start(QStringLiteral("/bin/sh"), { QString::fromLocal8Bit(argv[3]), QString::fromStdString(root.string()) });
-			expect(script.waitForFinished(60000) && script.exitCode() == 0, "the worktree is made: " + script.readAllStandardError().toStdString());
+			const auto root    = std::filesystem::path{ data.path().toStdString() } / "worktree";
+			const auto refused = bpr::tests::run_fixture_script(std::filesystem::path{ argv[3] }, root);
+			expect(!refused, "the worktree is made: " + refused.value_or(std::string{ }));
 			owner->open_local_draft((root / "engine").string());
 			wait([&] { return window->showing_local_draft() && window->local_draft()->projection().Draft.has_value(); }, "the local draft shows");
 			wait([&] { return window->local_draft()->projection().AgentAvailable; }, "the draft's agent is available");

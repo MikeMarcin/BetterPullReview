@@ -44,6 +44,15 @@
 	#include <unistd.h>
 #endif
 
+#if defined(__linux__)
+	#include <fcntl.h>
+	#include <linux/fs.h>
+	#include <sys/ioctl.h>
+
+	#include <iostream>
+	#include <utility>
+#endif
+
 namespace bpr::tests {
 	/// \brief How many random names a Windows directory tries before the test
 	/// fails.
@@ -178,6 +187,53 @@ namespace bpr::tests {
 		auto resolved = std::filesystem::canonical(pattern);
 		made.release();
 		return resolved;
+#endif
+	}
+
+#if defined(__linux__)
+	/// \brief Whether a file made in `aDirectory` answers the inode-generation
+	/// query the installed Git cache binds its persisted Linux artifacts to
+	/// ([[BPR-2095]]).
+	[[nodiscard]] inline auto answers_file_generation(const std::filesystem::path& aDirectory) -> bool
+	{
+		const auto probe      = aDirectory / "generation-probe";
+		const auto descriptor = ::open(probe.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+		expect(descriptor >= 0, "the scratch root's generation probe is made");
+		long       generation = 0;
+		const auto answered   = ::ioctl(descriptor, FS_IOC_GETVERSION, &generation) == 0;
+		static_cast<void>(::close(descriptor));
+		std::filesystem::remove(probe);
+		return answered;
+	}
+#endif
+
+	/// \brief A scratch directory for a course that keeps an installed Git
+	/// cache in it.
+	/// \details [[BPR-2215]]. On Linux the cache refuses durable artifacts on
+	/// a filesystem without inode generations, by design ([[BPR-2095]]), and
+	/// Ubuntu 26.04 mounts the temporary directory as tmpfs, so every such
+	/// course failed at its first pack there. When the temporary directory
+	/// lacks generations, the directory is made beside the running executable,
+	/// in the build tree, and the course says so once; a build tree without
+	/// them still fails the course visibly. Elsewhere this is
+	/// `make_scratch_directory`.
+	[[nodiscard]] inline auto make_git_cache_scratch_directory(const std::filesystem::path& aStem) -> std::filesystem::path
+	{
+		auto path = make_scratch_directory(aStem);
+#if defined(__linux__)
+		auto made = scratch_guard{ path };
+		if (answers_file_generation(path)) {
+			made.release();
+			return path;
+		}
+		static auto reported = false;
+		const auto  base     = std::filesystem::read_symlink("/proc/self/exe").parent_path();
+		if (!std::exchange(reported, true)) {
+			std::cout << "SCRATCH_WITHOUT_GENERATION: " << path.parent_path().string() << "; cache roots are made in " << base.string() << std::endl;
+		}
+		return make_scratch_directory(base / aStem.filename());
+#else
+		return path;
 #endif
 	}
 } // namespace bpr::tests

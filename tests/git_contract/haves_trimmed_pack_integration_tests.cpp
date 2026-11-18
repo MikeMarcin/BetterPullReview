@@ -202,7 +202,7 @@ namespace {
 		{
 			// [[BPR-1128]], [[BPR-1138]]. Made at a name nothing had, owner-private from creation,
 			// and owned from then, so a failure below removes it.
-			Path      = bpr::tests::make_scratch_directory(std::string{ "bpr-haves-" } + std::string{ aLabel });
+			Path      = bpr::tests::make_git_cache_scratch_directory(std::string{ "bpr-haves-" } + std::string{ aLabel });
 			auto made = bpr::tests::scratch_guard{ Path };
 			for (const auto* child : { "git", "catalog", "server", "home", "xdg" }) {
 				std::filesystem::create_directories(Path / child);

@@ -340,60 +340,13 @@ namespace {
 		bpr::tests::expect(aCondition, aMessage);
 	}
 
-#if defined(Q_OS_LINUX)
-	/// \brief Whether a file made in `aDirectory` answers the inode-generation
-	/// query the cache binds its persisted Linux artifacts to ([[BPR-2095]]).
-	[[nodiscard]] auto answers_file_generation(const std::filesystem::path& aDirectory) -> bool
-	{
-		const auto probe = aDirectory / "generation-probe";
-		{
-			auto output = std::ofstream{ probe, std::ios::binary };
-			require(static_cast<bool>(output << "probe"), "write the scratch root's generation probe");
-		}
-		const auto descriptor = git_adapter::detail::open_observed_file(probe);
-		require(descriptor >= 0, "open the scratch root's generation probe");
-		const auto generation = git_adapter::detail::file_generation(descriptor);
-		static_cast<void>(::close(descriptor));
-		std::filesystem::remove(probe);
-		return generation.has_value();
-	}
-#endif
-
-	/// \brief Where a cache root is made: the system temporary directory.
-	/// \details [[BPR-2215]]. On Linux the cache refuses durable artifacts on a
-	/// filesystem without inode generations, by design ([[BPR-2095]],
-	/// `verify_unavailable_artifact_generation` proves that refusal on
-	/// `/dev/shm`). Ubuntu 26.04 mounts `/tmp` as tmpfs, so there every course
-	/// below failed at its first pack sink. The ordinary courses then make
-	/// their roots beside the test executable in the build tree instead, and
-	/// say so; a build tree without generations still fails them visibly.
-	[[nodiscard]] auto make_cache_scratch_directory() -> std::filesystem::path
-	{
-		auto path = bpr::tests::make_scratch_directory("bpr-git-cache");
-#if defined(Q_OS_LINUX)
-		auto made = bpr::tests::scratch_guard{ path };
-		if (answers_file_generation(path)) {
-			made.release();
-			return path;
-		}
-		static auto reported = false;
-		const auto  base     = std::filesystem::path{ QCoreApplication::applicationDirPath().toStdString() };
-		if (!std::exchange(reported, true)) {
-			std::cout << "SCRATCH_WITHOUT_GENERATION: " << path.parent_path().string() << "; cache roots are made in " << base.string() << '\n';
-		}
-		return bpr::tests::make_scratch_directory(base / "bpr-git-cache");
-#else
-		return path;
-#endif
-	}
-
 	class temporary_root final
 	{
 	public:
 		temporary_root()
 		{
 			// [[BPR-1128]], [[BPR-1138]]. Made at a name nothing had, owner-private from creation.
-			Path = make_cache_scratch_directory();
+			Path = bpr::tests::make_git_cache_scratch_directory("bpr-git-cache");
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(

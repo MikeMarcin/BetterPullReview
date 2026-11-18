@@ -77,3 +77,52 @@ it. The Windows producer checkout (`D:\BetterPullReview-release-v050-r1\source`)
 and the Ubuntu guest checkout were moved to `018a9c954` and rebuilt there.
 Evidence, receipts and dispatch scripts are under the external state's
 `windows-preflight-fix-r1/`.
+
+## Windows course failures, the diff-host stop budget and Linux tmpfs (2026-11-17)
+
+On the lane with main merged (`f8df1e84d`):
+
+- **The twelve native Windows failures** now pass, in the station's
+  Interactive Limited context, in Release and in Debug, at `4adadc53c`. Their
+  causes and fixes are listed in
+  [the measurement record](../../verification/release-v050-windows-containment.md).
+  Two were product defects, both confirmed on macOS with the author's Git made
+  unavailable as it is on Windows: in Author, This update showed an empty
+  viewer while it had no file of its own; and `local_draft_desktop` left the
+  search panel's destroyed handler pointing at a deleted controller, an access
+  violation when the window outlived it. The author-state course ends at Check
+  Again on Windows, where the author's Git is refused as unavailable.
+  `application_home_next_move_public_path` failed on every platform: it never
+  left the account setup's Ready step.
+- **`application_diff_host`'s 12.56 ms.** The BPR-1366 stop returned in
+  4.03–6.41 ms (median 4.78) over 30 runs alone and 4.51–6.75 ms (median 5.03)
+  over 12 runs of the nine preflight rows at `-j4`, in Release on the station;
+  the BPR-1485 matcher stop stayed under 0.3 ms. No run reached 10 ms, so the
+  12.56 ms is kept as a single load outlier; the latencies are in the external
+  state's `windows-preflight-fix-r1/diff-host-latencies-t1.txt`.
+- **Ubuntu 26.04 tmpfs.** The full Linux Release suite failed the epoch and
+  trimmed-pack Git courses and every large-review course at the Git load:
+  `/tmp` is tmpfs and the cache refuses it by design (BPR-2095). The shared
+  helpers root Git-cache courses beside their executable when the temporary
+  directory lacks inode generations, and configure gives every isolated
+  Linux row `TMPDIR=/var/tmp` where `/tmp` lacks them and `/var/tmp` has them.
+  The Git courses then pass and the large-review courses load in about a
+  second. The rows that still fail on that host fail the same way with the
+  override off, so tmpfs is not their cause.
+
+| Candidate, platform, config | Rows | Result |
+| --- | --- | --- |
+| `4adadc53c` Windows Release | the twelve, `local_changes`, the manifest | 14 passed |
+| `4adadc53c` Windows Debug | the same | 14 passed |
+| `d8768775b` Windows Release risk preflight | 9 | 9 passed |
+| `d8768775b` Windows Debug risk preflight | 9 | 9 passed |
+| `2d8b2a9d8` Ubuntu Release, full suite | 1062 | 1021 passed, 41 failed; none on tmpfs |
+
+Also fixed on the way, each failing on macOS as well as Ubuntu:
+`coding_format_check` (an unformatted `github_window_read_host.cpp` on main),
+`contained_temporary_usage_contract` (three opt-in scripts calling `tempfile`)
+and `coding_standard_format_gate_contract` (CMake line wrapping, exposed by
+the longer `/var/tmp` paths). Still failing at main on macOS and Ubuntu, not
+addressed here: `application_composition_source_contract`,
+`freeze_attended_build_contract`, `github_contract_fixture_security` and
+`qualification_case_inventory_contract`.

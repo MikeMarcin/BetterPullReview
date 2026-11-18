@@ -210,6 +210,40 @@ def _remove_tree(path) -> None:
     shutil.rmtree(path, **rmtree_callback_arguments(_retry_removal))
 
 
+def git_cache_parent(fallback: str | os.PathLike[str]) -> Path | None:
+    """[[BPR-2215]] Where a course that keeps an installed Git cache roots it.
+
+    On Linux the cache refuses durable artifacts on a filesystem without inode
+    generations, by design (BPR-2095), and Ubuntu 26.04 mounts the temporary
+    directory as tmpfs. There this returns `fallback` (the build tree, beside
+    the course's executable) and says so once on standard output; anywhere the
+    temporary directory answers `FS_IOC_GETVERSION`, it returns `None`, the
+    system temporary directory, as before.
+    """
+    if not sys.platform.startswith("linux"):
+        return None
+    import errno
+    import fcntl
+
+    probe_root = Path(tempfile.mkdtemp(prefix="bpr-generation-probe-"))
+    try:
+        descriptor = os.open(probe_root / "probe", os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            # FS_IOC_GETVERSION, _IOR('v', 1, long) on LP64 Linux.
+            fcntl.ioctl(descriptor, 0x80087601, b"\0" * 8)
+            return None
+        except OSError as error:
+            if error.errno not in (errno.ENOTTY, errno.EOPNOTSUPP, errno.EINVAL):
+                raise
+        finally:
+            os.close(descriptor)
+    finally:
+        shutil.rmtree(probe_root)
+    parent = Path(fallback)
+    print(f"SCRATCH_WITHOUT_GENERATION: {tempfile.gettempdir()}; cache roots are made in {parent}", flush=True)
+    return parent
+
+
 @contextlib.contextmanager
 def contained_temporary_directory(
     *,

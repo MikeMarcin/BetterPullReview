@@ -44,9 +44,11 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 REPOSITORY = "MikeMarcin/BPR-Test"
 TEST_ACCOUNT = "MikeMarcinTest"
@@ -113,7 +115,7 @@ def main() -> int:
     arguments = parser.parse_args()
     MINIMUM[0] = arguments.minimum_rate
     if arguments.root is None:
-        root = Path(tempfile.mkdtemp(prefix="live-session-")).resolve()
+        root = make_contained_temporary_directory(prefix="live-session-").resolve()
     else:
         root = arguments.root.resolve()
         root.mkdir(mode=0o700)  # refuses a root that is already there

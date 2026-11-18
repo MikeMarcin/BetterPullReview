@@ -89,19 +89,34 @@ the row failed its pass expression directly as well as contained. It now
 prints `local-changes:skipped (the course runs on POSIX only)` on Windows and
 is registered contained; it runs no Windows coverage either way.
 
-Twelve direct baselines failed natively, independent of containment, and
-remain open Windows functional failures for the release:
-`local_draft_publication` (AC01 push naming),
-`application_agent_chat_setup_list_contract` (`setup-list-second`),
-`application_home_next_move_public_path` (Home lists every discovered pull
-request), `application_local_comments_composition_public_path`, the five
-local-draft desktop courses (`application_local_draft_desktop_public_path`,
-`_author_`, `_tour_`, `_publication_`, `_check_`),
-`application_ask_report_public_path`, `application_ask_queue_public_path` and
-`application_tour_chat_queue_local_draft_public_path`. Their contained
-refusals occur before the direct failure point, except
-`application_local_draft_author_desktop_public_path`, which fails directly at
-the same predicate; its pin establishes no containment-specific refusal.
+Twelve direct baselines failed natively, independent of containment. Each
+was then fixed at its owner and passes directly in Release and Debug on the
+station (the follow-up section of BPR-2215 has the native table):
+
+- Six local-draft desktop courses built `local_draft_desktop` with no Windows
+  system root, which the installed-Git adapter needs on Windows; the
+  application passes one. The courses now pass the same root the Git
+  contracts do.
+- `local_draft_publication` expected the push's checkout unquoted; the core
+  writes it as a POSIX shell word, so a Windows path is quoted.
+- `application_local_draft_author_desktop_public_path` and
+  `application_tour_chat_queue_local_draft_public_path` ran `/bin/sh`; they run
+  their fixture with Git for Windows' `sh.exe`. The author's Git itself runs
+  on POSIX only, so the author course ends at Check Again on Windows.
+- In Author, This update showed nothing while it had no file of its own, as on
+  Windows always; the viewer now shows the draft's proposed diff.
+- `local_draft_desktop` left the search panel's destroyed handler connected
+  past its own lifetime: an access violation when the window outlived it.
+- `application_agent_chat_setup_list_contract` expected POSIX separators.
+- `application_ask_report_public_path`: the report row asked one pixel more
+  than its layout gave it; it now answers what its layout does.
+- `application_ask_queue_public_path` paused the queue before What changed
+  ran when the fixture agent started later; it waits for the run.
+- `application_home_next_move_public_path` never left the account setup's
+  Ready step; it failed on every platform and now signs in as the other
+  courses do.
+- `application_local_comments_composition_public_path` passed in every later
+  native run without a change.
 
 The external record is
 `/Users/jaeger/.codex/release-runs/v0.5.0-20261116/windows-preflight-fix-r1/`.

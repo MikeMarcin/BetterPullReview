@@ -69,6 +69,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -728,8 +729,10 @@ namespace {
 		programs->add_agent(std::nullopt);
 		auto added = wait_terms{ };
 		if (!wait_until_reporting(added, [&](wait_terms& aTerms) {
+				// The setup names a program in the platform's own separators
+				// ([[BPR-2215]]: Windows shows \opt\spare\bin\claude-wrapper).
 				return aTerms.require("spare-in-settings", listed(QStringLiteral("Spare agent")) >= 0)
-					&& aTerms.require("spare-in-setup", shows(QStringLiteral("Spare agent")) && shows(QStringLiteral("/opt/spare/bin/claude-wrapper")))
+					&& aTerms.require("spare-in-setup", shows(QStringLiteral("Spare agent")) && shows(QDir::toNativeSeparators(QStringLiteral("/opt/spare/bin/claude-wrapper"))))
 					&& aTerms.require("step-kept", setup->open_step() == core::setup_step::agent);
 			})) {
 			return fail(aApplication, "setup-list-second", added.render());

@@ -293,6 +293,9 @@ namespace bpr::qt {
 				words->addWidget(Title);
 				words->addWidget(Meta);
 				row->addLayout(words, 1);
+				// [[BPR-2215]]. The page icon's height, so the layout that
+				// places the row never gives it less than the icon needs.
+				row->addStrut(30);
 			}
 
 			[[nodiscard]] auto title() const noexcept -> QLabel* { return Title; }
@@ -311,12 +314,11 @@ namespace bpr::qt {
 
 			/// The title's lines at `aWidth` (two at most), its second line and
 			/// the padding; never less than the page icon needs.
-			[[nodiscard]] auto heightForWidth(const int aWidth) const -> int override
-			{
-				const auto words = std::max(40, aWidth - (8 + 24 + 10) - (8 + 16));
-				const auto title = std::min(Title->heightForWidth(words), 2 * Title->fontMetrics().lineSpacing());
-				return std::max(30 + 14, 7 + title + 1 + Meta->sizeHint().height() + 7);
-			}
+			/// \details [[BPR-2215]]. A parent layout asks the row's own layout,
+			/// not this, for the height at a width, so this answers what that
+			/// layout does: on Windows a separate sum here asked one pixel
+			/// more than the row was given (44 against 43).
+			[[nodiscard]] auto heightForWidth(const int aWidth) const -> int override { return layout()->totalHeightForWidth(aWidth); }
 
 			[[nodiscard]] auto sizeHint() const -> QSize override { return { 200, heightForWidth(width() > 0 ? width() : 320) }; }
 

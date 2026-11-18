@@ -1,7 +1,10 @@
+#include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
+#include "../support/fixture_shell.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/author_git_port.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -137,7 +140,7 @@ namespace {
 			Window->resize(1280, 800);
 			Window->show();
 			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
-			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, app::local_draft_syntax{ .Definitions = &Definitions, .Effects = &Lanes }, &Lanes);
+			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, bpr::tests::git_contract::windows_system_root(), Lanes, Lanes, app::local_draft_syntax{ .Definitions = &Definitions, .Effects = &Lanes }, &Lanes);
 			// The platform's scheme, as the application observes it, on the window and the panes.
 			const auto scheme     = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? core::os_color_scheme::dark : core::os_color_scheme::light;
 			auto       appearance = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = scheme } };
@@ -181,8 +184,8 @@ try {
 	auto       profileRoot   = tests::sqlite_contract::scratch_root{ "local-draft-author-profile" };
 	auto       scratchRoot   = tests::sqlite_contract::scratch_root{ "local-draft-author-worktrees" };
 	const auto scratch       = std::filesystem::canonical(scratchRoot.path());
-	const auto made          = std::system(("/bin/sh '" + script.string() + "' '" + scratch.string() + "'").c_str());
-	expect(made == 0, "the author-state fixture is made");
+	const auto refused       = bpr::tests::run_fixture_script(script, scratch);
+	expect(!refused, "the author-state fixture is made: " + refused.value_or(std::string{ }));
 	const auto worktree = scratch / "engine";
 	const auto hosted   = scratch / "hosted.git";
 
@@ -244,6 +247,16 @@ try {
 	// Check Again reads the hosted branch through the author's Git.
 	changes->push_button()->click();
 	settle(s.Lanes);
+#if defined(_WIN32)
+	// [[BPR-2215]]. The author's Git runs on POSIX only
+	// (installed_author_git.cpp refuses `unavailable` elsewhere), so on
+	// Windows Check Again says so and nothing below can run. What is above
+	// ran; the rest of the course is POSIX's.
+	expect(page->local_projection().Failure && page->local_projection().Failure->Failure == application::author_git_failure::unavailable && !page->local_projection().Hosted.Observed,
+		   "on Windows the author's Git is refused as unavailable, not run");
+	std::cout << "local-draft-author-desktop-public-path:skipped (the author's Git runs on POSIX only; the course ran up to Check Again)\n";
+	return EXIT_SUCCESS;
+#else
 	expect(page->local_projection().Hosted.Observed && page->local_projection().Hosted.Ahead == 2U && changes->push_state()->text() == QStringLiteral("2 ahead of GitHub"),
 		   "2 ahead of GitHub");
 	expect(page->branch_button()->text().contains(QStringLiteral("fix/port-parsing")) && page->branch_button()->text().contains(QStringLiteral("↑2")), "the branch says it is 2 ahead");
@@ -395,6 +408,7 @@ try {
 	capture(window, QStringLiteral("home-1"));
 	std::cout << "local-draft-author-desktop-public-path:pass\n";
 	return EXIT_SUCCESS;
+#endif
 } catch (const std::exception& aError) {
 	std::cerr << "local-draft-author-desktop-public-path:fail " << aError.what() << '\n';
 	return EXIT_FAILURE;

@@ -494,6 +494,10 @@ auto main(int argc, char** argv) -> int
 			const auto settledTurns = tab->turn_count();
 			ask->refresh_menu();
 			row(*ask->menu(), QStringLiteral("agent-tab.what-changed"), QStringLiteral("pull-request"))->trigger();
+			// [[BPR-2215]]. What changed runs before the next is queued and the
+			// queue paused: on Windows the fixture agent starts later, and a
+			// pause that came first held What changed itself.
+			wait([&] { return tab->state() == qt::agent_tab_state::working; }, "What changed runs");
 			ask->refresh_menu();
 			row(*ask->menu(), QStringLiteral("agent-tab.explain-file"), QStringLiteral("file"))->trigger();
 			QApplication::processEvents();
@@ -511,12 +515,17 @@ auto main(int argc, char** argv) -> int
 			typeAndReturn(QStringLiteral("First follow-up"));
 			typeAndReturn(QStringLiteral("Second follow-up"));
 			expect(composer->toPlainText().isEmpty() && rowsOf().contains(QStringLiteral("First follow-up")) && rowsOf().contains(QStringLiteral("Second follow-up")),
-				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString());
+				   "typed messages are queued, the field cleared: " + rowsOf().join(QLatin1Char('|')).toStdString() + " composer: [" + composer->toPlainText().toStdString() + "] status: ["
+					   + window.agent_panel()->status_text().toStdString() + "] last refusal: [" + window.agent_panel()->last_refusal().toStdString() + "]");
 			typeAndReturn(QStringLiteral("Third, steered"), Qt::ControlModifier);
 			// [[BPR-2153]]: no turn runs, so there is nothing to steer; the
 			// message is kept, goes next, and the panel says why (Q17).
 			// [[BPR-2152]]: said once its claim is stored.
-			wait([&] { return window.agent_panel()->status_text().contains(QStringLiteral("goes next")); }, "the panel says what became of the steered message");
+			if (!e2e::wait_until_plain([&] { return window.agent_panel()->status_text().contains(QStringLiteral("goes next")); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "the panel says what became of the steered message: [" + window.agent_panel()->status_text().toStdString() + "] last refusal: ["
+										  + window.agent_panel()->last_refusal().toStdString() + "] queued: "
+										  + rowsOf().join(QLatin1Char('|')).toStdString() };
+			}
 			expect(rowsOf().contains(QStringLiteral("Third, steered")) && window.agent_panel()->status_text().contains(QStringLiteral("goes next")),
 				   "Cmd+Return asks to steer; with no steering it is queued and says so (Q17): " + window.agent_panel()->status_text().toStdString());
 			render_showing(window, *list(), QStringLiteral("queue-pending-list"));

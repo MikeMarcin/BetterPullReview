@@ -1,3 +1,4 @@
+#include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
@@ -9,6 +10,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
+#include "local_draft_open_diagnostic.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>
@@ -156,7 +158,7 @@ namespace {
 			Window->resize(1280, 800);
 			Window->show();
 			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
-			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
+			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, bpr::tests::git_contract::windows_system_root(), Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			Drafts->view()->set_discard_question([] { return true; });
 			settle(Lanes);
@@ -212,6 +214,9 @@ try {
 		auto* const page = window.local_draft();
 		expect(window.showing_local_draft() && page != nullptr && window.comparison_surface()->isVisible(), "AC01: the draft is shown in the pull request window's own review surface");
 		const auto& view = page->projection();
+		if (!view.Draft || view.Outcome != application::local_draft_open_outcome::created) {
+			bpr::tests::end_to_end::print_local_draft_open(view);
+		}
 		expect(view.Draft && view.Outcome == application::local_draft_open_outcome::created, "AC01: a new local draft");
 		draftId = view.Draft->Id;
 		expect(page->identity()->text() == QStringLiteral("feature/search-results into acme/engine main"), "AC01: source and target identity");

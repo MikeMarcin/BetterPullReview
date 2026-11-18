@@ -14,6 +14,7 @@
 #include "bpr/qt/local_draft_parts.hpp"
 
 #include <QFont>
+#include <QMetaObject>
 #include <QPointer>
 #include <QString>
 
@@ -296,8 +297,12 @@ namespace bpr::app {
 		std::unique_ptr<local_draft_corpus>                                  SearchCorpus;
 		std::unique_ptr<worker_executor>                                     SearchLane;
 		std::unique_ptr<pr_search_controller>                                Find;
-		bool                                                                 BringForward = false;
-		bool                                                                 Closing      = false;
+		/// [[BPR-2215]]. The panel's destroyed signal to Find, cut when the
+		/// desktop goes first, so a window outliving the desktop does not call
+		/// into a deleted controller.
+		QMetaObject::Connection FindPanelGone;
+		bool                    BringForward = false;
+		bool                    Closing      = false;
 	};
 }
 

@@ -10,7 +10,9 @@
 # Usage: make_author_worktree.sh ROOT.
 set -eu
 mkdir -p "$1"
-root=$(cd "$1" && pwd)
+# Git for Windows' sh names the folder /c/...; its native Git needs C:/... in
+# the insteadOf below, which `pwd -W` gives there and other shells refuse.
+root=$(cd "$1" && { pwd -W 2>/dev/null || pwd; })
 g() { git -c user.name="BPR fixture" -c user.email=fixture@example.invalid -c init.defaultBranch=main -c core.hooksPath=/nonexistent -c commit.gpgsign=false "$@"; }
 mkdir -p "$root/seed"
 cd "$root/seed"

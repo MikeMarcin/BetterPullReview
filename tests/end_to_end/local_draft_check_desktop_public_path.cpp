@@ -1,3 +1,4 @@
+#include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
@@ -12,6 +13,7 @@
 #include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
+#include "local_draft_open_diagnostic.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QApplication>
@@ -184,7 +186,7 @@ namespace {
 			Window->resize(1280, 860);
 			Window->show();
 			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
-			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, std::nullopt, Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
+			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, bpr::tests::git_contract::windows_system_root(), Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			Drafts->set_agent(
 				[this, aAgent](const application::local_draft_agent_run& aRun, const std::stop_token aStop) {
@@ -314,6 +316,9 @@ try {
 		window.home_prepare_button()->click();
 		settle(s.Lanes);
 		auto* const page = window.local_draft();
+		if (page != nullptr && !page->projection().Draft) {
+			bpr::tests::end_to_end::print_local_draft_open(page->projection());
+		}
 		expect(page != nullptr && page->projection().Draft, "a local draft, signed out");
 		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		settle(s.Lanes);
