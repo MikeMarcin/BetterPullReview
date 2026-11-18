@@ -1744,6 +1744,19 @@ gets past the init check; hooks are off while this app's `--settings` holds),
 and their permission rules, which can widen what a read-only run is approved
 to run as a wrapper's can (below).
 
+**A custom agent keeps its own settings ([[BPR-2259]], owner, 2026-11-18).**
+Claude keeps only the last `--settings` it is given. A custom agent's own
+settings come first, in its saved arguments or from a wrapper that puts its
+own before the arguments it passes on, so this app's `--settings` replaced
+them, and with them the sign-in they carried: Enhance failed with a 401 on
+a comment the same agent had just drafted in the Agent tab. A launch through
+a custom Claude agent (`agent_entry_process`) therefore drops this app's
+`--settings` pair, as its Agent tab runs never had it; Claude Code added as
+itself keeps it. Hooks, plugins and auto-memory are then the custom agent's
+own, as they already were for a wrapper whose settings replace this app's;
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` still holds memory off, and the init
+check still refuses any tool or MCP server.
+
 The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is

@@ -1101,6 +1101,7 @@ namespace bpr::app {
 		[[nodiscard]] auto writing_agent() const -> std::optional<core::agent_profile_id>;
 
 		[[nodiscard]] auto agent_display_name(const core::agent_profile_id aProfile) const -> QString;
+		[[nodiscard]] auto sign_in_failure_words(core::agent_profile_id aProfile, const QString& aThen) const -> QString;
 		[[nodiscard]] auto writes_tool_free(const core::agent_profile_id aProfile) const -> bool;
 
 		auto writing_target(core::writing_hook aHook, const qt::prose_capture& aCapture) const -> std::optional<core::writing_target>;

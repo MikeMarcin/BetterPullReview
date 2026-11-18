@@ -735,6 +735,14 @@ namespace bpr::app {
 		return row >= 0 ? menu->itemText(row) : QStringLiteral("The agent");
 	}
 
+	/// \brief [[BPR-2259]]. What a writing run that ended on a failed sign-in
+	/// says: the agent that ran, by its name in the agent menus, and never a
+	/// stock CLI's sign-in command (a custom agent signs in its own way).
+	auto github_application::implementation::sign_in_failure_words(const core::agent_profile_id aProfile, const QString& aThen) const -> QString
+	{
+		return QStringLiteral("%1 isn't signed in, or its wrapper couldn't get a sign-in token. Sign it in again in a terminal, then %2. Your text is unchanged.").arg(agent_display_name(aProfile), aThen);
+	}
+
 	/// Whether a profile may run tool-free writing: Claude's stream JSON.
 	auto github_application::implementation::writes_tool_free(const core::agent_profile_id aProfile) const -> bool
 	{
@@ -2712,7 +2720,8 @@ namespace bpr::app {
 								   result ? QStringLiteral("The pull request changed while Enhance ran. Your text is unchanged; Enhance again.")
 										  : QStringLiteral("The agent's answer could not be used. Your text is unchanged."));
 			} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
-				answer_enhancement(id, std::nullopt, QStringLiteral("Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged."));
+				// [[BPR-2259]]. The agent that ran, never a CLI it didn't run.
+				answer_enhancement(id, std::nullopt, sign_in_failure_words(operation.Request.Target.Agent, QStringLiteral("Enhance again")));
 			} else {
 #if defined(BPR_AGENT_INTEGRATIONS)
 				answer_enhancement(id, std::nullopt, qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(operation.Request.Target.Agent)) + QStringLiteral(" Your text is unchanged."));
@@ -2727,8 +2736,9 @@ namespace bpr::app {
 		} else if (aResult.Outcome == application::agent_run_outcome::success) {
 			message = "Assistance returned an invalid, unsupported or stale result. Your text is unchanged.";
 		} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
-			// [[BPR-1375]]. Writing runs only Claude, on its own sign-in.
-			message = "Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged.";
+			// [[BPR-1375]], [[BPR-2259]]. Writing runs the chosen agent, on its
+			// own sign-in, and says so by that agent's name.
+			message = sign_in_failure_words(operation.Request.Target.Agent, QStringLiteral("try again")).toStdString();
 		}
 		WritingState.cancel();
 		if (operation.Test) {
