@@ -253,3 +253,30 @@ large-review rows. Values are the largest gap in ms over the gated courses;
 
 Windows' `PlatformKnownInputMisses` is now empty, as Linux's and macOS's are.
 The resource courses stay ungated.
+
+## Linux startup and close on a disk-backed data root — [[BPR-2215]], 2026-11-18
+
+Since [[BPR-2095]] the installed Git cache refuses a filesystem without inode
+generations, so isolated Linux rows set `TMPDIR=/var/tmp` where `/tmp` is
+tmpfs, and the large-review course's data root moved from tmpfs to disk. On
+the WSL2 i9 station an fsync costs about 0.002 ms on `/tmp` (tmpfs) and about
+2.5 ms on `/var/tmp` (the ext4 VHD). Run directly, the launch course's Home
+render took 323 and 327 ms with its data root on `/tmp`, and 722 and 671 ms on
+`/var/tmp`. The owner chose to measure the budgets again on disk (option (a),
+2026-11-18).
+
+Ten runs each of `application_large_review_responsiveness`,
+`_launch` and `_active_work` on the idle WSL2 i9 (Qt 6.12, GCC 15.2 Release at
+`744b0e7fb`, `-j8` build, its own tree):
+
+| Measure | Observed | Linux limit |
+| --- | --- | --- |
+| Composition startup and Home's first render | 630–1225 ms warm; one cold first run 2306 ms | **1500** (the worst warm plus 22%), was 1000 |
+| Active close to quiescence | 62.1–130.2 ms | **160** (the worst plus 23%), was 100 |
+
+macOS and Windows keep 1000 ms for startup and their close limits. The 100 ms
+input target is unchanged: `paged_review_and_git_load` exceeded it in 9 of the
+30 runs (104.1–134.4 ms) with the data root on disk, and that is recorded as a
+miss to fix, not a limit to move. The run logs are in the PC's WSL2
+`~/bpr-v050-timing-r1-logs/measure/` and copied to the BPR-2215 external
+record.

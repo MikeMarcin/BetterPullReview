@@ -108,6 +108,7 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t    PlatformCacheByteFootprintGrowthLimitBytes = 184U * MiB;
 	inline constexpr std::uint64_t    PlatformCacheByteHeapGrowthLimitBytes      = PlatformCacheByteFootprintGrowthLimitBytes;
 	inline constexpr double           PlatformActiveCloseQuiescenceLimitMs       = 100.0;
+	inline constexpr double           PlatformStartupRenderLimitMs               = 1'000.0;
 	// [[BPR-1264]]. approximate_file_selection (96.3-111.1, the work-limited
 	// approximate alignment course) was the publication that replaced both
 	// panes' text in one GUI turn. Filled over bounded turns it measures
@@ -124,6 +125,7 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t PlatformCacheByteHeapGrowthLimitBytes      = PlatformCacheByteFootprintGrowthLimitBytes;
 	// Public close reached quiescence in 98.854 ms: 150.
 	inline constexpr double PlatformActiveCloseQuiescenceLimitMs = 150.0;
+	inline constexpr double PlatformStartupRenderLimitMs         = 1'000.0;
 	// [[BPR-1264]]. large_file_selection, large_source_revisit_render,
 	// approximate_file_selection and first_tab_file were the publication that
 	// replaced both panes' text in one GUI turn: 94.5-191.3 without the bounded
@@ -139,14 +141,23 @@ namespace bpr::e2e::large_review {
 	inline constexpr int RunBudgetScale = OptimizedBuild ? 1 : 3;
 #else
 	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;
-	inline constexpr std::string_view PlatformLimitBasis      = "Linux x64 (WSL2) i9-10900KF, Qt 6.11.2, GCC 15.2 -O3 Release at e257b236a; cache-byte RSS: Qt 6.12 Release at f25a65274, BPR-1653 owner amendment";
+	inline constexpr std::string_view PlatformLimitBasis      = "Linux x64 (WSL2) i9-10900KF, Qt 6.11.2, GCC 15.2 -O3 Release at e257b236a; cache-byte RSS: Qt 6.12 Release at f25a65274, BPR-1653 owner amendment; startup and close with the data root on disk (ext4): Qt 6.12, GCC 15.2 Release at 744b0e7fb, BPR-2215 owner option (a)";
 	// Resident-set growth: 147.04 MiB in loaded-close gives 168.
 	// [[BPR-1653]]. The owner authorizes a 240 MiB cache-byte RSS budget;
 	// its independent sampled live-heap ceiling retains the original 216 MiB.
 	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 168U * MiB;
 	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 240U * MiB;
 	inline constexpr std::uint64_t PlatformCacheByteHeapGrowthLimitBytes      = 216U * MiB;
-	inline constexpr double        PlatformActiveCloseQuiescenceLimitMs       = 100.0;
+	// [[BPR-2215]], owner option (a), 2026-11-18. The e257b236a basis had the
+	// course's data root on tmpfs; since BPR-2095 the Git cache needs a
+	// filesystem with inode generations, so it is on disk (ext4, fsync about
+	// 2.5 ms on the WSL2 VHD against 0.002 ms on tmpfs). Ten runs of each
+	// course on the idle WSL2 i9 at 744b0e7fb: public close reached
+	// quiescence in 62.1-130.2 ms, so 160 (the worst plus 23%); composition
+	// startup and Home's first render took 630-1225 ms warm (a 2306 ms cold
+	// first run excepted), so 1500 (the worst warm plus 22%).
+	inline constexpr double PlatformActiveCloseQuiescenceLimitMs = 160.0;
+	inline constexpr double PlatformStartupRenderLimitMs         = 1'500.0;
 	// [[BPR-1264]]. The four named phases (large_file_selection 94.4-108.0,
 	// large_source_revisit_render 90.4-115.3, approximate_file_selection
 	// 117.4-163.4, first_tab_file 92.7-103.3) were one publication replacing
@@ -1938,9 +1949,9 @@ namespace bpr::e2e::large_review {
 			require(found != aReport.Phases.end(), "required responsiveness phase missing");
 			record(aName, found->ThreadElapsedMs, aReport.InputIntervalLimitMs, !known_input_miss(aName));
 		};
-		record("composition_startup_render", aReport.CompositionStartupMs, 1'000.0);
+		record("composition_startup_render", aReport.CompositionStartupMs, PlatformStartupRenderLimitMs);
 		optimizedRecord("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
-		optimizedRecord("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
+		optimizedRecord("main_to_home_render", aReport.Extended.MainToHomeRenderMs, PlatformStartupRenderLimitMs);
 		optimizedRecord("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
 		optimizedRecord("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
 		optimizedRecord("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
