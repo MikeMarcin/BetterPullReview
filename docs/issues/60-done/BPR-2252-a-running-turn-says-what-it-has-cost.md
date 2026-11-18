@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2252"
 title: "A running Agent-tab turn says what it has cost so far"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
-parked_on: "human-review"
 metadata: {"reservation":"docs/issues/_reservations/BPR-2252--BPR-2252--b931f3cc910b.json","origin":"owner report 2026-11-17 on current main (0.5.0 prerelease): \"I feel like we used to see cost while a turn was running. I don't see it\"; clarified: \"Yeah I thought we had per turn cost with the agent is thinking timer in the transcript window\"","acceptance":["AC-a","AC-b","AC-c","AC-d","AC-e"],"lane":"claude/v0-5-0-prerelease-targets-52265d","commits":["4d2988649","2f10dbc70"],"nearest_cause":"12e9c6fb4"}
 ---
 
@@ -101,3 +100,7 @@ Candidate 4d2988649 (product), 2f10dbc70 (the course's render only).
   over Tailscale. Frozen root `/Users/jaeger/bpr-2252-running-cost-v001.49i51f51`
   from 4d2988649 (executable 10783ec1b843…). Remove the root with
   `scripts/freeze_attended_build.py remove` once answered.
+
+## Owner decision (2026-11-17)
+
+The owner accepted look bpr-2252-running-cost-v001 (session 883c8ac8…).
