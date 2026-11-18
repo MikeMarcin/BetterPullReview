@@ -5650,6 +5650,19 @@ if(APPLE OR UNIX)
 endif()
 # [[BPR-2177]] (owner, 2026-11-14). A person's session on a tests-on build runs
 # the fixture agent and can never start a real one.
+# [[BPR-2256]]. The Agent tab's setup while a pull request loads: one loading
+# state until the host's policy is known, then that host's own verdicts.
+bpr_add_executable(test_agent_setup_host_policy_public_path agent_setup_host_policy_public_path.cpp)
+target_link_libraries(test_agent_setup_host_policy_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_agent_setup_host_policy_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_agent_setup_host_policy_public_path)
+bpr_enable_warnings(test_agent_setup_host_policy_public_path)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_agent_setup_host_policy_public_path
+        COMMAND test_agent_setup_host_policy_public_path)
+    set_tests_properties(application_agent_setup_host_policy_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "agent-setup-host-policy:pass")
+endif()
 bpr_add_executable(test_fixture_agent_guard_public_path fixture_agent_guard_public_path.cpp)
 target_link_libraries(test_fixture_agent_guard_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_fixture_agent_guard_public_path PRIVATE BPR_BUILD_TESTING=1)

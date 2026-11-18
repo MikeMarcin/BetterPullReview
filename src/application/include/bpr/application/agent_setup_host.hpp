@@ -64,6 +64,13 @@ namespace bpr::application {
 		/// to them is refused rather than kept only until the app quits.
 		bool        SettingsUnreadable = false;
 		std::string SettingsFile;
+		/// [[BPR-2256]]. No host policy has been observed for the review
+		/// being set up. Every row is then refused
+		/// (`core::decide_agent_invocation` permits nothing without a policy),
+		/// but nothing was decided: the presentation shows the pull request
+		/// still loading, not an agent refused. A host starts pending; a
+		/// projection built by hand is not.
+		bool PolicyPending = false;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -146,8 +153,12 @@ namespace bpr::application {
 
 		/// Reads the stored preferences and publishes the saved programs.
 		void load();
-		/// The current review's host policy; absent when no review is open.
+		/// \brief The current review's host policy, as soon as its host is
+		/// known; absent when that host maps none, which refuses every agent.
 		void observe_policy(std::optional<core::agent_host_policy> aPolicy);
+		/// \brief [[BPR-2256]]. No review's host is known (none is open):
+		/// no policy, and none observed, so no row reads as refused by one.
+		void forget_policy();
 		/// Looks for the agents again (Q2, and Look again).
 		void detect();
 		void choose(core::setup_agent aAgent);

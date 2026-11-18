@@ -111,6 +111,9 @@ namespace bpr::qt {
 		/// checks, which the Agent tab's suggestions wait on.
 		[[nodiscard]] auto projection() const noexcept -> const application::agent_setup_projection& { return Setup; }
 		[[nodiscard]] auto step_text() const -> QString;
+		/// \brief [[BPR-2256]]. The loading state, shown alone while the pull
+		/// request's host policy is not yet known.
+		[[nodiscard]] auto loading_state() const noexcept -> QWidget* { return Loading; }
 
 	private:
 		void               rebuild();
@@ -151,6 +154,11 @@ namespace bpr::qt {
 		bool                       WorkspaceLogOpen = false;
 		QVBoxLayout*               Steps            = nullptr;
 		QLabel*                    Intro            = nullptr;
+		/// [[BPR-2256]], owner amendment 2026-11-18. In place of the title,
+		/// steps and footer while no host policy was observed.
+		QLabel*  Title   = nullptr;
+		QWidget* Footer  = nullptr;
+		QWidget* Loading = nullptr;
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review
@@ -180,6 +188,18 @@ namespace bpr::qt {
 	/// \brief [[BPR-1753]]. The words for a setup check that failed,
 	/// for the setup and for a later Ask that failed for the same reason.
 	[[nodiscard]] auto setup_failure_words(core::agent_setup_failure aFailure, const QString& aAgent, const QString& aDetail) -> QString;
+
+	/// \brief [[BPR-2256]]. A pull request's server maps no agent policy, so
+	/// no agent is allowed there: the send refusal and the setup's cards say
+	/// it in these words.
+	[[nodiscard]] auto host_not_mapped_words() -> QString;
+
+	/// \brief [[BPR-2256]]. What an agent's card says about its host's
+	/// verdict, every view that shows setup rows using this one mapping:
+	/// nothing while it is permitted; that the pull request is still loading
+	/// while no policy was observed (`agent_setup_projection::PolicyPending`),
+	/// however the core refused it then; otherwise the refusal's own reason.
+	[[nodiscard]] auto agent_verdict_words(const core::agent_invocation_verdict& aVerdict, bool aPolicyObserved) -> QString;
 
 	/// \brief The command a reviewer runs to sign the agent in.
 	[[nodiscard]] auto sign_in_command(core::setup_agent aAgent) -> QString;

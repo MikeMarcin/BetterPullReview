@@ -122,7 +122,7 @@ namespace {
 		std::vector<application::agent_setup_projection>            Published;
 		std::unique_ptr<application::agent_setup_host>              Host;
 
-		fixture()
+		explicit fixture(const bool aObservePolicy = true)
 		{
 			Host = std::make_unique<application::agent_setup_host>(application::agent_setup_dependencies{
 				.Store     = &Store,
@@ -146,7 +146,9 @@ namespace {
 				.Publish  = [this](const application::agent_setup_projection& aProjection) { Published.push_back(aProjection); },
 				.Log      = Log,
 			});
-			Host->observe_policy(core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com));
+			if (aObservePolicy) {
+				Host->observe_policy(core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com));
+			}
 		}
 
 		~fixture() { Host->shutdown(); }
@@ -856,8 +858,53 @@ namespace {
 	}
 }
 
+namespace {
+	/// \brief [[BPR-2256]]. Before a review's host policy is observed the
+	/// setup is pending, not refused: every row is still refused by the core
+	/// (a missing policy permits nothing), and the projection says nothing
+	/// was decided. The Enterprise policy then permits Claude stream JSON and
+	/// an added agent of that protocol and refuses Codex for the host; with no
+	/// review the setup is pending again.
+	void test_policy_pending_until_observed()
+	{
+		auto f  = fixture{ false };
+		f.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
+		f.Host->load();
+		f.settle();
+		f.Host->add_agent({ .Name = "Claude stream JSON", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude-wrapper" });
+		f.Host->detect();
+		f.settle();
+		const auto pending = f.state();
+		expect(pending.PolicyPending, "a host that observed no policy is pending");
+		expect(!pending.State.Rows.empty() && std::ranges::none_of(pending.State.Rows, [](const core::agent_setup_row& aRow) { return aRow.Verdict.Permitted; })
+				   && std::ranges::none_of(pending.Choices, [](const core::agent_setup_choice& aChoice) { return aChoice.Verdict.Permitted; }),
+			   "and no agent is permitted while it is (decide_agent_invocation is unchanged)");
+
+		f.Host->observe_policy(core::built_in_agent_policy(core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes));
+		f.settle();
+		const auto ghes = f.state();
+		expect(!ghes.PolicyPending, "an observed policy ends the wait");
+		const auto row = [&ghes](const setup_agent aAgent) { return std::ranges::find(ghes.State.Rows, aAgent, &core::agent_setup_row::Agent); };
+		expect(row(setup_agent::claude_code) != ghes.State.Rows.end() && row(setup_agent::claude_code)->Verdict.Permitted, "on Enterprise Claude stream JSON is permitted");
+		expect(row(setup_agent::codex) != ghes.State.Rows.end() && !row(setup_agent::codex)->Verdict.Permitted
+				   && row(setup_agent::codex)->Verdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host,
+			   "and Codex is refused by the host's policy, by name");
+		const auto custom = std::ranges::find(ghes.Choices, std::string{ "Claude stream JSON" }, &core::agent_setup_choice::Name);
+		expect(custom != ghes.Choices.end() && custom->Entry != 0U && custom->Verdict.Permitted, "the added Claude stream JSON agent is permitted");
+
+		f.Host->observe_policy(std::nullopt);
+		f.settle();
+		expect(!f.state().PolicyPending && std::ranges::all_of(f.state().State.Rows, [](const core::agent_setup_row& aRow) { return aRow.Verdict.Refusal == core::agent_invocation_refusal::host_not_mapped; }),
+			   "a host that maps no policy is decided: every agent refused as not mapped");
+		f.Host->forget_policy();
+		f.settle();
+		expect(f.state().PolicyPending && std::ranges::none_of(f.state().State.Rows, [](const core::agent_setup_row& aRow) { return aRow.Verdict.Permitted; }), "with no review the setup is pending again");
+	}
+}
+
 auto main() -> int
 {
+	test_policy_pending_until_observed();
 	test_unreadable_settings();
 	test_harness_catalogs_and_reset();
 	test_detection_starts_nothing();

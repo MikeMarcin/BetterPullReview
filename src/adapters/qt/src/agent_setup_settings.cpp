@@ -899,7 +899,11 @@ namespace bpr::qt {
 			break;
 		case core::agent_check_offer::no_agent:   said = tr("Add an agent, then check it here."); break;
 		case core::agent_check_offer::not_chosen: said = tr("Several agents were found. Choose one in the Agent tab's setup, then check it here."); break;
-		case core::agent_check_offer::forbidden:  said = tr("The open pull request's host doesn't allow %1, so it can't be checked now.").arg(name); break;
+		case core::agent_check_offer::forbidden:
+			// [[BPR-2256]]. No host policy yet is not a refusal.
+			said = setup.PolicyPending ? tr("Open a pull request, or wait for the open one to load, to check %1.").arg(name)
+									   : tr("The open pull request's host doesn't allow %1, so it can't be checked now.").arg(name);
+			break;
 		}
 		CheckNote->setText(said);
 		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No question or code is sent."));

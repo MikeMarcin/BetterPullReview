@@ -77,6 +77,9 @@ namespace bpr::app {
 				}
 			}
 #if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-2256]]. Setup's verdicts are this host's from now, not
+			// once the comparison is accepted.
+			observe_setup_policy();
 			observe_clone_repository();
 			observe_conversation();
 			// [[BPR-2179]]. A pull request uses its repository's prompts.
@@ -199,6 +202,7 @@ namespace bpr::app {
 		AcceptedReadingPosition.reset();
 		AgentReview.reset();
 #if defined(BPR_AGENT_INTEGRATIONS)
+		observe_setup_policy();
 		observe_clone_repository();
 		observe_conversation();
 		refresh_prompt_repository();
