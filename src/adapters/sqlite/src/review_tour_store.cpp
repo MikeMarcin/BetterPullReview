@@ -29,7 +29,7 @@ namespace bpr::adapters::sqlite {
 		struct rollback
 		{
 			sqlite3* Database;
-			~rollback() { static_cast<void>(detail::execute(Database, "ROLLBACK")); }
+			~rollback() { detail::rollback_open_transaction(Database); }
 		};
 		struct budget
 		{

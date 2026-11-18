@@ -263,7 +263,7 @@ namespace bpr::adapters::sqlite {
 			explicit transaction_scope(sqlite3* aDatabase)
 				: Database{ aDatabase }
 			{ }
-			~transaction_scope() { static_cast<void>(sqlite3_exec(Database, "ROLLBACK", nullptr, nullptr, nullptr)); }
+			~transaction_scope() { detail::rollback_open_transaction(Database); }
 			transaction_scope(const transaction_scope&)                    = delete;
 			auto operator=(const transaction_scope&) -> transaction_scope& = delete;
 

@@ -72,7 +72,7 @@ namespace bpr::adapters::sqlite {
 			explicit transaction(sqlite3* aDatabase)
 				: Database{ aDatabase }
 			{ }
-			~transaction() { static_cast<void>(detail::execute(Database, "ROLLBACK")); }
+			~transaction() { detail::rollback_open_transaction(Database); }
 			transaction(const transaction&)                    = delete;
 			auto operator=(const transaction&) -> transaction& = delete;
 
