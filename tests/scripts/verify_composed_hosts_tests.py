@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import unittest
@@ -19,6 +20,15 @@ from scripts import verify_composed_hosts as VERIFIER  # noqa: E402
 # Whether this platform has any tool that reports a linked binary's defined
 # symbols. See test_real_inspector_output_contains_defined_symbols.
 INSPECTOR_READS_A_LINKED_BINARY = sys.platform != "win32"
+
+
+def interpreter_is_stripped() -> bool:
+    """Whether `nm` finds no symbol table in this interpreter (ELF only)."""
+    nm = shutil.which("nm")
+    if not sys.platform.startswith("linux") or nm is None:
+        return False
+    listed = subprocess.run([nm, sys.executable], capture_output=True, text=True, check=False)
+    return "no symbols" in listed.stderr or not listed.stdout.strip()
 
 
 SHARED_LINES = {
@@ -1168,6 +1178,13 @@ class ComposedHostVerifierTests(unittest.TestCase):
         """
         if not INSPECTOR_READS_A_LINKED_BINARY:
             with self.assertRaises(VERIFIER.verification_error):
+                VERIFIER.inspect_symbols(Path(sys.executable))
+            return
+        # [[BPR-2215]]. A distribution interpreter can be stripped (Ubuntu
+        # 26.04's is): it has no symbol table to report, and the instrument
+        # refuses it rather than reading an empty table as an answer.
+        if interpreter_is_stripped():
+            with self.assertRaisesRegex(VERIFIER.verification_error, "empty symbol table"):
                 VERIFIER.inspect_symbols(Path(sys.executable))
             return
         table = VERIFIER.inspect_symbols(Path(sys.executable))
