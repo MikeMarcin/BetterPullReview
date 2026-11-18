@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2261"
 title: "A finished Agent-tab review reloads as \"Stopped after 16:46\", because a helper's report-back holds the turn open with no timeout and quitting saves it as cancelled"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -239,3 +239,86 @@ never left as a clock. Both A and B break that.
 - Making a first workspace faster on a large repository.
 - Workspace directory naming. The random token is fine. Only the misleading
   match in this one case is noted here.
+
+## Built
+
+- **Decoder** (`agent_launch.cpp`). The card's rule (an assistant message
+  after the last `task_notification` answers it) is wrong against the
+  recorded Claude Code 2.1.319 traces: in
+  `claude-2.1.319-helpers-stdin-closed.jsonl` the last report (line 51)
+  is followed by the rest of a message already being written (line 53,
+  the same message id), and its answer comes only in the next part (init
+  at line 58). With the card's rule that run would end one part early.
+  The rule kept is narrower: a report is answered inside its part when a
+  tool result goes back to the agent after it and the agent then writes a
+  message with a new id (the report is drained into the next request at a
+  tool-result boundary). The traces still pass unchanged.
+- **Bound** (`agent_protocol_loop.cpp`). A native Claude turn held after
+  its successful result with every helper ended (and no steering
+  successor awaited) waits at most `HeldTurnMilliseconds` (30 s, the same
+  as `SteerSuccessorMilliseconds`), then ends on the answer it gave; the
+  connection is not reused. A wait for helpers still running stays
+  unbounded: a helper may legitimately run for many minutes, and Stop or
+  its own end ends it. The run's line logs `held_ms`, `held_bound_ms`,
+  `held_out=on` and `stopped_after_answer=on`.
+- **Never downgrade** (`agent_protocol_loop.cpp`, `agent_invocation_host.cpp`).
+  A cancel or time-out after a successful result with no helper out keeps
+  outcome `success`, so the turn is saved answered (quit, Stop, time-out).
+  With a helper out the run is still cancelled, keeps its text, and on quit
+  is saved with the new outcome `closed_with_app`: not an error, Resend
+  and Delete, no keep action, footer "Stopped when the app closed, after
+  16:46". The legacy outcomes table's CHECK is rebuilt to allow it.
+- **Paragraphs**. Saved `AssistantItems` are joined with a blank line, so a
+  reload's report starts at the start of a line and gets its card.
+- **Workspace check**. Check it works / Check agent verify the pull
+  request's retained workspace (the reattach check) when one exists, and
+  clone nothing; a workspace a turn holds now passes as it is. With none,
+  one is made and removed as before. A passed check is kept under the
+  retained workspace's key (`agent_workspace_key`: authority, base, head;
+  at most 16, latest last) in the setup preferences and restored for that
+  pull request after a restart; a failure forgets it. Reattach
+  verification logs `workspace_verify` with its duration; while it runs
+  the turn says "%1 is checking its workspace at the head, %2." (a
+  `workspace_check` stream event), and the tour chat says the same.
+
+## Hypotheses
+
+- A.1, A.2, A.4, A.5 and B.1–B.5 are confirmed by the
+  `application_agent_chat_held_turn_public_path` fixture course: a scripted
+  Claude replays the recorded trace through the part whose result arrives
+  with all three helpers ended and the last report unanswered, then sends
+  nothing. Without this change the turn is held ("is finishing") until the
+  app quits and reloads as an error with no report card.
+- A.3 is not confirmed. No raw stream of the owner's run exists, and the
+  recorded traces show the opposite ordering (a message after the
+  notification that does not answer it). The bound ends the turn whatever
+  held it, so A.3 is no longer needed for the fix.
+
+## Decisions for the owner
+
+- The held bound is 30 s (`HeldTurnMilliseconds`), the steering successor's
+  value. The answering part's init normally follows the result at once.
+- Quitting while a helper still runs saves the turn as "Stopped when the
+  app closed, after M:SS", presented plainly (not red), with Resend and
+  Delete and no Draft/Keep.
+- Check does not keep a throwaway workspace as the retained one. A
+  retained workspace belongs to a native conversation record
+  (`native_agent_workspaces.conversation` references a session), which owns
+  its lifetime guard and cleanup; a check has no conversation to give it.
+  So the first Check on a pull request still clones once and removes it;
+  every later Check, and every Check after a turn has made the shared
+  workspace, verifies without cloning, and its result survives restarts.
+
+## Verification
+
+Lane `claude/turn-reload-fix`, dev preset, macOS: 122 focused tests
+matching `agent|operation_diagnos|sqlite_agent_setup|architecture_boundar|core_boundary_contract`,
+including `application_agent_helper_turn`, `application_agent_invocation_host`,
+`application_agent_setup_host`, `core_agent_turn`, `core_operation_diagnosis`,
+`sqlite_agent_setup_storage`, `qt_agent_launch_panel`, `qt_agent_activity_view`,
+`application_agent_chat_held_turn_public_path`, the helpers courses and
+`architecture_boundaries`. Shown failing without the fix: the decoder test
+(rule disabled) and the held-turn course (stop-after-answer disabled:
+restored `closed_with_app`, no card). Format check passes on the changed
+files; clang-tidy reports nothing on changed lines. Documentation gate
+passes. Not run: the whole suite.

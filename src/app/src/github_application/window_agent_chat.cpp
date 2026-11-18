@@ -256,6 +256,10 @@ namespace bpr::app {
 		// comparison loaded makes it now.
 		if (AgentSetupWorkspaceWaiting) {
 			check_agent_workspace();
+		} else if (AgentSetup) {
+			// [[BPR-2261]]. A workspace check that passed for this pull
+			// request's workspace before a restart stands.
+			AgentSetup->restore_workspace_check(application::agent_workspace_key(authority, observedBinding));
 		}
 		refresh_agent_private_context_choices();
 		if (ChatHost != nullptr) {

@@ -212,6 +212,10 @@ namespace bpr::core {
 		/// [[RFC-BPR-0105]]. How the visible submission ended
 		/// (`submit_subject`), `duration_ms` since the press.
 		review_submit_end,
+		/// [[BPR-2261]]. A retained workspace checked before it is used
+		/// again (a turn reattaching, or the setup's workspace check):
+		/// nothing is made, so it is never said as materialized.
+		workspace_verify,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what

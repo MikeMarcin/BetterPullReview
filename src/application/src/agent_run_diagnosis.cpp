@@ -115,6 +115,15 @@ namespace bpr::application {
 		if (aDiagnosis.LongestSilenceMs) {
 			text += " longest_silence_ms=" + std::to_string(*aDiagnosis.LongestSilenceMs);
 		}
+		if (aDiagnosis.HeldMs) {
+			text += " held_ms=" + std::to_string(*aDiagnosis.HeldMs) + " held_bound_ms=" + std::to_string(aDiagnosis.HeldBoundMs);
+		}
+		if (aDiagnosis.HeldOut) {
+			text += " held_out=on";
+		}
+		if (aDiagnosis.StoppedAfterAnswer) {
+			text += " stopped_after_answer=on";
+		}
 		if (!aDiagnosis.ReadPast.empty()) {
 			text += " read_past=" + aDiagnosis.ReadPast;
 		}
@@ -229,6 +238,22 @@ namespace bpr::application {
 				if (!result.LongestSilenceMs) {
 					return std::nullopt;
 				}
+			} else if (key == "held_ms") {
+				result.HeldMs = read_number<std::uint64_t>(value);
+				if (!result.HeldMs) {
+					return std::nullopt;
+				}
+			} else if (key == "held_bound_ms") {
+				const auto bound = read_number<std::uint64_t>(value);
+				if (!bound) {
+					return std::nullopt;
+				}
+				result.HeldBoundMs = *bound;
+			} else if (key == "held_out" || key == "stopped_after_answer") {
+				if (value != "on") {
+					return std::nullopt;
+				}
+				(key == "held_out" ? result.HeldOut : result.StoppedAfterAnswer) = true;
 			} else if (key == "read_past") {
 				if (!read_past_list(value)) {
 					return std::nullopt;
@@ -284,6 +309,10 @@ namespace bpr::application {
 				   .Relaxed             = relaxed_counts(aRequest, result),
 				   .Helpers             = result.Helpers.Started > 0U ? std::optional{ result.Helpers } : std::nullopt,
 				   .LongestSilenceMs    = result.LongestSilenceMs > 0U ? std::optional{ result.LongestSilenceMs } : std::nullopt,
+				   .HeldMs              = result.HeldMs,
+				   .HeldBoundMs         = result.HeldMs ? result.HeldBoundMs : 0U,
+				   .HeldOut             = result.HeldOut,
+				   .StoppedAfterAnswer  = result.StoppedAfterAnswer,
 				   .ReadPast            = read_past_list(result.ReadPast) ? result.ReadPast : std::string{ },
 			   });
 		return result;

@@ -2218,7 +2218,7 @@ namespace bpr::qt {
 			// one no window saw end) is said as the live turn said it.
 			const auto worded = shown.Footer.contains(QLatin1Char{ ' ' });
 			const auto ending = worded ? shown.Footer.section(QStringLiteral(" · "), 0, 0)
-									   : agent_turn_ending_words(Launch.profile_selector()->currentText(), shown.Outcome == core::agent_turn_outcome::answered, shown.Seconds);
+									   : agent_turn_ending_words(Launch.profile_selector()->currentText(), shown.Outcome, shown.Seconds);
 			const auto footer = worded ? shown.Footer : ending + QLatin1Char{ '.' };
 			if (const auto at = Turns.size(); at < before.size() && std::get<0>(before[at]) == shown.Question) {
 				next.Serial = std::get<1>(before[at]);
@@ -3082,7 +3082,7 @@ namespace bpr::qt {
 			set_answer(current, written);
 			auto status  = agent_run_status{ };
 			status.Agent = agent;
-			status.Stage = agent_run_stage::preparing;
+			status.Stage = Launch.workspace_checking() ? agent_run_stage::checking : agent_run_stage::preparing;
 			current.Footer->present(status, Started);
 			if (RunObserver) {
 				RunObserver(status, Started);

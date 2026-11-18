@@ -807,6 +807,38 @@ namespace {
 		f.settle();
 		expect(f.state().Preferences.EntryChecks.size() == 1U && f.Store.Stored->EntryChecks.size() == 1U, "a removed agent's result goes with it");
 	}
+
+	/// [[BPR-2261]], AC4. A pull request workspace's passed check is kept
+	/// under its workspace key across a restart: the reopened setup's row,
+	/// not run, takes it for that pull request and no other; a failure
+	/// forgets it.
+	void test_a_workspace_check_survives_a_restart()
+	{
+		const auto key  = std::string{ "github.example/octo/review#17:base:head" };
+		auto       kept = application::agent_setup_preferences{ };
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			f.Host->settle_workspace_check(key, { .State = setup_check_state::passed });
+			f.settle();
+			expect(f.state().State.WorkspaceCheck.State == setup_check_state::passed && f.state().Preferences.WorkspaceChecks == std::vector{ key }, "a pass is the row's and is kept");
+			expect(f.Store.Stored && f.Store.Stored->WorkspaceChecks == std::vector{ key }, "and saved");
+			kept = *f.Store.Stored;
+		}
+		auto f         = fixture{ };
+		f.Store.Stored = kept;
+		f.Host->load();
+		f.settle();
+		expect(f.state().State.WorkspaceCheck.State == setup_check_state::not_run, "a restart starts with the row not run");
+		f.Host->restore_workspace_check("github.example/octo/review#18:base:head");
+		expect(f.state().State.WorkspaceCheck.State == setup_check_state::not_run, "another pull request's workspace takes nothing");
+		f.Host->restore_workspace_check(key);
+		expect(f.state().State.WorkspaceCheck.State == setup_check_state::passed, "the same workspace's pass stands, with no check run");
+		f.Host->settle_workspace_check(key, core::fail_check(core::agent_setup_failure::workspace_unavailable));
+		f.settle();
+		expect(f.state().State.WorkspaceCheck.State == setup_check_state::failed && f.state().Preferences.WorkspaceChecks.empty() && f.Store.Stored->WorkspaceChecks.empty(), "a failure forgets it");
+	}
 }
 
 namespace {
@@ -919,6 +951,7 @@ auto main() -> int
 	test_the_agent_list();
 	test_check_from_settings();
 	test_check_all_keeps_each_result();
+	test_a_workspace_check_survives_a_restart();
 	test_the_setup_follows_the_list();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;

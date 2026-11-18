@@ -61,6 +61,7 @@ namespace bpr::adapters::agent::detail {
 					hand_off_steers();
 					expire_overdue_steer_replies();
 					abandon_overdue_successor();
+					abandon_overdue_report_back();
 					if (IsAppServer && !native() && !has_cause() && Decoder.turn_complete() && !InputClosed) {
 						// Modern App Server treats EOF as cancellation. Retain stdin
 						// until this explicit one-shot turn has actually completed.
@@ -248,6 +249,41 @@ namespace bpr::adapters::agent::detail {
 					Decoder.abandon_successor();
 					SuccessorDue.reset();
 				}
+			}
+
+			/// \brief [[BPR-2261]], RFC-BPR-0103. A native turn that answered
+			/// with every helper ended, held for the part that answers a
+			/// report back, waits a bounded time for it; then it ends on its
+			/// answer. A turn is never held for ever, and how long it was held,
+			/// and the bound, go to the run's result for its diagnosis.
+			void abandon_overdue_report_back()
+			{
+				const auto now = std::chrono::steady_clock::now();
+				if (!Decoder.awaiting_report_back()) {
+					close_held(now);
+					return;
+				}
+				const auto bound = std::chrono::milliseconds{ std::max(Request.HeldTurnMilliseconds, 0) };
+				if (!HeldSince) {
+					HeldSince          = now;
+					Result.HeldBoundMs = static_cast<std::uint64_t>(bound.count());
+				}
+				// A run its process ends (stdin closed) is ended by that.
+				if (native() && now - *HeldSince >= bound) {
+					Decoder.abandon_report_back();
+					Result.HeldOut = true;
+					close_held(now);
+				}
+			}
+
+			/// \brief [[BPR-2261]]. Adds the hold that ends at \p aNow, if any.
+			void close_held(const std::chrono::steady_clock::time_point aNow)
+			{
+				if (!HeldSince) {
+					return;
+				}
+				Result.HeldMs = Result.HeldMs.value_or(0U) + static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(aNow - *HeldSince).count());
+				HeldSince.reset();
 			}
 
 			/// \brief [[BPR-2153]]. A `turn/steer` the server has not answered
@@ -735,6 +771,17 @@ namespace bpr::adapters::agent::detail {
 				for (const auto& type : helpers.ReadPast) {
 					Result.ReadPast += (Result.ReadPast.empty() ? "" : ",") + type;
 				}
+				close_held(std::chrono::steady_clock::now());
+				// [[BPR-2261]], RFC-BPR-0103. A run stopped after it answered,
+				// with no helper still out (the app quit, the reviewer
+				// stopped it, its time ran out while the turn was held), stands
+				// as the answer it gave. Its connection is retired all the same.
+				if (ForcedOutcome && (*ForcedOutcome == application::agent_run_outcome::cancelled || *ForcedOutcome == application::agent_run_outcome::timeout) && Decoder.answered()
+					&& helpers.Running.empty()) {
+					Result.StoppedAfterAnswer = true;
+					ForcedOutcome.reset();
+					ClassifiedOutcome = application::agent_run_outcome::success;
+				}
 				if (ForcedOutcome) {
 					Result.Outcome = *ForcedOutcome;
 				} else if (ProtocolFailure) {
@@ -778,6 +825,7 @@ namespace bpr::adapters::agent::detail {
 			core::agent_run_cost_reading                         CostReading;
 			std::optional<std::chrono::steady_clock::time_point> SteerReplyDue;
 			std::optional<std::chrono::steady_clock::time_point> SuccessorDue;
+			std::optional<std::chrono::steady_clock::time_point> HeldSince;
 			std::uint32_t                                        Steps = 0U;
 			std::string                                          ReportedToolVersion;
 			std::array<char, protocol_buffer_bytes>              Buffer{ };

@@ -12,6 +12,7 @@
 /// and end its message without waiting.
 
 #include "agent_protocol_loop.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -169,6 +170,92 @@ namespace {
 		expect(std::ranges::count_if(aSeen.Stream, [](const auto& aEvent) { return aEvent.Kind == application::agent_stream_kind::heartbeat; }) > 0, "frames that show nothing still say the runtime is alive");
 	}
 
+	// [[BPR-2261]]. Frames of one Claude turn whose helper reports back, as
+	// Claude Code 2.1.319 writes them, trimmed to what the decoder reads.
+	[[nodiscard]] auto claude_frame(const std::string& aBody) -> std::string { return R"({"session_id":"held-session",)" + aBody + "}"; }
+	[[nodiscard]] auto claude_init() -> std::string { return claude_frame(R"("type":"system","subtype":"init","tools":[],"mcp_servers":[])"); }
+	[[nodiscard]] auto claude_tool(const std::string& aMessage, const std::string& aUse, const std::string& aTool) -> std::string
+	{
+		return claude_frame(R"("type":"assistant","message":{"id":")" + aMessage + R"(","role":"assistant","content":[{"type":"tool_use","id":")" + aUse + R"(","name":")" + aTool + R"(","input":{}}]})");
+	}
+	[[nodiscard]] auto claude_text(const std::string& aMessage, const std::string& aText) -> std::string
+	{
+		return claude_frame(R"("type":"assistant","message":{"id":")" + aMessage + R"(","role":"assistant","content":[{"type":"text","text":")" + aText + R"("}]})");
+	}
+	[[nodiscard]] auto claude_thinking(const std::string& aMessage) -> std::string
+	{
+		return claude_frame(R"("type":"assistant","message":{"id":")" + aMessage + R"(","role":"assistant","content":[{"type":"thinking","thinking":"..."}]})");
+	}
+	[[nodiscard]] auto claude_tool_result(const std::string& aUse) -> std::string
+	{
+		return claude_frame(R"("type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" + aUse + R"(","content":"ok"}]})");
+	}
+	[[nodiscard]] auto claude_helper_started() -> std::string { return claude_frame(R"("type":"system","subtype":"task_started","task_id":"helper-1","tool_use_id":"use-agent","description":"Review the loop")"); }
+	[[nodiscard]] auto claude_helper_reported() -> std::string { return claude_frame(R"("type":"system","subtype":"task_notification","task_id":"helper-1","status":"completed","summary":"The loop ends.")"); }
+	[[nodiscard]] auto claude_success(const std::string& aUuid) -> std::string { return claude_frame(R"("type":"result","subtype":"success","is_error":false,"uuid":")" + aUuid + R"(","result":"done")"); }
+
+	/// The helper reports back while the agent is still using tools; the
+	/// next message, written after a tool result, answers it in the same part.
+	[[nodiscard]] auto report_answered_in_its_part() -> std::vector<std::string>
+	{
+		return { claude_init(),
+				 claude_tool("message-1", "use-agent", "Agent"),
+				 claude_helper_started(),
+				 claude_tool_result("use-agent"),
+				 claude_tool("message-2", "use-read", "Read"),
+				 claude_helper_reported(),
+				 claude_tool_result("use-read"),
+				 claude_text("message-3", "# Review of the loop\\n\\nIt ends."),
+				 claude_success("result-1") };
+	}
+
+	/// The helper reports back while the agent writes its last message; the
+	/// rest of that message did not see it, and no part follows.
+	[[nodiscard]] auto report_left_unanswered() -> std::vector<std::string>
+	{
+		return { claude_init(),
+				 claude_tool("message-1", "use-agent", "Agent"),
+				 claude_helper_started(),
+				 claude_tool_result("use-agent"),
+				 claude_text("message-1", "I asked a helper about the loop."),
+				 claude_thinking("message-2"),
+				 claude_helper_reported(),
+				 claude_text("message-2", "# Review of the loop\\n\\nIt ends."),
+				 claude_success("result-1") };
+	}
+
+	/// A trace transport whose process keeps running, as a native connection
+	/// does; after a few waits it is stopped (\p aEnding) so a turn that is
+	/// never ended cannot hang the test.
+	class held_transport final : public agent_protocol_transport
+	{
+	public:
+		held_transport(const std::vector<std::string>& aLines, const agent_protocol_wait_status aEnding)
+			: Lines{ aLines }
+			, Ending{ aEnding }
+		{ }
+		[[nodiscard]] auto write(const std::string_view aBytes) -> agent_protocol_write_status override { return Lines.write(aBytes); }
+		void               close_input() noexcept override { Lines.close_input(); }
+		[[nodiscard]] auto read_standard_output(std::span<char> aBuffer) -> agent_protocol_pipe_read_result override { return Lines.read_standard_output(aBuffer); }
+		[[nodiscard]] auto read_standard_error(std::span<char> aBuffer) -> agent_protocol_pipe_read_result override { return Lines.read_standard_error(aBuffer); }
+		[[nodiscard]] auto wait() -> agent_protocol_wait_result override
+		{
+			++Waits;
+			return Waits < 4U ? agent_protocol_wait_result{ .Status = agent_protocol_wait_status::running } : agent_protocol_wait_result{ .Status = Ending };
+		}
+		[[nodiscard]] auto terminate() noexcept -> bool override { return Lines.terminate(); }
+
+		trace_transport            Lines;
+		agent_protocol_wait_status Ending;
+		std::size_t                Waits = 0U;
+	};
+
+	[[nodiscard]] auto run_held(application::agent_launch_request aRequest, const std::vector<std::string>& aLines, const agent_protocol_wait_status aEnding) -> application::agent_run_result
+	{
+		auto wire = held_transport{ aLines, aEnding };
+		return run_agent_protocol_loop(aRequest, { }, wire);
+	}
+
 	void test_claude_with_its_input_open()
 	{
 		// AC02 on the native connection: input held open, as the Agent tab's
@@ -282,6 +369,80 @@ namespace {
 		expect(seen.Result.Outcome == application::agent_run_outcome::success, "the turn's lifecycle does not depend on the block");
 		expect(std::ranges::all_of(seen.Stream, [](const auto& aEvent) { return aEvent.Kind == application::agent_stream_kind::text; }), "a caller that shows no block hears text only");
 	}
+	/// [[BPR-2261]], AC1. A helper that reports back while the agent is
+	/// still using tools is answered in the part it is in: the result ends
+	/// the turn, with no further init. Without the fix the turn was held for
+	/// a part that never came.
+	void test_a_report_answered_inside_its_part_ends_the_turn()
+	{
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		for (const auto& line : report_answered_in_its_part()) {
+			const auto pushed = decoder.push(line + "\n");
+			if (!pushed) {
+				std::cerr << application::name(pushed.error()) << ": " << line << '\n';
+			}
+			expect(pushed.has_value(), "every frame of the turn is accepted");
+		}
+		expect(decoder.turn_complete() && !decoder.awaiting_report_back() && decoder.answered(), "the result ends the turn: the report was answered");
+
+		auto launched               = request(core::agent_protocol::claude_stream_json);
+		launched.NativeConversation = "durable-conversation";
+		const auto result           = run_held(launched, report_answered_in_its_part(), agent_protocol_wait_status::cancelled);
+		expect(result.Outcome == application::agent_run_outcome::success && !result.HeldOut && !result.StoppedAfterAnswer && !result.HeldMs, "the native turn ends at its result, never held");
+	}
+
+	/// [[BPR-2261]], AC1. A result that leaves a report unanswered holds the
+	/// turn for the part that answers it (the recorded traces' order), but
+	/// never without a bound: past it the turn ends on the answer it gave,
+	/// the hold and its bound are kept for the diagnosis, and the
+	/// connection is not reused.
+	void test_an_unanswered_report_holds_the_turn_only_to_its_bound()
+	{
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		for (const auto& line : report_left_unanswered()) {
+			expect(decoder.push(line + "\n").has_value(), "every frame of the turn is accepted");
+		}
+		expect(!decoder.turn_complete() && decoder.awaiting_report_back(), "the rest of a message written as the report came does not answer it");
+		decoder.abandon_report_back();
+		expect(decoder.turn_complete() && !decoder.native_connection_reusable(), "past the bound the turn ends, and a late part finds no connection");
+
+		auto launched                 = request(core::agent_protocol::claude_stream_json);
+		launched.NativeConversation   = "durable-conversation";
+		launched.HeldTurnMilliseconds = 0;
+		const auto result             = run_held(launched, report_left_unanswered(), agent_protocol_wait_status::cancelled);
+		expect(result.Outcome == application::agent_run_outcome::success && result.HeldOut && result.HeldMs.has_value() && result.HeldBoundMs == 0U, "the bound ends the held turn on its answer, and says so");
+		const auto said = answer(result);
+		expect(said.find("I asked a helper") != std::string::npos && said.find("# Review of the loop") != std::string::npos, "with every word it gave");
+
+		auto line = application::describe(application::agent_run_diagnosis{ .Protocol = core::agent_protocol::claude_stream_json, .Outcome = result.Outcome, .HeldMs = 5U, .HeldBoundMs = 30'000U, .HeldOut = true });
+		expect(line.find(" held_ms=5 held_bound_ms=30000 held_out=on") != std::string::npos, "the diagnosis says the turn was held, and for how long: " + line);
+		expect(application::parse_agent_run_diagnosis(line).has_value(), "and reads back");
+	}
+
+	/// [[BPR-2261]], AC2. A stop after the successful result with no helper
+	/// out (the app quitting while the turn is held) leaves the answer; with
+	/// a helper still out the run is stopped, and keeps what it wrote.
+	void test_a_stop_after_the_answer_keeps_it()
+	{
+		auto launched               = request(core::agent_protocol::claude_stream_json);
+		launched.NativeConversation = "durable-conversation";
+		const auto held             = run_held(launched, report_left_unanswered(), agent_protocol_wait_status::cancelled);
+		expect(held.Outcome == application::agent_run_outcome::success && held.StoppedAfterAnswer && !held.HeldOut, "stopped while held after its answer, the run stands as answered");
+		expect(held.AssistantItems.size() == 2U && answer(held).find("# Review of the loop") != std::string::npos, "with its answer");
+		const auto timedOut = run_held(launched, report_left_unanswered(), agent_protocol_wait_status::timeout);
+		expect(timedOut.Outcome == application::agent_run_outcome::success && timedOut.StoppedAfterAnswer, "and so when its time runs out");
+
+		auto out = report_left_unanswered();
+		out.erase(out.begin() + 6);
+		const auto running = run_held(launched, out, agent_protocol_wait_status::cancelled);
+		expect(running.Outcome == application::agent_run_outcome::cancelled && !running.StoppedAfterAnswer, "with a helper still out, it was stopped");
+		expect(running.AssistantItems.size() == 2U, "and what it wrote is kept for its turn");
+
+		auto unanswered = report_left_unanswered();
+		unanswered.pop_back();
+		const auto early = run_held(launched, unanswered, agent_protocol_wait_status::cancelled);
+		expect(early.Outcome == application::agent_run_outcome::cancelled && !early.StoppedAfterAnswer, "a stop before any result is a stop");
+	}
 }
 
 auto main() -> int
@@ -293,6 +454,9 @@ auto main() -> int
 	test_codex_app_server();
 	test_codex_helper_thread_before_its_report();
 	test_activity_is_reported_only_when_asked();
+	test_a_report_answered_inside_its_part_ends_the_turn();
+	test_an_unanswered_report_holds_the_turn_only_to_its_bound();
+	test_a_stop_after_the_answer_keeps_it();
 	std::cout << "agent-helper-turn-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -844,8 +844,12 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				// A report back starts a part of the turn that answers it.
+				// [[BPR-2261]]. What the agent was writing when it came was
+				// not written with it.
 				if (aSubtype == "task_notification") {
 					aHelpers.NotifiedSinceInit = true;
+					aHelpers.NotifiedCarried   = false;
+					aHelpers.NotifiedDuring    = aHelpers.LastMessage;
 				}
 				const auto ending = claude_task_ending(status);
 				if (!ending || !end_helper(aHelpers, *task, *ending)) {
@@ -1577,6 +1581,7 @@ namespace bpr::application {
 				if (*session == aSession) {
 					if (aPhase == 1U || aPhase == 3U) {
 						aHelpers.NotifiedSinceInit = false;
+						aHelpers.NotifiedCarried   = false;
 						aHelpers.SeparateNext      = aHelpers.SeparateNext || aSawAssistant;
 					}
 					if (aPhase == 3U) {
@@ -1776,6 +1781,23 @@ namespace bpr::application {
 				// no answer: a run with no text still fails at its result.
 				if (*type == "assistant" && (!aWritingOnly || !thought || wroteText)) {
 					aSawAssistant = true;
+				}
+				// [[BPR-2261]]. A report back reaches the agent with the next
+				// tool result it is given, inside the part it is in: its next
+				// message is written with the report and answers it, and no
+				// part of its own follows. A message already being written
+				// when the report came, or one written with no tool result
+				// since, did not see it (Claude Code 2.1.319's traces).
+				if (aHelpers.NotifiedSinceInit && *type == "user"
+					&& std::ranges::any_of(content->Elements, [](const json_value& aBlock) { const auto* kind = string_member(aBlock, "type"); return kind != nullptr && *kind == "tool_result"; })) {
+					aHelpers.NotifiedCarried = true;
+				}
+				if (*type == "assistant") {
+					if (aHelpers.NotifiedSinceInit && aHelpers.NotifiedCarried && identity != aHelpers.NotifiedDuring) {
+						aHelpers.NotifiedSinceInit = false;
+						aHelpers.NotifiedCarried   = false;
+					}
+					aHelpers.LastMessage = identity;
 				}
 				return events;
 			}
@@ -4243,6 +4265,8 @@ namespace bpr::application {
 		ExpectedNativeHandle  = aHandle;
 		NativeTurn            = aTurn;
 		ConnectedNative       = true;
+		Answered              = false;
+		HeldOut               = false;
 		if (Protocol == core::agent_protocol::claude_stream_json) {
 			RemoteSession = std::move(aHandle);
 			Phase         = 1U;
@@ -4479,6 +4503,22 @@ namespace bpr::application {
 		}
 	}
 
+	auto agent_protocol_decoder::awaiting_report_back() const noexcept -> bool
+	{
+		return !SuccessorAwaited && !Failed && Phase == 3U && Protocol == core::agent_protocol::claude_stream_json && Helpers.Running.empty();
+	}
+
+	void agent_protocol_decoder::abandon_report_back() noexcept
+	{
+		if (!awaiting_report_back()) {
+			return;
+		}
+		Helpers.NotifiedSinceInit = false;
+		Helpers.NotifiedCarried   = false;
+		HeldOut                   = true;
+		Phase                     = 2U;
+	}
+
 	auto agent_protocol_decoder::native_connection_reusable() const noexcept -> bool
 	{
 		// [[BPR-2153]]. A correction that could not be reconciled may still
@@ -4487,7 +4527,7 @@ namespace bpr::application {
 		// [[BPR-2154]]. A tool-free turn (a local draft's discussion) is kept
 		// only while it runs, so it can be steered: its next turn resumes in a
 		// process of its own (`prepare_native_agent_turn` connects none).
-		return !WritingOnly && turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
+		return !WritingOnly && !HeldOut && turn_complete() && reconciled && (Protocol != core::agent_protocol::claude_stream_json || IdentifiedResult);
 	}
 
 	auto agent_protocol_decoder::native_handle() const noexcept -> const std::string&
@@ -4604,6 +4644,9 @@ namespace bpr::application {
 				return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
 			}
 			settle_after_frame();
+			// [[BPR-2261]]. Only a successful result ends or holds a turn.
+			Answered = Answered || (Protocol == core::agent_protocol::claude_stream_json && (Phase == 2U || Phase == 3U))
+				|| (Protocol == core::agent_protocol::codex_app_server && Phase == 6U) || (Protocol == core::agent_protocol::codex_jsonl_exec && Phase == 3U);
 			if (!ReportActivity) {
 				std::erase_if(*decoded, [](const agent_protocol_event& aEvent) { return aEvent.Kind == agent_protocol_event_kind::activity; });
 			}
