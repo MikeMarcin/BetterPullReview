@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 #include <variant>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -174,6 +175,18 @@ namespace bpr::app {
 		}
 	}
 
+	void github_application::implementation::observe_setup_policy()
+	{
+		if (!AgentSetup) {
+			return;
+		}
+		if (AgentReview.has_value()) {
+			AgentSetup->observe_policy(core::policy_for_host(AgentPolicies, AgentReview->Host));
+		} else {
+			AgentSetup->forget_policy();
+		}
+	}
+
 	void github_application::implementation::refresh_agent_authority()
 	{
 		observe_private_review();
@@ -183,6 +196,13 @@ namespace bpr::app {
 		const auto& state = EpochHost->state();
 		if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 			|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
+			// [[BPR-2256]]. Still loading, or no review: setup keeps the
+			// policy of the review being taken, or forgets it, and a
+			// workspace check waiting for a review that is gone ends.
+			observe_setup_policy();
+			if (!AgentReview.has_value() && AgentSetup && std::exchange(AgentSetupWorkspaceWaiting, false)) {
+				AgentSetup->set_workspace_check({ });
+			}
 			detach_agent_runtime();
 			AgentHost->clear();
 			if (TourSession) {
@@ -198,6 +218,10 @@ namespace bpr::app {
 		if (authority.Host != AgentReview->Host
 			|| authority.Repository != AgentReview->Repository
 			|| authority.PullRequest != AgentReview->PullRequest) {
+			// [[BPR-2256]]. The accepted authority is still the previous
+			// review's: setup shows the policy of the review being taken,
+			// never the previous host's.
+			observe_setup_policy();
 			detach_agent_runtime();
 			AgentHost->clear();
 			if (TourSession) {
@@ -224,10 +248,14 @@ namespace bpr::app {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
 			present_tour_continuation();
 		}
-		if (AgentSetup) {
-			// [[BPR-1749]]. Setup's rows carry this review's host
-			// policy, the same the agent host decides by.
-			AgentSetup->observe_policy(core::policy_for_host(AgentPolicies, authority.Host));
+		// [[BPR-1749]]. Setup's rows carry this review's host policy, the
+		// same the agent host decides by (here `authority.Host` is
+		// `AgentReview->Host`).
+		observe_setup_policy();
+		// [[BPR-2256]]. A setup check that asked for the workspace while the
+		// comparison loaded makes it now.
+		if (AgentSetupWorkspaceWaiting) {
+			check_agent_workspace();
 		}
 		refresh_agent_private_context_choices();
 		if (ChatHost != nullptr) {

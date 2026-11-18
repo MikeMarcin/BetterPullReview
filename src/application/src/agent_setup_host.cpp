@@ -94,7 +94,9 @@ namespace bpr::application {
 	{
 		explicit implementation(agent_setup_dependencies aDependencies)
 			: Dependencies{ std::move(aDependencies) }
-		{ }
+		{
+			Projection.PolicyPending = true;
+		}
 
 		/// Runs `aTask` on `aLane`, then `aSettle` with its answer on the
 		/// decision lane, unless the host has shut down. Counted, so the host
@@ -603,10 +605,22 @@ namespace bpr::application {
 	void agent_setup_host::observe_policy(std::optional<core::agent_host_policy> aPolicy)
 	{
 		auto& host = *Implementation;
-		if (host.Policy == aPolicy) {
+		if (!host.Projection.PolicyPending && host.Policy == aPolicy) {
 			return;
 		}
-		host.Policy = std::move(aPolicy);
+		host.Projection.PolicyPending = false;
+		host.Policy                   = std::move(aPolicy);
+		host.publish();
+	}
+
+	void agent_setup_host::forget_policy()
+	{
+		auto& host = *Implementation;
+		if (host.Projection.PolicyPending && !host.Policy) {
+			return;
+		}
+		host.Projection.PolicyPending = true;
+		host.Policy.reset();
 		host.publish();
 	}
 

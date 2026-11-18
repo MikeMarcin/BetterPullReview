@@ -256,6 +256,73 @@ namespace {
 		render(test.View, QStringLiteral("two"));
 	}
 
+	/// \brief [[BPR-2256]], owner amendment 2026-11-18 ("If we can't get
+	/// past step 1 then the whole drawer should just be in a loading
+	/// state"). While no host policy is observed the setup is one loading
+	/// state: no title, steps, cards or refusal. Once one is, the steps
+	/// return and each refused card names its own reason.
+	void test_host_policy_states()
+	{
+		auto test                = fixture{ };
+		test.Setup.PolicyPending = true;
+		test.Setup.State.Rows    = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path, false),
+									 row(core::setup_agent::codex, "/opt/homebrew/bin/codex", core::agent_found_how::on_path, false) };
+		test.Setup.Choices       = { card(7U, core::setup_agent::claude_code, "Claude stream JSON", "/opt/work/bin/claude-wrapper", core::agent_found_how::saved_program, false),
+									 card(0U, core::setup_agent::claude_code, "Claude Code", "/opt/homebrew/bin/claude", core::agent_found_how::on_path, false),
+									 card(0U, core::setup_agent::codex, "Codex", "/opt/homebrew/bin/codex", core::agent_found_how::on_path, false) };
+		for (auto& choice : test.Setup.Choices) {
+			choice.Verdict.Refusal = core::agent_invocation_refusal::host_not_mapped;
+		}
+		test.View.resize(420, 560);
+		test.View.show();
+		test.show();
+		const auto shown = [&test](const QWidget* aWidget) { return aWidget != nullptr && aWidget->isVisibleTo(&test.View); };
+		expect(test.View.needed() && shown(test.View.loading_state()), "while no policy is known the setup is its loading state");
+		expect(test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow")).isEmpty() && test.View.findChildren<QWidget*>(QStringLiteral("agentSetupStep1")).isEmpty()
+				   && !shown(test.View.findChild<QWidget*>(QStringLiteral("agentSetupTitle"))) && !shown(test.View.findChild<QWidget*>(QStringLiteral("agentSetupFooter"))),
+			   "with no title, step, card or footer");
+		const auto* const said = test.View.findChild<QLabel*>(QStringLiteral("agentSetupLoadingText"));
+		expect(shown(said) && said->text() == QStringLiteral("Waiting for the pull request to load…") && !test.text().contains(QStringLiteral("Not allowed")) && !test.text().contains(QStringLiteral("aren't allowed")),
+			   "it says the pull request is loading, and nothing is refused");
+		render(test.View, QStringLiteral("policy-pending"));
+
+		// The Enterprise policy arrives: Codex refused by the host, the others permitted.
+		test.Setup.PolicyPending         = false;
+		test.Setup.Choices[0].Verdict    = { .Permitted = true };
+		test.Setup.Choices[1].Verdict    = { .Permitted = true };
+		test.Setup.Choices[2].Verdict    = { .Refusal = core::agent_invocation_refusal::profile_forbidden_on_host, .RefusedBy = core::git_host_id{ 2U } };
+		test.Setup.State.Rows[0].Verdict = { .Permitted = true };
+		test.show();
+		const auto cards = test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"));
+		expect(!shown(test.View.loading_state()) && cards.size() == 3 && shown(test.View.findChild<QWidget*>(QStringLiteral("agentSetupTitle"))), "once the policy is known the steps and cards return");
+		expect(test.text().count(QStringLiteral("Not allowed for this pull request's host.")) == 1 && test.text().contains(QStringLiteral("Found on PATH.")) && test.text().contains(QStringLiteral("Your process wrapper.")),
+			   "only Codex says the host does not allow it");
+		render(test.View, QStringLiteral("policy-ghes"));
+
+		// Each refusal reason has its own words, and waiting is not one.
+		using refusal    = core::agent_invocation_refusal;
+		const auto words = [](const refusal aRefusal, const bool aObserved, std::optional<core::agent_profile_id> aRequired = std::nullopt) {
+			return qt::agent_verdict_words({ .Refusal = aRefusal, .RequiredInstead = aRequired }, aObserved);
+		};
+		const auto claude = core::built_in_agent_profiles().front();
+		expect(qt::agent_verdict_words({ .Permitted = true }, true).isEmpty(), "a permitted agent says nothing");
+		expect(words(refusal::host_not_mapped, false) == QStringLiteral("Waiting for the pull request to load…") && words(refusal::profile_forbidden_on_host, false) == words(refusal::host_not_mapped, false),
+			   "before a policy, any refusal reads as waiting");
+		expect(words(refusal::profile_forbidden_on_host, true) == QStringLiteral("Not allowed for this pull request's host."), "a host's refusal");
+		expect(words(refusal::host_not_mapped, true) == qt::host_not_mapped_words() && qt::host_not_mapped_words() == QStringLiteral("Agents aren't allowed for this pull request's server."),
+			   "a server with no policy, in the send refusal's own words");
+		expect(words(refusal::profile_not_required_one, true, claude.Id) == QStringLiteral("This pull request's host requires %1.").arg(QString::fromStdString(claude.DisplayName)), "a required agent is named");
+		expect(words(refusal::profile_not_required_one, true) == QStringLiteral("This pull request's host requires a different agent."), "and said when it cannot be");
+		auto all = QStringList{ };
+		for (const auto reason : { refusal::host_not_mapped, refusal::profile_forbidden_on_host, refusal::profile_not_required_one, refusal::profile_invalid, refusal::profile_unknown }) {
+			all << words(reason, true);
+		}
+		all << words(refusal::host_not_mapped, false);
+		all.removeDuplicates();
+		expect(all.size() == 6, "every reason, and waiting, has its own sentence");
+		test.View.hide();
+	}
+
 	void test_change_keeps_the_current_agent()
 	{
 		auto test                         = fixture{ };
@@ -986,6 +1053,7 @@ auto main(int argc, char** argv) -> int
 	test_setup_waits_until_a_step_is_known_missing();
 	test_no_agent_found();
 	test_two_agents_and_a_refused_one();
+	test_host_policy_states();
 	test_change_keeps_the_current_agent();
 	test_the_list_follows_settings();
 	test_repository_states();

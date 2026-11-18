@@ -30,6 +30,7 @@
 #include <charconv>
 #include <chrono>
 #include <limits>
+#include <utility>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/managed_clone.hpp"
@@ -1384,6 +1385,9 @@ namespace bpr::app {
 	{
 		if (!Closing && AgentSetup) {
 			AgentSetupWorkspaceStop.request_stop();
+			if (std::exchange(AgentSetupWorkspaceWaiting, false)) {
+				AgentSetup->set_workspace_check({ });
+			}
 			AgentSetup->stop();
 		}
 	}
@@ -1428,13 +1432,20 @@ namespace bpr::app {
 			LastWorkspaceProbeReason = aReason;
 			AgentSetup->set_workspace_check(core::fail_check(core::agent_setup_failure::workspace_unavailable), std::move(aDetail));
 		};
+		AgentSetupWorkspaceWaiting = false;
 		if (AgentHost == nullptr || EpochHost == nullptr || !AgentReview) {
 			failed(std::nullopt);
 			return;
 		}
 		const auto& state = EpochHost->state();
-		if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
-			failed(std::nullopt);
+		if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison
+			|| state.Authority->Host != AgentReview->Host || state.Authority->Repository != AgentReview->Repository || state.Authority->PullRequest != AgentReview->PullRequest) {
+			// [[BPR-2256]]. The setup has this review's policy before its
+			// comparison is accepted, so a check can ask now: the workspace
+			// waits for it (refresh_agent_authority) instead of failing.
+			AgentSetupWorkspaceWaiting = true;
+			LastWorkspaceProbeReason.reset();
+			AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
 			return;
 		}
 		const auto& authority  = *state.Authority;

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2257"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent host policies are keyed to host IDs 1 and 2; a host allocated another ID refuses every agent",
+  "created": "2026-11-18T21:47:43.002103+00:00",
+  "base": "cb3b14f762fbf5bdcb6d3705ae7b8b255d42d5ca"
+}

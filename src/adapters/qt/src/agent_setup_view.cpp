@@ -159,6 +159,39 @@ namespace bpr::qt {
 		return { };
 	}
 
+	auto host_not_mapped_words() -> QString { return QObject::tr("Agents aren't allowed for this pull request's server."); }
+
+	auto agent_verdict_words(const core::agent_invocation_verdict& aVerdict, const bool aPolicyObserved) -> QString
+	{
+		if (aVerdict.Permitted) {
+			return { };
+		}
+		if (!aPolicyObserved) {
+			return QObject::tr("Waiting for the pull request to load…");
+		}
+		using refusal = core::agent_invocation_refusal;
+		switch (aVerdict.Refusal) {
+		case refusal::host_not_mapped:           return host_not_mapped_words();
+		case refusal::profile_forbidden_on_host: return QObject::tr("Not allowed for this pull request's host.");
+		case refusal::profile_not_required_one:  {
+			auto required = QString{ };
+			if (aVerdict.RequiredInstead) {
+				auto profiles = core::built_in_agent_profiles();
+				std::ranges::move(core::agent_entry_profiles(), std::back_inserter(profiles));
+				const auto found = std::ranges::find(profiles, *aVerdict.RequiredInstead, &core::agent_profile::Id);
+				if (found != profiles.end()) {
+					required = QString::fromStdString(found->DisplayName);
+				}
+			}
+			return required.isEmpty() ? QObject::tr("This pull request's host requires a different agent.") : QObject::tr("This pull request's host requires %1.").arg(required);
+		}
+		case refusal::profile_invalid: return QObject::tr("This agent's settings can't be used. Edit it in Settings › Agents.");
+		case refusal::profile_unknown: return QObject::tr("This agent isn't set up in this app.");
+		case refusal::none:            break;
+		}
+		return QObject::tr("Not allowed for this pull request's host.");
+	}
+
 	auto setup_failure_words(const core::agent_setup_failure aFailure, const QString& aAgent, const QString& aDetail) -> QString
 	{
 		using failure = core::agent_setup_failure;
@@ -228,24 +261,49 @@ namespace bpr::qt {
 		auto* const column  = new QVBoxLayout{ content };
 		column->setContentsMargins(16, 14, 16, 12);
 		column->setSpacing(10);
-		auto* const title = new QLabel{ tr("Set up an agent"), content };
-		title->setObjectName(QStringLiteral("agentSetupTitle"));
-		auto heading = title->font();
+		Title = new QLabel{ tr("Set up an agent"), content };
+		Title->setObjectName(QStringLiteral("agentSetupTitle"));
+		auto heading = Title->font();
 		heading.setPointSizeF(heading.pointSizeF() * 1.25);
 		heading.setWeight(QFont::DemiBold);
-		title->setFont(heading);
-		column->addWidget(title);
+		Title->setFont(heading);
+		column->addWidget(Title);
 		Intro = muted(tr("Ask an agent you already use about this pull request. It runs on this computer with its own sign-in, in its own copy of the pull request at its head. Nothing it says is published unless you make it a comment."), content);
 		Intro->setObjectName(QStringLiteral("agentSetupIntro"));
 		column->addWidget(Intro);
 		Steps = new QVBoxLayout{ };
 		Steps->setSpacing(8);
 		column->addLayout(Steps);
+		// [[BPR-2256]], owner amendment 2026-11-18 ("If we can't get past
+		// step 1 then the whole drawer should just be in a loading state"):
+		// until the pull request's host policy is known, one quiet line and
+		// a busy bar, and nothing that could read as an agent refused.
+		Loading = new QWidget{ content };
+		Loading->setObjectName(QStringLiteral("agentSetupLoading"));
+		{
+			auto* const lines = new QVBoxLayout{ Loading };
+			lines->setContentsMargins(0, 24, 0, 0);
+			lines->setSpacing(8);
+			auto* const busy = new QProgressBar{ Loading };
+			busy->setObjectName(QStringLiteral("agentSetupLoadingBar"));
+			busy->setRange(0, 0);
+			busy->setTextVisible(false);
+			busy->setMaximumWidth(120);
+			lines->addWidget(busy, 0, Qt::AlignHCenter);
+			auto* const said = muted(agent_verdict_words({ }, false), Loading);
+			said->setObjectName(QStringLiteral("agentSetupLoadingText"));
+			said->setAlignment(Qt::AlignHCenter);
+			lines->addWidget(said);
+			Loading->setAccessibleName(said->text());
+		}
+		Loading->hide();
+		column->addWidget(Loading);
 		column->addStretch(1);
 		scroll->setWidget(content);
 		outer->addWidget(scroll, 1);
 
 		auto* const footer = new QWidget{ this };
+		Footer             = footer;
 		footer->setObjectName(QStringLiteral("agentSetupFooter"));
 		auto* const row = new QHBoxLayout{ footer };
 		row->setContentsMargins(12, 6, 12, 8);
@@ -387,6 +445,16 @@ namespace bpr::qt {
 		}
 		const auto current = Setup.Step == core::setup_step::ready ? core::setup_step::check : Setup.Step;
 		Open               = Editing.value_or(current);
+		// [[BPR-2256]]. No host policy yet: the loading state alone.
+		const auto loading = Setup.PolicyPending;
+		Loading->setVisible(loading);
+		Title->setVisible(!loading);
+		Intro->setVisible(!loading);
+		Footer->setVisible(!loading);
+		setAccessibleName(loading ? Loading->accessibleName() : tr("Set up an agent"));
+		if (loading) {
+			return;
+		}
 		struct step
 		{
 			core::setup_step Step;
@@ -594,8 +662,9 @@ namespace bpr::qt {
 				case core::agent_found_how::saved_program: how = choice.Agent == core::setup_agent::claude_code ? tr("Your process wrapper.") : tr("The program you chose."); break;
 				}
 			}
+			// [[BPR-2256]]. Waiting, or the refusal's own reason.
 			if (!choice.Verdict.Permitted) {
-				how = tr("Not allowed for this pull request's host.");
+				how = agent_verdict_words(choice.Verdict, !Setup.PolicyPending);
 			}
 			lines->addWidget(muted(how, card));
 			grid->addLayout(lines, 1);

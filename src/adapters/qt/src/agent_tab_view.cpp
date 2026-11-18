@@ -4600,7 +4600,7 @@ namespace bpr::qt {
 		case core::agent_send_refusal::request_in_flight:        return tr("%1 is still answering. Wait for its answer, or stop it and send again.").arg(agent);
 		case core::agent_send_refusal::session_stale:            return tr("The pull request has moved on. Start a new session or continue on the old head, then send.");
 		case core::agent_send_refusal::agent_unknown:            return tr("%1 is no longer set up. Choose another agent, or add it again in Settings › Agents.").arg(agent);
-		case core::agent_send_refusal::host_not_mapped:          return tr("Agents aren't allowed for this pull request's server.");
+		case core::agent_send_refusal::host_not_mapped:          return host_not_mapped_words();
 		case core::agent_send_refusal::agent_forbidden_on_host:  return tr("%1 isn't allowed for this pull request's server. Choose an agent the server allows.").arg(agent);
 		case core::agent_send_refusal::agent_not_required_one:   return tr("This pull request's server requires a different agent. Choose it in the agent menu.");
 		case core::agent_send_refusal::session_profile_mismatch: return tr("This conversation is with another agent. Start a new session to ask %1.").arg(agent);

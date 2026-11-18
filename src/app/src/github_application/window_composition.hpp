@@ -1888,6 +1888,10 @@ namespace bpr::app {
 		void clear_side_chat();
 
 		void refresh_agent_authority();
+		/// [[BPR-2256]]. Agent setup's rows carry the policy of the review
+		/// being taken (`AgentReview`) from the moment its host is known, and
+		/// none while no review is.
+		void observe_setup_policy();
 
 		void dispatch_agent_intent(qt::agent_intent aIntent);
 
@@ -2724,6 +2728,10 @@ namespace bpr::app {
 		std::uint64_t                             NextAgentAnswerDraft = 0U;
 		std::stop_source                          AgentSetupWorkspaceStop;
 		std::uint64_t                             AgentSetupWorkspaceGeneration = 0U;
+		/// [[BPR-2256]]. A setup check asked for the workspace while the
+		/// review was taken and its comparison not yet accepted: the
+		/// workspace is made once it is, rather than failing.
+		bool AgentSetupWorkspaceWaiting = false;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

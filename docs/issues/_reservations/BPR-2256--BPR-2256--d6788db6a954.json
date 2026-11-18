@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2256"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent tab refuses every agent while a pull request loads",
+  "created": "2026-11-18T21:38:14.454228+00:00",
+  "base": "963ef198b6aaf9ac2344de628dcb9f177906ea03"
+}
