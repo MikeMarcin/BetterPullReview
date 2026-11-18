@@ -198,7 +198,8 @@ namespace bpr::core {
 	/// surface, under the identity `aId` the host minted.
 	auto add_prompt(prompt_editor& aEditor, std::string aId, std::string aName) -> prompt_edit_outcome;
 	/// \brief Duplicate: an own copy of `aFrom` named `aName` (cut at the name
-	/// bound, on a character boundary), on no surface.
+	/// bound, on a character boundary), on no surface, under the new
+	/// identity `aId` and linked to no prompt pack.
 	auto duplicate_prompt(prompt_editor& aEditor, const std::string& aFrom, std::string aId, std::string aName) -> prompt_edit_outcome;
 	/// \brief Reset to default: a built-in's shipped body; On and placements stay.
 	auto reset_prompt(prompt_editor& aEditor, const std::string& aId) -> prompt_edit_outcome;

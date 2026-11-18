@@ -177,18 +177,35 @@ namespace bpr::application {
 		host.next();
 	}
 
+	auto mint_prompt_uuid(const std::function<std::array<std::uint8_t, 16>()>& aRandom) -> std::string
+	{
+		auto bytes = std::array<std::uint8_t, 16>{ };
+		if (aRandom) {
+			bytes = aRandom();
+		} else {
+			auto random = std::random_device{ };
+			for (auto& byte : bytes) {
+				byte = static_cast<std::uint8_t>(random() & 0xFFU);
+			}
+		}
+		// Version 4 and the RFC 4122 variant.
+		bytes[6]              = static_cast<std::uint8_t>((bytes[6] & 0x0FU) | 0x40U);
+		bytes[8]              = static_cast<std::uint8_t>((bytes[8] & 0x3FU) | 0x80U);
+		constexpr auto digits = std::string_view{ "0123456789abcdef" };
+		auto           text   = std::string{ };
+		for (std::size_t index = 0U; index < bytes.size(); ++index) {
+			if (index == 4U || index == 6U || index == 8U || index == 10U) {
+				text += '-';
+			}
+			text += digits[bytes[index] >> 4U];
+			text += digits[bytes[index] & 0x0FU];
+		}
+		return text;
+	}
+
 	auto prompt_macro_host::mint_identity() const -> std::string
 	{
-		if (Implementation->Dependencies.MintIdentity) {
-			return "own." + Implementation->Dependencies.MintIdentity();
-		}
-		auto           random   = std::random_device{ };
-		auto           identity = std::string{ "own." };
-		constexpr auto digits   = std::string_view{ "0123456789abcdef" };
-		for (auto index = 0U; index < 32U; ++index) {
-			identity += digits[random() & 15U];
-		}
-		return identity;
+		return Implementation->Dependencies.MintIdentity ? Implementation->Dependencies.MintIdentity() : mint_prompt_uuid();
 	}
 
 	auto prompt_macro_host::projection() const noexcept -> const prompt_macro_projection& { return Implementation->Projection; }

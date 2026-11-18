@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONFIGURATION_HPP
 
 #include "bpr/core/agent_entry.hpp"
+#include "bpr/core/prompt_pack.hpp"
 #include "bpr/core/workflow_configuration.hpp"
 
 #include <array>
@@ -26,14 +27,21 @@
 /// Workflows, Identity and Repositories. It holds no credential of any kind
 /// (no token, keychain item, `gh` sign-in or cookie), no program path, no
 /// local folder, numeric agent ID, host-minted identity, workspace or
-/// history. There is one format and one version: the file was never
-/// released before it, so nothing older is read.
+/// history.
+///
+/// RFC-BPR-0125 AC24 ([[BPR-2149]]): version 2 adds one prompt pack, the
+/// reviewer's own suggested prompts under their UUIDs (the one host-minted
+/// identity a file carries, since an import matches by it). A file with no
+/// prompt pack is written as version 1, exactly as before, and both versions
+/// are read.
 namespace bpr::core {
-	/// [[BPR-2198]]. The one format marker and its one version; a file of
-	/// any other version is refused as newer.
-	inline constexpr std::string_view agent_configuration_format        = "bpr.profile-settings";
-	inline constexpr std::uint32_t    agent_configuration_version       = 1U;
-	inline constexpr std::size_t      maximum_agent_configuration_bytes = 1024U * 1024U;
+	/// [[BPR-2198]]. The one format marker and the newest version; a file of
+	/// a version above it is refused as newer.
+	inline constexpr std::string_view agent_configuration_format  = "bpr.profile-settings";
+	inline constexpr std::uint32_t    agent_configuration_version = 2U;
+	/// RFC-BPR-0125 AC24. The version a file with no prompt pack is written as.
+	inline constexpr std::uint32_t agent_configuration_version_without_prompt_pack = 1U;
+	inline constexpr std::size_t   maximum_agent_configuration_bytes               = 1024U * 1024U;
 	/// The free-text label an exporter gives the file, and its own name.
 	inline constexpr std::size_t maximum_agent_configuration_label_bytes = 128U;
 	inline constexpr std::size_t maximum_portable_id_bytes               = 64U;
@@ -183,6 +191,10 @@ namespace bpr::core {
 		/// [[BPR-2198]]. Absent unless Identity was chosen.
 		std::optional<portable_identity> Identity;
 		std::vector<portable_repository> Repositories;
+		/// RFC-BPR-0125 AC24. The prompt pack; with no prompt in it the file
+		/// is version 1.
+		prompt_pack_identity               PromptPack;
+		std::vector<portable_prompt_macro> PromptMacros;
 
 		auto operator<=>(const agent_configuration&) const = default;
 	};
@@ -286,6 +298,10 @@ namespace bpr::core {
 		/// [[BPR-2198]].
 		std::optional<portable_identity> Identity;
 		std::vector<portable_repository> Repositories;
+		/// RFC-BPR-0125 AC24. The file's version, and its prompt pack (version
+		/// 2 only).
+		std::uint32_t                      Version = agent_configuration_version_without_prompt_pack;
+		std::optional<decoded_prompt_pack> PromptPack;
 
 		auto operator<=>(const decoded_configuration&) const = default;
 	};
@@ -402,6 +418,8 @@ namespace bpr::core {
 		std::optional<agent_entry_refusal> Entry;
 		/// [[BPR-2032]]. A workflow choice the profile's workflows refuse.
 		std::optional<workflow_apply_error> Workflow;
+		/// RFC-BPR-0125 AC24. A prompt pack choice the profile's prompts refuse.
+		std::optional<prompt_pack_apply_refusal> PromptPack;
 
 		auto operator<=>(const configuration_apply_error&) const = default;
 	};

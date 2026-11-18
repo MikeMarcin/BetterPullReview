@@ -7,6 +7,7 @@
 
 #include "bpr/application/agent_configuration_exchange.hpp"
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/prompt_pack.hpp"
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -653,6 +654,147 @@ namespace {
 			delete exporter;
 		}
 	}
+
+	// ----- RFC-BPR-0125 AC24 ([[BPR-2149]]): prompt packs -----
+
+	constexpr auto pack_uuid  = std::string_view{ "0f8e4c2a-1b3d-4e5f-8a9b-0c1d2e3f4a5b" };
+	constexpr auto fresh_uuid = std::string_view{ "99999999-9999-4999-8999-999999999999" };
+	constexpr auto a_uuid     = std::string_view{ "11111111-1111-4111-8111-111111111111" };
+	constexpr auto b_uuid     = std::string_view{ "22222222-2222-4222-9222-222222222222" };
+	constexpr auto c_uuid     = std::string_view{ "33333333-3333-4333-a333-333333333333" };
+	constexpr auto d_uuid     = std::string_view{ "44444444-4444-4444-b444-444444444444" };
+	constexpr auto e_uuid     = std::string_view{ "55555555-5555-4555-8555-555555555555" };
+
+	[[nodiscard]] auto suggested(const std::string_view aId, std::string aName, std::string aTemplate) -> core::prompt_macro
+	{
+		auto macro          = core::prompt_macro{ .Id = std::string{ aId }, .Place = core::prompt_place::agent_tab };
+		macro.Body.Name     = std::move(aName);
+		macro.Body.Template = std::move(aTemplate);
+		return macro;
+	}
+
+	[[nodiscard]] auto linked_to_pack(const std::string_view aId, std::string aName, std::string aTemplate, const std::uint32_t aVersion) -> core::prompt_macro
+	{
+		auto macro = suggested(aId, std::move(aName), std::move(aTemplate));
+		macro.Pack = core::prompt_pack_link{ .Pack = std::string{ pack_uuid }, .Label = "Team prompts", .Version = aVersion, .Place = macro.Place, .Body = macro.Body };
+		return macro;
+	}
+
+	/// Export: suggested prompts start unticked (version 1); ticked, they go
+	/// out as a named pack, new or a later version of one held here.
+	void test_export_prompt_pack(const std::string& aRoot)
+	{
+		auto snapshot                         = sender();
+		snapshot.PromptMacros.Differences.Own = { suggested("own.0123456789abcdef0123456789abcdef", "Look again", "Look again at {pr.title}."),
+												  linked_to_pack(a_uuid, "Risks", "What could this break?", 2U) };
+		auto dialog                           = qt::agent_configuration_export_dialog{ snapshot, { }, "BetterPullReview test" };
+		expect(dialog.suggested_prompts().empty() && dialog.bytes().find("\"version\": 1") != std::string::npos && dialog.bytes().find("prompt_pack") == std::string::npos,
+			   "no suggested prompt starts ticked, so the file stays version 1");
+		dialog.set_minted_identities(std::string{ pack_uuid }.replace(0U, 1U, "1"), { std::string{ fresh_uuid } });
+		auto* section = static_cast<QTreeWidgetItem*>(nullptr);
+		for (QTreeWidgetItemIterator it{ dialog.items() }; *it != nullptr; ++it) {
+			if ((*it)->text(0) == QStringLiteral("Suggested prompts")) {
+				section = *it;
+			}
+		}
+		expect(section != nullptr && section->childCount() == 2, "the reviewer's own prompts are listed, each to tick");
+		expect(section->child(1)->text(1) == QStringLiteral("From Team prompts, version 2"), "a prompt from a pack says which");
+		section->setCheckState(0, Qt::Checked);
+		expect(dialog.suggested_prompts().size() == 2U && !dialog.prompt_pack() && !dialog.export_button()->isEnabled(), "a new pack needs a name");
+		expect(dialog.findChild<QLabel*>(QStringLiteral("agentConfigurationExportSummary"))->text() == QStringLiteral("Name the prompt pack."), "and says so");
+		dialog.pack_name()->setText(QStringLiteral("Review kit"));
+		expect(dialog.prompt_pack() && dialog.prompt_pack()->Pack.Version == 1U && dialog.prompt_pack()->Pack.Label == "Review kit", "a new pack is version 1");
+		expect(dialog.bytes().find("\"version\": 2") != std::string::npos && dialog.bytes().find(std::string{ fresh_uuid }) != std::string::npos
+				   && dialog.bytes().find("own.0123") == std::string::npos,
+			   "version 2; the prompt made before UUIDs goes out under the minted one");
+		expect(dialog.exact_text()->toPlainText().contains(QStringLiteral("Look again at {pr.title}.")), "the exact text shows each prompt's template");
+		dialog.pack_choice()->setCurrentIndex(1);
+		expect(dialog.pack_name()->text() == QStringLiteral("Team prompts") && dialog.prompt_pack() && dialog.prompt_pack()->Pack.Id == pack_uuid && dialog.prompt_pack()->Pack.Version == 3U,
+			   "an existing pack goes out as its next version under its own ID");
+		expect(std::ranges::all_of(dialog.prompt_pack()->After.Own, [](const core::prompt_macro& aMacro) { return aMacro.Pack && aMacro.Pack->Version == 3U; }),
+			   "what the export records links every exported prompt at that version");
+		render(dialog, aRoot, QStringLiteral("export-prompt-pack"));
+	}
+
+	[[nodiscard]] auto pack_preview(const std::uint32_t aVersion) -> application::agent_configuration_preview
+	{
+		auto preview                                  = application::agent_configuration_preview{ };
+		auto edited                                   = linked_to_pack(b_uuid, "Explain", "Explain the change.", 2U);
+		edited.Body.Template                          = "Explain the change to a new teammate.";
+		auto off                                      = linked_to_pack(a_uuid, "Risks", "What could this break?", 2U);
+		off.On                                        = false;
+		preview.Snapshot.PromptMacros.Differences.Own = { off, edited, linked_to_pack(c_uuid, "Old one", "An old prompt.", 2U), suggested(d_uuid, "Mine", "My own prompt.") };
+		auto       file                               = core::decoded_prompt_pack{ .Pack = { .Id = std::string{ pack_uuid }, .Label = "Team prompts", .Version = aVersion }, .Macros = { } };
+		const auto item                               = [&file](const std::string_view aId, const std::string& aName, const std::string& aTemplate) {
+			auto macro          = core::portable_prompt_macro{ .Id = std::string{ aId }, .Place = core::prompt_place::agent_tab };
+			macro.Body.Name     = aName;
+			macro.Body.Template = aTemplate;
+			file.Macros.push_back({ .Macro = std::move(macro), .Problem = std::nullopt, .Detail = { } });
+		};
+		item(a_uuid, "Risks", "What could this break, and for whom?");
+		item(b_uuid, "Explain", "Explain the change, briefly.");
+		item(e_uuid, "Tests", "Which tests cover this?");
+		item("66666666-6666-4666-9666-666666666666", "Commits", "About these commits.");
+		file.Macros.back().Problem = core::prompt_pack_item_problem::unsupported;
+		file.Macros.back().Detail  = "commit-list";
+		preview.File.Version       = 2U;
+		preview.File.PromptPack    = std::move(file);
+		return preview;
+	}
+
+	/// Import: each suggested prompt with its standing, the choice the core
+	/// started it at, Replace or Keep mine on an edited copy, Remove or Keep
+	/// on one the pack dropped, and an older pack flagged.
+	void test_import_prompt_pack(const std::string& aRoot)
+	{
+		auto  dialog = qt::agent_configuration_import_dialog{ pack_preview(3U), { } };
+		auto* risks  = row_named(dialog, QStringLiteral("Risks"));
+		auto* expl   = row_named(dialog, QStringLiteral("Explain"));
+		auto* tests  = row_named(dialog, QStringLiteral("Tests"));
+		auto* old    = row_named(dialog, QStringLiteral("Old one"));
+		auto* bad    = row_named(dialog, QStringLiteral("Commits"));
+		expect(risks && risks->text().contains(QStringLiteral("Updated")) && risks->text().contains(QStringLiteral("Updated in place")) && risks->checkState() == Qt::Checked,
+			   "a prompt not edited since: Updated in place, ticked");
+		expect(expl && expl->text().contains(QStringLiteral("Edited here")) && expl->checkState() == Qt::Unchecked && expl->text().contains(QStringLiteral("Your copy kept")),
+			   "an edited copy: a conflict, starting at Keep mine");
+		expect(tests && tests->text().contains(QStringLiteral("New")) && tests->checkState() == Qt::Checked, "a prompt of no ID here: New, ticked");
+		expect(old && old->text().contains(QStringLiteral("Dropped from the pack")) && old->checkState() == Qt::Checked && old->text().contains(QStringLiteral("Removed")),
+			   "a prompt the pack dropped starts at Remove, said in the list");
+		expect(bad && bad->text().contains(QStringLiteral("commit-list")) && bad->data(Qt::CheckStateRole).isNull(), "an unsupported prompt is listed, named and cannot be ticked");
+		expect(row_named(dialog, QStringLiteral("Mine")) == nullptr, "a prompt not from the pack is not in the preview at all");
+		const auto start = dialog.prompt_pack_choices();
+		expect(start.Take == std::vector<std::size_t>{ 0U, 2U } && start.Remove == std::vector<std::string>{ std::string{ c_uuid } }, "the starting choices are the core's");
+
+		dialog.select_suggested(1U);
+		// Shown, the list's own selection builds the detail again: the parts
+		// are read once that has settled.
+		render(dialog, aRoot, QStringLiteral("import-prompt-pack-conflict"));
+		settle();
+		auto* const replace = part(dialog, QStringLiteral("Replace"));
+		auto* const keep    = part(dialog, QStringLiteral("Keep mine"));
+		expect(replace != nullptr && keep != nullptr && keep->isChecked(), "an edited copy offers Replace or Keep mine");
+		expect(dialog.yours() && dialog.theirs() && dialog.yours()->toPlainText() == QStringLiteral("Explain the change to a new teammate.")
+				   && dialog.theirs()->toPlainText() == QStringLiteral("Explain the change, briefly."),
+			   "yours beside the pack's");
+		press_space(replace);
+		settle();
+		expect(dialog.prompt_pack_choices().Take == std::vector<std::size_t>{ 0U, 1U, 2U }, "Replace takes it");
+		dialog.select_dropped(0U);
+		settle();
+		auto* const keepIt = part(dialog, QStringLiteral("Keep"));
+		expect(part(dialog, QStringLiteral("Remove")) != nullptr && keepIt != nullptr, "a dropped prompt offers Remove or Keep");
+		press_space(keepIt);
+		settle();
+		expect(dialog.prompt_pack_choices().Remove.empty(), "Keep keeps it");
+		expect(dialog.summary()->text().contains(QStringLiteral("1 suggested prompt")) && dialog.apply_button()->isEnabled(), "the footer counts the pack's prompts");
+		expect_no_sideways_pan(dialog, "the suggested prompt's detail fits without panning");
+		dialog.select_suggested(1U);
+		render(dialog, aRoot, QStringLiteral("import-prompt-pack"));
+
+		auto older = qt::agent_configuration_import_dialog{ pack_preview(1U), { } };
+		expect(older.pack_plan().Older && older.summary()->text().startsWith(QStringLiteral("This is version 1 of “Team prompts”; version 2 is already here")), "an older pack is flagged first");
+		expect(older.prompt_pack_choices().Take == std::vector<std::size_t>{ 2U } && older.prompt_pack_choices().Remove.empty(), "and its updates and removals start left out");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -663,6 +805,8 @@ auto main(int argc, char** argv) -> int
 	test_import(bytes, root);
 	const auto update = test_workflow(root);
 	test_theme_matches_prompts(update, root);
+	test_export_prompt_pack(root);
+	test_import_prompt_pack(root);
 	std::cout << "agent-configuration-dialogs:pass\n";
 	return EXIT_SUCCESS;
 }

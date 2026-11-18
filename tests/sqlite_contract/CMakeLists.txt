@@ -809,3 +809,17 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_add_network_isolated_test(NAME sqlite_agent_configuration_storage WINDOWS_UNCONTAINED COMMAND test_agent_configuration_storage)
     set_tests_properties(sqlite_agent_configuration_storage PROPERTIES PASS_REGULAR_EXPRESSION "agent-configuration-storage:pass" TIMEOUT 120)
 endif()
+# RFC-BPR-0125 AC24 and AC26 ([[BPR-2149]]). A prompt pack exported, imported
+# into a clean profile and updated in place, through the real stores; the pack
+# table made where an earlier build's store lacks it.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_prompt_pack_storage prompt_pack_storage_tests.cpp)
+    target_link_libraries(test_prompt_pack_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::Application BetterPullReview::SQLite3)
+    bpr_enable_hardening(test_prompt_pack_storage)
+    if(WIN32)
+        target_link_libraries(test_prompt_pack_storage PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_prompt_pack_storage)
+    bpr_add_network_isolated_test(NAME sqlite_prompt_pack_storage WINDOWS_UNCONTAINED COMMAND test_prompt_pack_storage)
+    set_tests_properties(sqlite_prompt_pack_storage PROPERTIES PASS_REGULAR_EXPRESSION "prompt-pack-storage:pass" TIMEOUT 120)
+endif()

@@ -74,6 +74,8 @@ namespace bpr::core::detail {
 		std::optional<glz::raw_json>                        Workflows;
 		std::optional<wire_profile_identity>                Identity;
 		std::optional<std::vector<wire_profile_repository>> Repositories;
+		/// RFC-BPR-0125 AC24. Version 2 only.
+		std::optional<glz::raw_json> PromptPack;
 	};
 	/// Only the head, read first so a newer or foreign file is named as such.
 	struct wire_head
@@ -122,7 +124,7 @@ struct glz::meta<bpr::core::detail::wire_file>
 {
 	using value_type            = bpr::core::detail::wire_file;
 	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "label", &value_type::Label, "exported_by", &value_type::ExportedBy, "agents", &value_type::Agents,
-										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows, "identity", &value_type::Identity, "repositories", &value_type::Repositories);
+										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows, "identity", &value_type::Identity, "repositories", &value_type::Repositories, "prompt_pack", &value_type::PromptPack);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_head>
@@ -540,8 +542,26 @@ namespace bpr::core {
 	{
 		auto file       = detail::wire_file{ };
 		file.Format     = std::string{ agent_configuration_format };
-		file.Version    = agent_configuration_version;
+		file.Version    = agent_configuration_version_without_prompt_pack;
 		file.ExportedBy = aConfiguration.ExportedBy;
+		// RFC-BPR-0125 AC24. Only a file with a prompt pack is version 2, so
+		// every other export reads in builds that know version 1 alone.
+		if (!aConfiguration.PromptMacros.empty()) {
+			auto pack = encode_prompt_pack(aConfiguration.PromptPack, aConfiguration.PromptMacros);
+			if (!pack) {
+				return std::nullopt;
+			}
+			// Indented to sit as a member of the file, one level in.
+			auto indented = std::string{ };
+			for (const auto byte : *pack) {
+				indented.push_back(byte);
+				if (byte == '\n') {
+					indented.append("   ");
+				}
+			}
+			file.Version    = agent_configuration_version;
+			file.PromptPack = glz::raw_json{ std::move(indented) };
+		}
 		if (!aConfiguration.Label.empty()) {
 			file.Label = aConfiguration.Label;
 		}
@@ -614,7 +634,8 @@ namespace bpr::core {
 		if (!utf8::valid(aBytes)) {
 			return std::unexpected(configuration_file_refusal::not_text);
 		}
-		const auto limits = json_preflight_limits{ .Depth = 8U, .ObjectMembers = 32U, .ArrayElements = maximum_configuration_repositories, .Values = 50'000U, .StringBytes = maximum_review_skill_bytes * 6U };
+		// RFC-BPR-0125 AC24: a prompt's condition patterns sit eleven deep.
+		const auto limits = json_preflight_limits{ .Depth = 12U, .ObjectMembers = 32U, .ArrayElements = maximum_configuration_repositories, .Values = 50'000U, .StringBytes = maximum_review_skill_bytes * 6U };
 		if (const auto report = json_preflight(aBytes, limits); report.Result != json_preflight_result::valid) {
 			return std::unexpected(report.Result == json_preflight_result::structural_limit ? configuration_file_refusal::too_many_items : configuration_file_refusal::malformed);
 		}
@@ -625,7 +646,7 @@ namespace bpr::core {
 		if (head.Format != agent_configuration_format) {
 			return std::unexpected(configuration_file_refusal::not_a_configuration);
 		}
-		if (head.Version != agent_configuration_version) {
+		if (head.Version != agent_configuration_version && head.Version != agent_configuration_version_without_prompt_pack) {
 			return std::unexpected(configuration_file_refusal::unsupported_version);
 		}
 		auto file = detail::wire_file{ };
@@ -637,7 +658,17 @@ namespace bpr::core {
 			|| (file.Repositories && file.Repositories->size() > maximum_configuration_repositories)) {
 			return std::unexpected(configuration_file_refusal::too_many_items);
 		}
-		auto decoded       = decoded_configuration{ };
+		auto decoded    = decoded_configuration{ };
+		decoded.Version = head.Version;
+		// RFC-BPR-0125 AC24. A prompt pack is version 2's; one in a version 1
+		// file, or one this version cannot read, makes the file malformed.
+		if (file.PromptPack) {
+			auto pack = head.Version == agent_configuration_version ? decode_prompt_pack(file.PromptPack->str) : std::nullopt;
+			if (!pack) {
+				return std::unexpected(configuration_file_refusal::malformed);
+			}
+			decoded.PromptPack = std::move(*pack);
+		}
 		decoded.Label      = file.Label.value_or(std::string{ });
 		decoded.ExportedBy = file.ExportedBy;
 		if (decoded.Label.size() > maximum_agent_configuration_label_bytes || !plain(decoded.Label) || decoded.ExportedBy.size() > maximum_agent_configuration_label_bytes

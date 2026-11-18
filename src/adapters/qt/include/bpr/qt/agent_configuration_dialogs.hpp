@@ -56,6 +56,19 @@ namespace bpr::qt {
 										  core::profile_facts aProfile = { }, QWidget* aParent = nullptr);
 		/// \brief How Export… asks for the file; none answers cancelled.
 		void set_file_chooser(std::function<QString()> aChooser);
+		/// \brief RFC-BPR-0125 AC24. The UUIDs the host minted for this export:
+		/// a new pack's ID, and one for each own prompt made before UUIDs. With
+		/// none, suggested prompts cannot be chosen.
+		void set_minted_identities(std::string aNewPack, std::vector<std::string> aFresh);
+		/// \brief RFC-BPR-0125 AC24. The suggested prompts ticked, by ID, in
+		/// library order; the pack chosen (none for a new one) and its name.
+		[[nodiscard]] auto suggested_prompts() const -> std::vector<std::string>;
+		/// \brief The prompt pack the current choice exports and records; none
+		/// when no suggested prompt is ticked or the pack has no name.
+		[[nodiscard]] auto prompt_pack() const -> const std::optional<core::prompt_pack_export>& { return Pack; }
+		[[nodiscard]] auto pack_choice() const noexcept -> QComboBox* { return PackChoice; }
+		[[nodiscard]] auto pack_name() const noexcept -> QLineEdit* { return PackName; }
+		[[nodiscard]] auto snapshot() const noexcept -> const application::agent_configuration_snapshot& { return Snapshot; }
 
 		[[nodiscard]] auto agents() const -> std::vector<std::uint32_t>;
 		[[nodiscard]] auto prompts() const -> std::vector<application::exported_prompt>;
@@ -86,12 +99,19 @@ namespace bpr::qt {
 		std::string                               Bytes;
 		QString                                   Path;
 		std::function<QString()>                  Chooser;
-		QTreeWidget*                              Items        = nullptr;
-		QLineEdit*                                Label        = nullptr;
-		QPlainTextEdit*                           Exact        = nullptr;
-		QLabel*                                   Size         = nullptr;
-		QPushButton*                              ExportButton = nullptr;
-		QPushButton*                              AllPrompts   = nullptr;
+		/// RFC-BPR-0125 AC24.
+		std::vector<core::prompt_pack_here>     Packs;
+		std::string                             NewPack;
+		std::vector<std::string>                Fresh;
+		std::optional<core::prompt_pack_export> Pack;
+		QComboBox*                              PackChoice   = nullptr;
+		QLineEdit*                              PackName     = nullptr;
+		QTreeWidget*                            Items        = nullptr;
+		QLineEdit*                              Label        = nullptr;
+		QPlainTextEdit*                         Exact        = nullptr;
+		QLabel*                                 Size         = nullptr;
+		QPushButton*                            ExportButton = nullptr;
+		QPushButton*                            AllPrompts   = nullptr;
 	};
 
 	/// \brief [[BPR-2017]], RFC-BPR-0107; [[BPR-2032]], design
@@ -140,6 +160,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto repository_choices() const -> std::vector<std::size_t>;
 		[[nodiscard]] auto preview() const -> const application::agent_configuration_preview& { return Preview; }
 		[[nodiscard]] auto plan() const -> const core::configuration_import_plan& { return Plan; }
+		/// \brief RFC-BPR-0125 AC24. The prompt pack's plan (empty without
+		/// one) and the choices made: prompts taken and dropped ones removed.
+		[[nodiscard]] auto pack_plan() const -> const core::prompt_pack_import_plan& { return PackPlan; }
+		[[nodiscard]] auto prompt_pack_choices() const -> core::prompt_pack_choices;
 
 		/// \brief Shows one file item, as clicking its row does.
 		void select_agent(std::size_t aItem);
@@ -147,6 +171,9 @@ namespace bpr::qt {
 		void select_workflow(std::size_t aItem);
 		void select_identity();
 		void select_repository(std::size_t aItem);
+		/// RFC-BPR-0125 AC24. One suggested prompt of the file; one the pack dropped.
+		void select_suggested(std::size_t aItem);
+		void select_dropped(std::size_t aItem);
 
 		[[nodiscard]] auto items() const noexcept -> QListWidget* { return Items; }
 		/// \brief The shown item's choice, one button per part (Add, Use …,
@@ -182,6 +209,10 @@ namespace bpr::qt {
 			workflow,
 			identity,
 			repository,
+			/// RFC-BPR-0125 AC24. A suggested prompt of the file's pack.
+			suggested,
+			/// A prompt here that the pack dropped.
+			dropped,
 		};
 		struct agent_state
 		{
@@ -208,7 +239,11 @@ namespace bpr::qt {
 		void               show_refused(const QString& aName, const QString& aWhy, QWidget& aPage);
 		void               show_identity(QWidget& aPage);
 		void               show_repository(std::size_t aItem, QWidget& aPage);
-		void               choice_row(item_kind aKind, std::size_t aItem, const QString& aTake, QWidget& aPage);
+		void               show_suggested(std::size_t aItem, QWidget& aPage);
+		void               show_dropped(std::size_t aItem, QWidget& aPage);
+		void               choice_row(item_kind aKind, std::size_t aItem, const QString& aTake, QWidget& aPage, const QString& aLeave = { });
+		[[nodiscard]] auto tag(item_kind aKind, std::size_t aItem) const -> QString;
+		[[nodiscard]] auto tone(item_kind aKind, std::size_t aItem) const -> int;
 		void               choose(item_kind aKind, std::size_t aItem, int aPart, std::uint32_t aTarget = 0U);
 		void               select(item_kind aKind, std::size_t aItem);
 		[[nodiscard]] auto row_line(item_kind aKind, std::size_t aItem) const -> QString;
@@ -218,13 +253,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto local_name(std::uint32_t aId) const -> QString;
 		[[nodiscard]] auto asking_actions(std::size_t aAgent) const -> QStringList;
 
-		application::agent_configuration_preview         Preview;
-		facts                                            Facts;
-		core::configuration_import_plan                  Plan;
-		std::vector<agent_state>                         Agents;
-		std::vector<bool>                                Prompts;
-		std::vector<workflow_state>                      Workflows;
-		std::vector<bool>                                Repositories;
+		application::agent_configuration_preview Preview;
+		facts                                    Facts;
+		core::configuration_import_plan          Plan;
+		std::vector<agent_state>                 Agents;
+		std::vector<bool>                        Prompts;
+		std::vector<workflow_state>              Workflows;
+		std::vector<bool>                        Repositories;
+		/// RFC-BPR-0125 AC24.
+		core::prompt_pack_import_plan                    PackPlan;
+		std::vector<bool>                                Suggested;
+		std::vector<bool>                                Removed;
 		bool                                             IdentityChosen = false;
 		std::optional<std::pair<item_kind, std::size_t>> Shown;
 		/// [[BPR-2204]]. The item the detail was last built for.

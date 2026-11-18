@@ -439,11 +439,14 @@ namespace bpr::core {
 			if (library_full(aEditor, aView)) {
 				return refused(prompt_edit_refusal::library_full);
 			}
-			auto copy      = *original;
-			copy.Id        = std::move(aId);
-			copy.BuiltIn   = false;
-			copy.Action    = prompt_action::none;
-			copy.Surface   = std::nullopt;
+			auto copy    = *original;
+			copy.Id      = std::move(aId);
+			copy.BuiltIn = false;
+			copy.Action  = prompt_action::none;
+			copy.Surface = std::nullopt;
+			// RFC-BPR-0125 AC24. A copy is the reviewer's own: a new identity
+			// and no pack, so a later version of the pack never updates it.
+			copy.Pack.reset();
 			copy.Body.Name = cut(std::move(aName), maximum_prompt_name_bytes);
 			aView.Library.push_back(std::move(copy));
 			return prompt_edit_outcome{ };

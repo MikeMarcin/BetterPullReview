@@ -63,6 +63,21 @@ namespace bpr::adapters::sqlite {
 		static_assert(core::maximum_prompt_condition_depth == 3U && core::maximum_prompt_condition_leaves == 12U && core::maximum_prompt_patterns == 8U && core::maximum_prompt_pattern_bytes == 128U,
 					  "the bound above counts these limits");
 
+		constexpr auto prompt_macro_packs_columns = std::string_view{
+			"id TEXT PRIMARY KEY CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
+			"pack TEXT NOT NULL CHECK(length(CAST(pack AS BLOB)) BETWEEN 1 AND 64),"
+			"label TEXT NOT NULL CHECK(length(CAST(label AS BLOB)) <= 128),"
+			"version INTEGER NOT NULL CHECK(version BETWEEN 1 AND 4294967295),"
+			"place TEXT NOT NULL CHECK(length(CAST(place AS BLOB)) <= 64),"
+			"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) <= 120),"
+			"template TEXT NOT NULL CHECK(length(CAST(template AS BLOB)) <= 8192),"
+			"subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB)) <= 64),"
+			"ask TEXT NOT NULL CHECK(length(CAST(ask AS BLOB)) <= 64),"
+			"conditions TEXT NOT NULL CHECK(length(CAST(conditions AS BLOB)) <= 16384),"
+			"quick INTEGER NOT NULL CHECK(quick BETWEEN 0 AND 1),"
+			"scopes INTEGER NOT NULL CHECK(scopes BETWEEN 0 AND 7)"
+		};
+
 		constexpr auto prompt_macros_columns = std::string_view{
 			"kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 1),"
 			"id TEXT NOT NULL CHECK(length(CAST(id AS BLOB)) BETWEEN 1 AND 128),"
@@ -504,7 +519,15 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_macro_revision("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
-									"revision INTEGER NOT NULL CHECK(revision >= 0)) STRICT")) {
+									"revision INTEGER NOT NULL CHECK(revision >= 0)) STRICT")
+				// RFC-BPR-0125 AC24 ([[BPR-2149]]). The prompt pack each of the
+				// reviewer's own prompts is linked to: the pack's UUID, label and
+				// the version the copy was written against, and the place and
+				// body as the pack had them. A table of its own, made where a
+				// store lacks it: a build before it never reads it, so an edit
+				// made there still reads as edited here, and a prompt deleted
+				// there leaves a row no prompt names, which is not read.
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS prompt_macro_packs(" } + std::string{ prompt_macro_packs_columns } + ") STRICT")) {
 				return { };
 			}
 			// RFC-BPR-0110: two more writing hooks; RFC-BPR-0114 as amended
@@ -2740,63 +2763,9 @@ namespace bpr::adapters::sqlite {
 						static_cast<void>(detail::execute(db, "ROLLBACK"));
 						return aOutcome;
 					};
-					const auto current = read(db);
-					if (!current) {
-						return rollback(prompt_macro_write::failed);
-					}
-					if (current->Revision != aFrom) {
-						return rollback(prompt_macro_write::stale);
-					}
-					// Rows this build cannot read stay as they are.
-					if (!erase_known(db, current->Newer)) {
-						return rollback(prompt_macro_write::failed);
-					}
-					auto position = std::int64_t{ 0 };
-					for (const auto& change : aDifferences.Changes) {
-						if (!write_row(db, 0, change.Id, position++, std::nullopt, change.Body ? &*change.Body : nullptr, change.On, change.WrittenAgainst)) {
-							return rollback(prompt_macro_write::failed);
-						}
-					}
-					position = 0;
-					for (const auto& own : aDifferences.Own) {
-						if (own.BuiltIn || own.Action != core::prompt_action::none || !write_row(db, 1, own.Id, position++, own.Place, &own.Body, own.On, 0U)) {
-							return rollback(prompt_macro_write::failed);
-						}
-					}
-					for (auto place = std::size_t{ 0 }; place < core::prompt_place_count; ++place) {
-						auto erase = detail::prepare(db, "DELETE FROM prompt_macro_orders WHERE place=?1");
-						if (!erase) {
-							return rollback(prompt_macro_write::failed);
-						}
-						bind_text(erase->Value, 1, std::string{ core::stable_name(static_cast<core::prompt_place>(place)) });
-						if (sqlite3_step(erase->Value) != SQLITE_DONE) {
-							return rollback(prompt_macro_write::failed);
-						}
-					}
-					for (const auto& order : aDifferences.Orders) {
-						for (auto index = std::size_t{ 0 }; index < order.Ids.size() && index < core::maximum_prompt_macros; ++index) {
-							auto row = detail::prepare(db, "INSERT INTO prompt_macro_orders(place,position,id) VALUES(?1,?2,?3)");
-							if (!row) {
-								return rollback(prompt_macro_write::failed);
-							}
-							bind_text(row->Value, 1, std::string{ core::stable_name(order.Place) });
-							sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(index));
-							bind_text(row->Value, 3, order.Ids[index]);
-							if (sqlite3_step(row->Value) != SQLITE_DONE) {
-								return rollback(prompt_macro_write::failed);
-							}
-						}
-					}
-					if (!write_surfaces(db, aDifferences.Surfaces) || !write_layers(db, aDifferences.Repositories)) {
-						return rollback(prompt_macro_write::failed);
-					}
-					auto revision = detail::prepare(db, "INSERT OR REPLACE INTO prompt_macro_revision(singleton,revision) VALUES(1,?1)");
-					if (!revision) {
-						return rollback(prompt_macro_write::failed);
-					}
-					sqlite3_bind_int64(revision->Value, 1, static_cast<std::int64_t>(aFrom + 1U));
-					if (sqlite3_step(revision->Value) != SQLITE_DONE) {
-						return rollback(prompt_macro_write::failed);
+					const auto outcome = write_differences(db, aDifferences, aFrom);
+					if (outcome != prompt_macro_write::stored) {
+						return rollback(outcome);
 					}
 					return detail::execute(db, "COMMIT") ? prompt_macro_write::stored : rollback(prompt_macro_write::failed);
 				} catch (...) {
@@ -2804,7 +2773,75 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 
-		private:
+			/// RFC-BPR-0125 AC24. Writes the differences inside the caller's
+			/// transaction when the store is at `aFrom`, and moves it on one;
+			/// the import writes the prompts this way in the same transaction
+			/// as the rest of what it changes.
+			[[nodiscard]] static auto write_differences(sqlite3* const aDatabase, const core::prompt_macro_differences& aDifferences, const std::uint64_t aFrom) -> application::prompt_macro_write
+			{
+				using application::prompt_macro_write;
+				const auto current = read(aDatabase);
+				if (!current) {
+					return prompt_macro_write::failed;
+				}
+				if (current->Revision != aFrom) {
+					return prompt_macro_write::stale;
+				}
+				// Rows this build cannot read stay as they are.
+				if (!erase_known(aDatabase, current->Newer)) {
+					return prompt_macro_write::failed;
+				}
+				auto position = std::int64_t{ 0 };
+				for (const auto& change : aDifferences.Changes) {
+					if (!write_row(aDatabase, 0, change.Id, position++, std::nullopt, change.Body ? &*change.Body : nullptr, change.On, change.WrittenAgainst)) {
+						return prompt_macro_write::failed;
+					}
+				}
+				position = 0;
+				for (const auto& own : aDifferences.Own) {
+					if (own.BuiltIn || own.Action != core::prompt_action::none || !write_row(aDatabase, 1, own.Id, position++, own.Place, &own.Body, own.On, 0U)) {
+						return prompt_macro_write::failed;
+					}
+				}
+				for (auto place = std::size_t{ 0 }; place < core::prompt_place_count; ++place) {
+					auto erase = detail::prepare(aDatabase, "DELETE FROM prompt_macro_orders WHERE place=?1");
+					if (!erase) {
+						return prompt_macro_write::failed;
+					}
+					bind_text(erase->Value, 1, std::string{ core::stable_name(static_cast<core::prompt_place>(place)) });
+					if (sqlite3_step(erase->Value) != SQLITE_DONE) {
+						return prompt_macro_write::failed;
+					}
+				}
+				for (const auto& order : aDifferences.Orders) {
+					for (auto index = std::size_t{ 0 }; index < order.Ids.size() && index < core::maximum_prompt_macros; ++index) {
+						auto row = detail::prepare(aDatabase, "INSERT INTO prompt_macro_orders(place,position,id) VALUES(?1,?2,?3)");
+						if (!row) {
+							return prompt_macro_write::failed;
+						}
+						bind_text(row->Value, 1, std::string{ core::stable_name(order.Place) });
+						sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(index));
+						bind_text(row->Value, 3, order.Ids[index]);
+						if (sqlite3_step(row->Value) != SQLITE_DONE) {
+							return prompt_macro_write::failed;
+						}
+					}
+				}
+				if (!write_surfaces(aDatabase, aDifferences.Surfaces) || !write_layers(aDatabase, aDifferences.Repositories) || !write_links(aDatabase, aDifferences.Own, current->Newer)) {
+					return prompt_macro_write::failed;
+				}
+				auto revision = detail::prepare(aDatabase, "INSERT OR REPLACE INTO prompt_macro_revision(singleton,revision) VALUES(1,?1)");
+				if (!revision) {
+					return prompt_macro_write::failed;
+				}
+				sqlite3_bind_int64(revision->Value, 1, static_cast<std::int64_t>(aFrom + 1U));
+				if (sqlite3_step(revision->Value) != SQLITE_DONE) {
+					return prompt_macro_write::failed;
+				}
+				return prompt_macro_write::stored;
+			}
+
+			/// The stored differences, read inside the caller's transaction.
 			[[nodiscard]] static auto read(sqlite3* const aDatabase) -> std::optional<application::prompt_macro_stored>
 			{
 				auto stored = application::prompt_macro_stored{ };
@@ -2889,7 +2926,7 @@ namespace bpr::adapters::sqlite {
 					}
 					found->Ids.push_back(std::move(*id));
 				}
-				if (!read_layers(aDatabase, stored.Differences.Repositories)) {
+				if (!read_layers(aDatabase, stored.Differences.Repositories) || !read_links(aDatabase, stored.Differences.Own)) {
 					return std::nullopt;
 				}
 				auto surfaces = detail::prepare(aDatabase, "SELECT surface,ids,removed FROM prompt_surface_lists WHERE layer='' ORDER BY surface");
@@ -2913,6 +2950,7 @@ namespace bpr::adapters::sqlite {
 				return stored;
 			}
 
+		private:
 			[[nodiscard]] static auto identity_lines(const std::string_view aText) -> std::vector<std::string>
 			{
 				auto ids = std::vector<std::string>{ };
@@ -3170,6 +3208,112 @@ namespace bpr::adapters::sqlite {
 				return true;
 			}
 
+			/// RFC-BPR-0125 AC24. Each own prompt's link to its pack; a row
+			/// naming no prompt, or a value this build does not know, is not
+			/// read (the prompt is then the reviewer's own).
+			[[nodiscard]] static auto read_links(sqlite3* const aDatabase, std::vector<core::prompt_macro>& aOwn) -> bool
+			{
+				auto row = detail::prepare(aDatabase, "SELECT id,pack,label,version,place,name,template,subject,ask,conditions,quick,scopes FROM prompt_macro_packs");
+				if (!row) {
+					return false;
+				}
+				for (auto step = sqlite3_step(row->Value); step != SQLITE_DONE; step = sqlite3_step(row->Value)) {
+					if (step != SQLITE_ROW) {
+						return false;
+					}
+					const auto id  = column_text(row->Value, 0).value_or(std::string{ });
+					const auto own = std::ranges::find(aOwn, id, &core::prompt_macro::Id);
+					if (own == aOwn.end()) {
+						continue;
+					}
+					auto link          = core::prompt_pack_link{ .Pack = column_text(row->Value, 1).value_or(std::string{ }), .Label = column_text(row->Value, 2).value_or(std::string{ }) };
+					link.Version       = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 3));
+					const auto place   = named_value<core::prompt_place>(column_text(row->Value, 4).value_or(std::string{ }), core::prompt_place_count);
+					const auto subject = named_value<core::prompt_subject>(column_text(row->Value, 7).value_or(std::string{ }), 9U);
+					const auto ask     = named_value<core::prompt_ask>(column_text(row->Value, 8).value_or(std::string{ }), 2U);
+					auto       match   = core::prompt_match::all;
+					auto       groups  = std::vector<core::prompt_condition_group>{ };
+					auto       unmet   = std::optional<core::prompt_when_unmet>{ };
+					auto       when    = decode_conditions(column_text(row->Value, 9).value_or(std::string{ }), &match, &groups, &unmet);
+					if (!place || !subject || !ask || !when) {
+						continue;
+					}
+					link.Place           = *place;
+					link.Body.Name       = column_text(row->Value, 5).value_or(std::string{ });
+					link.Body.Template   = column_text(row->Value, 6).value_or(std::string{ });
+					link.Body.Subject    = *subject;
+					link.Body.Kind       = *ask;
+					link.Body.WhenUnmet  = unmet.value_or(core::migrated_when_unmet(*when, groups));
+					link.Body.Conditions = std::move(*when);
+					link.Body.Groups     = std::move(groups);
+					link.Body.Match      = match;
+					link.Body.QuickAsk   = sqlite3_column_int64(row->Value, 10) != 0;
+					const auto bits      = sqlite3_column_int64(row->Value, 11);
+					link.Body.Scopes     = { .Thread = (bits & 1) != 0, .File = (bits & 2) != 0, .PullRequest = (bits & 4) != 0 };
+					own->Pack            = std::move(link);
+				}
+				return true;
+			}
+
+			/// Replaces every link this build wrote; a newer build's prompts
+			/// keep theirs.
+			[[nodiscard]] static auto write_links(sqlite3* const aDatabase, const std::vector<core::prompt_macro>& aOwn, const std::vector<std::string>& aNewer) -> bool
+			{
+				auto ids = detail::prepare(aDatabase, "SELECT id FROM prompt_macro_packs");
+				if (!ids) {
+					return false;
+				}
+				auto doomed = std::vector<std::string>{ };
+				for (auto step = sqlite3_step(ids->Value); step != SQLITE_DONE; step = sqlite3_step(ids->Value)) {
+					if (step != SQLITE_ROW) {
+						return false;
+					}
+					auto id = column_text(ids->Value, 0).value_or(std::string{ });
+					if (!std::ranges::contains(aNewer, id)) {
+						doomed.push_back(std::move(id));
+					}
+				}
+				for (const auto& id : doomed) {
+					auto erase = detail::prepare(aDatabase, "DELETE FROM prompt_macro_packs WHERE id=?1");
+					if (!erase) {
+						return false;
+					}
+					bind_text(erase->Value, 1, id);
+					if (sqlite3_step(erase->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				for (const auto& own : aOwn) {
+					if (!own.Pack) {
+						continue;
+					}
+					const auto& link       = *own.Pack;
+					const auto  conditions = encode_conditions(link.Body.Conditions, link.Body.Match, link.Body.Groups, link.Body.WhenUnmet);
+					auto        row        = detail::prepare(aDatabase,
+															 "INSERT OR REPLACE INTO prompt_macro_packs(id,pack,label,version,place,name,template,subject,ask,conditions,quick,scopes) "
+															 "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)");
+					if (!conditions || !row || link.Version == 0U) {
+						return false;
+					}
+					bind_text(row->Value, 1, own.Id);
+					bind_text(row->Value, 2, link.Pack);
+					bind_text(row->Value, 3, link.Label);
+					sqlite3_bind_int64(row->Value, 4, static_cast<std::int64_t>(link.Version));
+					bind_text(row->Value, 5, std::string{ core::stable_name(link.Place) });
+					bind_text(row->Value, 6, link.Body.Name);
+					bind_text(row->Value, 7, link.Body.Template);
+					bind_text(row->Value, 8, std::string{ core::stable_name(link.Body.Subject) });
+					bind_text(row->Value, 9, std::string{ core::stable_name(link.Body.Kind) });
+					bind_text(row->Value, 10, *conditions);
+					sqlite3_bind_int64(row->Value, 11, link.Body.QuickAsk ? 1 : 0);
+					sqlite3_bind_int64(row->Value, 12, scope_bits(link.Body.Scopes));
+					if (sqlite3_step(row->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				return true;
+			}
+
 			/// Deletes every row this build reads; a newer build's rows stay.
 			[[nodiscard]] static auto erase_known(sqlite3* const aDatabase, const std::vector<std::string>& aNewer) -> bool
 			{
@@ -3395,7 +3539,14 @@ namespace bpr::adapters::sqlite {
 						return std::nullopt;
 					}
 					snapshot.Workflows = std::move(*workflows);
-					auto row           = detail::prepare(store->Database.get(), "SELECT hook,text_digest,version FROM prompt_provenance");
+					// RFC-BPR-0125 AC24. The suggested prompts and their revision,
+					// which an import's prompt pack changes.
+					auto prompts = prompt_macro_store::read(store->Database.get());
+					if (!prompts) {
+						return std::nullopt;
+					}
+					snapshot.PromptMacros = std::move(*prompts);
+					auto row              = detail::prepare(store->Database.get(), "SELECT hook,text_digest,version FROM prompt_provenance");
 					if (!row) {
 						return std::nullopt;
 					}
@@ -3430,7 +3581,8 @@ namespace bpr::adapters::sqlite {
 					if (!current) {
 						return outcome::storage_failed;
 					}
-					if (current->Agents != aBefore.Agents || current->ReviewSkill != aBefore.ReviewSkill || current->Hooks != aBefore.Hooks || current->Workflows != aBefore.Workflows) {
+					if (current->Agents != aBefore.Agents || current->ReviewSkill != aBefore.ReviewSkill || current->Hooks != aBefore.Hooks || current->Workflows != aBefore.Workflows
+						|| current->PromptMacros != aBefore.PromptMacros) {
 						return outcome::changed_since;
 					}
 					auto store = open(Root);
@@ -3451,6 +3603,11 @@ namespace bpr::adapters::sqlite {
 					if (committed) {
 						committed = write_agents(db, aAfter.Agents) && write_skill(db, aAfter.ReviewSkill) && write_provenance(db, aAfter) && write_workflows(db, aAfter.Workflows)
 							&& detail::execute(db, "DELETE FROM configuration_import_journal").has_value();
+						// RFC-BPR-0125 AC24. The prompt pack's changes, in the same
+						// transaction, from the revision the preview read.
+						if (committed && aAfter.PromptMacros.Differences != aBefore.PromptMacros.Differences) {
+							committed = prompt_macro_store::write_differences(db, aAfter.PromptMacros.Differences, aBefore.PromptMacros.Revision) == application::prompt_macro_write::stored;
+						}
 						if (!committed) {
 							static_cast<void>(detail::execute(db, "ROLLBACK"));
 						} else {

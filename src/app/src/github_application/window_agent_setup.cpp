@@ -2622,6 +2622,15 @@ namespace bpr::app {
 																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(), profile_settings_facts(),
 																			Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			// RFC-BPR-0125 AC24. The host mints every UUID an export may need:
+			// a new pack's, and one for each own prompt made before UUIDs.
+			auto fresh = std::vector<std::string>{ };
+			for (const auto& own : dialog->snapshot().PromptMacros.Differences.Own) {
+				if (!core::valid_prompt_uuid(own.Id)) {
+					fresh.push_back(application::mint_prompt_uuid());
+				}
+			}
+			dialog->set_minted_identities(application::mint_prompt_uuid(), std::move(fresh));
 			dialog->set_file_chooser([dialog] {
 	#if defined(BPR_BUILD_TESTING)
 				// The attended look's own check names the file; a person is asked.
@@ -2636,13 +2645,37 @@ namespace bpr::app {
 				if (Closing || !AgentConfiguration) {
 					return;
 				}
-				const auto path = dialog->chosen_path();
-				AgentConfiguration->write(path.toStdString(), dialog->bytes(), [this, path](const bool aWritten) {
-					if (!Closing && Window != nullptr) {
-						Window->profiles_settings()->present_exchange(aWritten ? QObject::tr("Exported this profile's settings to %1.").arg(QFileInfo{ path }.fileName())
-																			   : QObject::tr("%1 could not be written. Nothing was exported.").arg(QFileInfo{ path }.fileName()));
-					}
-				});
+				const auto path  = dialog->chosen_path();
+				const auto write = [this, path, bytes = dialog->bytes()] {
+					AgentConfiguration->write(path.toStdString(), bytes, [this, path](const bool aWritten) {
+						if (!Closing && Window != nullptr) {
+							Window->profiles_settings()->present_exchange(aWritten ? QObject::tr("Exported this profile's settings to %1.").arg(QFileInfo{ path }.fileName())
+																				   : QObject::tr("%1 could not be written. Nothing was exported.").arg(QFileInfo{ path }.fileName()));
+						}
+					});
+				};
+				// RFC-BPR-0125 AC24. A prompt pack is recorded on the exported
+				// prompts first, so every file written has its pack here.
+				if (const auto& pack = dialog->prompt_pack()) {
+					const auto& before = dialog->snapshot();
+					AgentConfiguration->record_export(before, application::snapshot_after_export(before, *pack), [this, write](const application::agent_configuration_outcome aOutcome) {
+						if (Closing || Window == nullptr) {
+							return;
+						}
+						if (aOutcome != application::agent_configuration_outcome::applied) {
+							Window->profiles_settings()->present_exchange(aOutcome == application::agent_configuration_outcome::changed_since
+																			  ? QObject::tr("Your settings changed while Export was open, so nothing was exported. Export again.")
+																			  : QObject::tr("The prompt pack could not be recorded, so nothing was exported."));
+							return;
+						}
+						if (PromptMacros) {
+							PromptMacros->load();
+						}
+						write();
+					});
+					return;
+				}
+				write();
 			});
 			dialog->open();
 		});
@@ -2736,7 +2769,8 @@ namespace bpr::app {
 				apply_profile_changes(changes);
 			}
 			if (!aApplied) {
-				Window->profiles_settings()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(core::stable_name(aApplied.error().Refusal).data())));
+				const auto why = aApplied.error().PromptPack ? core::stable_name(*aApplied.error().PromptPack) : core::stable_name(aApplied.error().Refusal);
+				Window->profiles_settings()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(why.data(), static_cast<qsizetype>(why.size()))));
 				return;
 			}
 			switch (aApplied->first) {
@@ -2753,6 +2787,11 @@ namespace bpr::app {
 				if (DraftDesktop) {
 					DraftDesktop->reload_workflows();
 				}
+				// RFC-BPR-0125 AC24. The chips, menus and Settings › Prompts
+				// follow the merged prompt pack.
+				if (PromptMacros) {
+					PromptMacros->load();
+				}
 				Window->profiles_settings()->present_exchange(agents > 0U ? QObject::tr("Imported into this profile. Check a new agent before you ask it anything.") : QObject::tr("Imported into this profile."));
 				break;
 			case application::agent_configuration_outcome::changed_since:
@@ -2761,7 +2800,7 @@ namespace bpr::app {
 			case application::agent_configuration_outcome::storage_failed:
 				Window->profiles_settings()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
 				break;
-			} }, aDialog.workflow_choices());
+			} }, aDialog.workflow_choices(), aDialog.prompt_pack_choices());
 	}
 #endif
 }

@@ -45,6 +45,7 @@
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/core/prompt_pack.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_report_view.hpp"
@@ -1238,7 +1239,8 @@ auto main(int argc, char** argv) -> int
 		expect(page->place(own, core::prompt_surface::file_menu) == core::placement_refusal::none, "the file's menu takes it");
 		wait([&] {
 			fileAsk->refresh_menu();
-			return std::ranges::any_of(rows(*fileAsk->menu()), [](const QString& aName) { return aName.startsWith(QStringLiteral("quickAsk_own.")); });
+			// RFC-BPR-0125 AC24: the host mints a UUID for a new prompt.
+			return core::valid_prompt_uuid(own) && std::ranges::any_of(rows(*fileAsk->menu()), [&own](const QString& aName) { return aName.startsWith(QStringLiteral("quickAsk_") + QString::fromStdString(own)); });
 		},
 			 "the own quick ask is in the file's Ask");
 		reviewAsk->refresh_menu();
