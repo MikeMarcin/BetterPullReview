@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2255"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Startup logs a false storage_statement sql_error: transaction guards roll back after COMMIT",
+  "created": "2026-11-18T20:30:19.970983+00:00",
+  "base": "ba6a84c548515e71ecef99dcbd44740020cf5782"
+}
