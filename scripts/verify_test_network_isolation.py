@@ -139,9 +139,10 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # or ACL cause is inferred. `child-exit-3-without-output` is a child that exits
 # 3 before printing anything; `private-test-root-refused` without its line is
 # the course's silent return when `private_data_root` refuses. Twelve direct
-# baselines failed natively as well; `author-state-fixture-failed` fails
-# directly at the same predicate, so it establishes no containment-specific
-# refusal. Commands, exits and observations are in
+# baselines failed natively at that source and were fixed after; when measured,
+# `author-state-fixture-failed` failed directly at the same predicate (the
+# course's /bin/sh), so it names no containment-specific refusal. Commands,
+# exits and observations are in
 # docs/verification/release-v050-windows-containment.md.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-2151]], [[BPR-2153]], [[BPR-2181]]. The queue and steer public
