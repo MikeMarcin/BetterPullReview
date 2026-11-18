@@ -379,6 +379,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_seen_stays_public_path": "private-desktop-root-refused",
     "application_review_seen_fails_public_path": "private-desktop-root-refused",
     "application_commit_asks_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2149]]. The prompt-pack store's course, registered with the
+    # prompt-pack work on main; Windows measures it next.
+    "sqlite_prompt_pack_storage": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
