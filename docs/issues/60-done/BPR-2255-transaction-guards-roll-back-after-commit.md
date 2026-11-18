@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2255"
 title: "Every launch logs a storage_statement sql_error, because three stores' transaction guards roll back after COMMIT"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -62,3 +62,29 @@ line) is easy to miss.
 - AC2. A guard whose scope did not commit still rolls back.
 - AC3. A contract test fails if a successful load or save of those stores
   logs a storage failure.
+
+## Evidence (2026-11-18, macOS, Debug dev tree)
+
+Commit `ee027baf3` on `claude/release-0-5-0-rollback-guard`.
+
+- AC1. The dev app at `ee027baf3` plus the same temporary trace, launched
+  twice offscreen in a new scratch home: no `ROLLBACK` error reached
+  SQLite's error log, and both session logs hold 42
+  `storage.database.succeeded` lines and no `storage.database.failed` line.
+  The trace's only entries were second-launch `SQLITE_NOTICE_RECOVER_WAL`
+  notices (the launcher ends the app with SIGTERM), which the diagnostics
+  do not record as failures.
+- AC2. `sqlite_storage_diagnostics` saves a profile, has a stale save
+  refused inside its transaction, then saves again: the next `BEGIN
+  IMMEDIATE` and `COMMIT` succeed, so the refused scope was rolled back.
+- AC3. The same row opens, reads and writes the profile registry, window
+  restoration and remembered connections under a diagnostics scope and
+  expects no failed line. With the five guards reverted to `HEAD~1` it
+  fails at "and a launch's reads and writes record no failure".
+- Passed: `sqlite_storage_diagnostics`, `sqlite_profile_registry_storage`,
+  `sqlite_window_review_restoration_storage`,
+  `sqlite_remembered_connection_storage`, `sqlite_cached_review_overview`,
+  `sqlite_review_tour_storage`, `sqlite_private_store_open`,
+  `architecture_boundaries`; clang-format 22 check and clang-tidy clean on
+  the changed files; `python3 scripts/verify_documentation.py --root .`.
+
