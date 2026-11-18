@@ -167,3 +167,16 @@ The direct courses pass in 7.81, 9.08 and 8.59 seconds. The receipt is
 stdout/stderr pairs and generated CTest files are in `measure-release-3.zip`
 (SHA-256
 `6a8ec7a06e1addd3190e809c6398918377710874955037f612cb0fa070cf3dd7`).
+
+## Agent setup store courses — `cb200dfa9`
+
+`qt_prompt_macro_chips` and `qt_agent_finding_cards_restart` open the agent
+setup store, which the application opens outside any AppContainer and whose
+own course, `sqlite_agent_setup_storage`, is already registered
+`WINDOWS_UNCONTAINED`. In the full Windows Release suite at `cb200dfa9` they
+ran contained. Each one's restart read nothing back: "AC07 the store gives the
+name back after a restart" (a direct probe neither wrote nor read), and "the
+fresh host reads the one kept card back" (loaded, nothing kept). Both are now
+registered `WINDOWS_UNCONTAINED`, pinned
+`prompt-turn-name-store-predicate-failed` and
+`agent-finding-card-store-predicate-failed`.

@@ -382,6 +382,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-2149]]. The prompt-pack store's course, registered with the
     # prompt-pack work on main; Windows measures it next.
     "sqlite_prompt_pack_storage": "unmeasured (registered on macOS)",
+    # [[BPR-2215]], measured contained at cb200dfa9: the agent setup store's
+    # restart reads nothing back ("AC07 the store gives the name back after a
+    # restart"; "the fresh host reads the one kept card back").
+    "qt_prompt_macro_chips": "prompt-turn-name-store-predicate-failed",
+    "qt_agent_finding_cards_restart": "agent-finding-card-store-predicate-failed",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
