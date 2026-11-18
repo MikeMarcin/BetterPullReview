@@ -214,7 +214,21 @@ def await_shown(process, log_path, ready=None):
 
 
 def children(pid):
-    """`pid`'s running children, from libproc: a test's sandbox refuses `ps`."""
+    """`pid`'s running children, from libproc on macOS (a test's sandbox
+    refuses `ps`) and from /proc on Linux."""
+    if sys.platform.startswith("linux"):
+        found = []
+        try:
+            tasks = os.listdir(f"/proc/{{pid}}/task")
+        except OSError:
+            return []
+        for task in tasks:
+            try:
+                with open(f"/proc/{{pid}}/task/{{task}}/children", encoding="ascii") as listed:
+                    found.extend(int(child) for child in listed.read().split())
+            except (OSError, ValueError):
+                continue
+        return found
     buffer = (ctypes.c_int * 1024)()
     try:
         count = ctypes.CDLL("/usr/lib/libproc.dylib").proc_listchildpids(pid, buffer, ctypes.sizeof(buffer))
