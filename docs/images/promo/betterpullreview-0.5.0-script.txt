@@ -1,0 +1,56 @@
+BetterPullReview 0.5.0   /   Narrated promo
+Running time  2:00
+
+0:00–0:09   Opening
+BetterPullReview gives you a workbench for understanding pull requests, with powerful agent integration under your control.
+
+Picture   Open on the app mark, then cut to the Lantern pull request.
+
+0:09–0:28   Review surface
+Open the pull request and explore the changes.
+Comments sit alongside so they don’t interfere with reading the code.
+Track what you’ve read and accepted as you go.
+Leave a comment or suggest a fix, then tidy it up and publish when it’s ready.
+
+Picture   Open the comparison, read the side comments, and show the review controls.
+
+0:28–0:52   Your agent
+Bring your agent seamlessly into your workflow.
+Ask pointed questions from a library of built-in context-sensitive prompts, or chat freely with your agent.
+Have it build reports and draft comments for you to review and publish when you’re ready.
+
+Picture   Choose Review this pull request. Open the attached report. Read a finding, select Draft comment, and hold on the draft at its code.
+
+0:52–1:06   Revisions
+When new changes arrive, see what’s changed since your last review.
+Or choose any two uploads to compare, using the revision dropdown or timeline sliders.
+
+Picture   See the change since the review, then move a timeline handle and hold on the selected pair.
+
+1:06–1:20   Customization
+Personalize your workbench with fully customizable themes.
+Build your own reusable questions with an integrated advanced prompt editor.
+Export your profile to share your customizations with teammates.
+
+Picture   Change the theme. Edit a reusable question and show the profile export.
+
+1:20–1:42   For authors
+Want to make your code reviewer fall in love with you?
+Create a Review Tour that explains the problem and your solution.
+Guide reviewers through the important changes with tour stops.
+Your agent can help draft and refine it.
+Published tours work as ordinary GitHub comments, so everyone can follow along.
+
+Picture   Introduce the problem and solution. Select tour stops beside the code, then follow a published GitHub tour from its overview to an inline comment.
+
+1:42–1:49   Privacy
+Bring your own GitHub or GitHub Enterprise.
+Bring your own agent.
+We don’t collect your information.
+
+Picture   Show GitHub.com, GitHub Enterprise Server, the reviewer’s own agent and the telemetry statement.
+
+1:49–2:00   Close
+Download BetterPullReview for free at https://github.com/MikeMarcin/BetterPullReview/releases.
+
+Picture   Dif waves beside Free download, the macOS, Windows and Linux marks, and the full releases address.
