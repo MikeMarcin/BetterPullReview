@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2263"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Submit review refused locally without a reason",
+  "created": "2026-11-18T23:15:56.467751+00:00",
+  "base": "71bf98c0bbfb1f93c75c4c282ec13ee9c5a76950"
+}

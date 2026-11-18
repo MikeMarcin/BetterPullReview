@@ -1222,7 +1222,8 @@ auto main(int argc, char** argv) -> int
 				const auto history = prose->document()->availableUndoSteps();
 				run();
 				expect(prose->raw() == "SIGNED_OUT_CANARY" && prose->document()->availableUndoSteps() == history
-						   && status->text() == QStringLiteral("Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged."),
+						   && status->text().contains(QStringLiteral(" isn't signed in, or its wrapper couldn't get a sign-in token.")) && status->text().endsWith(QStringLiteral(" Your text is unchanged."))
+						   && !status->text().contains(QStringLiteral("claude auth login")),
 					   "a signed-out Claude says so and leaves the draft unchanged");
 			}
 			set("INSUFFICIENT_CANARY");

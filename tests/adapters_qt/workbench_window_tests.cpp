@@ -11851,6 +11851,231 @@ namespace {
 	// through the draft editor's edit path, and slice 2's begin_new_comment
 	// opens it in the drawer, named for its lines and bracketed across them.
 	// Only a focused code pane takes the keys.
+	/// \brief [[BPR-2262]]. Previous and Next comment from my draft being
+	/// written in the drawer, and onto my drafts, within a file and across
+	/// files, both ways. The owner, 2026-11-18: "Probably the same issue but
+	/// next comment seems to also break the draft comment", and "I expect next
+	/// comment and prev comment to visit drafts". The host answers a chosen
+	/// line and a chosen file a turn later, as the composition does.
+	void test_next_comment_visits_drafts_and_keeps_their_words()
+	{
+		auto  state    = core::workbench_interaction_state{ };
+		auto* shown    = static_cast<qt::workbench_window*>(nullptr);
+		auto  answerOf = std::function<void(core::file_identity)>{ };
+		auto  publish  = [&state, &shown] {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				static_cast<void>(core::transition(state, aIntent));
+				publish();
+				if (const auto* const choice = std::get_if<core::select_workbench_file_intent>(&aIntent); choice != nullptr) {
+					QTimer::singleShot(0, shown, [&answerOf, file = choice->File] { answerOf(file); });
+				}
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 852);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto first          = core::file_identity_of("src/first.cpp");
+		const auto second         = core::file_identity_of("src/second.cpp");
+		state.Navigation          = core::workbench_navigation_cursor{ .File = first, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		state.ConversationsDrawer = core::workbench_drawer_state::expanded;
+		state.FilesDrawer         = core::workbench_drawer_state::expanded;
+		auto opened               = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers            = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		opened.Selection          = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		opened.Files              = std::vector<application::workbench_file_projection>{ { .File = first, .Path = "src/first.cpp" }, { .File = second, .Path = "src/second.cpp" } };
+		window.publish(opened);
+		window.conversation_panel()->cards()->set_viewer_login(QStringLiteral("reviewer"));
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 12"), std::string{ "line 12" }.size(), "changed line 12");
+		const auto firstDiff  = computed_comparison(text, laterText, 0U, first);
+		const auto secondDiff = computed_comparison(text, laterText, 1U, second);
+		auto*      surface    = window.comparison_surface();
+		answerOf              = [&](const core::file_identity aFile) {
+			const auto& diff = aFile == first ? firstDiff : secondDiff;
+			state.Navigation = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+			auto moved       = application::workbench_projection{ };
+			moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+			window.publish(moved);
+			surface->set_loading(request_context(diff));
+			surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(diff), .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			settle_geometry(*surface, "the answered comparison");
+			window.set_conversation_endpoint_placement(true, true);
+		};
+		const auto thread = [](const std::string& aId, const std::string& aPath, const std::uint32_t aLine) {
+			return application::github_conversation_projection{
+				.Id                 = aId,
+				.Kind               = application::github_conversation_kind::review_thread,
+				.Path               = aPath,
+				.Line               = aLine,
+				.DiffSide           = application::github_conversation_diff_side::right,
+				.AnchorAvailability = application::github_conversation_anchor_availability::current,
+			};
+		};
+		const auto post = [](const std::string& aId, const std::string& aParent, const std::string& aPath) {
+			return application::github_conversation_projection{
+				.Id          = aId,
+				.ParentId    = aParent,
+				.Kind        = application::github_conversation_kind::review_comment,
+				.AuthorLogin = "someone",
+				.Body        = "a post",
+				.Path        = aPath,
+			};
+		};
+		const auto conversations = std::vector<application::github_conversation_projection>{
+			thread("review-thread:a", "src/first.cpp", 5U), post("review-comment:a-1", "review-thread:a", "src/first.cpp"),
+			thread("review-thread:b", "src/first.cpp", 22U), post("review-comment:b-1", "review-thread:b", "src/first.cpp"),
+			thread("review-thread:c", "src/second.cpp", 20U), post("review-comment:c-1", "review-thread:c", "src/second.cpp")
+		};
+		// The pull request's conversations, as its presentation gives them
+		// to Comments and to Threads.
+		window.conversation_panel()->adopt(conversations, QStringLiteral("three conversations"));
+		window.finder()->adopt(conversations);
+		answerOf(first);
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		// The host's part: each line keeps its own draft, a chosen line shows
+		// its draft (a new empty one when it has none) a turn later, and every
+		// draft with words is saved. Two are saved already: at line 27 of the
+		// first file and line 8 of the second.
+		const auto right = [](const core::computed_file_diff& aDiff, const std::uint32_t aLine) {
+			return core::source_line_ref{ .Comparison = aDiff.Alignment.Digest, .Side = core::diff_side::right, .Line = aLine - 1U };
+		};
+		auto       store  = std::vector<core::review_comment_draft>{ };
+		const auto stored = [&store](const std::uint64_t aId, const core::source_line_ref& aAnchor, const std::string& aBody, const std::string& aPath) {
+			auto draft   = core::review_comment_draft{ };
+			draft.Id     = core::review_draft_id{ aId };
+			draft.Anchor = aAnchor;
+			draft.Body   = aBody;
+			auto place   = core::review_draft_place{ };
+			place.Path   = aPath;
+			draft.Place  = std::move(place);
+			store.push_back(std::move(draft));
+		};
+		stored(101U, right(firstDiff, 27U), "third draft words", "src/first.cpp");
+		stored(102U, right(secondDiff, 8U), "second draft words", "src/second.cpp");
+		auto       nextId = std::uint64_t{ 1U };
+		const auto save   = [&] {
+			auto saved = std::vector<core::review_comment_draft>{ };
+			for (const auto& draft : store) {
+				if (!draft.Body.empty()) {
+					saved.push_back(draft);
+				}
+			}
+			window.present_saved_drafts(std::move(saved), { });
+		};
+		window.set_review_draft_dispatch([&](const core::review_draft_command& aCommand) {
+			if (aCommand.Kind == core::review_draft_command_kind::edit) {
+				if (const auto at = std::ranges::find(store, aCommand.Id, &core::review_comment_draft::Id); at != store.end()) {
+					at->Body = aCommand.Body;
+				}
+			}
+		});
+		surface->set_selection_sink([&](const std::optional<core::semantic_selection>& aSelection) {
+			if (!aSelection) {
+				return;
+			}
+			QTimer::singleShot(0, &window, [&, anchor = aSelection->PreferredLine] {
+				if (std::ranges::find(store, anchor, &core::review_comment_draft::Anchor) == store.end()) {
+					stored(nextId++, anchor, std::string{ }, anchor.Comparison == firstDiff.Alignment.Digest ? "src/first.cpp" : "src/second.cpp");
+				}
+				window.review_editor()->present(*std::ranges::find(store, anchor, &core::review_comment_draft::Anchor));
+				save();
+			});
+		});
+		save();
+		auto* const cards  = window.conversation_panel()->cards();
+		auto* const code   = surface->right_pane();
+		const auto  settle = [&] {
+			// The shown draft's accepted edit comes back as its body.
+			if (const auto& shownDraft = window.review_editor()->shown_draft(); shownDraft.has_value()) {
+				if (const auto at = std::ranges::find(store, shownDraft->Id, &core::review_comment_draft::Id); at != store.end() && at->Body != shownDraft->Body) {
+					window.review_editor()->present(*at);
+				}
+			}
+			save();
+			process_events();
+		};
+		const auto showing = [&](const core::file_identity aFile) {
+			return surface->current_context().has_value() && surface->current_context()->Key.File == aFile;
+		};
+		// My draft at a line, as its note: my name and its words, not a
+		// composer's empty frame.
+		const auto keepsWords = [&](const std::uint32_t aLine, const std::string_view aWords) {
+			const auto& all  = cards->cards();
+			const auto  note = std::ranges::find_if(all, [aLine](const qt::thread_card& aCard) { return aCard.Draft && aCard.Line == std::optional<std::uint32_t>{ aLine }; });
+			return note != all.end() && !note->Writing && !note->Posts.empty() && note->Posts.front().Author == QStringLiteral("reviewer")
+				&& note->Posts.front().Body.contains(QString::fromUtf8(aWords.data(), static_cast<qsizetype>(aWords.size())));
+		};
+		// My draft at a line, open and being written in the drawer with its words.
+		const auto writing = [&](const std::uint32_t aLine, const std::string_view aWords) {
+			const auto& draft = window.review_editor()->shown_draft();
+			return drawer_writing(window) && draft.has_value() && draft->Anchor.Line + 1U == aLine
+				&& cards->draft_editor()->toPlainText().toStdString() == aWords;
+		};
+		const auto step = [&](const bool aForward, const std::function<bool()>& aArrived, const std::string& aWhat) {
+			(aForward ? window.next_comment_action() : window.previous_comment_action())->trigger();
+			wait_for([&] {
+				settle();
+				return aArrived();
+			},
+					 3000);
+			settle();
+			expect(aArrived(), aWhat + " (open " + cards->open_thread_id() + ")");
+		};
+		const auto at = [&](const core::file_identity aFile, const std::string& aThread) {
+			return [&, aFile, aThread] { return showing(aFile) && cards->open_thread_id() == aThread; };
+		};
+
+		// Within a file. My draft at line 10 being written: Next goes on to
+		// the thread after it, and the draft keeps its words.
+		expect(surface->select_conversation_line(core::diff_side::right, 9U), "line 10 is selected");
+		wait_for([&] { return window.review_editor()->shown_draft().has_value() && window.review_editor()->shown_draft()->Anchor.Line == 9U; }, 1000);
+		code->setFocus(Qt::OtherFocusReason);
+		QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(code, &press);
+		process_events();
+		expect(drawer_writing(window), "Return opens line 10's draft in the drawer");
+		cards->draft_editor()->setPlainText(QStringLiteral("first draft words"));
+		settle();
+		step(true, at(first, "review-thread:b"), "Next from my draft being written opens the thread after it");
+		expect(keepsWords(10U, "first draft words"), "the draft left by Next keeps my name and its words");
+		step(false, [&] { return writing(10U, "first draft words"); }, "Previous visits my draft and opens it in the drawer, with its words");
+		step(false, at(first, "review-thread:a"), "Previous from my draft being written opens the thread before it");
+		expect(keepsWords(10U, "first draft words"), "the draft left by Previous keeps my name and its words");
+		step(true, [&] { return writing(10U, "first draft words"); }, "Next visits my draft and opens it in the drawer");
+		step(true, at(first, "review-thread:b"), "Next goes on past my draft");
+		step(true, [&] { return writing(27U, "third draft words"); }, "Next visits my saved draft at line 27 and opens it in the drawer");
+		expect(keepsWords(10U, "first draft words"), "the first draft still keeps its words");
+
+		// Across files, both ways.
+		step(true, [&] { return showing(second) && writing(8U, "second draft words"); }, "Next past the file's last comment opens the next file at my draft there");
+		step(true, at(second, "review-thread:c"), "Next goes on to the next file's thread");
+		expect(keepsWords(8U, "second draft words"), "the second file's draft keeps my name and its words");
+		step(false, [&] { return showing(second) && writing(8U, "second draft words"); }, "Previous visits the draft again");
+		step(false, [&] { return showing(first) && writing(27U, "third draft words"); }, "Previous from the file's first comment opens the previous file at my last draft there");
+		expect(keepsWords(10U, "first draft words"), "back in the first file, my draft at line 10 keeps its words");
+		step(true, [&] { return showing(second) && writing(8U, "second draft words"); }, "Next crosses into the next file again");
+		step(true, at(second, "review-thread:c"), "and on to its thread");
+		step(true, at(first, "review-thread:a"), "Next past the last comment wraps round to the first file's first thread");
+		expect(keepsWords(10U, "first draft words") && keepsWords(27U, "third draft words"), "both drafts of the first file keep their words");
+		step(false, at(second, "review-thread:c"), "Previous past the first comment wraps round to the last file's last thread");
+		expect(keepsWords(8U, "second draft words"), "the second file's draft keeps its words");
+		window.hide();
+	}
+
 	void test_return_in_the_code_starts_a_draft_on_the_selection()
 	{
 		qt::workbench_window window;
@@ -25948,6 +26173,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--line-draft"))) {
 		runCase("test_a_full_width_selection_repaints_to_the_edge", &test_a_full_width_selection_repaints_to_the_edge);
 		runCase("test_return_in_the_code_starts_a_draft_on_the_selection", &test_return_in_the_code_starts_a_draft_on_the_selection);
+		runCase("test_next_comment_visits_drafts_and_keeps_their_words", &test_next_comment_visits_drafts_and_keeps_their_words);
 		runCase("test_right_click_on_any_line_and_on_base_lines", &test_right_click_on_any_line_and_on_base_lines);
 		runCase("test_a_selection_takes_a_range_comment_from_its_menu", &test_a_selection_takes_a_range_comment_from_its_menu);
 		runCase("test_discuss_restore_top_right_and_whole_privacy_note", &test_discuss_restore_top_right_and_whole_privacy_note);

@@ -1378,6 +1378,145 @@ namespace {
 		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
 	}
 
+	/// \brief The owner: "I have a draft comment sometimes not rendering
+	/// when I click away from it." My draft was written in the drawer, then
+	/// another thread was opened: the view still took the draft for its
+	/// composer, so its closed note carried no post and was drawn as an
+	/// empty dashed frame, no author and no words. Clicked away, the draft
+	/// is a closed note like any saved one, its author and words painted.
+	auto test_a_draft_clicked_away_from_paints_its_words() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.set_viewer_login(QStringLiteral("reviewer"));
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			return aLine == 754U ? std::optional{ 80 } : aLine == 760U ? std::optional{ 260 }
+																	   : std::nullopt;
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 760U);
+		auto post = reply("c-1", "review-thread:T1", "reviewer-bot", "issue: the pair table is rebuilt on every frame.");
+		post.Line = 760U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		const auto body       = std::string{ "suggestion (non-blocking): the cache is rebuilt even when nothing it holds has changed." };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 753U }, .Body = body }, comparison);
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft(), "my draft is written in the drawer");
+		const auto draftCard = [&view]() -> const qt::thread_card* {
+			const auto found = std::ranges::find(view.cards(), qt::conversation_cards_view::draft_identity(), &qt::thread_card::Id);
+			return found == view.cards().end() ? nullptr : &*found;
+		};
+		// Clicked away: the thread under it is pressed open.
+		const auto thread = std::ranges::find(view.cards(), std::string{ "review-thread:T1" }, &qt::thread_card::Id);
+		expect(thread != view.cards().end(), "the thread under my draft has a note");
+		press_at(view, thread->Rect.translated(0, -view.verticalScrollBar()->value()).center());
+		QApplication::processEvents();
+		expect(view.open_thread_id() == "review-thread:T1" && !view.writing_draft(), "the thread is open and my draft is no longer written");
+		const auto* const card = draftCard();
+		expect(card != nullptr, "my draft keeps its note");
+		expect(!card->Writing && !card->Posts.empty() && card->Posts.front().Author == QStringLiteral("reviewer") && card->Posts.front().Body.startsWith(QStringLiteral("suggestion")),
+			   "my draft's note carries its author and words, not an empty composer");
+		// Its height is a note's with its words, as a fresh view measures it.
+		qt::conversation_cards_view fresh;
+		fresh.resize(380, 700);
+		fresh.set_viewer_login(QStringLiteral("reviewer"));
+		fresh.show();
+		QApplication::processEvents();
+		fresh.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			return aLine == 754U ? std::optional{ 80 } : aLine == 760U ? std::optional{ 260 }
+																	   : std::nullopt;
+		});
+		fresh.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		fresh.adopt({ root, post });
+		fresh.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 753U }, .Body = body }, comparison);
+		QApplication::processEvents();
+		const auto freshCard = std::ranges::find(fresh.cards(), qt::conversation_cards_view::draft_identity(), &qt::thread_card::Id);
+		expect(freshCard != fresh.cards().end() && freshCard->Rect.height() == card->Rect.height(),
+			   "my draft's note is as tall as a fresh view draws it (" + std::to_string(card->Rect.height()) + " px)");
+		// Painted: inside its dashed frame there is ink, its avatar, author
+		// and words.
+		const auto image = view.viewport()->grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto box   = card->Rect.translated(0, -view.verticalScrollBar()->value()).adjusted(6, 6, -6, -6);
+		const auto paper = image.pixelColor(static_cast<int>((box.left() - 3) * ratio), static_cast<int>((box.center().y()) * ratio));
+		auto       inked = 0;
+		for (auto y = static_cast<int>(box.top() * ratio); y < static_cast<int>(box.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(box.left() * ratio); x < static_cast<int>(box.right() * ratio) && x < image.width(); ++x) {
+				const auto colour = image.pixelColor(x, y);
+				if (std::abs(colour.red() - paper.red()) + std::abs(colour.green() - paper.green()) + std::abs(colour.blue() - paper.blue()) > 60) {
+					++inked;
+				}
+			}
+		}
+		expect(inked > 300, "my draft's note paints its avatar, author and words (" + std::to_string(inked) + " inked pixels)");
+		// Closing the thread leaves it so.
+		view.close_thread();
+		QApplication::processEvents();
+		expect(draftCard() != nullptr && !draftCard()->Posts.empty(), "closing the thread leaves my draft's note its words");
+		// And opening it again makes it the composer once more.
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && draftCard() != nullptr && draftCard()->Writing, "my draft opens as its composer again");
+	}
+
+	/// \brief [[BPR-2262]]. Every way the open card moves off my draft ends
+	/// writing it: here the pull request's conversation shown and the lines
+	/// shown again, which moved the open card without asking. The draft comes
+	/// back as its note with my name and words, never as an open composer
+	/// the window did not begin, and its note follows its words.
+	auto test_a_draft_left_by_the_conversation_keeps_its_words() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.set_viewer_login(QStringLiteral("reviewer"));
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			return aLine == 41U ? std::optional{ 80 } : aLine == 60U ? std::optional{ 260 }
+																	 : std::nullopt;
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 60U);
+		auto post = reply("c-1", "review-thread:T1", "someone", "question: is this needed?");
+		post.Line = 60U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		auto       draft      = core::review_comment_draft{ };
+		draft.Id              = core::review_draft_id{ 1U };
+		draft.Anchor          = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 40U };
+		draft.Body            = "nit: a draft being written";
+		view.set_draft(draft, comparison);
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && view.draft_editor() != nullptr, "my draft is written in the drawer");
+		const auto draftCard = [&view]() -> std::optional<qt::thread_card> {
+			const auto found = std::ranges::find(view.cards(), qt::conversation_cards_view::draft_identity(), &qt::thread_card::Id);
+			return found == view.cards().end() ? std::nullopt : std::optional{ *found };
+		};
+		view.show_pull_request_comments(true);
+		QApplication::processEvents();
+		expect(!view.writing_draft() && view.draft_editor() == nullptr, "showing the conversation ends writing my draft");
+		view.show_pull_request_comments(false);
+		QApplication::processEvents();
+		const auto card = draftCard();
+		expect(!view.writing_draft() && view.draft_editor() == nullptr && view.open_thread_id().empty() && card.has_value() && !card->Writing
+				   && !card->Posts.empty() && card->Posts.front().Author == QStringLiteral("reviewer") && card->Posts.front().Body.startsWith(QStringLiteral("nit:")),
+			   "back on the lines, my draft is its note with my name and words, not an open composer");
+		// Its note follows its words once it is no longer written.
+		draft.Body = "nit: a draft with more words";
+		view.set_draft(draft, comparison);
+		QApplication::processEvents();
+		const auto changed = draftCard();
+		expect(changed.has_value() && !changed->Posts.empty() && changed->Posts.front().Body.contains(QStringLiteral("more words")), "my draft's note shows its new words");
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && view.draft_editor() != nullptr, "my draft opens as its composer again");
+	}
+
 	/// \brief [[BPR-2173]]. The owner, on look v007 of RFC-BPR-0127: "going
 	/// from image 2 and clicking the bottom comment gives image 1". A tall
 	/// thread is open at its line and the drawer is scrolled down to the
@@ -4061,6 +4200,8 @@ auto main(int argc, char** argv) -> int
 	test_composer_notice_keeps_rows_apart();
 	test_placement_notice_is_a_warning_mark();
 	test_look_v002_rework();
+	test_a_draft_clicked_away_from_paints_its_words();
+	test_a_draft_left_by_the_conversation_keeps_its_words();
 	test_opening_the_card_below_an_open_thread_shows_it_whole();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();

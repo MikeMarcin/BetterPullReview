@@ -59,7 +59,9 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
@@ -69,6 +71,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -202,7 +205,7 @@ namespace bpr::qt {
 		if (PreviousCommentAction == nullptr || NextCommentAction == nullptr || ConversationPanel == nullptr) {
 			return;
 		}
-		const auto any = !ConversationPanel->cards()->cards().empty() || !ConversationPanel->cards()->threads_in_file_order().empty();
+		const auto any = !ConversationPanel->cards()->cards().empty() || !ConversationPanel->cards()->comments_in_file_order().empty();
 		PreviousCommentAction->setEnabled(any);
 		NextCommentAction->setEnabled(any);
 		const auto keyed = [](QAction* const aAction, const QString& aWords) {
@@ -221,15 +224,37 @@ namespace bpr::qt {
 		auto* const cards = ConversationPanel->cards();
 		// The comments of the file shown, as Comments orders them: published
 		// threads, my Local comments and drafts at their lines, then the rest.
-		auto shown = std::vector<const thread_card*>{ };
-		for (const auto& card : cards->cards()) {
-			if (!card.Writing) {
-				shown.push_back(&card);
+		// [[BPR-2262]]. My draft being written is one of them, so a step from
+		// it goes on from its line, not back to the file's first comment.
+		const auto& shown = cards->cards();
+		// [[BPR-2262]]. Another line's saved draft is the window's to bring
+		// into the drawer once its line is chosen, as Comments in another
+		// file does; any other comment opens in place.
+		const auto savedDraft = [](const thread_card& aCard) -> std::optional<core::review_draft_id> {
+			const auto prefix = std::string{ conversation_cards_view::draft_identity() } + ":";
+			if (!aCard.Draft || aCard.UnsentReply.has_value() || aCard.MovedSuggestion || aCard.Local || !aCard.Id.starts_with(prefix)) {
+				return std::nullopt;
 			}
+			auto       value  = std::uint64_t{ 0U };
+			const auto digits = std::string_view{ aCard.Id }.substr(prefix.size());
+			const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), value);
+			return parsed.ec == std::errc{ } && parsed.ptr == digits.data() + digits.size() ? std::optional{ core::review_draft_id{ value } } : std::nullopt;
+		};
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		auto       file    = context.has_value() ? path_of(context->Key.File) : QString{ };
+		for (const auto& card : shown) {
+			if (!file.isEmpty()) {
+				break;
+			}
+			file = card.Path;
 		}
-		const auto open = [this, cards](const thread_card& aCard) {
+		const auto open = [this, cards, &savedDraft, &file](const thread_card& aCard) {
 			if (!aCard.Draft && !aCard.Local) {
 				go_to_conversation(aCard.Id);
+				return;
+			}
+			if (const auto draft = savedDraft(aCard); draft.has_value() && aCard.Side.has_value() && aCard.Line.value_or(0U) > 0U && !file.isEmpty()) {
+				reveal_pending_comment(file, *aCard.Side, *aCard.Line - 1U, draft);
 				return;
 			}
 			if (cards->open_thread_id() != aCard.Id) {
@@ -241,37 +266,42 @@ namespace bpr::qt {
 		};
 		// From the comment open; with none open, the first or the last.
 		const auto& current = cards->open_thread_id();
-		const auto  at      = std::ranges::find_if(shown, [&current](const thread_card* aCard) { return aCard->Id == current; });
-		if (at != shown.end()) {
+		const auto  at      = std::ranges::find(shown, current, &thread_card::Id);
+		if (!current.empty() && at != shown.end()) {
 			const auto index = static_cast<std::ptrdiff_t>(std::distance(shown.begin(), at)) + (aForward ? 1 : -1);
 			if (index >= 0 && index < static_cast<std::ptrdiff_t>(shown.size())) {
-				open(*shown[static_cast<std::size_t>(index)]);
+				open(shown[static_cast<std::size_t>(index)]);
 				return;
 			}
 		} else if (!shown.empty()) {
-			open(aForward ? *shown.front() : *shown.back());
+			open(aForward ? shown.front() : shown.back());
 			return;
 		}
 		// Past this file's comments: the next file's first, or the previous
-		// file's last, wrapping at the pull request's ends.
-		const auto threads = cards->threads_in_file_order();
-		if (threads.empty()) {
+		// file's last, wrapping at the pull request's ends. [[BPR-2262]]: my
+		// drafts are stops too, and a stop in another file opens that file.
+		const auto        stops   = cards->comments_in_file_order();
+		const auto        later   = std::ranges::find_if(stops, [&file](const comment_stop& aStop) { return aStop.Path > file; });
+		const auto        earlier = std::ranges::find_if(stops.rbegin(), stops.rend(), [&file](const comment_stop& aStop) { return aStop.Path < file; });
+		const auto* const stop    = aForward ? (later != stops.end() ? &*later : stops.empty() ? nullptr
+																							   : &stops.front())
+											 : (earlier != stops.rend() ? &*earlier : stops.empty() ? nullptr
+																									: &stops.back());
+		if (stop == nullptr || (stop->Path == file && shown.empty())) {
 			statusBar()->showMessage(tr("No other comments in this pull request."), 4000);
 			return;
 		}
-		auto file = QString{ };
-		for (const auto* card : shown) {
-			if (!card->Path.isEmpty()) {
-				file = card->Path;
-				break;
-			}
+		if (stop->Path == file) {
+			// Wrapped round to this file again: its first or last comment.
+			open(aForward ? shown.front() : shown.back());
+			return;
 		}
-		if (aForward) {
-			const auto later = std::ranges::find_if(threads, [&file](const auto& aThread) { return aThread.second > file; });
-			go_to_conversation(later != threads.end() ? later->first : threads.front().first);
-		} else {
-			const auto earlier = std::ranges::find_if(threads.rbegin(), threads.rend(), [&file](const auto& aThread) { return aThread.second < file; });
-			go_to_conversation(earlier != threads.rend() ? earlier->first : threads.back().first);
+		if (stop->Draft.has_value()) {
+			reveal_pending_comment(stop->Path, stop->Side, stop->Line, stop->Draft);
+			return;
+		}
+		if (!open_conversation_in_review(stop->Thread, std::string{ })) {
+			go_to_conversation(stop->Thread);
 		}
 	}
 
