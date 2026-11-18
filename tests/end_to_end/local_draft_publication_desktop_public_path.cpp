@@ -1,3 +1,4 @@
+#include "../support/windows_crash_trace.hpp"
 #include "../git_contract/windows_system_root.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
@@ -208,6 +209,7 @@ namespace {
 
 auto main(int aArgc, char** aArgv) -> int
 try {
+	bpr::tests::crash_trace::install();
 	QApplication app{ aArgc, aArgv };
 	const auto   git = tests::workspace_contract::git_from(aArgc, aArgv);
 	if (!git) {

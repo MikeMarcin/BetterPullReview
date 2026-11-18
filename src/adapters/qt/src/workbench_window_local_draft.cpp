@@ -308,7 +308,10 @@ namespace bpr::qt {
 		const auto& local = LocalDraft->local_projection();
 		const auto& draft = LocalDraft->projection();
 		LocalChangesShown = local.Active && FileSearchTabs != nullptr && FileSearchTabs->currentIndex() == local_changes_tab();
-		if (LocalChangesShown) {
+		// [[BPR-2215]]. Until the author's Git has read the worktree (on Windows
+		// it never does: that runner is POSIX's), This update has no file of
+		// its own, and the viewer shows the draft's proposed diff, not nothing.
+		if (LocalChangesShown && (local.File || local.Observed)) {
 			present_local_comparison(local.File ? local.File->Presented : nullptr);
 		} else {
 			present_local_comparison(draft.File ? draft.File->Presented : nullptr);
