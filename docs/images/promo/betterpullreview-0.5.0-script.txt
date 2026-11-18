@@ -1,6 +1,8 @@
 BetterPullReview 0.5.0   /   Narrated promo
 Running time  2:00
 
+On each section card, give the title half a second to register. Start the narrator’s next line on the card and carry it into the demo.
+
 0:00.00–0:07.46   Opening
 BetterPullReview gives you a workbench for understanding pull requests, with powerful agent integration under your control.
 
@@ -12,7 +14,7 @@ Comments appear beside the code, so you can read both.
 Track what you’ve read and accepted as you go.
 Leave a comment or suggest a fix, then tidy it up and publish when it’s ready.
 
-Picture   “For reviewers” gives way to the pull request. Open the comparison, read the side comments, and show the review controls.
+Picture   Start “Open the pull request” on “For reviewers.” Cut to the diff on “changes.” Show the side comments, then type the draft, letting the insertion point follow the text onto the second line.
 
 0:26.54–0:50.54   Your agent
 Bring your agent seamlessly into your workflow.
@@ -42,7 +44,7 @@ Guide reviewers through the important changes with tour stops.
 Your agent can help draft and refine it.
 Published tours work as ordinary GitHub comments, so everyone can follow along.
 
-Picture   Hold on “For authors” before switching to the author’s Review Tour. Introduce the problem and solution, show the stops beside the code, then follow the published tour on GitHub from its overview to an inline comment.
+Picture   Start the question on “For authors.” Cut to the author’s Review Tour as the narrator reaches “reviewer.” Introduce the problem and solution, show the stops beside the code, then follow the published tour on GitHub from its overview to an inline comment.
 
 1:45.67–1:54.00   Privacy
 Bring your own GitHub or GitHub Enterprise.
