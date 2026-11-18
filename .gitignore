@@ -48,3 +48,12 @@ __pycache__/
 /.mask/attended-review/
 /.mask/sessions/
 .mask/skill-config/implement-rfc/native-roles.lock.json
+
+# Promo video, audio and frames are build output: keep them under /artifacts/promo, not in version control.
+/docs/images/promo/*.mp4
+/docs/images/promo/*.mov
+/docs/images/promo/*.webm
+/docs/images/promo/*.wav
+/docs/images/promo/*.m4a
+/docs/images/promo/*.aiff
+/docs/images/promo/frames/
