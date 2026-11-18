@@ -196,9 +196,16 @@ namespace bpr::app {
 			});
 			report->set_draft_dispatch([this, tab](const qt::report_draft& aDraft, qt::report_draft_done aDone) {
 				const auto request = report_card_request(aDraft);
-				act_on_agent_card(request, [this, tab, aDraft, aDone, request](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+				// [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the
+				// report". The draft is made behind the report, which stays
+				// in front; Go to draft is what goes to the file.
+				const auto behind = aDraft.Path.isEmpty() ? std::uint64_t{ 0U } : open_behind_report(aDraft.Path.toStdString());
+				act_on_agent_card(request, [this, tab, aDraft, aDone, request, behind](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
 					if (Closing || aState == qt::agent_finding_card_state::working) {
 						return;
+					}
+					if (behind != 0U) {
+						close_behind_report(behind);
 					}
 					if (aDraft.Card) {
 						tab->present_finding_card_state(request.Session, request.Ordinal, aState, aWhy, aNote);

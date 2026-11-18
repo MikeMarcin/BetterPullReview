@@ -191,7 +191,8 @@ namespace bpr::app {
 		const auto* const surface  = Window->comparison_surface();
 		const auto&       finding  = PendingCardOpen->Request.Finding;
 		const auto        onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
-			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key
+			&& !(ReportKeepBehind && (TabLoad || TabDriver));
 		if (onScreen) {
 			auto request = std::move(PendingCardOpen->Request);
 			auto report  = std::move(PendingCardOpen->Report);
@@ -320,11 +321,13 @@ namespace bpr::app {
 		auto* const surface  = Window->comparison_surface();
 		const auto  side     = finding.Anchor.Line ? finding.Anchor.Line->Side : core::diff_side::right;
 		const auto  onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
-			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key
+			&& !(ReportKeepBehind && (TabLoad || TabDriver));
 		// Owner decision 2026-10-23: another file is opened in Review first,
-		// then the draft or note is made at its line.
+		// then the draft or note is made at its line. [[BPR-2258]]: behind a
+		// report the file's own tab is opening already.
 		if (!onScreen) {
-			if (!Window->open_file_in_review(QString::fromStdString(finding.Path))) {
+			if (!ReportKeepBehind && !Window->open_file_in_review(QString::fromStdString(finding.Path))) {
 				CardRefusalGone = true;
 				state(qt::agent_finding_card_state::refused, QStringLiteral("%1 is not in this pull request at its current head, so there is no line to put it on.").arg(QString::fromStdString(finding.Path)));
 				return;
@@ -364,6 +367,73 @@ namespace bpr::app {
 			PendingNotePromotion.reset();
 			CardRefusalGone = true;
 			state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
+		}
+	}
+
+	/// [[BPR-2258]]. A tab gesture made now, as the window's own tab
+	/// dispatch makes it on the decision lane.
+	void github_application::implementation::apply_tab_now(const core::document_tab_intent& aIntent)
+	{
+		cancel_review_navigation();
+		observe_tab_reading();
+		cancel_restoration(false, true);
+		TabHost->apply(aIntent);
+		if (TabLoad && TabHost->state().Pending != TabLoad) {
+			abandon_tab_load();
+		}
+	}
+
+	auto github_application::implementation::open_behind_report(const std::string& aPath) -> std::uint64_t
+	{
+		close_behind_report();
+		if (Closing || Window == nullptr || TabHost == nullptr || WorkbenchHost == nullptr || !Window->report_shown() || aPath.empty()) {
+			return 0U;
+		}
+		const auto  file   = core::file_identity_of(aPath);
+		const auto& tabs   = TabHost->state();
+		const auto* report = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		if (!file.valid() || !WorkbenchHost->contains_file(file) || report == nullptr || !report->report()) {
+			return 0U;
+		}
+		const auto reportTab = report->Id;
+		auto       before    = std::vector<core::document_tab_id>{ };
+		for (const auto& each : tabs.Tabs) {
+			before.push_back(each.Id);
+		}
+		Window->hold_report(true);
+		apply_tab_now(core::open_in_new_tab_intent{ .File = file });
+		const auto& after = TabHost->state().Tabs;
+		const auto  added = std::ranges::find_if(after, [&before](const core::document_tab& aTab) { return std::ranges::find(before, aTab.Id) == before.end(); });
+		if (added == after.end()) {
+			// At the tab limit the report's own way is kept: nothing opened.
+			Window->hold_report(false);
+			return 0U;
+		}
+		const auto serial = ++ReportKeepBehindSerial;
+		ReportKeepBehind  = report_keep_behind{ .Serial = serial, .Report = reportTab, .Opened = added->Id };
+		apply_tab_now(core::activate_tab_intent{ .Tab = added->Id });
+		// A keep that never ends still gives the window back.
+		QTimer::singleShot(30'000, Window.get(), [this, serial] { close_behind_report(serial); });
+		return serial;
+	}
+
+	void github_application::implementation::close_behind_report(const std::uint64_t aSerial)
+	{
+		if (!ReportKeepBehind || (aSerial != 0U && ReportKeepBehind->Serial != aSerial)) {
+			return;
+		}
+		const auto behind = *ReportKeepBehind;
+		ReportKeepBehind.reset();
+		if (!Closing && TabHost != nullptr) {
+			if (core::find_tab(TabHost->state(), behind.Report) != nullptr) {
+				apply_tab_now(core::activate_tab_intent{ .Tab = behind.Report });
+			}
+			if (core::find_tab(TabHost->state(), behind.Opened) != nullptr) {
+				apply_tab_now(core::close_tab_intent{ .Tab = behind.Opened });
+			}
+		}
+		if (!Closing && Window != nullptr) {
+			Window->hold_report(false);
 		}
 	}
 
@@ -426,6 +496,9 @@ namespace bpr::app {
 			}
 			const auto report   = !run.ReportKeys.empty();
 			const auto undoable = !run.Made.empty() && !report;
+			if (report) {
+				close_behind_report();
+			}
 			if (undoable) {
 				DraftAllBatches[run.Batch] = std::move(run.Made);
 			}
@@ -452,9 +525,14 @@ namespace bpr::app {
 		// is given up after a while, so the batch still ends and says so.
 		QTimer::singleShot(20'000, Window.get(), [this, serial] { settle_draft_all_card(serial, core::draft_all_result::refused); });
 		const auto reportKey = DraftAllRun->Next < DraftAllRun->ReportKeys.size() ? std::optional{ DraftAllRun->ReportKeys[DraftAllRun->Next] } : std::nullopt;
-		act_on_agent_card(request, [this, tab, serial, reportKey, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+		// [[BPR-2258]]. A report's Draft all drafts behind the report too.
+		const auto behind = reportKey.has_value() ? open_behind_report(request.Finding.Path) : std::uint64_t{ 0U };
+		act_on_agent_card(request, [this, tab, serial, reportKey, behind, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
 			if (Closing) {
 				return;
+			}
+			if (behind != 0U && aState != qt::agent_finding_card_state::working) {
+				close_behind_report(behind);
 			}
 			const auto gone = CardRefusalGone;
 			tab->present_finding_card_state(session, ordinal, aState, aWhy, aNote);

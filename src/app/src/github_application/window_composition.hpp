@@ -690,6 +690,27 @@ namespace bpr::app {
 		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone);
 
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { });
+		/// [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the report". A
+		/// report's keep action is made behind the report: the finding's file
+		/// opens in a tab of its own made active underneath while the window
+		/// holds the report on screen and the strip as it was; when the keep
+		/// ends the report's tab is active again and that tab closes, so the
+		/// reviewer's tabs and their files are as they were.
+		struct report_keep_behind
+		{
+			std::uint64_t         Serial = 0U;
+			core::document_tab_id Report;
+			core::document_tab_id Opened;
+		};
+		std::optional<report_keep_behind> ReportKeepBehind;
+		std::uint64_t                     ReportKeepBehindSerial = 0U;
+		/// \brief Opens `aPath` behind the shown report and returns the
+		/// opening's serial; 0 (nothing changed) when no report is shown or
+		/// the file is not in the review.
+		auto open_behind_report(const std::string& aPath) -> std::uint64_t;
+		/// \brief Ends the opening `aSerial` names (0: whichever is open).
+		void close_behind_report(std::uint64_t aSerial = 0U);
+		void apply_tab_now(const core::document_tab_intent& aIntent);
 		/// [[BPR-2061]]. Set by `act_on_agent_card` just before it refuses
 		/// because the finding's file or line is not in the pull request at
 		/// the current head; Draft all reads it with that refusal.

@@ -1338,7 +1338,8 @@ namespace bpr::qt {
 
 	void workbench_window::present_document_tabs()
 	{
-		if (DocumentTabs == nullptr) {
+		// [[BPR-2258]]. A held report keeps the strip as it was drawn.
+		if (DocumentTabs == nullptr || ReportHeld) {
 			return;
 		}
 		auto tabs = std::vector<document_tab_presentation>{ };
@@ -1416,8 +1417,24 @@ namespace bpr::qt {
 	/// RFC-BPR-0128 ([[BPR-2166]]). While a report is the active tab it
 	/// stands where the comparison stands, and the review bar's file controls
 	/// stay where they are, off (Q9); the drawers keep their places.
+	void workbench_window::hold_report(const bool aHeld)
+	{
+		const auto held = aHeld && ReportShown;
+		if (held == ReportHeld) {
+			return;
+		}
+		ReportHeld = held;
+		if (!held) {
+			present_document_tabs();
+		}
+	}
+
 	void workbench_window::apply_report_surface()
 	{
+		// [[BPR-2258]]. The report stays in front while it is held.
+		if (ReportHeld) {
+			return;
+		}
 		auto key = std::string{ };
 		if (TabsProjection) {
 			for (const auto& entry : TabsProjection->Tabs) {

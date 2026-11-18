@@ -191,6 +191,9 @@ namespace bpr::qt {
 		/// \brief What became of the keep action at `aOutline` (0: the
 		/// summary's) of the report shown.
 		[[nodiscard]] auto keep_state(std::uint32_t aOutline) const -> report_keep_state;
+		/// \brief [[BPR-2258]]. The last thing the report said to a screen
+		/// reader: a keep action made, or why not.
+		[[nodiscard]] auto last_announcement() const noexcept -> const QString& { return LastAnnouncement; }
 		/// \brief Presses the keep action at `aOutline`, or its Go to, as
 		/// following its link does; false when the page offers none there.
 		auto press(std::uint32_t aOutline, report_link aLink) -> bool;
@@ -235,6 +238,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
 		[[nodiscard]] auto native_colours() const -> report_colours;
 		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;
+		void               announce(const QString& aText);
+		void               focus_link(std::uint32_t aOutline, report_link aLink);
 		[[nodiscard]] auto keep_key(std::uint32_t aOutline) const -> core::report_finding_key;
 		[[nodiscard]] auto card_keys() const -> std::vector<core::report_card_key>;
 		[[nodiscard]] auto draft_all_plan() const -> std::pair<core::draft_all_plan, std::vector<std::uint32_t>>;
@@ -264,6 +269,7 @@ namespace bpr::qt {
 		/// [[BPR-2231]]. The digest the report's own records are kept under.
 		core::agent_findings_digest ReportDigest{ };
 		report_keep_records         KeepRecords;
+		QString                     LastAnnouncement;
 		/// [[BPR-2232]]. Draft all, by the report's turn: under way, and what
 		/// its last press said.
 		std::map<std::uint64_t, bool>            DraftAllBusy;

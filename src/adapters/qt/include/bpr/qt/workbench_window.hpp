@@ -1302,6 +1302,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto report_view() const noexcept -> agent_report_view* { return ReportView; }
 		/// \brief Whether the active tab is a report.
 		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
+		/// \brief [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the
+		/// report". While held, the report on screen stays there and the
+		/// files' strip stays as it was last drawn, whichever tab the host
+		/// makes active underneath to put a finding's draft at its line.
+		/// Released, the window draws the tabs as they are. Holds only while
+		/// a report is shown.
+		void               hold_report(bool aHeld);
+		[[nodiscard]] auto report_held() const noexcept -> bool { return ReportHeld; }
 		[[nodiscard]] auto review_ask_button() const noexcept -> ask_menu_button* { return ReviewAskButton; }
 		[[nodiscard]] auto file_ask_button() const noexcept -> ask_menu_button* { return FileAskButton; }
 		/// \brief What an Ask menu of `aAnchor` is about now: the active file
@@ -3097,6 +3105,7 @@ namespace bpr::qt {
 		ask_menu_dispatch                            QuickAskDispatch;
 		agent_report_view*                           ReportView  = nullptr;
 		bool                                         ReportShown = false;
+		bool                                         ReportHeld  = false;
 		std::map<std::string, agent_report_document> Reports;
 		/// The file controls' enabled states while a report is shown (Q9).
 		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;

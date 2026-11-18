@@ -8,6 +8,8 @@
 #include "markdown_document.hpp"
 
 #include <QAbstractTextDocumentLayout>
+#include <QAccessible>
+#include <QAccessibleAnnouncementEvent>
 #include <QApplication>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
@@ -256,6 +258,19 @@ namespace bpr::qt {
 				return { QStyledItemDelegate::sizeHint(aOption, aIndex).width(), aIndex.data(kind_role).toInt() == kind_divider ? 9 : row_height };
 			}
 		};
+
+		/// [[BPR-2258]]. What a screen reader hears when a keep action ends.
+		[[nodiscard]] auto kept_words(const report_draft& aDraft, const bool aMade, const QString& aWhy) -> QString
+		{
+			if (!aMade) {
+				return aWhy.isEmpty() ? QObject::tr("Nothing was made.") : aWhy;
+			}
+			if (aDraft.Keep == core::report_keep::draft_comment) {
+				const auto lines = aDraft.Last > aDraft.First ? QObject::tr("lines %1 to %2").arg(aDraft.First).arg(aDraft.Last) : QObject::tr("line %1").arg(aDraft.First);
+				return QObject::tr("Draft comment made on %1, %2. Go to draft opens it.").arg(aDraft.Path, lines);
+			}
+			return aDraft.Path.isEmpty() ? QObject::tr("Kept as a local comment on the pull request.") : QObject::tr("Kept as a local comment on %1.").arg(aDraft.Path);
+		}
 	} // namespace
 
 	agent_report_view::agent_report_view(QWidget* const aParent)
@@ -1054,8 +1069,11 @@ namespace bpr::qt {
 		}
 		const auto turn       = Document.Turn;
 		Keeps[turn][aOutline] = { .Phase = report_keep_phase::working };
+		// [[BPR-2258]]. The report stays in front while the host makes the
+		// draft; focus that was on the page comes back to it.
+		const auto focused = isAncestorOf(QApplication::focusWidget());
 		render_dressed();
-		DraftDispatch(*request, [this, turn, aOutline, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
+		DraftDispatch(*request, [this, turn, aOutline, focused, made = *request, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
 			if (alive.isNull()) {
 				return;
 			}
@@ -1066,11 +1084,53 @@ namespace bpr::qt {
 			} else {
 				Keeps[turn][aOutline] = aDrafted ? report_keep_state{ .Phase = report_keep_phase::kept } : report_keep_state{ .Phase = report_keep_phase::refused, .Why = aWhy };
 			}
-			if (Document.Turn == turn) {
-				render_dressed();
+			if (Document.Turn != turn) {
+				return;
 			}
+			render_dressed();
+			if (focused) {
+				Dressed->setFocus(Qt::OtherFocusReason);
+				if (aDrafted) {
+					focus_link(aOutline, report_link::go);
+				}
+			}
+			announce(kept_words(made, aDrafted, aWhy));
 		});
 		return true;
+	}
+
+	void agent_report_view::announce(const QString& aText)
+	{
+		LastAnnouncement = aText;
+		if (aText.isEmpty() || !isVisible()) {
+			return;
+		}
+		auto event = QAccessibleAnnouncementEvent{ Dressed, aText };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
+	}
+
+	/// [[BPR-2258]]. The page's link for `aLink` at `aOutline`, made the
+	/// keyboard's current link, as Tab to it would.
+	void agent_report_view::focus_link(const std::uint32_t aOutline, const report_link aLink)
+	{
+		const auto minted = std::ranges::find_if(ActionLinks, [aOutline, aLink](const auto& aEntry) { return aEntry.second == std::pair{ aOutline, aLink }; });
+		if (minted == ActionLinks.end()) {
+			return;
+		}
+		for (auto block = Dressed->document()->begin(); block.isValid(); block = block.next()) {
+			for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+				const auto part = fragment.fragment();
+				if (!part.isValid() || part.charFormat().anchorHref() != minted->first) {
+					continue;
+				}
+				auto cursor = QTextCursor{ Dressed->document() };
+				cursor.setPosition(part.position());
+				cursor.setPosition(part.position() + part.length(), QTextCursor::KeepAnchor);
+				Dressed->setTextCursor(cursor);
+				return;
+			}
+		}
 	}
 
 	/// A link of the page: a keep action, or a place or address.
