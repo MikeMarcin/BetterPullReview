@@ -3865,8 +3865,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2254]] reseal: Settings says when the agent store cannot be read
 	# (window_agent_setup.cpp, window_construction.cpp), merged from main. No
 	# review mutation or submission path changed.
+	# [[BPR-2256]] reseal: the Agent drawer waits in a loading state for the
+	# host policy, and the workspace check waits for the comparison, merged
+	# from main. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "2cd77abc541463acbbbe01b18ce2bd40884be7df272fae67a644c700fbb39cca"
+        "20f438684f9f823db5cccaf187df4b2de0fa636384834404b840d273bfb2e756"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
