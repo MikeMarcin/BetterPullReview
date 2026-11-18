@@ -369,10 +369,10 @@ namespace bpr::adapters::sqlite::detail {
 			::sqlite3* aDatabase, const std::int64_t aVersion, std::stop_token aStop)
 			-> std::expected<void, failure>
 		{
-			// Rebuilt rather than altered. ALTER TABLE ADD COLUMN on a STRICT
-			// table runs SQLite's quick check through the pragma table-valued
-			// function, and the hardened connection policy refuses that
-			// function, so the row is carried across a fresh current-format table.
+			// Rebuilt rather than altered: the hardened connection cannot add a
+			// column to a STRICT table (`detail::prepare` in
+			// sqlite_connection.cpp says why), so the row is carried across a
+			// fresh current-format table.
 			const auto columns = std::string{ "singleton, mode, palette_document, ui_family, ui_point_size,"
 											  " ui_weight, ui_line_height, code_family, code_point_size,"
 											  " code_weight, code_tab_width, code_ligatures, code_syntax_bold,"

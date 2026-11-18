@@ -1,6 +1,7 @@
 // [[BPR-1749]], RFC-BPR-0092. A profile's agent setup preferences:
 // defaults before any write, a restart reads them back, refused values are not
 // written, an identity mismatch is refused, and the file is owner-private.
+#include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "scratch_root.hpp"
@@ -11,7 +12,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <map>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 #ifndef _WIN32
 	#include <sys/stat.h>
@@ -20,6 +25,233 @@
 namespace {
 	using namespace bpr;
 	using tests::expect;
+
+	/// [[BPR-2254]]. Runs `aSql` on the file through a plain connection, as
+	/// an earlier build's schema is put back.
+	void run_directly(const std::filesystem::path& aFile, const std::string& aSql, const std::string_view aWhat)
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(aFile.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		const auto ran = sqlite3_exec(database, aSql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK;
+		sqlite3_close_v2(database);
+		expect(ran, aWhat);
+	}
+
+	/// Every table's definition and rows, in order, as text.
+	[[nodiscard]] auto file_contents(const std::filesystem::path& aFile) -> std::string
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(aFile.string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK, "the file opens directly");
+		auto tables = std::vector<std::pair<std::string, std::string>>{ };
+		{
+			sqlite3_stmt* row = nullptr;
+			expect(sqlite3_prepare_v2(database, "SELECT name, sql FROM sqlite_schema WHERE type='table' ORDER BY name", -1, &row, nullptr) == SQLITE_OK, "the schema is read");
+			while (sqlite3_step(row) == SQLITE_ROW) {
+				tables.emplace_back(reinterpret_cast<const char*>(sqlite3_column_text(row, 0)), reinterpret_cast<const char*>(sqlite3_column_text(row, 1)));
+			}
+			sqlite3_finalize(row);
+		}
+		auto contents = std::string{ };
+		for (const auto& [name, sql] : tables) {
+			contents += sql + "\n";
+			sqlite3_stmt* row = nullptr;
+			expect(sqlite3_prepare_v2(database, ("SELECT * FROM \"" + name + "\" ORDER BY rowid").c_str(), -1, &row, nullptr) == SQLITE_OK, "a table's rows are read");
+			while (sqlite3_step(row) == SQLITE_ROW) {
+				for (auto column = 0; column < sqlite3_column_count(row); ++column) {
+					const auto* const text = sqlite3_column_text(row, column);
+					contents += text == nullptr ? std::string{ "NULL" } : std::string{ reinterpret_cast<const char*>(text) };
+					contents += '|';
+				}
+				contents += '\n';
+			}
+			sqlite3_finalize(row);
+		}
+		sqlite3_close_v2(database);
+		return contents;
+	}
+
+	[[nodiscard]] auto count_directly(const std::filesystem::path& aFile, const std::string& aSql) -> std::int64_t
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(aFile.string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK, "the file opens directly");
+		sqlite3_stmt* row = nullptr;
+		expect(sqlite3_prepare_v2(database, aSql.c_str(), -1, &row, nullptr) == SQLITE_OK && sqlite3_step(row) == SQLITE_ROW, "a count is read");
+		const auto counted = sqlite3_column_int64(row, 0);
+		sqlite3_finalize(row);
+		sqlite3_close_v2(database);
+		return counted;
+	}
+
+	/// The native turns table as build 63 and earlier made it, before
+	/// [[BPR-2241]]'s `seconds`, holding the rows it had.
+	constexpr auto build_63_native_turns = std::string_view{
+		"CREATE TABLE earlier_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT;"
+		"INSERT INTO earlier_turns SELECT conversation,ordinal,asked,answered,ending,outcome FROM native_agent_turns;"
+		"DROP TABLE native_agent_turns; ALTER TABLE earlier_turns RENAME TO native_agent_turns;"
+	};
+
+	/// The queue entries table as a build before `aPrompt` ([[BPR-2181]]
+	/// AC13) or `aClaim` ([[BPR-2152]]) made it, holding the rows it had;
+	/// `aHeldCheck` false leaves out the check on `held`, so a test can put in
+	/// a row the current format refuses.
+	[[nodiscard]] auto earlier_queue_entries(const bool aPrompt, const bool aClaim, const bool aHeldCheck = true) -> std::string
+	{
+		const auto columns = std::string{ "session,position,id,quick_ask,scope,file,thread,label,text,state,held" } + (aPrompt ? ",prompt" : "") + (aClaim ? ",claim" : "");
+		return std::string{ "CREATE TABLE earlier_entries(session TEXT NOT NULL REFERENCES agent_queues(session), position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15), id INTEGER NOT NULL CHECK(id >= 1),"
+							" quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL, label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384), state TEXT NOT NULL," }
+		+ (aHeldCheck ? " held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1)," : " held INTEGER NOT NULL,")
+			+ (aPrompt ? " prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960)," : "")
+			+ (aClaim ? " claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256)," : "")
+			+ " PRIMARY KEY(session, position)) STRICT;"
+			+ "INSERT INTO earlier_entries SELECT " + columns + " FROM agent_queue_entries;"
+			+ "DROP TABLE agent_queue_entries; ALTER TABLE earlier_entries RENAME TO agent_queue_entries;";
+	}
+
+	/// [[BPR-2254]]. Agent settings, a native conversation and a queue, as a
+	/// profile holds them.
+	struct seeded_profile
+	{
+		application::agent_setup_preferences                        Preferences;
+		std::optional<application::native_agent_history_projection> History;
+		std::map<std::string, core::agent_queue>                    Queues;
+	};
+
+	[[nodiscard]] auto seed_profile(const std::filesystem::path& aRoot, const bool aPromptedEntry) -> seeded_profile
+	{
+		auto  seeded                   = seeded_profile{ };
+		auto& preferences              = seeded.Preferences;
+		preferences.Agents             = *core::add_agent_entry(preferences.Agents, { .Name = "Claude stream JSON", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude-wrapper", .Arguments = { "--profile=work" } });
+		preferences.Agents             = *core::add_agent_entry(preferences.Agents, core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, { }));
+		preferences.Agents[0].Identity = std::string(32U, 'c');
+		preferences.AgentsMoved        = true;
+		preferences.PreferredAgent     = preferences.Agents[0].Id;
+		expect(adapters::sqlite::make_agent_setup_store(aRoot)->store(preferences), "the profile's agents are stored");
+
+		auto natives        = adapters::sqlite::make_native_agent_session_store(aRoot);
+		auto binding        = core::agent_revision_binding{ };
+		binding.Host        = core::git_host_id{ 1 };
+		binding.Repository  = core::repository_id{ 2 };
+		binding.PullRequest = core::pull_request_id{ 3 };
+		binding.BaseOid     = *core::parse_git_commit_oid(std::string(40U, '1'));
+		binding.HeadOid     = *core::parse_git_commit_oid(std::string(40U, '2'));
+		binding.LeftEpoch   = core::epoch_ordinal{ 1 };
+		binding.RightEpoch  = core::epoch_ordinal{ 2 };
+		const auto session  = natives->select("authority:agent-a:agent-tab", "claude", binding);
+		expect(session && natives->append(session->Id, { .Asked = "Does this work?", .Answered = "Yes.", .Ending = "Answered" })
+				   && natives->append(session->Id, { .Asked = "Why?", .Answered = "The bound is checked.", .Ending = "Answered" }),
+			   "a native conversation's turns are stored");
+		if (auto history = natives->history("authority:agent-a:agent-tab", "claude"); history) {
+			seeded.History = std::move(*history);
+		}
+		expect(seeded.History && seeded.History->Turns.size() == 2U, "and read back");
+
+		auto entry          = core::queued_entry{ };
+		entry.Id            = 1U;
+		entry.Input.Text    = "waiting";
+		entry.Input.Threads = { "thread-a" };
+		if (aPromptedEntry) {
+			entry.Input.Prompt = core::prompt_offer{ .Id = "own.look-again", .Label = "Ready to look again?", .Expansion = { .Text = "Has it changed?" } };
+		}
+		auto queue   = core::agent_queue{ };
+		queue.LastId = 1U;
+		queue.Paused = core::queue_pause::reviewer;
+		queue.Entries.push_back(entry);
+		auto queues = adapters::sqlite::make_agent_queue_store(aRoot);
+		expect(queues->store("session", queue), "a queued entry is stored");
+		const auto stored = queues->load();
+		expect(stored && stored->size() == 1U, "and read back");
+		seeded.Queues = *stored;
+		return seeded;
+	}
+
+	/// The profile reads back as it was seeded, through the store's own
+	/// open on the hardened connection.
+	void expect_profile(const std::filesystem::path& aRoot, const seeded_profile& aSeeded, const std::string_view aWhat)
+	{
+		const auto preferences = adapters::sqlite::make_agent_setup_store(aRoot)->load();
+		expect(preferences.has_value(), aWhat);
+		expect(*preferences == aSeeded.Preferences && preferences->PreferredAgent == aSeeded.Preferences.Agents[0].Id, "every saved agent and the preferred one read back unchanged");
+		const auto history = adapters::sqlite::make_native_agent_session_store(aRoot)->history("authority:agent-a:agent-tab", "claude");
+		expect(history && history->Turns == aSeeded.History->Turns && std::ranges::none_of(history->Turns, [](const application::agent_conversation_turn& aTurn) { return aTurn.Seconds.has_value(); }),
+			   "the conversation keeps its turns, with no time kept for them");
+		const auto queues = adapters::sqlite::make_agent_queue_store(aRoot)->load();
+		expect(queues == std::optional{ aSeeded.Queues }, "the queued entry reads back");
+	}
+
+	void earlier_builds_open()
+	{
+		// [[BPR-2254]]. The reason no store adds a column: on the hardened
+		// connection a statement is prepared with SQLITE_PREPARE_NO_VTAB, and
+		// SQLite checks a STRICT table's new column through the
+		// pragma_quick_check table-valued function. If a SQLite update changes
+		// that, this says so.
+		{
+			tests::sqlite_contract::scratch_root root{ "add-column-refused" };
+			expect(adapters::sqlite::detail::sqlite_runtime_ready(), "the SQLite runtime is ready");
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2((root.path() / "strict.sqlite3").string().c_str(), &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) == SQLITE_OK, "a scratch file opens");
+			const auto configured = adapters::sqlite::detail::configure_connection(database).has_value();
+			const auto made       = adapters::sqlite::detail::execute(database, "CREATE TABLE t(a INTEGER NOT NULL) STRICT").has_value()
+				&& adapters::sqlite::detail::execute(database, "INSERT INTO t VALUES(1)").has_value();
+			const auto altered = adapters::sqlite::detail::execute(database, "ALTER TABLE t ADD COLUMN b INTEGER").has_value();
+			const auto plain   = sqlite3_exec(database, "ALTER TABLE t ADD COLUMN c INTEGER", nullptr, nullptr, nullptr) == SQLITE_OK;
+			sqlite3_close_v2(database);
+			expect(configured && made, "a STRICT table on the hardened connection");
+			expect(!altered, "ADD COLUMN on a STRICT table fails on the hardened connection");
+			expect(plain, "and only for the prepare flag: the same connection without it adds the column");
+		}
+		// Build 63: native turns without `seconds`, and no prompt pack links.
+		{
+			tests::sqlite_contract::scratch_root root{ "agent-setup-build-63" };
+			const auto                           file   = root.path() / "state/v1/agent-setup.sqlite3";
+			const auto                           seeded = seed_profile(root.path(), true);
+			run_directly(file, std::string{ build_63_native_turns } + "DROP TABLE prompt_macro_packs;", "build 63's schema is put back");
+			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name='native_agent_turns' AND sql LIKE '%seconds%'") == 0 && count_directly(file, "SELECT count(*) FROM native_agent_turns") == 2,
+				   "the turns have no seconds column and keep their rows");
+			expect_profile(root.path(), seeded, "a store build 63 wrote opens");
+			expect(count_directly(file, "SELECT count(*) FROM native_agent_turns WHERE seconds IS NULL") == 2 && count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name='prompt_macro_packs'") == 1
+					   && count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name LIKE 'rebuilt_%'") == 0,
+				   "the turns gain seconds as null, prompt_macro_packs is made, and nothing is left over");
+			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE sql LIKE '%REFERENCES native_agent_turns%' OR sql LIKE '%REFERENCES agent_queue_entries%' OR sql LIKE '%REFERENCES \"native_agent_turns\"%' OR sql LIKE '%REFERENCES \"agent_queue_entries\"%'") == 0,
+				   "no table references a rebuilt table, so foreign keys stay on through the rebuild");
+			expect_profile(root.path(), seeded, "and opens again as it is");
+		}
+		// Builds 64 to 66 left such a store part-migrated: every table made
+		// before the failing step, none after it.
+		{
+			tests::sqlite_contract::scratch_root root{ "agent-setup-part-migrated" };
+			const auto                           file   = root.path() / "state/v1/agent-setup.sqlite3";
+			const auto                           seeded = seed_profile(root.path(), true);
+			run_directly(file, std::string{ build_63_native_turns } + "DROP TABLE prompt_surface_lists; DROP TABLE prompt_repository_prompts; DROP TABLE prompt_macro_revision; DROP TABLE prompt_macro_packs;",
+						 "a part-migrated store is put back");
+			expect_profile(root.path(), seeded, "a part-migrated store opens");
+			for (const auto* const table : { "prompt_surface_lists", "prompt_repository_prompts", "prompt_macro_revision", "prompt_macro_packs" }) {
+				expect(count_directly(file, std::string{ "SELECT count(*) FROM sqlite_schema WHERE name='" } + table + "'") == 1, "and its migration completes");
+			}
+		}
+		// Queue entries from before `prompt`, before `claim`, and before both.
+		for (const auto& [prompt, claim] : { std::pair{ false, true }, std::pair{ true, false }, std::pair{ false, false } }) {
+			tests::sqlite_contract::scratch_root root{ "agent-queue-earlier" };
+			const auto                           file   = root.path() / "state/v1/agent-setup.sqlite3";
+			const auto                           seeded = seed_profile(root.path(), prompt);
+			run_directly(file, earlier_queue_entries(prompt, claim), "an earlier build's queue entries are put back");
+			expect(count_directly(file, "SELECT count(*) FROM agent_queue_entries") == 1, "holding the queued entry");
+			expect_profile(root.path(), seeded, "a store with earlier queue entries opens");
+			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name='agent_queue_entries' AND sql LIKE '%prompt TEXT%' AND sql LIKE '%claim TEXT%'") == 1, "and its entries have both columns");
+		}
+		// A rebuild that fails part-way is rolled back: the file is as it was.
+		{
+			tests::sqlite_contract::scratch_root root{ "agent-queue-rollback" };
+			const auto                           file = root.path() / "state/v1/agent-setup.sqlite3";
+			static_cast<void>(seed_profile(root.path(), false));
+			run_directly(file, earlier_queue_entries(false, true, false) + "UPDATE agent_queue_entries SET held=2;", "an earlier table holding a row the current format refuses");
+			const auto before = file_contents(file);
+			expect(!adapters::sqlite::make_agent_queue_store(root.path())->load(), "the store does not open when its rebuild fails");
+			expect(!adapters::sqlite::make_agent_setup_store(root.path())->load(), "nor for the agent settings");
+			expect(file_contents(file) == before, "the failed rebuild leaves every table and row as it was");
+			expect(count_directly(file, "SELECT count(*) FROM agent_queue_entries WHERE held=2") == 1, "the original row is still there");
+		}
+	}
 } // namespace
 
 int main()
@@ -668,6 +900,7 @@ try {
 		const auto again = legacyStore->load();
 		expect(again && again->size() == 1U && again->begin()->second.Entries.size() == 1U && again->begin()->second.Paused == core::queue_pause::lost_access, "and reads back");
 	}
+	earlier_builds_open();
 	std::cout << "agent-setup-storage:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

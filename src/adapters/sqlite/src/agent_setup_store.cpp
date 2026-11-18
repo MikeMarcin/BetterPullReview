@@ -111,6 +111,24 @@ namespace bpr::adapters::sqlite {
 			"PRIMARY KEY(repository, kind, id)"
 		};
 
+		constexpr auto native_agent_turns_columns = std::string_view{
+			"conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL,"
+			" seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295), PRIMARY KEY(conversation,ordinal)"
+		};
+		constexpr auto agent_queue_entries_columns = std::string_view{
+			"session TEXT NOT NULL REFERENCES agent_queues(session),"
+			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15),"
+			"id INTEGER NOT NULL CHECK(id >= 1),"
+			"quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL,"
+			"label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384),"
+			"state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1),"
+			"prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960),"
+			"claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256),"
+			"PRIMARY KEY(session, position)"
+		};
+		/// The queue entry columns every build that kept queues wrote.
+		constexpr auto agent_queue_entries_copied = std::string_view{ "session,position,id,quick_ask,scope,file,thread,label,text,state,held" };
+
 		/// [[BPR-2181]]. Drops queue tables made with a cascading entry
 		/// reference while both are empty, which is all they can be: no save
 		/// into them ever succeeded. Anything else is left as it is.
@@ -130,40 +148,66 @@ namespace bpr::adapters::sqlite {
 			return *rows != 0 || (detail::execute(aDatabase, "DROP TABLE agent_queue_entries") && detail::execute(aDatabase, "DROP TABLE agent_queues"));
 		}
 
-		/// [[BPR-2181]] (AC13). A queued suggested prompt keeps the offer
-		/// decided at its press; a file made before has no column for it.
-		[[nodiscard]] auto add_queue_prompt_column(sqlite3* const aDatabase) -> bool
+		/// [[BPR-2254]]. Rebuilds `aTable` in its current format, `aColumns`,
+		/// and copies `aCopied` across: a column the old table lacks takes its
+		/// default or null. All of it is one transaction; on any failure it is
+		/// rolled back and the file is as it was. A store never adds a column
+		/// with ALTER TABLE: `detail::prepare` (sqlite_connection.cpp) says why.
+		///
+		/// Foreign keys stay on. The two tables rebuilt here reference
+		/// another table and are referenced by none, so dropping the old one
+		/// orphans nothing, and each copied row is checked against the table
+		/// it references as it is inserted.
+		[[nodiscard]] auto rebuild_table(sqlite3* const aDatabase, const std::string_view aTable, const std::string_view aColumns, const std::string_view aCopied) -> bool
 		{
-			const auto present = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%prompt TEXT%'");
-			if (!present) {
-				return false;
+			const auto table   = std::string{ aTable };
+			const auto rebuilt = "rebuilt_" + table;
+			const auto copied  = std::string{ aCopied };
+			for (const auto& step : { std::string{ "BEGIN IMMEDIATE" }, "CREATE TABLE " + rebuilt + "(" + std::string{ aColumns } + ") STRICT",
+									  "INSERT INTO " + rebuilt + "(" + copied + ") SELECT " + copied + " FROM " + table, "DROP TABLE " + table,
+									  "ALTER TABLE " + rebuilt + " RENAME TO " + table, std::string{ "COMMIT" } }) {
+				if (!detail::execute(aDatabase, step)) {
+					static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
+					return false;
+				}
 			}
-			return *present != 0
-				|| detail::execute(aDatabase, "ALTER TABLE agent_queue_entries ADD COLUMN prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960)").has_value();
+			return true;
 		}
 
-		/// [[BPR-2152]] (AC06). A claimed entry keeps what it was bound to
-		/// (`core::encode_queued_claim`); a file made before has no column.
-		[[nodiscard]] auto add_queue_claim_column(sqlite3* const aDatabase) -> bool
+		/// [[BPR-2181]] (AC13) and [[BPR-2152]] (AC06). A queued suggested
+		/// prompt keeps the offer decided at its press, and a claimed entry
+		/// what it was bound to (`core::encode_queued_claim`); a file made
+		/// before either has no column for it, and its table is rebuilt.
+		[[nodiscard]] auto complete_queue_entries(sqlite3* const aDatabase) -> bool
 		{
-			const auto present = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%claim TEXT%'");
-			if (!present) {
+			const auto prompt = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%prompt TEXT%'");
+			const auto claim  = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_queue_entries' AND sql LIKE '%claim TEXT%'");
+			if (!prompt || !claim) {
 				return false;
 			}
-			return *present != 0
-				|| detail::execute(aDatabase, "ALTER TABLE agent_queue_entries ADD COLUMN claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256)").has_value();
+			if (*prompt != 0 && *claim != 0) {
+				return true;
+			}
+			auto copied = std::string{ agent_queue_entries_copied };
+			if (*prompt != 0) {
+				copied += ",prompt";
+			}
+			if (*claim != 0) {
+				copied += ",claim";
+			}
+			return rebuild_table(aDatabase, "agent_queue_entries", agent_queue_entries_columns, copied);
 		}
 
 		/// [[BPR-2241]]. A native turn keeps how long its run took, so it is
-		/// restored saying how it ended; a file made before has no column.
-		[[nodiscard]] auto add_native_turn_seconds_column(sqlite3* const aDatabase) -> bool
+		/// restored saying how it ended; a file made before has no column, and
+		/// its table is rebuilt. Build 63 and earlier wrote such files.
+		[[nodiscard]] auto complete_native_turns(sqlite3* const aDatabase) -> bool
 		{
 			const auto present = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='native_agent_turns' AND sql LIKE '%seconds INTEGER%'");
 			if (!present) {
 				return false;
 			}
-			return *present != 0
-				|| detail::execute(aDatabase, "ALTER TABLE native_agent_turns ADD COLUMN seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295)").has_value();
+			return *present != 0 || rebuild_table(aDatabase, "native_agent_turns", native_agent_turns_columns, "conversation,ordinal,asked,answered,ending,outcome");
 		}
 
 		void bind_seconds(sqlite3_stmt* const aRow, const int aColumn, const std::optional<std::uint32_t> aSeconds)
@@ -272,7 +316,7 @@ namespace bpr::adapters::sqlite {
 									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_workspaces(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295), PRIMARY KEY(conversation,ordinal)) STRICT")
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS native_agent_turns(" } + std::string{ native_agent_turns_columns } + ") STRICT")
 				// [[BPR-2153]]. What the reviewer steered into each turn, in the
 				// order sent: their words, where in the answer it went in, the
 				// agent's step it followed, and whether the agent took it.
@@ -484,20 +528,9 @@ namespace bpr::adapters::sqlite {
 									"revision INTEGER NOT NULL CHECK(revision >= 0),"
 									"last_id INTEGER NOT NULL CHECK(last_id >= 0),"
 									"paused TEXT NOT NULL CHECK(length(CAST(paused AS BLOB)) <= 64)) STRICT")
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_queue_entries("
-									"session TEXT NOT NULL REFERENCES agent_queues(session),"
-									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15),"
-									"id INTEGER NOT NULL CHECK(id >= 1),"
-									"quick_ask TEXT NOT NULL, scope TEXT NOT NULL, file TEXT NOT NULL, thread TEXT NOT NULL,"
-									"label TEXT NOT NULL, text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 16384),"
-									"state TEXT NOT NULL, held INTEGER NOT NULL CHECK(held BETWEEN 0 AND 1),"
-									"prompt TEXT NOT NULL DEFAULT '' CHECK(length(CAST(prompt AS BLOB)) <= 40960),"
-									"claim TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claim AS BLOB)) <= 256),"
-									"PRIMARY KEY(session, position)) STRICT")
-				|| !add_queue_prompt_column(db)
-				|| !add_queue_claim_column(db)
-				|| !add_native_turn_seconds_column(db)
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_queue_entries(" } + std::string{ agent_queue_entries_columns } + ") STRICT")
+				|| !complete_queue_entries(db)
+				|| !complete_native_turns(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
