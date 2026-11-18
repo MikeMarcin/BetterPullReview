@@ -5,6 +5,7 @@
 #include "bpr/core/prompt_editor.hpp"
 #include "bpr/core/prompt_macro.hpp"
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -18,6 +19,11 @@
 /// differences from the shipped set, under a revision so two windows cannot
 /// overwrite each other.
 namespace bpr::application {
+	/// \brief RFC-BPR-0125 AC24. A random version 4 UUID in lowercase, drawn
+	/// from `aRandom` (16 bytes) or, when it gives none, the host's entropy.
+	/// The core never mints one.
+	[[nodiscard]] auto mint_prompt_uuid(const std::function<std::array<std::uint8_t, 16>()>& aRandom = { }) -> std::string;
+
 	/// \brief What a profile's store holds.
 	struct prompt_macro_stored
 	{
@@ -74,8 +80,8 @@ namespace bpr::application {
 		decision_executor*       Decision = nullptr;
 		/// The projection changed: a load, a write, or a refusal.
 		std::function<void(const prompt_macro_projection&)> Changed;
-		/// [[BPR-2185]]. A new prompt's identity, without the `own.`
-		/// prefix; none uses the host's own entropy.
+		/// [[BPR-2185]]; RFC-BPR-0125 AC24 (owner, 2026-11-18). A new
+		/// prompt's identity, a version 4 UUID; none uses `mint_prompt_uuid`.
 		std::function<std::string()> MintIdentity;
 	};
 
@@ -98,8 +104,9 @@ namespace bpr::application {
 		/// revision shown now. `aSettled` hears how it ended before the store
 		/// is read back and `Changed` hears the projection.
 		void save(core::prompt_macro_differences aDifferences, std::uint64_t aFrom, std::function<void(prompt_macro_write)> aSettled = { });
-		/// \brief [[BPR-2185]] (review N2). A new prompt's identity: `own.` and
-		/// 32 hexadecimal digits the host draws.
+		/// \brief [[BPR-2185]] (review N2); RFC-BPR-0125 AC24. A new prompt's
+		/// identity: a version 4 UUID the host draws (owner, 2026-11-18:
+		/// "uuids ... so that we dont get collisions").
 		[[nodiscard]] auto mint_identity() const -> std::string;
 		[[nodiscard]] auto projection() const noexcept -> const prompt_macro_projection&;
 		/// \brief The differences behind the projection.

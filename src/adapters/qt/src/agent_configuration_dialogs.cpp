@@ -51,6 +51,10 @@ namespace bpr::qt {
 		constexpr int RepositoryKind = 5;
 		/// A section's row, by `core::profile_settings_section`.
 		constexpr int SectionKind = 6;
+		/// RFC-BPR-0125 AC24. One of the reviewer's own suggested prompts, and
+		/// its section's row.
+		constexpr int SuggestedKind        = 7;
+		constexpr int SuggestedSectionKind = 8;
 
 		/// \brief A section's row: ticking it ticks every item under it, and
 		/// unticking it unticks them; its tick says whether all, some or none
@@ -391,6 +395,27 @@ namespace bpr::qt {
 				row->setCheckState(0, edited && ticked(profile_settings_section::prompts) == Qt::Checked ? Qt::Checked : Qt::Unchecked);
 			}
 		}
+		// RFC-BPR-0125 AC24. The reviewer's own suggested prompts, each with
+		// its own tick and none ticked: a file with one is version 2, which a
+		// build before prompt packs cannot read. A built-in is shared by
+		// duplicating it.
+		const auto& own       = Snapshot.PromptMacros.Differences.Own;
+		auto* const suggested = new QTreeWidgetItem{ Items, { tr("Suggested prompts"), own.empty() ? tr("None of your own; duplicate a built-in one to share it") : tr("Your own, as a prompt pack teammates' imports update in place") } };
+		suggested->setData(0, ItemRole, SuggestedSectionKind);
+		suggested->setData(0, detail::row_strong_role, true);
+		suggested->setFlags(own.empty() ? Qt::ItemIsEnabled : Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+		for (std::size_t index = 0U; index < own.size(); ++index) {
+			const auto& macro = own[index];
+			const auto  says  = !macro.Pack       ? tr("Yours")
+				: core::prompt_pack_edited(macro) ? tr("From %1, version %2, edited").arg(text_of(macro.Pack->Label)).arg(macro.Pack->Version)
+												  : tr("From %1, version %2").arg(text_of(macro.Pack->Label)).arg(macro.Pack->Version);
+			auto* const row   = new QTreeWidgetItem{ suggested, { text_of(macro.Body.Name), says } };
+			row->setData(0, ItemRole, SuggestedKind);
+			row->setData(0, IndexRole, static_cast<qulonglong>(index));
+			row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
+			row->setCheckState(0, Qt::Unchecked);
+		}
+		Packs = core::prompt_packs_here(Snapshot.PromptMacros.Differences);
 		// [[BPR-2032]]. A chosen workflow brings its agents.
 		auto* const workflows = section_row(Items, tr("Workflows"), Snapshot.Workflows.empty() ? tr("No workflows added") : tr("Actions and guidance, with the agents they ask; no program paths"),
 											profile_settings_section::workflows);
@@ -465,6 +490,28 @@ namespace bpr::qt {
 		form->addWidget(named);
 		form->addWidget(Label, 1);
 		right->addLayout(form);
+		// RFC-BPR-0125 AC24. The pack the ticked suggested prompts go out
+		// as: a new one, or a later version of one this profile holds.
+		right->addSpacing(8);
+		auto* const packRow = new QHBoxLayout{ };
+		packRow->setSpacing(10);
+		auto* const packLabel = new QLabel{ tr("Prompt &pack"), this };
+		PackChoice            = new QComboBox{ this };
+		PackChoice->setObjectName(QStringLiteral("agentConfigurationPackChoice"));
+		packLabel->setBuddy(PackChoice);
+		PackChoice->addItem(tr("New pack"));
+		for (const auto& here : Packs) {
+			PackChoice->addItem(tr("%1, as version %2").arg(text_of(here.Pack.Label)).arg(here.Pack.Version + 1U));
+		}
+		PackName = new QLineEdit{ this };
+		PackName->setObjectName(QStringLiteral("agentConfigurationPackName"));
+		PackName->setAccessibleName(tr("Pack name"));
+		PackName->setMaxLength(static_cast<int>(core::maximum_prompt_pack_label_bytes / 4U));
+		PackName->setPlaceholderText(tr("Name the pack, for example: Team prompts"));
+		packRow->addWidget(packLabel);
+		packRow->addWidget(PackChoice);
+		packRow->addWidget(PackName, 1);
+		right->addLayout(packRow);
 		right->addSpacing(14);
 		auto* const fileTitle = heading(tr("The file"), this);
 		fileTitle->setObjectName(QStringLiteral("agentConfigurationExportFileTitle"));
@@ -513,6 +560,12 @@ namespace bpr::qt {
 		});
 		connect(Items, &QTreeWidget::itemChanged, this, [this] { refresh(); });
 		connect(Label, &QLineEdit::textChanged, this, [this] { refresh(); });
+		connect(PackName, &QLineEdit::textChanged, this, [this] { refresh(); });
+		connect(PackChoice, &QComboBox::currentIndexChanged, this, [this](const int aIndex) {
+			// An existing pack keeps its name unless the reviewer types another.
+			PackName->setText(aIndex > 0 ? text_of(Packs[static_cast<std::size_t>(aIndex - 1)].Pack.Label) : QString{ });
+			refresh();
+		});
 		connect(AllPrompts, &QPushButton::clicked, this, [prompts] {
 			for (int index = 0; index < prompts->childCount(); ++index) {
 				if (prompts->child(index)->flags().testFlag(Qt::ItemIsUserCheckable)) {
@@ -525,6 +578,24 @@ namespace bpr::qt {
 	}
 
 	void agent_configuration_export_dialog::set_file_chooser(std::function<QString()> aChooser) { Chooser = std::move(aChooser); }
+
+	void agent_configuration_export_dialog::set_minted_identities(std::string aNewPack, std::vector<std::string> aFresh)
+	{
+		NewPack = std::move(aNewPack);
+		Fresh   = std::move(aFresh);
+		refresh();
+	}
+
+	auto agent_configuration_export_dialog::suggested_prompts() const -> std::vector<std::string>
+	{
+		auto chosen = std::vector<std::string>{ };
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == SuggestedKind && (*it)->checkState(0) == Qt::Checked) {
+				chosen.push_back(Snapshot.PromptMacros.Differences.Own[(*it)->data(0, IndexRole).toULongLong()].Id);
+			}
+		}
+		return chosen;
+	}
 
 	auto agent_configuration_export_dialog::agents() const -> std::vector<std::uint32_t>
 	{
@@ -599,11 +670,24 @@ namespace bpr::qt {
 		const auto chosenWorkflows = workflows();
 		const auto chosenIdentity  = identity_chosen();
 		const auto chosenRepos     = repositories();
-		const auto encoded         = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows,
-																			 chosenIdentity ? &Identity : nullptr, chosenRepos);
-		Bytes                      = encoded.value_or(std::string{ });
+		// RFC-BPR-0125 AC24. The core decides the pack's identity and what the
+		// export records; the dialog only says which pack and which prompts.
+		const auto chosenSuggested = suggested_prompts();
+		const auto choice          = PackChoice->currentIndex();
+		const auto packName        = PackName->text().trimmed().toStdString();
+		PackChoice->setEnabled(!chosenSuggested.empty());
+		PackName->setEnabled(!chosenSuggested.empty());
+		Pack.reset();
+		if (!chosenSuggested.empty()) {
+			const auto identity = choice > 0 ? std::optional{ core::next_prompt_pack(Packs[static_cast<std::size_t>(choice - 1)], packName) }
+											 : std::optional{ core::prompt_pack_identity{ .Id = NewPack, .Label = packName, .Version = 1U } };
+			Pack                = core::export_prompt_pack(Snapshot.PromptMacros.Differences, *identity, chosenSuggested, Fresh);
+		}
+		const auto encoded = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows,
+																	 chosenIdentity ? &Identity : nullptr, chosenRepos, Pack ? &*Pack : nullptr);
+		Bytes              = encoded.value_or(std::string{ });
 		Exact->setPlainText(text_of(Bytes));
-		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty();
+		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty() && chosenSuggested.empty();
 		auto       parts   = QStringList{ };
 		if (!chosenAgents.empty()) {
 			parts.push_back(counted(chosenAgents.size(), tr("1 agent"), tr("%1 agents")));
@@ -614,16 +698,21 @@ namespace bpr::qt {
 		if (!chosenWorkflows.empty()) {
 			parts.push_back(counted(chosenWorkflows.size(), tr("1 workflow"), tr("%1 workflows")));
 		}
+		if (Pack) {
+			parts.push_back(tr("%1 as version %2 of “%3”").arg(counted(Pack->Macros.size(), tr("1 suggested prompt"), tr("%1 suggested prompts"))).arg(Pack->Pack.Version).arg(text_of(Pack->Pack.Label)));
+		}
 		if (chosenIdentity) {
 			parts.push_back(tr("Identity"));
 		}
 		if (!chosenRepos.empty()) {
 			parts.push_back(counted(chosenRepos.size(), tr("1 repository"), tr("%1 repositories")));
 		}
-		Size->setText(!encoded      ? tr("Too large, or a chosen workflow's agent is no longer here: a Profile Settings file holds at most 1 MiB.")
-						  : nothing ? tr("Tick at least one part of the profile.")
-									: tr("Puts %1 in the file, %2.").arg(QLocale{ }.createSeparatedList(parts), QLocale{ }.formattedDataSize(static_cast<qint64>(Bytes.size()))));
-		ExportButton->setEnabled(encoded.has_value() && !nothing);
+		const auto unnamed = !chosenSuggested.empty() && !Pack;
+		Size->setText(unnamed        ? (NewPack.empty() ? tr("Suggested prompts cannot be exported from here.") : tr("Name the prompt pack."))
+						  : !encoded ? tr("Too large, or a chosen workflow's agent is no longer here: a Profile Settings file holds at most 1 MiB.")
+						  : nothing  ? tr("Tick at least one part of the profile.")
+									 : tr("Puts %1 in the file, %2.").arg(QLocale{ }.createSeparatedList(parts), QLocale{ }.formattedDataSize(static_cast<qint64>(Bytes.size()))));
+		ExportButton->setEnabled(encoded.has_value() && !nothing && !unnamed);
 	}
 
 	// ----- Import -----
@@ -729,6 +818,19 @@ namespace bpr::qt {
 		, Workflows(Preview.File.Workflows.size())
 		, Repositories(Preview.File.Repositories.size(), false)
 	{
+		// RFC-BPR-0125 AC24. The core plans the prompt pack: each prompt by its
+		// UUID, never by its name, and the prompts this version of it dropped.
+		if (Preview.File.PromptPack) {
+			PackPlan = core::plan_prompt_pack_import(*Preview.File.PromptPack, Preview.Snapshot.PromptMacros.Differences, core::shipped_prompt_macros());
+			Suggested.resize(PackPlan.Items.size(), false);
+			Removed.resize(PackPlan.Dropped.size(), false);
+			for (std::size_t index = 0U; index < Suggested.size(); ++index) {
+				Suggested[index] = PackPlan.Items[index].Default;
+			}
+			for (std::size_t index = 0U; index < Removed.size(); ++index) {
+				Removed[index] = PackPlan.Dropped[index].Default;
+			}
+		}
 		adopt_opener_look(*this, aParent);
 		setWindowTitle(tr("Import Profile Settings"));
 		setObjectName(QStringLiteral("agentConfigurationImport"));
@@ -924,6 +1026,16 @@ namespace bpr::qt {
 		case item_kind::workflow:   return Plan.Workflows[aItem].Standing;
 		case item_kind::identity:   return Plan.Identity ? Plan.Identity->Standing : core::import_standing::refused;
 		case item_kind::repository: return Plan.Repositories[aItem].Standing;
+		case item_kind::suggested:
+			switch (PackPlan.Items[aItem].Standing) {
+			case core::prompt_pack_standing::added:     return core::import_standing::added;
+			case core::prompt_pack_standing::updated:
+			case core::prompt_pack_standing::conflict:  return core::import_standing::updated;
+			case core::prompt_pack_standing::unchanged: return core::import_standing::unchanged;
+			case core::prompt_pack_standing::refused:   return core::import_standing::refused;
+			}
+			return core::import_standing::refused;
+		case item_kind::dropped: return core::import_standing::updated;
 		}
 		return core::import_standing::refused;
 	}
@@ -936,6 +1048,8 @@ namespace bpr::qt {
 		case item_kind::workflow:   return Workflows[aItem].Action != core::workflow_import_action::leave;
 		case item_kind::identity:   return IdentityChosen;
 		case item_kind::repository: return Repositories[aItem];
+		case item_kind::suggested:  return Suggested[aItem];
+		case item_kind::dropped:    return Removed[aItem];
 		}
 		return false;
 	}
@@ -960,9 +1074,65 @@ namespace bpr::qt {
 		return tasks;
 	}
 
+	auto agent_configuration_import_dialog::prompt_pack_choices() const -> core::prompt_pack_choices
+	{
+		auto choices = core::prompt_pack_choices{ };
+		for (std::size_t index = 0U; index < Suggested.size(); ++index) {
+			const auto standing = PackPlan.Items[index].Standing;
+			if (Suggested[index] && standing != core::prompt_pack_standing::unchanged && standing != core::prompt_pack_standing::refused) {
+				choices.Take.push_back(index);
+			}
+		}
+		for (std::size_t index = 0U; index < Removed.size(); ++index) {
+			if (Removed[index]) {
+				choices.Remove.push_back(PackPlan.Dropped[index].Here.Id);
+			}
+		}
+		return choices;
+	}
+
+	/// RFC-BPR-0125 AC24. A suggested prompt's tag says more than the
+	/// file's other items: an edited copy here, or one the pack dropped.
+	auto agent_configuration_import_dialog::tag(const item_kind aKind, const std::size_t aItem) const -> QString
+	{
+		if (aKind == item_kind::suggested && PackPlan.Items[aItem].Standing == core::prompt_pack_standing::conflict) {
+			return tr("Edited here");
+		}
+		if (aKind == item_kind::dropped) {
+			return tr("Dropped from the pack");
+		}
+		return standing_tag(standing(aKind, aItem));
+	}
+
+	auto agent_configuration_import_dialog::tone(const item_kind aKind, const std::size_t aItem) const -> int
+	{
+		if ((aKind == item_kind::suggested && PackPlan.Items[aItem].Standing == core::prompt_pack_standing::conflict) || aKind == item_kind::dropped) {
+			return static_cast<int>(detail::tag_tone::caution);
+		}
+		return static_cast<int>(standing_tone(standing(aKind, aItem)));
+	}
+
 	auto agent_configuration_import_dialog::row_line(const item_kind aKind, const std::size_t aItem) const -> QString
 	{
 		const auto stood = standing(aKind, aItem);
+		if (aKind == item_kind::suggested) {
+			const auto& item = Preview.File.PromptPack->Macros[aItem];
+			const auto& plan = PackPlan.Items[aItem];
+			if (plan.Problem) {
+				return item.Detail.empty() ? text_of(core::describe(*plan.Problem)) : tr("Names “%1”").arg(text_of(item.Detail));
+			}
+			switch (plan.Standing) {
+			case core::prompt_pack_standing::added:     return Suggested[aItem] ? tr("Added, on") : tr("Left out");
+			case core::prompt_pack_standing::updated:   return Suggested[aItem] ? tr("Updated in place") : tr("Left as it is");
+			case core::prompt_pack_standing::conflict:  return Suggested[aItem] ? tr("Replaces your edited copy") : tr("Your copy kept");
+			case core::prompt_pack_standing::unchanged: return tr("Same as yours");
+			case core::prompt_pack_standing::refused:   break;
+			}
+			return { };
+		}
+		if (aKind == item_kind::dropped) {
+			return Removed[aItem] ? tr("Removed") : tr("Kept as your own");
+		}
 		if (stood == core::import_standing::unchanged) {
 			return tr("Same as yours");
 		}
@@ -1058,6 +1228,16 @@ namespace bpr::qt {
 		// [[BPR-2198]]. Identity and Repositories, as Export lists them.
 		section(tr("Identity"), item_kind::identity, Plan.Identity ? 1U : 0U, [this](std::size_t) { return text_of(Preview.File.Identity->ProfileName); });
 		section(tr("Repositories"), item_kind::repository, Repositories.size(), [this](const std::size_t aIndex) { return text_of(Preview.File.Repositories[aIndex].Repository); });
+		// RFC-BPR-0125 AC24. The pack's prompts, then the prompts here it dropped.
+		const auto suggestedName = [this](const std::size_t aIndex) { return text_of(Preview.File.PromptPack->Macros[aIndex].Macro.Body.Name); };
+		const auto packTitle     = Preview.File.PromptPack ? tr("Suggested prompts: %1, version %2").arg(text_of(Preview.File.PromptPack->Pack.Label)).arg(Preview.File.PromptPack->Pack.Version) : QString{ };
+		section(packTitle, item_kind::suggested, Suggested.size(), suggestedName);
+		if (!Removed.empty()) {
+			header(tr("No longer in the pack"));
+		}
+		for (std::size_t index = 0U; index < Removed.size(); ++index) {
+			add(item_kind::dropped, index, text_of(PackPlan.Dropped[index].Here.Body.Name));
+		}
 		auto       titled  = false;
 		const auto refused = [&](const item_kind aKind, const std::size_t aCount, const auto& aName) {
 			for (std::size_t index = 0U; index < aCount; ++index) {
@@ -1074,6 +1254,7 @@ namespace bpr::qt {
 		refused(item_kind::agent, Agents.size(), agentName);
 		refused(item_kind::workflow, Workflows.size(), workflowName);
 		refused(item_kind::prompt, Prompts.size(), promptName);
+		refused(item_kind::suggested, Suggested.size(), suggestedName);
 		Filling = false;
 	}
 
@@ -1092,14 +1273,14 @@ namespace bpr::qt {
 			// The library's row: the name, its tag, and one line of what
 			// happens; under Cannot be imported the section says the tag.
 			const auto name = item->data(ItemRole).toString();
-			item->setText((stood == core::import_standing::refused ? name : name + QStringLiteral("   ") + standing_tag(stood)) + QLatin1Char('\n') + row_line(kind, index));
+			item->setText((stood == core::import_standing::refused ? name : name + QStringLiteral("   ") + tag(kind, index)) + QLatin1Char('\n') + row_line(kind, index));
 			// [[BPR-2204]]. Drawn as the design draws it: the name, its tag as
 			// a tinted pill, the line in the secondary colour, the agent's
 			// sparkle and a refused row's mark where its tick would be.
 			item->setData(detail::row_name_role, name);
 			item->setData(detail::row_second_role, row_line(kind, index));
-			item->setData(detail::row_tag_role, stood == core::import_standing::refused ? QString{ } : standing_tag(stood));
-			item->setData(detail::row_tone_role, static_cast<int>(standing_tone(stood)));
+			item->setData(detail::row_tag_role, stood == core::import_standing::refused ? QString{ } : tag(kind, index));
+			item->setData(detail::row_tone_role, tone(kind, index));
 			item->setData(detail::row_mark_role, static_cast<int>(stood == core::import_standing::refused ? detail::row_mark::refused : kind == item_kind::agent ? detail::row_mark::agent
 																																								 : detail::row_mark::none));
 			auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
@@ -1116,7 +1297,7 @@ namespace bpr::qt {
 				item->setFlags(flags);
 				item->setData(Qt::CheckStateRole, QVariant{ });
 			}
-			item->setData(Qt::AccessibleDescriptionRole, standing_tag(stood) + QStringLiteral(", ") + row_line(kind, index));
+			item->setData(Qt::AccessibleDescriptionRole, tag(kind, index) + QStringLiteral(", ") + row_line(kind, index));
 			item->setToolTip(item->text());
 		}
 		Filling = false;
@@ -1142,6 +1323,15 @@ namespace bpr::qt {
 		for (const auto& plan : Plan.Workflows) {
 			refused += plan.Standing == core::import_standing::refused ? 1U : 0U;
 		}
+		// RFC-BPR-0125 AC24. The pack's prompts added, updated and removed.
+		auto suggestedAdded = std::size_t{ 0U }, suggestedUpdated = std::size_t{ 0U };
+		for (std::size_t index = 0U; index < Suggested.size(); ++index) {
+			refused += PackPlan.Items[index].Standing == core::prompt_pack_standing::refused ? 1U : 0U;
+		}
+		const auto pack = prompt_pack_choices();
+		for (const auto index : pack.Take) {
+			(PackPlan.Items[index].Standing == core::prompt_pack_standing::added ? suggestedAdded : suggestedUpdated) += 1U;
+		}
 		const auto prompts = prompt_choices().size();
 		auto       adds    = QStringList{ };
 		auto       updates = QStringList{ };
@@ -1150,6 +1340,12 @@ namespace bpr::qt {
 		}
 		if (workflowsAdded > 0U) {
 			adds << counted(workflowsAdded, tr("1 workflow"), tr("%1 workflows"));
+		}
+		if (suggestedAdded > 0U) {
+			adds << counted(suggestedAdded, tr("1 suggested prompt"), tr("%1 suggested prompts"));
+		}
+		if (suggestedUpdated > 0U) {
+			updates << counted(suggestedUpdated, tr("1 suggested prompt"), tr("%1 suggested prompts"));
 		}
 		if (agentsUpdated > 0U) {
 			updates << counted(agentsUpdated, tr("1 agent"), tr("%1 agents"));
@@ -1177,6 +1373,9 @@ namespace bpr::qt {
 		if (agentsUsed > 0U) {
 			parts << counted(agentsUsed, tr("lets 1 of your agents stand in"), tr("lets %1 of your agents stand in"));
 		}
+		if (!pack.Remove.empty()) {
+			parts << counted(pack.Remove.size(), tr("removes 1 suggested prompt the pack dropped"), tr("removes %1 suggested prompts the pack dropped"));
+		}
 		// [[BPR-2204]]. As the design says it: "Adds 1 agent and updates 1 workflow."
 		auto words = QString{ };
 		if (parts.isEmpty()) {
@@ -1197,8 +1396,16 @@ namespace bpr::qt {
 		if (!parts.isEmpty()) {
 			words += QLatin1Char(' ') + tr("Nothing runs until you start an action in a draft.");
 		}
+		// RFC-BPR-0125 AC24. An older version of a pack already here says so first.
+		if (PackPlan.Older && Preview.File.PromptPack) {
+			words = tr("This is version %1 of “%2”; version %3 is already here, so its updates and removals start left out.")
+						.arg(Preview.File.PromptPack->Pack.Version)
+						.arg(text_of(Preview.File.PromptPack->Pack.Label))
+						.arg(PackPlan.Imported.value_or(0U))
+				+ QLatin1Char(' ') + words;
+		}
 		Summary->setText(words);
-		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U);
+		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U || !pack.Take.empty() || !pack.Remove.empty());
 	}
 
 	void agent_configuration_import_dialog::select(const item_kind aKind, const std::size_t aItem)
@@ -1218,6 +1425,8 @@ namespace bpr::qt {
 	void agent_configuration_import_dialog::select_workflow(const std::size_t aItem) { select(item_kind::workflow, aItem); }
 	void agent_configuration_import_dialog::select_identity() { select(item_kind::identity, 0U); }
 	void agent_configuration_import_dialog::select_repository(const std::size_t aItem) { select(item_kind::repository, aItem); }
+	void agent_configuration_import_dialog::select_suggested(const std::size_t aItem) { select(item_kind::suggested, aItem); }
+	void agent_configuration_import_dialog::select_dropped(const std::size_t aItem) { select(item_kind::dropped, aItem); }
 
 	auto agent_configuration_import_dialog::repository_choices() const -> std::vector<std::size_t>
 	{
@@ -1271,6 +1480,8 @@ namespace bpr::qt {
 		case item_kind::prompt:     Prompts[aItem] = aPart == TakePart; break;
 		case item_kind::identity:   IdentityChosen = aPart == TakePart; break;
 		case item_kind::repository: Repositories[aItem] = aPart == TakePart; break;
+		case item_kind::suggested:  Suggested[aItem] = aPart == TakePart; break;
+		case item_kind::dropped:    Removed[aItem] = aPart == TakePart; break;
 		case item_kind::workflow:
 			Workflows[aItem].Action = aPart != TakePart ? core::workflow_import_action::leave
 				: Plan.Workflows[aItem].Local           ? core::workflow_import_action::replace
@@ -1322,6 +1533,10 @@ namespace bpr::qt {
 			show_identity(*Detail);
 		} else if (Shown->first == item_kind::repository) {
 			show_repository(Shown->second, *Detail);
+		} else if (Shown->first == item_kind::suggested) {
+			show_suggested(Shown->second, *Detail);
+		} else if (Shown->first == item_kind::dropped) {
+			show_dropped(Shown->second, *Detail);
 		} else {
 			show_workflow(Shown->second, *Detail);
 		}
@@ -1894,14 +2109,14 @@ namespace bpr::qt {
 		}
 		column.addLayout(compare);
 	}
-	void agent_configuration_import_dialog::choice_row(const item_kind aKind, const std::size_t aItem, const QString& aTake, QWidget& aPage)
+	void agent_configuration_import_dialog::choice_row(const item_kind aKind, const std::size_t aItem, const QString& aTake, QWidget& aPage, const QString& aLeave)
 	{
 		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
 		auto* const parts  = new QHBoxLayout{ };
 		parts->setSpacing(0);
 		Choice            = new QButtonGroup{ &aPage };
 		auto* const take  = segmented(aTake, &aPage);
-		auto* const leave = segmented(tr("Leave out"), &aPage);
+		auto* const leave = segmented(aLeave.isEmpty() ? tr("Leave out") : aLeave, &aPage);
 		Choice->addButton(take, TakePart);
 		Choice->addButton(leave, LeavePart);
 		parts->addWidget(take);
@@ -1987,5 +2202,108 @@ namespace bpr::qt {
 		Outcome = note(words.join(QLatin1Char(' ')), &aPage);
 		Outcome->setObjectName(QStringLiteral("agentConfigurationRepositoryNote"));
 		column.addWidget(Outcome);
+	}
+
+	namespace {
+		[[nodiscard]] auto place_words(const core::prompt_place aPlace) -> QString
+		{
+			switch (aPlace) {
+			case core::prompt_place::agent_tab:    return QObject::tr("the Agent tab");
+			case core::prompt_place::conversation: return QObject::tr("a conversation");
+			case core::prompt_place::tour_stop:    return QObject::tr("a tour stop's chat");
+			case core::prompt_place::tour_part:    return QObject::tr("the tour's Problem or Solution chat");
+			case core::prompt_place::tour_whole:   return QObject::tr("the chat about the whole tour");
+			}
+			return { };
+		}
+	} // namespace
+
+	/// RFC-BPR-0125 AC24. One suggested prompt of the pack: what it is here,
+	/// the choice the core started it at, and its text beside yours.
+	void agent_configuration_import_dialog::show_suggested(const std::size_t aItem, QWidget& aPage)
+	{
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		const auto& file   = *Preview.File.PromptPack;
+		const auto& item   = file.Macros[aItem];
+		const auto& plan   = PackPlan.Items[aItem];
+		const auto  name   = text_of(item.Macro.Body.Name);
+		if (plan.Problem) {
+			auto why = text_of(core::describe(*plan.Problem));
+			if (!item.Detail.empty()) {
+				why += QLatin1Char(' ') + tr("It names “%1”.").arg(text_of(item.Detail));
+			}
+			show_refused(name.isEmpty() ? tr("A suggested prompt") : name, why, aPage);
+			return;
+		}
+		title_row(column, name, tag(item_kind::suggested, aItem), static_cast<detail::tag_tone>(tone(item_kind::suggested, aItem)), aPage);
+		switch (plan.Standing) {
+		case core::prompt_pack_standing::added:     choice_row(item_kind::suggested, aItem, tr("Add"), aPage); break;
+		case core::prompt_pack_standing::updated:   choice_row(item_kind::suggested, aItem, tr("Update"), aPage); break;
+		case core::prompt_pack_standing::conflict:  choice_row(item_kind::suggested, aItem, tr("Replace"), aPage, tr("Keep mine")); break;
+		case core::prompt_pack_standing::unchanged:
+		case core::prompt_pack_standing::refused:   break;
+		}
+		auto words = QStringList{ };
+		words << tr("From “%1”, version %2. Shown in %3.").arg(text_of(file.Pack.Label)).arg(file.Pack.Version).arg(place_words(item.Macro.Place));
+		const auto& here = plan.Here;
+		switch (plan.Standing) {
+		case core::prompt_pack_standing::added: words << tr("No prompt here has its ID. Added, it is on, where its settings put it; your other prompts stay as they are."); break;
+		case core::prompt_pack_standing::updated:
+			words << tr("You have not changed it since version %1. Updating replaces its text and settings and keeps whether it is on and where you placed it.").arg(here && here->Pack ? here->Pack->Version : 0U);
+			break;
+		case core::prompt_pack_standing::conflict:
+			words << (here && here->Pack ? tr("You changed your copy after version %1. Replace takes the pack's; Keep mine leaves yours, still written against version %1.").arg(here->Pack->Version)
+										 : tr("Yours has the same ID but did not come from this pack. Replace takes the pack's; Keep mine leaves yours."));
+			break;
+		case core::prompt_pack_standing::unchanged: words << tr("Yours is already the same."); break;
+		case core::prompt_pack_standing::refused:   break;
+		}
+		if (here && here->Body.Name != item.Macro.Body.Name) {
+			words << tr("Yours is named “%1”.").arg(text_of(here->Body.Name));
+		}
+		Outcome = note(words.join(QLatin1Char(' ')), &aPage);
+		Outcome->setObjectName(QStringLiteral("agentConfigurationSuggestedNote"));
+		column.addWidget(Outcome);
+		auto* const compare = new QHBoxLayout{ };
+		compare->setSpacing(12);
+		for (const auto mineSide : { true, false }) {
+			if (mineSide && !here) {
+				continue;
+			}
+			auto* const side = new QVBoxLayout{ };
+			side->addWidget(heading(mineSide ? tr("Yours") : tr("In the pack"), &aPage));
+			auto* const text = mono(&aPage, mineSide ? tr("Your prompt") : tr("The pack's prompt"));
+			text->setPlainText(text_of(mineSide ? std::string_view{ here->Body.Template } : std::string_view{ item.Macro.Body.Template }));
+			text->setMinimumHeight(200);
+			text->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			side->addWidget(text);
+			compare->addLayout(side, 1);
+			(mineSide ? Yours : Theirs) = text;
+		}
+		column.addLayout(compare);
+	}
+
+	/// RFC-BPR-0125 AC24. A prompt here that an earlier version of the pack
+	/// held and this one does not: Remove or Keep, never removed unasked.
+	void agent_configuration_import_dialog::show_dropped(const std::size_t aItem, QWidget& aPage)
+	{
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		const auto& drop   = PackPlan.Dropped[aItem];
+		title_row(column, text_of(drop.Here.Body.Name), tag(item_kind::dropped, aItem), static_cast<detail::tag_tone>(tone(item_kind::dropped, aItem)), aPage);
+		choice_row(item_kind::dropped, aItem, tr("Remove"), aPage, tr("Keep"));
+		const auto label = text_of(Preview.File.PromptPack->Pack.Label);
+		Outcome          = note((drop.Edited ? tr("Version %1 of “%2” no longer has it, and you changed your copy.") : tr("Version %1 of “%2” no longer has it."))
+										.arg(Preview.File.PromptPack->Pack.Version)
+										.arg(label)
+									+ QLatin1Char(' ') + tr("Remove takes it and its placements away; Keep leaves it as your own, no longer updated by the pack."),
+								&aPage);
+		Outcome->setObjectName(QStringLiteral("agentConfigurationDroppedNote"));
+		column.addWidget(Outcome);
+		column.addWidget(heading(tr("Yours"), &aPage));
+		Yours = mono(&aPage, tr("Your prompt"));
+		Yours->setPlainText(text_of(drop.Here.Body.Template));
+		Yours->setMinimumHeight(200);
+		Yours->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		column.addWidget(Yours);
 	}
 } // namespace bpr::qt

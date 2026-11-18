@@ -79,7 +79,8 @@ namespace bpr::application {
 
 	auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, const std::span<const std::uint32_t> aAgents, const std::span<const exported_prompt> aPrompts,
 									std::string aLabel, std::string aExportedBy, const std::span<const std::string> aWorkflows,
-									const core::portable_identity* const aIdentity, const std::span<const core::portable_repository> aRepositories) -> std::optional<std::string>
+									const core::portable_identity* const aIdentity, const std::span<const core::portable_repository> aRepositories,
+									const core::prompt_pack_export* const aPack) -> std::optional<std::string>
 	{
 		// [[BPR-2032]]. A chosen workflow's agents travel with it.
 		auto workflows = std::vector<const core::local_workflow*>{ };
@@ -134,7 +135,21 @@ namespace bpr::application {
 			}
 			configuration.Workflows.push_back(std::move(shared));
 		}
+		if (aPack != nullptr) {
+			configuration.PromptPack   = aPack->Pack;
+			configuration.PromptMacros = aPack->Macros;
+		}
 		return core::encode_agent_configuration(configuration);
+	}
+
+	auto snapshot_after_export(const agent_configuration_snapshot& aBefore, const core::prompt_pack_export& aPack) -> agent_configuration_snapshot
+	{
+		auto after = aBefore;
+		if (aPack.After != aBefore.PromptMacros.Differences) {
+			after.PromptMacros.Differences = aPack.After;
+			after.PromptMacros.Revision    = aBefore.PromptMacros.Revision + 1U;
+		}
+		return after;
 	}
 
 	auto default_workflow_agents(const agent_configuration_preview& aPreview, const std::span<const core::agent_import_choice> aAgents, const std::size_t aItem)
@@ -321,7 +336,7 @@ namespace bpr::application {
 	}
 
 	void agent_configuration_host::apply(const agent_configuration_preview& aPreview, std::vector<core::agent_import_choice> aAgents, std::vector<std::size_t> aPrompts,
-										 std::function<void(applied)> aAnswered, std::vector<core::workflow_import_choice> aWorkflows)
+										 std::function<void(applied)> aAnswered, std::vector<core::workflow_import_choice> aWorkflows, core::prompt_pack_choices aPack)
 	{
 		auto result = core::apply_agent_configuration(aPreview.Snapshot.Agents.Agents, aPreview.Prompts, aPreview.File, aAgents, aPrompts);
 		if (!result) {
@@ -343,14 +358,41 @@ namespace bpr::application {
 			}
 			return;
 		}
-		auto after        = snapshot_after_import(aPreview.Snapshot, *result, result->Replaced, Implementation->Dependencies.MintIdentity);
-		after.Workflows   = std::move(*workflows);
+		auto after      = snapshot_after_import(aPreview.Snapshot, *result, result->Replaced, Implementation->Dependencies.MintIdentity);
+		after.Workflows = std::move(*workflows);
+		// RFC-BPR-0125 AC24. The prompt pack merges into the prompts with the
+		// rest, all or none; the core decides every prompt.
+		if (aPreview.File.PromptPack) {
+			auto prompts = core::apply_prompt_pack_import(aPreview.Snapshot.PromptMacros.Differences, core::shipped_prompt_macros(), *aPreview.File.PromptPack, aPack);
+			if (!prompts) {
+				if (aAnswered) {
+					aAnswered(std::unexpected(core::configuration_apply_error{ .Refusal = core::configuration_apply_refusal::unusable_item, .PromptPack = prompts.error() }));
+				}
+				return;
+			}
+			if (*prompts != aPreview.Snapshot.PromptMacros.Differences) {
+				after.PromptMacros.Differences = std::move(*prompts);
+				after.PromptMacros.Revision    = aPreview.Snapshot.PromptMacros.Revision + 1U;
+			}
+		}
 		auto* const store = Implementation->Dependencies.Store;
 		Implementation->off_lane(
 			[store, before = aPreview.Snapshot, after]() { return store == nullptr ? agent_configuration_outcome::storage_failed : store->apply(before, after); },
 			[answered = std::move(aAnswered), after](const agent_configuration_outcome aOutcome) {
 				if (answered) {
 					answered(std::pair{ aOutcome, after });
+				}
+			});
+	}
+
+	void agent_configuration_host::record_export(agent_configuration_snapshot aBefore, agent_configuration_snapshot aAfter, std::function<void(agent_configuration_outcome)> aAnswered)
+	{
+		auto* const store = Implementation->Dependencies.Store;
+		Implementation->off_lane(
+			[store, before = std::move(aBefore), after = std::move(aAfter)]() { return store == nullptr ? agent_configuration_outcome::storage_failed : store->apply(before, after); },
+			[answered = std::move(aAnswered)](const agent_configuration_outcome aOutcome) {
+				if (answered) {
+					answered(aOutcome);
 				}
 			});
 	}

@@ -182,6 +182,7 @@ add_library(
         src/prompt_macro.cpp
         src/prompt_surfaces.cpp
         src/prompt_editor.cpp
+        src/prompt_pack.cpp
         src/prompt_macro_shipped.cpp
         src/quick_ask.cpp
         src/agent_report.cpp

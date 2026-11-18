@@ -340,11 +340,30 @@ namespace bpr::core {
 		auto operator<=>(const prompt_macro_body&) const = default;
 	};
 
+	/// \brief RFC-BPR-0125 AC24 (owner amendment, 2026-11-18). Where one of
+	/// the reviewer's own prompts came from: the prompt pack it was last
+	/// imported from or exported in, the pack version that copy was written
+	/// against, and the place and body as the pack had them. The prompt is
+	/// edited since when its place or body differs from these.
+	struct prompt_pack_link
+	{
+		/// The pack's UUID.
+		std::string       Pack;
+		std::string       Label;
+		std::uint32_t     Version = 0U;
+		prompt_place      Place   = prompt_place::agent_tab;
+		prompt_macro_body Body;
+
+		auto operator<=>(const prompt_pack_link&) const = default;
+	};
+
 	/// \brief One macro.
 	struct prompt_macro
 	{
 		/// A built-in's fixed name, or the identity the host minted for one
-		/// of the reviewer's own. Never shown.
+		/// of the reviewer's own: a lowercase version 4 UUID (owner,
+		/// 2026-11-18), or `own.` and 32 hexadecimal digits for one made
+		/// before UUIDs and not exported since. Never shown.
 		std::string       Id;
 		bool              BuiltIn = false;
 		prompt_place      Place   = prompt_place::agent_tab;
@@ -358,6 +377,10 @@ namespace bpr::core {
 		/// (`placed_prompt_macros`); none for a library entry, which the
 		/// decisions read by its own fields.
 		std::optional<prompt_surface> Surface;
+		/// RFC-BPR-0125 AC24. The pack one of the reviewer's own prompts is
+		/// linked to; none for a built-in, a prompt of their own making and a
+		/// duplicate.
+		std::optional<prompt_pack_link> Pack;
 
 		auto operator<=>(const prompt_macro&) const = default;
 	};

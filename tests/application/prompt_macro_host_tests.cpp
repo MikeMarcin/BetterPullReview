@@ -9,7 +9,9 @@
 
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/prompt_macro_host.hpp"
+#include "bpr/core/prompt_pack.hpp"
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -171,10 +173,12 @@ namespace {
 	{
 		auto       own = fixture{ };
 		const auto id  = own.Host->mint_identity();
-		expect(id.size() == 36U && id.starts_with("own.") && id.find_first_not_of("0123456789abcdef", 4U) == std::string::npos, "review N2: the host mints own. and 32 hexadecimal digits");
+		expect(bpr::core::valid_prompt_uuid(id), "RFC-BPR-0125 AC24: the host mints a version 4 UUID");
 		expect(own.Host->mint_identity() != id, "a fresh one each time");
 		auto minted = fixture{ [] { return std::string{ "fixed" }; } };
-		expect(minted.Host->mint_identity() == "own.fixed", "a composition may supply the entropy");
+		expect(minted.Host->mint_identity() == "fixed", "a composition may supply the identity");
+		const auto counted = application::mint_prompt_uuid([] { return std::array<std::uint8_t, 16>{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }; });
+		expect(counted == "ffffffff-ffff-4fff-bfff-ffffffffffff", "the version and variant bits are set");
 	}
 
 	void test_shutdown()

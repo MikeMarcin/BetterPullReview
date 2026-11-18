@@ -538,7 +538,10 @@ under one pack identity.
   bulk: only an exported prompt's ID is ever read by another profile.
 - **Export** offers each of the reviewer's own prompts, with its exact text,
   under a pack: a new one (a label, a new pack ID, version 1) or one the
-  profile already holds (its ID, its highest version plus one). Exporting
+  profile already holds (its ID, its highest version plus one). Each starts
+  unticked, so an export stays version 1 unless the reviewer chooses a
+  prompt. The pack is laid out one member a line so it can be edited in
+  place. Exporting
   records, on each exported prompt, the pack and the version and body it
   was exported as. The exporter's own copies are then the pack's, so a file
   edited elsewhere (by an agent, say) and imported back as a later version

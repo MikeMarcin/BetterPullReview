@@ -340,15 +340,16 @@ namespace {
 		expect(clash.Agents[0].Standing == core::import_standing::updated && clash.Agents[0].Default.Action == core::agent_import_action::leave, "another kind of the same name starts left out");
 	}
 
-	/// [[BPR-2198]] (owner, 2026-11-15). One format, one version marker:
-	/// a file of version 2 (the workflows format before it) is refused as newer.
+	/// [[BPR-2198]] (owner, 2026-11-15). One format marker. RFC-BPR-0125 AC24:
+	/// version 2 is the file with a prompt pack; a file of a later version is
+	/// refused as newer.
 	void test_one_format()
 	{
 		const auto local = prompts();
 		const auto bytes = core::encode_agent_configuration(core::agent_configuration{ .Label = "x" }).value();
 		expect(bytes.find("\"format\": \"bpr.profile-settings\"") != std::string::npos && bytes.find("\"version\": 1") != std::string::npos, "the file names its one format and version");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":2,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
-			   "any other version is refused");
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
+			   "a later version is refused");
 		expect(core::decode_agent_configuration(R"({"format":"bpr.agent-configuration","version":1,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::not_a_configuration,
 			   "the unreleased agent-configuration format is not read");
 		expect(bytes.find("identity") == std::string::npos && bytes.find("repositories") == std::string::npos && bytes.find("workflows") == std::string::npos, "an unchosen section is left out");

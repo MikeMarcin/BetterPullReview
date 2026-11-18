@@ -3,6 +3,7 @@
 
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/prompt_macro_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/core/agent_configuration.hpp"
 #include "bpr/core/review_preparation.hpp"
@@ -39,6 +40,10 @@ namespace bpr::application {
 		/// [[BPR-2032]], RFC-BPR-0112. The profile's optional author workflows
 		/// with this computer's bindings. Selecting or importing one runs nothing.
 		std::vector<core::local_workflow> Workflows;
+		/// RFC-BPR-0125 AC24 ([[BPR-2149]]). The profile's suggested prompts
+		/// and their revision: an export records its prompt pack in them and
+		/// an import merges a pack into them.
+		prompt_macro_stored PromptMacros;
 
 		auto operator<=>(const agent_configuration_snapshot&) const = default;
 	};
@@ -66,9 +71,15 @@ namespace bpr::application {
 	/// [[BPR-2198]]: Identity and Repositories are names the composition
 	/// read (`core::portable_identity_of`, `core::portable_repositories_of`);
 	/// no credential is ever an input.
+	/// RFC-BPR-0125 AC24: `aPack`, when given and holding a prompt, makes the
+	/// file version 2 with that prompt pack; otherwise it is version 1.
 	[[nodiscard]] auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, std::span<const std::uint32_t> aAgents, std::span<const exported_prompt> aPrompts,
 												  std::string aLabel, std::string aExportedBy, std::span<const std::string> aWorkflows = { }, const core::portable_identity* aIdentity = nullptr,
-												  std::span<const core::portable_repository> aRepositories = { }) -> std::optional<std::string>;
+												  std::span<const core::portable_repository> aRepositories = { }, const core::prompt_pack_export* aPack = nullptr) -> std::optional<std::string>;
+
+	/// \brief RFC-BPR-0125 AC24. The snapshot an export of `aPack` records:
+	/// the prompts with their links (and new UUIDs) at one revision on.
+	[[nodiscard]] auto snapshot_after_export(const agent_configuration_snapshot& aBefore, const core::prompt_pack_export& aPack) -> agent_configuration_snapshot;
 
 	/// \brief The snapshot an import's result makes from `aBefore`: new and
 	/// re-identified entries get an identity from `aMint`, a replaced entry's
@@ -172,8 +183,14 @@ namespace bpr::application {
 		using applied = std::expected<std::pair<agent_configuration_outcome, agent_configuration_snapshot>, core::configuration_apply_error>;
 		/// [[BPR-2032]]: `aWorkflows`, each applied with its program bindings
 		/// and, where none is given, `default_workflow_agents`.
+		/// RFC-BPR-0125 AC24: `aPack`, the prompt pack's choices, merged into
+		/// the profile's suggested prompts in the same write.
 		void apply(const agent_configuration_preview& aPreview, std::vector<core::agent_import_choice> aAgents, std::vector<std::size_t> aPrompts, std::function<void(applied)> aAnswered,
-				   std::vector<core::workflow_import_choice> aWorkflows = { });
+				   std::vector<core::workflow_import_choice> aWorkflows = { }, core::prompt_pack_choices aPack = { });
+		/// \brief RFC-BPR-0125 AC24. Records an export's prompt pack (`aAfter`
+		/// from `snapshot_after_export`) if the stored settings still equal
+		/// `aBefore`.
+		void record_export(agent_configuration_snapshot aBefore, agent_configuration_snapshot aAfter, std::function<void(agent_configuration_outcome)> aAnswered);
 		/// Records a Settings save's provenance, best effort.
 		void record_written_against(core::writing_hook aHook, std::string aText);
 
