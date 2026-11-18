@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2253"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Two agent tests fail on main",
+  "created": "2026-11-18T02:16:28.513785+00:00",
+  "base": "efd5045e62fc238291f6e261d7cddbd91e063117"
+}
