@@ -1400,7 +1400,13 @@ auto main(int argc, char** argv) -> int
 						}
 						const auto before = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
 						chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
-						if (before.Quiescent || chat->new_session_action()->isEnabled() || chat->send_button()->isEnabled()
+						// [[BPR-2253]]. Since [[BPR-2154]] words typed before
+						// the host retires are a follow-up: the button is
+						// Queue (or Steer), never Send, and what it queues is
+						// released only by the retirement ([[BPR-2152]]).
+						const auto followUp = chat->send_button()->accessibleName();
+						if (before.Quiescent || chat->new_session_action()->isEnabled()
+							|| (chat->send_button()->isEnabled() && followUp != QStringLiteral("Queue") && followUp != QStringLiteral("Steer"))
 							|| chat->status_line(chat->turn_count() - 1U)->live()
 							|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != before.AgentProcessLauncherInvocations) {
 							held.release();

@@ -15372,7 +15372,10 @@ namespace {
 				readySends.push_back(*send);
 			}
 		});
-		const auto pressed = beside.empty() ? QString{ } : beside.front()->property("agentPrompt").toString();
+		// [[BPR-2253]]. "As written" is the prompt's body, which is the
+		// chip's name only for a prompt whose body is its name. Since
+		// [[BPR-2219]] Review this pull request sends its instructions.
+		const auto pressed = beside.empty() ? QString{ } : beside.front()->property("agentPromptExpansion").toString();
 		if (!beside.empty()) {
 			beside.front()->click();
 		}
