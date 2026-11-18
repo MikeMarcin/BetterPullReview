@@ -2399,12 +2399,20 @@ namespace bpr::e2e::large_review {
 		close_active_work(aApplication, aManifest, expected, aReport, aBudget);
 	}
 
+	/// [[BPR-2216]]. Provisional metadata is the read's summary line shown
+	/// before an accepted projection; since round 4 it carries no
+	/// "Provisional metadata" sentence (the status bar alone says what loads).
+	[[nodiscard]] auto provisional_metadata_shown(qt::pull_request_overview_page& aPage) -> bool
+	{
+		return !aPage.summary_label()->text().isEmpty() && !aPage.projection().has_value();
+	}
+
 	void run_provider_cancellation(app::github_application& aApplication, held_provider_read& aRead,
 								   benchmark_report& aReport, QElapsedTimer& aBudget)
 	{
 		auto& window = aApplication.window();
 		require(measure_wait(aApplication, aBudget, aReport, "held_provider_started", [&] { window.home_open_action()->trigger(); }, [&] { return aRead.EnteredAt.load() != 0 && aRead.ExitedAt.load() == 0 && window.showing_overview()
-																																			   && window.overview_page()->summary_label()->text().contains(QStringLiteral("Provisional metadata")); }), "provider gate or provisional metadata unavailable");
+																																			   && provisional_metadata_shown(*window.overview_page()); }), "provider gate or provisional metadata unavailable");
 		window.home_action()->trigger();
 		auto* field = window.home_open_bar();
 		require(field->isVisible() && field->isEnabled(), "held provider lacks visible input surface");
@@ -2748,7 +2756,7 @@ namespace bpr::e2e::large_review {
 				if (!window.showing_overview() || !page->isVisible()) {
 					return;
 				}
-				if (!report.Extended.ProvisionalMetadataObserved && page->summary_label()->text().contains(QStringLiteral("Provisional metadata"))
+				if (!report.Extended.ProvisionalMetadataObserved && provisional_metadata_shown(*page)
 					&& !page->entry_path() && page->file_model()->file_count() == 0U) {
 					const auto captureStart                     = metadataClock.wall_ms();
 					provisionalFrame                            = window.grab();
