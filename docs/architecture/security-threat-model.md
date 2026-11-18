@@ -1758,7 +1758,11 @@ person's own Claude account sign-in, never a paid API key
   this app's. Refusing every such run protected little: the memory folder is
   keyed to the run's fresh empty working folder, so nothing from another run
   or project loads; with no tool nothing in the run can write it; at most an
-  empty folder is left under `~/.claude/projects/`. The `agent.run` line
+  empty folder is left under `~/.claude/projects/`. The reverse order costs a
+  sign-in: a custom agent whose own settings come first (its saved arguments,
+  or a wrapper that adds them before what it passes on) lost them, and the
+  `apiKeyHelper` in them, to this app's ([[BPR-2259]]). A custom agent's
+  launch is therefore given no `--settings` of this app's. The `agent.run` line
   reads `memory=on`, never the path. A writing launch also sets
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, which Claude reads over any settings
   value (2.1.310: through a wrapper that replaced the settings with

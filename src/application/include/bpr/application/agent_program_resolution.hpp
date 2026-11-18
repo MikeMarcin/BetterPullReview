@@ -121,7 +121,11 @@ namespace bpr::application {
 	/// built-in profiles' resolution, unchanged.
 	///
 	/// \details The arguments are the entry's, as saved; nothing from the
-	/// request is put into them and no shell runs them. A launch for an entry
+	/// request is put into them and no shell runs them. [[BPR-2259]]. A
+	/// custom Claude agent's launch loses this app's `--settings` pair
+	/// (`claude_writing_settings`): Claude keeps only the last `--settings`,
+	/// and the agent's own, in its arguments or its wrapper, can carry its
+	/// sign-in. A launch for an entry
 	/// that is gone, or whose program cannot run, ends `failed_to_start` and
 	/// starts nothing.
 	class agent_entry_process final : public agent_process_port
