@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay the recorded Codex review of the Lantern promo pull request."""
+"""Replay the two scoped agent turns in the BetterPullReview promo."""
 
 import hashlib
 import json
@@ -13,6 +13,21 @@ EXPECTED_CONTEXT = {
     "private.count": "0",
 }
 PROMPT_SHA256 = "d4fa220c2497d5b5d8700b322e0ce627294e9ee8d49245d7f2e3250f9d7163c8"
+REVISION_CONTEXT = {
+    "pull_request_url": "https://github.com/bpr-fixtures/nested-folders/pull/21",
+    "private.count": "0",
+    "chat_message": "What changed since my review",
+    "returning.operation": "latest_upload",
+    "returning.basis": "review",
+    "returning.earlier_head": "b20cb443428212543f5911e091a0ffeb407d23cf",
+    "returning.current_head": "cd24836cfb58a9c14f4d3464d68a57ff8aa2a186",
+    "head": "cd24836cfb58a9c14f4d3464d68a57ff8aa2a186",
+}
+REVISION_DIFF_SHA256 = "a21368e0a4afebea6b0391edfd625645a3154ec155861295e066417f87c4c5dc"
+
+
+def matches(fields, expected):
+    return all(fields.get(key) == value for key, value in expected.items())
 
 
 def emit(event):
@@ -34,25 +49,33 @@ def main(arguments):
         return 65
     fields = dict(line.split("\t", 1) for line in lines[1:] if "\t" in line)
     prompt = fields.get("chat_message", "").encode("utf-8")
-    matches_context = all(fields.get(key) == value for key, value in EXPECTED_CONTEXT.items())
-    if not matches_context or hashlib.sha256(prompt).hexdigest() != PROMPT_SHA256:
-        print("This fixture replays only the recorded review of promo-v1.", file=sys.stderr)
-        return 65
-
-    answer = Path(__file__).with_name("review.md").read_text(encoding="utf-8")
-    emit({"type": "thread.started", "thread_id": "00000000-0000-4000-8000-000000000512"})
-    emit({"type": "turn.started"})
-    emit({"type": "item.completed", "item": {"type": "agent_message", "id": "review", "text": answer}})
-    emit({
-        "type": "turn.completed",
-        "usage": {
+    changes = fields.get("returning.changes", "").encode("utf-8")
+    completion = {"type": "turn.completed"}
+    if matches(fields, EXPECTED_CONTEXT) and hashlib.sha256(prompt).hexdigest() == PROMPT_SHA256:
+        filename = "review.md"
+        item_id = "review"
+        thread_id = "00000000-0000-4000-8000-000000000512"
+        completion["usage"] = {
             "input_tokens": 114824,
             "cached_input_tokens": 90368,
             "cache_write_input_tokens": 0,
             "output_tokens": 1612,
             "reasoning_output_tokens": 111,
-        },
-    })
+        }
+    elif matches(fields, REVISION_CONTEXT) and hashlib.sha256(changes).hexdigest() == REVISION_DIFF_SHA256:
+        filename = "revision-answer.md"
+        item_id = "returning-review"
+        thread_id = "00000000-0000-4000-8000-000000000021"
+        completion["usage"] = {"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0}
+    else:
+        print("The request does not match a recorded promo turn.", file=sys.stderr)
+        return 65
+
+    answer = Path(__file__).with_name(filename).read_text(encoding="utf-8")
+    emit({"type": "thread.started", "thread_id": thread_id})
+    emit({"type": "turn.started"})
+    emit({"type": "item.completed", "item": {"type": "agent_message", "id": item_id, "text": answer}})
+    emit(completion)
     return 0
 
 
