@@ -7,6 +7,7 @@
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -174,20 +175,43 @@ namespace {
 	}
 
 	// Only the CLI source update course composes these checks.
-	void verify_composed_code_metrics(app::github_application& aApplication, const std::uint32_t aWidth)
+	// [[BPR-2228]]. Each pane's tab stop, against its own font's space at the
+	// width; empty when every pane agrees.
+	[[nodiscard]] auto code_metrics_mismatch(app::github_application& aApplication, const std::uint32_t aWidth) -> std::string
 	{
 		auto* const workbench = aApplication.window().comparison_surface();
+		auto        mismatch  = std::string{ };
 		for (auto* const pane : { workbench->left_pane(), workbench->right_pane(), workbench->detail_pane(),
 								  aApplication.window().findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) }) {
-			expect(pane != nullptr, "every composed source pane exists");
+			if (pane == nullptr) {
+				mismatch += " a composed source pane is missing;";
+				continue;
+			}
 			const auto expected = QFontMetricsF{ pane->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * aWidth;
-			expect(qAbs(pane->tabStopDistance() - expected) < 0.01
-					   && qAbs(pane->document()->defaultTextOption().tabStopDistance() - expected) < 0.01,
-				   "composed source layout uses the selected code-font tab width, not Qt's default: " + pane->objectName().toStdString() + " width "
-					   + std::to_string(aWidth) + " tab " + std::to_string(pane->tabStopDistance()) + " document "
-					   + std::to_string(pane->document()->defaultTextOption().tabStopDistance()) + " expected " + std::to_string(expected)
-					   + " font " + pane->font().family().toStdString() + " " + std::to_string(pane->font().pointSizeF()));
+			if (qAbs(pane->tabStopDistance() - expected) >= 0.01 || qAbs(pane->document()->defaultTextOption().tabStopDistance() - expected) >= 0.01) {
+				mismatch += " " + pane->objectName().toStdString() + " width " + std::to_string(aWidth) + " tab " + std::to_string(pane->tabStopDistance()) + " document "
+					+ std::to_string(pane->document()->defaultTextOption().tabStopDistance()) + " expected " + std::to_string(expected) + " font "
+					+ pane->font().family().toStdString() + " " + std::to_string(pane->font().pointSizeF()) + ";";
+			}
 		}
+		return mismatch;
+	}
+
+	/// [[BPR-2228]]. A miss names each pane's tab stop against its font's
+	/// space at the width, and the width Settings shows, so the next failure
+	/// says whether the restored record or the presentation was wrong.
+	void verify_composed_code_metrics(app::github_application& aApplication, const std::uint32_t aWidth)
+	{
+		const auto mismatch = code_metrics_mismatch(aApplication, aWidth);
+		auto       chosen   = std::string{ };
+		if (auto* const panel = aApplication.window().appearance_settings(); panel != nullptr && !mismatch.empty()) {
+			for (const auto width : { 2U, 4U, 8U }) {
+				if (auto* const option = panel->tab_width_option(width); option != nullptr && option->isChecked()) {
+					chosen += std::to_string(width);
+				}
+			}
+		}
+		expect(mismatch.empty(), "composed source layout uses the selected code-font tab width, not Qt's default: Settings shows " + chosen + ";" + mismatch);
 	}
 
 	void verify_overview_folder_navigation(qt::workbench_window& aWindow)
@@ -1878,7 +1902,16 @@ namespace {
 			submit(window, url);
 		}
 		connect_native(window);
-		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "accepted exact setup opens the recorded pull request");
+		// [[BPR-2228]]. A run that misses this says where the open stood.
+		const auto describeOpen = [&] {
+			const auto opened = github_application_fixture_access::evidence(*application);
+			std::cerr << "accepted exact setup: status=" << static_cast<int>(window.session_panel()->status()) << " text=" << window.session_panel()->status_text()
+					  << " diagnostic=" << window.session_panel()->diagnostic_text() << " home=" << window.showing_home() << " enterprise=" << aEnterprise
+					  << " setup-phase=" << static_cast<int>(window.account_setup()->projection().State.Phase) << " setup-visible=" << window.account_setup()->isVisible()
+					  << " connect-enabled=" << window.github_connect_action()->isEnabled() << " account-factory=" << opened.AccountFactoryCalls
+					  << " vault-stores=" << opened.VaultStores << '\n';
+		};
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "accepted exact setup opens the recorded pull request", describeOpen);
 		evidence = github_application_fixture_access::evidence(*application);
 		expect(evidence.VaultStores == 1U && evidence.BootstrapTransportSelected && evidence.AccountTransportSelected && evidence.RecordingConsumed, "public setup traverses one exact recorded authenticated read course");
 		expect(window.home_open_bar()->text().isEmpty(), "accepted opening clears input");
@@ -2347,9 +2380,13 @@ namespace {
 		auto loadElapsed = QElapsedTimer{ };
 		loadElapsed.start();
 		submit(window, pullRequestUrl);
+		// [[BPR-2228]]. Since [[BPR-2216]] round 4 (e5e50701f) the summary
+		// says no loading sentence: the provisional metadata is the commit
+		// count and state, painted while the first file page is held.
 		wait_for([&] {
 			const auto* summary = window.findChild<QLabel*>(QStringLiteral("overviewSummary"));
-			return gate->Reached && summary != nullptr && summary->text().contains(QStringLiteral("Provisional metadata"));
+			return gate->Reached && summary != nullptr && summary->text().contains(QStringLiteral(" commit"))
+				&& !summary->text().contains(QStringLiteral("loading"), Qt::CaseInsensitive);
 		},
 				 "composed CLI course paints useful metadata while the first file page is still held");
 		capture(window, QStringLiteral("setup-cli-progressive-overview.png"));
