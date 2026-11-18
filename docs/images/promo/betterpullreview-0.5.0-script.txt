@@ -14,7 +14,7 @@ Comments appear beside the code, so you can read both.
 Track what you’ve read and accepted as you go.
 Leave a comment or suggest a fix, then tidy it up and publish when it’s ready.
 
-Picture   Start “Open the pull request” on “For reviewers.” Cut to the diff on “changes.” Show the side comments, then type the draft, letting the insertion point follow the text onto the second line.
+Picture   Start “Open the pull request” on “For reviewers.” Cut to the diff on “changes.” Show the side comments, then hold the camera on the draft while the comment is typed. The caret follows the text onto the second line.
 
 0:26.54–0:50.54   Your agent
 Bring your agent seamlessly into your workflow.
