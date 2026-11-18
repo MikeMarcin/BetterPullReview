@@ -1253,6 +1253,11 @@ namespace {
 		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->listing().has_value() && panel->listing()->size() == 2U; },
 				 "renderer.cpp's two open issues are listed in Discuss");
 		const auto* const pill = panel->findChild<QWidget*>(QStringLiteral("conversationListingRow"));
+		if (pill != nullptr) {
+			const auto rect = [](const QRect& aBox) { return std::to_string(aBox.left()) + ".." + std::to_string(aBox.right()) + "@" + std::to_string(aBox.center().y()); };
+			std::cerr << "discuss-top:pill visible=" << pill->isVisible() << " pill=" << rect(box(pill)) << " unresolved=" << rect(box(panel->filter_unresolved_button())) << " summary=" << rect(box(panel->discuss_summary()))
+					  << " clear=" << rect(box(clear)) << '\n';
+		}
 		expect(pill != nullptr && pill->isVisible() && box(pill).left() > box(panel->filter_unresolved_button()).right() && box(pill).right() < box(panel->discuss_summary()).left()
 				   && std::abs(box(pill).center().y() - box(clear).center().y()) <= 1,
 			   "the drill-down is a pill in the band's row, after the filters");
@@ -1412,7 +1417,8 @@ namespace {
 				text.remove(QStringLiteral("New session: retain this conversation in history and start fresh"));
 			}
 			if (word.Where == QStringLiteral("QToolButton tourChatNewSession (tooltip)")
-				|| word.Where == QStringLiteral("QToolButton tourChatNewSession (accessible tree description)")) {
+				|| word.Where == QStringLiteral("QToolButton tourChatNewSession (accessible tree description)")
+				|| word.Where == QStringLiteral("QAction tourChatNewSession (action tooltip)")) {
 				text.remove(QStringLiteral("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed."));
 			}
 			if (word.Where == QStringLiteral("QLabel agentScopeDisclosure (text)")
@@ -1449,8 +1455,29 @@ namespace {
 				text.remove(QStringLiteral("Conversation"));
 				text.remove(QStringLiteral("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
 			}
-			if (word.Where.startsWith(QStringLiteral("QTextBrowser tourSessionRun ("))) {
+			if (word.Where.startsWith(QStringLiteral("QTextBrowser tourSessionRun (")) || word.Where.startsWith(QStringLiteral("QTextEdit tourSessionRun ("))) {
 				text.remove(QStringLiteral("Conversation"));
+			}
+			// [[BPR-2196]]. Author's Agent tab names agent chats, as Review's does.
+			if (word.Where.startsWith(QStringLiteral("QTabBar workbenchAuthorTabs (")) || word.Where == QStringLiteral("QMainWindow workbenchWindow (accessible tree description)")) {
+				text.remove(QStringLiteral("Agent conversations. Nothing here is published."));
+			}
+			// [[BPR-2007]]. Clearing scratch folders keeps the agents' chats.
+			if (word.Where.startsWith(QStringLiteral("QPushButton settingsScratchClear ("))) {
+				text.remove(QStringLiteral("The agents' conversations stay."));
+			}
+			// [[BPR-2171]]. Discuss lists the whole pull request's
+			// conversation, as the Overview drawer names it (BPR-1781).
+			if (word.Where.startsWith(QStringLiteral("QToolButton discussColumnInfo ("))) {
+				text.remove(QStringLiteral("Discuss lists the conversation in a centred column this wide."));
+			}
+			// [[BPR-1773]], RFC-BPR-0094: the shipped asks on a conversation
+			// (a thread or a private note), now listed in Settings' Prompts
+			// (BPR-2163), and the local-draft discussion hook's agent chats.
+			if (word.Where.startsWith(QStringLiteral("QListModel  (row)")) || word.Where == QStringLiteral("QWidget settingsWindow (accessible tree name)")) {
+				text.remove(QStringLiteral("Summarize this conversation"));
+				text.remove(QStringLiteral("Draft a reply to this conversation"));
+				text.remove(QStringLiteral("Local drafts, conversations"));
 			}
 			if (word.Where.startsWith(QStringLiteral("QWidget tourSessionTranscript ("))) {
 				text.remove(QStringLiteral("Tour conversation"));

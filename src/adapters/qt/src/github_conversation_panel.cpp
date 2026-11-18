@@ -16,6 +16,7 @@
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
@@ -176,6 +177,27 @@ namespace bpr::qt {
 			}
 			return kept;
 		}
+
+		/// [[BPR-1089]]. The drill-down pill's caption: one line at its own
+		/// width, ended with an ellipsis when the band's row is short;
+		/// `text()` stays whole and the tooltip says it all.
+		class eliding_caption final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override { return { 1, QLabel::minimumSizeHint().height() }; }
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto shown   = fontMetrics().elidedText(text(), Qt::ElideRight, contentsRect().width());
+				painter.setPen(palette().color(foregroundRole()));
+				painter.drawText(contentsRect(), static_cast<int>(Qt::AlignVCenter | Qt::AlignLeft) | Qt::TextSingleLine, shown);
+			}
+		};
 	} // namespace
 
 	github_conversation_panel::github_conversation_panel(QWidget* const aParent)
@@ -360,7 +382,7 @@ namespace bpr::qt {
 		listingLayout->setSpacing(6);
 		ListingMark = new QLabel{ ListingRow };
 		ListingMark->setObjectName(QStringLiteral("conversationListingMark"));
-		ListingCaption = new QLabel{ ListingRow };
+		ListingCaption = new eliding_caption{ ListingRow };
 		ListingCaption->setObjectName(QStringLiteral("conversationListingCaption"));
 		// One line at its own width, so × follows the words; it may shrink
 		// in a narrow panel rather than widen it.

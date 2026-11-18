@@ -452,7 +452,20 @@ namespace bpr::qt {
 			const auto lower = item->minimumSize().width();
 			size.setWidth(std::max(lower, std::min(size.width(), area.width())));
 			const auto start = rows.back().empty() ? area.left() : x + gap;
-			if (!rows.back().empty() && start + size.width() > area.right() + 1) {
+			// [[BPR-1089]]. A drill-down pill shrinks rather than push the
+			// counts and Clear off the band's row: the item before the
+			// trailing one gives up width down to its minimum.
+			if (item == Trailing && !rows.back().empty() && start + size.width() > area.right() + 1) {
+				auto&      last   = rows.back().back();
+				const auto excess = start + size.width() - (area.right() + 1);
+				const auto spare  = last.Size.width() - last.Item->minimumSize().width();
+				if (spare >= excess) {
+					last.Size.setWidth(last.Size.width() - excess);
+					x -= excess;
+				}
+			}
+			const auto shrunkStart = rows.back().empty() ? area.left() : x + gap;
+			if (!rows.back().empty() && shrunkStart + size.width() > area.right() + 1) {
 				rows.emplace_back();
 				x = area.left();
 			}
