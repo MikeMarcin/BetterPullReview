@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2253"
 title: "qt_workbench_agent_send_refusal and application_native_agent_sessions fail on main"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
