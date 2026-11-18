@@ -3854,8 +3854,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# window_quick_ask.cpp). Also inventories and seals BPR-2248's
 	# window_commit_asks.cpp, missing from both source lists. No review
 	# mutation or submission path changed.
+	# [[BPR-2215]], [[BPR-2252]] reseal: local_draft_desktop cuts its search
+	# panel's destroyed handler in its destructor, and a running tour turn
+	# shows its cost so far (window_tours.cpp). No review mutation or
+	# submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "d91b79ab09f7128305276566b94f668a271e36fc604e5fffaa7d670a96305978"
+        "92fd8c7260b5018a8b85502eebb02d740fa5bbf696310fd3ec70517c8e799fa9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
