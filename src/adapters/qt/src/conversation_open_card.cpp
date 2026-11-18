@@ -884,7 +884,10 @@ namespace bpr::qt {
 		colours.Ok         = colours.Dark ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
 		colours.Signal     = aPalette.color(QPalette::Active, QPalette::Highlight);
 		{
-			const auto floor   = core::minimum_contrast_hundredths(core::contrast_kind::text, aVariant);
+			// Chosen 0.3:1 above the floor: the words are thin, and under
+			// grayscale antialiasing (Linux) no pixel of a stem reaches the
+			// colour itself, so "Draft" chosen at 4.5:1 drew at 4.14:1.
+			const auto floor   = core::minimum_contrast_hundredths(core::contrast_kind::text, aVariant) + 30U;
 			const auto grounds = std::array{
 				core::contrast_ground{ .Colour = to_appearance_color(colours.Drawer), .MinimumHundredths = floor },
 				core::contrast_ground{ .Colour = to_appearance_color(colours.Panel), .MinimumHundredths = floor },
