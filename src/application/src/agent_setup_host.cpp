@@ -172,9 +172,13 @@ namespace bpr::application {
 			}
 		}
 
+		/// [[BPR-2254]]. While the saved settings cannot be read, nothing is
+		/// written over them and no change is kept.
+		[[nodiscard]] auto settings_unreadable() const noexcept -> bool { return Projection.SettingsUnreadable; }
+
 		void save()
 		{
-			if (Dependencies.Store == nullptr || !valid(Projection.Preferences)) {
+			if (Dependencies.Store == nullptr || settings_unreadable() || !valid(Projection.Preferences)) {
 				return;
 			}
 			off_lane(
@@ -284,6 +288,20 @@ namespace bpr::application {
 			CheckAction = aAction;
 			CheckWatch  = operation_stopwatch{ };
 			record_operation(Dependencies.Log.get(), { .Action = aAction }, true);
+		}
+
+		/// [[BPR-2254]]. A check while the saved settings cannot be read
+		/// checks nothing: none of the reviewer's agents is known, so it says
+		/// that, naming the file, instead of an agent that is not found.
+		void refuse_check()
+		{
+			CheckQueue.clear();
+			CheckingOverride = false;
+			Projection.CheckingEntry.reset();
+			const auto generation = ++CheckGeneration;
+			const auto agent      = Picked ? *Picked : Projection.Preferences.Chosen.value_or(core::setup_agent::claude_code);
+			begin_check(core::operation_action::agent_status_check);
+			settle_check(generation, agent, core::fail_check(core::agent_setup_failure::settings_unreadable), Projection.SettingsFile);
 		}
 
 		void settle_check(const std::uint64_t aGeneration, const core::setup_agent aAgent, core::setup_check aCheck, std::string aDetail, const check_run aRun = { })
@@ -561,9 +579,16 @@ namespace bpr::application {
 			[self = Implementation](std::optional<agent_setup_preferences> aLoaded) {
 				if (aLoaded && valid(*aLoaded)) {
 					self->Projection.Preferences = std::move(*aLoaded);
+				} else {
+					// [[BPR-2254]]. Not a fresh profile: the defaults stand in
+					// for settings that exist and could not be read.
+					self->Projection.SettingsUnreadable = true;
+					self->Projection.SettingsFile       = self->Dependencies.StoreFile;
 				}
 				const auto searched = self->Projection.Detecting || self->Projection.Detected;
-				self->move_into_list();
+				if (!self->settings_unreadable()) {
+					self->move_into_list();
+				}
 				self->apply_programs();
 				if (searched) {
 					// A first look may have snapshotted the legacy/default values
@@ -589,7 +614,10 @@ namespace bpr::application {
 
 	void agent_setup_host::choose(const core::setup_agent aAgent)
 	{
-		auto&             host     = *Implementation;
+		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		const auto* const current  = host.preferred_entry();
 		const auto        previous = current != nullptr ? current->Id : 0U;
 		// Another entry of the same kind (a custom agent) is not this popular
@@ -638,7 +666,10 @@ namespace bpr::application {
 
 	void agent_setup_host::choose_entry(const std::uint32_t aId)
 	{
-		auto&             host    = *Implementation;
+		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		const auto&       agents  = host.Projection.Preferences.Agents;
 		const auto        found   = std::ranges::find(agents, aId, &core::agent_entry::Id);
 		const auto* const current = host.preferred_entry();
@@ -654,7 +685,13 @@ namespace bpr::application {
 
 	void agent_setup_host::add_agent(core::agent_entry aEntry, const bool aPrefer, agent_entry_answer aAnswered)
 	{
-		auto& host      = *Implementation;
+		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			if (aAnswered) {
+				aAnswered(core::agent_entry_refusal::settings_unreadable);
+			}
+			return;
+		}
 		aEntry.Identity = mint_agent_identity();
 		auto added      = core::add_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
 		if (!added) {
@@ -679,7 +716,13 @@ namespace bpr::application {
 
 	void agent_setup_host::update_agent(core::agent_entry aEntry, agent_entry_answer aAnswered)
 	{
-		auto&             host      = *Implementation;
+		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			if (aAnswered) {
+				aAnswered(core::agent_entry_refusal::settings_unreadable);
+			}
+			return;
+		}
 		const auto* const current   = host.preferred_entry();
 		const auto        preferred = current != nullptr && current->Id == aEntry.Id;
 		const auto        original  = std::ranges::find(host.Projection.Preferences.Agents, aEntry.Id, &core::agent_entry::Id);
@@ -716,6 +759,9 @@ namespace bpr::application {
 
 	void agent_setup_host::remove_agent(const std::uint32_t aId)
 	{
+		if (Implementation->settings_unreadable()) {
+			return;
+		}
 		auto& host    = *Implementation;
 		auto  removed = core::remove_agent_entry(host.Projection.Preferences.Agents, aId);
 		if (!removed) {
@@ -747,6 +793,9 @@ namespace bpr::application {
 
 	void agent_setup_host::move_agent(const std::uint32_t aId, const int aDelta)
 	{
+		if (Implementation->settings_unreadable()) {
+			return;
+		}
 		auto& host  = *Implementation;
 		auto  moved = core::move_agent_entry(host.Projection.Preferences.Agents, aId, aDelta);
 		if (!moved || *moved == host.Projection.Preferences.Agents) {
@@ -760,6 +809,9 @@ namespace bpr::application {
 	auto agent_setup_host::set_run_limit(const std::uint32_t aMinutes) -> bool
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return false;
+		}
 		if (aMinutes > maximum_run_limit_minutes) {
 			return false;
 		}
@@ -774,6 +826,9 @@ namespace bpr::application {
 	auto agent_setup_host::set_scratch_policy(const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) -> bool
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return false;
+		}
 		if (aLimitMiB < core::minimum_agent_scratch_limit_mib || aLimitMiB > core::maximum_agent_scratch_limit_mib || aKeepDays > core::maximum_agent_scratch_keep_days) {
 			return false;
 		}
@@ -790,6 +845,9 @@ namespace bpr::application {
 	void agent_setup_host::set_suggestions_hidden(const bool aHidden)
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		if (host.Projection.Preferences.SuggestionsHidden != aHidden) {
 			host.Projection.Preferences.SuggestionsHidden = aHidden;
 			host.save();
@@ -800,6 +858,9 @@ namespace bpr::application {
 	void agent_setup_host::set_follow_up_steer(const bool aSteer)
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		if (host.Projection.Preferences.FollowUpSteer != aSteer) {
 			host.Projection.Preferences.FollowUpSteer = aSteer;
 			host.save();
@@ -865,6 +926,9 @@ namespace bpr::application {
 	void agent_setup_host::reset()
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		if (host.Projection.Checking) {
 			stop();
 		}
@@ -889,6 +953,9 @@ namespace bpr::application {
 	void agent_setup_host::prefer_agent(const std::uint32_t aId)
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		if (host.Projection.Preferences.PreferredAgent == aId || std::ranges::find(host.Projection.Preferences.Agents, aId, &core::agent_entry::Id) == host.Projection.Preferences.Agents.end()) {
 			return;
 		}
@@ -901,6 +968,10 @@ namespace bpr::application {
 	{
 		auto& host = *Implementation;
 		if (host.Projection.Checking) {
+			return;
+		}
+		if (host.settings_unreadable()) {
+			host.refuse_check();
 			return;
 		}
 		// [[BPR-1859]]. Settings may ask before the Agent tab looked for the
@@ -978,8 +1049,12 @@ namespace bpr::application {
 
 	void agent_setup_host::implementation::start_check()
 	{
-		auto&             host = *this;
-		const auto* const row  = host.chosen_row();
+		auto& host = *this;
+		if (host.settings_unreadable()) {
+			host.refuse_check();
+			return;
+		}
+		const auto* const row = host.chosen_row();
 		if (row == nullptr && host.CheckingOverride) {
 			// [[BPR-2051]]. An entry whose agent was not found here, or is not
 			// allowed: its check says so, and Check all goes on.
@@ -1126,7 +1201,7 @@ namespace bpr::application {
 	void agent_setup_host::set_program(const core::setup_agent aAgent, std::string aPath, std::function<void(std::optional<core::agent_wrapper_refusal>)> aAnswered)
 	{
 		auto& host = *Implementation;
-		if (aAgent == core::setup_agent::claude_code) {
+		if (aAgent == core::setup_agent::claude_code || host.settings_unreadable()) {
 			return;
 		}
 		const auto generation = ++host.ProgramGeneration;
@@ -1175,6 +1250,9 @@ namespace bpr::application {
 	void agent_setup_host::set_codex_protocol(const core::codex_protocol_choice aChoice)
 	{
 		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return;
+		}
 		if (host.Projection.Preferences.CodexProtocol == aChoice) {
 			return;
 		}
@@ -1186,7 +1264,10 @@ namespace bpr::application {
 	auto agent_setup_host::set_run_settings(const core::setup_agent aAgent, std::string aModel, std::string aEffort) -> bool
 	{
 		auto& host = *Implementation;
-		auto  next = host.Projection.Preferences;
+		if (host.settings_unreadable()) {
+			return false;
+		}
+		auto next = host.Projection.Preferences;
 		switch (aAgent) {
 		case core::setup_agent::claude_code:
 			next.ClaudeEffort = std::move(aEffort);

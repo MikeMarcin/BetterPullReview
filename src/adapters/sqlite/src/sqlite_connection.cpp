@@ -139,6 +139,18 @@ namespace bpr::adapters::sqlite::detail {
 			::sqlite3_extended_errcode(aDatabase), aFallback);
 	}
 
+	// Every statement is prepared with SQLITE_PREPARE_NO_VTAB: no statement
+	// a store runs may reach a virtual table. That includes the ones SQLite
+	// runs for itself. ALTER TABLE ... ADD COLUMN on a STRICT table checks the
+	// table through the pragma_quick_check table-valued function, a virtual
+	// table, in a nested statement that inherits the flag, so on this
+	// connection it always fails, whatever the column and however many rows.
+	// A store that needs a new column rebuilds its table instead, in one
+	// transaction: the current-format table under another name, the old rows
+	// copied by name, the old table dropped and the new one renamed into place.
+	// The appearance store's version 3 and the agent setup store's
+	// rebuild_table do. architecture_boundaries refuses ADD COLUMN in this
+	// adapter's sources ([[BPR-2254]]).
 	[[nodiscard]] auto prepare(
 		::sqlite3* aDatabase, std::string_view aSql)
 		-> std::expected<statement, failure>

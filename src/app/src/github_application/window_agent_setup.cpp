@@ -1897,6 +1897,14 @@ namespace bpr::app {
 						AgentSetup->set_codex_protocol(aChoice);
 					}
 				},
+			// [[BPR-2254]]. The saved agents could not be read: the existing
+			// recovery is Storage & privacy's Troubleshooting ([[BPR-1602]]).
+			.OpenTroubleshooting =
+				[this] {
+					if (!Closing && Window != nullptr) {
+						Window->open_settings(qt::settings_page::storage_and_privacy);
+					}
+				},
 		});
 		Window->clone_folders()->set_dispatch(qt::clone_folders_panel::dispatch{
 			.SetFolders =
@@ -2243,6 +2251,13 @@ namespace bpr::app {
 			found.push_back({ .Agent = row.Agent, .Path = row.Path, .How = row.How });
 		}
 		Window->agent_programs()->present(aProjection.Preferences, std::move(found));
+		// [[BPR-2254]]. Settings › Agents and the footer say the saved agents
+		// could not be read, rather than show an empty list.
+		const auto unreadable = aProjection.SettingsUnreadable ? QString::fromStdString(aProjection.SettingsFile.empty() ? std::string{ "agent-setup.sqlite3" } : aProjection.SettingsFile) : QString{ };
+		Window->agent_programs()->present_settings_unreadable(unreadable);
+		if (auto* const footer = Window->agent_footer_widget(); footer != nullptr) {
+			footer->present_settings_unreadable(unreadable);
+		}
 		// [[BPR-1753]], owner amendment 2026-10-23. The launches use
 		// the list as published, and the picker offers it.
 		AgentEntries->set(aProjection.Preferences.Agents);
@@ -2282,7 +2297,7 @@ namespace bpr::app {
 		// stored list is read off the lane and replaces what is shown when it
 		// lands, so the entry is added whenever the list shows none. The Check
 		// below waits for it: adding a preferred entry starts the setup again.
-		if (FixtureAgentSession && ClaudeAgentExecutable && aProjection.Preferences.Agents.empty() && !FixtureEntryAdding) {
+		if (FixtureAgentSession && ClaudeAgentExecutable && aProjection.Preferences.Agents.empty() && !aProjection.SettingsUnreadable && !FixtureEntryAdding) {
 			FixtureEntryAdding = true;
 			QTimer::singleShot(0, Window.get(), [this] {
 				FixtureEntryAdding = false;

@@ -103,6 +103,8 @@ namespace {
 		std::vector<application::diagnostic_event> Events;
 	};
 
+	constexpr auto unreadable_file = std::string_view{ "/home/me/profile/state/v1/agent-setup.sqlite3" };
+
 	struct fixture
 	{
 		std::shared_ptr<recording_log>                              Log = std::make_shared<recording_log>();
@@ -123,9 +125,10 @@ namespace {
 		fixture()
 		{
 			Host = std::make_unique<application::agent_setup_host>(application::agent_setup_dependencies{
-				.Store   = &Store,
-				.Process = &Process,
-				.Locate  = [this](const core::agent_program aProgram) { return aProgram == core::agent_program::claude ? Claude : Codex; },
+				.Store     = &Store,
+				.StoreFile = std::string{ unreadable_file },
+				.Process   = &Process,
+				.Locate    = [this](const core::agent_program aProgram) { return aProgram == core::agent_program::claude ? Claude : Codex; },
 				.Inspect =
 					[this](const std::string_view aPath) {
 						Inspected.emplace_back(aPath);
@@ -804,8 +807,58 @@ namespace {
 	}
 }
 
+namespace {
+	/// \brief [[BPR-2254]]. A store that cannot be read is not a fresh
+	/// profile: the projection says so and names the file, every change to
+	/// the agents is refused with that reason and nothing is written, and a
+	/// check says the settings could not be read instead of "not found".
+	void test_unreadable_settings()
+	{
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			expect(!f.state().SettingsUnreadable && f.state().SettingsFile.empty(), "a store that reads, even empty, is not unreadable");
+		}
+		auto f         = fixture{ };
+		f.Store.Stored = std::nullopt;
+		f.Host->load();
+		f.settle();
+		expect(f.state().SettingsUnreadable && f.state().SettingsFile == unreadable_file, "a store that cannot be read says so and names its file");
+		auto answer = std::optional<core::agent_entry_refusal>{ };
+		f.Host->add_agent({ .Name = "Claude stream JSON", .Program = "/opt/work/bin/claude-wrapper" }, true, [&answer](const std::optional<core::agent_entry_refusal> aRefusal) { answer = aRefusal; });
+		f.settle();
+		expect(answer == core::agent_entry_refusal::settings_unreadable && f.state().Preferences.Agents.empty(), "adding an agent is refused with that reason and keeps nothing");
+		answer.reset();
+		f.Host->update_agent({ .Id = 1U, .Name = "Renamed", .Program = "/opt/work/bin/claude-wrapper" }, [&answer](const std::optional<core::agent_entry_refusal> aRefusal) { answer = aRefusal; });
+		expect(answer == core::agent_entry_refusal::settings_unreadable, "so is editing one");
+		f.Host->choose(setup_agent::claude_code);
+		f.Host->prefer_agent(1U);
+		f.Host->reset();
+		expect(!f.Host->set_run_limit(30U) && !f.Host->set_scratch_policy(512U, 7U), "and every other setting");
+		f.settle();
+		expect(f.state().Preferences.Agents.empty() && f.Store.Stores == 0, "nothing was added in memory or written over the file");
+		f.Host->check();
+		f.settle();
+		expect(f.Process.Requests.empty() && f.state().State.AgentCheck.State == setup_check_state::failed && f.state().State.AgentCheck.Failure == core::agent_setup_failure::settings_unreadable,
+			   "a check runs nothing and says the settings could not be read");
+		expect(f.state().CheckDetail == unreadable_file, "naming the file, not \"No process output was returned\"");
+		const auto failureOf = [](const application::diagnostic_event& aEvent) {
+			const auto parsed = core::parse_operation_diagnosis(std::string{ aEvent.Summary.text() });
+			return parsed ? parsed->Failure : core::operation_failure::none;
+		};
+		expect(std::ranges::none_of(f.Log->Events, [&failureOf](const application::diagnostic_event& aEvent) { return failureOf(aEvent) == core::operation_failure::agent_not_found; })
+				   && std::ranges::any_of(f.Log->Events, [&failureOf](const application::diagnostic_event& aEvent) { return failureOf(aEvent) == core::operation_failure::store_unreadable; }),
+			   "the log records a storage failure, never agent_not_found");
+		f.Host->check_all();
+		f.settle();
+		expect(f.Process.Requests.empty() && f.Store.Stores == 0, "Check all runs nothing and keeps nothing");
+	}
+}
+
 auto main() -> int
 {
+	test_unreadable_settings();
 	test_harness_catalogs_and_reset();
 	test_detection_starts_nothing();
 	test_saved_programs_win();

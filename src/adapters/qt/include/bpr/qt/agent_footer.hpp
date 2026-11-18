@@ -93,6 +93,11 @@ namespace bpr::qt {
 		/// `aFailed`: a check ran and failed (drawn in the failed check's
 		/// colour); otherwise the agent is not checked yet (drawn quiet).
 		void present_setup(const QString& aNeed, bool aFailed = false);
+		/// \brief [[BPR-2254]]. The saved agents could not be read from
+		/// `aFile` (empty: they were read). The footer says so in place of
+		/// Set up an agent…, which would read as a fresh profile, and leads to
+		/// Settings › Agents, which says what to do.
+		void present_settings_unreadable(const QString& aFile);
 		/// \brief Agent settings… and Set up an agent…: Settings › Agents.
 		void set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief RFC-BPR-0126 AC09: how many messages wait in any session's
@@ -140,6 +145,7 @@ namespace bpr::qt {
 		std::optional<agent_footer_place>                                     Finished;
 		QString                                                               Need;
 		bool                                                                  NeedFailed = false;
+		QString                                                               UnreadableFile;
 		std::function<void()>                                                 SettingsDispatch;
 		std::function<void()>                                                 StopAllDispatch;
 		std::size_t                                                           Queued         = 0U;

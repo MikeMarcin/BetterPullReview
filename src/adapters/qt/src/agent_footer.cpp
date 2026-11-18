@@ -7,6 +7,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
+#include <QDir>
 #include <QEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -265,6 +266,12 @@ namespace bpr::qt {
 
 	void agent_footer::set_stop_all_dispatch(std::function<void()> aDispatch) { StopAllDispatch = std::move(aDispatch); }
 
+	void agent_footer::present_settings_unreadable(const QString& aFile)
+	{
+		UnreadableFile = aFile;
+		refresh();
+	}
+
 	void agent_footer::present_setup(const QString& aNeed, const bool aFailed)
 	{
 		Need       = aNeed;
@@ -426,8 +433,15 @@ namespace bpr::qt {
 		// The picker, or the way to set one up.
 		Picker->set_attention(Need, NeedFailed);
 		const auto chosen = !Picker->isHidden();
-		SettingsButton->setText(chosen ? tr("Agent settings…") : tr("Set up an agent…"));
-		SettingsButton->setVisible(!Need.isEmpty() || Picker->isHidden());
+		if (!UnreadableFile.isEmpty()) {
+			SettingsButton->setText(tr("Saved agents couldn't be read…"));
+			SettingsButton->setToolTip(tr("Your saved agents couldn't be read from %1. Open Settings › Agents for what to do.").arg(QDir::toNativeSeparators(UnreadableFile)));
+			SettingsButton->setVisible(true);
+		} else {
+			SettingsButton->setText(chosen ? tr("Agent settings…") : tr("Set up an agent…"));
+			SettingsButton->setToolTip(tr("Open Settings › Agents."));
+			SettingsButton->setVisible(!Need.isEmpty() || Picker->isHidden());
+		}
 		// One stop control at a time: the run's own (Stop all) while one run
 		// shows, else this one while anything runs or waits.
 		StopButton->setVisible(count > 0U || Queued > 0U);

@@ -6394,6 +6394,40 @@ else()
     endif()
 endif()
 
+# [[BPR-2254]]. No store adds a column with ALTER TABLE. Every statement on
+# the hardened connection is prepared with SQLITE_PREPARE_NO_VTAB, and ADD
+# COLUMN on a STRICT table checks it through the pragma_quick_check
+# table-valued function, so it always fails there: build 66 lost every saved
+# agent of a profile from build 63 that way. Rebuild the table in one
+# transaction instead (`detail::prepare` in sqlite_connection.cpp). Comments
+# may name the statement. A store opened without NO_VTAB would be named here,
+# with its reason; none is.
+set(sqlite_add_column_exempt_sources "")
+file(
+    GLOB_RECURSE sqlite_store_sources
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/adapters/sqlite/src/*.cpp"
+    "${BPR_ROOT}/src/adapters/sqlite/src/*.hpp"
+)
+foreach(sqlite_store_source IN LISTS sqlite_store_sources)
+    file(RELATIVE_PATH sqlite_store_relative "${BPR_ROOT}" "${sqlite_store_source}")
+    if(sqlite_store_relative IN_LIST sqlite_add_column_exempt_sources)
+        continue()
+    endif()
+    file(READ "${sqlite_store_source}" sqlite_store_contents)
+    string(REGEX REPLACE "//[^\r\n]*" "" sqlite_store_contents "${sqlite_store_contents}")
+    string(TOUPPER "${sqlite_store_contents}" sqlite_store_contents)
+    if(sqlite_store_contents MATCHES "(^|[^A-Z0-9_])ADD[ \t\r\n\"]+COLUMN([^A-Z0-9_]|$)"
+       OR sqlite_store_contents MATCHES "(^|[^A-Z0-9_])ALTER[ \t\r\n\"]+TABLE[^;]*[^A-Z0-9_]ADD[^A-Z0-9_]")
+        message(
+            FATAL_ERROR
+            "${sqlite_store_relative}: ALTER TABLE ... ADD COLUMN always fails on the hardened SQLite "
+            "connection (SQLITE_PREPARE_NO_VTAB refuses the pragma_quick_check it runs on a STRICT table), so "
+            "rebuild the table in one transaction instead as detail::prepare in sqlite_connection.cpp says"
+        )
+    endif()
+endforeach()
+
 get_property(boundary_violations GLOBAL PROPERTY BPR_BOUNDARY_VIOLATIONS)
 list(LENGTH boundary_violations boundary_violation_count)
 if(boundary_violation_count GREATER 0)

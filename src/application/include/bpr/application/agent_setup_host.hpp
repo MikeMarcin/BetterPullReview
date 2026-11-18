@@ -58,6 +58,12 @@ namespace bpr::application {
 		/// agent"). What each popular agent is called where it is named, when
 		/// not its plain name: a tests-on build's fixture agent.
 		std::map<core::setup_agent, std::string> Names;
+		/// [[BPR-2254]]. The saved agent settings could not be read, so
+		/// `Preferences` are defaults and not the reviewer's: every surface
+		/// that shows agents says so, naming `SettingsFile`, and every change
+		/// to them is refused rather than kept only until the app quits.
+		bool        SettingsUnreadable = false;
+		std::string SettingsFile;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -81,6 +87,9 @@ namespace bpr::application {
 	struct agent_setup_dependencies
 	{
 		agent_setup_store_port* Store = nullptr;
+		/// [[BPR-2254]]. The store's file as the reviewer finds it, named
+		/// when it cannot be read.
+		std::string StoreFile;
 		/// The check's own process port, never the agent host's.
 		agent_process_port*                                  Process = nullptr;
 		agent_program_locator                                Locate;

@@ -6771,6 +6771,26 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assert_failure("Forbidden runtime surface",
                             {"src/adapters/sqlite/src/other_listener.cpp": "::listen(listener.Value, 8);\n"})
 
+    def test_sqlite_stores_never_add_a_column(self) -> None:
+        # [[BPR-2254]]. ADD COLUMN always fails on the hardened connection.
+        path = "src/adapters/sqlite/src/some_store.cpp"
+        for statement in (
+            'detail::execute(db, "ALTER TABLE t ADD COLUMN b INTEGER");\n',
+            'detail::execute(db, "alter table t add column b integer");\n',
+            'detail::execute(db, "ALTER TABLE t ADD b INTEGER");\n',
+            'detail::execute(db, "ALTER TABLE " + name + " ADD b INTEGER");\n',
+        ):
+            with self.subTest(statement=statement):
+                self.assert_failure("some_store.cpp: ALTER TABLE", {path: statement})
+        for allowed in (
+            "// ALTER TABLE t ADD COLUMN b is refused here.\n",
+            'detail::execute(db, "ALTER TABLE rebuilt_t RENAME TO t");\n',
+            'const auto address = std::string{ "ADDRESS" };\n',
+        ):
+            with self.subTest(allowed=allowed):
+                result = self.run_check({path: allowed})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_adapter_root_must_delegate_target_ownership(self) -> None:
         self.assert_failure(
             "Adapter root must delegate",

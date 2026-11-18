@@ -124,7 +124,9 @@ namespace bpr::core {
 				return true;
 			}
 			switch (aFamily) {
-			case operation_diagnosis_family::agent_setup:     return within(aFailure, operation_failure::agent_not_found, operation_failure::workspace_unavailable);
+			// [[BPR-2254]]. And a check refused because the saved agents could
+			// not be read.
+			case operation_diagnosis_family::agent_setup:     return within(aFailure, operation_failure::agent_not_found, operation_failure::workspace_unavailable) || aFailure == operation_failure::store_unreadable;
 			case operation_diagnosis_family::agent_workspace: return within(aFailure, operation_failure::invalid_request, operation_failure::clone_needed)
 				|| aFailure == operation_failure::object_unavailable || aFailure == operation_failure::size_limit || aFailure == operation_failure::timed_out
 				|| aFailure == operation_failure::storage_failed || aFailure == operation_failure::unavailable || aFailure == operation_failure::unsupported

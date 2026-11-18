@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2254"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent setup store ADD COLUMN migration refused on hardened connection",
+  "created": "2026-11-18T19:55:50.926320+00:00",
+  "base": "2dfe7f13baddfc2fe9c84c6664b889a9ff145444"
+}

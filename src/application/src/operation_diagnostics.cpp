@@ -144,6 +144,7 @@ namespace bpr::application {
 		case core::agent_setup_failure::status_unreadable:     return failure::status_unreadable;
 		case core::agent_setup_failure::timed_out:             return failure::timed_out;
 		case core::agent_setup_failure::workspace_unavailable: return failure::workspace_unavailable;
+		case core::agent_setup_failure::settings_unreadable:   return failure::store_unreadable;
 		}
 		return failure::failed_to_start;
 	}
