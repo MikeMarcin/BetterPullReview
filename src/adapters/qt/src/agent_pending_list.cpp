@@ -325,10 +325,9 @@ namespace bpr::qt {
 			heads->addStretch(1);
 			auto* const toggle = button(head, aPaused ? tr("Resume queue") : tr("Pause queue"), QStringLiteral("agentQueuePauseResume"), aPaused ? tr("Resume queue") : tr("Pause queue"));
 			connect(toggle, &QPushButton::clicked, this, [this, aPaused] {
-				if (aPaused && Dispatch.Resume) {
-					Dispatch.Resume();
-				} else if (!aPaused && Dispatch.Pause) {
-					Dispatch.Pause();
+				const auto act = aPaused ? Dispatch.Resume : Dispatch.Pause;
+				if (act) {
+					act();
 				}
 			});
 			heads->addWidget(toggle);
@@ -346,14 +345,17 @@ namespace bpr::qt {
 				column->addWidget(state);
 			}
 		}
+		// Each control calls a copy of its dispatch: the call may present the
+		// list again, and a new dispatch then replaces the one it runs in
+		// (on Linux the freed closure crashed the tour chat queue courses).
 		const auto move = [this](const std::uint64_t aId, const int aBy) {
-			if (Dispatch.Move) {
-				Dispatch.Move(aId, aBy);
+			if (const auto act = Dispatch.Move) {
+				act(aId, aBy);
 			}
 		};
 		const auto drop = [this](const std::uint64_t aId) {
-			if (Dispatch.Remove) {
-				Dispatch.Remove(aId);
+			if (const auto act = Dispatch.Remove) {
+				act(aId);
 			}
 		};
 		for (std::size_t index = 0U; index < aRows.size(); ++index) {
@@ -380,15 +382,15 @@ namespace bpr::qt {
 				auto* const cancel = button(row, tr("Cancel"), QStringLiteral("agentQueueCancel"), tr("Keep the queued message as it was"));
 				connect(save, &QPushButton::clicked, this, [this, id, field] {
 					Editing.reset();
-					if (Dispatch.Save) {
-						Dispatch.Save(id, field->text());
+					if (const auto act = Dispatch.Save) {
+						act(id, field->text());
 					}
 				});
 				connect(field, &QLineEdit::returnPressed, save, &QPushButton::click);
 				connect(cancel, &QPushButton::clicked, this, [this, id] {
 					Editing.reset();
-					if (Dispatch.Cancel) {
-						Dispatch.Cancel(id);
+					if (const auto act = Dispatch.Cancel) {
+						act(id);
 					}
 				});
 				line->addWidget(save);
@@ -417,8 +419,8 @@ namespace bpr::qt {
 				auto* const discard = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueDiscard"), tr("Discard the message that may not have been delivered: %1").arg(entry.Label));
 				discard->setToolTip(tr("Discard: it may not have been delivered"));
 				connect(discard, &QPushButton::clicked, this, [this, id] {
-					if (Dispatch.Discard) {
-						Dispatch.Discard(id);
+					if (const auto act = Dispatch.Discard) {
+						act(id);
 					}
 				});
 				line->addWidget(discard);
@@ -439,8 +441,8 @@ namespace bpr::qt {
 					edit->setToolTip(tr("Edit"));
 					connect(edit, &QPushButton::clicked, this, [this, id] {
 						Editing = id;
-						if (Dispatch.Edit) {
-							Dispatch.Edit(id);
+						if (const auto act = Dispatch.Edit) {
+							act(id);
 						}
 					});
 					line->addWidget(edit);
@@ -453,16 +455,16 @@ namespace bpr::qt {
 				auto* const steer = glyph(row, conversation_glyph::send, QStringLiteral("agentQueueSteer"), tr("Steer the running turn with it instead of waiting: %1").arg(entry.Label));
 				steer->setToolTip(tr("Steer: send it into the running turn instead of waiting"));
 				connect(steer, &QPushButton::clicked, this, [this, id] {
-					if (Dispatch.Steer) {
-						Dispatch.Steer(id);
+					if (const auto act = Dispatch.Steer) {
+						act(id);
 					}
 				});
 				line->addWidget(steer);
 				auto* const remove = glyph(row, conversation_glyph::trash, QStringLiteral("agentQueueRemove"), tr("Remove from the queue: %1").arg(entry.Label));
 				remove->setToolTip(tr("Remove from the queue"));
 				connect(remove, &QPushButton::clicked, this, [this, id] {
-					if (Dispatch.Remove) {
-						Dispatch.Remove(id);
+					if (const auto act = Dispatch.Remove) {
+						act(id);
 					}
 				});
 				line->addWidget(remove);
