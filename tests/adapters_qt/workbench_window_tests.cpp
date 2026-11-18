@@ -16164,6 +16164,10 @@ namespace {
 			wait_for([agent] { return agent->turn_footer(1U).contains(QLatin1Char{ '$' }); }, 2000);
 			expect(agent->turn_footer(1U).startsWith(QStringLiteral("● ")) && agent->turn_footer(1U).contains(QStringLiteral("is thinking, 0:0")) && agent->turn_footer(1U).contains(QStringLiteral(" · $0.41.")),
 				   "while the turn runs, its cost so far follows its time: " + agent->turn_footer(1U).toStdString());
+			if (!root.isEmpty()) {
+				wait_for([] { return false; }, 400);
+				expect(window.grab().save(root + QStringLiteral("/agent-running-cost.png"), "PNG"), "render saved");
+			}
 			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 2U, .Kind = application::agent_stream_kind::cost });
 			wait_for([agent] { return !agent->turn_footer(1U).contains(QLatin1Char{ '$' }); }, 2000);
 			expect(!agent->turn_footer(1U).contains(QLatin1Char{ '$' }), "a cost that became unknown is no longer said");
