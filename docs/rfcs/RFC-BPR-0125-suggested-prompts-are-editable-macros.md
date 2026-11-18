@@ -504,14 +504,80 @@ Macros join RFC-BPR-0107's exchange as its last milestone here, because the
 owner asked of that exchange, on 2026-11-11, to "export all prompts so I can
 improve them agenticly with context from my org and import them back".
 
-- The file gains a list of suggested prompts and becomes version 2. An
-  export that includes none is still written as version 1.
-- Export chooses macros one by one and shows their exact text. Import
-  previews each as Add, Replace the one it meets, or Leave out; applies all
-  chosen or none; revalidates against edits made meanwhile; and launches
-  nothing. A version 1 file imports as before.
-- An item naming a place, fact or variable the importing version lacks is
-  listed as unsupported and not applied.
+> Owner amendment (2026-11-18): "I want to make sure that we can import that
+> such that it merges in. Aka doesn't replace other different prompts,
+> updates to the prompt pack can update older imports in-place. This likely
+> means every prompt needs a stable id (and gets a new one when duplicated)."
+>
+> Owner decision (2026-11-18), on the form of those IDs: "I'm thinking uuids
+> probably make the most sense so that we dont get collisions if multiple
+> people all over are making prompts".
+
+The shared unit is a **prompt pack**: the reviewer's own prompts they chose,
+under one pack identity.
+
+- **The file.** Exchange version 2 adds a pack and its macros. The pack has
+  a stable pack ID, a label and a version that only increases. Each macro
+  carries its portable stable ID, its place and its body: name, template,
+  About, Ask as, conditions, Quick ask and scopes. On and placements stay
+  with each reviewer. An export that includes no macro is still written as
+  version 1, byte for byte as before, and a version 1 file imports exactly
+  as before. An older build refuses a version 2 file as written by a newer
+  version, which is the refusal it already gives any newer file.
+- **Stable IDs are UUIDs.** A reviewer's own prompt and a pack are each
+  identified by a random (version 4) UUID, written in lowercase. The host
+  mints every UUID and passes it in, so the core stays deterministic. A
+  built-in keeps its fixed name and is never exported: to share one, the
+  reviewer duplicates it. Duplicating any prompt, including an imported
+  one, mints a new UUID and drops the copy's link to its pack, so the copy
+  is the reviewer's own.
+- **Prompts made before UUIDs** keep their stored identity until they are
+  first exported. That export gives each of them a new UUID and rewrites
+  every reference to it (order, surfaces, repository layers) in the same
+  all-or-none write that records the pack. The store is not migrated in
+  bulk: only an exported prompt's ID is ever read by another profile.
+- **Export** offers each of the reviewer's own prompts, with its exact text,
+  under a pack: a new one (a label, a new pack ID, version 1) or one the
+  profile already holds (its ID, its highest version plus one). Exporting
+  records, on each exported prompt, the pack and the version and body it
+  was exported as. The exporter's own copies are then the pack's, so a file
+  edited elsewhere (by an agent, say) and imported back as a later version
+  updates them in place.
+- **Import matches by macro ID, never by name.** Against each prompt of the
+  file:
+  - No prompt here has its ID: **Added**, on, with the placements its
+    fields describe.
+  - A prompt here has its ID, and the reviewer has not edited it since they
+    last imported (or exported) that pack: **Updated in place**. Its body
+    and place take the file's; its On, placements and order stay.
+  - A prompt here has its ID and the reviewer has edited it since, or it was
+    never linked to this pack: a **conflict**, Replace or Keep mine,
+    starting at Keep mine. Each copy records the pack version it was
+    written against, as an edited built-in hook records the built-in
+    version it was written against; Keep mine leaves that record as it is.
+  - A prompt here equal to the file's: **Unchanged**, nothing to choose.
+  - A prompt here that an earlier version of the pack held and this version
+    drops is offered as **Remove** or **Keep**: Remove starts chosen when
+    the reviewer has not edited it, Keep when they have. Keep makes it the
+    reviewer's own. Nothing is removed silently.
+  - Prompts not from the pack, built-ins included, are never touched.
+  - A file whose pack version is lower than the highest version of that
+    pack already here is **flagged as older**, and its updates and removals
+    start unchosen.
+- Import previews each item with its standing and choice, applies all
+  chosen or none, refuses after an edit made meanwhile (the prompts' stored
+  revision is part of what the preview was made from), and launches
+  nothing.
+- An item naming a place, About, Ask as, fact or variable the importing
+  version lacks, or whose ID is not a UUID, is listed as unsupported and
+  not applied. An item that names a built-in's ID, or is listed twice, is
+  refused with that reason.
+
+This settles the versioning question raised against RFC-BPR-0129, where the
+exchange was ambiguous about which version carries suggested prompts:
+version 2 is the prompt-pack format defined here, version 1 stays readable
+and is still written without macros, and RFC-BPR-0129's own change to the
+file builds on this version 2 rather than redefining it.
 
 A file of macros in the reviewed repository is out of scope: text written by
 a repository's contributors, one click from being sent, needs its own trust
@@ -565,7 +631,9 @@ Applied by the owning milestones, not at drafting.
 
 - **RFC-BPR-0102.** "A suggestion is a subject and a text" becomes a subject,
   a name and a template. A drafted suggestion keeps its subject (Q2).
-- **RFC-BPR-0107.** The exchange gains suggested prompts and file version 2.
+- **RFC-BPR-0107.** The exchange gains suggested prompts as a prompt pack
+  and file version 2, merged by UUID on import (see Sharing); a file with no
+  macro stays version 1.
   Its remark that tour-chat suggestions would be prompt purposes is replaced
   by macro items.
 - **[[BPR-1934]].** `tour_chat_prompts` gives way to the shipped set.
@@ -657,7 +725,8 @@ heading in the next section.
    variable tint; the preview and Shows now; the condition pickers; every
    message in the table. Ends with the owner's look on a frozen build.
 5. **In reach.** A chip's menu, and names in the popup after `/p `.
-6. **Share.** Version 2 of RFC-BPR-0107's exchange.
+6. **Share.** Version 2 of RFC-BPR-0107's exchange: prompt packs that
+   merge by stable UUID (owner amendment, 2026-11-18).
 7. **Closeout.** Documentation and the gate.
 
 Milestones 1 to 3 suffice to turn prompts off and reorder them; 4 delivers
@@ -773,11 +842,22 @@ The owner chose the Ask model of [RFC-BPR-0128](RFC-BPR-0128-ask-quick-asks-thre
 
 ### Milestone 6: share
 
-- **AC24:** Export offers each macro and shows its exact text, and writes
-  version 1 when none is chosen. Import previews Add, Replace and Leave out
-  for each, applies all chosen or none, refuses after a concurrent edit and
-  launches nothing. A version 1 file imports as before. An item naming an
-  unknown place, fact or variable is listed as unsupported and not applied.
+- **AC24:** Export offers each of the reviewer's own prompts with its exact
+  text under a new or existing pack, writes version 2 with the pack's ID,
+  label and version and each prompt's UUID, and writes version 1 when none
+  is chosen. Import matches by ID, never by name: an unmatched prompt is
+  Added; a matched one not edited since the last import or export of that
+  pack is updated in place with its On and placements kept; an edited one
+  is a conflict, Replace or Keep mine; one the pack dropped is offered as
+  Remove or Keep; an older pack version is flagged; prompts not from the
+  pack are never changed. Duplicate mints a new UUID and drops the pack
+  link. Import applies all chosen or none, refuses after a concurrent edit
+  and launches nothing. A version 1 file imports as before. An item naming
+  an unknown place, About, fact or variable, or with an ID that is not a
+  UUID, is listed as unsupported and not applied.
+- **AC26:** A pack exported from one profile and imported into a clean
+  profile adds every prompt; re-importing a later version of that pack
+  updates them in place and leaves the profile's other prompts unchanged.
 
 ### Milestone 7: closeout
 
