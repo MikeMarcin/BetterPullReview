@@ -45,3 +45,46 @@ tab stops and the font, so the next failure says what it saw
 - **BPR-2228:fixed.** The course waits for the condition it checks, or the
   product applies the tab width before it reports the gesture done; twenty
   runs under `ctest -j4` beside other GUI courses pass.
+
+## Round 2026-11-17: reproduced, cause narrowed, not fixed
+
+Left in Backlog: neither acceptance item is met.
+
+- Lane HEAD failed every run, alone, before reaching the tab check: the
+  course waited for "Provisional metadata", which [[BPR-2216]] round 4
+  (`e5e50701f`) took out of the overview summary. Fixed in `7ffff2638`, as
+  `qt_composed_github` was in [[BPR-2240]].
+- Reproduced by running the course binary directly eight (or four) at a
+  time beside `ctest -j4` loops of other composed GUI courses (load averages
+  13 to 86). Across about 330 such runs: the tab check failed 7 times and a
+  second check, "accepted exact setup opens the recorded pull request",
+  failed 9 times. `ctest -j4` of the course itself, 20 runs beside that
+  load, passed 20 of 20, which is the original acceptance wording but not
+  evidence of a fix.
+- **Tab width.** Every miss is the third start in the course (the remounted
+  recovery after the progressive-overview step), never the first two. All
+  four panes stop at 6.75 px against 13.5 px expected (monospace 9 pt): a
+  width of 2, the first width the course's gestures chose (2, 8, then 4).
+  Settings in that window shows 2 as well, so the host's restored record is
+  2; it is not a presentation lag (waiting 15 s changed nothing). Traced
+  runs (a temporary print of every adopt, store and load in
+  `appearance_preferences_application_host`) wrote 4 last every time, and
+  the second start loaded 4; tracing also stopped the miss from appearing in
+  156 runs, so the writer of the 2 is not yet seen. One loss path found and
+  tested but not shown to be this one: `shutdown_now()` cancels a settings
+  store still queued on `AppearanceEffects` (which also runs syntax
+  classification), so a setting chosen just before the profile closes can
+  be lost; letting the newest store run at shutdown (red/green in
+  `application_appearance_host`) did not stop the miss (2 of 40), so it was
+  not committed.
+- **Accepted setup.** Every miss is the Enterprise half: after the final
+  `connect_native`, the session stays "No GitHub host is connected." with
+  the account setup visible at `choosing_server`, Connect enabled and no
+  account made (`AccountFactoryCalls` 0). Waiting for Connect to be enabled
+  and for no connection to be establishing before pressing it made it rarer
+  but did not stop it, so that wait was not kept.
+- The course now prints both states when it misses (`7ffff2638`).
+
+Next: find who adopts a width of 2 on the third start without changing the
+timing (for example, record adopts in memory and print them only on a
+miss), and follow the Enterprise connect gesture after a replaced target.
