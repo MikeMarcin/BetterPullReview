@@ -219,3 +219,85 @@ temporary tree (`test_suite_runner_contract`, the RFC-0017 recorder,
 `agent_scratch_folder`, `review_tour_writing_wrapper`); the rest are agent,
 store-restart and review-flow courses not yet diagnosed. The external record
 is `/Users/jaeger/.codex/release-runs/v0.5.0-20261116/windows-preflight-fix-r1/`.
+
+## Fourth round: Windows courses, Linux contrast and the two one-offs (2026-11-18)
+
+Lane `claude/release-0-5-0-windows-preflight` from main at `d66d6a22e`;
+stopped at the owner's word ("stop for now after fixes, we have one more
+feature addendum to add into this build") with no cohort frozen.
+
+**Host split (owner, 2026-11-18: "On the WSL2 i9").** The eleven Ubuntu
+large-review Release timing courses are judged on the WSL2 i9-10900KF host
+on the PC, in a checkout and build tree of their own (not `~/bpr-v050-r1`),
+built Release at `-j8` at most, while the PC is otherwise idle. Ubuntu
+functional qualification stays on the Intel Lima guest. The WSL2 timing run
+has not been started: the scripts are staged at
+`D:\BetterPullReview-release-v050-r1\preflight-fix-r1\wsl-timing.{sh,ps1}`
+with the lane's bundle `full-f5343b1e1.bundle` beside them.
+
+Fixed this round:
+
+- **Linux contrast.** The Source search Details toggle draws three dots at the
+  button's ink instead of the font's "…", which rendered as colour fringes
+  (4.19–4.6:1). The readable link colour is chosen at 4.8:1, not exactly 4.5,
+  and a card's signal words ("Draft") 15% above the text floor: under
+  grayscale antialiasing thin words read about 10% below the colour chosen.
+- **`qt_conversation_cards_view`'s 2 px.** In a narrow drawer the split draft
+  row closes its two gaps (down to 2 px) before squeezing the main pill.
+- **`profile_window_layout`** follows BPR-2180 v004: a review opens on
+  Overview and enters Review on its preset, and a late restore opens no
+  drawer, so the course opens Repositories by hand before the independence
+  check and expects Review's preset after a restart. A window's drawer
+  open/closed state therefore no longer survives a restart; everything else a
+  window restores is still checked.
+- **The two one-offs.** `agent_queue_finish_pauses` was a real race in the
+  course (5 of 15 Ubuntu runs: it pressed Resume before the list showed it);
+  it now waits for the shown button, and passed 12 of 12.
+  `label_publication_recovery` failed 1 of 15 and then passed 12 of 12; its
+  wait now says what the summary showed.
+- **Windows:** nested configures find Git for Windows' Perl and the build's
+  own CPM cache (`dependency_modernization`, `native_release`); three fixture
+  generators write LF (`github_recorded_fixture`); the phase ledger's log
+  directories inherit instead of taking a protected owner-only descriptor an
+  AppContainer cannot enter (`test_suite_runner`); `fixture_agent_answers`
+  finds `claude.exe`; the scratch folder course reads owner-only from the
+  DACL and expects no grant path on Windows; the writing-wrapper course
+  renames its stub claude instead of deleting a running program.
+
+| Candidate, platform, config | Rows | Result |
+| --- | --- | --- |
+| `d66d6a22e` Windows Release, full suite (Interactive) | 1048 | 1021 passed, 27 failed |
+| `2fbb54cc9` Windows Release, the 27 | 27 | 9 passed, 18 failed |
+| `7c13c2dd8` Ubuntu, `agent_queue_finish_pauses` alone and under load | 15 | 10 passed, 5 failed |
+| `ec87c8676` Ubuntu, `agent_queue_finish_pauses` / `label_publication_recovery` | 12 each | 12 passed each |
+| `2fbb54cc9` Ubuntu, `^qt_conversation` and `qt_button_faces` | 6 | 6 passed |
+| **`f5343b1e1` Ubuntu Release, full suite** | 1064 | **1052 passed, 12 failed** |
+| **`f5343b1e1` Windows Release, full suite (Interactive)** | 1048 | **1027 passed, 21 failed** |
+
+Still failing at `f5343b1e1`:
+
+- Ubuntu: the ten large-review timing courses (held for the WSL2 i9 run);
+  `local_comments_composition` AC03 again (the cards' local comments were
+  empty after the last send, even after waiting); and
+  `profile_window_review_restoration` ("reading epoch ready", new this run).
+- Windows, agent workspace: `agent_invocation_host`,
+  `agent_workspace_entry_limit`, `native_agent_sessions`,
+  `agent_chat_custom_agent`, `agent_finding_codex_found` ("The agent's copy
+  of this pull request could not be made").
+- Windows, contained stores and temp: `qt_prompt_macro_chips` and
+  `qt_agent_finding_cards_restart` (a reopened store reads nothing back),
+  `qt_agent_report_view` (cannot write in its QTemporaryDir), the RFC-0017
+  recorder (`git init` cannot create `.git` under the AppContainer's temp).
+- Windows, review flows: `start_review`, `label_publication_recovery`
+  ("Review recovery is unavailable"), `review_submission_composition` and
+  its 125% scale, `discuss_top`, `home_approve_again`, `review_seen` and its
+  `_stays`/`_fails`, `local_comments_composition`; several of these passed
+  when run alone in the 27-row round. `review_tour_writing_wrapper` now
+  stops at "writing child process and cleanup finish".
+- Windows: `large_review_resources` (maintenance retains raw diff, index or
+  source), and `application_composition_contract` timed out at 1800 s in the
+  27-row round (its nested configure now passes Perl and builds).
+
+Evidence: `windows-release-full-f5343b1e1-junit.xml` and
+`ubuntu-release-full-f5343b1e1-junit.xml` in
+`/Users/jaeger/.codex/release-runs/v0.5.0-20261116/windows-preflight-fix-r1/`.
