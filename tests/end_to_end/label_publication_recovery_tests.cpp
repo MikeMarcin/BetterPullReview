@@ -27,6 +27,7 @@
 // No live GitHub, credential or model.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/review_composition_application_host.hpp"
@@ -61,12 +62,14 @@
 #include <QThread>
 #include <QToolButton>
 
+#include <QFileInfo>
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -458,6 +461,14 @@ namespace {
 			std::cerr << "label-publication-recovery: review summary shown=" << (summary->shown_draft() ? 1 : 0)
 					  << " comments=" << (summary->shown_draft() ? summary->shown_draft()->Comments.size() : 0U) << " submit=" << summary->submit_action()->isEnabled()
 					  << " submit_tip=" << summary->submit_action()->toolTip().toStdString() << " visible=" << summary->isVisible() << '\n';
+			// The application's own sanitized log says which store or read failed.
+			const auto root    = app::native_filesystem_path(QFileInfo{ composed.Temporary.path() }.canonicalFilePath()) / "data";
+			auto       records = std::istringstream{ bpr::tests::read_diagnostic_logs(root) };
+			for (std::string record; std::getline(records, record);) {
+				if (record.find("\"severity\":\"info\"") == std::string::npos) {
+					std::cerr << "label-publication-recovery-diagnostic:" << record << '\n';
+				}
+			}
 		}
 		expect(carried(), "review carries the exact inline draft");
 		{
