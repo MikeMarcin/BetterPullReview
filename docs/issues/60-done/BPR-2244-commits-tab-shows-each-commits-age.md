@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2244"
 title: "The Commits tab shows how old each commit is"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
@@ -94,3 +94,7 @@ stop short of it, and a part that no longer fits ends in an ellipsis.
     one Accept/Reject question `commits-age-v001` on the row's age and its
     tooltip; ready, served. The Now images are the view test's offscreen
     renders (`qt_commit_filter_view`, `BPR_RFC0089_RENDER_DIR`).
+
+## Owner decision (2026-11-17)
+
+The owner accepted look commits-age-v001 (session c2dbde02…).
