@@ -296,6 +296,9 @@ namespace {
 			auto* const agent = window.agent_tab();
 			keeping.observe(*agent);
 			agent->set_finding_card_dispatch(ask);
+			if (!keeping.Host->is_loaded() || keeping.Host->memory().size() != 1U) {
+				std::cerr << "finding-cards-restart: loaded=" << keeping.Host->is_loaded() << " kept=" << keeping.Host->memory().size() << " root=" << path.string() << '\n';
+			}
 			expect(keeping.Host->is_loaded() && keeping.Host->memory().size() == 1U, "the fresh host reads the one kept card back");
 			agent->present_thread(native_thread(answer, keeping.cards(answer)));
 			settle();

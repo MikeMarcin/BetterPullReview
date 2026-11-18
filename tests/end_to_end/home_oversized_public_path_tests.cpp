@@ -221,6 +221,16 @@ try {
 		window->compose_review_action()->trigger();
 		wait_for([&] { return window->review_sheet_open(); }, "its review opens");
 		auto* const approve = editor->disposition_button(core::review_disposition::approve);
+		if (approve == nullptr || !approve->isVisible()) {
+			const auto shown = [&] { return approve != nullptr && approve->isVisible(); };
+			for (auto turn = 0; turn < 2000 && !shown(); ++turn) {
+				QApplication::processEvents(QEventLoop::AllEvents, 10);
+			}
+			if (!shown()) {
+				std::cerr << "home-oversized: approve=" << (approve != nullptr) << " draft=" << (editor->shown_draft() ? 1 : 0) << " submit_tip=" << editor->submit_action()->toolTip().toStdString()
+						  << " status=" << editor->status_label()->text().toStdString() << '\n';
+			}
+		}
 		wait_for([&] { return approve != nullptr && approve->isVisible(); }, "the review's draft is read and its Approve shows", 20'000);
 		const auto settled = [&](const QString& aApprove) { return approve->text() == aApprove && editor->followup_label()->isVisible(); };
 		if (approveAgain) {

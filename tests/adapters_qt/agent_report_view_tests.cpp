@@ -112,8 +112,12 @@ try {
 	expect(folder.isValid(), "a scratch folder");
 	const auto picture = folder.filePath(QStringLiteral("secret.png"));
 	{
-		QFile file{ picture };
-		expect(file.open(QIODevice::WriteOnly) && file.write("PICTURE-BYTES") == 13, "a file a resource could name");
+		QFile      file{ picture };
+		const auto written = file.open(QIODevice::WriteOnly) && file.write("PICTURE-BYTES") == 13;
+		if (!written) {
+			std::cerr << "agent-report-view: " << folder.path().toStdString() << " valid=" << folder.isValid() << " error=" << file.errorString().toStdString() << '\n';
+		}
+		expect(written, "a file a resource could name");
 	}
 	const auto address = QUrl::fromLocalFile(picture).toString();
 	auto       view    = bpr::qt::agent_report_view{ };

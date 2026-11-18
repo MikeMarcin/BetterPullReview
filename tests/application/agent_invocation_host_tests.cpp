@@ -2551,6 +2551,17 @@ namespace {
 		expect(test.Processes.Starts == 0U, "observing a review submits no native question");
 		test.Host.dispatch(input);
 		test.settle();
+		if (test.Processes.Starts != 1U || test.Workspaces.Starts != 1U) {
+			std::cerr << "native-workspace: processes=" << test.Processes.Starts << " workspaces=" << test.Workspaces.Starts << " refusals=";
+			for (const auto& refusal : test.Projection.Refusals) {
+				std::cerr << refusal << " | ";
+			}
+			std::cerr << " finished=";
+			for (const auto& finished : test.Projection.Finished) {
+				std::cerr << static_cast<int>(finished.Outcome) << ' ';
+			}
+			std::cerr << '\n';
+		}
 		expect(test.Processes.Starts == 1U && test.Workspaces.Starts == 1U && test.Workspaces.LastRequest->RetainForSession,
 			   "first native question makes a session-owned workspace");
 		expect(test.Workspaces.Cleanups == 0U && test.Host.is_quiescent(), "turn completion retains workspace while invocation quiesces");
