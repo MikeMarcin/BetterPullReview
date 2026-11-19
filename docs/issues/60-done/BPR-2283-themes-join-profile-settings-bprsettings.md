@@ -41,9 +41,10 @@ change the extension to .bprsettings."
 "don't keep legacy support. Drop import of old .bprtheme files and the old
 .json profile export entirely: no legacy reader, no legacy filters. Only the
 new .bprsettings format (with sections) is accepted, by dialog and by drop."
-AC3 and AC4's legacy clauses are replaced by that: a  document and
-a Profile Settings file before version 3 say "The file is not a
-BetterPullReview Profile Settings file."
+AC1's "older versions still import" and AC3, AC4 and AC6's legacy clauses
+are replaced by that: a `.bprtheme` document and a Profile Settings file
+before version 3 say "The file is not a BetterPullReview Profile Settings
+file.", and the tests check that refusal instead of a legacy import.
 
 ## Done (2026-11-19)
 
