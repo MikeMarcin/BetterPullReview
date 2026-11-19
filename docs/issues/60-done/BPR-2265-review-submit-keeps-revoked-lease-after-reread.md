@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2265"
 title: "After a pull request reread, Submit review, tour Publish and reply Send keep a factory holding the revoked mutation lease, so every attempt is refused locally until the app restarts"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "windows", "linux"]
 metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2265--BPR-2265--8e3ff63766ac.json","amends":"BPR-2263","found_by":"owner, 2026-11-18, build 68 on macOS: an Approve review with one or two pending line comments failed on every Submit and Retry, twice, each time about five minutes after a pull request reread. The page said 'Review was not published. Your summary and its pending comments are kept; check them and submit again.' Root cause traced from source","related_cards":["BPR-2263","BPR-1222","BPR-1540","BPR-1345"],"related_rfcs":[]}
-acceptance: []
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "72afb207d", "evidence": {"kind": "command", "detail": "application_review_submission_composition_public_path: two real rereads (window_read_progress snapshot changes, head kept) then one Approve reaches the server, with no refused_not_published logged; application_review_tour_publication_maintenance and _manual: two rereads then the published reorder's Publish completes; application_conversation_read_public_path: two rereads then the new comment's Send posts once; application_inline_publish_cli_consent published: two rereads then inline Publish unchanged"}}, {"criterion": "AC2", "outcome": "pass", "revision": "72afb207d", "evidence": {"kind": "command", "detail": "No factory captures a lease: window_review_drafts.cpp records WindowRead->mutation_transport() in application::publication_lease on composition and on repair, and every submission, tour and reply factory reads it through a weak reference at each call. application_review_submission_application_host test_publication_lease: after a revoke and renewal (twice) the next read gives the newest lease, a revoked lease is never read, and a factory outliving its window reads none. Same-binding adopt also renews the review, tour and reply hosts"}}, {"criterion": "AC3", "outcome": "pass", "revision": "72afb207d", "evidence": {"kind": "command", "detail": "A missing or inactive lease answers unavailable; perform logs provider_unavailable for every operation (test_pre_send_refusals: a discovery whose provider cannot be built is logged with its reason); core_review_submission: provider_unavailable and connection_lease_inactive say 'Not published: the publishing connection was replaced while this review was open. Your review is kept.', never check them"}}, {"criterion": "AC4", "outcome": "pass", "revision": "72afb207d", "evidence": {"kind": "command", "detail": "The BPR-2263 repair asks the window for review_submission_factory(binding), which records the window's current lease before building the factory; composition course: a refused provider is repaired and published from one Submit"}}, {"criterion": "AC5", "outcome": "pass", "revision": "72afb207d", "evidence": {"kind": "command", "detail": "Passed in a clean checkout of the lane (dev preset, macOS, offscreen): architecture_boundaries, core_review_submission, core_operation_diagnosis, application_review_submission_application_host, live_review_submission_provider, application_review_submission_composition_public_path, application_review_submission_cli_ordinary, application_inline_publish_cli_consent, application_conversation_read_public_path, application_review_tour_publication_native, _maintenance, _manual, quill_logging_content_policy; format clean; verify_documentation DOCUMENTATION_OK"}}]
 ---
 
 # BPR-2265: After a pull request reread, Submit review, tour Publish and reply Send keep a factory holding the revoked mutation lease, so every attempt is refused locally until the app restarts
@@ -183,3 +183,36 @@ Retry failed the same way.
 Quit and relaunch the app, open the pull request, and submit before it
 rereads. Signing out and in again also works. Refresh does not: it revokes
 the lease again. Pending comments are stored locally and survive a relaunch.
+
+## Result
+
+### Built
+
+- `application::publication_lease` holds the window's publishing lease as
+  the decision lane last read it. `current()` gives only an active lease,
+  and `read(weak)` gives none once the window is gone.
+- `review_submission_factory(binding)` records
+  `WindowRead->mutation_transport()` in that holder, then builds a factory
+  that reads it at each call. The tests-enabled fixture factories read it too
+  when the window has a lease. No submission, tour or reply factory captures a
+  lease, and a missing or revoked one is `unavailable`.
+- Defence in depth: `adopt` for the same binding and authority renews the
+  review, tour and reply hosts with the newest factory, without retiring them.
+- Corrections to [[BPR-2263]]: the repair goes through
+  `review_submission_factory`, so it takes the window's current lease.
+  `provider_unavailable` and `connection_lease_inactive` show the
+  replaced-connection sentence. `perform` logs a provider it cannot build for
+  every operation. That card's Out of scope now names this cause.
+
+### Tests and their limits
+
+- The fixture windows hold no publishing lease (`mutation_transport()` is
+  null there). The reread courses therefore show that Submit, tour Publish,
+  reply Send and inline Publish work after two real rereads, but they cannot
+  fail on the unfixed source. The holder's unit test covers the lease itself.
+- The composition course's reread step submits a summary Approve, not one
+  with a line comment. With a line comment written before the rereads,
+  Submit stopped at "a pending comment changed or could not be held for this
+  review" in the fixture. That is the comment hold, not the lease, and it is
+  worth a look on its own (see the report).
+
