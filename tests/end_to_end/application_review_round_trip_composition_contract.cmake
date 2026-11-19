@@ -2817,8 +2817,13 @@ function(bpr_verify_full_application_digest source_variable)
 	# the viewer's own case for Author (core::author_case_of over the same
 	# draft-state reading). No provider, admission, mutation branch,
 	# publication or source-inventory change.
+	# [[BPR-2280]], [[BPR-2281]] reseal (BPR-2215, at main 392dffc6f): Draft
+	# Description beside the description in Author, a tool-free writing run
+	# of the window's agent whose answer lands in Author's editor, sent only
+	# on Save (request_description_draft and its offer). No provider,
+	# admission, mutation branch, publication or source-inventory change.
 	set(bpr_expected_full_application_digest
-        "0fc72aa0f2a4dc1397c1f77738b6e3e126fc42e1b8896d3a0d3254fdf520c9eb"
+        "5143e64b19a0e02deefeed01f3577662638bb6f473ec342d70ae5e3087e092f5"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest

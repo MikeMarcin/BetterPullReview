@@ -396,6 +396,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-2261]]. A held turn restored after quit, registered on main
     # without an entry.
     "application_agent_chat_held_turn_public_path": "unmeasured (registered on macOS)",
+    # Registered on main without an entry.
+    "application_window_file_drop_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
